@@ -14,7 +14,7 @@ async fn do_check(world: &mut PaddlerWorld, agent_name: String) -> Result<()> {
         return Err(anyhow!("Agent {agent_name} does not exist in the world"));
     }
 
-    let agents_response = world.balancer_management_client.fetch_agents().await?;
+    let agents_response = world.balancer.management_client.fetch_agents().await?;
     let agent = agents_response
         .agents
         .iter()

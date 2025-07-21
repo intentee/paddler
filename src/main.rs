@@ -39,9 +39,9 @@ fn resolve_socket_addr(s: &str) -> Result<SocketAddr> {
 }
 
 fn parse_duration(arg: &str) -> Result<Duration> {
-    let seconds = arg.parse()?;
+    let milliseconds = arg.parse()?;
 
-    Ok(std::time::Duration::from_secs(seconds))
+    Ok(std::time::Duration::from_millis(milliseconds))
 }
 
 fn parse_socket_addr(arg: &str) -> Result<SocketAddr> {
@@ -80,8 +80,8 @@ enum Commands {
         /// Address of the management server that the agent will report to
         management_addr: SocketAddr,
 
-        #[arg(long, default_value = "10", value_parser = parse_duration)]
-        /// Interval (in seconds) at which the agent will report the status of the llama.cpp instance
+        #[arg(long, default_value = "10000", value_parser = parse_duration)]
+        /// Interval (in milliseconds) at which the agent will report the status of the llama.cpp instance
         monitoring_interval: Duration,
 
         #[arg(long)]
@@ -94,8 +94,8 @@ enum Commands {
     },
     /// Balances incoming requests to llama.cpp instances and optionally provides a web dashboard
     Balancer {
-        #[arg(long, default_value = "10", value_parser = parse_duration)]
-        /// The request timeout (in seconds). For all requests that a timely response from an
+        #[arg(long, default_value = "10000", value_parser = parse_duration)]
+        /// The request timeout (in milliseconds). For all requests that a timely response from an
         /// upstream isn't received for, the 504 (Gateway Timeout) error is issued.
         buffered_request_timeout: Duration,
 
@@ -131,6 +131,10 @@ enum Commands {
         rewrite_host_header: bool,
 
         #[arg(long)]
+        /// Enable the web metrics endpoint
+        metrics_endpoint_enable: bool,
+
+        #[arg(long)]
         /// Enable the slots endpoint (not recommended)
         slots_endpoint_enable: bool,
 
@@ -149,8 +153,8 @@ enum Commands {
         statsd_prefix: String,
 
         #[cfg(feature = "statsd_reporter")]
-        #[arg(long, default_value = "10", value_parser = parse_duration)]
-        /// Interval (in seconds) at which the balancer will report metrics to statsd
+        #[arg(long, default_value = "10000", value_parser = parse_duration)]
+        /// Interval (in milliseconds) at which the balancer will report metrics to statsd
         statsd_reporting_interval: Duration,
     },
     #[cfg(feature = "ratatui_dashboard")]
@@ -195,6 +199,7 @@ fn main() -> Result<()> {
             #[cfg(feature = "web_dashboard")]
             management_dashboard_enable,
             max_buffered_requests,
+            metrics_endpoint_enable,
             reverseproxy_addr,
             rewrite_host_header,
             check_model,
@@ -216,6 +221,7 @@ fn main() -> Result<()> {
                 #[cfg(feature = "web_dashboard")]
                 management_dashboard_enable.to_owned(),
                 *max_buffered_requests,
+                metrics_endpoint_enable.to_owned(),
                 reverseproxy_addr,
                 rewrite_host_header.to_owned(),
                 *check_model,

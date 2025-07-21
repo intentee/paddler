@@ -1,10 +1,12 @@
 [package]
+name = "paddler"
+edition = "2021"
 description = "Stateful load balancer custom-tailored for llama.cpp"
 license = "MIT"
-name = "paddler"
+authors = ["Intentee"]
 repository = "https://github.com/distantmagic/paddler"
+documentation = "https://github.com/distantmagic/paddler/blob/main/README.md"
 version = "1.2.1"
-edition = "2021"
 
 [workspace]
 members = ["integration_tests"]
@@ -45,6 +47,8 @@ esbuild-metafile = { version = "0.2.0", optional = true }
 mime_guess = { version = "2.0.5", optional = true }
 rust-embed = { version = "8.7.2", optional = true, features = ["interpolate-folder-path"] }
 uuid = { version = "1.17.0", features = ["v4", "serde", "zerocopy"] }
+reqwest-eventsource = "0.6.0"
+indoc = "2.0.6"
 
 [features]
 default = ["statsd_reporter", "ratatui_dashboard"]

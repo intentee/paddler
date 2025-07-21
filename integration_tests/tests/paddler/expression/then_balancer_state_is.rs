@@ -9,9 +9,9 @@ use crate::paddler_world::PaddlerWorld;
 
 #[then("balancer state is:")]
 pub async fn then_balancer_state_is(world: &mut PaddlerWorld, step: &Step) -> Result<()> {
-    let agents_response = world.balancer_management_client.fetch_agents().await?;
+    let agents_response = world.balancer.management_client.fetch_agents().await?;
 
-    world.last_balancer_state_update = Some(SystemTime::now());
+    world.balancer.last_update = Some(SystemTime::now());
 
     if let Some(table) = step.table.as_ref() {
         assert_balancer_table(table, &agents_response)?;

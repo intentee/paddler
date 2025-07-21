@@ -215,6 +215,10 @@ If you do not provide the `--statsd-addr` flag, the StatsD metrics will not be c
 
 - Change the agent object structure (which in turn changes the response from the API)
 - Rename the `agents` endpoint from `/agents` to `/api/v1/agents`
+- Adjusted to use milliseconds instead of seconds in services field:
+  
+    - `--monitoring-interval` in `agents`
+    - `--buffered-request_timeout` and `--statsd-reporting-interval` in `balancer`
 
 #### Features
 

@@ -9,21 +9,11 @@ const {
 } = parseArgs({
   args: process.argv.slice(2),
   options: {
-    completionResponseDelay: {
-      type: "string",
-    },
-    logFile: {
-      type: "string",
-    },
-    name: {
-      type: "string",
-    },
-    port: {
-      type: "string",
-    },
-    slots: {
-      type: "string",
-    },
+    completionResponseDelay: { type: "string" },
+    logFile: { type: "string" },
+    name: { type: "string" },
+    port: { type: "string" },
+    slots: { type: "string" },
   },
 });
 
@@ -47,12 +37,15 @@ const server = createServer(function (req, res) {
       res.statusCode = 400;
       res.setHeader("Content-Type", "application/json");
       res.end('{"error":"Missing x-request-name header"}');
-
       return;
     }
 
+    const slot = slotsStatuses[0];
+    slot.is_processing = true;
+
     setTimeout(function () {
       appendFile(logFile, `${name};${requestName}\n`, function (err) {
+        slot.is_processing = false;
         if (err) {
           res.statusCode = 500;
           res.setHeader("Content-Type", "text/plain");

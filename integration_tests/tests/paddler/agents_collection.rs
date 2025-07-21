@@ -3,6 +3,7 @@ use tokio::process::Child;
 
 #[derive(Debug, Default)]
 pub struct AgentsCollection {
+    pub monitoring_interval: Option<i64>,
     pub instances: DashMap<String, Child>,
 }
 

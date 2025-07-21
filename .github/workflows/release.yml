@@ -13,8 +13,11 @@ jobs:
     strategy:
       matrix:
         include:
+          - os: ubuntu-22.04
+            artifact_name: paddler-bin-linux-libc2.35-amd64
+
           - os: ubuntu-latest
-            artifact_name: paddler-bin-linux-amd64
+            artifact_name: paddler-bin-linux-libc2.39-amd64
 
           - os: windows-latest
             artifact_name: paddler-bin-windows-amd64.exe
@@ -29,24 +32,25 @@ jobs:
       - name: set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: stable        
 
-      - name: build static
-        run: |
-          make esbuild
+      - name: build the binary
+        run: make build
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: release-version
         uses: ./.github/workflows/composite/release-tag-to-version
         with:
           release-tag: "${{ github.ref_name }}"
 
-      - name: build the binary
+      - name: rename the binary
         run: |
-          cargo build --features web_dashboard --release
           if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            mv ./target/release/paddler.exe ./${{ matrix.artifact_name }}
+            cp ./target/release/paddler.exe ./${{ matrix.artifact_name }}
           else
-            mv ./target/release/paddler ./${{ matrix.artifact_name }}
+            cp ./target/release/paddler ./${{ matrix.artifact_name }}
           fi
         shell: bash
 
@@ -55,10 +59,18 @@ jobs:
           filename: "./${{ matrix.artifact_name }}"
           expected-version: "${{ steps.release-version.outputs.version }}"
 
+      - name: Build and archive binary
+        uses: ./.github/workflows/composite/cargo-deb
+        with:
+          deb: ${{ matrix.artifact_name }}
+          os: ${{ matrix.os }}
+          before: cargo install cargo-deb
+
       - name: upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
-          file: "./${{ matrix.artifact_name }}"
+          file: ./${{ matrix.artifact_name }}*
+          file_glob: true
           overwrite: true
           prerelease: ${{ steps.release-version.outputs.type == 'PRE_RELEASE' }}
           tag: ${{ github.ref }}

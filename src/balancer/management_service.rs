@@ -37,6 +37,7 @@ pub struct ManagementService {
     management_cors_allowed_hosts: Arc<Vec<String>>,
     #[cfg(feature = "web_dashboard")]
     management_dashboard_enable: bool,
+    metrics_endpoint_enable: bool,
     upstream_peers: Arc<UpstreamPeerPool>,
 }
 
@@ -45,6 +46,7 @@ impl ManagementService {
         addr: SocketAddr,
         management_cors_allowed_hosts: Vec<String>,
         #[cfg(feature = "web_dashboard")] management_dashboard_enable: bool,
+        metrics_endpoint_enable: bool,
         upstream_peers: Arc<UpstreamPeerPool>,
     ) -> Self {
         ManagementService {
@@ -52,6 +54,7 @@ impl ManagementService {
             management_cors_allowed_hosts: Arc::new(management_cors_allowed_hosts),
             #[cfg(feature = "web_dashboard")]
             management_dashboard_enable,
+            metrics_endpoint_enable,
             upstream_peers,
         }
     }
@@ -67,6 +70,8 @@ impl Service for ManagementService {
     ) {
         #[cfg(feature = "web_dashboard")]
         let management_dashboard_enable = self.management_dashboard_enable;
+
+        let metrics_endpoint_enable = self.metrics_endpoint_enable;
 
         let upstream_peers: Data<UpstreamPeerPool> = self.upstream_peers.clone().into();
         let management_cors_allowed_hosts = self.management_cors_allowed_hosts.clone();
@@ -87,6 +92,10 @@ impl Service for ManagementService {
                 app = app
                     .configure(http_route::dashboard::register)
                     .configure(http_route::static_files::register);
+            }
+
+            if metrics_endpoint_enable {
+                app = app.configure(http_route::api::get_metrics::register)
             }
 
             app

@@ -55,7 +55,10 @@ pub async fn given_agent_is_attached(
         llamacpp_name.clone(),
         LlamaCppInstance {
             child: Command::new("./tests/fixtures/llamacpp-server-mock.mjs")
-                .arg("--completionResponseDelay=300")
+                .arg(format!(
+                    "--completionResponseDelay={}",
+                    world.llamas.completion_response_delay.unwrap_or(300)
+                ))
                 .arg(format!("--logFile={}", log_file.path().to_string_lossy()))
                 .arg(format!("--name={llamacpp_name}"))
                 .arg(format!("--port={llamacpp_port}"))

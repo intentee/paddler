@@ -1,0 +1,30 @@
+name: 'cargo-deb action'
+description: 'cargo-deb action'
+inputs:
+  before:
+    description: 'Before hook'
+    required: false
+    default: ""
+  deb:
+    description: 'output .deb file name'
+    required: false
+    default: "" 
+  OS:
+    description: 'OS to build on'
+    required: true
+    default: ""
+
+outputs:
+    deb:
+      description: ".deb file"
+      value: ${{ steps.files.outputs.deb }}
+runs:
+  using: "composite"
+  steps:
+    - id: files
+      run: bash --noprofile --norc "${GITHUB_ACTION_PATH:?}/script.sh"
+      shell: bash
+      env:
+        INPUT_DEB: ${{ inputs.deb }}
+        INPUT_BEFORE: ${{ inputs.before }}
+        INPUT_OS: ${{ inputs.os }}

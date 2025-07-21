@@ -14,13 +14,12 @@ use futures::FutureExt;
 use futures::StreamExt;
 use ratatui::prelude::CrosstermBackend;
 use ratatui::Terminal;
+use reqwest_eventsource::Event as RequestEvent;
+use reqwest_eventsource::EventSource;
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio::time::interval;
-use tokio::time::Duration;
-use tokio::time::MissedTickBehavior;
 
 use crate::balancer::upstream_peer_pool::UpstreamPeerPoolInfo;
 use crate::cmd::dashboard::app::App;
@@ -28,22 +27,12 @@ use crate::cmd::dashboard::app::App;
 pub mod app;
 pub mod ui;
 
-async fn fetch_registered_agents(management_addr: SocketAddr) -> Result<UpstreamPeerPoolInfo> {
-    let response_string = reqwest::get(format!(
-        "http://{}/api/v1/agents",
-        management_addr.to_string().as_str()
-    ))
-    .await?
-    .text()
-    .await?;
-
-    Ok(serde_json::from_str(response_string.as_str())?)
+async fn fetch_registered_agents(management_addr: SocketAddr) -> EventSource {
+    EventSource::get(format!("http://{}/api/v1/agents/stream", management_addr))
 }
 
 pub async fn ratatui_main(management_addr: &SocketAddr) -> Result<()> {
     let mut terminal = ratatui::init();
-
-    let management_clone = *management_addr;
 
     let (app_needs_to_stop_tx, mut app_needs_to_stop_rx_update) = broadcast::channel::<bool>(1);
     let (upstream_peer_pool_tx, mut upstream_peer_pool_rx) =
@@ -51,29 +40,33 @@ pub async fn ratatui_main(management_addr: &SocketAddr) -> Result<()> {
     let (app_needs_to_render_app_error_tx, mut app_needs_to_render_error_rx) =
         mpsc::channel::<String>(1);
 
+    let mut agents_stream = fetch_registered_agents(*management_addr).await;
+
     let update_handle: JoinHandle<Result<()>> = tokio::spawn(async move {
-        let mut ticker = interval(Duration::from_millis(500));
-
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
         loop {
             tokio::select! {
                 _ = app_needs_to_stop_rx_update.recv() => {
                     break Ok(())
                 },
-                _ = ticker.tick() => {
-                    let upstream_peer_pool = fetch_registered_agents(management_clone).await;
-
-                    match upstream_peer_pool {
-                        Ok(upstream_peer_pool) => {
-                            if let Err(err) = upstream_peer_pool_tx.send(upstream_peer_pool).await {
-                                app_needs_to_render_app_error_tx.send(format!("Error sending upstream peer pool - {err}")).await.ok();
+                Some(event) = agents_stream.next() => {
+                    match event {
+                        Ok(RequestEvent::Open) => None,
+                        Ok(RequestEvent::Message(message)) => {
+                            match serde_json::from_str::<UpstreamPeerPoolInfo>(&message.data) {
+                                Ok(upstream_peer_pool) => {
+                                    upstream_peer_pool_tx.send(upstream_peer_pool).await.ok()
+                                },
+                                Err(err) => {
+                                    app_needs_to_render_app_error_tx.send(format!("Error parsing response - {}", err)).await.ok();
+                                    None
+                                },
                             }
                         },
                         Err(err) => {
-                            app_needs_to_render_app_error_tx.send(format!("Error fetching agents - {err}")).await.ok();
+                            app_needs_to_render_app_error_tx.send(format!("Error receiving event - {}", err)).await.ok();
+                            None
                         }
-                    }
+                    };
                 }
             }
         }
