@@ -78,7 +78,7 @@ And use GUI to test the inference:
 
 
 ## Starting out
-* [Setup a basic LLM cluster](https://paddler.intentee.com/docs/starting-out/setup-a-basic-llm-cluster/)
+* [Setup a basic LLM cluster](https://paddler.intentee.com/docs/starting-out/set-up-a-basic-llm-cluster/)
 * [Use Paddler's web admin panel](https://paddler.intentee.com/docs/starting-out/using-web-admin-panel/)
 * [Generate tokens and embeddings](https://paddler.intentee.com/docs/starting-out/generating-tokens-and-embeddings/)
 * [Use function calling](https://paddler.intentee.com/docs/starting-out/using-function-calling/)
