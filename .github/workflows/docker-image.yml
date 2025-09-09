@@ -1,0 +1,38 @@
+name: Test Paddler + LLM Compose
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile'
+      - 'example/**'
+
+jobs:
+  test-paddler-llm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image(s)
+        run: docker compose -f example/compose.yaml build
+
+      - name: Run Docker Compose in background
+        run: docker compose -f example/compose.yaml up -d
+
+      - name: Wait for services to be ready
+        run: sleep 60
+
+      - name: Test API on Balancer (port 8080)
+        run: |
+          echo "Testing http://localhost:8080 ..."
+          curl --fail http://localhost:8080 || (echo "API failed" && exit 1)
+
+      - name: Show running containers
+        run: docker ps
+
+      - name: Shut down
+        run: docker compose -f example/compose.yaml down -v
