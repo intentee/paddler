@@ -1,15 +1,15 @@
 # Paddler
 
-Digital products and their users need privacy, reliability, cost control and an option to be independent from third party vendors.
+Digital products and their users need privacy, reliability, cost control and an option to be independent from closed-source model providors.
 
-Paddler is an open-source LLMOps platform for organizations that host and scale open-source models in their own infrastructure.
+Paddler is an open-source LLM load balancer and serving platform. It allows you to deploy, scale and use open-source LLMs on your own infrastructure, providing a great developer experience along the way.
 
 ## Key features
 
 <img align="right" src="https://github.com/user-attachments/assets/19e74262-1918-4b1d-9b4c-bcb4f0ab79f5">
 
 * Inference through a built-in [llama.cpp](https://github.com/ggml-org/llama.cpp) engine
-* Load balancing
+* LLM-specific load balancing
 * Works through agents that can be added dynamically, allowing integration with autoscaling tools
 * Request buffering, enabling scaling from zero hosts
 * Dynamic model swapping
@@ -24,6 +24,21 @@ Paddler is an open-source LLMOps platform for organizations that host and scale 
 * Organizations wanting to achieve predictable LLM costs instead of being exposed to per-token pricing
 * Product leaders who need reliable model performance to maintain consistent user experience of their AI-based features
 
+## Installation
+
+Paddler is self-contained in a single binary file, so all you need to do to start using it, is obtain the `paddler` binary and make it available in your system.
+
+You can obtain the binary by:
+
+* Option 1: Downloading the latest release from our [GitHub releases](https://github.com/intentee/paddler/releases)
+* Option 2: Building Paddler from source
+
+### Using Paddler
+
+The entire Paddler functionality is available through the `paddler` command. 
+
+Run `paddler --help` to see the available commands and options and read more about [installation and initial setup](https://paddler.intentee.com/docs/introduction/installation/)
+
 ## Documentation
 
 Visit our [documentation page](https://paddler.intentee.com/docs/introduction/what-is-paddler/) to install Paddler and get started with it. 
@@ -32,22 +47,9 @@ Visit our [documentation page](https://paddler.intentee.com/docs/introduction/wh
 
 [Video overview](https://www.youtube.com/watch?v=aT6QCL8lk08)
 
-## Installation
+## Community and contributions
 
-There are multiple ways to install Paddler, but the goal is to obtain the `paddler` binary and make it available in your system.
-
-You can:
-
-* Option 1: Download the latest release from our [GitHub releases](https://github.com/intentee/paddler/releases)
-* Option 2: Build Paddler from source
-
-### Using Paddler
-
-The entire Paddler functionality is available through the `paddler` command.
-
-You can run `paddler --help` to see the available commands and options.
-
-Read more about [installation and initial setup](https://paddler.intentee.com/docs/introduction/installation/)
+For questions or community conversations, use GitHub discussions or join our [Discord server](https://discord.gg/92x3Z8a4gj). All contributions are welcome.
 
 ## How does it work?
 
