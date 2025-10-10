@@ -2,7 +2,7 @@
 
 Digital products and their users need privacy, reliability, cost control, and an option to be independent from closed-source model providers.
 
-Paddler is an open-source LLM load balancer and serving platform. It allows you to deploy, scale, and use open-source LLMs on your own infrastructure, providing a great developer experience along the way.
+Paddler is an open-source LLM load balancer and serving platform. It allows you to run inference, deploy, and scale LLMs on your own infrastructure, providing a great developer experience along the way.
 
 ## Key features
 
@@ -24,7 +24,7 @@ Paddler is an open-source LLM load balancer and serving platform. It allows you 
 * Organizations wanting to achieve predictable LLM costs instead of being exposed to per-token pricing
 * Product leaders who need reliable model performance to maintain a consistent user experience of their AI-based features
 
-## Installation
+## Installation and Quickstart
 
 Paddler is self-contained in a single binary file, so all you need to do to start using it is obtain the `paddler` binary and make it available in your system.
 
@@ -35,9 +35,24 @@ You can obtain the binary by:
 
 ### Using Paddler
 
-The entire Paddler functionality is available through the `paddler` command. 
+Once you have made the binary available in your system, you can start using Paddler. The entire Paddler functionality is available through the `paddler` command (running `paddler --help` will list all available commands).
 
-Run `paddler --help` to see the available commands and options and read more about [installation and initial setup](https://paddler.intentee.com/docs/introduction/installation/)
+There are only two deployable components, the `balancer` (which distributes the incoming requests), and the `agent` (which generates tokens and embeddings through slots).
+
+To start the balancer, run:
+
+```sh
+paddler balancer --inference-addr 127.0.0.1:8061 --management-addr 127.0.0.1:8060 --web-admin-panel-addr 127.0.0.1:8062
+```
+The `--web-admin-panel-addr` flag is optional, but it will allow you to view your setup in a web browser.
+
+And to start an agent with, for example, 4 slots, run:
+
+```sh
+paddler agent --management-addr 127.0.0.1:8060 --slots 4
+```
+
+Read more about the [installation](https://paddler.intentee.com/docs/introduction/installation/) and [setting up a basic cluster](http://127.0.0.1:8050/docs/starting-out/set-up-a-basic-llm-cluster/). 
 
 ## Documentation
 
