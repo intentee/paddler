@@ -13,7 +13,6 @@ use async_trait::async_trait;
 use futures_util::StreamExt as _;
 use log::debug;
 use log::error;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tokio::sync::broadcast;
 use tokio::time::Duration;
@@ -34,8 +33,8 @@ pub enum ContinuationDecision {
 #[async_trait]
 pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     type Context: Send + Sync + 'static;
-    type IncomingMessage: DeserializeOwned + RpcMessage + Send + Sync + 'static;
-    type OutgoingMessage: RpcMessage + Serialize + Send + Sync + 'static;
+    type IncomingMessage: DeserializeOwned + RpcMessage + Sync + 'static;
+    type OutgoingMessage: RpcMessage + Sync + 'static;
 
     fn create_context(&self) -> Self::Context;
 

@@ -21,7 +21,7 @@ spawner(async function ({ buildId, command }) {
         --inference-addr 127.0.0.1:8061
         --management-addr 127.0.0.1:8060
         --state-database file://${stateDatabase}
-        --web-admin-panel-addr 127.0.1:8062
+        --web-admin-panel-addr 127.0.0.1:8062
     `),
     command(`
       target/debug/paddler agent
