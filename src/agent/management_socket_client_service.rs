@@ -6,16 +6,16 @@ use anyhow::Context;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures_util::SinkExt as _;
-use log::debug;
 use futures_util::StreamExt;
+use log::debug;
 use log::error;
 use log::info;
 use log::warn;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
-use tokio::time::interval;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
+use tokio::time::interval;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 

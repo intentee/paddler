@@ -3,14 +3,13 @@ use std::marker::PhantomData;
 use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
-use serde::Serialize;
 
 use crate::controls_session::ControlsSession;
 use crate::rpc_message::RpcMessage;
 
 pub struct WebSocketSessionController<TResponse>
 where
-    TResponse: RpcMessage + Send + Serialize + Sync,
+    TResponse: RpcMessage + Sync,
 {
     session: Session,
     _marker: PhantomData<TResponse>,
@@ -18,7 +17,7 @@ where
 
 impl<TResponse> WebSocketSessionController<TResponse>
 where
-    TResponse: RpcMessage + Send + Serialize + Sync,
+    TResponse: RpcMessage + Sync,
 {
     pub fn new(session: Session) -> Self {
         WebSocketSessionController {
@@ -31,7 +30,7 @@ where
 #[async_trait]
 impl<TResponse> ControlsSession<TResponse> for WebSocketSessionController<TResponse>
 where
-    TResponse: RpcMessage + Send + Serialize + Sync + 'static,
+    TResponse: RpcMessage + Sync + 'static,
 {
     async fn send_response(&mut self, message: TResponse) -> Result<()> {
         let serialized_message = serde_json::to_string(&message)?;

@@ -1,8 +1,8 @@
-use actix_web::post;
-use actix_web::error::ErrorBadRequest;
-use actix_web::web;
 use actix_web::Error;
 use actix_web::Responder;
+use actix_web::error::ErrorBadRequest;
+use actix_web::post;
+use actix_web::web;
 
 use crate::validates::Validates as _;
 use crate::balancer::inference_service::app_data::AppData;
