@@ -35,6 +35,7 @@ pub mod normalization;
 pub mod pooling_type;
 pub mod produces_snapshot;
 pub mod request_params;
+pub mod resolved_socket_addr;
 pub mod rpc_message;
 pub mod sends_rpc_message;
 pub mod service;

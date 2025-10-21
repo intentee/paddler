@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -9,7 +8,7 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
-use super::parse_socket_addr;
+use super::value_parser::parse_socket_addr;
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
@@ -19,6 +18,7 @@ use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent::reconciliation_service::ReconciliationService;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::agent_desired_state::AgentDesiredState;
+use crate::resolved_socket_addr::ResolvedSocketAddr;
 use crate::service_manager::ServiceManager;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
@@ -26,7 +26,7 @@ use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 pub struct Agent {
     #[arg(long, value_parser = parse_socket_addr)]
     /// Address of the management server that the agent will connect to
-    management_addr: SocketAddr,
+    management_addr: ResolvedSocketAddr,
 
     #[arg(long)]
     /// Name of the agent (optional)
@@ -83,7 +83,7 @@ impl Handler for Agent {
                 .clone(),
             socket_url: format!(
                 "ws://{}/api/v1/agent_socket/{}",
-                self.management_addr,
+                self.management_addr.socket_addr,
                 nanoid!()
             ),
         });
