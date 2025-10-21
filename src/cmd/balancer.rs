@@ -1,4 +1,3 @@
-use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,8 +8,8 @@ use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
-use super::parse_duration;
-use super::parse_socket_addr;
+use super::value_parser::parse_duration;
+use super::value_parser::parse_socket_addr;
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -37,6 +36,7 @@ use crate::balancer::web_admin_panel_service::configuration::Configuration as We
 #[cfg(feature = "web_admin_panel")]
 use crate::balancer::web_admin_panel_service::template_data::TemplateData;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::resolved_socket_addr::ResolvedSocketAddr;
 use crate::service_manager::ServiceManager;
 
 #[derive(Parser)]
@@ -48,11 +48,11 @@ pub struct Balancer {
 
     #[arg(long, value_parser = parse_socket_addr)]
     /// Address of the OpenAI-compatible API server (enabled only if this address is specified)
-    compat_openai_addr: Option<SocketAddr>,
+    compat_openai_addr: Option<ResolvedSocketAddr>,
 
     #[arg(long, default_value = "127.0.0.1:8061", value_parser = parse_socket_addr)]
     /// Address of the inference server
-    inference_addr: SocketAddr,
+    inference_addr: ResolvedSocketAddr,
 
     #[arg(long, default_value = "5000", value_parser = parse_duration)]
     /// The timeout (in milliseconds) for generating a single token or a single embedding
@@ -67,7 +67,7 @@ pub struct Balancer {
 
     #[arg(long, default_value = "127.0.0.1:8060", value_parser = parse_socket_addr)]
     /// This is where you can manage your Paddler setup and the agents connect to
-    management_addr: SocketAddr,
+    management_addr: ResolvedSocketAddr,
 
     #[arg(
         long = "management-cors-allowed-host",
@@ -87,7 +87,7 @@ pub struct Balancer {
 
     #[arg(long, value_parser = parse_socket_addr)]
     /// Address for the statsd server to report metrics to (enabled only if this address is specified)
-    statsd_addr: Option<SocketAddr>,
+    statsd_addr: Option<ResolvedSocketAddr>,
 
     #[arg(long, default_value = "paddler_")]
     /// Prefix for statsd metrics
@@ -99,20 +99,20 @@ pub struct Balancer {
 
     #[arg(long, default_value = None, value_parser = parse_socket_addr)]
     /// Address of the web admin panel (enabled only if this address is specified)
-    web_admin_panel_addr: Option<SocketAddr>,
+    web_admin_panel_addr: Option<ResolvedSocketAddr>,
 }
 
 impl Balancer {
     fn get_management_service_configuration(&self) -> ManagementServiceConfiguration {
         ManagementServiceConfiguration {
-            addr: self.management_addr,
+            addr: self.management_addr.socket_addr,
             cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
         }
     }
 
     fn get_inference_service_configuration(&self) -> InferenceServiceConfiguration {
         InferenceServiceConfiguration {
-            addr: self.inference_addr,
+            addr: self.inference_addr.socket_addr,
             cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
             inference_item_timeout: self.inference_item_timeout,
         }
@@ -123,15 +123,16 @@ impl Balancer {
         &self,
     ) -> Option<WebAdminPanelServiceConfiguration> {
         self.web_admin_panel_addr
+            .clone()
             .map(|web_admin_panel_addr| WebAdminPanelServiceConfiguration {
-                addr: web_admin_panel_addr,
+                addr: web_admin_panel_addr.socket_addr,
                 template_data: TemplateData {
                     buffered_request_timeout: self.buffered_request_timeout,
-                    compat_openai_addr: self.compat_openai_addr,
+                    compat_openai_addr: self.compat_openai_addr.clone(),
+                    inference_addr: self.inference_addr.clone(),
+                    management_addr: self.management_addr.clone(),
                     max_buffered_requests: self.max_buffered_requests,
-                    management_addr: self.management_addr,
-                    inference_addr: self.inference_addr,
-                    statsd_addr: self.statsd_addr,
+                    statsd_addr: self.statsd_addr.clone(),
                     statsd_prefix: self.statsd_prefix.clone(),
                     statsd_reporting_interval: self.statsd_reporting_interval,
                 },
@@ -196,12 +197,12 @@ impl Handler for Balancer {
             is_converted_to_applicable_state: false,
         });
 
-        if let Some(statsd_addr) = self.statsd_addr {
+        if let Some(statsd_addr) = self.statsd_addr.clone() {
             service_manager.add_service(StatsdService {
                 agent_controller_pool,
                 buffered_request_manager: buffered_request_manager.clone(),
                 configuration: StatsdServiceConfiguration {
-                    statsd_addr,
+                    statsd_addr: statsd_addr.socket_addr,
                     statsd_prefix: self.statsd_prefix.clone(),
                     statsd_reporting_interval: self.statsd_reporting_interval,
                 },
@@ -213,12 +214,12 @@ impl Handler for Balancer {
             service_manager.add_service(WebAdminPanelService { configuration });
         }
 
-        if let Some(compat_openai_addr) = self.compat_openai_addr {
+        if let Some(compat_openai_addr) = self.compat_openai_addr.clone() {
             service_manager.add_service(OpenAIService {
                 buffered_request_manager,
                 inference_service_configuration: self.get_inference_service_configuration(),
                 openai_service_configuration: OpenAIServiceConfiguration {
-                    addr: compat_openai_addr,
+                    addr: compat_openai_addr.socket_addr,
                 },
             });
         }

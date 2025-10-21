@@ -1,5 +1,3 @@
-use std::net::SocketAddr;
-
 use actix_web::Responder;
 use actix_web::get;
 use actix_web::web;
@@ -19,8 +17,8 @@ pub fn register(cfg: &mut web::ServiceConfig) {
 struct WebAdminPanelTemplate {
     buffered_request_timeout_millis: u128,
     compat_openai_addr: String,
-    inference_addr: SocketAddr,
-    management_addr: SocketAddr,
+    inference_addr: String,
+    management_addr: String,
     max_buffered_requests: i32,
     preloads: HttpPreloader,
     statsd_addr: String,
@@ -35,16 +33,16 @@ async fn respond(preloads: HttpPreloader, app_data: web::Data<AppData>) -> impl 
             .template_data
             .buffered_request_timeout
             .as_millis(),
-        compat_openai_addr: match app_data.template_data.compat_openai_addr {
-            Some(addr) => addr.to_string(),
+        compat_openai_addr: match app_data.template_data.compat_openai_addr.clone() {
+            Some(addr) => addr.input_addr.clone(),
             None => String::new(),
         },
-        inference_addr: app_data.template_data.inference_addr,
-        management_addr: app_data.template_data.management_addr,
+        inference_addr: app_data.template_data.inference_addr.input_addr.clone(),
+        management_addr: app_data.template_data.management_addr.input_addr.clone(),
         max_buffered_requests: app_data.template_data.max_buffered_requests,
         preloads,
-        statsd_addr: match app_data.template_data.statsd_addr {
-            Some(addr) => addr.to_string(),
+        statsd_addr: match app_data.template_data.statsd_addr.clone() {
+            Some(addr) => addr.input_addr.clone(),
             None => String::new(),
         },
         statsd_prefix: app_data.template_data.statsd_prefix.clone(),
