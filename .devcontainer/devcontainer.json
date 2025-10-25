@@ -6,7 +6,7 @@
 		// Sets the run context to one level up instead of the .devcontainer folder.
 		"context": "..",
 		// Update the 'dockerFile' property if you aren't using the standard 'Dockerfile' filename.
-		"dockerfile": "./devcontainer.dockerfile"
+		"dockerfile": "./dev-cuda13.dockerfile"
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
@@ -15,7 +15,7 @@
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// Forwarding standard ports used by paddler
 	// Change here according your set-up
-	"forwardPorts": [8060, 8061, 8062]
+	"forwardPorts": [8060, 8061, 8062],
 
 	// Uncomment the next line to run commands after the container is created.
 	// "postCreateCommand": "cat /etc/os-release",
@@ -25,4 +25,8 @@
 
 	// Uncomment to connect as an existing user other than the container default. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "devcontainer"
+
+	// Uncomment to use GPU. Use 'dev-cuda13.dockerfile'
+	"runArgs": [ "--gpus", "all" ]
 }
+
