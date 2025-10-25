@@ -31,7 +31,7 @@ Paddler is self-contained in a single binary file, so all you need to do to star
 You can obtain the binary by:
 
 * Option 1: Downloading the latest release from our [GitHub releases](https://github.com/intentee/paddler/releases)
-* Option 2: Or building Paddler from source
+* Option 2: Or building Paddler from source (MSRV is *1.88.0*)
 
 ### Using Paddler
 

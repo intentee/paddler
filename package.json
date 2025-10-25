@@ -9,7 +9,6 @@
   },
   "devDependencies": {
     "@types/hotwired__turbo": "^8",
-    "@types/path-to-regexp": "^1.7.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "ava": "^6.4.1",
