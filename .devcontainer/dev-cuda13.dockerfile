@@ -1,25 +1,16 @@
-FROM node:trixie-slim
+# Start from official CUDA 13 image
+FROM docker.io/nvidia/cuda:13.0.1-cudnn-devel-ubuntu24.04
 
-# Install common utils
+# Install base utils
 RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    git \
     cmake \
-    build-essential \
-    libssl-dev \
-    pkg-config \
+    curl \
     libclang-dev
 
-# Install CUDA 13
-RUN wget https://developer.download.nvidia.com/compute/cuda/repos/debian12/x86_64/cuda-keyring_1.1-1_all.deb \
-    && dpkg -i cuda-keyring_1.1-1_all.deb \
-    && apt-get update \
-    && apt-get -y install \
-        cuda-toolkit-13-0 \
-        nvidia-open
-
-ENV PATH=/usr/local/cuda/bin:$PATH
+# Install nodejs
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm
 
 # Install Rust
 ENV RUSTUP_HOME=/usr/local/rustup \
