@@ -1,0 +1,32 @@
+name: test
+
+on:
+  pull_request:
+    branches:
+      - "**"
+    types:
+      - edited
+      - opened
+      - ready_for_review
+      - review_requested
+      - synchronize
+  push:
+    branches:
+      - "**"
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: build Dockerfile
+        run: |
+          docker build -t paddler .

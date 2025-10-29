@@ -8,7 +8,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     git \
     cmake \
-    build-essential g++ clang \
+    build-essential \
+    g++ \
+    clang \
     libssl-dev \
     pkg-config
 
