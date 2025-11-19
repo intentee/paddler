@@ -16,7 +16,7 @@
     "eslint": "^9.33.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "fs-extra": "^11.3.1",
-    "glob": "^11.0.3",
+    "glob": "^11.1.0",
     "jarmuz": "^0.4.0",
     "lodash": "^4.17.21",
     "node-notifier": "^10.0.1",
