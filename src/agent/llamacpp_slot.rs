@@ -87,14 +87,14 @@ impl LlamaCppSlot {
         if let Err(err) = self.llama_context.decode(batch) {
             match err {
                 DecodeError::NoKvCacheSlot => {
-                    if !taken_kv_cache_repair_actions.contains(&KVCacheRepairAction::Defrag) {
+                    if !taken_kv_cache_repair_actions.contains(&KVCacheRepairAction::Clear) {
                         debug!(
                             "{:?}: slot {} has no KV cache slot, defragmenting",
                             self.slot_context.agent_name, self.index
                         );
 
-                        taken_kv_cache_repair_actions.push(KVCacheRepairAction::Defrag);
-                        self.llama_context.kv_cache_defrag();
+                        taken_kv_cache_repair_actions.push(KVCacheRepairAction::Clear);
+                        self.llama_context.clear_kv_cache();
 
                         return self
                             .continuation_batch_decode(batch, taken_kv_cache_repair_actions);
