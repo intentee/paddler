@@ -9,47 +9,47 @@ repository = "https://github.com/intentee/paddler"
 version = "2.1.1"
 
 [dependencies]
-actix = "0.13.5"
-actix-cors = "0.7.1"
-actix-rt = "2.10.0"
-actix-web = "4.11.0"
-actix-web-lab = "0.24.1"
-actix-ws = "0.3.0"
-anyhow = { version = "1.0.98", features = ["backtrace"] }
-async-stream = "0.3.6"
-async-trait = "0.1.88"
-bytes = "1.10.1"
-cadence = "1.5.0"
-clap = { version = "4.5.39", features = ["derive"] }
-dashmap = "6.1.0"
-encoding_rs = { version = "0.8.35", features = ["serde"] }
-env_logger = "0.11.8"
-futures = "0.3.31"
-futures-util = { version = "0.3.31", features = ["tokio-io"] }
-hf-hub = { version = "0.4.3", features = ["tokio"] }
-indoc = "2.0.6"
-jsonschema = { version = "0.32.1", default-features = false }
-llama-cpp-2 = { version = "0.1.114" }
-log = "0.4.27"
-minijinja = { version = "2.11.0", features = ["builtins", "json", "loader"] }
-minijinja-contrib = { version = "2.11.0", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
-nanoid = "0.4.0"
-nix = { version = "0.30.1", features = ["signal"] }
-rand = "0.9.2"
-reqwest = { version = "0.12.20", features = ["json", "stream"] }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
-shellexpand = "3.1.1"
-tokio = { version = "1.45.1", features = ["full"] }
+actix = "0.13"
+actix-cors = "0.7"
+actix-rt = "2.11"
+actix-web = "4"
+actix-web-lab = "0.24"
+actix-ws = "0.3"
+anyhow = { version = "1", features = ["backtrace"] }
+async-stream = "0.3"
+async-trait = "0.1"
+bytes = "1.11"
+cadence = "1.6"
+clap = { version = "4.5", features = ["derive"] }
+dashmap = "6.1"
+encoding_rs = { version = "0.8", features = ["serde"] }
+env_logger = "0.11"
+futures = "0.3"
+futures-util = { version = "0.3", features = ["tokio-io"] }
+hf-hub = { version = "0.4", features = ["tokio"] }
+indoc = "2"
+jsonschema = { version = "0.37", default-features = false }
+llama-cpp-2 = { version = "0.1.126" }
+log = "0.4"
+minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
+minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
+nanoid = "0.4"
+nix = { version = "0.30", features = ["signal"] }
+rand = "0.9"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+shellexpand = "3"
+tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
-tokio-tungstenite = "0.27.0"
-url = { version = "2.5.4", features = ["serde"] }
+tokio-tungstenite = "0.28"
+url = { version = "2.5", features = ["serde"] }
 
 # web dashboard deps
-askama = { version = "0.14.0", optional = true }
-esbuild-metafile = { version = "0.2.1", optional = true }
-mime_guess = { version = "2.0.5", optional = true }
-rust-embed = { version = "8.7.2", optional = true, features = ["interpolate-folder-path"] }
+askama = { version = "0.14", optional = true }
+esbuild-metafile = { version = "0.5.2", optional = true }
+mime_guess = { version = "2", optional = true }
+rust-embed = { version = "8.9", optional = true, features = ["interpolate-folder-path"] }
 
 [features]
 default = ["web_admin_panel"]
