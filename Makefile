@@ -36,6 +36,14 @@ jarmuz-static: node_modules
 release: node_modules
 	./jarmuz-release.mjs
 
+.PHONY: release.cuda
+release.cuda: node_modules
+	./jarmuz-release.mjs --cuda
+
+.PHONY: release.vulkan
+release.vulkan: node_modules
+	./jarmuz-release.mjs --vulkan
+
 .PHONY: test
 test: jarmuz-static
 	cargo test
