@@ -7,6 +7,12 @@ pub struct ModelMetadataHolder {
 }
 
 impl ModelMetadataHolder {
+    pub fn new() -> Self {
+        Self {
+            model_metadata: RwLock::new(None),
+        }
+    }
+    
     pub fn set_model_metadata(&self, metadata: ModelMetadata) {
         let mut lock = self
             .model_metadata
