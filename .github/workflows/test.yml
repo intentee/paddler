@@ -27,6 +27,6 @@ jobs:
 
       - name: Test
         run: |
-          make test
+          make test.llms
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
