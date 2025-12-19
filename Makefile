@@ -49,7 +49,7 @@ test: jarmuz-static
 	cargo test
 
 .PHONY: test.llms
-test.llms:
+test.llms: jarmuz-static
 	cargo test --features tests_that_use_llms -- --nocapture
 
 .PHONY: watch
