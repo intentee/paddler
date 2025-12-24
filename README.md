@@ -111,7 +111,7 @@ And use a GUI to test the inference:
         - Runtime reconfiguration, without requiring restarts
         - Elastic scaling, including scaling to and from zero hosts through request buffering
     - In contrast, llama.cpp RPC relies on predefined hosts configured on start-up, offers limited fault tolerance, and uses basic load-balancing strategies that are unaware of LLM execution characteristics.
-    For more information, see [issue](https://github.com/intentee/paddler/issues/35).
+    For more information, see [GitHub issue #35](https://github.com/intentee/paddler/issues/35).
 
 ## Why the Name
 
