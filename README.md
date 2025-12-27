@@ -64,7 +64,7 @@ Visit our [documentation page](https://paddler.intentee.com/docs/introduction/wh
 
 ## Community and contributions
 
-For questions or community conversations, use GitHub discussions or join our [Discord server](https://discord.gg/92x3Z8a4gj). All contributions are welcome.
+For questions or community conversations, use GitHub issues with the `question` label or join our [Discord server](https://discord.gg/92x3Z8a4gj). All contributions are welcome.
 
 ## How does it work?
 
