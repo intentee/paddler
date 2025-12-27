@@ -110,7 +110,7 @@ And use a GUI to test the inference:
         - LLM-aware load balancing, based on slot utilization 
         - Runtime reconfiguration, without requiring restarts
         - Elastic scaling, including scaling to and from zero hosts through request buffering
-    - In contrast, llama.cpp RPC is focused on practicity, relies on predefined hosts configured on start-up, offers limited fault tolerance, and uses round-robin load-balancing strategy that is unaware of LLM execution time.
+    - In contrast, llama.cpp RPC is focused on practicality, relies on predefined hosts configured on start-up, offers limited fault tolerance, and uses round-robin load-balancing strategy that is unaware of LLM execution time.
     For more information, see [GitHub issue #35](https://github.com/intentee/paddler/issues/35).
 
 ## Why the Name
