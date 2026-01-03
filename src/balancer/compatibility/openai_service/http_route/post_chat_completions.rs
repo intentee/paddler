@@ -58,7 +58,7 @@ struct OpenAICompletionRequestParams {
     messages: Vec<OpenAIMessage>,
     /// This parameter is ignored here, but is required by the OpenAI API.
     model: String,
-    stream: bool,
+    stream: Option<bool>,
 }
 
 #[derive(Clone)]
@@ -166,7 +166,7 @@ async fn respond(
         tools: vec![],
     };
 
-    if openai_params.stream {
+    if openai_params.stream.unwrap_or(false) {
         http_stream_from_agent(
             app_data.buffered_request_manager.clone(),
             app_data.inference_service_configuration.clone(),
