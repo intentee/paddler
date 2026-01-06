@@ -102,6 +102,25 @@ And use a GUI to test the inference:
 * [Create a multi agent fleet](https://paddler.intentee.com/docs/starting-out/multi-agent-fleet/)
 * [Go beyond a single device](https://paddler.intentee.com/docs/starting-out/going-beyond-a-single-device/)
 
+## FAQ
+<details>
+  <summary><strong>What’s the difference between Paddler and llama.cpp RPC?</strong></summary>
+
+- **Paddler provides:**
+  - Dynamic service discovery (agents can be added/removed at runtime)
+  - Fault tolerance with automatic handling of unavailable agents
+  - LLM-aware load balancing based on slot utilization
+  - Runtime reconfiguration without restarts
+  - Elastic scaling, including scale-to-zero via request buffering
+
+- **llama.cpp RPC** focuses on practicality, relies on predefined hosts at startup,
+  has limited fault tolerance, and uses a round-robin load balancing unaware of LLM execution time.
+
+- For more information, see
+  [GitHub issue #35](https://github.com/intentee/paddler/issues/35).
+
+</details>
+
 ## Why the Name
 
 We initially wanted to use [Raft](https://raft.github.io/) consensus algorithm (thus Paddler, because it paddles on a Raft), but eventually dropped that idea. The name stayed, though.
