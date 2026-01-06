@@ -29,7 +29,7 @@ futures-util = { version = "0.3", features = ["tokio-io"] }
 hf-hub = { version = "0.4", features = ["tokio"] }
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-2 = { version = "0.1.126" }
+llama-cpp-2 = { version = "0.1.131" }
 log = "0.4"
 minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
