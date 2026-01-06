@@ -103,15 +103,23 @@ And use a GUI to test the inference:
 * [Go beyond a single device](https://paddler.intentee.com/docs/starting-out/going-beyond-a-single-device/)
 
 ## FAQ
-* What’s the difference between Paddler and llama.cpp RPC?
-    - Paddler has:
-        - Dynamic service discovery, allowing agents to be added or removed at runtime
-        - Fault tolerance, with automatic handling of unavailable agents
-        - LLM-aware load balancing, based on slot utilization 
-        - Runtime reconfiguration, without requiring restarts
-        - Elastic scaling, including scaling to and from zero hosts through request buffering
-    - In contrast, llama.cpp RPC is focused on practicality, relies on predefined hosts configured on start-up, offers limited fault tolerance, and uses round-robin load-balancing strategy that is unaware of LLM execution time.
-    For more information, see [GitHub issue #35](https://github.com/intentee/paddler/issues/35).
+<details>
+  <summary><strong>What’s the difference between Paddler and llama.cpp RPC?</strong></summary>
+
+- **Paddler provides:**
+  - Dynamic service discovery (agents can be added/removed at runtime)
+  - Fault tolerance with automatic handling of unavailable agents
+  - LLM-aware load balancing based on slot utilization
+  - Runtime reconfiguration without restarts
+  - Elastic scaling, including scale-to-zero via request buffering
+
+- **llama.cpp RPC** focuses on practicality, relies on predefined hosts at startup,
+  has limited fault tolerance, and uses a round-robin load balancing unaware of LLM execution time.
+
+- For more information, see
+  [GitHub issue #35](https://github.com/intentee/paddler/issues/35).
+
+</details>
 
 ## Why the Name
 
