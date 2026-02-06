@@ -122,7 +122,7 @@ impl LlamaCppSlot {
     fn embedding_batch_decode(
         &mut self,
         batch: &mut LlamaBatch,
-        current_batch_embeddings: &Vec<&EmbeddingInputTokenized>,
+        current_batch_embeddings: &[&EmbeddingInputTokenized],
         generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
         normalization_method: &EmbeddingNormalizationMethod,
     ) -> Result<()> {
@@ -276,45 +276,21 @@ impl LlamaCppSlot {
             .context("failed to tokenize embedding input batch")?;
 
         let mut batch = LlamaBatch::new(self.slot_context.inference_parameters.batch_n_tokens, 1);
-        let mut current_batch_embeddings: Vec<&EmbeddingInputTokenized> = Vec::new();
 
         for embedding_input_tokenized in &tokens_lines_list {
             if generate_embedding_stop_rx.try_recv().is_ok() {
                 break;
             }
 
-            // Flush the batch if the next prompt would exceed our batch size
-            if (batch.n_tokens() as usize + embedding_input_tokenized.llama_tokens.len())
-                > self.slot_context.inference_parameters.batch_n_tokens
-            {
-                self.embedding_batch_decode(
-                    &mut batch,
-                    &current_batch_embeddings,
-                    &generated_embedding_tx,
-                    &normalization_method,
-                )?;
+            batch.add_sequence(&embedding_input_tokenized.llama_tokens, 0, true)?;
 
-                current_batch_embeddings.clear();
-            }
-
-            batch.add_sequence(
-                &embedding_input_tokenized.llama_tokens,
-                current_batch_embeddings.len() as i32,
-                false,
+            self.embedding_batch_decode(
+                &mut batch,
+                &[embedding_input_tokenized],
+                &generated_embedding_tx,
+                &normalization_method,
             )?;
-            current_batch_embeddings.push(embedding_input_tokenized);
         }
-
-        if generate_embedding_stop_rx.try_recv().is_ok() {
-            return Ok(());
-        }
-
-        self.embedding_batch_decode(
-            &mut batch,
-            &current_batch_embeddings,
-            &generated_embedding_tx,
-            &normalization_method,
-        )?;
 
         Ok(())
     }
