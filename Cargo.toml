@@ -1,14 +1,17 @@
-[package]
+[workspace]
+members = ["paddler", "paddler_client", "paddler_types"]
+resolver = "2"
+
+[workspace.package]
 authors = ["Intentee"]
 description = "Open-source LLMOps platform for hosting and scaling AI in your own infrastructure"
 edition = "2024"
 homepage = "https://paddler.intentee.com/"
 license = "Apache-2.0"
-name = "paddler"
 repository = "https://github.com/intentee/paddler"
 version = "2.1.1"
 
-[dependencies]
+[workspace.dependencies]
 actix = "0.13"
 actix-cors = "0.7"
 actix-rt = "2.11"
@@ -16,6 +19,7 @@ actix-web = "4"
 actix-web-lab = "0.24"
 actix-ws = "0.3"
 anyhow = { version = "1", features = ["backtrace"] }
+askama = "0.14"
 async-stream = "0.3"
 async-trait = "0.1"
 bytes = "1.11"
@@ -24,48 +28,35 @@ clap = { version = "4.5", features = ["derive"] }
 dashmap = "6.1"
 encoding_rs = { version = "0.8", features = ["serde"] }
 env_logger = "0.11"
+esbuild-metafile = "0.5.2"
 futures = "0.3"
 futures-util = { version = "0.3", features = ["tokio-io"] }
 hf-hub = { version = "0.4", features = ["tokio"] }
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-2 = { version = "0.1.126" }
+llama-cpp-2 = "0.1.133"
+llama-cpp-sys-2 = "0.1.133"
 log = "0.4"
+mime_guess = "2"
 minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
 nanoid = "0.4"
 nix = { version = "0.30", features = ["signal"] }
 rand = "0.9"
 reqwest = { version = "0.12", features = ["json", "stream"] }
+rust-embed = { version = "8.9", features = ["interpolate-folder-path"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 shellexpand = "3"
+tempfile = "3.20.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
+thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
-
-# web dashboard deps
-askama = { version = "0.14", optional = true }
-esbuild-metafile = { version = "0.5.2", optional = true }
-mime_guess = { version = "2", optional = true }
-rust-embed = { version = "8.9", optional = true, features = ["interpolate-folder-path"] }
-
-[features]
-default = ["web_admin_panel"]
-cuda = ["llama-cpp-2/cuda"]
-tests_that_use_llms = []
-web_admin_panel = [
-    "dep:askama",
-    "dep:esbuild-metafile",
-    "dep:mime_guess",
-    "dep:rust-embed",
-]
-vulkan = ["llama-cpp-2/vulkan"]
+paddler_client = { path = "paddler_client" }
+paddler_types = { path = "paddler_types", default-features = false }
 
 [profile.release]
 lto = true
 codegen-units = 1
-
-[dev-dependencies]
-tempfile = "3.20.0"

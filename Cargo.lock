@@ -671,9 +671,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.47"
+version = "1.2.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd405d82c84ff7f35739f175f67d8b9fb7687a0e84ccdc78bd3568839827cf07"
+checksum = "47b26a0954ae34af09b50f0de26458fa95369a0d478d8236d3f93082b219bd29"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1097,9 +1097,9 @@ checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
 name = "find-msvc-tools"
-version = "0.1.5"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a3076410a55c90011c298b04d0cfa770b00fa04e1e3c97d3f6c9de105a03844"
+checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
 
 [[package]]
 name = "find_cuda_helper"
@@ -1880,10 +1880,11 @@ checksum = "241eaef5fd12c88705a01fc1066c48c4b36e0dd4377dcdc7ec3942cea7a69956"
 
 [[package]]
 name = "llama-cpp-2"
-version = "0.1.126"
+version = "0.1.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6611337b4abaae091918aacbbf2a25525b25818efc88de935ad249a7f979e4b"
+checksum = "888c8805527f4c35ec16f26003d54a318cde1629e7439da8e9ef2d6d3883e106"
 dependencies = [
+ "encoding_rs",
  "enumflags2",
  "llama-cpp-sys-2",
  "thiserror 1.0.69",
@@ -1893,9 +1894,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-sys-2"
-version = "0.1.126"
+version = "0.1.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcf4f0b93f111d7cc2ae702b2dd20efb4a9a19297addb3e63c1cfb97e6a13c6f"
+checksum = "a180dfa6d6f9d1df1e031bcdf0464bbad4f9b326395bfd28f2fa539d8cbc9c2b"
 dependencies = [
  "bindgen",
  "cc",
@@ -2271,12 +2272,14 @@ dependencies = [
  "indoc",
  "jsonschema",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "log",
  "mime_guess",
  "minijinja",
  "minijinja-contrib",
  "nanoid",
  "nix",
+ "paddler_types",
  "rand 0.9.2",
  "reqwest",
  "rust-embed",
@@ -2288,6 +2291,36 @@ dependencies = [
  "tokio-stream",
  "tokio-tungstenite",
  "url",
+]
+
+[[package]]
+name = "paddler_client"
+version = "2.1.1"
+dependencies = [
+ "anyhow",
+ "dashmap",
+ "futures-util",
+ "log",
+ "nanoid",
+ "paddler_types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "tokio",
+ "tokio-stream",
+ "tokio-tungstenite",
+ "url",
+]
+
+[[package]]
+name = "paddler_types"
+version = "2.1.1"
+dependencies = [
+ "anyhow",
+ "jsonschema",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
