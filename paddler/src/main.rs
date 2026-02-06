@@ -12,7 +12,7 @@ use tokio::signal::unix::signal;
 use tokio::sync::oneshot;
 
 #[cfg(feature = "web_admin_panel")]
-pub const ESBUILD_META_CONTENTS: &str = include_str!("../esbuild-meta.json");
+pub const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true), version, about, long_about = None)]

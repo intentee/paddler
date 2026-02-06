@@ -1,0 +1,67 @@
+[package]
+name = "paddler"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+actix = { workspace = true }
+actix-cors = { workspace = true }
+actix-rt = { workspace = true }
+actix-web = { workspace = true }
+actix-web-lab = { workspace = true }
+actix-ws = { workspace = true }
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+cadence = { workspace = true }
+clap = { workspace = true }
+dashmap = { workspace = true }
+encoding_rs = { workspace = true }
+env_logger = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+hf-hub = { workspace = true }
+indoc = { workspace = true }
+jsonschema = { workspace = true }
+llama-cpp-2 = { workspace = true }
+log = { workspace = true }
+minijinja = { workspace = true }
+minijinja-contrib = { workspace = true }
+nanoid = { workspace = true }
+nix = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+shellexpand = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-tungstenite = { workspace = true }
+url = { workspace = true }
+
+# web dashboard deps
+askama = { workspace = true, optional = true }
+esbuild-metafile = { workspace = true, optional = true }
+mime_guess = { workspace = true, optional = true }
+rust-embed = { workspace = true, optional = true }
+
+[features]
+default = ["web_admin_panel"]
+cuda = ["llama-cpp-2/cuda"]
+tests_that_use_llms = []
+web_admin_panel = [
+    "dep:askama",
+    "dep:esbuild-metafile",
+    "dep:mime_guess",
+    "dep:rust-embed",
+]
+vulkan = ["llama-cpp-2/vulkan"]
+
+[dev-dependencies]
+tempfile = { workspace = true }
