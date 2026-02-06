@@ -9,7 +9,7 @@ edition = "2024"
 homepage = "https://paddler.intentee.com/"
 license = "Apache-2.0"
 repository = "https://github.com/intentee/paddler"
-version = "2.1.1"
+version = "2.2.0"
 
 [workspace.dependencies]
 actix = "0.13"
@@ -54,8 +54,8 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
-paddler_client = { path = "paddler_client" }
-paddler_types = { path = "paddler_types", default-features = false }
+paddler_client = { version = "2.2.0", path = "paddler_client" }
+paddler_types = { version = "2.2.0", path = "paddler_types", default-features = false }
 
 [profile.release]
 lto = true
