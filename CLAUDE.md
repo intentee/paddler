@@ -37,14 +37,20 @@ Keep the code beautiful. Always optimize the code for a great developer experien
 - Always specify Rust dependencies in root Cargo.toml, then use workspace versions of packages in workspace members.
 - Avoid unnecessary abstractions.
 - Before using vendor crates or modules, make sure they are well-maintained, secure, and documented.
+- Always make sure there is only one valid way to do a specific task in the codebase. Make sure everything has a single source of truth.
 
-## Quality Control
+## Unit Tests and Quality Control
 
 - Always check the project with Clippy.
 - Always format the code with `cargo fmt`.
+- Always check that the unit tests pass.
 - Always test the code, make sure tests work after the changes.
-
+- Always write tests that check the algorithms, or meaningful edge cases. Never write tests that check things that can be handled by types instead.
+- If some piece of code can be handled by proper types, use types instead. Write tests as a last resort.
+- In unit tests, make sure there is always just a single correct way to do a specific thing. Never accept fuzzy inputs from end users.
+- When working on tests, if you notice that the tested code can be better, you can suggest changes.
 
 ## Committing Changes
 
 - Always keep the commit messages short, human readable, descriptive. Keep commit messages as one-liners.
+- Do not add any metadata to commits.

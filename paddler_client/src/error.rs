@@ -1,23 +1,16 @@
-use anyhow::Error as AnyhowError;
-use reqwest::Error as ReqwestError;
-use serde_json::Error as JsonError;
-use thiserror::Error as ThisError;
-use tokio_tungstenite::tungstenite::Error as WsError;
-use url::ParseError;
-
-#[derive(Debug, ThisError)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("HTTP request failed: {0}")]
-    Http(#[from] ReqwestError),
+    Http(#[from] reqwest::Error),
 
     #[error("WebSocket error: {0}")]
-    WebSocket(#[from] WsError),
+    WebSocket(#[from] tokio_tungstenite::tungstenite::Error),
 
     #[error("JSON serialization error: {0}")]
-    Json(#[from] JsonError),
+    Json(#[from] serde_json::Error),
 
     #[error("URL parse error: {0}")]
-    Url(#[from] ParseError),
+    Url(#[from] url::ParseError),
 
     #[error("WebSocket pool exhausted: no available connections")]
     PoolExhausted,
@@ -32,8 +25,8 @@ pub enum Error {
     Other(String),
 }
 
-impl From<AnyhowError> for Error {
-    fn from(err: AnyhowError) -> Self {
+impl From<anyhow::Error> for Error {
+    fn from(err: anyhow::Error) -> Self {
         Error::Other(err.to_string())
     }
 }
