@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use crate::model_metadata::ModelMetadata;
+use paddler_types::model_metadata::ModelMetadata;
 
 pub struct ModelMetadataHolder {
     model_metadata: RwLock<Option<ModelMetadata>>,

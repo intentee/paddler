@@ -10,6 +10,8 @@ use async_trait::async_trait;
 use log::error;
 use log::info;
 use log::warn;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 use tokio::fs;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -26,9 +28,7 @@ use crate::agent::llamacpp_slot::LlamaCppSlot;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::agent_issue::AgentIssue;
 use crate::agent_issue_fix::AgentIssueFix;
-use crate::agent_state_application_status::AgentStateApplicationStatus;
 use crate::service::Service;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 

@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler"]
+members = ["paddler", "paddler_client", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -51,7 +51,10 @@ tempfile = "3.20.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
+thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
+paddler_client = { path = "paddler_client" }
+paddler_types = { path = "paddler_types", default-features = false }
 
 [profile.release]
 lto = true

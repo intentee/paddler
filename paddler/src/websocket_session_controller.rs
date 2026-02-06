@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
+use paddler_types::rpc_message::RpcMessage;
 
 use crate::controls_session::ControlsSession;
-use crate::rpc_message::RpcMessage;
 
 pub struct WebSocketSessionController<TResponse>
 where

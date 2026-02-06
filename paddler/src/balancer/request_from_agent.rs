@@ -5,6 +5,12 @@ use anyhow::Result;
 use log::debug;
 use log::error;
 use log::warn;
+use paddler_types::inference_client::Message as OutgoingMessage;
+use paddler_types::inference_client::Response as OutgoingResponse;
+use paddler_types::jsonrpc::Error as JsonRpcError;
+use paddler_types::jsonrpc::ErrorEnvelope;
+use paddler_types::jsonrpc::ResponseEnvelope;
+use paddler_types::streamable_result::StreamableResult;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 
@@ -13,16 +19,10 @@ use crate::balancer::agent_controller::AgentController;
 use crate::balancer::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResponse;
-use crate::balancer::inference_client::Message as OutgoingMessage;
-use crate::balancer::inference_client::Response as OutgoingResponse;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::balancer::manages_senders::ManagesSenders;
 use crate::balancer::manages_senders_controller::ManagesSendersController;
 use crate::controls_session::ControlsSession;
-use crate::jsonrpc::Error as JsonRpcError;
-use crate::jsonrpc::ErrorEnvelope;
-use crate::jsonrpc::ResponseEnvelope;
-use crate::streamable_result::StreamableResult;
 
 pub async fn request_from_agent<TControlsSession, TParams>(
     buffered_request_manager: Arc<BufferedRequestManager>,

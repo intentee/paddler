@@ -5,6 +5,11 @@ use actix_web::Error;
 use actix_web::rt;
 use log::error;
 use nanoid::nanoid;
+use paddler_types::inference_client::Message as OutgoingMessage;
+use paddler_types::inference_client::Response as OutgoingResponse;
+use paddler_types::jsonrpc::Error as JsonRpcError;
+use paddler_types::jsonrpc::ErrorEnvelope;
+use paddler_types::streamable_result::StreamableResult;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -15,15 +20,10 @@ use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResponse;
-use crate::balancer::inference_client::Message as OutgoingMessage;
-use crate::balancer::inference_client::Response as OutgoingResponse;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::balancer::manages_senders::ManagesSenders;
 use crate::balancer::request_from_agent::request_from_agent;
 use crate::controls_session::ControlsSession as _;
-use crate::jsonrpc::Error as JsonRpcError;
-use crate::jsonrpc::ErrorEnvelope;
-use crate::streamable_result::StreamableResult;
 
 pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     buffered_request_manager: Arc<BufferedRequestManager>,

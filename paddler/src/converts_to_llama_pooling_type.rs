@@ -1,21 +1,13 @@
 use llama_cpp_2::context::params::LlamaPoolingType;
-use serde::Deserialize;
-use serde::Serialize;
+use paddler_types::pooling_type::PoolingType;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[repr(i8)]
-pub enum PoolingType {
-    Unspecified = -1,
-    None = 0,
-    Mean = 1,
-    Cls = 2,
-    Last = 3,
-    Rank = 4,
+pub trait ConvertsToLlamaPoolingType {
+    fn to_llama_pooling_type(self) -> LlamaPoolingType;
 }
 
-impl From<PoolingType> for LlamaPoolingType {
-    fn from(pooling_type: PoolingType) -> LlamaPoolingType {
-        match pooling_type {
+impl ConvertsToLlamaPoolingType for PoolingType {
+    fn to_llama_pooling_type(self) -> LlamaPoolingType {
+        match self {
             PoolingType::Unspecified => LlamaPoolingType::Unspecified,
             PoolingType::None => LlamaPoolingType::None,
             PoolingType::Mean => LlamaPoolingType::Mean,

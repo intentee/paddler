@@ -22,6 +22,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
 use log::info;
+use paddler_types::jsonrpc::ResponseEnvelope;
+use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use serde::Deserialize;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -49,9 +51,7 @@ use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
-use crate::jsonrpc::ResponseEnvelope;
 use crate::sets_desired_state::SetsDesiredState as _;
-use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 pub fn register(cfg: &mut ServiceConfig) {

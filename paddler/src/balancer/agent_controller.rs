@@ -12,15 +12,21 @@ use nanoid::nanoid;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
-use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use crate::agent::jsonrpc::notification_params::SetStateParams;
+use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::jsonrpc::RequestEnvelope;
+use paddler_types::request_params::ContinueFromConversationHistoryParams;
+use paddler_types::request_params::ContinueFromRawPromptParams;
+use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+
 use crate::agent::jsonrpc::Message as AgentJsonRpcMessage;
 use crate::agent::jsonrpc::Notification as AgentJsonRpcNotification;
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
+use crate::agent::jsonrpc::notification_params::SetStateParams;
 use crate::agent_desired_state::AgentDesiredState;
-use crate::agent_issue::AgentIssue;
 use crate::atomic_value::AtomicValue;
-use crate::balancer::agent_controller_snapshot::AgentControllerSnapshot;
 use crate::balancer::agent_controller_update_result::AgentControllerUpdateResult;
 use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use crate::balancer::embedding_sender_collection::EmbeddingSenderCollection;
@@ -29,14 +35,9 @@ use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResp
 use crate::balancer::manages_senders::ManagesSenders;
 use crate::balancer::manages_senders_controller::ManagesSendersController;
 use crate::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
-use crate::jsonrpc::RequestEnvelope;
 use crate::produces_snapshot::ProducesSnapshot;
-use crate::request_params::ContinueFromConversationHistoryParams;
-use crate::request_params::ContinueFromRawPromptParams;
-use crate::request_params::GenerateEmbeddingBatchParams;
 use crate::sends_rpc_message::SendsRpcMessage;
 use crate::sets_desired_state::SetsDesiredState;
-use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 pub struct AgentController {
     pub agent_message_tx: mpsc::UnboundedSender<AgentJsonRpcMessage>,

@@ -5,15 +5,15 @@ use std::sync::atomic::AtomicUsize;
 
 use anyhow::Result;
 use dashmap::DashSet;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::Notify;
 
-use crate::agent_issue::AgentIssue;
 use crate::agent_issue_fix::AgentIssueFix;
-use crate::agent_state_application_status::AgentStateApplicationStatus;
 use crate::atomic_value::AtomicValue;
 use crate::dispenses_slots::DispensesSlots;
 use crate::produces_snapshot::ProducesSnapshot;
-use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 pub struct SlotAggregatedStatus {
     desired_slots_total: i32,

@@ -19,31 +19,32 @@ use tokio::time::interval;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use crate::agent_desired_state::AgentDesiredState;
-use crate::agent::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
+use paddler_types::jsonrpc::Error as JsonRpcError;
+use paddler_types::jsonrpc::ErrorEnvelope;
+use paddler_types::jsonrpc::RequestEnvelope;
+use paddler_types::jsonrpc::ResponseEnvelope;
+
+use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
+use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use crate::agent::from_request_params::FromRequestParams;
+use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::jsonrpc::Message as JsonRpcMessage;
 use crate::agent::jsonrpc::Notification as JsonRpcNotification;
 use crate::agent::jsonrpc::Request as JsonRpcRequest;
 use crate::agent::jsonrpc::Response as JsonRpcResponse;
-use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::agent::jsonrpc::notification_params::SetStateParams;
-use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::agent::jsonrpc::notification_params::VersionParams;
-use crate::slot_aggregated_status::SlotAggregatedStatus;
-use crate::agent::from_request_params::FromRequestParams;
+use crate::agent::model_metadata_holder::ModelMetadataHolder;
+use crate::agent::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
+use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
+use crate::agent_desired_state::AgentDesiredState;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::Message as ManagementJsonRpcMessage;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::Notification as ManagementJsonRpcNotification;
-use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::RegisterAgentParams;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::UpdateAgentStatusParams;
-use crate::jsonrpc::Error as JsonRpcError;
-use crate::jsonrpc::ResponseEnvelope;
-use crate::jsonrpc::RequestEnvelope;
 use crate::produces_snapshot::ProducesSnapshot;
-use crate::jsonrpc::ErrorEnvelope;
 use crate::service::Service;
-use crate::agent::model_metadata_holder::ModelMetadataHolder;
+use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 struct IncomingMessageContext {
     agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,

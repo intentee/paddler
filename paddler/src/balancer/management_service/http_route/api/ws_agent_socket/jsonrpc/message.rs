@@ -1,12 +1,12 @@
+use paddler_types::jsonrpc::Error;
+use paddler_types::jsonrpc::ErrorEnvelope;
+use paddler_types::jsonrpc::ResponseEnvelope;
+use paddler_types::rpc_message::RpcMessage;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::Notification;
 use crate::agent::jsonrpc::Response;
-use crate::jsonrpc::Error;
-use crate::jsonrpc::ErrorEnvelope;
-use crate::jsonrpc::ResponseEnvelope;
-use crate::rpc_message::RpcMessage;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

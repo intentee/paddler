@@ -10,28 +10,18 @@ use hf_hub::RepoType;
 use hf_hub::api::tokio::ApiBuilder;
 use hf_hub::api::tokio::ApiError;
 use log::warn;
-use serde::Deserialize;
-use serde::Serialize;
+use paddler_types::agent_desired_model::AgentDesiredModel;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use tokio::time::Duration;
 use tokio::time::sleep;
 
-use crate::agent_issue::AgentIssue;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::converts_to_applicable_state::ConvertsToApplicableState;
-use crate::huggingface_model_reference::HuggingFaceModelReference;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::slot_aggregated_status_download_progress::SlotAggregatedStatusDownloadProgress;
 
 const LOCK_RETRY_TIMEOUT: Duration = Duration::from_secs(10);
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub enum AgentDesiredModel {
-    HuggingFace(HuggingFaceModelReference),
-    LocalToAgent(String),
-    #[default]
-    None,
-}
 
 #[async_trait]
 impl ConvertsToApplicableState for AgentDesiredModel {

@@ -3,9 +3,8 @@ use minijinja::Environment;
 use minijinja::Error;
 use minijinja::ErrorKind;
 use minijinja_contrib::pycompat::unknown_method_callback;
+use paddler_types::chat_template::ChatTemplate;
 use serde::ser::Serialize;
-
-use crate::chat_template::ChatTemplate;
 
 const CHAT_TEMPLATE_NAME: &str = "chat_template";
 

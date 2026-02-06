@@ -2,10 +2,10 @@ pub mod identity_transformer;
 pub mod transforms_outgoing_message;
 
 use async_trait::async_trait;
+use paddler_types::inference_client::Message as OutgoingMessage;
 use tokio::sync::mpsc;
 
 use self::transforms_outgoing_message::TransformsOutgoingMessage;
-use crate::balancer::inference_client::Message as OutgoingMessage;
 use crate::controls_session::ControlsSession;
 
 #[derive(Clone)]

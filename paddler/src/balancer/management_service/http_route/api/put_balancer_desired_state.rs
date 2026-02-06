@@ -4,9 +4,9 @@ use actix_web::Responder;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::put;
 use actix_web::web;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 
 use crate::balancer::management_service::app_data::AppData;
-use crate::balancer_desired_state::BalancerDesiredState;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);

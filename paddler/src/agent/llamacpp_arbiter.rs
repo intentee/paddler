@@ -19,20 +19,21 @@ use llama_cpp_2::model::Special;
 use llama_cpp_2::model::params::LlamaModelParams;
 use log::error;
 use log::info;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
+use paddler_types::agent_issue_params::SlotCannotStartParams;
+use paddler_types::chat_template::ChatTemplate;
+use paddler_types::inference_parameters::InferenceParameters;
+use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
 use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
 use crate::agent::llamacpp_slot::LlamaCppSlot;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
-use crate::agent_issue::AgentIssue;
 use crate::agent_issue_fix::AgentIssueFix;
-use crate::agent_issue_params::ChatTemplateDoesNotCompileParams;
-use crate::agent_issue_params::SlotCannotStartParams;
-use crate::chat_template::ChatTemplate;
 use crate::chat_template_renderer::ChatTemplateRenderer;
-use crate::inference_parameters::InferenceParameters;
-use crate::model_metadata::ModelMetadata;
+use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
 pub struct LlamaCppArbiter {
@@ -79,7 +80,12 @@ impl LlamaCppArbiter {
                     .with_n_threads(n_threads)
                     // n_threads_batch > 1 causes some unpredictability
                     .with_n_threads_batch(n_threads_batch)
-                    .with_pooling_type(inference_parameters.pooling_type.clone().into()),
+                    .with_pooling_type(
+                        inference_parameters
+                            .pooling_type
+                            .clone()
+                            .to_llama_pooling_type(),
+                    ),
             );
             let backend_clone = llama_backend.clone();
             let model = Arc::new(
@@ -293,16 +299,16 @@ impl LlamaCppArbiter {
 #[cfg(feature = "tests_that_use_llms")]
 mod tests {
     use futures::future::join_all;
+    use paddler_types::agent_desired_model::AgentDesiredModel;
+    use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
+    use paddler_types::inference_parameters::InferenceParameters;
+    use paddler_types::request_params::ContinueFromRawPromptParams;
     use tokio::sync::mpsc;
 
     use super::*;
     use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-    use crate::agent_desired_model::AgentDesiredModel;
     use crate::agent_desired_state::AgentDesiredState;
     use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
-    use crate::huggingface_model_reference::HuggingFaceModelReference;
-    use crate::inference_parameters::InferenceParameters;
-    use crate::request_params::ContinueFromRawPromptParams;
 
     const SLOTS_TOTAL: i32 = 2;
 

@@ -2,13 +2,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+use paddler_types::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
 use crate::balancer::buffered_request_counter::BufferedRequestCounter;
-use crate::balancer::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 use crate::produces_snapshot::ProducesSnapshot;
 
 pub struct BufferedRequestManager {

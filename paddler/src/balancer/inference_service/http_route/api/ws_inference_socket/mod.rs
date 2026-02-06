@@ -13,22 +13,22 @@ use actix_web::web::ServiceConfig;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
+use paddler_types::inference_client::Message as OutgoingMessage;
+use paddler_types::jsonrpc::Error as JsonRpcError;
+use paddler_types::jsonrpc::ErrorEnvelope;
+use paddler_types::jsonrpc::RequestEnvelope;
+use paddler_types::validates::Validates as _;
 use tokio::sync::broadcast;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
 use self::jsonrpc::Message as InferenceJsonRpcMessage;
 use self::jsonrpc::Request as InferenceJsonRpcRequest;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
-use crate::balancer::inference_client::Message as OutgoingMessage;
 use crate::balancer::inference_service::app_data::AppData;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::balancer::request_from_agent::request_from_agent;
 use crate::controls_websocket_endpoint::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
-use crate::jsonrpc::Error as JsonRpcError;
-use crate::jsonrpc::ErrorEnvelope;
-use crate::jsonrpc::RequestEnvelope;
-use crate::validates::Validates as _;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 pub fn register(cfg: &mut ServiceConfig) {

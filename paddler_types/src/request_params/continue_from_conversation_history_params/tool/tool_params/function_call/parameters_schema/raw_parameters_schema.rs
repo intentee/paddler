@@ -1,5 +1,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
+#[cfg(feature = "validation")]
+use jsonschema::validator_for;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
@@ -8,10 +10,15 @@ use serde_json::Value;
 use super::validated_parameters_schema::ValidatedParametersSchema;
 use crate::validates::Validates;
 
+#[cfg(feature = "validation")]
 fn validate_schema(schema: &Value) -> Result<()> {
-    // Try to create a validator - this validates the schema structure
-    jsonschema::validator_for(schema).map_err(|err| anyhow!("{err}"))?;
+    validator_for(schema).map_err(|err| anyhow!("{err}"))?;
 
+    Ok(())
+}
+
+#[cfg(not(feature = "validation"))]
+fn validate_schema(_schema: &Value) -> Result<()> {
     Ok(())
 }
 
@@ -61,6 +68,7 @@ impl Validates<ValidatedParametersSchema> for RawParametersSchema {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::from_value;
     use serde_json::json;
 
     use super::*;
@@ -77,7 +85,7 @@ mod tests {
             "additionalProperties": false
         });
 
-        let raw_schema: RawParametersSchema = serde_json::from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input).unwrap();
         let schema: ValidatedParametersSchema = raw_schema.validate().unwrap();
 
         assert_eq!(schema.schema_type, "object");
@@ -96,14 +104,22 @@ mod tests {
             }
         });
 
-        let raw_schema: RawParametersSchema = serde_json::from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input).unwrap();
         let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
 
-        assert!(result.is_err());
+        #[cfg(feature = "validation")]
+        {
+            assert!(result.is_err());
 
-        let error = result.unwrap_err().to_string();
+            let error = result.unwrap_err().to_string();
 
-        assert!(error.contains("Invalid schema for property 'name'"));
+            assert!(error.contains("Invalid schema for property 'name'"));
+        }
+
+        #[cfg(not(feature = "validation"))]
+        {
+            assert!(result.is_ok());
+        }
     }
 
     #[test]
@@ -116,7 +132,7 @@ mod tests {
             "required": ["name", "missing_field"]
         });
 
-        let raw_schema: RawParametersSchema = serde_json::from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input).unwrap();
         let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
 
         assert!(result.is_err());
@@ -133,13 +149,21 @@ mod tests {
             "additionalProperties": {"type": "not_a_type"}
         });
 
-        let raw_schema: RawParametersSchema = serde_json::from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input).unwrap();
         let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
 
-        assert!(result.is_err());
+        #[cfg(feature = "validation")]
+        {
+            assert!(result.is_err());
 
-        let error = result.unwrap_err().to_string();
+            let error = result.unwrap_err().to_string();
 
-        assert!(error.contains("Invalid additionalProperties schema"));
+            assert!(error.contains("Invalid additionalProperties schema"));
+        }
+
+        #[cfg(not(feature = "validation"))]
+        {
+            assert!(result.is_ok());
+        }
     }
 }

@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
 use crate::balancer::manages_senders::ManagesSenders;
-use crate::generated_token_result::GeneratedTokenResult;
 
 pub struct GenerateTokensSenderCollection {
     senders: DashMap<String, mpsc::UnboundedSender<GeneratedTokenResult>>,

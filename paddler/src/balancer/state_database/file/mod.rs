@@ -6,6 +6,7 @@ use anyhow::Context;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::warn;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
@@ -13,7 +14,6 @@ use tokio::sync::broadcast;
 
 use self::schema::Schema;
 use super::StateDatabase;
-use crate::balancer_desired_state::BalancerDesiredState;
 
 pub struct File {
     balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>,

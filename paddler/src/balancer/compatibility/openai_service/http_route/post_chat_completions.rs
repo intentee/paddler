@@ -8,6 +8,12 @@ use actix_web::web;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use nanoid::nanoid;
+use paddler_types::conversation_message::ConversationMessage;
+use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::inference_client::Message as OutgoingMessage;
+use paddler_types::inference_client::Response as OutgoingResponse;
+use paddler_types::jsonrpc::ResponseEnvelope;
+use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt as _;
@@ -15,13 +21,7 @@ use tokio_stream::StreamExt as _;
 use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::compatibility::openai_service::app_data::AppData;
 use crate::balancer::http_stream_from_agent::http_stream_from_agent;
-use crate::balancer::inference_client::Message as OutgoingMessage;
-use crate::balancer::inference_client::Response as OutgoingResponse;
 use crate::balancer::unbounded_stream_from_agent::unbounded_stream_from_agent;
-use crate::conversation_message::ConversationMessage;
-use crate::generated_token_result::GeneratedTokenResult;
-use crate::jsonrpc::ResponseEnvelope;
-use crate::request_params::ContinueFromConversationHistoryParams;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
@@ -43,11 +43,11 @@ struct OpenAIMessage {
     role: String,
 }
 
-impl OpenAIMessage {
-    fn to_paddler_message(&self) -> ConversationMessage {
+impl From<&OpenAIMessage> for ConversationMessage {
+    fn from(openai_message: &OpenAIMessage) -> Self {
         ConversationMessage {
-            content: self.content.clone(),
-            role: self.role.clone(),
+            content: openai_message.content.clone(),
+            role: openai_message.role.clone(),
         }
     }
 }
@@ -159,7 +159,7 @@ async fn respond(
         conversation_history: openai_params
             .messages
             .iter()
-            .map(|openai_message| openai_message.to_paddler_message())
+            .map(ConversationMessage::from)
             .collect(),
         enable_thinking: true,
         max_tokens: openai_params.max_completion_tokens.unwrap_or(2000),

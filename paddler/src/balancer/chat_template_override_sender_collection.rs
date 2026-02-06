@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
+use paddler_types::chat_template::ChatTemplate;
 use tokio::sync::mpsc;
 
 use crate::balancer::manages_senders::ManagesSenders;
-use crate::chat_template::ChatTemplate;
 
 pub struct ChatTemplateOverrideSenderCollection {
     senders: DashMap<String, mpsc::UnboundedSender<Option<ChatTemplate>>>,

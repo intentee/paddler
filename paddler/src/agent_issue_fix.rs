@@ -1,5 +1,5 @@
-use crate::agent_issue::AgentIssue;
-use crate::agent_issue_params::SlotCannotStartParams;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_params::SlotCannotStartParams;
 
 pub enum AgentIssueFix {
     ChatTemplateIsCompiled,

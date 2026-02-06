@@ -1,10 +1,10 @@
 use actix::Message;
 use anyhow::Result;
+use paddler_types::embedding_result::EmbeddingResult;
+use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::agent::from_request_params::FromRequestParams;
-use crate::embedding_result::EmbeddingResult;
-use crate::request_params::GenerateEmbeddingBatchParams;
 
 #[derive(Debug, Message)]
 #[rtype(result = "Result<()>")]

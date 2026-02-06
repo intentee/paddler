@@ -1,7 +1,6 @@
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::balancer_desired_state::BalancerDesiredState;
 
 fn default_version() -> String {
     "1".into()

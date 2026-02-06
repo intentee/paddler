@@ -19,6 +19,13 @@ use log::debug;
 use log::error;
 use log::info;
 use minijinja::context;
+use paddler_types::embedding::Embedding;
+use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_types::embedding_result::EmbeddingResult;
+use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::request_params::ContinueFromConversationHistoryParams;
+use paddler_types::request_params::ContinueFromRawPromptParams;
+use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use rand::Rng as _;
 use rand::rngs::ThreadRng;
 use tokio::sync::mpsc;
@@ -28,14 +35,7 @@ use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::kv_cache_repair_action::KVCacheRepairAction;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
-use crate::embedding::Embedding;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
-use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
-use crate::embedding_result::EmbeddingResult;
-use crate::generated_token_result::GeneratedTokenResult;
-use crate::request_params::ContinueFromConversationHistoryParams;
-use crate::request_params::ContinueFromRawPromptParams;
-use crate::request_params::GenerateEmbeddingBatchParams;
 use crate::slot_status::SlotStatus;
 
 pub struct LlamaCppSlot {

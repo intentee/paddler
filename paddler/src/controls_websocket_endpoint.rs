@@ -13,13 +13,13 @@ use async_trait::async_trait;
 use futures_util::StreamExt as _;
 use log::debug;
 use log::error;
+use paddler_types::rpc_message::RpcMessage;
 use serde::de::DeserializeOwned;
 use tokio::sync::broadcast;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 
-use crate::rpc_message::RpcMessage;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 const MAX_CONTINUATION_SIZE: usize = 100 * 1024;

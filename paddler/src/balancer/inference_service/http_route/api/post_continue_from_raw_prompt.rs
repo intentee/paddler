@@ -2,11 +2,11 @@ use actix_web::Error;
 use actix_web::Responder;
 use actix_web::post;
 use actix_web::web;
+use paddler_types::request_params::ContinueFromRawPromptParams;
 
 use crate::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::balancer::http_stream_from_agent::http_stream_from_agent;
 use crate::balancer::inference_service::app_data::AppData;
-use crate::request_params::ContinueFromRawPromptParams;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);

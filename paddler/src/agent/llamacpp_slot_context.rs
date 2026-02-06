@@ -2,9 +2,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use llama_cpp_2::model::LlamaModel;
+use paddler_types::inference_parameters::InferenceParameters;
 
 use crate::chat_template_renderer::ChatTemplateRenderer;
-use crate::inference_parameters::InferenceParameters;
 
 pub struct LlamaCppSlotContext {
     pub agent_name: Option<String>,
