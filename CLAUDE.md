@@ -38,6 +38,7 @@ Keep the code beautiful. Always optimize the code for a great developer experien
 - Avoid unnecessary abstractions.
 - Before using vendor crates or modules, make sure they are well-maintained, secure, and documented.
 - Always make sure there is only one valid way to do a specific task in the codebase. Make sure everything has a single source of truth.
+- In Rust, when implementing `new` method in a struct, prefer to use a struct with parameters list instead of multiple function arguments. It should be easier to maintain.
 
 ## Unit Tests and Quality Control
 
@@ -54,3 +55,4 @@ Keep the code beautiful. Always optimize the code for a great developer experien
 
 - Always keep the commit messages short, human readable, descriptive. Keep commit messages as one-liners.
 - Do not add any metadata to commits.
+- Describe what the changes actually do instead of listing the changed files.

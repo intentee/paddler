@@ -1,5 +1,4 @@
 mod inference_socket_controller_context;
-pub mod jsonrpc;
 
 use std::sync::Arc;
 
@@ -14,15 +13,16 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
 use paddler_types::inference_client::Message as OutgoingMessage;
+use paddler_types::inference_server::Message as InferenceServerMessage;
+use paddler_types::inference_server::Request as InferenceServerRequest;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::RequestEnvelope;
+use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_types::validates::Validates as _;
 use tokio::sync::broadcast;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
-use self::jsonrpc::Message as InferenceJsonRpcMessage;
-use self::jsonrpc::Request as InferenceJsonRpcRequest;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::inference_service::app_data::AppData;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -31,9 +31,8 @@ use crate::controls_websocket_endpoint::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::websocket_session_controller::WebSocketSessionController;
 
-pub fn register(cfg: &mut ServiceConfig) {
-    cfg.service(respond);
-}
+type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
+type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 
 struct InferenceSocketController {
     buffered_request_manager: Arc<BufferedRequestManager>,
@@ -71,15 +70,18 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 return Ok(ContinuationDecision::Continue);
             }
             InferenceJsonRpcMessage::Request(RequestEnvelope {
-                id,
-                request: InferenceJsonRpcRequest::ContinueFromConversationHistory(params),
+                id: request_id,
+                request:
+                    InferenceJsonRpcRequest::ContinueFromConversationHistory(
+                        conversation_history_params,
+                    ),
             }) => {
                 request_from_agent(
                     context.buffered_request_manager.clone(),
                     connection_close_tx,
                     context.inference_service_configuration.clone(),
-                    params.validate()?,
-                    id,
+                    conversation_history_params.validate()?,
+                    request_id,
                     websocket_session_controller,
                 )
                 .await?;
@@ -87,15 +89,15 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 Ok(ContinuationDecision::Continue)
             }
             InferenceJsonRpcMessage::Request(RequestEnvelope {
-                id,
-                request: InferenceJsonRpcRequest::ContinueFromRawPrompt(params),
+                id: request_id,
+                request: InferenceJsonRpcRequest::ContinueFromRawPrompt(raw_prompt_params),
             }) => {
                 request_from_agent(
                     context.buffered_request_manager.clone(),
                     connection_close_tx,
                     context.inference_service_configuration.clone(),
-                    params,
-                    id,
+                    raw_prompt_params,
+                    request_id,
                     websocket_session_controller,
                 )
                 .await?;
@@ -110,12 +112,16 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 async fn respond(
     app_data: Data<AppData>,
     payload: Payload,
-    req: HttpRequest,
+    http_request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let inference_socket_controller = InferenceSocketController {
         buffered_request_manager: app_data.buffered_request_manager.clone(),
         inference_service_configuration: app_data.inference_service_configuration.clone(),
     };
 
-    inference_socket_controller.respond(payload, req)
+    inference_socket_controller.respond(payload, http_request)
+}
+
+pub fn register(service_config: &mut ServiceConfig) {
+    service_config.service(respond);
 }

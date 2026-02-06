@@ -16,6 +16,7 @@ pub mod generated_token_result;
 pub mod huggingface_model_reference;
 pub mod inference_client;
 pub mod inference_parameters;
+pub mod inference_server;
 pub mod jsonrpc;
 pub mod model_metadata;
 pub mod normalization;

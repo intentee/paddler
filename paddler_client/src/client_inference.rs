@@ -8,6 +8,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use url::Url;
 
 use paddler_types::inference_client::Message as InferenceMessage;
+use paddler_types::inference_server::Message as InferenceServerMessage;
+use paddler_types::inference_server::Request as InferenceServerRequest;
+use paddler_types::jsonrpc::RequestEnvelope;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
@@ -50,9 +53,14 @@ impl<'client> ClientInference<'client> {
         params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send + '_>>> {
         let request_id = nanoid!();
+        let message: InferenceServerMessage<ValidatedParametersSchema> =
+            InferenceServerMessage::Request(RequestEnvelope {
+                id: request_id.clone(),
+                request: InferenceServerRequest::ContinueFromConversationHistory(params),
+            });
         let rx = self
             .get_inference_socket_pool()
-            .send_request(request_id, params)
+            .send_request(request_id, message)
             .await?;
 
         Ok(Box::pin(UnboundedReceiverStream::new(rx)))
@@ -63,9 +71,14 @@ impl<'client> ClientInference<'client> {
         params: ContinueFromRawPromptParams,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send + '_>>> {
         let request_id = nanoid!();
+        let message: InferenceServerMessage<ValidatedParametersSchema> =
+            InferenceServerMessage::Request(RequestEnvelope {
+                id: request_id.clone(),
+                request: InferenceServerRequest::ContinueFromRawPrompt(params),
+            });
         let rx = self
             .get_inference_socket_pool()
-            .send_request(request_id, params)
+            .send_request(request_id, message)
             .await?;
 
         Ok(Box::pin(UnboundedReceiverStream::new(rx)))

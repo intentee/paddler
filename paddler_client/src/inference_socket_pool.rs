@@ -1,5 +1,4 @@
 use paddler_types::inference_client::Message as InferenceMessage;
-use paddler_types::jsonrpc::RequestEnvelope;
 use serde::Serialize;
 use serde_json::to_string;
 use tokio::sync::Mutex;
@@ -27,15 +26,12 @@ impl InferenceSocketPool {
         }
     }
 
-    pub async fn send_request<TRequest: Serialize>(
+    pub async fn send_request<TMessage: Serialize>(
         &self,
         request_id: String,
-        request: TRequest,
+        message: TMessage,
     ) -> Result<UnboundedReceiver<Result<InferenceMessage>>> {
-        let json = to_string(&RequestEnvelope {
-            id: request_id.clone(),
-            request,
-        })?;
+        let json = to_string(&message)?;
 
         let conn_idx = self.next_connection_index().await;
         let mut connections = self.connections.lock().await;

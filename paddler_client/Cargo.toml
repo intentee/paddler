@@ -23,3 +23,13 @@ tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-tungstenite = { workspace = true }
 url = { workspace = true }
+
+[features]
+integration_tests = ["integration_test_embedding", "integration_test_inference"]
+integration_test_embedding = []
+integration_test_inference = []
+
+[dev-dependencies]
+futures-util = { workspace = true }
+paddler_types = { workspace = true }
+tokio = { workspace = true }
