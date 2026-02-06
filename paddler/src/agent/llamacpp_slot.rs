@@ -13,7 +13,6 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::model::Special;
 use llama_cpp_2::sampling::LlamaSampler;
 use log::debug;
 use log::error;
@@ -220,13 +219,10 @@ impl LlamaCppSlot {
                     break;
                 }
 
-                let output_bytes = self
-                    .slot_context
-                    .model
-                    .token_to_bytes(token, Special::Tokenize)?;
-                let mut output_string = String::with_capacity(32);
-                let _decode_result =
-                    decoder.decode_to_string(&output_bytes, &mut output_string, false);
+                let output_string =
+                    self.slot_context
+                        .model
+                        .token_to_piece(token, &mut decoder, true, None)?;
 
                 generated_tokens_tx.send(GeneratedTokenResult::Token(output_string))?;
 

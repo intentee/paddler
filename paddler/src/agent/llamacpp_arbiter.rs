@@ -15,7 +15,6 @@ use anyhow::anyhow;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::model::Special;
 use llama_cpp_2::model::params::LlamaModelParams;
 use llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_ENABLED;
 use log::error;
@@ -184,13 +183,29 @@ impl LlamaCppArbiter {
                 .set_model_path(Some(model_path_string_clone));
 
             let slot_index = Arc::new(AtomicU32::new(0));
+            let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
             let slot_context = Arc::new(LlamaCppSlotContext {
                 agent_name: agent_name_clone,
                 chat_template_renderer,
                 inference_parameters,
-                token_bos_str: model.token_to_str(model.token_bos(), Special::Tokenize)?,
-                token_nl_str: model.token_to_str(model.token_nl(), Special::Tokenize)?,
-                token_eos_str: model.token_to_str(model.token_eos(), Special::Tokenize)?,
+                token_bos_str: model.token_to_piece(
+                    model.token_bos(),
+                    &mut special_token_decoder,
+                    true,
+                    None,
+                )?,
+                token_nl_str: model.token_to_piece(
+                    model.token_nl(),
+                    &mut special_token_decoder,
+                    true,
+                    None,
+                )?,
+                token_eos_str: model.token_to_piece(
+                    model.token_eos(),
+                    &mut special_token_decoder,
+                    true,
+                    None,
+                )?,
                 model,
                 model_path,
             });
