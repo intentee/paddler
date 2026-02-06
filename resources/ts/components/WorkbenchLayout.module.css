@@ -19,7 +19,6 @@
     margin: var(--spacing-half) 0;
     position: relative;
     word-break: break-all;
-    z-index: 1;
 
     &:after {
       background-color: #eeeeeeaa;
