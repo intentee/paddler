@@ -54,7 +54,7 @@ mime_guess = { workspace = true, optional = true }
 rust-embed = { workspace = true, optional = true }
 
 [features]
-default = ["web_admin_panel"]
+default = []
 cuda = ["llama-cpp-2/cuda"]
 tests_that_use_llms = []
 web_admin_panel = [
