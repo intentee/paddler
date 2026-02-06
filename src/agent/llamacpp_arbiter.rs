@@ -1,9 +1,11 @@
 use core::num::NonZeroU32;
+use std::cmp::max;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::thread;
+use std::thread::available_parallelism;
 
 use actix::System;
 use actix::sync::SyncArbiter;
@@ -16,6 +18,7 @@ use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::Special;
 use llama_cpp_2::model::params::LlamaModelParams;
 use log::error;
+use log::info;
 use tokio::sync::oneshot;
 
 use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
@@ -50,6 +53,12 @@ impl LlamaCppArbiter {
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
+        let available_parallelism: i32 = available_parallelism()?.get().try_into()?;
+        let n_threads = max(2, available_parallelism / 2);
+        let n_threads_batch = max(1, available_parallelism / 4);
+
+        info!("Using threads for parallelism threads/batch: {n_threads}/{n_threads_batch}");
+
         let agent_name_clone = self.agent_name.clone();
         let desired_slots_total = self.desired_slots_total;
         let inference_parameters = self.inference_parameters.clone();
@@ -67,8 +76,9 @@ impl LlamaCppArbiter {
                 LlamaContextParams::default()
                     .with_embeddings(inference_parameters.enable_embeddings)
                     .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
+                    .with_n_threads(n_threads)
                     // n_threads_batch > 1 causes some unpredictability
-                    .with_n_threads_batch(1)
+                    .with_n_threads_batch(n_threads_batch)
                     .with_pooling_type(inference_parameters.pooling_type.clone().into()),
             );
             let backend_clone = llama_backend.clone();
