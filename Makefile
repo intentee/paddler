@@ -46,11 +46,11 @@ release.vulkan: node_modules
 
 .PHONY: test
 test: jarmuz-static
-	cargo test
+	cargo test --features web_admin_panel
 
 .PHONY: test.llms
 test.llms: jarmuz-static
-	cargo test --features tests_that_use_llms -- --nocapture
+	cargo test --features web_admin_panel,tests_that_use_llms -- --nocapture
 
 .PHONY: watch
 watch: node_modules
