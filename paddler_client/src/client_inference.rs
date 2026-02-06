@@ -78,9 +78,9 @@ impl<'client> ClientInference<'client> {
         let response = self
             .http_client
             .post(format_api_url(
-                self.url.as_str(),
+                self.url,
                 "/api/v1/generate_embedding_batch",
-            ))
+            )?)
             .json(params)
             .send()
             .await?

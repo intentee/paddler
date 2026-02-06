@@ -26,7 +26,7 @@ impl<'client> ClientManagement<'client> {
     pub async fn get_agents(&self) -> Result<AgentControllerPoolSnapshot> {
         let response = self
             .http_client
-            .get(format_api_url(self.url.as_str(), "/api/v1/agents"))
+            .get(format_api_url(self.url, "/api/v1/agents")?)
             .send()
             .await?
             .error_for_status()?;
@@ -37,10 +37,7 @@ impl<'client> ClientManagement<'client> {
     pub async fn get_balancer_desired_state(&self) -> Result<BalancerDesiredState> {
         let response = self
             .http_client
-            .get(format_api_url(
-                self.url.as_str(),
-                "/api/v1/balancer_desired_state",
-            ))
+            .get(format_api_url(self.url, "/api/v1/balancer_desired_state")?)
             .send()
             .await?
             .error_for_status()?;
@@ -50,10 +47,7 @@ impl<'client> ClientManagement<'client> {
 
     pub async fn put_balancer_desired_state(&self, state: &BalancerDesiredState) -> Result<()> {
         self.http_client
-            .put(format_api_url(
-                self.url.as_str(),
-                "/api/v1/balancer_desired_state",
-            ))
+            .put(format_api_url(self.url, "/api/v1/balancer_desired_state")?)
             .json(state)
             .send()
             .await?
@@ -65,10 +59,7 @@ impl<'client> ClientManagement<'client> {
     pub async fn get_buffered_requests(&self) -> Result<BufferedRequestManagerSnapshot> {
         let response = self
             .http_client
-            .get(format_api_url(
-                self.url.as_str(),
-                "/api/v1/buffered_requests",
-            ))
+            .get(format_api_url(self.url, "/api/v1/buffered_requests")?)
             .send()
             .await?
             .error_for_status()?;
@@ -81,7 +72,7 @@ impl<'client> ClientManagement<'client> {
     ) -> Result<Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>> {
         let response = self
             .http_client
-            .get(format_api_url(self.url.as_str(), "/api/v1/agents/stream"))
+            .get(format_api_url(self.url, "/api/v1/agents/stream")?)
             .send()
             .await?
             .error_for_status()?;
@@ -98,9 +89,9 @@ impl<'client> ClientManagement<'client> {
         let response = self
             .http_client
             .get(format_api_url(
-                self.url.as_str(),
+                self.url,
                 "/api/v1/buffered_requests/stream",
-            ))
+            )?)
             .send()
             .await?
             .error_for_status()?;
@@ -114,7 +105,7 @@ impl<'client> ClientManagement<'client> {
     pub async fn get_metrics(&self) -> Result<String> {
         let response = self
             .http_client
-            .get(format_api_url(self.url.as_str(), "/metrics"))
+            .get(format_api_url(self.url, "/metrics")?)
             .send()
             .await?
             .error_for_status()?;
