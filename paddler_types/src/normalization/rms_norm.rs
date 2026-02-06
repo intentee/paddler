@@ -1,4 +1,8 @@
 pub fn rms_norm(embedding: &[f32], eps: f32) -> Vec<f32> {
+    if embedding.is_empty() {
+        return Vec::new();
+    }
+
     let mean_square = embedding
         .iter()
         .fold(0.0, |acc, &val| val.mul_add(val, acc))
@@ -77,6 +81,14 @@ mod tests {
 
         // mean_square = 25/1 = 25, rms = 5.0, result = 5/5 = 1.0
         assert!((result[0] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_rms_norm_empty_embedding() {
+        let embedding: Vec<f32> = Vec::new();
+        let result = rms_norm(&embedding, 0.0);
+
+        assert!(result.is_empty());
     }
 
     #[test]
