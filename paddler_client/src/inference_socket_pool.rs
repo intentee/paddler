@@ -32,19 +32,23 @@ impl InferenceSocketPool {
         message: TMessage,
     ) -> Result<UnboundedReceiver<Result<InferenceMessage>>> {
         let json = to_string(&message)?;
-
         let conn_idx = self.next_connection_index().await;
-        let mut connections = self.connections.lock().await;
 
-        self.ensure_connection(&mut connections, conn_idx).await?;
+        self.ensure_connection(conn_idx).await?;
 
-        let connection = connections[conn_idx].as_ref().ok_or(Error::PoolExhausted)?;
+        let send_result = {
+            let connections = self.connections.lock().await;
+            let connection = connections[conn_idx].as_ref().ok_or(Error::PoolExhausted)?;
 
-        match connection.send(request_id.clone(), json.clone()) {
+            connection.send(request_id.clone(), json.clone())
+        };
+
+        match send_result {
             Ok(response_rx) => Ok(response_rx),
             Err(Error::ConnectionDropped { .. }) => {
-                self.ensure_connection(&mut connections, conn_idx).await?;
+                self.ensure_connection(conn_idx).await?;
 
+                let connections = self.connections.lock().await;
                 let connection = connections[conn_idx].as_ref().ok_or(Error::PoolExhausted)?;
 
                 connection
@@ -63,19 +67,21 @@ impl InferenceSocketPool {
         conn_idx
     }
 
-    async fn ensure_connection(
-        &self,
-        connections: &mut [Option<InferenceSocketConnection>],
-        index: usize,
-    ) -> Result<()> {
-        let conn = &connections[index];
+    async fn ensure_connection(&self, index: usize) -> Result<()> {
+        let needs_connect = {
+            let connections = self.connections.lock().await;
+            let slot = &connections[index];
 
-        if conn.is_none()
-            || conn
-                .as_ref()
-                .is_some_and(|connection| connection.is_disconnected())
-        {
-            connections[index] = Some(InferenceSocketConnection::connect(self.url.clone()).await?);
+            slot.is_none()
+                || slot
+                    .as_ref()
+                    .is_some_and(|connection| connection.is_disconnected())
+        };
+
+        if needs_connect {
+            let new_connection = InferenceSocketConnection::connect(self.url.clone()).await?;
+            let mut connections = self.connections.lock().await;
+            connections[index] = Some(new_connection);
         }
 
         Ok(())
