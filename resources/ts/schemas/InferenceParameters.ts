@@ -13,6 +13,7 @@ export const InferenceParametersSchema = z
   .object({
     batch_n_tokens: z.number(),
     context_size: z.number(),
+    embedding_n_seq_max: z.number(),
     enable_embeddings: z.boolean(),
     min_p: z.number(),
     penalty_frequency: z.number(),

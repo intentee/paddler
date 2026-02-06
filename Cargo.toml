@@ -35,6 +35,7 @@ hf-hub = { version = "0.4", features = ["tokio"] }
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
 llama-cpp-2 = "0.1.126"
+llama-cpp-sys-2 = "0.1.126"
 log = "0.4"
 mime_guess = "2"
 minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }

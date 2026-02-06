@@ -2271,6 +2271,7 @@ dependencies = [
  "indoc",
  "jsonschema",
  "llama-cpp-2",
+ "llama-cpp-sys-2",
  "log",
  "mime_guess",
  "minijinja",

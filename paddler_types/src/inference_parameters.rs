@@ -8,6 +8,7 @@ use crate::pooling_type::PoolingType;
 pub struct InferenceParameters {
     pub batch_n_tokens: usize,
     pub context_size: u32,
+    pub embedding_n_seq_max: u32,
     pub enable_embeddings: bool,
     /// The minimum probability for a token to be considered, relative to the probability of the most likely token
     pub min_p: f32,
@@ -29,8 +30,9 @@ pub struct InferenceParameters {
 impl Default for InferenceParameters {
     fn default() -> Self {
         Self {
-            batch_n_tokens: 512,
+            batch_n_tokens: 2048,
             context_size: 4096,
+            embedding_n_seq_max: 16,
             enable_embeddings: false,
             min_p: 0.05,
             penalty_frequency: 0.0,

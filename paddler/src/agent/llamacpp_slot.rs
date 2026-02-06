@@ -166,18 +166,28 @@ impl LlamaCppSlot {
             .slot_context
             .model
             .str_to_token(&prompt, AddBos::Always)?;
-        let mut batch = LlamaBatch::new(self.slot_context.inference_parameters.batch_n_tokens, 1);
+        let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
+        let mut batch = LlamaBatch::new(batch_size, 1);
         let last_index = tokens_list.len() as i32 - 1;
+        let mut tokens_processed: i32 = 0;
+        let mut kv_cache_repair_actions = vec![];
 
-        for (i, token) in (0_i32..).zip(tokens_list.into_iter()) {
-            let is_last = i == last_index;
+        for tokens_chunk in tokens_list.chunks(batch_size) {
+            batch.clear();
 
-            batch.add(token, i, &[0], is_last)?;
+            for (offset, token) in tokens_chunk.iter().enumerate() {
+                let position = tokens_processed + offset as i32;
+                let is_last_token_overall = position == last_index;
+
+                batch.add(*token, position, &[0], is_last_token_overall)?;
+            }
+
+            self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
+            kv_cache_repair_actions.clear();
+            tokens_processed += tokens_chunk.len() as i32;
         }
 
-        self.continuation_batch_decode(&mut batch, &mut vec![])?;
-
-        let mut n_cur = batch.n_tokens();
+        let mut n_cur = tokens_processed;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
         let mut sampler = LlamaSampler::chain_simple([
@@ -226,7 +236,8 @@ impl LlamaCppSlot {
 
             n_cur += 1;
 
-            self.continuation_batch_decode(&mut batch, &mut vec![])?;
+            kv_cache_repair_actions.clear();
+            self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
         }
 
         generated_tokens_tx.send(GeneratedTokenResult::Done)?;
@@ -275,18 +286,47 @@ impl LlamaCppSlot {
             .collect::<Result<Vec<EmbeddingInputTokenized>, _>>()
             .context("failed to tokenize embedding input batch")?;
 
-        let mut batch = LlamaBatch::new(self.slot_context.inference_parameters.batch_n_tokens, 1);
+        let batch_n_tokens = self.slot_context.inference_parameters.batch_n_tokens;
+        let embedding_n_seq_max = self.slot_context.inference_parameters.embedding_n_seq_max as i32;
+        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max);
+        let mut current_batch_inputs: Vec<&EmbeddingInputTokenized> = Vec::new();
+        let mut current_batch_token_count: usize = 0;
+        let mut next_seq_id: i32 = 0;
 
         for embedding_input_tokenized in &tokens_lines_list {
             if generate_embedding_stop_rx.try_recv().is_ok() {
                 break;
             }
 
-            batch.add_sequence(&embedding_input_tokenized.llama_tokens, 0, true)?;
+            let input_token_count = embedding_input_tokenized.llama_tokens.len();
 
+            if (current_batch_token_count + input_token_count > batch_n_tokens
+                || next_seq_id >= embedding_n_seq_max)
+                && !current_batch_inputs.is_empty()
+            {
+                self.embedding_batch_decode(
+                    &mut batch,
+                    &current_batch_inputs,
+                    &generated_embedding_tx,
+                    &normalization_method,
+                )?;
+
+                current_batch_inputs.clear();
+                current_batch_token_count = 0;
+                next_seq_id = 0;
+            }
+
+            batch.add_sequence(&embedding_input_tokenized.llama_tokens, next_seq_id, true)?;
+
+            current_batch_inputs.push(embedding_input_tokenized);
+            current_batch_token_count += input_token_count;
+            next_seq_id += 1;
+        }
+
+        if !current_batch_inputs.is_empty() {
             self.embedding_batch_decode(
                 &mut batch,
-                &[embedding_input_tokenized],
+                &current_batch_inputs,
                 &generated_embedding_tx,
                 &normalization_method,
             )?;

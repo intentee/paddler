@@ -17,6 +17,7 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::Special;
 use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_ENABLED;
 use log::error;
 use log::info;
 use paddler_types::agent_issue::AgentIssue;
@@ -56,7 +57,7 @@ impl LlamaCppArbiter {
 
         let available_parallelism: i32 = available_parallelism()?.get().try_into()?;
         let n_threads = max(2, available_parallelism / 2);
-        let n_threads_batch = max(1, available_parallelism / 4);
+        let n_threads_batch = max(2, available_parallelism / 2);
 
         info!("Using threads for parallelism threads/batch: {n_threads}/{n_threads_batch}");
 
@@ -73,20 +74,25 @@ impl LlamaCppArbiter {
         let sync_arbiter_thread_handle = thread::spawn(move || -> Result<()> {
             let llama_backend =
                 Arc::new(LlamaBackend::init().context("Unable to initialize llama.cpp backend")?);
-            let llama_ctx_params = Arc::new(
-                LlamaContextParams::default()
-                    .with_embeddings(inference_parameters.enable_embeddings)
-                    .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
-                    .with_n_threads(n_threads)
-                    // n_threads_batch > 1 causes some unpredictability
-                    .with_n_threads_batch(n_threads_batch)
-                    .with_pooling_type(
-                        inference_parameters
-                            .pooling_type
-                            .clone()
-                            .to_llama_pooling_type(),
-                    ),
-            );
+            let mut context_params = LlamaContextParams::default()
+                .with_embeddings(inference_parameters.enable_embeddings)
+                .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
+                .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_ENABLED)
+                .with_n_threads(n_threads)
+                .with_n_threads_batch(n_threads_batch)
+                .with_pooling_type(
+                    inference_parameters
+                        .pooling_type
+                        .clone()
+                        .to_llama_pooling_type(),
+                );
+
+            if inference_parameters.enable_embeddings {
+                context_params =
+                    context_params.with_n_seq_max(inference_parameters.embedding_n_seq_max);
+            }
+
+            let llama_ctx_params = Arc::new(context_params);
             let backend_clone = llama_backend.clone();
             let model = Arc::new(
                 LlamaModel::load_from_file(&backend_clone.clone(), model_path.clone(), &{
