@@ -102,6 +102,14 @@ And use a GUI to test the inference:
 * [Create a multi agent fleet](https://paddler.intentee.com/docs/starting-out/multi-agent-fleet/)
 * [Go beyond a single device](https://paddler.intentee.com/docs/starting-out/going-beyond-a-single-device/)
 
+## Do you accept AI-Generated code?
+
+All code in the project is human-reviewed, and most is handcrafted. We have been experimenting with using AI to generate some code, and so far, we only had success with vibe-coding an HTTP client.
+
+If you successfully generate something, you can submit it. We will still need to review it, so make sure you understand what you are doing.
+
+You can try, though. :) We have even added [AGENTS.md](AGENTS.md) with some code style and other basic instructions.
+
 ## Why the Name
 
 We initially wanted to use [Raft](https://raft.github.io/) consensus algorithm (thus Paddler, because it paddles on a Raft), but eventually dropped that idea. The name stayed, though.
