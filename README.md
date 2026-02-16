@@ -104,7 +104,7 @@ And use a GUI to test the inference:
 
 ## Do you accept AI-Generated code?
 
-All code in the project is human-reviewed, and most is handcrafted. We have been experimenting with using AI to generate some code, and so far, we only had success with vibe-coding an HTTP client.
+All code in the project is human-reviewed, and most is handcrafted. We have been experimenting with using AI to generate some code, and so far, we only had success with vibe-coding an HTTP client, that connects to the core library.
 
 If you successfully generate something, you can submit it. We will still need to review it, so make sure you understand what you are doing.
 
