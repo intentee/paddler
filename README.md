@@ -54,13 +54,12 @@ paddler agent --management-addr 127.0.0.1:8060 --slots 4
 
 Read more about the [installation](https://paddler.intentee.com/docs/introduction/installation/) and [setting up a basic cluster](http://127.0.0.1:8050/docs/starting-out/set-up-a-basic-llm-cluster/). 
 
-## Documentation
+## Documentation and resources
 
-Visit our [documentation page](https://paddler.intentee.com/docs/introduction/what-is-paddler/) to install Paddler and get started with it. 
-
-[API documentation](https://paddler.intentee.com/api/introduction/using-paddler-api/) is also available.
-
-[Video overview](https://www.youtube.com/watch?v=aT6QCL8lk08)
+- Visit our [documentation page](https://paddler.intentee.com/docs/introduction/what-is-paddler/) to install Paddler and get started with it. 
+- [API documentation](https://paddler.intentee.com/api/introduction/using-paddler-api/) is also available.
+- [Video overview](https://www.youtube.com/watch?v=aT6QCL8lk08)
+- [FOSEDM 2026 talk](https://fosdem.org/2026/schedule/event/PD8WGF-from_infrastructure_to_production_a_year_of_self-hosted_llms/) - From Infrastructure to Production: A Year of Self-Hosted LLMs.
 
 ## Community and contributions
 
