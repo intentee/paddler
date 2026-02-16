@@ -51,7 +51,7 @@ impl<'client> ClientInference<'client> {
     pub async fn continue_from_conversation_history(
         &self,
         params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send + '_>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send + 'static>>> {
         let request_id = nanoid!();
         let message: InferenceServerMessage<ValidatedParametersSchema> =
             InferenceServerMessage::Request(RequestEnvelope {
@@ -69,7 +69,7 @@ impl<'client> ClientInference<'client> {
     pub async fn continue_from_raw_prompt(
         &self,
         params: ContinueFromRawPromptParams,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send + '_>>> {
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send + 'static>>> {
         let request_id = nanoid!();
         let message: InferenceServerMessage<ValidatedParametersSchema> =
             InferenceServerMessage::Request(RequestEnvelope {
