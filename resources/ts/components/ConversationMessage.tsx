@@ -1,6 +1,5 @@
 import React from "react";
 import Markdown from "react-markdown";
-import remarkBreaks from "remark-breaks";
 
 import {
   conversationMessage,
@@ -12,19 +11,21 @@ import {
 
 export function ConversationMessage({
   author,
+  aiMessage,
   errors,
   isThinking,
-  response,
   thoughts,
+  userMessage,
 }: {
+  aiMessage: string;
   author: string;
   errors: Array<{
     code: number;
     description: string;
   }>;
   isThinking: boolean;
-  response: string;
   thoughts: string;
+  userMessage: string;
 }) {
   return (
     <div className={conversationMessage}>
@@ -34,11 +35,10 @@ export function ConversationMessage({
           {isThinking ? (
             "🤔"
           ) : (
-            <Markdown remarkPlugins={[remarkBreaks]}>
-              {author === "You"
-                ? response.replace(/\n\s*\n/g, "\n&NewLine;\n")
-                : response}
-            </Markdown>
+            <>
+              <Markdown children={aiMessage} />
+              {userMessage}
+            </>
           )}
         </div>
         {errors.map(function ({ code, description }, index) {

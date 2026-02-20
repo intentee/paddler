@@ -30,11 +30,12 @@ export function PromptPage() {
           <div className={promptPage__messages}>
             {submittedPrompt && (
               <ConversationMessage
+                aiMessage=""
                 author="You"
                 errors={[]}
                 isThinking={false}
-                response={submittedPrompt}
                 thoughts=""
+                userMessage={submittedPrompt}
               />
             )}
             <ConversationMessagePromptGeneratedTokens webSocket={webSocket} />

@@ -137,11 +137,12 @@ export const ConversationMessagePromptGeneratedTokens = memo(
       if (submittedPrompt) {
         return (
           <ConversationMessage
+            aiMessage={message.response}
             author="AI"
             errors={message.errors}
             isThinking={true}
-            response={message.response}
             thoughts={message.thoughts}
+            userMessage=""
           />
         );
       }
@@ -151,11 +152,12 @@ export const ConversationMessagePromptGeneratedTokens = memo(
 
     return (
       <ConversationMessage
+        aiMessage={message.response}
         author="AI"
         errors={message.errors}
         isThinking={message.isThinking}
-        response={message.response}
         thoughts={message.thoughts}
+        userMessage=""
       />
     );
   },

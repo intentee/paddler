@@ -1,8 +1,8 @@
 import React, {
+  KeyboardEvent,
   useCallback,
   useContext,
   type FormEvent,
-  type SyntheticEvent,
 } from "react";
 import { PromptContext } from "../contexts/PromptContext";
 
@@ -22,11 +22,22 @@ export function ConversationPromptInput() {
     setCurrentPrompt,
     setSubmittedPrompt,
   } = useContext(PromptContext);
+  const onKeyDown = useCallback(
+    function (event: KeyboardEvent<HTMLTextAreaElement>) {
+      if (event.key === "Enter" && event.shiftKey) {   
+        return;
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        event.currentTarget.form?.requestSubmit();
+      }
+    },
+    []
+  );
 
   const onSubmit = useCallback(
-    function (event: SyntheticEvent) {
+    function (event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
-
+      
       if (currentPrompt.trim() === "") {
         setSubmittedPrompt(null);
       } else {
@@ -51,11 +62,7 @@ export function ConversationPromptInput() {
         placeholder="Type your prompt here..."
         value={currentPrompt}
         onInput={onTextareaInput}
-        onKeyDown={function (event) {
-          if (event.key === "Enter" && !event.shiftKey) {
-            onSubmit(event);
-          }
-        }}
+        onKeyDown={onKeyDown}
       />
       <div className={conversationPromptInput__controls}>
         <div className={conversationPromptInput__controls__track} />
