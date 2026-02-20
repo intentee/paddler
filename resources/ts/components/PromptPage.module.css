@@ -33,7 +33,6 @@
   min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-base);
-  padding-bottom: 6rem;
 }
 
 .promptPage__userMessage {
