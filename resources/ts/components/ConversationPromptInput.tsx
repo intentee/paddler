@@ -25,9 +25,7 @@ export function ConversationPromptInput() {
   const onKeyDown = useCallback(function (
     event: KeyboardEvent<HTMLTextAreaElement>,
   ) {
-    if (event.key === "Enter" && event.shiftKey) {
-      return;
-    } else if (event.key === "Enter") {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
     }
