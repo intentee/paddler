@@ -1,4 +1,9 @@
-import React, { useCallback, useContext, type FormEvent } from "react";
+import React, {
+  useCallback,
+  useContext,
+  type FormEvent,
+  type SyntheticEvent,
+} from "react";
 import { PromptContext } from "../contexts/PromptContext";
 
 import iconArrowUpward from "../../icons/arrow_upward.svg";
@@ -19,7 +24,7 @@ export function ConversationPromptInput() {
   } = useContext(PromptContext);
 
   const onSubmit = useCallback(
-    function (event: FormEvent<HTMLFormElement>) {
+    function (event: SyntheticEvent) {
       event.preventDefault();
 
       if (currentPrompt.trim() === "") {
@@ -46,6 +51,11 @@ export function ConversationPromptInput() {
         placeholder="Type your prompt here..."
         value={currentPrompt}
         onInput={onTextareaInput}
+        onKeyDown={function (event) {
+          if (event.key === "Enter" && !event.shiftKey) {
+            onSubmit(event);
+          }
+        }}
       />
       <div className={conversationPromptInput__controls}>
         <div className={conversationPromptInput__controls__track} />
