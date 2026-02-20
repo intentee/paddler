@@ -14,7 +14,6 @@
   height: 100%;
   max-width: var(--max-width-workbench-content);
   width: 100%;
-  overflow-anchor: none;
 }
 
 .promptPage__promptForm {
@@ -26,16 +25,17 @@
   bottom: 0;
   max-width: var(--max-width-workbench-content);
   padding: 0 var(--spacing-base) var(--spacing-base) var(--spacing-base);
-  position: fixed;
+  position: sticky;
   width: 100%;
 }
 
 .promptPage__messages {
+  min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-base);
   padding-bottom: 6rem;
-  width: 80%;
-  overflow-wrap: break-word;
+}
+
+.promptPage__userMessage {
   white-space: pre-wrap;
-  margin-bottom: 5%;
 }
