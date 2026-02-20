@@ -22,22 +22,21 @@ export function ConversationPromptInput() {
     setCurrentPrompt,
     setSubmittedPrompt,
   } = useContext(PromptContext);
-  const onKeyDown = useCallback(
-    function (event: KeyboardEvent<HTMLTextAreaElement>) {
-      if (event.key === "Enter" && event.shiftKey) {   
-        return;
-      } else if (event.key === "Enter") {
-        event.preventDefault();
-        event.currentTarget.form?.requestSubmit();
-      }
-    },
-    []
-  );
+  const onKeyDown = useCallback(function (
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) {
+    if (event.key === "Enter" && event.shiftKey) {
+      return;
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.form?.requestSubmit();
+    }
+  }, []);
 
   const onSubmit = useCallback(
     function (event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
-      
+
       if (currentPrompt.trim() === "") {
         setSubmittedPrompt(null);
       } else {
