@@ -27,6 +27,7 @@
   flex-direction: column;
   grid-area: response;
   row-gap: var(--spacing-half);
+  white-space: pre-wrap;
 
   blockquote {
     border-left: 2px solid var(--color-border);
