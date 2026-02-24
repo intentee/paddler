@@ -121,7 +121,7 @@ mod tests {
     fn create_test_peer() -> UpstreamPeer {
         UpstreamPeer {
             agent_id: "test_agent".to_string(),
-            model: "llama3".to_string(),
+            model: Some("llama3".to_string()),
             last_update: SystemTime::now(),
             quarantined_until: None,
             slots_taken: 0,
@@ -142,6 +142,7 @@ mod tests {
                 is_unexpected_response_status: None,
                 slots_idle: 5,
                 slots_processing: 0,
+                model: Some("llama3".to_string()),
             },
         }
     }
