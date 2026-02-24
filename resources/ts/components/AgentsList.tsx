@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import React, { CSSProperties } from "react";
+import React, { CSSProperties, useState } from "react";
 
 import { type Agent } from "../schemas/Agent";
 
@@ -9,28 +9,141 @@ import {
   agentUsage,
   agentUsage__progress,
   agentsTable,
+  sortIndicator,
+  sortIndicatorAsc,
+  sortIndicatorDesc,
 } from "./Dashboard.module.css";
 
 function formatTimestamp(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleString();
 }
 
+type SortColumn =
+  | "name"
+  | "model"
+  | "issues"
+  | "llamacppAddr"
+  | "lastUpdate"
+  | "idleSlots"
+  | "processingSlots";
+
+function getSortIndicator(
+  sortConfig: { key: SortColumn; direction: "ascending" | "descending" },
+  currentKey: SortColumn
+): React.ReactNode {
+  if (sortConfig.key !== currentKey) {
+    return null;
+  }
+  const className = clsx(sortIndicator, sortConfig.direction === "ascending" ? sortIndicatorAsc : sortIndicatorDesc);
+  return (
+    <span className={className}>
+      {sortConfig.direction === "ascending" ? "↑" : "↓"}
+    </span>
+  );
+}
+
 export function AgentsList({ agents }: { agents: Array<Agent> }) {
+  const [sortConfig, setSortConfig] = useState<{
+    key: SortColumn;
+    direction: "ascending" | "descending";
+  }>({ key: "name", direction: "ascending" });
+
+  function sortAgents(agents: Array<Agent>): Array<Agent> {
+    const sortableAgents = [...agents];
+    sortableAgents.sort(function (a, b) {
+      const { key, direction } = sortConfig;
+
+      // Helper function to get comparison value based on column type
+      function getValue(agent: Agent, key: SortColumn): string | number {
+        let hasIssuesA: boolean;
+        let hasIssuesB: boolean;
+        switch (key) {
+          case "name":
+            return a.status.agent_name || "";
+          case "model":
+            return a.status.model || "";
+          case "issues":
+            // Sort by presence of issues first, then by content
+            hasIssuesA = a.status.error !== null;
+            hasIssuesB = b.status.error !== null;
+            if (hasIssuesA !== hasIssuesB) {
+              return hasIssuesA ? 1 : -1;
+            }
+            return (a.status.error || "") > (b.status.error || "") ? 1 : -1;
+          case "llamacppAddr":
+            return a.status.external_llamacpp_addr;
+          case "lastUpdate":
+            return a.last_update.secs_since_epoch;
+          case "idleSlots":
+            return a.status.slots_idle;
+          case "processingSlots":
+            return a.status.slots_processing;
+          default:
+            return "";
+        }
+      }
+
+      const valueA = getValue(a, key);
+      const valueB = getValue(b, key);
+
+      // Handle string comparison
+      if (typeof valueA === "string" && typeof valueB === "string") {
+        if (valueA < valueB) return direction === "ascending" ? -1 : 1;
+        if (valueA > valueB) return direction === "ascending" ? 1 : -1;
+        return 0;
+      }
+
+      // Handle numeric comparison
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        if (valueA < valueB) return direction === "ascending" ? -1 : 1;
+        if (valueA > valueB) return direction === "ascending" ? 1 : -1;
+        return 0;
+      }
+
+      return 0;
+    });
+    return sortableAgents;
+  }
+
+  function requestSort(key: SortColumn) {
+    let direction: "ascending" | "descending" = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
+    }
+    setSortConfig({ key, direction });
+  }
+
+  const sortedAgents = sortAgents(agents);
+
   return (
     <table className={agentsTable}>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Model</th>
-          <th>Issues</th>
-          <th>Llama.cpp address</th>
-          <th>Last update</th>
-          <th>Idle slots</th>
-          <th>Processing slots</th>
+          <th onClick={function () { requestSort("name"); }}>
+            Name{getSortIndicator(sortConfig, "name")}
+          </th>
+          <th onClick={function () { requestSort("model"); }}>
+            Model{getSortIndicator(sortConfig, "model")}
+          </th>
+          <th onClick={function () { requestSort("issues"); }}>
+            Issues{getSortIndicator(sortConfig, "issues")}
+          </th>
+          <th onClick={function () { requestSort("llamacppAddr"); }}>
+            Llama.cpp address{getSortIndicator(sortConfig, "llamacppAddr")}
+          </th>
+          <th onClick={function () { requestSort("lastUpdate"); }}>
+            Last update{getSortIndicator(sortConfig, "lastUpdate")}
+          </th>
+          <th onClick={function () { requestSort("idleSlots"); }}>
+            Idle slots{getSortIndicator(sortConfig, "idleSlots")}
+          </th>
+          <th onClick={function () { requestSort("processingSlots"); }}>
+            Processing slots{getSortIndicator(sortConfig, "processingSlots")}
+          </th>
         </tr>
       </thead>
       <tbody>
-        {agents.map(function ({
+        {sortedAgents.map(function ({
           agent_id,
           last_update,
           quarantined_until,
@@ -48,12 +161,10 @@ export function AgentsList({ agents }: { agents: Array<Agent> }) {
             quarantined_until;
 
           return (
-            <tr
-              className={clsx(agentRow, {
-                [agentRowError]: hasIssues,
-              })}
-              key={agent_id}
-            >
+              <tr
+                className={clsx(agentRow, hasIssues ? agentRowError : undefined)}
+                key={agent_id}
+              >
               <td>{status.agent_name}</td>
               <td>{status.model}</td>
               <td>
