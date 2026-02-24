@@ -55,32 +55,36 @@ export function AgentsList({ agents }: { agents: Array<Agent> }) {
 
       // Helper function to get comparison value based on column type
       function getValue(agent: Agent, key: SortColumn): string | number {
-        let hasIssuesA: boolean;
-        let hasIssuesB: boolean;
         switch (key) {
           case "name":
-            return a.status.agent_name || "";
+            return agent.status.agent_name || "";
           case "model":
-            return a.status.model || "";
-          case "issues":
-            // Sort by presence of issues first, then by content
-            hasIssuesA = a.status.error !== null;
-            hasIssuesB = b.status.error !== null;
-            if (hasIssuesA !== hasIssuesB) {
-              return hasIssuesA ? 1 : -1;
-            }
-            return (a.status.error || "") > (b.status.error || "") ? 1 : -1;
+            return agent.status.model || "";
           case "llamacppAddr":
-            return a.status.external_llamacpp_addr;
+            return agent.status.external_llamacpp_addr;
           case "lastUpdate":
-            return a.last_update.secs_since_epoch;
+            return agent.last_update.secs_since_epoch;
           case "idleSlots":
-            return a.status.slots_idle;
+            return agent.status.slots_idle;
           case "processingSlots":
-            return a.status.slots_processing;
+            return agent.status.slots_processing;
           default:
             return "";
         }
+      }
+
+      // Special handling for issues column
+      if (key === "issues") {
+        const hasIssuesA = a.status.error !== null;
+        const hasIssuesB = b.status.error !== null;
+        if (hasIssuesA !== hasIssuesB) {
+          return direction === "ascending" ? (hasIssuesA ? 1 : -1) : (hasIssuesA ? -1 : 1);
+        }
+        const errorA = a.status.error || "";
+        const errorB = b.status.error || "";
+        if (errorA < errorB) return direction === "ascending" ? -1 : 1;
+        if (errorA > errorB) return direction === "ascending" ? 1 : -1;
+        return 0;
       }
 
       const valueA = getValue(a, key);
