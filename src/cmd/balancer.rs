@@ -22,6 +22,7 @@ pub fn handle(
     management_cors_allowed_hosts: Vec<String>,
     #[cfg(feature = "web_dashboard")] management_dashboard_enable: bool,
     max_buffered_requests: usize,
+    metrics_endpoint_enable: bool,
     reverseproxy_addr: &SocketAddr,
     rewrite_host_header: bool,
     check_model: bool,
@@ -62,6 +63,7 @@ pub fn handle(
         management_cors_allowed_hosts,
         #[cfg(feature = "web_dashboard")]
         management_dashboard_enable,
+        metrics_endpoint_enable,
         upstream_peer_pool.clone(),
     ));
 

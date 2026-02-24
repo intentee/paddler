@@ -6,6 +6,7 @@ use crate::llamacpp_instance::LlamaCppInstance;
 
 #[derive(Debug, Default)]
 pub struct LlamaCppInstanceCollection {
+    pub completion_response_delay: Option<i64>,
     pub instances: DashMap<String, LlamaCppInstance>,
     pub last_llamacpp_port_offset: u16,
 }

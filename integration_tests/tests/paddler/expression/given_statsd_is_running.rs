@@ -35,16 +35,16 @@ async fn do_check(statsd_port: u16) -> Result<()> {
 
 #[given("statsd is running")]
 pub async fn given_statsd_is_running(world: &mut PaddlerWorld) -> Result<()> {
-    if world.statsd.is_some() {
-        return Err(anyhow!("Statsd is already running"));
+    if world.statsd.child.is_some() {
+        return Err(anyhow::anyhow!("Statsd is already running"));
     }
 
     let statsd_port = 9102;
 
-    world.statsd = Some(
+    world.statsd.child = Some(
         Command::new("./tests/fixtures/statsd-server-mock.mjs")
             .arg("--managementPort=9125")
-            .arg("--exposePort=9102")
+            .arg(format!("--exposePort={statsd_port}"))
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?,

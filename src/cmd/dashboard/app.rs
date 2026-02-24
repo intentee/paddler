@@ -128,16 +128,17 @@ impl App {
 
     fn render_table(&mut self, frame: &mut Frame, area: Rect) -> ioResult<()> {
         if let Some(err) = &self.error {
-            let t = Paragraph::new(err.clone().white())
-                .centered()
-                .bg(self.colors.buffer_bg);
-
+            let t = Paragraph::new(err.clone().white()).centered().style(
+                Style::new()
+                    .fg(self.colors.row_fg)
+                    .bg(self.colors.buffer_bg),
+            );
             frame.render_widget(t, area);
         } else {
             match &self.items {
                 Some(items) => match items.is_empty() {
                     true => {
-                        let t = Paragraph::new("There are no agents registered. If agents are running, please give them a few seconds to register.".to_string().white())
+                        let t = Paragraph::new(Text::from("Paddler 🏓\nThere are no agents registered. If agents are running, please give them a few seconds to register."))
                             .centered()
                             .bg(self.colors.buffer_bg);
 
@@ -195,12 +196,12 @@ impl App {
                 },
                 None => {
                     let message = if self.is_initial_load {
-                        "Loading agents...".to_string()
+                        "Paddler 🏓\nLoading agents..."
                     } else {
-                        "There are no agents registered. If agents are running, please give them a few seconds to register.".to_string()
+                        "Paddler 🏓\nThere are no agents registered. If agents are running, please give them a few seconds to register."
                     };
 
-                    let t = Paragraph::new(message.white())
+                    let t = Paragraph::new(Text::from(message).white())
                         .centered()
                         .bg(self.colors.buffer_bg);
 

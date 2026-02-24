@@ -7,11 +7,29 @@
   th {
     border: 1px solid var(--color-border);
     padding: var(--spacing-base);
+    cursor: pointer;
 
     p + p {
       margin-top: var(--spacing-half);
     }
   }
+
+  th:hover {
+    background-color: var(--color-hover);
+  }
+}
+
+.sortIndicator {
+  margin-left: var(--spacing-half);
+  font-size: 0.8em;
+}
+
+.sortIndicatorAsc {
+  color: var(--color-success);
+}
+
+.sortIndicatorDesc {
+  color: var(--color-error);
 }
 
 .agentRow.agentRowError {
