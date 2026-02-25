@@ -14,6 +14,7 @@ import {
   promptPage,
   promptPage__messages,
   promptPage__promptForm,
+  promptPage__userMessage,
 } from "./PromptPage.module.css";
 
 export function PromptPage() {
@@ -33,9 +34,10 @@ export function PromptPage() {
                 author="You"
                 errors={[]}
                 isThinking={false}
-                response={submittedPrompt}
                 thoughts=""
-              />
+              >
+                <div className={promptPage__userMessage}>{submittedPrompt}</div>
+              </ConversationMessage>
             )}
             <ConversationMessagePromptGeneratedTokens webSocket={webSocket} />
           </div>

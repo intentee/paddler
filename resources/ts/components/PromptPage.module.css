@@ -23,11 +23,18 @@
     var(--color-body-background) 20%
   );
   bottom: 0;
-  left: 0;
+  max-width: var(--max-width-workbench-content);
   padding: 0 var(--spacing-base) var(--spacing-base) var(--spacing-base);
   position: sticky;
+  width: 100%;
 }
 
 .promptPage__messages {
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--spacing-base);
+}
+
+.promptPage__userMessage {
+  white-space: pre-wrap;
 }

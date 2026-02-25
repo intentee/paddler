@@ -42,6 +42,7 @@
   max-height: 200px;
   padding: var(--spacing-base);
   resize: none;
+  white-space: pre-wrap;
 
   &:focus {
     outline: none;

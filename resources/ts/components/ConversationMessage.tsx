@@ -1,5 +1,4 @@
-import React from "react";
-import Markdown from "react-markdown";
+import React, { type ReactNode } from "react";
 
 import {
   conversationMessage,
@@ -11,25 +10,25 @@ import {
 
 export function ConversationMessage({
   author,
+  children,
   errors,
   isThinking,
-  response,
   thoughts,
 }: {
   author: string;
+  children: ReactNode;
   errors: Array<{
     code: number;
     description: string;
   }>;
   isThinking: boolean;
-  response: string;
   thoughts: string;
 }) {
   return (
     <div className={conversationMessage}>
       <strong className={conversationMessage__author}>{author}:</strong>
       <div className={conversationMessage__response}>
-        <div>{isThinking ? "🤔" : <Markdown>{response}</Markdown>}</div>
+        <div>{isThinking ? "🤔" : children}</div>
         {errors.map(function ({ code, description }, index) {
           return (
             <div className={conversationMessage__error} key={index}>

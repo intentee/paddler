@@ -1,4 +1,5 @@
 import React, { memo, useContext, useEffect, useMemo, useState } from "react";
+import Markdown from "react-markdown";
 import { scan } from "rxjs";
 
 import { PromptContext } from "../contexts/PromptContext";
@@ -140,9 +141,10 @@ export const ConversationMessagePromptGeneratedTokens = memo(
             author="AI"
             errors={message.errors}
             isThinking={true}
-            response={message.response}
             thoughts={message.thoughts}
-          />
+          >
+            <Markdown>{message.response}</Markdown>
+          </ConversationMessage>
         );
       }
 
@@ -154,9 +156,10 @@ export const ConversationMessagePromptGeneratedTokens = memo(
         author="AI"
         errors={message.errors}
         isThinking={message.isThinking}
-        response={message.response}
         thoughts={message.thoughts}
-      />
+      >
+        <Markdown>{message.response}</Markdown>
+      </ConversationMessage>
     );
   },
 );
