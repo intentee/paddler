@@ -54,7 +54,7 @@ pub struct Balancer {
     /// Address of the inference server
     inference_addr: ResolvedSocketAddr,
 
-    #[arg(long, default_value = "5000", value_parser = parse_duration)]
+    #[arg(long, default_value = "60000", value_parser = parse_duration)]
     /// The timeout (in milliseconds) for generating a single token or a single embedding
     inference_item_timeout: Duration,
 
