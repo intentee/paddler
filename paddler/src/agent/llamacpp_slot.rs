@@ -13,6 +13,9 @@ use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::AddBos;
 use llama_cpp_2::model::LlamaModel;
+use llama_cpp_2::mtmd::MtmdBitmap;
+use llama_cpp_2::mtmd::MtmdInputText;
+use llama_cpp_2::mtmd::mtmd_default_marker;
 use llama_cpp_2::sampling::LlamaSampler;
 use log::debug;
 use log::error;
@@ -31,9 +34,12 @@ use tokio::sync::mpsc;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use crate::agent::conversation_image_extractor::extract_images_from_conversation;
+use crate::agent::decoded_image::DecodedImage;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::kv_cache_repair_action::KVCacheRepairAction;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
+use crate::agent::text_only_conversation_builder::create_text_only_conversation;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::slot_status::SlotStatus;
 
@@ -241,6 +247,113 @@ impl LlamaCppSlot {
         Ok(())
     }
 
+    fn continue_from_multimodal_prompt(
+        &mut self,
+        mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
+        generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
+        max_tokens: i32,
+        prompt: String,
+        images: Vec<DecodedImage>,
+    ) -> Result<()> {
+        let _guard = self.status.take_slot_with_guard();
+
+        self.llama_context.clear_kv_cache();
+
+        let multimodal_context = self
+            .slot_context
+            .multimodal_context
+            .as_ref()
+            .ok_or_else(|| anyhow!("Multimodal context is not available"))?;
+
+        let bitmaps: Vec<MtmdBitmap> = images
+            .iter()
+            .map(|image| {
+                MtmdBitmap::from_buffer(multimodal_context, &image.data)
+                    .map_err(|err| anyhow!("Failed to create bitmap: {err}"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+
+        let input_text = MtmdInputText {
+            text: prompt,
+            add_special: true,
+            parse_special: true,
+        };
+
+        let input_chunks = multimodal_context
+            .tokenize(input_text, &bitmap_refs)
+            .map_err(|err| anyhow!("Failed to tokenize multimodal input: {err}"))?;
+
+        let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
+
+        let n_past = input_chunks
+            .eval_chunks(
+                multimodal_context,
+                &self.llama_context,
+                0,
+                0,
+                batch_size as i32,
+                true,
+            )
+            .map_err(|err| anyhow!("Failed to evaluate multimodal chunks: {err}"))?;
+
+        let mut n_cur = n_past;
+        let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let mut batch = LlamaBatch::new(batch_size, 1);
+
+        let mut sampler = LlamaSampler::chain_simple([
+            LlamaSampler::penalties(
+                self.slot_context.inference_parameters.penalty_last_n,
+                self.slot_context.inference_parameters.penalty_repeat,
+                self.slot_context.inference_parameters.penalty_frequency,
+                self.slot_context.inference_parameters.penalty_presence,
+            ),
+            LlamaSampler::top_k(self.slot_context.inference_parameters.top_k),
+            LlamaSampler::top_p(self.slot_context.inference_parameters.top_p, 0),
+            LlamaSampler::min_p(self.slot_context.inference_parameters.min_p, 0),
+            LlamaSampler::temp(self.slot_context.inference_parameters.temperature),
+            LlamaSampler::dist(self.rng.random::<u32>()),
+            LlamaSampler::greedy(),
+        ]);
+
+        while n_cur <= max_tokens {
+            if generate_tokens_stop_rx.try_recv().is_ok() {
+                break;
+            }
+
+            {
+                let token = sampler.sample(&self.llama_context, -1);
+
+                sampler.accept(token);
+
+                if token == self.slot_context.model.token_eos() {
+                    break;
+                }
+
+                let output_string =
+                    self.slot_context
+                        .model
+                        .token_to_piece(token, &mut decoder, true, None)?;
+
+                generated_tokens_tx.send(GeneratedTokenResult::Token(output_string))?;
+
+                batch.clear();
+                batch.add(token, n_cur, &[0], true)?;
+            }
+
+            n_cur += 1;
+
+            let mut kv_cache_repair_actions = vec![];
+
+            self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
+        }
+
+        generated_tokens_tx.send(GeneratedTokenResult::Done)?;
+
+        Ok(())
+    }
+
     fn generate_embedding_batch(
         &mut self,
         GenerateEmbeddingBatchRequest {
@@ -375,6 +488,31 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        let images = match extract_images_from_conversation(&conversation_history) {
+            Ok(images) => images,
+            Err(err) => {
+                let msg = format!(
+                    "{:?}: slot {} failed to extract images: {err:?}",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx
+                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
+
+                return Err(anyhow!(msg));
+            }
+        };
+
+        let has_images = !images.is_empty();
+        let media_marker = mtmd_default_marker();
+
+        let text_only_conversation = create_text_only_conversation(
+            &conversation_history,
+            if has_images { media_marker } else { "" },
+        );
+
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
             // https://huggingface.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF
@@ -389,7 +527,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             // Known uses:
             // https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
             eos_token => self.slot_context.token_eos_str,
-            messages => conversation_history,
+            messages => text_only_conversation,
             nl_token => self.slot_context.token_nl_str,
             tools => tools,
         }) {
@@ -413,12 +551,36 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             self.slot_context.agent_name, self.index, raw_prompt
         );
 
-        self.continue_from_raw_prompt(
-            generate_tokens_stop_rx,
-            generated_tokens_tx,
-            max_tokens,
-            raw_prompt,
-        )
+        if has_images {
+            if self.slot_context.multimodal_context.is_none() {
+                let msg = format!(
+                    "{:?}: slot {} received images but model does not support multimodal input",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx
+                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
+
+                return Err(anyhow!(msg));
+            }
+
+            self.continue_from_multimodal_prompt(
+                generate_tokens_stop_rx,
+                generated_tokens_tx,
+                max_tokens,
+                raw_prompt,
+                images,
+            )
+        } else {
+            self.continue_from_raw_prompt(
+                generate_tokens_stop_rx,
+                generated_tokens_tx,
+                max_tokens,
+                raw_prompt,
+            )
+        }
     }
 }
 

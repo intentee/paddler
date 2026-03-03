@@ -16,6 +16,8 @@ use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::model::LlamaModel;
 use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::mtmd::MtmdContext;
+use llama_cpp_2::mtmd::MtmdContextParams;
 use llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_ENABLED;
 use log::error;
 use log::info;
@@ -27,6 +29,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
+use crate::agent::find_mmproj_path::find_mmproj_path;
 use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
 use crate::agent::llamacpp_slot::LlamaCppSlot;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
@@ -182,12 +185,41 @@ impl LlamaCppArbiter {
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
 
+            let multimodal_context = find_mmproj_path(&model_path).and_then(|mmproj_path| {
+                let mmproj_path_str = mmproj_path.to_string_lossy();
+
+                match MtmdContext::init_from_file(
+                    &mmproj_path_str,
+                    &model,
+                    &MtmdContextParams::default(),
+                ) {
+                    Ok(mtmd_context) => {
+                        info!(
+                            "Multimodal context initialized from mmproj: {}",
+                            mmproj_path.display()
+                        );
+
+                        Some(Arc::new(mtmd_context))
+                    }
+                    Err(err) => {
+                        info!(
+                            "Could not initialize multimodal context from {}: {err}",
+                            mmproj_path.display()
+                        );
+
+                        None
+                    }
+                }
+            });
+
             let slot_index = Arc::new(AtomicU32::new(0));
             let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
             let slot_context = Arc::new(LlamaCppSlotContext {
                 agent_name: agent_name_clone,
                 chat_template_renderer,
                 inference_parameters,
+                model_path: model_path.clone(),
+                multimodal_context,
                 token_bos_str: model.token_to_piece(
                     model.token_bos(),
                     &mut special_token_decoder,
@@ -207,7 +239,6 @@ impl LlamaCppArbiter {
                     None,
                 )?,
                 model,
-                model_path,
             });
             let system = System::new();
 

@@ -8,6 +8,7 @@ use crate::streamable_result::StreamableResult;
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     Done,
+    MultimodalNotSupported(String),
     Token(String),
 }
 
@@ -15,7 +16,9 @@ impl StreamableResult for GeneratedTokenResult {
     fn is_done(&self) -> bool {
         matches!(
             self,
-            GeneratedTokenResult::ChatTemplateError(_) | GeneratedTokenResult::Done
+            GeneratedTokenResult::ChatTemplateError(_)
+                | GeneratedTokenResult::Done
+                | GeneratedTokenResult::MultimodalNotSupported(_)
         )
     }
 }

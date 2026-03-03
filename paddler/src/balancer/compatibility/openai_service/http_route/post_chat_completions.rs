@@ -9,6 +9,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use nanoid::nanoid;
 use paddler_types::conversation_message::ConversationMessage;
+use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::inference_client::Message as OutgoingMessage;
 use paddler_types::inference_client::Response as OutgoingResponse;
@@ -39,7 +40,7 @@ fn current_timestamp() -> u64 {
 /// it would be better if this struct stayed independent from ours just in case
 /// to avoid any potential side effects in the future.
 struct OpenAIMessage {
-    content: String,
+    content: ConversationMessageContent,
     role: String,
 }
 
