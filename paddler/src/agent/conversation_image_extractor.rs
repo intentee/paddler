@@ -34,17 +34,11 @@ fn decode_image_from_data_uri(image_url: &ImageUrl) -> Result<DecodedImage> {
         .strip_prefix("data:")
         .ok_or_else(|| anyhow!("Invalid data URI"))?;
 
-    let (metadata, encoded_data) = after_data
+    let (_metadata, encoded_data) = after_data
         .split_once(',')
         .ok_or_else(|| anyhow!("Invalid data URI: missing comma separator"))?;
 
-    let mime_type = metadata
-        .split(';')
-        .next()
-        .ok_or_else(|| anyhow!("Invalid data URI: missing MIME type"))?
-        .to_string();
-
     let data = BASE64_STANDARD.decode(encoded_data)?;
 
-    Ok(DecodedImage { data, mime_type })
+    Ok(DecodedImage { data })
 }

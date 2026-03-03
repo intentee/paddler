@@ -350,19 +350,51 @@ impl LlamaCppArbiter {
 #[cfg(test)]
 #[cfg(feature = "tests_that_use_llms")]
 mod tests {
+    use std::env;
+    use std::fs;
+
+    use base64::Engine as _;
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use futures::future::join_all;
     use paddler_types::agent_desired_model::AgentDesiredModel;
+    use paddler_types::conversation_message::ConversationMessage;
+    use paddler_types::conversation_message_content::ConversationMessageContent;
+    use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
+    use paddler_types::generated_token_result::GeneratedTokenResult;
     use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
+    use paddler_types::image_url::ImageUrl;
     use paddler_types::inference_parameters::InferenceParameters;
+    use paddler_types::request_params::ContinueFromConversationHistoryParams;
     use paddler_types::request_params::ContinueFromRawPromptParams;
     use tokio::sync::mpsc;
 
     use super::*;
+    use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
     use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
     use crate::agent_desired_state::AgentDesiredState;
     use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
 
     const SLOTS_TOTAL: i32 = 2;
+
+    fn load_test_image_as_data_uri() -> String {
+        let image_path = env::var("TEST_MULTIMODAL_IMAGE_PATH")
+            .expect("TEST_MULTIMODAL_IMAGE_PATH env var must be set to an image file path");
+
+        let image_bytes = fs::read(&image_path)
+            .unwrap_or_else(|err| panic!("Failed to read image at '{image_path}': {err}"));
+
+        let mime_type = match image_path.rsplit('.').next() {
+            Some("jpg" | "jpeg") => "image/jpeg",
+            Some("png") => "image/png",
+            Some("gif") => "image/gif",
+            Some("webp") => "image/webp",
+            _ => "application/octet-stream",
+        };
+
+        let encoded = BASE64_STANDARD.encode(&image_bytes);
+
+        format!("data:{mime_type};base64,{encoded}")
+    }
 
     #[actix_web::test]
     async fn test_llamacpp_arbiter_spawn() -> Result<()> {
@@ -454,6 +486,104 @@ mod tests {
                 eprintln!("Error generating response: {err}");
             }
         }
+
+        controller.shutdown()?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_multimodal_inference_with_image() -> Result<()> {
+        let desired_state = AgentDesiredState {
+            chat_template_override: None,
+            inference_parameters: InferenceParameters::default(),
+            model: AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
+                filename: "SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_string(),
+                repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_string(),
+                revision: "main".to_string(),
+            }),
+        };
+        let slot_aggregated_status_manager =
+            Arc::new(SlotAggregatedStatusManager::new(SLOTS_TOTAL));
+
+        let applicable_state = desired_state
+            .to_applicable_state(
+                slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .clone(),
+            )
+            .await?
+            .expect("Failed to convert to applicable state");
+
+        let model_path = applicable_state.model_path.expect("Model path is required");
+        let llamacpp_arbiter = LlamaCppArbiter {
+            agent_name: Some("test_multimodal_agent".to_string()),
+            chat_template_override: None,
+            desired_slots_total: 1,
+            inference_parameters: applicable_state.inference_parameters,
+            model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
+            model_path: model_path.clone(),
+            model_path_string: model_path.display().to_string(),
+            slot_aggregated_status_manager,
+        };
+        let controller = llamacpp_arbiter.spawn().await?;
+
+        let test_image_data_uri = load_test_image_as_data_uri();
+
+        let conversation_history = vec![ConversationMessage {
+            content: ConversationMessageContent::Parts(vec![
+                ConversationMessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: test_image_data_uri,
+                    },
+                },
+                ConversationMessageContentPart::Text {
+                    text: "What do you see in this image?".to_string(),
+                },
+            ]),
+            role: "user".to_string(),
+        }];
+
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+        let (_, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
+
+        controller
+            .llamacpp_slot_addr
+            .send(ContinueFromConversationHistoryRequest {
+                generated_tokens_tx,
+                generate_tokens_stop_rx,
+                params: ContinueFromConversationHistoryParams {
+                    add_generation_prompt: true,
+                    conversation_history,
+                    enable_thinking: false,
+                    max_tokens: 200,
+                    tools: vec![],
+                },
+            })
+            .await??;
+
+        let mut received_tokens = false;
+
+        while let Some(generated_token) = generated_tokens_rx.recv().await {
+            match &generated_token {
+                GeneratedTokenResult::Token(token) => {
+                    println!("Multimodal token: {token}");
+                    received_tokens = true;
+                }
+                GeneratedTokenResult::Done => break,
+                GeneratedTokenResult::MultimodalNotSupported(msg) => {
+                    panic!("Multimodal should be supported: {msg}");
+                }
+                GeneratedTokenResult::ChatTemplateError(msg) => {
+                    panic!("Chat template error: {msg}");
+                }
+            }
+        }
+
+        assert!(
+            received_tokens,
+            "Expected to receive at least one token from multimodal inference"
+        );
 
         controller.shutdown()?;
 

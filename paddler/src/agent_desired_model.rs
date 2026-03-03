@@ -9,6 +9,8 @@ use hf_hub::Repo;
 use hf_hub::RepoType;
 use hf_hub::api::tokio::ApiBuilder;
 use hf_hub::api::tokio::ApiError;
+use hf_hub::api::tokio::ApiRepo;
+use log::info;
 use log::warn;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
@@ -22,6 +24,43 @@ use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::slot_aggregated_status_download_progress::SlotAggregatedStatusDownloadProgress;
 
 const LOCK_RETRY_TIMEOUT: Duration = Duration::from_secs(10);
+
+async fn download_companion_mmproj_files(hf_repo: &ApiRepo, hf_cache: &Cache, repo_id: &str) {
+    let cache_repo = hf_cache.repo(Repo::new(repo_id.to_owned(), RepoType::Model));
+    let repo_info = match hf_repo.info().await {
+        Ok(repo_info) => repo_info,
+        Err(err) => {
+            info!("Could not fetch repo info for mmproj discovery: {err}");
+
+            return;
+        }
+    };
+
+    for sibling in &repo_info.siblings {
+        let sibling_filename = &sibling.rfilename;
+
+        if !sibling_filename.contains("mmproj") || !sibling_filename.ends_with(".gguf") {
+            continue;
+        }
+
+        if cache_repo.get(sibling_filename).is_some() {
+            info!("Companion mmproj file already cached: {sibling_filename}");
+
+            continue;
+        }
+
+        info!("Downloading companion mmproj file: {sibling_filename}");
+
+        match hf_repo.download(sibling_filename).await {
+            Ok(downloaded_path) => {
+                info!("Downloaded mmproj file to: {}", downloaded_path.display());
+            }
+            Err(err) => {
+                warn!("Failed to download mmproj file '{sibling_filename}': {err}");
+            }
+        }
+    }
+}
 
 #[async_trait]
 impl ConvertsToApplicableState for AgentDesiredModel {
@@ -61,6 +100,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     .get(filename)
                 {
                     slot_aggregated_status.reset_download();
+                    download_companion_mmproj_files(&hf_repo, &hf_cache, repo_id).await;
 
                     return Ok(Some(cached_path));
                 }
@@ -117,6 +157,8 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     },
                     Err(err_other) => return Err(err_other.into()),
                 };
+
+                download_companion_mmproj_files(&hf_repo, &hf_cache, repo_id).await;
 
                 Some(weights_filename)
             }

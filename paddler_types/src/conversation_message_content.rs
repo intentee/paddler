@@ -47,18 +47,4 @@ impl ConversationMessageContent {
                 .collect(),
         }
     }
-
-    pub fn text_content_with_media_markers(&self, media_marker: &str) -> String {
-        match self {
-            ConversationMessageContent::Text(text) => text.clone(),
-            ConversationMessageContent::Parts(parts) => parts
-                .iter()
-                .map(|part| match part {
-                    ConversationMessageContentPart::Text { text } => text.as_str().to_string(),
-                    ConversationMessageContentPart::ImageUrl { .. } => media_marker.to_string(),
-                })
-                .collect::<Vec<String>>()
-                .join(""),
-        }
-    }
 }
