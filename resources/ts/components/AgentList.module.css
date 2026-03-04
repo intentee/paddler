@@ -39,7 +39,7 @@
   grid-template-areas:
     "issues model status"
     "issues metadata metadata";
-  grid-template-columns: 2fr 3fr 3fr;
+  grid-template-columns: 6fr 6fr 5fr;
   height: var(--height-agent);
   padding: 0 var(--spacing-base);
   position: relative;
@@ -78,8 +78,12 @@
   }
 }
 
-.agentList__agent.agentList__agentHasIssues {
+.agentList__agent.agentList__agentHasErrors {
   border-color: crimson;
+}
+
+.agentList__agent.agentList__agentHasWarnings {
+  border-color: goldenrod;
 }
 
 .agentList__agent__download {
@@ -110,6 +114,9 @@
 
 .agentList__agent__issues__list {
   align-self: flex-start;
+  display: flex;
+  flex-direction: row;
+  gap: var(--spacing-half);
 }
 
 .agentList__agent__metadata {

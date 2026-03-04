@@ -1,6 +1,5 @@
 .notificationCount {
   align-items: center;
-  background-color: crimson;
   border-radius: 50%;
   color: white;
   display: inline-flex;
@@ -8,4 +7,17 @@
   height: 16px;
   justify-content: center;
   width: 16px;
+}
+
+.notificationCount___error {
+  composes: notificationCount;
+
+  background-color: crimson;
+}
+
+.notificationCount___warning {
+  composes: notificationCount;
+
+  background-color: black;
+  color: white;
 }
