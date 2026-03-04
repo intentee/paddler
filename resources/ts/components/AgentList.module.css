@@ -82,10 +82,6 @@
   border-color: crimson;
 }
 
-.agentList__agent.agentList__agentHasWarnings {
-  border-color: goldenrod;
-}
-
 .agentList__agent__download {
   align-items: center;
   align-self: flex-end;
