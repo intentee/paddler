@@ -529,6 +529,8 @@ mod tests {
         let controller = llamacpp_arbiter.spawn().await?;
 
         let test_image_data_uri = load_test_image_as_data_uri();
+        let prompt = env::var("TEST_MULTIMODAL_PROMPT")
+            .unwrap_or_else(|_| "What do you see in this image?".to_string());
 
         let conversation_history = vec![ConversationMessage {
             content: ConversationMessageContent::Parts(vec![
@@ -537,9 +539,7 @@ mod tests {
                         url: test_image_data_uri,
                     },
                 },
-                ConversationMessageContentPart::Text {
-                    text: "What do you see in this image?".to_string(),
-                },
+                ConversationMessageContentPart::Text { text: prompt },
             ]),
             role: "user".to_string(),
         }];
