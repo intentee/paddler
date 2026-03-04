@@ -5,7 +5,7 @@
 }
 
 .agentIssuesPreviewButton___warning {
-  --color-button-background: #ffffb5;
+  --color-button-background: #ffffdd;
 
   composes: modelDetailsPreviewButton from "./modelDetailsPreviewButton.module.css";
 }

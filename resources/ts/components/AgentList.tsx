@@ -13,7 +13,6 @@ import {
   agentList,
   agentList__agent,
   agentList__agentHasErrors,
-  agentList__agentHasWarnings,
   agentList__agent__download,
   agentList__agent__issues,
   agentList__agent__issues__list,
@@ -89,8 +88,6 @@ export function AgentList({
             className={clsx(agentList__agent, {
               [agentList__agentHasErrors]:
                 issues.length > 0 && hasErrorSeverity(issues),
-              [agentList__agentHasWarnings]:
-                issues.length > 0 && !hasErrorSeverity(issues),
             })}
             key={id}
           >
