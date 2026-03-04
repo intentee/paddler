@@ -25,6 +25,8 @@ pub mod image_url;
 pub mod inference_client;
 pub mod inference_parameters;
 pub mod inference_server;
+pub mod issue_severity;
+pub mod issue_type;
 pub mod jsonrpc;
 pub mod media_marker;
 pub mod model_metadata;

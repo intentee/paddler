@@ -7,11 +7,18 @@
 }
 
 .agentIssues__issue {
-  border-left: 2px solid crimson;
   display: flex;
   flex-direction: column;
   padding-bottom: var(--spacing-half);
   padding-left: var(--spacing-base);
   padding-top: var(--spacing-half);
   row-gap: var(--spacing-half);
+}
+
+.agentIssues__issue___error {
+  border-left: 2px solid crimson;
+}
+
+.agentIssues__issue___warning {
+  border-left: 2px solid goldenrod;
 }

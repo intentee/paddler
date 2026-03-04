@@ -7,6 +7,7 @@ use anyhow::Result;
 use dashmap::DashSet;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+use paddler_types::issue_type::AgentIssueType;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::Notify;
 
@@ -60,17 +61,19 @@ impl SlotAggregatedStatus {
         self.state_application_status_code.get().try_into()
     }
 
-    pub fn has_issue(&self, issue: &AgentIssue) -> bool {
-        self.issues.contains(issue)
+    pub fn has_issue(&self, issue_type: &AgentIssueType) -> bool {
+        self.issues
+            .iter()
+            .any(|ref_multi| ref_multi.key().type_ == *issue_type)
     }
 
     pub fn has_issue_like<TFunction>(&self, issue_like: TFunction) -> bool
     where
-        TFunction: Fn(&AgentIssue) -> bool,
+        TFunction: Fn(&AgentIssueType) -> bool,
     {
         self.issues
             .iter()
-            .any(|ref_multi| issue_like(ref_multi.key()))
+            .any(|ref_multi| issue_like(&ref_multi.key().type_))
     }
 
     pub fn increment_download_current(&self, size: usize) {
@@ -85,7 +88,9 @@ impl SlotAggregatedStatus {
         self.update_notifier.notify_waiters();
     }
 
-    pub fn register_issue(&self, issue: AgentIssue) {
+    pub fn register_issue(&self, issue_type: AgentIssueType) {
+        let issue = AgentIssue::from(issue_type);
+
         if self.issues.insert(issue) {
             self.update_notifier.notify_waiters();
         }

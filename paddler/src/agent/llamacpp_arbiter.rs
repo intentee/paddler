@@ -21,12 +21,12 @@ use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED;
 use log::error;
 use log::info;
-use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
+use paddler_types::issue_type::AgentIssueType;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
@@ -173,7 +173,7 @@ impl LlamaCppArbiter {
                     Err(err) => {
                         slot_aggregated_status_manager
                             .slot_aggregated_status
-                            .register_issue(AgentIssue::ChatTemplateDoesNotCompile(
+                            .register_issue(AgentIssueType::ChatTemplateDoesNotCompile(
                                 ChatTemplateDoesNotCompileParams {
                                     error: format!("{err}"),
                                     model_path: ModelPath {
@@ -223,7 +223,7 @@ impl LlamaCppArbiter {
                         Err(err) => {
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
-                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(
+                                .register_issue(AgentIssueType::MultimodalProjectionCannotBeLoaded(
                                     ModelPath {
                                         model_path: multimodal_projection_path
                                             .display()
@@ -286,7 +286,7 @@ impl LlamaCppArbiter {
                                 Err(err) => {
                                     slot_aggregated_status_manager
                                         .slot_aggregated_status
-                                        .register_issue(AgentIssue::SlotCannotStart(
+                                        .register_issue(AgentIssueType::SlotCannotStart(
                                             SlotCannotStartParams {
                                                 error: format!("{err}"),
                                                 slot_index: index,
@@ -333,7 +333,7 @@ impl LlamaCppArbiter {
 
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_issue(AgentIssue::ModelCannotBeLoaded(ModelPath {
+                    .register_issue(AgentIssueType::ModelCannotBeLoaded(ModelPath {
                         model_path: model_path_string.clone(),
                     }));
             }
@@ -356,7 +356,7 @@ impl LlamaCppArbiter {
                 if !self
                     .slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .has_issue(&AgentIssue::ModelCannotBeLoaded(ModelPath {
+                    .has_issue(&AgentIssueType::ModelCannotBeLoaded(ModelPath {
                         model_path: model_path_string.clone(),
                     }))
                 {
@@ -364,7 +364,7 @@ impl LlamaCppArbiter {
                     // cannot be loaded.
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
-                        .register_issue(AgentIssue::UnableToFindChatTemplate(ModelPath {
+                        .register_issue(AgentIssueType::UnableToFindChatTemplate(ModelPath {
                             model_path: model_path_string.clone(),
                         }));
                 }
