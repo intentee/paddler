@@ -52,7 +52,7 @@ And to start an agent with, for example, 4 slots, run:
 paddler agent --management-addr 127.0.0.1:8060 --slots 4
 ```
 
-Read more about the [installation](https://paddler.intentee.com/docs/introduction/installation/) and [setting up a basic cluster](http://127.0.0.1:8050/docs/starting-out/set-up-a-basic-llm-cluster/). 
+Read more about the [installation](https://paddler.intentee.com/docs/introduction/installation/) and [setting up a basic cluster](https://paddler.intentee.com/docs/starting-out/set-up-a-basic-llm-cluster/). 
 
 ## Documentation and resources
 
