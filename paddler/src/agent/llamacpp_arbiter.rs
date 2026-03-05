@@ -367,7 +367,6 @@ impl LlamaCppArbiter {
 #[cfg(test)]
 #[cfg(feature = "tests_that_use_llms")]
 mod tests {
-    use std::env;
     use std::fs;
 
     use base64::Engine as _;
@@ -395,23 +394,15 @@ mod tests {
     const SLOTS_TOTAL: i32 = 2;
 
     fn load_test_image_as_data_uri() -> String {
-        let image_path = env::var("TEST_MULTIMODAL_IMAGE_PATH")
-            .expect("TEST_MULTIMODAL_IMAGE_PATH env var must be set to an image file path");
-
-        let image_bytes = fs::read(&image_path)
-            .unwrap_or_else(|err| panic!("Failed to read image at '{image_path}': {err}"));
-
-        let mime_type = match image_path.rsplit('.').next() {
-            Some("jpg" | "jpeg") => "image/jpeg",
-            Some("png") => "image/png",
-            Some("gif") => "image/gif",
-            Some("webp") => "image/webp",
-            _ => "application/octet-stream",
-        };
+        let image_bytes = fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/llamas.jpg"
+        ))
+        .expect("Failed to read test fixture llamas.jpg");
 
         let encoded = BASE64_STANDARD.encode(&image_bytes);
 
-        format!("data:{mime_type};base64,{encoded}")
+        format!("data:image/jpeg;base64,{encoded}")
     }
 
     #[actix_web::test]
@@ -555,8 +546,7 @@ mod tests {
         let controller = llamacpp_arbiter.spawn().await?;
 
         let test_image_data_uri = load_test_image_as_data_uri();
-        let prompt = env::var("TEST_MULTIMODAL_PROMPT")
-            .unwrap_or_else(|_| "What do you see in this image?".to_string());
+        let prompt = "What do you see in this image?".to_string();
 
         let conversation_history = ConversationHistory::new(vec![ConversationMessage {
             content: ConversationMessageContent::Parts(vec![
