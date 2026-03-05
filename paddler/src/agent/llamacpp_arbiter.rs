@@ -597,11 +597,14 @@ mod tests {
                     received_tokens = true;
                 }
                 GeneratedTokenResult::Done => break,
-                GeneratedTokenResult::MultimodalNotSupported(msg) => {
-                    panic!("Multimodal should be supported: {msg}");
-                }
                 GeneratedTokenResult::ChatTemplateError(msg) => {
                     panic!("Chat template error: {msg}");
+                }
+                GeneratedTokenResult::ImageDecodingFailed(msg) => {
+                    panic!("Image decoding failed: {msg}");
+                }
+                GeneratedTokenResult::MultimodalNotSupported(msg) => {
+                    panic!("Multimodal should be supported: {msg}");
                 }
             }
         }

@@ -507,14 +507,13 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             Ok(images) => images,
             Err(err) => {
                 let msg = format!(
-                    "{:?}: slot {} failed to extract images: {err:?}",
+                    "{:?}: slot {} failed to decode images: {err:?}",
                     self.slot_context.agent_name, self.index
                 );
 
                 error!("{msg}");
 
-                generated_tokens_tx
-                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
+                generated_tokens_tx.send(GeneratedTokenResult::ImageDecodingFailed(msg.clone()))?;
 
                 return Err(anyhow!(msg));
             }

@@ -8,6 +8,7 @@ use crate::streamable_result::StreamableResult;
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     Done,
+    ImageDecodingFailed(String),
     MultimodalNotSupported(String),
     Token(String),
 }
@@ -18,6 +19,7 @@ impl StreamableResult for GeneratedTokenResult {
             self,
             GeneratedTokenResult::ChatTemplateError(_)
                 | GeneratedTokenResult::Done
+                | GeneratedTokenResult::ImageDecodingFailed(_)
                 | GeneratedTokenResult::MultimodalNotSupported(_)
         )
     }
