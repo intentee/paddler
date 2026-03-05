@@ -512,11 +512,8 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             }
         };
 
-        let has_images = !images.is_empty();
         let media_marker = mtmd_default_marker();
-
-        let text_only_conversation =
-            conversation.to_text_only(if has_images { media_marker } else { "" });
+        let text_only_conversation = conversation.to_text_only(media_marker);
 
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
@@ -556,7 +553,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             self.slot_context.agent_name, self.index, raw_prompt
         );
 
-        if has_images {
+        if !images.is_empty() {
             if self.slot_context.multimodal_context.is_none() {
                 let msg = format!(
                     "{:?}: slot {} received images but model does not support multimodal input",
