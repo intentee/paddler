@@ -374,6 +374,7 @@ mod tests {
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use futures::future::join_all;
     use paddler_types::agent_desired_model::AgentDesiredModel;
+    use paddler_types::conversation_history::ConversationHistory;
     use paddler_types::conversation_message::ConversationMessage;
     use paddler_types::conversation_message_content::ConversationMessageContent;
     use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
@@ -557,7 +558,7 @@ mod tests {
         let prompt = env::var("TEST_MULTIMODAL_PROMPT")
             .unwrap_or_else(|_| "What do you see in this image?".to_string());
 
-        let conversation_history = vec![ConversationMessage {
+        let conversation_history = ConversationHistory::new(vec![ConversationMessage {
             content: ConversationMessageContent::Parts(vec![
                 ConversationMessageContentPart::ImageUrl {
                     image_url: ImageUrl {
@@ -567,7 +568,7 @@ mod tests {
                 ConversationMessageContentPart::Text { text: prompt },
             ]),
             role: "user".to_string(),
-        }];
+        }]);
 
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
         let (_, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();

@@ -23,7 +23,6 @@ use log::info;
 use minijinja::context;
 use paddler_preprocessing::decode_image_from_data_uri::decode_image_from_data_uri;
 use paddler_preprocessing::decoded_image::DecodedImage;
-use paddler_types::conversation_message_collection::ConversationMessageCollection;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
@@ -499,9 +498,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let conversation = ConversationMessageCollection::new(conversation_history);
-
-        let images = match conversation
+        let images = match conversation_history
             .extract_image_urls()
             .iter()
             .map(|image_url| decode_image_from_data_uri(image_url))
@@ -524,7 +521,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         };
 
         let media_marker = mtmd_default_marker();
-        let text_only_conversation = conversation.to_text_only(media_marker);
+        let text_only_conversation = conversation_history.to_text_only(media_marker);
 
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
@@ -540,7 +537,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             // Known uses:
             // https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
             eos_token => self.slot_context.token_eos_str,
-            messages => text_only_conversation,
+            messages => text_only_conversation.messages,
             nl_token => self.slot_context.token_nl_str,
             tools => tools,
         }) {

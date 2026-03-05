@@ -8,6 +8,7 @@ use actix_web::web;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use nanoid::nanoid;
+use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -157,11 +158,13 @@ async fn respond(
 ) -> Result<HttpResponse, Error> {
     let paddler_params = ContinueFromConversationHistoryParams {
         add_generation_prompt: true,
-        conversation_history: openai_params
-            .messages
-            .iter()
-            .map(ConversationMessage::from)
-            .collect(),
+        conversation_history: ConversationHistory::new(
+            openai_params
+                .messages
+                .iter()
+                .map(ConversationMessage::from)
+                .collect(),
+        ),
         enable_thinking: true,
         max_tokens: openai_params.max_completion_tokens.unwrap_or(2000),
         tools: vec![],

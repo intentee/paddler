@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use serde::Serialize;
 
 use crate::conversation_message::ConversationMessage;
@@ -5,13 +6,12 @@ use crate::conversation_message_content::ConversationMessageContent;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
 use crate::image_url::ImageUrl;
 
-#[derive(Clone, Debug, Serialize)]
-#[serde(transparent)]
-pub struct ConversationMessageCollection {
-    messages: Vec<ConversationMessage>,
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ConversationHistory {
+    pub messages: Vec<ConversationMessage>,
 }
 
-impl ConversationMessageCollection {
+impl ConversationHistory {
     pub fn new(messages: Vec<ConversationMessage>) -> Self {
         Self { messages }
     }
