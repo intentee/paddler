@@ -39,7 +39,7 @@
   grid-template-areas:
     "name model status"
     "issues metadata metadata";
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) minmax(0, 2fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   height: var(--height-agent);
   padding: var(--spacing-base);
   position: relative;
