@@ -165,7 +165,7 @@ impl LlamaCppSlot {
         mut current_token_position: i32,
     ) -> Result<()> {
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
-        let mut batch = LlamaBatch::new(batch_size, 1);
+        let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
         let mut sampler = LlamaSampler::chain_simple([
@@ -191,7 +191,7 @@ impl LlamaCppSlot {
             {
                 let token = sampler.sample(&self.llama_context, -1);
 
-                sampler.accept(token);
+                sampler.accept(token)?;
 
                 if token == self.slot_context.model.token_eos() {
                     break;
@@ -268,7 +268,7 @@ impl LlamaCppSlot {
             .model
             .str_to_token(prompt, AddBos::Always)?;
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
-        let mut batch = LlamaBatch::new(batch_size, 1);
+        let mut batch = LlamaBatch::new(batch_size, 1)?;
         let last_token_index = tokens_list.len() as i32 - 1;
         let mut tokens_processed: i32 = 0;
         let mut kv_cache_repair_actions = vec![];
@@ -334,7 +334,7 @@ impl LlamaCppSlot {
 
         let batch_n_tokens = self.slot_context.inference_parameters.batch_n_tokens;
         let embedding_n_seq_max = self.slot_context.inference_parameters.embedding_n_seq_max as i32;
-        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max);
+        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max)?;
         let mut current_batch_inputs: Vec<&EmbeddingInputTokenized> = Vec::new();
         let mut current_batch_token_count: usize = 0;
         let mut next_seq_id: i32 = 0;
