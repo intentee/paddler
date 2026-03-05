@@ -94,6 +94,15 @@ pub fn mock_agents() -> Vec<AgentControllerSnapshot> {
                     ),
                     severity: IssueSeverity::Error,
                 },
+                AgentIssue {
+                    type_: IssueType::SlotCannotStart(
+                        paddler_types::agent_issue_params::SlotCannotStartParams {
+                            error: "out of disk".to_string(),
+                            slot_index: 1,
+                        },
+                    ),
+                    severity: IssueSeverity::Error,
+                },
             ]),
             model_path: Some("/models/large-model.gguf".to_string()),
             name: Some("agent-with-mixed-issues-agent-with-mixed-issuesagent-with-mixed-issues-agent-with-mixed-issues-agent-with-mixed-issues-agent-with-mixed-issues".to_string()),
