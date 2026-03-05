@@ -2289,7 +2289,6 @@ dependencies = [
  "minijinja-contrib",
  "nanoid",
  "nix",
- "paddler_preprocessing",
  "paddler_types",
  "rand 0.9.2",
  "reqwest",
@@ -2298,6 +2297,7 @@ dependencies = [
  "serde_json",
  "shellexpand",
  "tempfile",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
@@ -2322,15 +2322,6 @@ dependencies = [
  "tokio-stream",
  "tokio-tungstenite",
  "url",
-]
-
-[[package]]
-name = "paddler_preprocessing"
-version = "2.2.0"
-dependencies = [
- "anyhow",
- "base64",
- "paddler_types",
 ]
 
 [[package]]

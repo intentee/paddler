@@ -16,6 +16,8 @@ pub mod controls_websocket_endpoint;
 pub mod converts_to_applicable_state;
 pub mod converts_to_llama_pooling_type;
 pub mod create_cors_middleware;
+pub mod decoded_image;
+pub mod decoded_image_error;
 pub mod dispenses_slots;
 pub mod embedding_input_tokenized;
 pub mod produces_snapshot;

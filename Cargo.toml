@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler", "paddler_client", "paddler_preprocessing", "paddler_types"]
+members = ["paddler", "paddler_client", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -56,7 +56,6 @@ tokio-tungstenite = "0.28"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
 paddler_client = { version = "2.2.0", path = "paddler_client" }
-paddler_preprocessing = { version = "2.2.0", path = "paddler_preprocessing" }
 paddler_types = { version = "2.2.0", path = "paddler_types", default-features = false }
 
 [profile.release]
