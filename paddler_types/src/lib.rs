@@ -7,6 +7,8 @@ pub mod agent_state_application_status;
 pub mod balancer_desired_state;
 pub mod buffered_request_manager_snapshot;
 pub mod chat_template;
+pub mod chat_template_message;
+pub mod chat_template_messages;
 pub mod conversation_history;
 pub mod conversation_message;
 pub mod conversation_message_content;

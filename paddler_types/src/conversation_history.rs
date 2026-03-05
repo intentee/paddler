@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::chat_template_message::ChatTemplateMessage;
+use crate::chat_template_messages::ChatTemplateMessages;
 use crate::conversation_message::ConversationMessage;
 use crate::conversation_message_content::ConversationMessageContent;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
@@ -23,35 +25,24 @@ impl ConversationHistory {
             .collect()
     }
 
-    pub fn to_text_only(&self, media_marker: &str) -> Self {
-        Self {
+    pub fn replace_images_with_marker(&self, media_marker: &str) -> ChatTemplateMessages {
+        ChatTemplateMessages {
             messages: self
                 .messages
                 .iter()
-                .map(|message| ConversationMessage {
+                .map(|message| ChatTemplateMessage {
                     content: match &message.content {
-                        ConversationMessageContent::Text(text) => {
-                            ConversationMessageContent::Text(text.clone())
-                        }
-                        ConversationMessageContent::Parts(parts) => {
-                            ConversationMessageContent::Parts(
-                                parts
-                                    .iter()
-                                    .map(|part| match part {
-                                        ConversationMessageContentPart::Text { text } => {
-                                            ConversationMessageContentPart::Text {
-                                                text: text.clone(),
-                                            }
-                                        }
-                                        ConversationMessageContentPart::ImageUrl { .. } => {
-                                            ConversationMessageContentPart::Text {
-                                                text: media_marker.to_string(),
-                                            }
-                                        }
-                                    })
-                                    .collect(),
-                            )
-                        }
+                        ConversationMessageContent::Text(text) => text.clone(),
+                        ConversationMessageContent::Parts(parts) => parts
+                            .iter()
+                            .map(|part| match part {
+                                ConversationMessageContentPart::Text { text } => text.clone(),
+                                ConversationMessageContentPart::ImageUrl { .. } => {
+                                    media_marker.to_string()
+                                }
+                            })
+                            .collect::<Vec<String>>()
+                            .join(""),
                     },
                     role: message.role.clone(),
                 })

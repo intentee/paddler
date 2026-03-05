@@ -21,7 +21,6 @@ use log::debug;
 use log::error;
 use log::info;
 use minijinja::context;
-use paddler_preprocessing::decode_image_from_data_uri::decode_image_from_data_uri;
 use paddler_preprocessing::decoded_image::DecodedImage;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -501,7 +500,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         let images = match conversation_history
             .extract_image_urls()
             .iter()
-            .map(|image_url| decode_image_from_data_uri(image_url))
+            .map(|image_url| DecodedImage::from_data_uri(image_url))
             .collect::<Result<Vec<DecodedImage>>>()
         {
             Ok(images) => images,
@@ -520,7 +519,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         };
 
         let media_marker = mtmd_default_marker();
-        let text_only_conversation = conversation_history.to_text_only(media_marker);
+        let chat_template_messages = conversation_history.replace_images_with_marker(media_marker);
 
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
@@ -536,7 +535,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             // Known uses:
             // https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
             eos_token => self.slot_context.token_eos_str,
-            messages => text_only_conversation.messages,
+            messages => chat_template_messages.messages,
             nl_token => self.slot_context.token_nl_str,
             tools => tools,
         }) {
