@@ -1,4 +1,4 @@
-use llama_cpp_2::token::LlamaToken;
+use llama_cpp_bindings::token::LlamaToken;
 
 pub struct EmbeddingInputTokenized {
     pub id: String,

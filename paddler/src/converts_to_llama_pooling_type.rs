@@ -1,4 +1,4 @@
-use llama_cpp_2::context::params::LlamaPoolingType;
+use llama_cpp_bindings::context::params::LlamaPoolingType;
 use paddler_types::pooling_type::PoolingType;
 
 pub trait ConvertsToLlamaPoolingType {

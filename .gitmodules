@@ -1,3 +1,0 @@
-[submodule "llama-cpp-rs"]
-	path = llama-cpp-rs
-	url = https://github.com/intentee/llama-cpp-rs.git
