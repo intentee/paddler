@@ -126,11 +126,11 @@ export function ChangeModelForm({
               locally.
             </p>
             <p>
-              For example, you can use the following URL to download the Qwen-3
-              0.6B model:
+              For example, you can use the following URL to download the Qwen-3.5
+              0.8B model:
             </p>
             <code>
-              https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/Qwen3-0.6B-Q8_0.gguf
+              https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q6_K.gguf
             </code>
           </dd>
           <dt>Local File</dt>

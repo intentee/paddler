@@ -30,6 +30,7 @@ mod tests {
             chat_template_override: None,
             inference_parameters: InferenceParameters::default(),
             model: AgentDesiredModel::LocalToAgent("test_model_path".to_string()),
+            multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: false,
         };
 

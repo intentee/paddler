@@ -29,7 +29,6 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
-use crate::agent::find_mmproj_path::find_mmproj_path;
 use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
 use crate::agent::llamacpp_slot::LlamaCppSlot;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
@@ -44,6 +43,7 @@ pub struct LlamaCppArbiter {
     pub chat_template_override: Option<ChatTemplate>,
     pub desired_slots_total: i32,
     pub inference_parameters: InferenceParameters,
+    pub mmproj_path: Option<PathBuf>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub model_path: PathBuf,
     pub model_path_string: String,
@@ -67,6 +67,7 @@ impl LlamaCppArbiter {
         let desired_slots_total = self.desired_slots_total;
         let inference_parameters = self.inference_parameters.clone();
         let model_metadata_holder = self.model_metadata_holder.clone();
+        let mmproj_path = self.mmproj_path.clone();
         let model_path = self.model_path.clone();
         let model_path_string_clone = self.model_path_string.clone();
         let model_path_string = self.model_path_string.clone();
@@ -185,7 +186,7 @@ impl LlamaCppArbiter {
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
 
-            let multimodal_context = find_mmproj_path(&model_path).and_then(|mmproj_path| {
+            let multimodal_context = mmproj_path.and_then(|mmproj_path| {
                 let mmproj_path_str = mmproj_path.to_string_lossy();
 
                 match MtmdContext::init_from_file(
@@ -406,6 +407,7 @@ mod tests {
                 repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
                 revision: "main".to_string(),
             }),
+            multimodal_projection: AgentDesiredModel::None,
         };
         let slot_aggregated_status_manager =
             Arc::new(SlotAggregatedStatusManager::new(SLOTS_TOTAL));
@@ -425,6 +427,7 @@ mod tests {
             chat_template_override: None,
             desired_slots_total: SLOTS_TOTAL,
             inference_parameters: applicable_state.inference_parameters,
+            mmproj_path: applicable_state.mmproj_path,
             model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
             model_path: model_path.clone(),
             model_path_string: model_path.display().to_string(),
@@ -502,6 +505,11 @@ mod tests {
                 repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_string(),
                 revision: "main".to_string(),
             }),
+            multimodal_projection: AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
+                filename: "mmproj-SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_string(),
+                repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_string(),
+                revision: "main".to_string(),
+            }),
         };
         let slot_aggregated_status_manager =
             Arc::new(SlotAggregatedStatusManager::new(SLOTS_TOTAL));
@@ -521,6 +529,7 @@ mod tests {
             chat_template_override: None,
             desired_slots_total: 1,
             inference_parameters: applicable_state.inference_parameters,
+            mmproj_path: applicable_state.mmproj_path,
             model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
             model_path: model_path.clone(),
             model_path_string: model_path.display().to_string(),

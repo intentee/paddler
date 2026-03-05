@@ -2,7 +2,6 @@ pub mod continue_from_conversation_history_request;
 pub mod continue_from_raw_prompt_request;
 mod conversation_image_extractor;
 mod decoded_image;
-mod find_mmproj_path;
 mod from_request_params;
 pub mod generate_embedding_batch_request;
 pub mod jsonrpc;

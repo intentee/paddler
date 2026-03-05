@@ -11,5 +11,6 @@ pub struct BalancerDesiredState {
     pub chat_template_override: Option<ChatTemplate>,
     pub inference_parameters: InferenceParameters,
     pub model: AgentDesiredModel,
+    pub multimodal_projection: AgentDesiredModel,
     pub use_chat_template_override: bool,
 }
