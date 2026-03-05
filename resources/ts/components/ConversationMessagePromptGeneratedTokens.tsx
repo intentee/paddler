@@ -49,7 +49,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
 
         const subscription = inferenceSocketClient
           .continueConversation({
-            conversation_history: [
+            messages: [
               {
                 role: "user",
                 content:

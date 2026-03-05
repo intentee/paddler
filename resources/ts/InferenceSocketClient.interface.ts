@@ -5,6 +5,6 @@ import { type InferenceServiceGenerateTokensResponse } from "./schemas/Inference
 
 export interface InferenceSocketClient {
   continueConversation(params: {
-    conversation_history: ConversationMessage[];
+    messages: ConversationMessage[];
   }): Observable<InferenceServiceGenerateTokensResponse>;
 }
