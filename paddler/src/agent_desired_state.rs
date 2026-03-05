@@ -34,7 +34,7 @@ impl ConvertsToApplicableState for AgentDesiredState {
             .model
             .to_applicable_state(slot_aggregated_status.clone())
             .await?;
-        let mmproj_path = self
+        let multimodal_projection_path = self
             .multimodal_projection
             .to_applicable_state(slot_aggregated_status)
             .await?;
@@ -42,7 +42,7 @@ impl ConvertsToApplicableState for AgentDesiredState {
         Ok(Some(AgentApplicableState {
             chat_template_override: self.chat_template_override.clone(),
             inference_parameters: self.inference_parameters.clone(),
-            mmproj_path,
+            multimodal_projection_path,
             model_path,
         }))
     }

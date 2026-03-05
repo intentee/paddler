@@ -43,7 +43,7 @@ pub struct LlamaCppArbiter {
     pub chat_template_override: Option<ChatTemplate>,
     pub desired_slots_total: i32,
     pub inference_parameters: InferenceParameters,
-    pub mmproj_path: Option<PathBuf>,
+    pub multimodal_projection_path: Option<PathBuf>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub model_path: PathBuf,
     pub model_path_string: String,
@@ -67,7 +67,7 @@ impl LlamaCppArbiter {
         let desired_slots_total = self.desired_slots_total;
         let inference_parameters = self.inference_parameters.clone();
         let model_metadata_holder = self.model_metadata_holder.clone();
-        let mmproj_path = self.mmproj_path.clone();
+        let multimodal_projection_path = self.multimodal_projection_path.clone();
         let model_path = self.model_path.clone();
         let model_path_string_clone = self.model_path_string.clone();
         let model_path_string = self.model_path_string.clone();
@@ -186,32 +186,34 @@ impl LlamaCppArbiter {
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
 
-            let multimodal_context = mmproj_path.and_then(|mmproj_path| {
-                let mmproj_path_str = mmproj_path.to_string_lossy();
+            let multimodal_context =
+                multimodal_projection_path.and_then(|multimodal_projection_path| {
+                    let multimodal_projection_path_str =
+                        multimodal_projection_path.to_string_lossy();
 
-                match MtmdContext::init_from_file(
-                    &mmproj_path_str,
-                    &model,
-                    &MtmdContextParams::default(),
-                ) {
-                    Ok(mtmd_context) => {
-                        info!(
-                            "Multimodal context initialized from mmproj: {}",
-                            mmproj_path.display()
-                        );
+                    match MtmdContext::init_from_file(
+                        &multimodal_projection_path_str,
+                        &model,
+                        &MtmdContextParams::default(),
+                    ) {
+                        Ok(mtmd_context) => {
+                            info!(
+                                "Multimodal context initialized from mmproj: {}",
+                                multimodal_projection_path.display()
+                            );
 
-                        Some(Arc::new(mtmd_context))
+                            Some(Arc::new(mtmd_context))
+                        }
+                        Err(err) => {
+                            info!(
+                                "Could not initialize multimodal context from {}: {err}",
+                                multimodal_projection_path.display()
+                            );
+
+                            None
+                        }
                     }
-                    Err(err) => {
-                        info!(
-                            "Could not initialize multimodal context from {}: {err}",
-                            mmproj_path.display()
-                        );
-
-                        None
-                    }
-                }
-            });
+                });
 
             let slot_index = Arc::new(AtomicU32::new(0));
             let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
@@ -427,7 +429,7 @@ mod tests {
             chat_template_override: None,
             desired_slots_total: SLOTS_TOTAL,
             inference_parameters: applicable_state.inference_parameters,
-            mmproj_path: applicable_state.mmproj_path,
+            multimodal_projection_path: applicable_state.multimodal_projection_path,
             model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
             model_path: model_path.clone(),
             model_path_string: model_path.display().to_string(),
@@ -529,7 +531,7 @@ mod tests {
             chat_template_override: None,
             desired_slots_total: 1,
             inference_parameters: applicable_state.inference_parameters,
-            mmproj_path: applicable_state.mmproj_path,
+            multimodal_projection_path: applicable_state.multimodal_projection_path,
             model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
             model_path: model_path.clone(),
             model_path_string: model_path.display().to_string(),

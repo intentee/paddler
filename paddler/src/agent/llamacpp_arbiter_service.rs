@@ -57,7 +57,7 @@ impl LlamaCppArbiterService {
         if let Some(AgentApplicableState {
             chat_template_override,
             inference_parameters,
-            mmproj_path,
+            multimodal_projection_path,
             model_path,
         }) = self.agent_applicable_state.clone()
         {
@@ -124,7 +124,7 @@ impl LlamaCppArbiterService {
                         chat_template_override,
                         desired_slots_total: self.desired_slots_total,
                         inference_parameters,
-                        mmproj_path,
+                        multimodal_projection_path,
                         model_metadata_holder: self.model_metadata_holder.clone(),
                         model_path,
                         model_path_string,
