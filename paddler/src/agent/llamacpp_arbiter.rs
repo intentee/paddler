@@ -186,8 +186,8 @@ impl LlamaCppArbiter {
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
 
-            let multimodal_context =
-                multimodal_projection_path.and_then(|multimodal_projection_path| {
+            let multimodal_context = match multimodal_projection_path {
+                Some(multimodal_projection_path) => {
                     let multimodal_projection_path_str =
                         multimodal_projection_path.to_string_lossy();
 
@@ -197,23 +197,37 @@ impl LlamaCppArbiter {
                         &MtmdContextParams::default(),
                     ) {
                         Ok(mtmd_context) => {
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded);
+
                             info!(
-                                "Multimodal context initialized from mmproj: {}",
+                                "Multimodal context initialized from: {}",
                                 multimodal_projection_path.display()
                             );
 
                             Some(Arc::new(mtmd_context))
                         }
                         Err(err) => {
-                            info!(
-                                "Could not initialize multimodal context from {}: {err}",
+                            let message = format!(
+                                "Failed to load multimodal projection from {}: {err}",
                                 multimodal_projection_path.display()
                             );
 
-                            None
+                            error!("{message}");
+
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(
+                                    message.clone(),
+                                ));
+
+                            return Err(anyhow!(message));
                         }
                     }
-                });
+                }
+                None => None,
+            };
 
             let slot_index = Arc::new(AtomicU32::new(0));
             let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();

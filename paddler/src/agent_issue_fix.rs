@@ -9,6 +9,7 @@ pub enum AgentIssueFix {
     ModelFileExists,
     ModelIsLoaded,
     ModelStateIsReconciled,
+    MultimodalProjectionIsLoaded,
     SlotStarted(u32),
 }
 
@@ -33,6 +34,9 @@ impl AgentIssueFix {
             ),
             AgentIssue::ModelCannotBeLoaded(_) => matches!(self, AgentIssueFix::ModelIsLoaded),
             AgentIssue::ModelFileDoesNotExist(_) => matches!(self, AgentIssueFix::ModelFileExists),
+            AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
+                matches!(self, AgentIssueFix::MultimodalProjectionIsLoaded)
+            }
             AgentIssue::SlotCannotStart(SlotCannotStartParams {
                 error: _,
                 slot_index,

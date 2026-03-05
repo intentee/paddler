@@ -12,6 +12,7 @@ pub enum AgentIssue {
     HuggingFaceModelDoesNotExist(String),
     ModelCannotBeLoaded(String),
     ModelFileDoesNotExist(String),
+    MultimodalProjectionCannotBeLoaded(String),
     SlotCannotStart(SlotCannotStartParams),
     UnableToFindChatTemplate(String),
 }
