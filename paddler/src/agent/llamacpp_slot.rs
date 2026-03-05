@@ -56,7 +56,7 @@ impl LlamaCppSlot {
     pub fn new(
         index: u32,
         llama_backend: Arc<LlamaBackend>,
-        llama_ctx_params: Arc<LlamaContextParams>,
+        llama_context_params: Arc<LlamaContextParams>,
         slot_context: Arc<LlamaCppSlotContext>,
         status: Arc<SlotStatus>,
     ) -> Result<Self> {
@@ -73,7 +73,7 @@ impl LlamaCppSlot {
             // 3. The context cannot outlive the struct that contains both it and the model
             let model_ref: &'static LlamaModel = std::mem::transmute(slot_context.model.as_ref());
 
-            model_ref.new_context(&llama_backend, (*llama_ctx_params).clone())?
+            model_ref.new_context(&llama_backend, (*llama_context_params).clone())?
         };
 
         Ok(Self {
@@ -162,7 +162,7 @@ impl LlamaCppSlot {
         mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         max_tokens: i32,
-        mut n_cur: i32,
+        mut current_token_position: i32,
     ) -> Result<()> {
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
         let mut batch = LlamaBatch::new(batch_size, 1);
@@ -183,7 +183,7 @@ impl LlamaCppSlot {
             LlamaSampler::greedy(),
         ]);
 
-        while n_cur <= max_tokens {
+        while current_token_position <= max_tokens {
             if generate_tokens_stop_rx.try_recv().is_ok() {
                 break;
             }
@@ -205,10 +205,10 @@ impl LlamaCppSlot {
                 generated_tokens_tx.send(GeneratedTokenResult::Token(output_string))?;
 
                 batch.clear();
-                batch.add(token, n_cur, &[0], true)?;
+                batch.add(token, current_token_position, &[0], true)?;
             }
 
-            n_cur += 1;
+            current_token_position += 1;
 
             let mut kv_cache_repair_actions = vec![];
 
@@ -248,7 +248,7 @@ impl LlamaCppSlot {
 
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
 
-        let n_past = input_chunks
+        let tokens_ingested = input_chunks
             .eval_chunks(
                 multimodal_context,
                 &self.llama_context,
@@ -259,7 +259,7 @@ impl LlamaCppSlot {
             )
             .map_err(|err| anyhow!("Failed to evaluate multimodal chunks: {err}"))?;
 
-        Ok(n_past)
+        Ok(tokens_ingested)
     }
 
     fn ingest_text_prompt(&mut self, prompt: &str) -> Result<i32> {
@@ -269,7 +269,7 @@ impl LlamaCppSlot {
             .str_to_token(prompt, AddBos::Always)?;
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
         let mut batch = LlamaBatch::new(batch_size, 1);
-        let last_index = tokens_list.len() as i32 - 1;
+        let last_token_index = tokens_list.len() as i32 - 1;
         let mut tokens_processed: i32 = 0;
         let mut kv_cache_repair_actions = vec![];
 
@@ -278,7 +278,7 @@ impl LlamaCppSlot {
 
             for (offset, token) in tokens_chunk.iter().enumerate() {
                 let position = tokens_processed + offset as i32;
-                let is_last_token_overall = position == last_index;
+                let is_last_token_overall = position == last_token_index;
 
                 batch.add(*token, position, &[0], is_last_token_overall)?;
             }
@@ -493,7 +493,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
 
         let multimodal_context = self.slot_context.multimodal_context.clone();
 
-        let n_cur = match multimodal_context.as_ref() {
+        let current_token_position = match multimodal_context.as_ref() {
             Some(multimodal_context) => {
                 self.ingest_multimodal_prompt(multimodal_context, raw_prompt, images)?
             }
@@ -517,7 +517,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             generate_tokens_stop_rx,
             generated_tokens_tx,
             max_tokens,
-            n_cur,
+            current_token_position,
         )
     }
 }
@@ -542,13 +542,13 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
 
         self.llama_context.clear_kv_cache();
 
-        let n_cur = self.ingest_text_prompt(&raw_prompt)?;
+        let current_token_position = self.ingest_text_prompt(&raw_prompt)?;
 
         self.generate_tokens(
             generate_tokens_stop_rx,
             generated_tokens_tx,
             max_tokens,
-            n_cur,
+            current_token_position,
         )
     }
 }

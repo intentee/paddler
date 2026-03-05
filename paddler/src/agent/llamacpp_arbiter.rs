@@ -95,7 +95,7 @@ impl LlamaCppArbiter {
                     context_params.with_n_seq_max(inference_parameters.embedding_n_seq_max);
             }
 
-            let llama_ctx_params = Arc::new(context_params);
+            let llama_context_params = Arc::new(context_params);
             let backend_clone = llama_backend.clone();
             let model = Arc::new(
                 LlamaModel::load_from_file(&backend_clone.clone(), model_path.clone(), &{
@@ -268,7 +268,7 @@ impl LlamaCppArbiter {
                             let llamacpp_slot = LlamaCppSlot::new(
                                 index,
                                 llama_backend.clone(),
-                                llama_ctx_params.clone(),
+                                llama_context_params.clone(),
                                 slot_context.clone(),
                                 slot_aggregated_status_manager.bind_slot_status(),
                             );
