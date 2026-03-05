@@ -255,15 +255,26 @@ impl LlamaCppSlot {
         prompt: String,
         images: Vec<DecodedImage>,
     ) -> Result<()> {
+        let multimodal_context = match self.slot_context.multimodal_context.as_ref() {
+            Some(context) => context,
+            None => {
+                let msg = format!(
+                    "{:?}: slot {} received images but model does not support multimodal input",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx
+                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
+
+                return Err(anyhow!(msg));
+            }
+        };
+
         let _guard = self.status.take_slot_with_guard();
 
         self.llama_context.clear_kv_cache();
-
-        let multimodal_context = self
-            .slot_context
-            .multimodal_context
-            .as_ref()
-            .ok_or_else(|| anyhow!("Multimodal context is not available"))?;
 
         let bitmaps: Vec<MtmdBitmap> = images
             .iter()
@@ -554,20 +565,6 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         );
 
         if !images.is_empty() {
-            if self.slot_context.multimodal_context.is_none() {
-                let msg = format!(
-                    "{:?}: slot {} received images but model does not support multimodal input",
-                    self.slot_context.agent_name, self.index
-                );
-
-                error!("{msg}");
-
-                generated_tokens_tx
-                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
-
-                return Err(anyhow!(msg));
-            }
-
             self.continue_from_multimodal_prompt(
                 generate_tokens_stop_rx,
                 generated_tokens_tx,

@@ -26,15 +26,6 @@ impl ConversationMessageContent {
         }
     }
 
-    pub fn has_images(&self) -> bool {
-        match self {
-            ConversationMessageContent::Text(_) => false,
-            ConversationMessageContent::Parts(parts) => parts
-                .iter()
-                .any(|part| matches!(part, ConversationMessageContentPart::ImageUrl { .. })),
-        }
-    }
-
     pub fn image_urls(&self) -> Vec<&ImageUrl> {
         match self {
             ConversationMessageContent::Text(_) => vec![],

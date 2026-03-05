@@ -9,15 +9,11 @@ use crate::decoded_image::DecodedImage;
 pub fn decode_image_from_data_uri(image_url: &ImageUrl) -> Result<DecodedImage> {
     let url = &image_url.url;
 
-    if !url.starts_with("data:") {
-        return Err(anyhow!(
+    let after_data = url.strip_prefix("data:").ok_or_else(|| {
+        anyhow!(
             "Remote image URLs are not supported. Use base64 data URIs (data:image/...;base64,...) instead."
-        ));
-    }
-
-    let after_data = url
-        .strip_prefix("data:")
-        .ok_or_else(|| anyhow!("Invalid data URI"))?;
+        )
+    })?;
 
     let (_metadata, encoded_data) = after_data
         .split_once(',')
