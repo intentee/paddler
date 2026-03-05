@@ -8,6 +8,7 @@ pub mod balancer_desired_state;
 pub mod buffered_request_manager_snapshot;
 pub mod chat_template;
 pub mod conversation_message;
+pub mod conversation_message_collection;
 pub mod conversation_message_content;
 pub mod conversation_message_content_part;
 pub mod embedding;

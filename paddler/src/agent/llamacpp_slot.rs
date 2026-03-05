@@ -21,6 +21,9 @@ use log::debug;
 use log::error;
 use log::info;
 use minijinja::context;
+use paddler_preprocessing::decode_image_from_data_uri::decode_image_from_data_uri;
+use paddler_preprocessing::decoded_image::DecodedImage;
+use paddler_types::conversation_message_collection::ConversationMessageCollection;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
@@ -34,12 +37,9 @@ use tokio::sync::mpsc;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-use crate::agent::conversation_image_extractor::extract_images_from_conversation;
-use crate::agent::decoded_image::DecodedImage;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::kv_cache_repair_action::KVCacheRepairAction;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
-use crate::agent::text_only_conversation_builder::create_text_only_conversation;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::slot_status::SlotStatus;
 
@@ -488,7 +488,14 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let images = match extract_images_from_conversation(&conversation_history) {
+        let conversation = ConversationMessageCollection::new(conversation_history);
+
+        let images = match conversation
+            .extract_image_urls()
+            .iter()
+            .map(|image_url| decode_image_from_data_uri(image_url))
+            .collect::<Result<Vec<DecodedImage>>>()
+        {
             Ok(images) => images,
             Err(err) => {
                 let msg = format!(
@@ -508,10 +515,8 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         let has_images = !images.is_empty();
         let media_marker = mtmd_default_marker();
 
-        let text_only_conversation = create_text_only_conversation(
-            &conversation_history,
-            if has_images { media_marker } else { "" },
-        );
+        let text_only_conversation =
+            conversation.to_text_only(if has_images { media_marker } else { "" });
 
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
