@@ -27,6 +27,8 @@ impl ConversationHistory {
     }
 
     pub fn replace_images_with_marker(&self, media_marker: &MediaMarker) -> ChatTemplateMessages {
+        let marker_string = media_marker.to_string();
+
         ChatTemplateMessages {
             messages: self
                 .messages
@@ -39,7 +41,7 @@ impl ConversationHistory {
                             .map(|part| match part {
                                 ConversationMessageContentPart::Text { text } => text.clone(),
                                 ConversationMessageContentPart::ImageUrl { .. } => {
-                                    media_marker.to_string()
+                                    marker_string.clone()
                                 }
                             })
                             .collect::<Vec<String>>()
