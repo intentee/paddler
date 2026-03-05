@@ -64,6 +64,7 @@ export function ChangeModelForm({
         chat_template_override: chatTemplateOverride,
         inference_parameters: parameters,
         model: agentDesiredModelState.agentDesiredModel,
+        multimodal_projection: "None" as const,
         use_chat_template_override: useChatTemplateOverride,
       });
     },
