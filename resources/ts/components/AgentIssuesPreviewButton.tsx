@@ -51,7 +51,7 @@ export function AgentIssuesPreviewButton({
     <>
       <button className={buttonClassName} onClick={onClick}>
         <NotificationCount count={issues.length} severity={severity} />
-        {`${severity}s`}
+        {issues.length > 1 ? `${severity}s` : severity}
       </button>
       {isDetailsVisible && (
         <ModalWindow onClose={onClose} title={`${agentName} / Issues`}>

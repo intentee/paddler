@@ -91,8 +91,8 @@ export function AgentList({
             })}
             key={id}
           >
+            <div className={agentList__agent__name}>{name}</div>
             <div className={agentList__agent__issues}>
-              <div className={agentList__agent__name}>{name}</div>
               {issues.length > 0 ? (
                 <div className={agentList__agent__issues__list}>
                   {(function () {

@@ -37,11 +37,11 @@
   column-gap: var(--spacing-base);
   display: grid;
   grid-template-areas:
-    "issues model status"
+    "name model status"
     "issues metadata metadata";
-  grid-template-columns: 6fr 6fr 5fr;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr) minmax(0, 2fr);
   height: var(--height-agent);
-  padding: 0 var(--spacing-base);
+  padding: var(--spacing-base);
   position: relative;
   row-gap: var(--spacing-base);
 
@@ -106,6 +106,7 @@
   grid-template-rows: repeat(2, 24px);
   justify-items: flex-start;
   row-gap: var(--spacing-base);
+  height: fit-content;
 }
 
 .agentList__agent__issues__list {
@@ -113,6 +114,18 @@
   display: flex;
   flex-direction: row;
   gap: var(--spacing-half);
+}
+
+@media (max-width: 1036px) {
+  .agentList__agent {
+    min-height: var(--height-agent);
+    height: auto;
+    padding: var(--spacing-base);
+  }
+
+  .agentList__agent__issues__list {
+    flex-direction: column;
+  }
 }
 
 .agentList__agent__metadata {
@@ -141,6 +154,7 @@
 
 .agentList__agent__name {
   align-self: flex-end;
+  grid-area: name;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

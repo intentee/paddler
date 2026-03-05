@@ -7,10 +7,9 @@ use actix_web::get;
 use actix_web::web;
 use actix_web_lab::sse;
 use log::error;
-use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
-use super::get_agents::mock_agents;
 use crate::balancer::management_service::app_data::AppData;
+use crate::produces_snapshot::ProducesSnapshot as _;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
@@ -30,12 +29,13 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
         };
 
         loop {
-            let snapshot = AgentControllerPoolSnapshot {
-                agents: mock_agents(),
-            };
-
-            if let Some(event) = send_event(snapshot) {
-                yield event;
+            match app_data.agent_controller_pool.make_snapshot() {
+                Ok(agent_controller_pool_snapshot) => {
+                    if let Some(event) = send_event(agent_controller_pool_snapshot) {
+                        yield event;
+                    }
+                }
+                Err(err) => error!("Failed to get agent controller pool snapshot: {err}"),
             }
 
             app_data.agent_controller_pool.update_notifier.notified().await;
