@@ -7,6 +7,7 @@ use crate::conversation_message::ConversationMessage;
 use crate::conversation_message_content::ConversationMessageContent;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
 use crate::image_url::ImageUrl;
+use crate::media_marker::MediaMarker;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct ConversationHistory {
@@ -25,7 +26,7 @@ impl ConversationHistory {
             .collect()
     }
 
-    pub fn replace_images_with_marker(&self, media_marker: &str) -> ChatTemplateMessages {
+    pub fn replace_images_with_marker(&self, media_marker: &MediaMarker) -> ChatTemplateMessages {
         ChatTemplateMessages {
             messages: self
                 .messages

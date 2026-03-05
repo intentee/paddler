@@ -24,6 +24,7 @@ pub mod inference_client;
 pub mod inference_parameters;
 pub mod inference_server;
 pub mod jsonrpc;
+pub mod media_marker;
 pub mod model_metadata;
 pub mod normalization;
 pub mod pooling_type;

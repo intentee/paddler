@@ -25,6 +25,7 @@ use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::media_marker::MediaMarker;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
@@ -519,8 +520,8 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             }
         };
 
-        let media_marker = mtmd_default_marker();
-        let chat_template_messages = conversation_history.replace_images_with_marker(media_marker);
+        let media_marker = MediaMarker::new(mtmd_default_marker().to_string());
+        let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
 
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
