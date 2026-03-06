@@ -15,6 +15,7 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 #[actix_web::test]
 async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
+        inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
             filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
             repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),

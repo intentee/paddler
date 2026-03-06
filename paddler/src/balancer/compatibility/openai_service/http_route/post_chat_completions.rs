@@ -254,3 +254,100 @@ async fn respond(
         })))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use paddler_types::generated_token_result::GeneratedTokenResult;
+    use paddler_types::inference_client::Message as OutgoingMessage;
+    use paddler_types::inference_client::Response as OutgoingResponse;
+    use paddler_types::jsonrpc::ResponseEnvelope;
+
+    use super::OpenAICombinedResponseTransformer;
+    use super::OpenAIStreamingResponseTransformer;
+    use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+
+    fn make_token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
+        OutgoingMessage::Response(ResponseEnvelope {
+            request_id: "test-request".to_string(),
+            response: OutgoingResponse::GeneratedToken(token_result),
+        })
+    }
+
+    #[actix_web::test]
+    async fn streaming_token_emits_content_delta() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_string(),
+            system_fingerprint: "test-fingerprint".to_string(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::Token("hello".to_string()));
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result["choices"][0]["delta"]["content"], "hello");
+        assert_eq!(result["choices"][0]["delta"]["role"], "assistant");
+        assert!(result["choices"][0]["finish_reason"].is_null());
+    }
+
+    #[actix_web::test]
+    async fn streaming_thinking_token_emits_reasoning_content_delta() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_string(),
+            system_fingerprint: "test-fingerprint".to_string(),
+        };
+
+        let message =
+            make_token_message(GeneratedTokenResult::ThinkingToken("reasoning".to_string()));
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(
+            result["choices"][0]["delta"]["reasoning_content"],
+            "reasoning"
+        );
+        assert_eq!(result["choices"][0]["delta"]["role"], "assistant");
+        assert!(result["choices"][0]["finish_reason"].is_null());
+    }
+
+    #[actix_web::test]
+    async fn streaming_done_emits_stop_finish_reason() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_string(),
+            system_fingerprint: "test-fingerprint".to_string(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::Done);
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result["choices"][0]["finish_reason"], "stop");
+    }
+
+    #[actix_web::test]
+    async fn combined_token_returns_content() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::Token("hello".to_string()));
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result, "hello");
+    }
+
+    #[actix_web::test]
+    async fn combined_thinking_token_is_discarded() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message =
+            make_token_message(GeneratedTokenResult::ThinkingToken("reasoning".to_string()));
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result, "");
+    }
+
+    #[actix_web::test]
+    async fn combined_done_returns_empty_string() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::Done);
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result, "");
+    }
+}
