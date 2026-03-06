@@ -180,7 +180,6 @@ impl LlamaCppSlot {
             LlamaSampler::min_p(self.slot_context.inference_parameters.min_p, 0),
             LlamaSampler::temp(self.slot_context.inference_parameters.temperature),
             LlamaSampler::dist(self.rng.random::<u32>()),
-            LlamaSampler::greedy(),
         ]);
 
         while current_token_position <= max_tokens {
@@ -193,7 +192,7 @@ impl LlamaCppSlot {
 
                 sampler.accept(token)?;
 
-                if token == self.slot_context.model.token_eos() {
+                if self.slot_context.model.is_eog_token(token) {
                     break;
                 }
 
