@@ -12,6 +12,7 @@ pub enum AgentIssue {
     ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams),
     HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock),
     HuggingFaceModelDoesNotExist(ModelPath),
+    HuggingFacePermissions(ModelPath),
     ModelCannotBeLoaded(ModelPath),
     ModelFileDoesNotExist(ModelPath),
     MultimodalProjectionCannotBeLoaded(ModelPath),

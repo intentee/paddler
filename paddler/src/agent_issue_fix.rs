@@ -33,7 +33,8 @@ impl AgentIssueFix {
                 AgentIssueFix::ModelStateIsReconciled => true,
                 _ => false,
             },
-            AgentIssue::HuggingFaceModelDoesNotExist(issue_model_path) => match self {
+            AgentIssue::HuggingFaceModelDoesNotExist(issue_model_path)
+            | AgentIssue::HuggingFacePermissions(issue_model_path) => match self {
                 AgentIssueFix::HuggingFaceDownloadedModel(fix_model_path)
                 | AgentIssueFix::HuggingFaceStartedDownloading(fix_model_path)
                 | AgentIssueFix::MultimodalProjectionIsLoaded(fix_model_path) => {

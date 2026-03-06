@@ -82,6 +82,28 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
+        if ("HuggingFacePermissions" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                You do not have enough permissions to download model from
+                HuggingFace: {issue.HuggingFacePermissions.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will retry to download the model in case this might be a
+                temporary issue.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">You need to check the model URL.</Link>
+                There is a chance that you made a typo in the organization name.
+                In that case HuggingFace reports 401 error instead of 404.
+              </p>
+            </li>
+          );
+        }
+
         if ("ModelCannotBeLoaded" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>

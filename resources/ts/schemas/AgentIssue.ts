@@ -18,6 +18,9 @@ export const AgentIssueSchema = z.union([
     HuggingFaceModelDoesNotExist: AgentIssueModelPathSchema,
   }),
   z.object({
+    HuggingFacePermissions: AgentIssueModelPathSchema,
+  }),
+  z.object({
     ModelCannotBeLoaded: AgentIssueModelPathSchema,
   }),
   z.object({

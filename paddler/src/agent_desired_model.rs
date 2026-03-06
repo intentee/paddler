@@ -116,6 +116,18 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                                 "Model '{model_path}' does not exist on Hugging Face."
                             ));
                         }
+                        Some(reqwest::StatusCode::FORBIDDEN)
+                        | Some(reqwest::StatusCode::UNAUTHORIZED) => {
+                            slot_aggregated_status.register_issue(
+                                AgentIssue::HuggingFacePermissions(ModelPath {
+                                    model_path: model_path.clone(),
+                                }),
+                            );
+
+                            return Err(anyhow!(
+                                "You do not have enough permissions to download '{model_path}' from Hugging Face."
+                            ));
+                        }
                         _ => {
                             return Err(anyhow!(
                                 "Failed to download model from Hugging Face: {}",
