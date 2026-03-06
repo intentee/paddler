@@ -6,7 +6,7 @@ Keep it simple, be opinionated, follow best practices. Avoid using configurable 
 
 Keep the code beautiful. Always optimize the code for a great developer experience.
 
-Be proactive and fix preexistive issues if you encounter them.
+Be proactive and fix preexisting issues if you encounter them.
 
 ## Coding Standards
 
