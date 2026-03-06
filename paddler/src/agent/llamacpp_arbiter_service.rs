@@ -12,7 +12,7 @@ use log::info;
 use log::warn;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_types::issue_type::AgentIssueType;
+use paddler_types::agent_issue_type::AgentIssueType;
 use tokio::fs;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;

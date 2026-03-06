@@ -6,8 +6,8 @@ use std::sync::atomic::AtomicUsize;
 use anyhow::Result;
 use dashmap::DashSet;
 use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_type::AgentIssueType;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_types::issue_type::AgentIssueType;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::Notify;
 

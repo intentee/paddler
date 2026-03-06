@@ -24,9 +24,9 @@ use log::info;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
+use paddler_types::agent_issue_type::AgentIssueType;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
-use paddler_types::issue_type::AgentIssueType;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 

@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::issue_severity::AgentIssueSeverity;
-use crate::issue_type::AgentIssueType;
+use crate::agent_issue_severity::AgentIssueSeverity;
+use crate::agent_issue_type::AgentIssueType;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]

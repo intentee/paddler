@@ -39,7 +39,7 @@ export function AgentListAgentStatus({
       return (
         <div className={agentListAgentStatus__progress}>
           <div>
-            🏳️ <i>Needs your help</i>
+            <i>Needs your help</i> 🏳️
           </div>
         </div>
       );

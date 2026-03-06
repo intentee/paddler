@@ -1,7 +1,7 @@
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
-use paddler_types::issue_type::AgentIssueType;
+use paddler_types::agent_issue_type::AgentIssueType;
 
 #[derive(Debug)]
 pub enum AgentIssueFix {
@@ -26,14 +26,16 @@ impl AgentIssueFix {
                 AgentIssueFix::ModelStateIsReconciled => true,
                 _ => false,
             },
-            AgentIssueType::HuggingFaceCannotAcquireLock(hugging_face_download_lock) => match self {
-                AgentIssueFix::HuggingFaceDownloadedModel(fix_model_path)
-                | AgentIssueFix::HuggingFaceStartedDownloading(fix_model_path) => {
-                    hugging_face_download_lock.model_path.eq(fix_model_path)
+            AgentIssueType::HuggingFaceCannotAcquireLock(hugging_face_download_lock) => {
+                match self {
+                    AgentIssueFix::HuggingFaceDownloadedModel(fix_model_path)
+                    | AgentIssueFix::HuggingFaceStartedDownloading(fix_model_path) => {
+                        hugging_face_download_lock.model_path.eq(fix_model_path)
+                    }
+                    AgentIssueFix::ModelStateIsReconciled => true,
+                    _ => false,
                 }
-                AgentIssueFix::ModelStateIsReconciled => true,
-                _ => false,
-            },
+            }
             AgentIssueType::HuggingFaceModelDoesNotExist(issue_model_path)
             | AgentIssueType::HuggingFacePermissions(issue_model_path) => match self {
                 AgentIssueFix::HuggingFaceDownloadedModel(fix_model_path)
@@ -45,7 +47,9 @@ impl AgentIssueFix {
                 _ => false,
             },
             AgentIssueType::ModelCannotBeLoaded(issue_model_path) => match self {
-                AgentIssueFix::ModelIsLoaded(fix_model_path) => issue_model_path.eq(fix_model_path),
+                AgentIssueFix::ModelIsLoaded(fix_model_path) => {
+                    issue_model_path.eq(fix_model_path)
+                }
                 _ => false,
             },
             AgentIssueType::ModelFileDoesNotExist(issue_model_path) => match self {
@@ -64,7 +68,9 @@ impl AgentIssueFix {
                 error: _,
                 slot_index,
             }) => match self {
-                AgentIssueFix::SlotStarted(started_slot_index) => *started_slot_index == *slot_index,
+                AgentIssueFix::SlotStarted(started_slot_index) => {
+                    *started_slot_index == *slot_index
+                }
                 _ => false,
             },
             AgentIssueType::UnableToFindChatTemplate(issue_model_path) => match self {

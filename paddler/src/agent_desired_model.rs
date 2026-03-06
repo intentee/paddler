@@ -13,8 +13,8 @@ use log::warn;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue_params::HuggingFaceDownloadLock;
 use paddler_types::agent_issue_params::ModelPath;
+use paddler_types::agent_issue_type::AgentIssueType;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
-use paddler_types::issue_type::AgentIssueType;
 use tokio::time::Duration;
 use tokio::time::sleep;
 
