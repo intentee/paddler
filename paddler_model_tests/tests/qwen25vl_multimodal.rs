@@ -7,33 +7,51 @@ use paddler_harness::log_generated_response::log_generated_response;
 use paddler_harness::managed_model::ManagedModel;
 use paddler_harness::managed_model::ManagedModelParams;
 use paddler_harness::model_test_harness::ModelTestHarness;
+use paddler_model_tests::load_test_image_as_data_uri::load_test_image_as_data_uri;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
+use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_types::image_url::ImageUrl;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 
 #[actix_web::test]
-async fn test_qwen35_thinking_mode_stops_cleanly() -> Result<()> {
+async fn test_qwen25vl_multimodal_inference_with_image() -> Result<()> {
     send_logs_to_tracing(LogOptions::default());
 
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
+            filename: "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf".to_string(),
+            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_string(),
             revision: "main".to_string(),
         },
-        multimodal_projection: None,
+        multimodal_projection: Some(HuggingFaceModelReference {
+            filename: "mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf".to_string(),
+            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_string(),
+            revision: "main".to_string(),
+        }),
     })
     .await?;
 
     let harness = ModelTestHarness::new(&managed_model);
 
+    let test_image_data_uri = load_test_image_as_data_uri();
+
     let conversation_history = ConversationHistory::new(vec![ConversationMessage {
-        content: ConversationMessageContent::Text("What is 2+2?".to_string()),
+        content: ConversationMessageContent::Parts(vec![
+            ConversationMessageContentPart::ImageUrl {
+                image_url: ImageUrl {
+                    url: test_image_data_uri,
+                },
+            },
+            ConversationMessageContentPart::Text {
+                text: "What do you see in this image?".to_string(),
+            },
+        ]),
         role: "user".to_string(),
     }]);
 
@@ -41,37 +59,22 @@ async fn test_qwen35_thinking_mode_stops_cleanly() -> Result<()> {
         .generate_from_conversation(ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history,
-            enable_thinking: true,
-            max_tokens: 2000,
+            enable_thinking: false,
+            max_tokens: 200,
             tools: vec![],
         })
         .await?;
 
     log_generated_response(&results);
 
-    let thinking_token_count = results
-        .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ThinkingToken(_)))
-        .count();
-
-    let response_token_count = results
+    let token_count = results
         .iter()
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
 
-    let total_token_count = thinking_token_count + response_token_count;
-
     assert!(
-        thinking_token_count > 0,
-        "Expected to receive at least one ThinkingToken from Qwen3.5 in thinking mode"
-    );
-    assert!(
-        response_token_count > 0,
-        "Expected to receive at least one response Token after thinking"
-    );
-    assert!(
-        total_token_count < 2000,
-        "Expected generation to stop before max_tokens (EOG token should be caught), got {total_token_count} tokens"
+        token_count > 0,
+        "Expected to receive at least one token from Qwen2.5-VL multimodal inference"
     );
     assert!(
         matches!(results.last(), Some(GeneratedTokenResult::Done)),

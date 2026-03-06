@@ -1,6 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use llama_cpp_bindings::LogOptions;
+use llama_cpp_bindings::send_logs_to_tracing;
+use paddler_harness::log_generated_response::log_generated_response;
 use paddler_harness::managed_model::ManagedModel;
 use paddler_harness::managed_model::ManagedModelParams;
 use paddler_harness::model_test_harness::ModelTestHarness;
@@ -11,6 +14,8 @@ use paddler_types::request_params::ContinueFromRawPromptParams;
 
 #[actix_web::test]
 async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
+    send_logs_to_tracing(LogOptions::default());
+
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters {
             min_p: 0.0,
@@ -37,6 +42,8 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
                     .to_string(),
         })
         .await?;
+
+    log_generated_response(&results);
 
     let token_count = results
         .iter()

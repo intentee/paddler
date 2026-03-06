@@ -114,7 +114,8 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         done: true,
         error: Object.freeze({
           code: 400,
-          description: data.Response.response.GeneratedToken.ImageDecodingFailed,
+          description:
+            data.Response.response.GeneratedToken.ImageDecodingFailed,
         }),
         ok: false,
         request_id: data.Response.request_id,
@@ -123,9 +124,7 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       });
     }
 
-    if (
-      "MultimodalNotSupported" in data.Response.response.GeneratedToken
-    ) {
+    if ("MultimodalNotSupported" in data.Response.response.GeneratedToken) {
       return Object.freeze({
         done: true,
         error: Object.freeze({

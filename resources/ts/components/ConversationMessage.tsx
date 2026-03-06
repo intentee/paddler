@@ -27,7 +27,9 @@ export function ConversationMessage({
     <div className={conversationMessage}>
       <strong className={conversationMessage__author}>{author}:</strong>
       <div className={conversationMessage__response}>
-        <div>{thoughts && !response ? "🤔" : <Markdown>{response}</Markdown>}</div>
+        <div>
+          {thoughts && !response ? "🤔" : <Markdown>{response}</Markdown>}
+        </div>
         {errors.map(function ({ code, description }, index) {
           return (
             <div className={conversationMessage__error} key={index}>

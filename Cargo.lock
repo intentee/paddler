@@ -1880,9 +1880,9 @@ checksum = "241eaef5fd12c88705a01fc1066c48c4b36e0dd4377dcdc7ec3942cea7a69956"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c1949d40d2f4256cf85886c1e0985201ea7702d547b2c7a15055fa4f388ba6c"
+checksum = "3bf61602ca952a454d702380fda2fd1836b5a72d694bc0800a1ccedaa83b30fe"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -1894,9 +1894,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75d1caa9d31b60e44e40d34436a8684fc86b0b0704227863f7509cbad99bb7cb"
+checksum = "5c93f1a92685a1e76ee0e6cc307e3d2fff1a1a7b1c5b746084eaad89e4b09d55"
 dependencies = [
  "bindgen",
  "cc",
@@ -1908,9 +1908,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e596d498fabdbfee1196a34872b080785c104dded56bdf979c2243a4408bf08"
+checksum = "4fac5e75e1eba57073db16b4b1bc8b0e31e668af705a12b0ebb4d516327667d1"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
@@ -2341,6 +2341,7 @@ dependencies = [
  "actix-web",
  "anyhow",
  "base64",
+ "llama-cpp-bindings",
  "paddler_harness",
  "paddler_types",
  "tokio",
