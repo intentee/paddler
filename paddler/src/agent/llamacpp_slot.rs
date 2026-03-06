@@ -433,10 +433,15 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        let image_resize_to_fit = self.slot_context.inference_parameters.image_resize_to_fit;
+
         let images = match conversation_history
             .extract_image_urls()
             .iter()
-            .map(|image_url| DecodedImage::from_data_uri(image_url))
+            .map(|image_url| {
+                DecodedImage::from_data_uri(image_url)
+                    .and_then(|image| image.resized_to_fit(image_resize_to_fit))
+            })
             .collect::<Result<Vec<DecodedImage>, DecodedImageError>>()
         {
             Ok(images) => images,

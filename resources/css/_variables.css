@@ -20,6 +20,7 @@
   --max-width-workbench-content: 1024px;
   --spacing-2x: calc(2 * var(--spacing-base));
   --spacing-base: 16px;
+  --spacing-base-plus-half: calc(var(--spacing-base) + var(--spacing-half));
   --spacing-half: calc(0.5 * var(--spacing-base));
   --spacing-quarter: calc(0.25 * var(--spacing-base));
   --width-scrollbar: 8px;

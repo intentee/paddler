@@ -10,6 +10,7 @@ pub struct InferenceParameters {
     pub context_size: u32,
     pub embedding_n_seq_max: u32,
     pub enable_embeddings: bool,
+    pub image_resize_to_fit: u32,
     /// The minimum probability for a token to be considered, relative to the probability of the most likely token
     pub min_p: f32,
     pub penalty_frequency: f32,
@@ -34,6 +35,7 @@ impl Default for InferenceParameters {
             context_size: 8192,
             embedding_n_seq_max: 16,
             enable_embeddings: false,
+            image_resize_to_fit: 1024,
             min_p: 0.05,
             penalty_frequency: 0.0,
             penalty_last_n: -1,

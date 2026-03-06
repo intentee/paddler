@@ -2,6 +2,9 @@ import React, { memo, useContext, useEffect, useMemo, useState } from "react";
 import { scan } from "rxjs";
 
 import { PromptContext } from "../contexts/PromptContext";
+import { PromptImageContext } from "../contexts/PromptImageContext";
+import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
+import { type ConversationMessage as ConversationMessageType } from "../ConversationMessage.type";
 import { InferenceSocketClient } from "../InferenceSocketClient";
 import { type InferenceServiceGenerateTokensResponse } from "../schemas/InferenceServiceGenerateTokensResponse";
 import { ConversationMessage } from "./ConversationMessage";
@@ -23,6 +26,32 @@ const defaultMessage: Message = Object.freeze({
   thoughts: "",
 });
 
+function buildUserMessage(
+  submittedPrompt: string,
+  submittedImageDataUri: null | string,
+): ConversationMessageType {
+  if (submittedImageDataUri) {
+    return {
+      role: "user",
+      content: [
+        {
+          type: "image_url",
+          image_url: { url: submittedImageDataUri },
+        },
+        {
+          type: "text",
+          text: submittedPrompt,
+        },
+      ],
+    };
+  }
+
+  return {
+    role: "user",
+    content: submittedPrompt,
+  };
+}
+
 export const ConversationMessagePromptGeneratedTokens = memo(
   function ConversationMessagePromptGeneratedTokens({
     webSocket,
@@ -30,6 +59,8 @@ export const ConversationMessagePromptGeneratedTokens = memo(
     webSocket: WebSocket;
   }) {
     const { submittedPrompt, version } = useContext(PromptContext);
+    const { submittedImageDataUri } = useContext(PromptImageContext);
+    const { submittedIsThinkingEnabled } = useContext(PromptThinkingContext);
     const [message, setMessage] = useState<Message>(defaultMessage);
 
     const inferenceSocketClient = useMemo(
@@ -47,6 +78,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
 
         const subscription = inferenceSocketClient
           .continueConversation({
+            enableThinking: submittedIsThinkingEnabled,
             messages: [
               {
                 role: "system",
@@ -57,7 +89,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
                 role: "assistant",
                 content: "Hello! How can I help you today?",
               },
-              { role: "user", content: submittedPrompt },
+              buildUserMessage(submittedPrompt, submittedImageDataUri),
             ],
           })
           .pipe(
@@ -114,7 +146,14 @@ export const ConversationMessagePromptGeneratedTokens = memo(
           subscription.unsubscribe();
         };
       },
-      [inferenceSocketClient, setMessage, submittedPrompt, version],
+      [
+        inferenceSocketClient,
+        setMessage,
+        submittedImageDataUri,
+        submittedIsThinkingEnabled,
+        submittedPrompt,
+        version,
+      ],
     );
 
     if (message.isEmpty) {

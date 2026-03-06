@@ -14,8 +14,10 @@ export function InferenceSocketClient({
   webSocket: WebSocket;
 }): InferenceSocketClient {
   function continueConversation({
+    enableThinking,
     messages,
   }: {
+    enableThinking: boolean;
     messages: ConversationMessage[];
   }): Observable<InferenceServiceGenerateTokensResponse> {
     const requestId = nanoid();
@@ -60,7 +62,7 @@ export function InferenceSocketClient({
             ContinueFromConversationHistory: {
               add_generation_prompt: true,
               conversation_history: messages,
-              enable_thinking: true,
+              enable_thinking: enableThinking,
               max_tokens: 1000,
             },
           },

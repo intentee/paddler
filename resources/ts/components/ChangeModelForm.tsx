@@ -75,7 +75,6 @@ export function ChangeModelForm({
 
   const balancerDesiredState: null | BalancerDesiredState = useMemo(
     function () {
-      console.log(multimodalProjecttionAgentDesiredModelState);
       if (
         !baseModelAgentDesiredModelState.ok ||
         !multimodalProjecttionAgentDesiredModelState.ok
@@ -239,6 +238,10 @@ export function ChangeModelForm({
             <InferenceParameterInput
               description="Context Size (higher = longer chat history, lower = less memory usage)"
               name="context_size"
+            />
+            <InferenceParameterInput
+              description="Max image dimension in pixels before resizing (0 = no resize)"
+              name="image_resize_to_fit"
             />
             <InferenceParameterInput
               description="Max simultaneous sequences per embedding batch (higher = more throughput, more memory)"

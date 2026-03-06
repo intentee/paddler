@@ -27,6 +27,7 @@ env_logger = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 hf-hub = { workspace = true }
+image = { workspace = true }
 indoc = { workspace = true }
 jsonschema = { workspace = true }
 llama-cpp-bindings = { workspace = true }
