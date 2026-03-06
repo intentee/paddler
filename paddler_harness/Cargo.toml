@@ -1,0 +1,15 @@
+[package]
+name = "paddler_harness"
+authors.workspace = true
+description = "Test harness and utilities for Paddler integration tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+paddler = { workspace = true }
+paddler_types = { workspace = true }
+tokio = { workspace = true }

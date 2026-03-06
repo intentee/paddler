@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler", "paddler_client", "paddler_types"]
+members = ["paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -55,7 +55,9 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
+paddler = { version = "2.2.0", path = "paddler" }
 paddler_client = { version = "2.2.0", path = "paddler_client" }
+paddler_harness = { version = "2.2.0", path = "paddler_harness" }
 paddler_types = { version = "2.2.0", path = "paddler_types", default-features = false }
 
 [profile.release]

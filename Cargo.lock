@@ -2325,6 +2325,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_harness"
+version = "2.2.0"
+dependencies = [
+ "anyhow",
+ "paddler",
+ "paddler_types",
+ "tokio",
+]
+
+[[package]]
+name = "paddler_model_tests"
+version = "2.2.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "base64",
+ "paddler_harness",
+ "paddler_types",
+ "tokio",
+]
+
+[[package]]
 name = "paddler_types"
 version = "2.2.0"
 dependencies = [
