@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use hf_hub::api::tokio::Progress;
+use paddler_types::agent_issue_params::ModelPath;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
@@ -21,7 +22,9 @@ impl SlotAggregatedStatusDownloadProgress {
 impl Progress for SlotAggregatedStatusDownloadProgress {
     async fn init(&mut self, size: usize, filename: &str) {
         self.slot_aggregated_status
-            .register_fix(AgentIssueFix::HuggingFaceStartedDownloading);
+            .register_fix(AgentIssueFix::HuggingFaceStartedDownloading(ModelPath {
+                model_path: filename.to_string(),
+            }));
 
         self.slot_aggregated_status
             .set_download_status(0, size, Some(filename.to_string()));

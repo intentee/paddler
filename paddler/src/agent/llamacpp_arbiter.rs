@@ -23,6 +23,7 @@ use log::error;
 use log::info;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
+use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
@@ -163,7 +164,9 @@ impl LlamaCppArbiter {
                     Ok(renderer) => {
                         slot_aggregated_status_manager
                             .slot_aggregated_status
-                            .register_fix(AgentIssueFix::ChatTemplateIsCompiled);
+                            .register_fix(AgentIssueFix::ChatTemplateIsCompiled(ModelPath {
+                                model_path: model_path.display().to_string(),
+                            }));
 
                         renderer
                     }
@@ -173,6 +176,9 @@ impl LlamaCppArbiter {
                             .register_issue(AgentIssue::ChatTemplateDoesNotCompile(
                                 ChatTemplateDoesNotCompileParams {
                                     error: format!("{err}"),
+                                    model_path: ModelPath {
+                                        model_path: model_path.display().to_string(),
+                                    },
                                     template_content: llama_chat_template_string,
                                 },
                             ));
@@ -199,7 +205,9 @@ impl LlamaCppArbiter {
                         Ok(mtmd_context) => {
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
-                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded);
+                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath {
+                                    model_path: multimodal_projection_path.display().to_string(),
+                                }));
 
                             info!(
                                 "Multimodal context initialized from: {}",
@@ -209,20 +217,13 @@ impl LlamaCppArbiter {
                             Some(Arc::new(mtmd_context))
                         }
                         Err(err) => {
-                            let message = format!(
-                                "Failed to load multimodal projection from {}: {err}",
-                                multimodal_projection_path.display()
-                            );
-
-                            error!("{message}");
-
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
-                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(
-                                    message.clone(),
-                                ));
+                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(ModelPath {
+                                    model_path: multimodal_projection_path.display().to_string(),
+                                }));
 
-                            return Err(anyhow!(message));
+                            return Err(err.into());
                         }
                     }
                 }
@@ -315,14 +316,18 @@ impl LlamaCppArbiter {
             Ok(()) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelIsLoaded);
+                    .register_fix(AgentIssueFix::ModelIsLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
             }
             Err(err) => {
                 error!("Failed to load model: {err}");
 
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_issue(AgentIssue::ModelCannotBeLoaded(model_path_string.clone()));
+                    .register_issue(AgentIssue::ModelCannotBeLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
             }
         }
 
@@ -333,7 +338,9 @@ impl LlamaCppArbiter {
             Ok(()) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelChatTemplateIsLoaded);
+                    .register_fix(AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
             }
             Err(err) => {
                 error!("Failed to load chat template: {err}");
@@ -341,15 +348,17 @@ impl LlamaCppArbiter {
                 if !self
                     .slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .has_issue(&AgentIssue::ModelCannotBeLoaded(model_path_string.clone()))
+                    .has_issue(&AgentIssue::ModelCannotBeLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }))
                 {
                     // If the model cannot be loaded, that doesn't mean that the chat template
                     // cannot be loaded.
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
-                        .register_issue(AgentIssue::UnableToFindChatTemplate(
-                            model_path_string.clone(),
-                        ));
+                        .register_issue(AgentIssue::UnableToFindChatTemplate(ModelPath {
+                            model_path: model_path_string.clone(),
+                        }));
                 }
             }
         }

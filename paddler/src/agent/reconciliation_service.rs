@@ -43,10 +43,8 @@ impl ReconciliationService {
                 false
             },
         );
-        self.slot_aggregated_status
-            .register_fix(AgentIssueFix::ModelStateIsReconciled);
-        self.agent_applicable_state_holder
-            .set_agent_applicable_state(applicable_state)
+        self.slot_aggregated_status.register_fix(AgentIssueFix::ModelStateIsReconciled);
+        self.agent_applicable_state_holder.set_agent_applicable_state(applicable_state)
     }
 
     pub async fn try_convert_to_applicable_state(&mut self) {

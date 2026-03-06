@@ -1,23 +1,30 @@
 import { z } from "zod";
 
+import { HuggingFaceDownloadLockSchema } from "./HuggingFaceDownloadLock";
+import { AgentIssueModelPathSchema } from "./AgentIssueModelPath";
+
 export const AgentIssueSchema = z.union([
   z.object({
     ChatTemplateDoesNotCompile: z.object({
       error: z.string(),
+      model_path: AgentIssueModelPathSchema,
       template_content: z.string(),
     }),
   }),
   z.object({
-    HuggingFaceCannotAcquireLock: z.string(),
+    HuggingFaceCannotAcquireLock: HuggingFaceDownloadLockSchema,
   }),
   z.object({
-    HuggingFaceModelDoesNotExist: z.string(),
+    HuggingFaceModelDoesNotExist: AgentIssueModelPathSchema,
   }),
   z.object({
-    ModelCannotBeLoaded: z.string(),
+    ModelCannotBeLoaded: AgentIssueModelPathSchema,
   }),
   z.object({
-    ModelFileDoesNotExist: z.string(),
+    ModelFileDoesNotExist: AgentIssueModelPathSchema,
+  }),
+  z.object({
+    MultimodalProjectionCannotBeLoaded: AgentIssueModelPathSchema,
   }),
   z.object({
     SlotCannotStart: z.object({
@@ -26,7 +33,7 @@ export const AgentIssueSchema = z.union([
     }),
   }),
   z.object({
-    UnableToFindChatTemplate: z.string(),
+    UnableToFindChatTemplate: AgentIssueModelPathSchema,
   }),
 ]);
 

@@ -38,8 +38,12 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
             <li className={agentIssues__issue} key={index}>
               <strong>
                 HuggingFace cannot acquire lock:{" "}
-                {issue.HuggingFaceCannotAcquireLock}
+                {issue.HuggingFaceCannotAcquireLock.model_path.model_path}
               </strong>
+              <strong>Lock path:</strong>{" "}
+              <pre>
+                <code>{issue.HuggingFaceCannotAcquireLock.lock_path}</code>
+              </pre>
               <strong>What will Paddler do?</strong>{" "}
               <p>
                 Paddler will reattempt to download the model every few seconds
@@ -60,7 +64,7 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
             <li className={agentIssues__issue} key={index}>
               <strong>
                 HuggingFace model does not exist:{" "}
-                {issue.HuggingFaceModelDoesNotExist}
+                {issue.HuggingFaceModelDoesNotExist.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -82,7 +86,7 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Model cannot be loaded: {issue.ModelCannotBeLoaded}
+                Model cannot be loaded: {issue.ModelCannotBeLoaded.model_path}
               </strong>
               <strong>What is the cause?</strong>{" "}
               <p>
@@ -115,12 +119,33 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Model file does not exist: {issue.ModelFileDoesNotExist}
+                Model file does not exist: {issue.ModelFileDoesNotExist.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
                 Paddler will continue to try to load the model file every few
                 seconds until it is available.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Either ensure that the file is available to the agent at a given
+                path, or <Link href="/model">change the model parameters</Link>{" "}
+                to use a different model file.
+              </p>
+            </li>
+          );
+        }
+
+        if ("MultimodalProjectionCannotBeLoaded" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Multimodal projection cannot be loaded:{" "}
+                {issue.MultimodalProjectionCannotBeLoaded.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will continue to run, but it will not reattempt to load the model.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
@@ -148,7 +173,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Unable to find chat template: {issue.UnableToFindChatTemplate}
+                Unable to find chat template:{" "}
+                {issue.UnableToFindChatTemplate.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
