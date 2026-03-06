@@ -21,6 +21,12 @@ export const InferenceServiceGenerateTokensResponseSchema = z
             }),
             z.literal("Done"),
             z.object({
+              ImageDecodingFailed: z.string(),
+            }),
+            z.object({
+              MultimodalNotSupported: z.string(),
+            }),
+            z.object({
               ThinkingToken: z.string(),
             }),
             z.object({
@@ -95,6 +101,37 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: Object.freeze({
           code: 500,
           description: data.Response.response.GeneratedToken.ChatTemplateError,
+        }),
+        ok: false,
+        request_id: data.Response.request_id,
+        thinking_token: null,
+        token: null,
+      });
+    }
+
+    if ("ImageDecodingFailed" in data.Response.response.GeneratedToken) {
+      return Object.freeze({
+        done: true,
+        error: Object.freeze({
+          code: 400,
+          description: data.Response.response.GeneratedToken.ImageDecodingFailed,
+        }),
+        ok: false,
+        request_id: data.Response.request_id,
+        thinking_token: null,
+        token: null,
+      });
+    }
+
+    if (
+      "MultimodalNotSupported" in data.Response.response.GeneratedToken
+    ) {
+      return Object.freeze({
+        done: true,
+        error: Object.freeze({
+          code: 400,
+          description:
+            data.Response.response.GeneratedToken.MultimodalNotSupported,
         }),
         ok: false,
         request_id: data.Response.request_id,
