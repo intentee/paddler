@@ -2,6 +2,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::chat_template_message::ChatTemplateMessage;
+use crate::chat_template_message_content::ChatTemplateMessageContent;
+use crate::chat_template_message_content_part::ChatTemplateMessageContentPart;
 use crate::chat_template_messages::ChatTemplateMessages;
 use crate::conversation_message::ConversationMessage;
 use crate::conversation_message_content::ConversationMessageContent;
@@ -35,17 +37,30 @@ impl ConversationHistory {
                 .iter()
                 .map(|message| ChatTemplateMessage {
                     content: match &message.content {
-                        ConversationMessageContent::Text(text) => text.clone(),
-                        ConversationMessageContent::Parts(parts) => parts
-                            .iter()
-                            .map(|part| match part {
-                                ConversationMessageContentPart::Text { text } => text.clone(),
-                                ConversationMessageContentPart::ImageUrl { .. } => {
-                                    marker_string.clone()
-                                }
-                            })
-                            .collect::<Vec<String>>()
-                            .join(""),
+                        ConversationMessageContent::Text(text) => {
+                            ChatTemplateMessageContent::Text(text.clone())
+                        }
+                        ConversationMessageContent::Parts(parts) => {
+                            ChatTemplateMessageContent::Parts(
+                                parts
+                                    .iter()
+                                    .map(|part| match part {
+                                        ConversationMessageContentPart::Text { text } => {
+                                            ChatTemplateMessageContentPart {
+                                                content_type: "text".to_string(),
+                                                text: text.clone(),
+                                            }
+                                        }
+                                        ConversationMessageContentPart::ImageUrl { .. } => {
+                                            ChatTemplateMessageContentPart {
+                                                content_type: "text".to_string(),
+                                                text: marker_string.clone(),
+                                            }
+                                        }
+                                    })
+                                    .collect(),
+                            )
+                        }
                     },
                     role: message.role.clone(),
                 })
