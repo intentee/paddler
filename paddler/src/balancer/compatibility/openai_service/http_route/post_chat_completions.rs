@@ -98,6 +98,28 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             })),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ThinkingToken(token)),
+            }) => Ok(json!({
+                "id": request_id,
+                "object": "chat.completion.chunk",
+                "created": current_timestamp(),
+                "model": self.model,
+                "system_fingerprint": self.system_fingerprint,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "reasoning_content": token,
+                        },
+                        "logprobs": null,
+                        "finish_reason": null
+                    }
+                ]
+            })),
+            OutgoingMessage::Response(ResponseEnvelope {
+                request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
             }) => Ok(json!({
                 "id": request_id,
@@ -140,6 +162,10 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
+                ..
+            }) => Ok("".to_string()),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ThinkingToken(_)),
                 ..
             }) => Ok("".to_string()),
             OutgoingMessage::Response(ResponseEnvelope {

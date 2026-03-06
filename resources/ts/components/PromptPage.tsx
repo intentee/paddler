@@ -32,7 +32,6 @@ export function PromptPage() {
               <ConversationMessage
                 author="You"
                 errors={[]}
-                isThinking={false}
                 response={submittedPrompt}
                 thoughts=""
               />

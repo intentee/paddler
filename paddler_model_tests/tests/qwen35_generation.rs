@@ -15,14 +15,8 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 #[actix_web::test]
 async fn test_qwen35_generation_stops_cleanly() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
-        inference_parameters: InferenceParameters {
-            min_p: 0.0,
-            top_k: 20,
-            top_p: 0.95,
-            ..InferenceParameters::default()
-        },
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q6_K.gguf".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
             repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
             revision: "main".to_string(),
         },

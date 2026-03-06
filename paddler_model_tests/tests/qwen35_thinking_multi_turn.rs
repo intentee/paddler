@@ -15,15 +15,8 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 #[actix_web::test]
 async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
-        inference_parameters: InferenceParameters {
-            min_p: 0.0,
-            penalty_repeat: 1.1,
-            top_k: 20,
-            top_p: 0.95,
-            ..InferenceParameters::default()
-        },
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q6_K.gguf".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
             repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
             revision: "main".to_string(),
         },
@@ -38,7 +31,7 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
             content: ConversationMessageContent::Text(
                 "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.".to_string(),
             ),
-            role: "user".to_string(),
+            role: "system".to_string(),
         },
         ConversationMessage {
             content: ConversationMessageContent::Text(
@@ -62,10 +55,17 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
         })
         .await?;
 
-    let token_count = results
+    let thinking_token_count = results
+        .iter()
+        .filter(|result| matches!(result, GeneratedTokenResult::ThinkingToken(_)))
+        .count();
+
+    let response_token_count = results
         .iter()
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
+
+    let total_token_count = thinking_token_count + response_token_count;
 
     let full_response: String = results
         .iter()
@@ -75,20 +75,20 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
         })
         .collect();
 
-    eprintln!("Generated {token_count} tokens");
+    eprintln!("Thinking tokens: {thinking_token_count}, Response tokens: {response_token_count}");
     eprintln!("Full response:\n{full_response}");
 
     assert!(
-        token_count > 0,
-        "Expected to receive at least one token from Qwen3.5 in thinking mode"
+        thinking_token_count > 0,
+        "Expected to receive at least one ThinkingToken from Qwen3.5 in thinking mode"
     );
     assert!(
-        token_count < 1000,
-        "Expected generation to stop before max_tokens (EOG token should be caught), got {token_count} tokens"
+        response_token_count > 0,
+        "Expected to receive at least one response Token after thinking"
     );
     assert!(
-        full_response.contains("</think>"),
-        "Expected response to contain </think> tag in thinking mode, got:\n{full_response}"
+        total_token_count < 1000,
+        "Expected generation to stop before max_tokens (EOG token should be caught), got {total_token_count} tokens"
     );
     assert!(
         matches!(results.last(), Some(GeneratedTokenResult::Done)),

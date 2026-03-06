@@ -34,8 +34,8 @@ futures-util = { version = "0.3", features = ["tokio-io"] }
 hf-hub = { version = "0.4", features = ["tokio"] }
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = { version = "0.2.0", features = ["mtmd"] }
-llama-cpp-bindings-sys = { version = "0.2.0" }
+llama-cpp-bindings = { version = "0.2.1", features = ["mtmd"] }
+llama-cpp-bindings-sys = { version = "0.2.1" }
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"

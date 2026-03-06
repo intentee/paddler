@@ -42,6 +42,7 @@ use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
 use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
+use crate::generated_token_post_processor::GeneratedTokenPostProcessor;
 use crate::slot_status::SlotStatus;
 
 pub struct LlamaCppSlot {
@@ -159,6 +160,7 @@ impl LlamaCppSlot {
 
     fn generate_tokens(
         &mut self,
+        enable_thinking: bool,
         mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         max_tokens: i32,
@@ -167,6 +169,7 @@ impl LlamaCppSlot {
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
         let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let mut post_processor = GeneratedTokenPostProcessor::new(enable_thinking);
 
         let mut sampler = LlamaSampler::chain_simple([
             LlamaSampler::penalties(
@@ -201,7 +204,9 @@ impl LlamaCppSlot {
                         .model
                         .token_to_piece(token, &mut decoder, true, None)?;
 
-                generated_tokens_tx.send(GeneratedTokenResult::Token(output_string))?;
+                for result in post_processor.push(&output_string) {
+                    generated_tokens_tx.send(result)?;
+                }
 
                 batch.clear();
                 batch.add(token, current_token_position, &[0], true)?;
@@ -212,6 +217,10 @@ impl LlamaCppSlot {
             let mut kv_cache_repair_actions = vec![];
 
             self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
+        }
+
+        for result in post_processor.flush() {
+            generated_tokens_tx.send(result)?;
         }
 
         generated_tokens_tx.send(GeneratedTokenResult::Done)?;
@@ -513,6 +522,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         };
 
         self.generate_tokens(
+            enable_thinking,
             generate_tokens_stop_rx,
             generated_tokens_tx,
             max_tokens,
@@ -544,6 +554,7 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
         let current_token_position = self.ingest_text_prompt(&raw_prompt)?;
 
         self.generate_tokens(
+            false,
             generate_tokens_stop_rx,
             generated_tokens_tx,
             max_tokens,

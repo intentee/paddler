@@ -12,7 +12,6 @@ interface Message {
     description: string;
   }>;
   isEmpty: boolean;
-  isThinking: boolean;
   response: string;
   thoughts: string;
 }
@@ -20,7 +19,6 @@ interface Message {
 const defaultMessage: Message = Object.freeze({
   errors: [],
   isEmpty: true,
-  isThinking: false,
   response: "",
   thoughts: "",
 });
@@ -51,7 +49,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
           .continueConversation({
             messages: [
               {
-                role: "user",
+                role: "system",
                 content:
                   "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.",
               },
@@ -65,7 +63,12 @@ export const ConversationMessagePromptGeneratedTokens = memo(
           .pipe(
             scan(function (
               message: Message,
-              { done, error, token }: InferenceServiceGenerateTokensResponse,
+              {
+                done,
+                error,
+                thinking_token,
+                token,
+              }: InferenceServiceGenerateTokensResponse,
             ) {
               if (error) {
                 return Object.freeze({
@@ -79,49 +82,30 @@ export const ConversationMessagePromptGeneratedTokens = memo(
                 return Object.freeze({
                   errors: message.errors,
                   isEmpty: false,
-                  isThinking: false,
                   response: message.response,
                   thoughts: message.thoughts,
                 });
               }
 
-              if ("<think>" === token) {
+              if (thinking_token) {
                 return Object.freeze({
                   errors: message.errors,
                   isEmpty: false,
-                  isThinking: true,
                   response: message.response,
+                  thoughts: `${message.thoughts}${thinking_token}`,
+                });
+              }
+
+              if (token) {
+                return Object.freeze({
+                  errors: message.errors,
+                  isEmpty: false,
+                  response: `${message.response}${token}`,
                   thoughts: message.thoughts,
                 });
               }
 
-              if ("</think>" === token) {
-                return Object.freeze({
-                  errors: message.errors,
-                  isEmpty: false,
-                  isThinking: false,
-                  response: message.response,
-                  thoughts: message.thoughts,
-                });
-              }
-
-              if (message.isThinking) {
-                return Object.freeze({
-                  errors: message.errors,
-                  isEmpty: false,
-                  isThinking: true,
-                  response: message.response,
-                  thoughts: `${message.thoughts}${token}`,
-                });
-              }
-
-              return Object.freeze({
-                errors: message.errors,
-                isEmpty: false,
-                isThinking: false,
-                response: `${message.response}${token}`,
-                thoughts: message.thoughts,
-              });
+              return message;
             }, defaultMessage),
           )
           .subscribe(setMessage);
@@ -134,18 +118,6 @@ export const ConversationMessagePromptGeneratedTokens = memo(
     );
 
     if (message.isEmpty) {
-      if (submittedPrompt) {
-        return (
-          <ConversationMessage
-            author="AI"
-            errors={message.errors}
-            isThinking={true}
-            response={message.response}
-            thoughts={message.thoughts}
-          />
-        );
-      }
-
       return;
     }
 
@@ -153,7 +125,6 @@ export const ConversationMessagePromptGeneratedTokens = memo(
       <ConversationMessage
         author="AI"
         errors={message.errors}
-        isThinking={message.isThinking}
         response={message.response}
         thoughts={message.thoughts}
       />

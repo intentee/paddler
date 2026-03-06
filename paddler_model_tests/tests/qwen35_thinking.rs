@@ -15,14 +15,9 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 #[actix_web::test]
 async fn test_qwen35_thinking_mode_stops_cleanly() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
-        inference_parameters: InferenceParameters {
-            min_p: 0.0,
-            top_k: 20,
-            top_p: 0.95,
-            ..InferenceParameters::default()
-        },
+        inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q6_K.gguf".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
             repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
             revision: "main".to_string(),
         },
@@ -47,30 +42,29 @@ async fn test_qwen35_thinking_mode_stops_cleanly() -> Result<()> {
         })
         .await?;
 
-    let token_count = results
+    let thinking_token_count = results
+        .iter()
+        .filter(|result| matches!(result, GeneratedTokenResult::ThinkingToken(_)))
+        .count();
+
+    let response_token_count = results
         .iter()
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
 
-    let full_response: String = results
-        .iter()
-        .filter_map(|result| match result {
-            GeneratedTokenResult::Token(token) => Some(token.as_str()),
-            _ => None,
-        })
-        .collect();
+    let total_token_count = thinking_token_count + response_token_count;
 
     assert!(
-        token_count > 0,
-        "Expected to receive at least one token from Qwen3.5 in thinking mode"
+        thinking_token_count > 0,
+        "Expected to receive at least one ThinkingToken from Qwen3.5 in thinking mode"
     );
     assert!(
-        token_count < 2000,
-        "Expected generation to stop before max_tokens (EOG token should be caught), got {token_count} tokens"
+        response_token_count > 0,
+        "Expected to receive at least one response Token after thinking"
     );
     assert!(
-        full_response.contains("</think>"),
-        "Expected response to contain </think> tag in thinking mode"
+        total_token_count < 2000,
+        "Expected generation to stop before max_tokens (EOG token should be caught), got {total_token_count} tokens"
     );
     assert!(
         matches!(results.last(), Some(GeneratedTokenResult::Done)),

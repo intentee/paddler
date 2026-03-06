@@ -20,6 +20,7 @@ pub mod decoded_image;
 pub mod decoded_image_error;
 pub mod dispenses_slots;
 pub mod embedding_input_tokenized;
+pub mod generated_token_post_processor;
 pub mod produces_snapshot;
 pub mod resolved_socket_addr;
 pub mod sends_rpc_message;

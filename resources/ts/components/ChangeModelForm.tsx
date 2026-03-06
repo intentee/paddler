@@ -131,7 +131,7 @@ export function ChangeModelForm({
               0.8B model:
             </p>
             <code>
-              https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q6_K.gguf
+              https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_K_M.gguf
             </code>
           </dd>
           <dt>Local File</dt>
