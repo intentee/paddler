@@ -142,7 +142,7 @@ impl LlamaCppArbiterService {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
                     .register_fix(AgentIssueFix::ModelFileExists(ModelPath {
-                        model_path: model_path_string.clone()
+                        model_path: model_path_string.clone(),
                     }));
 
                 self.llamacpp_arbiter_handle = Some(

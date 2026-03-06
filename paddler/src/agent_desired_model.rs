@@ -42,9 +42,11 @@ impl ConvertsToApplicableState for AgentDesiredModel {
             }) => {
                 let model_path = format!("{repo_id}/{revision}/{filename}");
 
-                if slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelDoesNotExist(ModelPath {
-                    model_path: model_path.clone(),
-                })) {
+                if slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelDoesNotExist(
+                    ModelPath {
+                        model_path: model_path.clone(),
+                    },
+                )) {
                     return Err(anyhow!(
                         "Model '{model_path}' does not exist on Hugging Face. Not attempting to download it again."
                     ));
@@ -75,8 +77,9 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     .await
                 {
                     Ok(resolved_filename) => {
-                        slot_aggregated_status
-                            .register_fix(AgentIssueFix::HuggingFaceDownloadedModel(ModelPath { model_path }));
+                        slot_aggregated_status.register_fix(
+                            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath { model_path }),
+                        );
 
                         resolved_filename
                     }
@@ -84,9 +87,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                         slot_aggregated_status.register_issue(
                             AgentIssue::HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock {
                                 lock_path: lock_path.display().to_string(),
-                                model_path: ModelPath {
-                                    model_path,
-                                },
+                                model_path: ModelPath { model_path },
                             }),
                         );
 

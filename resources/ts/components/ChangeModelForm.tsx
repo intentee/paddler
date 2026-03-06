@@ -40,7 +40,8 @@ export function ChangeModelForm({
   defaultMultimodalProjectionUri: null | string;
 }) {
   const [, navigate] = useLocation();
-  const { chatTemplateOverride, useChatTemplateOverride } = useContext(ChatTemplateContext);
+  const { chatTemplateOverride, useChatTemplateOverride } =
+    useContext(ChatTemplateContext);
   const { parameters } = useContext(InferenceParametersContext);
   const { managementAddr } = useContext(PaddlerConfigurationContext);
   const {
@@ -74,7 +75,11 @@ export function ChangeModelForm({
 
   const balancerDesiredState: null | BalancerDesiredState = useMemo(
     function () {
-      if (!baseModelAgentDesiredModelState.ok || !multimodalProjecttionAgentDesiredModelState.ok) {
+      console.log(multimodalProjecttionAgentDesiredModelState);
+      if (
+        !baseModelAgentDesiredModelState.ok ||
+        !multimodalProjecttionAgentDesiredModelState.ok
+      ) {
         return null;
       }
 
@@ -82,7 +87,8 @@ export function ChangeModelForm({
         chat_template_override: chatTemplateOverride,
         inference_parameters: parameters,
         model: baseModelAgentDesiredModelState.agentDesiredModel,
-        multimodal_projection: multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
+        multimodal_projection:
+          multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
         use_chat_template_override: useChatTemplateOverride,
       });
 
@@ -144,7 +150,8 @@ export function ChangeModelForm({
           </dt>
           <dd>
             <p>
-              Each agent will download the model individually and cache it locally.
+              Each agent will download the model individually and cache it
+              locally.
             </p>
             <p>
               For example, you can use the following URL to download the
@@ -154,8 +161,9 @@ export function ChangeModelForm({
               https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_K_M.gguf
             </code>
             <p>
-              To enable multimodal features, you also need to provide multimodal projection weights relevant to the base model
-              (usually, model authors name them similarly to mmproj-*.gguf)
+              To enable multimodal features, you also need to provide multimodal
+              projection weights relevant to the base model (usually, model
+              authors name them similarly to mmproj-*.gguf)
             </p>
             <code>
               https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/mmproj-F16.gguf
@@ -175,7 +183,9 @@ export function ChangeModelForm({
       <main className={changeModelForm__main}>
         <form className={changeModelForm__form} onSubmit={onSubmit}>
           <label className={changeModelForm__formLabel}>
-            <div className={changeModelForm__formLabel__title}>Base Model URI</div>
+            <div className={changeModelForm__formLabel__title}>
+              Base Model URI
+            </div>
             <input
               className={changeModelForm__input}
               name="model_uri"
@@ -187,7 +197,9 @@ export function ChangeModelForm({
             />
           </label>
           <label className={changeModelForm__formLabel}>
-            <div className={changeModelForm__formLabel__title}>Multimodal Projection URI (optional)</div>
+            <div className={changeModelForm__formLabel__title}>
+              Multimodal Projection URI (optional)
+            </div>
             <input
               className={changeModelForm__input}
               name="multimodal_projection_uri"

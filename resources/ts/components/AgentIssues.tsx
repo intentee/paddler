@@ -119,7 +119,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Model file does not exist: {issue.ModelFileDoesNotExist.model_path}
+                Model file does not exist:{" "}
+                {issue.ModelFileDoesNotExist.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -145,7 +146,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will continue to run, but it will not reattempt to load the model.
+                Paddler will continue to run, but it will not reattempt to load
+                the model.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>

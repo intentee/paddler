@@ -64,7 +64,9 @@ export function ChangeModelPage() {
           >
             <ChangeModelForm
               defaultBaseModelUri={modelSchemaToUrl(model)}
-              defaultMultimodalProjectionUri={modelSchemaToUrl(multimodal_projection)}
+              defaultMultimodalProjectionUri={modelSchemaToUrl(
+                multimodal_projection,
+              )}
             />
           </InferenceParametersContextProvider>
         </ChatTemplateContextProvider>

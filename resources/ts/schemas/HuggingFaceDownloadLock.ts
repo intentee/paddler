@@ -6,4 +6,6 @@ export const HuggingFaceDownloadLockSchema = z.object({
   model_path: AgentIssueModelPathSchema,
 });
 
-export type HuggingFaceDownloadLock = z.infer<typeof HuggingFaceDownloadLockSchema>;
+export type HuggingFaceDownloadLock = z.infer<
+  typeof HuggingFaceDownloadLockSchema
+>;

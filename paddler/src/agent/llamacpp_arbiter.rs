@@ -205,9 +205,13 @@ impl LlamaCppArbiter {
                         Ok(mtmd_context) => {
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
-                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded(ModelPath {
-                                    model_path: multimodal_projection_path.display().to_string(),
-                                }));
+                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded(
+                                    ModelPath {
+                                        model_path: multimodal_projection_path
+                                            .display()
+                                            .to_string(),
+                                    },
+                                ));
 
                             info!(
                                 "Multimodal context initialized from: {}",
@@ -219,9 +223,13 @@ impl LlamaCppArbiter {
                         Err(err) => {
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
-                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(ModelPath {
-                                    model_path: multimodal_projection_path.display().to_string(),
-                                }));
+                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(
+                                    ModelPath {
+                                        model_path: multimodal_projection_path
+                                            .display()
+                                            .to_string(),
+                                    },
+                                ));
 
                             return Err(err.into());
                         }

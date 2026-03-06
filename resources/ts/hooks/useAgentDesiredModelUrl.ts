@@ -4,22 +4,19 @@ import { type AgentDesiredModel } from "../schemas/AgentDesiredModel";
 import { urlToAgentDesiredModel } from "../urlToAgentDesiredModel";
 
 type EmptyState = {
-  agentDesiredModel: null;
-  empty: true;
+  agentDesiredModel: "None";
   error: null;
-  ok: false;
+  ok: true;
 };
 
 type ErrorState = {
   agentDesiredModel: null;
-  empty: false;
   error: string;
   ok: false;
 };
 
 type SuccessState = {
   agentDesiredModel: AgentDesiredModel;
-  empty: false;
   error: null;
   ok: true;
 };
@@ -27,10 +24,9 @@ type SuccessState = {
 export type AgentDesiredModelState = EmptyState | ErrorState | SuccessState;
 
 const emptyState: EmptyState = Object.freeze({
-  agentDesiredModel: null,
-  empty: true,
+  agentDesiredModel: "None",
   error: null,
-  ok: false,
+  ok: true,
 });
 
 export function useAgentDesiredModelUrl({

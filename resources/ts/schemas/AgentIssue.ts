@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { HuggingFaceDownloadLockSchema } from "./HuggingFaceDownloadLock";
 import { AgentIssueModelPathSchema } from "./AgentIssueModelPath";
+import { HuggingFaceDownloadLockSchema } from "./HuggingFaceDownloadLock";
 
 export const AgentIssueSchema = z.union([
   z.object({
