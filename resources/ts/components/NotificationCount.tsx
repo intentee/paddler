@@ -1,12 +1,12 @@
 import React from "react";
 
-import { type IssueSeverity } from "../schemas/AgentIssue";
+import { type AgentIssueSeverity } from "../schemas/AgentIssue";
 import {
   notificationCount___error,
   notificationCount___warning,
 } from "./NotificationCount.module.css";
 
-const classNameBySeverity: Record<IssueSeverity, string> = {
+const classNameBySeverity: Record<AgentIssueSeverity, string> = {
   Error: notificationCount___error,
   Warning: notificationCount___warning,
 };
@@ -16,7 +16,7 @@ export function NotificationCount({
   severity,
 }: {
   count: number;
-  severity: IssueSeverity;
+  severity: AgentIssueSeverity;
 }) {
   return <span className={classNameBySeverity[severity]}>{count}</span>;
 }
