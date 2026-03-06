@@ -2,9 +2,18 @@ import React, { useCallback, useState, type MouseEvent } from "react";
 
 import { type AgentIssue } from "../schemas/AgentIssue";
 import { AgentIssues } from "./AgentIssues";
-import { agentIssuesPreviewButton } from "./AgentIssuesPreviewButton.module.css";
+import {
+  agentIssuesPreviewButton___error,
+  agentIssuesPreviewButton___warning,
+} from "./AgentIssuesPreviewButton.module.css";
 import { ModalWindow } from "./ModalWindow";
 import { NotificationCount } from "./NotificationCount";
+
+function hasErrorSeverity(issues: Array<AgentIssue>): boolean {
+  return issues.some(function (issue) {
+    return issue.severity === "Error";
+  });
+}
 
 export function AgentIssuesPreviewButton({
   agentName,
@@ -31,11 +40,18 @@ export function AgentIssuesPreviewButton({
     [setIsDetailsVisible],
   );
 
+  const severity = hasErrorSeverity(issues) ? "Error" : "Warning";
+
+  const buttonClassName =
+    severity === "Error"
+      ? agentIssuesPreviewButton___error
+      : agentIssuesPreviewButton___warning;
+
   return (
     <>
-      <button className={agentIssuesPreviewButton} onClick={onClick}>
-        <NotificationCount count={issues.length} />
-        Issues
+      <button className={buttonClassName} onClick={onClick}>
+        <NotificationCount count={issues.length} severity={severity} />
+        {issues.length > 1 ? `${severity}s` : severity}
       </button>
       {isDetailsVisible && (
         <ModalWindow onClose={onClose} title={`${agentName} / Issues`}>

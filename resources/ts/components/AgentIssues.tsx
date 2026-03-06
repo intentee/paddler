@@ -3,18 +3,35 @@ import { Link } from "wouter";
 
 import { type AgentIssue } from "../schemas/AgentIssue";
 
-import { agentIssues, agentIssues__issue } from "./AgentIssues.module.css";
+import {
+  agentIssues,
+  agentIssues__issue,
+  agentIssues__issue___error,
+  agentIssues__issue___warning,
+} from "./AgentIssues.module.css";
+
+function severityClassName(severity: AgentIssue["severity"]): string {
+  switch (severity) {
+    case "Error":
+      return agentIssues__issue___error;
+    case "Warning":
+      return agentIssues__issue___warning;
+  }
+}
 
 export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
   return (
     <ul className={agentIssues}>
       {issues.map(function (issue, index) {
-        if ("ChatTemplateDoesNotCompile" in issue) {
+        const issueType = issue.type;
+        const issueClassName = `${agentIssues__issue} ${severityClassName(issue.severity)}`;
+
+        if ("ChatTemplateDoesNotCompile" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 Chat template does not compile: "
-                {issue.ChatTemplateDoesNotCompile.error}"
+                {issueType.ChatTemplateDoesNotCompile.error}"
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -27,18 +44,20 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </p>
               <strong>Template in question:</strong>{" "}
               <pre>
-                <code>{issue.ChatTemplateDoesNotCompile.template_content}</code>
+                <code>
+                  {issueType.ChatTemplateDoesNotCompile.template_content}
+                </code>
               </pre>
             </li>
           );
         }
 
-        if ("HuggingFaceCannotAcquireLock" in issue) {
+        if ("HuggingFaceCannotAcquireLock" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 HuggingFace cannot acquire lock:{" "}
-                {issue.HuggingFaceCannotAcquireLock}
+                {issueType.HuggingFaceCannotAcquireLock}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -55,12 +74,12 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("HuggingFaceModelDoesNotExist" in issue) {
+        if ("HuggingFaceModelDoesNotExist" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 HuggingFace model does not exist:{" "}
-                {issue.HuggingFaceModelDoesNotExist}
+                {issueType.HuggingFaceModelDoesNotExist}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -78,11 +97,11 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("ModelCannotBeLoaded" in issue) {
+        if ("ModelCannotBeLoaded" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
-                Model cannot be loaded: {issue.ModelCannotBeLoaded}
+                Model cannot be loaded: {issueType.ModelCannotBeLoaded}
               </strong>
               <strong>What is the cause?</strong>{" "}
               <p>
@@ -111,11 +130,11 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("ModelFileDoesNotExist" in issue) {
+        if ("ModelFileDoesNotExist" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
-                Model file does not exist: {issue.ModelFileDoesNotExist}
+                Model file does not exist: {issueType.ModelFileDoesNotExist}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -132,11 +151,11 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("SlotCannotStart" in issue) {
-          const { error, slot_index } = issue.SlotCannotStart;
+        if ("SlotCannotStart" in issueType) {
+          const { error, slot_index } = issueType.SlotCannotStart;
 
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 Unable to start slot {slot_index}: {error}
               </strong>
@@ -144,11 +163,12 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("UnableToFindChatTemplate" in issue) {
+        if ("UnableToFindChatTemplate" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
-                Unable to find chat template: {issue.UnableToFindChatTemplate}
+                Unable to find chat template:{" "}
+                {issueType.UnableToFindChatTemplate}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -175,8 +195,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
         }
 
         return (
-          <li className={agentIssues__issue} key={index}>
-            Unknown issue: {JSON.stringify(issue)}
+          <li className={issueClassName} key={index}>
+            Unknown issue: {JSON.stringify(issueType)}
           </li>
         );
       })}

@@ -11,7 +11,7 @@ use hf_hub::api::tokio::ApiBuilder;
 use hf_hub::api::tokio::ApiError;
 use log::warn;
 use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_type::AgentIssueType;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use tokio::time::Duration;
 use tokio::time::sleep;
@@ -40,7 +40,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
             }) => {
                 let model_path = format!("{repo_id}/{revision}/{filename}");
 
-                if slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelDoesNotExist(
+                if slot_aggregated_status.has_issue(&AgentIssueType::HuggingFaceModelDoesNotExist(
                     model_path.clone(),
                 )) {
                     return Err(anyhow!(
@@ -80,7 +80,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     }
                     Err(ApiError::LockAcquisition(lock_path)) => {
                         slot_aggregated_status.register_issue(
-                            AgentIssue::HuggingFaceCannotAcquireLock(
+                            AgentIssueType::HuggingFaceCannotAcquireLock(
                                 lock_path.display().to_string(),
                             ),
                         );
@@ -101,7 +101,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {
                         Some(reqwest::StatusCode::NOT_FOUND) => {
                             slot_aggregated_status.register_issue(
-                                AgentIssue::HuggingFaceModelDoesNotExist(model_path.clone()),
+                                AgentIssueType::HuggingFaceModelDoesNotExist(model_path.clone()),
                             );
 
                             return Err(anyhow!(
