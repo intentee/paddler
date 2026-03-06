@@ -441,17 +441,16 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         {
             Ok(images) => images,
             Err(err) => {
-                error!(
+                let msg = format!(
                     "{:?}: slot {} failed to decode images: {err}",
                     self.slot_context.agent_name, self.index
                 );
 
-                let client_msg = format!("Failed to decode image data URI: {err}");
+                error!("{msg}");
 
-                generated_tokens_tx
-                    .send(GeneratedTokenResult::ImageDecodingFailed(client_msg.clone()))?;
+                generated_tokens_tx.send(GeneratedTokenResult::ImageDecodingFailed(msg.clone()))?;
 
-                return Err(anyhow!(client_msg));
+                return Err(anyhow!(msg));
             }
         };
 
@@ -478,17 +477,16 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }) {
             Ok(raw_prompt) => raw_prompt,
             Err(err) => {
-                error!(
+                let msg = format!(
                     "{:?}: slot {} failed to render chat template: {err:?}",
                     self.slot_context.agent_name, self.index
                 );
 
-                let client_msg = format!("Failed to render chat template: {err}");
+                error!("{msg}");
 
-                generated_tokens_tx
-                    .send(GeneratedTokenResult::ChatTemplateError(client_msg.clone()))?;
+                generated_tokens_tx.send(GeneratedTokenResult::ChatTemplateError(msg))?;
 
-                return Err(anyhow!(client_msg));
+                return Err(err);
             }
         };
 
@@ -508,18 +506,17 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
                 self.ingest_multimodal_prompt(multimodal_context, raw_prompt, images)?
             }
             None if !images.is_empty() => {
-                error!(
+                let msg = format!(
                     "{:?}: slot {} received images but model does not support multimodal input",
                     self.slot_context.agent_name, self.index
                 );
 
-                let client_msg =
-                    "Model does not support multimodal input".to_string();
+                error!("{msg}");
 
                 generated_tokens_tx
-                    .send(GeneratedTokenResult::MultimodalNotSupported(client_msg.clone()))?;
+                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
 
-                return Err(anyhow!(client_msg));
+                return Err(anyhow!(msg));
             }
             None => self.ingest_text_prompt(&raw_prompt)?,
         };
