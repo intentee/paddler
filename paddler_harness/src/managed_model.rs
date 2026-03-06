@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler::agent::llamacpp_arbiter::LlamaCppArbiter;
 use paddler::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
 use paddler::agent::model_metadata_holder::ModelMetadataHolder;
@@ -44,9 +45,11 @@ impl ManagedModel {
                     .clone(),
             )
             .await?
-            .expect("Failed to convert to applicable state");
+            .ok_or_else(|| anyhow!("Failed to convert to applicable state"))?;
 
-        let model_path = applicable_state.model_path.expect("Model path is required");
+        let model_path = applicable_state
+            .model_path
+            .ok_or_else(|| anyhow!("Model path is required"))?;
 
         let llamacpp_arbiter = LlamaCppArbiter {
             agent_name: Some("managed_test_model".to_string()),
