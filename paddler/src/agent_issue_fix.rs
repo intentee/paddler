@@ -1,6 +1,6 @@
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
-use paddler_types::issue_type::IssueType;
+use paddler_types::agent_issue_type::AgentIssueType;
 
 pub enum AgentIssueFix {
     ChatTemplateIsCompiled,
@@ -16,32 +16,34 @@ pub enum AgentIssueFix {
 impl AgentIssueFix {
     pub fn can_fix(&self, issue: &AgentIssue) -> bool {
         match &issue.type_ {
-            IssueType::ChatTemplateDoesNotCompile(_) => matches!(
+            AgentIssueType::ChatTemplateDoesNotCompile(_) => matches!(
                 self,
                 AgentIssueFix::ChatTemplateIsCompiled | AgentIssueFix::ModelStateIsReconciled
             ),
-            IssueType::HuggingFaceCannotAcquireLock(_) => matches!(
+            AgentIssueType::HuggingFaceCannotAcquireLock(_) => matches!(
                 self,
                 AgentIssueFix::HuggingFaceDownloadedModel
                     | AgentIssueFix::HuggingFaceStartedDownloading
                     | AgentIssueFix::ModelStateIsReconciled
             ),
-            IssueType::HuggingFaceModelDoesNotExist(_) => matches!(
+            AgentIssueType::HuggingFaceModelDoesNotExist(_) => matches!(
                 self,
                 AgentIssueFix::HuggingFaceDownloadedModel
                     | AgentIssueFix::HuggingFaceStartedDownloading
                     | AgentIssueFix::ModelStateIsReconciled
             ),
-            IssueType::ModelCannotBeLoaded(_) => matches!(self, AgentIssueFix::ModelIsLoaded),
-            IssueType::ModelFileDoesNotExist(_) => matches!(self, AgentIssueFix::ModelFileExists),
-            IssueType::SlotCannotStart(SlotCannotStartParams {
+            AgentIssueType::ModelCannotBeLoaded(_) => matches!(self, AgentIssueFix::ModelIsLoaded),
+            AgentIssueType::ModelFileDoesNotExist(_) => {
+                matches!(self, AgentIssueFix::ModelFileExists)
+            }
+            AgentIssueType::SlotCannotStart(SlotCannotStartParams {
                 error: _,
                 slot_index,
             }) => match self {
                 AgentIssueFix::SlotStarted(started_slot_index) => started_slot_index == slot_index,
                 _ => false,
             },
-            IssueType::UnableToFindChatTemplate(_) => matches!(
+            AgentIssueType::UnableToFindChatTemplate(_) => matches!(
                 self,
                 AgentIssueFix::ModelChatTemplateIsLoaded | AgentIssueFix::ModelStateIsReconciled
             ),

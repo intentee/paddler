@@ -13,6 +13,7 @@ import {
   agentList,
   agentList__agent,
   agentList__agentHasErrors,
+  agentList__agent__badges,
   agentList__agent__download,
   agentList__agent__issues,
   agentList__agent__issues__list,
@@ -92,47 +93,49 @@ export function AgentList({
             key={id}
           >
             <div className={agentList__agent__name}>{name}</div>
-            <div className={agentList__agent__issues}>
-              {issues.length > 0 ? (
+            <div className={agentList__agent__badges}>
+              <div className={agentList__agent__issues}>
                 <div className={agentList__agent__issues__list}>
-                  {(function () {
-                    const { errors, warnings } = splitBySeverity(issues);
+                  {issues.length > 0 ? (
+                    (function () {
+                      const { errors, warnings } = splitBySeverity(issues);
 
-                    return (
-                      <>
-                        {errors.length > 0 && (
-                          <AgentIssuesPreviewButton
-                            agentName={name}
-                            issues={errors}
-                          />
-                        )}
-                        {warnings.length > 0 && (
-                          <AgentIssuesPreviewButton
-                            agentName={name}
-                            issues={warnings}
-                          />
-                        )}
-                      </>
-                    );
-                  })()}
+                      return (
+                        <>
+                          {errors.length > 0 && (
+                            <AgentIssuesPreviewButton
+                              agentName={name}
+                              issues={errors}
+                            />
+                          )}
+                          {warnings.length > 0 && (
+                            <AgentIssuesPreviewButton
+                              agentName={name}
+                              issues={warnings}
+                            />
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <span>
+                      👍 <i>OK</i>
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <div className={agentList__agent__issues__list}>
-                  👍 <i>OK</i>
-                </div>
-              )}
-            </div>
-            <div className={agentList__agent__metadata}>
-              <ModelMetadataPreviewButton
-                agent={agent}
-                managementAddr={managementAddr}
-              />
-              {uses_chat_template_override && (
-                <ModelChatTemplateOverridePreviewButton
+              </div>
+              <div className={agentList__agent__metadata}>
+                <ModelMetadataPreviewButton
                   agent={agent}
                   managementAddr={managementAddr}
                 />
-              )}
+                {uses_chat_template_override && (
+                  <ModelChatTemplateOverridePreviewButton
+                    agent={agent}
+                    managementAddr={managementAddr}
+                  />
+                )}
+              </div>
             </div>
             {download_total > 0 ? (
               <div className={agentList__agent__download}>

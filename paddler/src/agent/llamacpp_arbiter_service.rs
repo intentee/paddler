@@ -10,8 +10,8 @@ use async_trait::async_trait;
 use log::error;
 use log::info;
 use log::warn;
+use paddler_types::agent_issue_type::AgentIssueType;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_types::issue_type::IssueType;
 use tokio::fs;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -66,7 +66,7 @@ impl LlamaCppArbiterService {
                 if !fs::try_exists(&model_path).await? {
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
-                        .register_issue(IssueType::ModelFileDoesNotExist(
+                        .register_issue(AgentIssueType::ModelFileDoesNotExist(
                             model_path.display().to_string(),
                         ));
 
@@ -81,7 +81,7 @@ impl LlamaCppArbiterService {
                 if self
                     .slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .has_issue(&IssueType::UnableToFindChatTemplate(
+                    .has_issue(&AgentIssueType::UnableToFindChatTemplate(
                         model_path_string.clone(),
                     ))
                 {
@@ -100,7 +100,7 @@ impl LlamaCppArbiterService {
                     .slot_aggregated_status_manager
                     .slot_aggregated_status
                     .has_issue_like(|issue| {
-                        matches!(issue, IssueType::ChatTemplateDoesNotCompile(_))
+                        matches!(issue, AgentIssueType::ChatTemplateDoesNotCompile(_))
                     })
                 {
                     self.slot_aggregated_status_manager

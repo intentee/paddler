@@ -39,9 +39,9 @@
   grid-template-areas:
     "name model status"
     "issues metadata metadata";
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr) minmax(0, 3fr);
   height: var(--height-agent);
-  padding: var(--spacing-base);
+  padding: 0 var(--spacing-base);
   position: relative;
   row-gap: var(--spacing-base);
 
@@ -82,6 +82,10 @@
   border-color: crimson;
 }
 
+.agentList__agent__badges {
+  display: contents;
+}
+
 .agentList__agent__download {
   align-items: center;
   align-self: flex-end;
@@ -101,31 +105,15 @@
 }
 
 .agentList__agent__issues {
-  display: grid;
+  display: flex;
+  align-self: flex-start;
+  flex-wrap: wrap;
+  gap: var(--spacing-half);
   grid-area: issues;
-  grid-template-rows: repeat(2, 24px);
-  justify-items: flex-start;
-  row-gap: var(--spacing-base);
-  height: fit-content;
 }
 
 .agentList__agent__issues__list {
-  align-self: flex-start;
-  display: flex;
-  flex-direction: row;
-  gap: var(--spacing-half);
-}
-
-@media (max-width: 1036px) {
-  .agentList__agent {
-    min-height: var(--height-agent);
-    height: auto;
-    padding: var(--spacing-base);
-  }
-
-  .agentList__agent__issues__list {
-    flex-direction: column;
-  }
+  display: contents;
 }
 
 .agentList__agent__metadata {
@@ -165,4 +153,36 @@
   align-self: flex-end;
   grid-area: status;
   width: 100%;
+}
+
+@media (max-width: 1036px) {
+  .agentList__agent {
+    grid-template-areas:
+      "name"
+      "model"
+      "status"
+      "badges";
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: var(--spacing-base);
+  }
+
+  .agentList__agent__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-half);
+    grid-area: badges;
+  }
+
+  .agentList__agent__issues {
+    display: contents;
+  }
+
+  .agentList__agent__issues__list {
+    display: contents;
+  }
+
+  .agentList__agent__metadata {
+    display: contents;
+  }
 }

@@ -6,7 +6,7 @@ use crate::agent_issue_params::SlotCannotStartParams;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]
-pub enum IssueType {
+pub enum AgentIssueType {
     ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams),
     HuggingFaceCannotAcquireLock(String),
     HuggingFaceModelDoesNotExist(String),

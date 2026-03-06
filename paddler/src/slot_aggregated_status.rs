@@ -6,8 +6,8 @@ use std::sync::atomic::AtomicUsize;
 use anyhow::Result;
 use dashmap::DashSet;
 use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_type::AgentIssueType;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_types::issue_type::IssueType;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::Notify;
 
@@ -61,7 +61,7 @@ impl SlotAggregatedStatus {
         self.state_application_status_code.get().try_into()
     }
 
-    pub fn has_issue(&self, issue_type: &IssueType) -> bool {
+    pub fn has_issue(&self, issue_type: &AgentIssueType) -> bool {
         self.issues
             .iter()
             .any(|ref_multi| ref_multi.key().type_ == *issue_type)
@@ -69,7 +69,7 @@ impl SlotAggregatedStatus {
 
     pub fn has_issue_like<TFunction>(&self, issue_like: TFunction) -> bool
     where
-        TFunction: Fn(&IssueType) -> bool,
+        TFunction: Fn(&AgentIssueType) -> bool,
     {
         self.issues
             .iter()
@@ -88,7 +88,7 @@ impl SlotAggregatedStatus {
         self.update_notifier.notify_waiters();
     }
 
-    pub fn register_issue(&self, issue_type: IssueType) {
+    pub fn register_issue(&self, issue_type: AgentIssueType) {
         let issue = AgentIssue::from(issue_type);
 
         if self.issues.insert(issue) {
