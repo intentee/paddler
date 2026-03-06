@@ -102,6 +102,7 @@ impl SlotAggregatedStatus {
     }
 
     pub fn reset(&self) {
+        self.issues.clear();
         self.set_model_path(None);
         self.slots_processing.reset();
         self.slots_total.reset();

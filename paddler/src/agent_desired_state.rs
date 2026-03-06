@@ -42,8 +42,8 @@ impl ConvertsToApplicableState for AgentDesiredState {
         Ok(Some(AgentApplicableState {
             chat_template_override: self.chat_template_override.clone(),
             inference_parameters: self.inference_parameters.clone(),
-            multimodal_projection_path,
             model_path,
+            multimodal_projection_path,
         }))
     }
 }

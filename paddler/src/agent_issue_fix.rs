@@ -2,6 +2,7 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
 
+#[derive(Debug)]
 pub enum AgentIssueFix {
     ChatTemplateIsCompiled(ModelPath),
     HuggingFaceDownloadedModel(ModelPath),
