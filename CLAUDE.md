@@ -6,6 +6,8 @@ Keep it simple, be opinionated, follow best practices. Avoid using configurable 
 
 Keep the code beautiful. Always optimize the code for a great developer experience.
 
+Be proactive and fix preexistive issues if you encounter them.
+
 ## Coding Standards
 
 - Do not inline import paths unless necessary. Prefer to use `use` statements in Rust files instead of inline paths to imported modules. The exception would be `error.rs` type modules that handle lib-level error structs.
