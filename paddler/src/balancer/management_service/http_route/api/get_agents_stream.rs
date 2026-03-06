@@ -7,9 +7,6 @@ use actix_web::get;
 use actix_web::web;
 use actix_web_lab::sse;
 use log::error;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_issue_severity::AgentIssueSeverity;
-use paddler_types::agent_issue_type::AgentIssueType;
 
 use crate::balancer::management_service::app_data::AppData;
 use crate::produces_snapshot::ProducesSnapshot as _;
@@ -33,18 +30,7 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
 
         loop {
             match app_data.agent_controller_pool.make_snapshot() {
-                Ok(mut agent_controller_pool_snapshot) => {
-                        agent_controller_pool_snapshot.agents.iter_mut().for_each(|agent_controller_snapshot| {
-        agent_controller_snapshot.issues.insert(AgentIssue {
-            type_: AgentIssueType::UnableToFindChatTemplate("Mock".to_string()),
-            severity: AgentIssueSeverity::Error,
-        });
-        agent_controller_snapshot.issues.insert(AgentIssue {
-            type_: AgentIssueType::UnableToFindChatTemplate("Mock".to_string()),
-            severity: AgentIssueSeverity::Warning,
-        });
-    });
-
+                Ok(agent_controller_pool_snapshot) => {
                     if let Some(event) = send_event(agent_controller_pool_snapshot) {
                         yield event;
                     }
