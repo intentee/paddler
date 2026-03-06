@@ -22,12 +22,10 @@ export function usePrompt({
       fetch(`//${inferenceAddr}/api/v1/continue_from_conversation_history`, {
         body: JSON.stringify({
           add_generation_prompt: true,
-          conversation_history: {
-            messages: [
-              { role: "assistant", content: systemPrompt },
-              { role: "user", content: prompt },
-            ],
-          },
+          conversation_history: [
+            { role: "assistant", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
           enable_thinking: false,
           max_tokens: 300,
         }),

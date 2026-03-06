@@ -59,9 +59,7 @@ export function InferenceSocketClient({
           request: {
             ContinueFromConversationHistory: {
               add_generation_prompt: true,
-              conversation_history: {
-                messages,
-              },
+              conversation_history: messages,
               enable_thinking: true,
               max_tokens: 1000,
             },

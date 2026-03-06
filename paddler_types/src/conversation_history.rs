@@ -12,6 +12,7 @@ use crate::image_url::ImageUrl;
 use crate::media_marker::MediaMarker;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct ConversationHistory {
     pub messages: Vec<ConversationMessage>,
 }
