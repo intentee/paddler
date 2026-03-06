@@ -169,6 +169,7 @@ impl LlamaCppSlot {
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
         let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let max_token_position = current_token_position + max_tokens;
         let mut post_processor = GeneratedTokenPostProcessor::new(enable_thinking);
 
         let mut sampler = LlamaSampler::chain_simple([
@@ -185,7 +186,7 @@ impl LlamaCppSlot {
             LlamaSampler::dist(self.rng.random::<u32>()),
         ]);
 
-        while current_token_position <= max_tokens {
+        while current_token_position <= max_token_position {
             if generate_tokens_stop_rx.try_recv().is_ok() {
                 break;
             }
