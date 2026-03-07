@@ -51,11 +51,36 @@ jobs:
           filename: "./${{ matrix.artifact_name }}"
           expected-version: "${{ steps.release-version.outputs.version }}"
 
-      - name: upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          file: ./${{ matrix.artifact_name }}*
-          file_glob: true
-          overwrite: true
+          name: ${{ matrix.artifact_name }}
+          path: ./${{ matrix.artifact_name }}
+
+  release:
+    name: release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - id: release-version
+        uses: intentee/release-action/release-tag-to-version@abdb835f34e49f5107b4569a381e0853c399797f
+        with:
+          release-tag: "${{ github.ref_name }}"
+
+      - name: download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: create release with all artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
           prerelease: ${{ steps.release-version.outputs.type == 'PRE_RELEASE' }}
-          tag: ${{ github.ref }}
+          tag_name: ${{ github.ref }}
