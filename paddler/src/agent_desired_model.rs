@@ -52,7 +52,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     ));
                 }
 
-                let hf_cache = Cache::default();
+                let hf_cache = Cache::from_env();
                 let hf_api = ApiBuilder::from_cache(hf_cache.clone()).build()?;
                 let hf_repo = hf_api.repo(Repo::with_revision(
                     repo_id.to_owned(),
