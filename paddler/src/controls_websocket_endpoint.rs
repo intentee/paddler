@@ -22,8 +22,8 @@ use tokio::time::interval;
 
 use crate::websocket_session_controller::WebSocketSessionController;
 
-const MAX_FRAME_SIZE: usize = 10 * 1024 * 1024;
-const MAX_CONTINUATION_SIZE: usize = 10 * 1024 * 1024;
+const MAX_FRAME_SIZE: usize = 20 * 1024 * 1024;
+const MAX_CONTINUATION_SIZE: usize = 20 * 1024 * 1024;
 const PING_INTERVAL: Duration = Duration::from_secs(3);
 
 pub enum ContinuationDecision {
