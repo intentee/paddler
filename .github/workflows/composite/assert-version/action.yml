@@ -1,0 +1,29 @@
+name: assert version
+
+inputs:
+  filename:
+    required: true
+
+  expected-version:
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Change permissions, read the current version
+      run: |
+        chmod +x ${{ inputs.filename }}
+        echo "BINARY_VERSION=$(${{ inputs.filename }} --version)" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Verify bin version contains release tag
+      run: |
+        if ! [[ "${{ inputs.expected-version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Expected version is not valid. Exiting..."
+          exit 1
+        fi
+
+        if [[ "${{ env.BINARY_VERSION }}" != *"${{ inputs.expected-version }}"* ]]; then
+          exit 1
+        fi
+      shell: bash

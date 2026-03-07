@@ -1,0 +1,44 @@
+name: determine release version
+
+inputs:
+  release-tag:
+    required: true
+
+outputs:
+  type:
+    value: ${{ steps.tag-type.outputs.tag-type }}
+  version:
+    value: ${{ steps.set-release-version.outputs.release-version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Determine tag type
+      id: tag-type
+      run: |
+        if [[ ${{ inputs.release-tag }} =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$ ]]; then
+          echo "tag-type=PRE_RELEASE" >> $GITHUB_OUTPUT
+        elif [[ ${{ inputs.release-tag }} =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "tag-type=RELEASE" >> $GITHUB_OUTPUT
+        else
+          echo "Release tag is not valid. Exiting..."
+          exit 1
+        fi
+      shell: bash
+
+    - name: set release version
+      id: set-release-version
+      run: |
+        VERSION=$(echo "$RELEASE_TAG" | sed 's/^v//' | sed 's/-rc[0-9]\{1,\}//')
+
+        echo "Version without prefix: ${VERSION}"
+
+        if ! [[ ${VERSION} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Version is not valid. Exiting..."
+          exit 1
+        fi
+
+        echo "release-version=${VERSION}" >> $GITHUB_OUTPUT
+      env:
+        RELEASE_TAG: ${{ inputs.release-tag }}
+      shell: bash
