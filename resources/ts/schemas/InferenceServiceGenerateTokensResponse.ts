@@ -27,9 +27,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
               MultimodalNotSupported: z.string(),
             }),
             z.object({
-              ThinkingToken: z.string(),
-            }),
-            z.object({
               Token: z.string(),
             }),
           ]),
@@ -43,7 +40,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: null;
         ok: true;
         request_id: string;
-        thinking_token: null;
         token: null;
       }
     | {
@@ -51,16 +47,7 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: null;
         ok: true;
         request_id: string;
-        thinking_token: null;
         token: string;
-      }
-    | {
-        done: false;
-        error: null;
-        ok: true;
-        request_id: string;
-        thinking_token: string;
-        token: null;
       }
     | {
         done: true;
@@ -70,7 +57,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         };
         ok: false;
         request_id: string;
-        thinking_token: null;
         token: null;
       } {
     if ("Error" in data) {
@@ -79,7 +65,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: data.Error.error,
         ok: false,
         request_id: data.Error.request_id,
-        thinking_token: null,
         token: null,
       });
     }
@@ -90,7 +75,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: null,
         ok: true,
         request_id: data.Response.request_id,
-        thinking_token: null,
         token: null,
       });
     }
@@ -104,7 +88,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         }),
         ok: false,
         request_id: data.Response.request_id,
-        thinking_token: null,
         token: null,
       });
     }
@@ -119,7 +102,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         }),
         ok: false,
         request_id: data.Response.request_id,
-        thinking_token: null,
         token: null,
       });
     }
@@ -134,18 +116,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         }),
         ok: false,
         request_id: data.Response.request_id,
-        thinking_token: null,
-        token: null,
-      });
-    }
-
-    if ("ThinkingToken" in data.Response.response.GeneratedToken) {
-      return Object.freeze({
-        done: false,
-        error: null,
-        ok: true,
-        request_id: data.Response.request_id,
-        thinking_token: data.Response.response.GeneratedToken.ThinkingToken,
         token: null,
       });
     }
@@ -156,7 +126,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: null,
         ok: true,
         request_id: data.Response.request_id,
-        thinking_token: null,
         token: data.Response.response.GeneratedToken.Token,
       });
     }
@@ -166,7 +135,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       error: null,
       ok: true,
       request_id: data.Response.request_id,
-      thinking_token: null,
       token: null,
     });
   });

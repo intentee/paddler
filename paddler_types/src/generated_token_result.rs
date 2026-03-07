@@ -10,7 +10,6 @@ pub enum GeneratedTokenResult {
     Done,
     ImageDecodingFailed(String),
     MultimodalNotSupported(String),
-    ThinkingToken(String),
     Token(String),
 }
 

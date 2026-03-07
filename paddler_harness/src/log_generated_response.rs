@@ -1,12 +1,7 @@
 use paddler_types::generated_token_result::GeneratedTokenResult;
 
 pub fn log_generated_response(results: &[GeneratedTokenResult]) {
-    let thinking_token_count = results
-        .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ThinkingToken(_)))
-        .count();
-
-    let response_token_count = results
+    let token_count = results
         .iter()
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
@@ -19,13 +14,6 @@ pub fn log_generated_response(results: &[GeneratedTokenResult]) {
         })
         .collect();
 
-    if thinking_token_count > 0 {
-        eprintln!(
-            "Thinking tokens: {thinking_token_count}, Response tokens: {response_token_count}"
-        );
-    } else {
-        eprintln!("Response tokens: {response_token_count}");
-    }
-
+    eprintln!("Response tokens: {token_count}");
     eprintln!("Full response:\n{full_response}");
 }

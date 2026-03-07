@@ -98,28 +98,6 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             })),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ThinkingToken(token)),
-            }) => Ok(json!({
-                "id": request_id,
-                "object": "chat.completion.chunk",
-                "created": current_timestamp(),
-                "model": self.model,
-                "system_fingerprint": self.system_fingerprint,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {
-                            "role": "assistant",
-                            "reasoning_content": token,
-                        },
-                        "logprobs": null,
-                        "finish_reason": null
-                    }
-                ]
-            })),
-            OutgoingMessage::Response(ResponseEnvelope {
-                request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
             }) => Ok(json!({
                 "id": request_id,
@@ -162,10 +140,6 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
-                ..
-            }) => Ok("".to_string()),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ThinkingToken(_)),
                 ..
             }) => Ok("".to_string()),
             OutgoingMessage::Response(ResponseEnvelope {
@@ -289,25 +263,6 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn streaming_thinking_token_emits_reasoning_content_delta() {
-        let transformer = OpenAIStreamingResponseTransformer {
-            model: "test-model".to_string(),
-            system_fingerprint: "test-fingerprint".to_string(),
-        };
-
-        let message =
-            make_token_message(GeneratedTokenResult::ThinkingToken("reasoning".to_string()));
-        let result = transformer.transform(message).await.unwrap();
-
-        assert_eq!(
-            result["choices"][0]["delta"]["reasoning_content"],
-            "reasoning"
-        );
-        assert_eq!(result["choices"][0]["delta"]["role"], "assistant");
-        assert!(result["choices"][0]["finish_reason"].is_null());
-    }
-
-    #[actix_web::test]
     async fn streaming_done_emits_stop_finish_reason() {
         let transformer = OpenAIStreamingResponseTransformer {
             model: "test-model".to_string(),
@@ -328,17 +283,6 @@ mod tests {
         let result = transformer.transform(message).await.unwrap();
 
         assert_eq!(result, "hello");
-    }
-
-    #[actix_web::test]
-    async fn combined_thinking_token_is_discarded() {
-        let transformer = OpenAICombinedResponseTransformer {};
-
-        let message =
-            make_token_message(GeneratedTokenResult::ThinkingToken("reasoning".to_string()));
-        let result = transformer.transform(message).await.unwrap();
-
-        assert_eq!(result, "");
     }
 
     #[actix_web::test]

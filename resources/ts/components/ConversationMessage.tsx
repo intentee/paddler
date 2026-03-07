@@ -12,6 +12,7 @@ import {
 export function ConversationMessage({
   author,
   errors,
+  isThinking,
   response,
   thoughts,
 }: {
@@ -20,6 +21,7 @@ export function ConversationMessage({
     code: number;
     description: string;
   }>;
+  isThinking: boolean;
   response: string;
   thoughts: string;
 }) {
@@ -27,9 +29,7 @@ export function ConversationMessage({
     <div className={conversationMessage}>
       <strong className={conversationMessage__author}>{author}:</strong>
       <div className={conversationMessage__response}>
-        <div>
-          {thoughts && !response ? "🤔" : <Markdown>{response}</Markdown>}
-        </div>
+        <div>{isThinking ? "🤔" : <Markdown>{response}</Markdown>}</div>
         {errors.map(function ({ code, description }, index) {
           return (
             <div className={conversationMessage__error} key={index}>
