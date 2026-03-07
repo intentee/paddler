@@ -1,6 +1,6 @@
 # Paddler
 
-<img alt="Paddler 3.0 supports multimodal!" src="https://github.com/user-attachments/assets/6515f208-f0b7-4f30-b958-e9e98eb251dc" width="100%" />
+<img alt="Paddler 3.0 supports multimodal!" src="https://github.com/user-attachments/assets/cc3b4a1d-4ab3-4a57-8cf0-14e682cf1492" width="100%" />
 
 Digital products and their users need privacy, reliability, cost control, and an option to be independent from closed-source model providers.
 
