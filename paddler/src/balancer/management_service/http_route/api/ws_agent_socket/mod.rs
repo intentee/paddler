@@ -48,6 +48,7 @@ use crate::balancer::management_service::app_data::AppData;
 use crate::balancer::manages_senders::ManagesSenders as _;
 use crate::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
@@ -105,7 +106,9 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ) => {
                 connection_close_tx.send(())?;
 
-                return Ok(ContinuationDecision::Stop);
+                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    close_reason: None,
+                }));
             }
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
@@ -294,7 +297,9 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         {
             error!("Error sending version: {err:?}");
 
-            return Ok(ContinuationDecision::Stop);
+            return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                close_reason: None,
+            }));
         }
 
         Ok(ContinuationDecision::Continue)
