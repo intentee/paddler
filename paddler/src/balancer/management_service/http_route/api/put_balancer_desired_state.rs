@@ -1,10 +1,12 @@
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
+use actix_web::error::ErrorBadRequest;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::put;
 use actix_web::web;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler_types::validates::Validates;
 
 use crate::balancer::management_service::app_data::AppData;
 
@@ -18,6 +20,12 @@ async fn respond(
     balancer_desired_state: web::Json<BalancerDesiredState>,
 ) -> Result<impl Responder, Error> {
     let balancer_desired_state_inner = balancer_desired_state.into_inner();
+
+    balancer_desired_state_inner
+        .inference_parameters
+        .clone()
+        .validate()
+        .map_err(ErrorBadRequest)?;
 
     app_data
         .state_database

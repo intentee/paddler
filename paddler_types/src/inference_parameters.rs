@@ -1,7 +1,10 @@
+use anyhow::Result;
+use anyhow::bail;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::pooling_type::PoolingType;
+use crate::validates::Validates;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -26,6 +29,16 @@ pub struct InferenceParameters {
     pub top_k: i32,
     /// Limit the next token selection to a subset of tokens with a cumulative probability above a threshold P
     pub top_p: f32,
+}
+
+impl Validates<InferenceParameters> for InferenceParameters {
+    fn validate(self) -> Result<InferenceParameters> {
+        if self.image_resize_to_fit == 0 {
+            bail!("image_resize_to_fit must be greater than zero");
+        }
+
+        Ok(self)
+    }
 }
 
 impl Default for InferenceParameters {

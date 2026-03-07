@@ -240,7 +240,7 @@ export function ChangeModelForm({
               name="context_size"
             />
             <InferenceParameterInput
-              description="Max image dimension in pixels before resizing (0 = no resize)"
+              description="Max image dimension in pixels before resizing"
               name="image_resize_to_fit"
             />
             <InferenceParameterInput

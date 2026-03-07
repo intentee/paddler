@@ -63,7 +63,7 @@ export function InferenceSocketClient({
               add_generation_prompt: true,
               conversation_history: messages,
               enable_thinking: enableThinking,
-              max_tokens: 1000,
+              max_tokens: 32768,
             },
           },
         },

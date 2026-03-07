@@ -46,6 +46,7 @@ nanoid = "0.4"
 nix = { version = "0.30", features = ["signal"] }
 rand = "0.9"
 reqwest = { version = "0.12", features = ["json", "stream"] }
+resvg = "0.46"
 rust-embed = { version = "8.9", features = ["interpolate-folder-path"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
