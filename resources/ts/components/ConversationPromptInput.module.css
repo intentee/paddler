@@ -22,6 +22,11 @@
   }
 }
 
+.conversationPromptInput__attachments {
+  padding: var(--spacing-base-plus-half) var(--spacing-base-plus-half) 0
+    var(--spacing-base-plus-half);
+}
+
 .conversationPromptInput__controls {
   display: flex;
   flex-direction: row;
@@ -40,7 +45,7 @@
   border: none;
   field-sizing: content;
   max-height: 200px;
-  padding: var(--spacing-base);
+  padding: var(--spacing-base-plus-half);
   resize: none;
 
   &:focus {

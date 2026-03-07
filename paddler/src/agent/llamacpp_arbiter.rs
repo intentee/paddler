@@ -12,15 +12,18 @@ use actix::sync::SyncArbiter;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use llama_cpp_2::context::params::LlamaContextParams;
-use llama_cpp_2::llama_backend::LlamaBackend;
-use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::model::params::LlamaModelParams;
-use llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_ENABLED;
+use llama_cpp_bindings::context::params::LlamaContextParams;
+use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_bindings::model::params::LlamaModelParams;
+use llama_cpp_bindings::mtmd::MtmdContext;
+use llama_cpp_bindings::mtmd::MtmdContextParams;
+use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED;
 use log::error;
 use log::info;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
+use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_issue_params::SlotCannotStartParams;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
@@ -41,6 +44,7 @@ pub struct LlamaCppArbiter {
     pub chat_template_override: Option<ChatTemplate>,
     pub desired_slots_total: i32,
     pub inference_parameters: InferenceParameters,
+    pub multimodal_projection_path: Option<PathBuf>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub model_path: PathBuf,
     pub model_path_string: String,
@@ -64,6 +68,7 @@ impl LlamaCppArbiter {
         let desired_slots_total = self.desired_slots_total;
         let inference_parameters = self.inference_parameters.clone();
         let model_metadata_holder = self.model_metadata_holder.clone();
+        let multimodal_projection_path = self.multimodal_projection_path.clone();
         let model_path = self.model_path.clone();
         let model_path_string_clone = self.model_path_string.clone();
         let model_path_string = self.model_path_string.clone();
@@ -91,7 +96,7 @@ impl LlamaCppArbiter {
                     context_params.with_n_seq_max(inference_parameters.embedding_n_seq_max);
             }
 
-            let llama_ctx_params = Arc::new(context_params);
+            let llama_context_params = Arc::new(context_params);
             let backend_clone = llama_backend.clone();
             let model = Arc::new(
                 LlamaModel::load_from_file(&backend_clone.clone(), model_path.clone(), &{
@@ -159,7 +164,9 @@ impl LlamaCppArbiter {
                     Ok(renderer) => {
                         slot_aggregated_status_manager
                             .slot_aggregated_status
-                            .register_fix(AgentIssueFix::ChatTemplateIsCompiled);
+                            .register_fix(AgentIssueFix::ChatTemplateIsCompiled(ModelPath {
+                                model_path: model_path.display().to_string(),
+                            }));
 
                         renderer
                     }
@@ -169,6 +176,9 @@ impl LlamaCppArbiter {
                             .register_issue(AgentIssue::ChatTemplateDoesNotCompile(
                                 ChatTemplateDoesNotCompileParams {
                                     error: format!("{err}"),
+                                    model_path: ModelPath {
+                                        model_path: model_path.display().to_string(),
+                                    },
                                     template_content: llama_chat_template_string,
                                 },
                             ));
@@ -182,12 +192,60 @@ impl LlamaCppArbiter {
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
 
+            let multimodal_context = match multimodal_projection_path {
+                Some(multimodal_projection_path) => {
+                    let multimodal_projection_path_str =
+                        multimodal_projection_path.to_string_lossy();
+
+                    match MtmdContext::init_from_file(
+                        &multimodal_projection_path_str,
+                        &model,
+                        &MtmdContextParams::default(),
+                    ) {
+                        Ok(mtmd_context) => {
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded(
+                                    ModelPath {
+                                        model_path: multimodal_projection_path
+                                            .display()
+                                            .to_string(),
+                                    },
+                                ));
+
+                            info!(
+                                "Multimodal context initialized from: {}",
+                                multimodal_projection_path.display()
+                            );
+
+                            Some(Arc::new(mtmd_context))
+                        }
+                        Err(err) => {
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_issue(AgentIssue::MultimodalProjectionCannotBeLoaded(
+                                    ModelPath {
+                                        model_path: multimodal_projection_path
+                                            .display()
+                                            .to_string(),
+                                    },
+                                ));
+
+                            return Err(err.into());
+                        }
+                    }
+                }
+                None => None,
+            };
+
             let slot_index = Arc::new(AtomicU32::new(0));
             let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
             let slot_context = Arc::new(LlamaCppSlotContext {
                 agent_name: agent_name_clone,
                 chat_template_renderer,
                 inference_parameters,
+                model_path: model_path.clone(),
+                multimodal_context,
                 token_bos_str: model.token_to_piece(
                     model.token_bos(),
                     &mut special_token_decoder,
@@ -207,7 +265,6 @@ impl LlamaCppArbiter {
                     None,
                 )?,
                 model,
-                model_path,
             });
             let system = System::new();
 
@@ -220,7 +277,7 @@ impl LlamaCppArbiter {
                             let llamacpp_slot = LlamaCppSlot::new(
                                 index,
                                 llama_backend.clone(),
-                                llama_ctx_params.clone(),
+                                llama_context_params.clone(),
                                 slot_context.clone(),
                                 slot_aggregated_status_manager.bind_slot_status(),
                             );
@@ -267,14 +324,18 @@ impl LlamaCppArbiter {
             Ok(()) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelIsLoaded);
+                    .register_fix(AgentIssueFix::ModelIsLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
             }
             Err(err) => {
                 error!("Failed to load model: {err}");
 
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_issue(AgentIssue::ModelCannotBeLoaded(model_path_string.clone()));
+                    .register_issue(AgentIssue::ModelCannotBeLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
             }
         }
 
@@ -285,7 +346,9 @@ impl LlamaCppArbiter {
             Ok(()) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelChatTemplateIsLoaded);
+                    .register_fix(AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
             }
             Err(err) => {
                 error!("Failed to load chat template: {err}");
@@ -293,15 +356,17 @@ impl LlamaCppArbiter {
                 if !self
                     .slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .has_issue(&AgentIssue::ModelCannotBeLoaded(model_path_string.clone()))
+                    .has_issue(&AgentIssue::ModelCannotBeLoaded(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }))
                 {
                     // If the model cannot be loaded, that doesn't mean that the chat template
                     // cannot be loaded.
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
-                        .register_issue(AgentIssue::UnableToFindChatTemplate(
-                            model_path_string.clone(),
-                        ));
+                        .register_issue(AgentIssue::UnableToFindChatTemplate(ModelPath {
+                            model_path: model_path_string.clone(),
+                        }));
                 }
             }
         }
@@ -313,119 +378,5 @@ impl LlamaCppArbiter {
             shutdown_tx,
             sync_arbiter_thread_handle,
         })
-    }
-}
-
-#[cfg(test)]
-#[cfg(feature = "tests_that_use_llms")]
-mod tests {
-    use futures::future::join_all;
-    use paddler_types::agent_desired_model::AgentDesiredModel;
-    use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
-    use paddler_types::inference_parameters::InferenceParameters;
-    use paddler_types::request_params::ContinueFromRawPromptParams;
-    use tokio::sync::mpsc;
-
-    use super::*;
-    use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-    use crate::agent_desired_state::AgentDesiredState;
-    use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
-
-    const SLOTS_TOTAL: i32 = 2;
-
-    #[actix_web::test]
-    async fn test_llamacpp_arbiter_spawn() -> Result<()> {
-        let desired_state = AgentDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-                filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-                repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-                revision: "main".to_string(),
-            }),
-        };
-        let slot_aggregated_status_manager =
-            Arc::new(SlotAggregatedStatusManager::new(SLOTS_TOTAL));
-
-        let applicable_state = desired_state
-            .to_applicable_state(
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .clone(),
-            )
-            .await?
-            .expect("Failed to convert to applicable state");
-
-        let model_path = applicable_state.model_path.expect("Model path is required");
-        let llamacpp_arbiter = LlamaCppArbiter {
-            agent_name: Some("test_agent".to_string()),
-            chat_template_override: None,
-            desired_slots_total: SLOTS_TOTAL,
-            inference_parameters: applicable_state.inference_parameters,
-            model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
-            model_path: model_path.clone(),
-            model_path_string: model_path.display().to_string(),
-            slot_aggregated_status_manager,
-        };
-        let controller = llamacpp_arbiter.spawn().await?;
-
-        let raw_prompt =
-            "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n";
-        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-
-        let (_, generate_tokens_stop_rx_1) = mpsc::unbounded_channel::<()>();
-        let (_, generate_tokens_stop_rx_2) = mpsc::unbounded_channel::<()>();
-        let (_, generate_tokens_stop_rx_3) = mpsc::unbounded_channel::<()>();
-
-        let futures = vec![
-            controller
-                .llamacpp_slot_addr
-                .send(ContinueFromRawPromptRequest {
-                    generated_tokens_tx: generated_tokens_tx.clone(),
-                    generate_tokens_stop_rx: generate_tokens_stop_rx_1,
-                    params: ContinueFromRawPromptParams {
-                        max_tokens: 30,
-                        raw_prompt: raw_prompt.to_string(),
-                    },
-                }),
-            controller
-                .llamacpp_slot_addr
-                .send(ContinueFromRawPromptRequest {
-                    generated_tokens_tx: generated_tokens_tx.clone(),
-                    generate_tokens_stop_rx: generate_tokens_stop_rx_2,
-                    params: ContinueFromRawPromptParams {
-                        max_tokens: 30,
-                        raw_prompt: raw_prompt.to_string(),
-                    },
-                }),
-            controller
-                .llamacpp_slot_addr
-                .send(ContinueFromRawPromptRequest {
-                    generated_tokens_tx,
-                    generate_tokens_stop_rx: generate_tokens_stop_rx_3,
-                    params: ContinueFromRawPromptParams {
-                        max_tokens: 30,
-                        raw_prompt: raw_prompt.to_string(),
-                    },
-                }),
-        ];
-
-        tokio::spawn(async move {
-            while let Some(generated_token) = generated_tokens_rx.recv().await {
-                println!("Received generated token: {generated_token:?}");
-            }
-        });
-
-        let results = join_all(futures).await;
-
-        for result in results {
-            if let Err(err) = result {
-                eprintln!("Error generating response: {err}");
-            }
-        }
-
-        controller.shutdown()?;
-
-        Ok(())
     }
 }

@@ -4,7 +4,9 @@ import { Route, Router, Switch } from "wouter";
 import { ChangeModelPage } from "./ChangeModelPage";
 import { DashboardPage } from "./DashboardPage";
 import { PromptContextProvider } from "./PromptContextProvider";
+import { PromptImageContextProvider } from "./PromptImageContextProvider";
 import { PromptPage } from "./PromptPage";
+import { PromptThinkingContextProvider } from "./PromptThinkingContextProvider";
 import { WorkbenchLayout } from "./WorkbenchLayout";
 
 export function Home() {
@@ -20,7 +22,11 @@ export function Home() {
           </Route>
           <Route path="/prompt">
             <PromptContextProvider>
-              <PromptPage />
+              <PromptImageContextProvider>
+                <PromptThinkingContextProvider>
+                  <PromptPage />
+                </PromptThinkingContextProvider>
+              </PromptImageContextProvider>
             </PromptContextProvider>
           </Route>
           <Route>404 :(</Route>

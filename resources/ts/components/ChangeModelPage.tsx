@@ -50,6 +50,7 @@ export function ChangeModelPage() {
         chat_template_override,
         inference_parameters,
         model,
+        multimodal_projection,
         use_chat_template_override,
       },
     }) {
@@ -61,7 +62,12 @@ export function ChangeModelPage() {
           <InferenceParametersContextProvider
             defaultInferenceParameters={inference_parameters}
           >
-            <ChangeModelForm defaultModelUri={modelSchemaToUrl(model)} />
+            <ChangeModelForm
+              defaultBaseModelUri={modelSchemaToUrl(model)}
+              defaultMultimodalProjectionUri={modelSchemaToUrl(
+                multimodal_projection,
+              )}
+            />
           </InferenceParametersContextProvider>
         </ChatTemplateContextProvider>
       );

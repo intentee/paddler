@@ -21,6 +21,12 @@ export const InferenceServiceGenerateTokensResponseSchema = z
             }),
             z.literal("Done"),
             z.object({
+              ImageDecodingFailed: z.string(),
+            }),
+            z.object({
+              MultimodalNotSupported: z.string(),
+            }),
+            z.object({
               Token: z.string(),
             }),
           ]),
@@ -86,12 +92,50 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       });
     }
 
+    if ("ImageDecodingFailed" in data.Response.response.GeneratedToken) {
+      return Object.freeze({
+        done: true,
+        error: Object.freeze({
+          code: 400,
+          description:
+            data.Response.response.GeneratedToken.ImageDecodingFailed,
+        }),
+        ok: false,
+        request_id: data.Response.request_id,
+        token: null,
+      });
+    }
+
+    if ("MultimodalNotSupported" in data.Response.response.GeneratedToken) {
+      return Object.freeze({
+        done: true,
+        error: Object.freeze({
+          code: 400,
+          description:
+            data.Response.response.GeneratedToken.MultimodalNotSupported,
+        }),
+        ok: false,
+        request_id: data.Response.request_id,
+        token: null,
+      });
+    }
+
+    if ("Token" in data.Response.response.GeneratedToken) {
+      return Object.freeze({
+        done: false,
+        error: null,
+        ok: true,
+        request_id: data.Response.request_id,
+        token: data.Response.response.GeneratedToken.Token,
+      });
+    }
+
     return Object.freeze({
-      done: false,
+      done: true,
       error: null,
       ok: true,
       request_id: data.Response.request_id,
-      token: data.Response.response.GeneratedToken.Token,
+      token: null,
     });
   });
 

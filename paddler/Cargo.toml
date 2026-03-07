@@ -27,18 +27,22 @@ env_logger = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 hf-hub = { workspace = true }
+image = { workspace = true }
 indoc = { workspace = true }
 jsonschema = { workspace = true }
-llama-cpp-2 = { workspace = true }
-llama-cpp-sys-2 = { workspace = true }
+llama-cpp-bindings = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+base64 = { workspace = true }
 log = { workspace = true }
 minijinja = { workspace = true }
 minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
 paddler_types = { workspace = true, features = ["validation"] }
+thiserror = { workspace = true }
 nix = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
+resvg = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 shellexpand = { workspace = true }
@@ -55,15 +59,14 @@ rust-embed = { workspace = true, optional = true }
 
 [features]
 default = []
-cuda = ["llama-cpp-2/cuda"]
-tests_that_use_llms = []
+cuda = ["llama-cpp-bindings/cuda"]
 web_admin_panel = [
     "dep:askama",
     "dep:esbuild-metafile",
     "dep:mime_guess",
     "dep:rust-embed",
 ]
-vulkan = ["llama-cpp-2/vulkan"]
+vulkan = ["llama-cpp-bindings/vulkan"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

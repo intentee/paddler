@@ -24,6 +24,7 @@ impl ConvertsToApplicableState for BalancerDesiredState {
                 },
                 inference_parameters: self.inference_parameters.clone(),
                 model: self.model.clone(),
+                multimodal_projection: self.multimodal_projection.clone(),
             },
         }))
     }

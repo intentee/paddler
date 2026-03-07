@@ -8,7 +8,9 @@ use actix_web::web;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use nanoid::nanoid;
+use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
+use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::inference_client::Message as OutgoingMessage;
 use paddler_types::inference_client::Response as OutgoingResponse;
@@ -39,7 +41,7 @@ fn current_timestamp() -> u64 {
 /// it would be better if this struct stayed independent from ours just in case
 /// to avoid any potential side effects in the future.
 struct OpenAIMessage {
-    content: String,
+    content: ConversationMessageContent,
     role: String,
 }
 
@@ -156,11 +158,13 @@ async fn respond(
 ) -> Result<HttpResponse, Error> {
     let paddler_params = ContinueFromConversationHistoryParams {
         add_generation_prompt: true,
-        conversation_history: openai_params
-            .messages
-            .iter()
-            .map(ConversationMessage::from)
-            .collect(),
+        conversation_history: ConversationHistory::new(
+            openai_params
+                .messages
+                .iter()
+                .map(ConversationMessage::from)
+                .collect(),
+        ),
         enable_thinking: true,
         max_tokens: openai_params.max_completion_tokens.unwrap_or(2000),
         tools: vec![],
@@ -222,5 +226,72 @@ async fn respond(
           },
           "service_tier": "default"
         })))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use paddler_types::generated_token_result::GeneratedTokenResult;
+    use paddler_types::inference_client::Message as OutgoingMessage;
+    use paddler_types::inference_client::Response as OutgoingResponse;
+    use paddler_types::jsonrpc::ResponseEnvelope;
+
+    use super::OpenAICombinedResponseTransformer;
+    use super::OpenAIStreamingResponseTransformer;
+    use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+
+    fn make_token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
+        OutgoingMessage::Response(ResponseEnvelope {
+            request_id: "test-request".to_string(),
+            response: OutgoingResponse::GeneratedToken(token_result),
+        })
+    }
+
+    #[actix_web::test]
+    async fn streaming_token_emits_content_delta() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_string(),
+            system_fingerprint: "test-fingerprint".to_string(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::Token("hello".to_string()));
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result["choices"][0]["delta"]["content"], "hello");
+        assert_eq!(result["choices"][0]["delta"]["role"], "assistant");
+        assert!(result["choices"][0]["finish_reason"].is_null());
+    }
+
+    #[actix_web::test]
+    async fn streaming_done_emits_stop_finish_reason() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_string(),
+            system_fingerprint: "test-fingerprint".to_string(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::Done);
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result["choices"][0]["finish_reason"], "stop");
+    }
+
+    #[actix_web::test]
+    async fn combined_token_returns_content() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::Token("hello".to_string()));
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result, "hello");
+    }
+
+    #[actix_web::test]
+    async fn combined_done_returns_empty_string() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::Done);
+        let result = transformer.transform(message).await.unwrap();
+
+        assert_eq!(result, "");
     }
 }

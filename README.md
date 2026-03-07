@@ -1,5 +1,7 @@
 # Paddler
 
+<img alt="Paddler 3.0 supports multimodal!" src="https://github.com/user-attachments/assets/6515f208-f0b7-4f30-b958-e9e98eb251dc" width="100%" />
+
 Digital products and their users need privacy, reliability, cost control, and an option to be independent from closed-source model providers.
 
 Paddler is an open-source LLM load balancer and serving platform. It allows you to run inference, deploy, and scale LLMs on your own infrastructure, providing a great developer experience along the way.

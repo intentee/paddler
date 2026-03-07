@@ -1,0 +1,24 @@
+[package]
+name = "paddler_model_tests"
+authors.workspace = true
+description = "Per-model integration tests for Paddler"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+paddler_harness = { workspace = true }
+paddler_types = { workspace = true }
+
+[dev-dependencies]
+actix-web = { workspace = true }
+anyhow = { workspace = true }
+llama-cpp-bindings = { workspace = true }
+tokio = { workspace = true }
+
+[features]
+default = []
+tests_that_use_llms = []

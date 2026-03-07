@@ -6,14 +6,18 @@ use actix::SyncContext;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use llama_cpp_2::DecodeError;
-use llama_cpp_2::context::LlamaContext;
-use llama_cpp_2::context::params::LlamaContextParams;
-use llama_cpp_2::llama_backend::LlamaBackend;
-use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::model::AddBos;
-use llama_cpp_2::model::LlamaModel;
-use llama_cpp_2::sampling::LlamaSampler;
+use llama_cpp_bindings::DecodeError;
+use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::params::LlamaContextParams;
+use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::model::AddBos;
+use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_bindings::mtmd::MtmdBitmap;
+use llama_cpp_bindings::mtmd::MtmdContext;
+use llama_cpp_bindings::mtmd::MtmdInputText;
+use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use llama_cpp_bindings::sampling::LlamaSampler;
 use log::debug;
 use log::error;
 use log::info;
@@ -22,6 +26,7 @@ use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::media_marker::MediaMarker;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
@@ -34,6 +39,8 @@ use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::kv_cache_repair_action::KVCacheRepairAction;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
+use crate::decoded_image::DecodedImage;
+use crate::decoded_image_error::DecodedImageError;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::slot_status::SlotStatus;
 
@@ -49,7 +56,7 @@ impl LlamaCppSlot {
     pub fn new(
         index: u32,
         llama_backend: Arc<LlamaBackend>,
-        llama_ctx_params: Arc<LlamaContextParams>,
+        llama_context_params: Arc<LlamaContextParams>,
         slot_context: Arc<LlamaCppSlotContext>,
         status: Arc<SlotStatus>,
     ) -> Result<Self> {
@@ -66,7 +73,7 @@ impl LlamaCppSlot {
             // 3. The context cannot outlive the struct that contains both it and the model
             let model_ref: &'static LlamaModel = std::mem::transmute(slot_context.model.as_ref());
 
-            model_ref.new_context(&llama_backend, (*llama_ctx_params).clone())?
+            model_ref.new_context(&llama_backend, (*llama_context_params).clone())?
         };
 
         Ok(Self {
@@ -150,43 +157,15 @@ impl LlamaCppSlot {
         Ok(())
     }
 
-    fn continue_from_raw_prompt(
+    fn generate_tokens(
         &mut self,
         mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         max_tokens: i32,
-        prompt: String,
+        mut current_token_position: i32,
     ) -> Result<()> {
-        let _guard = self.status.take_slot_with_guard();
-
-        self.llama_context.clear_kv_cache();
-
-        let tokens_list = self
-            .slot_context
-            .model
-            .str_to_token(&prompt, AddBos::Always)?;
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
-        let mut batch = LlamaBatch::new(batch_size, 1);
-        let last_index = tokens_list.len() as i32 - 1;
-        let mut tokens_processed: i32 = 0;
-        let mut kv_cache_repair_actions = vec![];
-
-        for tokens_chunk in tokens_list.chunks(batch_size) {
-            batch.clear();
-
-            for (offset, token) in tokens_chunk.iter().enumerate() {
-                let position = tokens_processed + offset as i32;
-                let is_last_token_overall = position == last_index;
-
-                batch.add(*token, position, &[0], is_last_token_overall)?;
-            }
-
-            self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
-            kv_cache_repair_actions.clear();
-            tokens_processed += tokens_chunk.len() as i32;
-        }
-
-        let mut n_cur = tokens_processed;
+        let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
         let mut sampler = LlamaSampler::chain_simple([
@@ -201,21 +180,19 @@ impl LlamaCppSlot {
             LlamaSampler::min_p(self.slot_context.inference_parameters.min_p, 0),
             LlamaSampler::temp(self.slot_context.inference_parameters.temperature),
             LlamaSampler::dist(self.rng.random::<u32>()),
-            LlamaSampler::greedy(),
         ]);
 
-        while n_cur <= max_tokens {
+        while current_token_position <= max_tokens {
             if generate_tokens_stop_rx.try_recv().is_ok() {
                 break;
             }
 
-            // sample the next token
             {
-                let token = sampler.sample(&self.llama_context, batch.n_tokens() - 1);
+                let token = sampler.sample(&self.llama_context, -1);
 
-                sampler.accept(token);
+                sampler.accept(token)?;
 
-                if token == self.slot_context.model.token_eos() {
+                if self.slot_context.model.is_eog_token(token) {
                     break;
                 }
 
@@ -227,18 +204,90 @@ impl LlamaCppSlot {
                 generated_tokens_tx.send(GeneratedTokenResult::Token(output_string))?;
 
                 batch.clear();
-                batch.add(token, n_cur, &[0], true)?;
+                batch.add(token, current_token_position, &[0], true)?;
             }
 
-            n_cur += 1;
+            current_token_position += 1;
 
-            kv_cache_repair_actions.clear();
+            let mut kv_cache_repair_actions = vec![];
+
             self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
         }
 
         generated_tokens_tx.send(GeneratedTokenResult::Done)?;
 
         Ok(())
+    }
+
+    fn ingest_multimodal_prompt(
+        &mut self,
+        multimodal_context: &MtmdContext,
+        prompt: String,
+        images: Vec<DecodedImage>,
+    ) -> Result<i32> {
+        let bitmaps: Vec<MtmdBitmap> = images
+            .iter()
+            .map(|image| {
+                MtmdBitmap::from_buffer(multimodal_context, &image.data)
+                    .map_err(|err| anyhow!("Failed to create bitmap: {err}"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
+
+        let input_text = MtmdInputText {
+            text: prompt,
+            add_special: true,
+            parse_special: true,
+        };
+
+        let input_chunks = multimodal_context
+            .tokenize(input_text, &bitmap_refs)
+            .map_err(|err| anyhow!("Failed to tokenize multimodal input: {err}"))?;
+
+        let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
+
+        let tokens_ingested = input_chunks
+            .eval_chunks(
+                multimodal_context,
+                &self.llama_context,
+                0,
+                0,
+                batch_size as i32,
+                true,
+            )
+            .map_err(|err| anyhow!("Failed to evaluate multimodal chunks: {err}"))?;
+
+        Ok(tokens_ingested)
+    }
+
+    fn ingest_text_prompt(&mut self, prompt: &str) -> Result<i32> {
+        let tokens_list = self
+            .slot_context
+            .model
+            .str_to_token(prompt, AddBos::Always)?;
+        let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
+        let mut batch = LlamaBatch::new(batch_size, 1)?;
+        let last_token_index = tokens_list.len() as i32 - 1;
+        let mut tokens_processed: i32 = 0;
+        let mut kv_cache_repair_actions = vec![];
+
+        for tokens_chunk in tokens_list.chunks(batch_size) {
+            batch.clear();
+
+            for (offset, token) in tokens_chunk.iter().enumerate() {
+                let position = tokens_processed + offset as i32;
+                let is_last_token_overall = position == last_token_index;
+
+                batch.add(*token, position, &[0], is_last_token_overall)?;
+            }
+
+            self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
+            kv_cache_repair_actions.clear();
+            tokens_processed += tokens_chunk.len() as i32;
+        }
+
+        Ok(tokens_processed)
     }
 
     fn generate_embedding_batch(
@@ -284,7 +333,7 @@ impl LlamaCppSlot {
 
         let batch_n_tokens = self.slot_context.inference_parameters.batch_n_tokens;
         let embedding_n_seq_max = self.slot_context.inference_parameters.embedding_n_seq_max as i32;
-        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max);
+        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max)?;
         let mut current_batch_inputs: Vec<&EmbeddingInputTokenized> = Vec::new();
         let mut current_batch_token_count: usize = 0;
         let mut next_seq_id: i32 = 0;
@@ -375,6 +424,36 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        let image_resize_to_fit = self.slot_context.inference_parameters.image_resize_to_fit;
+
+        let images = match conversation_history
+            .extract_image_urls()
+            .iter()
+            .map(|image_url| {
+                DecodedImage::from_data_uri(image_url)
+                    .and_then(|image| image.converted_to_png_if_necessary(image_resize_to_fit))
+                    .and_then(|image| image.resized_to_fit(image_resize_to_fit))
+            })
+            .collect::<Result<Vec<DecodedImage>, DecodedImageError>>()
+        {
+            Ok(images) => images,
+            Err(err) => {
+                let msg = format!(
+                    "{:?}: slot {} failed to decode images: {err}",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx.send(GeneratedTokenResult::ImageDecodingFailed(msg.clone()))?;
+
+                return Err(anyhow!(msg));
+            }
+        };
+
+        let media_marker = MediaMarker::new(mtmd_default_marker().to_string());
+        let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
+
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
             // Known uses:
             // https://huggingface.co/unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF
@@ -389,7 +468,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             // Known uses:
             // https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
             eos_token => self.slot_context.token_eos_str,
-            messages => conversation_history,
+            messages => chat_template_messages.messages,
             nl_token => self.slot_context.token_nl_str,
             tools => tools,
         }) {
@@ -413,11 +492,37 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             self.slot_context.agent_name, self.index, raw_prompt
         );
 
-        self.continue_from_raw_prompt(
+        let _guard = self.status.take_slot_with_guard();
+
+        self.llama_context.clear_kv_cache();
+
+        let multimodal_context = self.slot_context.multimodal_context.clone();
+
+        let current_token_position = match multimodal_context.as_ref() {
+            Some(multimodal_context) => {
+                self.ingest_multimodal_prompt(multimodal_context, raw_prompt, images)?
+            }
+            None if !images.is_empty() => {
+                let msg = format!(
+                    "{:?}: slot {} received images but model does not support multimodal input",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx
+                    .send(GeneratedTokenResult::MultimodalNotSupported(msg.clone()))?;
+
+                return Err(anyhow!(msg));
+            }
+            None => self.ingest_text_prompt(&raw_prompt)?,
+        };
+
+        self.generate_tokens(
             generate_tokens_stop_rx,
             generated_tokens_tx,
             max_tokens,
-            raw_prompt,
+            current_token_position,
         )
     }
 }
@@ -438,11 +543,17 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
         }: ContinueFromRawPromptRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        self.continue_from_raw_prompt(
+        let _guard = self.status.take_slot_with_guard();
+
+        self.llama_context.clear_kv_cache();
+
+        let current_token_position = self.ingest_text_prompt(&raw_prompt)?;
+
+        self.generate_tokens(
             generate_tokens_stop_rx,
             generated_tokens_tx,
             max_tokens,
-            raw_prompt,
+            current_token_position,
         )
     }
 }

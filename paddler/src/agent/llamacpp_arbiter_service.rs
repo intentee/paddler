@@ -11,6 +11,7 @@ use log::error;
 use log::info;
 use log::warn;
 use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 use tokio::fs;
 use tokio::sync::broadcast;
@@ -57,6 +58,7 @@ impl LlamaCppArbiterService {
         if let Some(AgentApplicableState {
             chat_template_override,
             inference_parameters,
+            multimodal_projection_path,
             model_path,
         }) = self.agent_applicable_state.clone()
         {
@@ -66,9 +68,9 @@ impl LlamaCppArbiterService {
                 if !fs::try_exists(&model_path).await? {
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
-                        .register_issue(AgentIssue::ModelFileDoesNotExist(
-                            model_path.display().to_string(),
-                        ));
+                        .register_issue(AgentIssue::ModelFileDoesNotExist(ModelPath {
+                            model_path: model_path.display().to_string(),
+                        }));
 
                     return Err(anyhow!(
                         "Model path does not exist: {}",
@@ -81,9 +83,9 @@ impl LlamaCppArbiterService {
                 if self
                     .slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .has_issue(&AgentIssue::UnableToFindChatTemplate(
-                        model_path_string.clone(),
-                    ))
+                    .has_issue(&AgentIssue::UnableToFindChatTemplate(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }))
                 {
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
@@ -114,15 +116,42 @@ impl LlamaCppArbiterService {
                     ));
                 }
 
+                if self
+                    .slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .has_issue_like(|issue| {
+                        matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_))
+                    })
+                {
+                    self.slot_aggregated_status_manager
+                        .slot_aggregated_status
+                        .set_state_application_status(
+                            AgentStateApplicationStatus::AttemptedAndNotAppliable,
+                        );
+
+                    return Err(anyhow!(
+                        "Multimodal projection cannot be loaded: {}",
+                        if let Some(multimodal_projection_path) = multimodal_projection_path {
+                            multimodal_projection_path.display().to_string()
+                        } else {
+                            "*cannot establish path*".to_string()
+                        }
+                    ));
+                }
+
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelFileExists);
+                    .register_fix(AgentIssueFix::ModelFileExists(ModelPath {
+                        model_path: model_path_string.clone(),
+                    }));
+
                 self.llamacpp_arbiter_handle = Some(
                     LlamaCppArbiter {
                         agent_name: self.agent_name.clone(),
                         chat_template_override,
                         desired_slots_total: self.desired_slots_total,
                         inference_parameters,
+                        multimodal_projection_path,
                         model_metadata_holder: self.model_metadata_holder.clone(),
                         model_path,
                         model_path_string,

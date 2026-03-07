@@ -16,14 +16,14 @@
     --size-outline: -12px;
 
     display: inline-flex;
-    margin: var(--spacing-half) 0;
+    margin: var(--spacing-base) 0;
     position: relative;
     word-break: break-all;
     z-index: 1;
 
     &:after {
       background-color: #eeeeeeaa;
-      border-radius: 10px 20%;
+      border-radius: 20px 20%;
       bottom: var(--size-outline);
       content: "";
       left: var(--size-outline);
@@ -32,6 +32,10 @@
       top: var(--size-outline);
       z-index: -1;
     }
+  }
+
+  pre {
+    display: inline-flex;
   }
 }
 

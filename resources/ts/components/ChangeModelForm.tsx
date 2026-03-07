@@ -33,43 +33,70 @@ import {
 } from "./ChangeModelForm.module.css";
 
 export function ChangeModelForm({
-  defaultModelUri,
+  defaultBaseModelUri,
+  defaultMultimodalProjectionUri,
 }: {
-  defaultModelUri: null | string;
+  defaultBaseModelUri: null | string;
+  defaultMultimodalProjectionUri: null | string;
 }) {
   const [, navigate] = useLocation();
   const { chatTemplateOverride, useChatTemplateOverride } =
     useContext(ChatTemplateContext);
   const { parameters } = useContext(InferenceParametersContext);
   const { managementAddr } = useContext(PaddlerConfigurationContext);
-  const { agentDesiredModelState, modelUri, setModelUri } =
-    useAgentDesiredModelUrl({
-      defaultModelUri,
-    });
+  const {
+    agentDesiredModelState: baseModelAgentDesiredModelState,
+    modelUri: baseModelUri,
+    setModelUri: setBaseModelUri,
+  } = useAgentDesiredModelUrl({
+    defaultModelUri: defaultBaseModelUri,
+  });
+  const {
+    agentDesiredModelState: multimodalProjecttionAgentDesiredModelState,
+    modelUri: multimodalProjectionModelUri,
+    setModelUri: setMultimodalProjectionModelUri,
+  } = useAgentDesiredModelUrl({
+    defaultModelUri: defaultMultimodalProjectionUri,
+  });
 
-  const onModelUriInput = useCallback(
+  const onBaseModelUriInput = useCallback(
     function (evt: InputEvent<HTMLInputElement>) {
-      setModelUri(evt.currentTarget.value);
+      setBaseModelUri(evt.currentTarget.value);
     },
-    [setModelUri],
+    [setBaseModelUri],
+  );
+
+  const onMultimodalProjectionUriInput = useCallback(
+    function (evt: InputEvent<HTMLInputElement>) {
+      setMultimodalProjectionModelUri(evt.currentTarget.value);
+    },
+    [setMultimodalProjectionModelUri],
   );
 
   const balancerDesiredState: null | BalancerDesiredState = useMemo(
     function () {
-      if (!agentDesiredModelState.ok) {
+      if (
+        !baseModelAgentDesiredModelState.ok ||
+        !multimodalProjecttionAgentDesiredModelState.ok
+      ) {
         return null;
       }
 
-      return Object.freeze({
+      const desiredState: BalancerDesiredState = Object.freeze({
         chat_template_override: chatTemplateOverride,
         inference_parameters: parameters,
-        model: agentDesiredModelState.agentDesiredModel,
+        model: baseModelAgentDesiredModelState.agentDesiredModel,
+        multimodal_projection:
+          multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
         use_chat_template_override: useChatTemplateOverride,
       });
+
+      return desiredState;
     },
     [
-      agentDesiredModelState,
+      baseModelAgentDesiredModelState,
       chatTemplateOverride,
+      multimodalProjecttionAgentDesiredModelState,
       parameters,
       useChatTemplateOverride,
     ],
@@ -122,15 +149,23 @@ export function ChangeModelForm({
           </dt>
           <dd>
             <p>
-              Each agent will individually download the model, and cache it
+              Each agent will download the model individually and cache it
               locally.
             </p>
             <p>
-              For example, you can use the following URL to download the Qwen-3
-              0.6B model:
+              For example, you can use the following URL to download the
+              Qwen-3.5 0.8B model:
             </p>
             <code>
-              https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/Qwen3-0.6B-Q8_0.gguf
+              https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/Qwen3.5-0.8B-Q4_K_M.gguf
+            </code>
+            <p>
+              To enable multimodal features, you also need to provide multimodal
+              projection weights relevant to the base model (usually, model
+              authors name them similarly to mmproj-*.gguf)
+            </p>
+            <code>
+              https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/blob/main/mmproj-F16.gguf
             </code>
           </dd>
           <dt>Local File</dt>
@@ -147,15 +182,30 @@ export function ChangeModelForm({
       <main className={changeModelForm__main}>
         <form className={changeModelForm__form} onSubmit={onSubmit}>
           <label className={changeModelForm__formLabel}>
-            <div className={changeModelForm__formLabel__title}>Model URI</div>
+            <div className={changeModelForm__formLabel__title}>
+              Base Model URI
+            </div>
             <input
               className={changeModelForm__input}
               name="model_uri"
-              onInput={onModelUriInput}
+              onInput={onBaseModelUriInput}
               placeholder="https://huggingface.co/..."
               required
               type="url"
-              value={String(modelUri)}
+              value={String(baseModelUri)}
+            />
+          </label>
+          <label className={changeModelForm__formLabel}>
+            <div className={changeModelForm__formLabel__title}>
+              Multimodal Projection URI (optional)
+            </div>
+            <input
+              className={changeModelForm__input}
+              name="multimodal_projection_uri"
+              onInput={onMultimodalProjectionUriInput}
+              placeholder="https://huggingface.co/..."
+              type="url"
+              value={String(multimodalProjectionModelUri)}
             />
           </label>
           <fieldset className={changeModelForm__chatTemplate}>
@@ -188,6 +238,10 @@ export function ChangeModelForm({
             <InferenceParameterInput
               description="Context Size (higher = longer chat history, lower = less memory usage)"
               name="context_size"
+            />
+            <InferenceParameterInput
+              description="Max image dimension in pixels before resizing"
+              name="image_resize_to_fit"
             />
             <InferenceParameterInput
               description="Max simultaneous sequences per embedding batch (higher = more throughput, more memory)"

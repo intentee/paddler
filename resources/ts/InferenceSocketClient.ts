@@ -14,12 +14,14 @@ export function InferenceSocketClient({
   webSocket: WebSocket;
 }): InferenceSocketClient {
   function continueConversation({
-    conversation_history,
+    enableThinking,
+    messages,
   }: {
-    conversation_history: ConversationMessage[];
+    enableThinking: boolean;
+    messages: ConversationMessage[];
   }): Observable<InferenceServiceGenerateTokensResponse> {
     const requestId = nanoid();
-    const messages = fromEvent<MessageEvent>(webSocket, "message").pipe(
+    const tokenStream = fromEvent<MessageEvent>(webSocket, "message").pipe(
       map(function (event): unknown {
         return event.data;
       }),
@@ -59,16 +61,16 @@ export function InferenceSocketClient({
           request: {
             ContinueFromConversationHistory: {
               add_generation_prompt: true,
-              enable_thinking: true,
-              max_tokens: 1000,
-              conversation_history,
+              conversation_history: messages,
+              enable_thinking: enableThinking,
+              max_tokens: 32768,
             },
           },
         },
       }),
     );
 
-    return messages;
+    return tokenStream;
   }
 
   return Object.freeze({

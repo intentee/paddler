@@ -6,6 +6,9 @@ use actix_web::HttpResponse;
 use actix_web::rt;
 use actix_web::web::Payload;
 use actix_ws::AggregatedMessage;
+use actix_ws::CloseCode;
+use actix_ws::CloseReason;
+use actix_ws::ProtocolError;
 use actix_ws::Session;
 use anyhow::Context as _;
 use anyhow::Result;
@@ -20,14 +23,16 @@ use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 
+use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::websocket_session_controller::WebSocketSessionController;
 
-const MAX_CONTINUATION_SIZE: usize = 100 * 1024;
+const MAX_FRAME_SIZE: usize = 50 * 1024 * 1024;
+const MAX_CONTINUATION_SIZE: usize = 50 * 1024 * 1024;
 const PING_INTERVAL: Duration = Duration::from_secs(3);
 
 pub enum ContinuationDecision {
     Continue,
-    Stop,
+    Stop(ContinuationStopParameters),
 }
 
 #[async_trait]
@@ -57,10 +62,16 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
 
                 Ok(ContinuationDecision::Continue)
             }
-            Some(Ok(AggregatedMessage::Close(_))) => return Ok(ContinuationDecision::Stop),
+            Some(Ok(AggregatedMessage::Close(_))) => {
+                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    close_reason: None,
+                }));
+            }
             Some(Ok(AggregatedMessage::Ping(msg))) => {
                 if session.pong(&msg).await.is_err() {
-                    return Ok(ContinuationDecision::Stop);
+                    return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                        close_reason: None,
+                    }));
                 }
 
                 Ok(ContinuationDecision::Continue)
@@ -87,12 +98,48 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                     }
                 }
             }
+            Some(Err(ProtocolError::Overflow)) => {
+                error!("Message exceeded the maximum allowed frame size of {MAX_FRAME_SIZE} bytes");
+
+                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    close_reason: Some(CloseReason {
+                        code: CloseCode::Size,
+                        description: Some(format!(
+                            "Message exceeded the maximum allowed frame size of {MAX_FRAME_SIZE} bytes"
+                        )),
+                    }),
+                }));
+            }
+            Some(Err(ProtocolError::Io(ref io_err)))
+                if io_err
+                    .to_string()
+                    .contains("Exceeded maximum continuation size") =>
+            {
+                error!(
+                    "Message exceeded the maximum allowed continuation size of {MAX_CONTINUATION_SIZE} bytes"
+                );
+
+                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    close_reason: Some(CloseReason {
+                        code: CloseCode::Size,
+                        description: Some(format!(
+                            "Message exceeded the maximum allowed continuation size of {MAX_CONTINUATION_SIZE} bytes"
+                        )),
+                    }),
+                }));
+            }
             Some(Err(err)) => {
                 error!("Error receiving message: {err:?}");
 
-                return Ok(ContinuationDecision::Stop);
+                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    close_reason: None,
+                }));
             }
-            None => return Ok(ContinuationDecision::Stop),
+            None => {
+                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    close_reason: None,
+                }));
+            }
         }
     }
 
@@ -127,7 +174,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                         Ok(ContinuationDecision::Continue) => {
                             // Continue processing messages
                         }
-                        Ok(ContinuationDecision::Stop) => {
+                        Ok(ContinuationDecision::Stop(_)) => {
                             if let Err(close_err) = connection_close_tx.send(()) {
                                 error!("Failed to send continuation shutdown signal: {close_err}");
                             }
@@ -182,20 +229,30 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         let (res, mut session, msg_stream) = actix_ws::handle(&req, payload)?;
 
         let mut aggregated_msg_stream = msg_stream
+            .max_frame_size(MAX_FRAME_SIZE)
             .aggregate_continuations()
             .max_continuation_size(MAX_CONTINUATION_SIZE);
 
         rt::spawn(async move {
+            let mut close_reason: Option<CloseReason> = None;
+
             match Self::on_connection_start(context.clone(), &mut session).await {
                 Ok(ContinuationDecision::Continue) => {}
-                Ok(ContinuationDecision::Stop) => return,
+                Ok(ContinuationDecision::Stop(stop_parameters)) => {
+                    close_reason = stop_parameters.close_reason;
+
+                    let _ = session.close(close_reason).await;
+
+                    return;
+                }
                 Err(err) => {
                     error!("Error in connection start handler: {err:?}");
+
+                    let _ = session.close(close_reason).await;
 
                     return;
                 }
             }
-
             let mut ping_ticker = interval(PING_INTERVAL);
 
             ping_ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -212,7 +269,11 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                             Ok(ContinuationDecision::Continue) => {
                                 // continue processing messages
                             }
-                            Ok(ContinuationDecision::Stop) => break,
+                            Ok(ContinuationDecision::Stop(stop_parameters)) => {
+                                close_reason = stop_parameters.close_reason;
+
+                                break;
+                            }
                             Err(err) => {
                                 error!("Error handling aggregated message: {err:?}");
 
@@ -235,7 +296,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                 error!("Failed to send shutdown signal: {err}");
             }
 
-            let _ = session.close(None).await;
+            let _ = session.close(close_reason).await;
         });
 
         Ok(res)

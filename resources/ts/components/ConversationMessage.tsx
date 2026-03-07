@@ -38,7 +38,9 @@ export function ConversationMessage({
           );
         })}
       </div>
-      <div className={conversationMessage__thoughts}>{thoughts}</div>
+      <div className={conversationMessage__thoughts}>
+        <Markdown>{thoughts}</Markdown>
+      </div>
     </div>
   );
 }

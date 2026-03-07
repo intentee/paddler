@@ -15,6 +15,7 @@ export const InferenceParametersSchema = z
     context_size: z.number(),
     embedding_n_seq_max: z.number(),
     enable_embeddings: z.boolean(),
+    image_resize_to_fit: z.number().int().min(1),
     min_p: z.number(),
     penalty_frequency: z.number(),
     penalty_last_n: z.number(),

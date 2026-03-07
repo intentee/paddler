@@ -12,6 +12,8 @@ use hf_hub::api::tokio::ApiError;
 use log::warn;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_params::HuggingFaceDownloadLock;
+use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use tokio::time::Duration;
 use tokio::time::sleep;
@@ -41,14 +43,16 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                 let model_path = format!("{repo_id}/{revision}/{filename}");
 
                 if slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelDoesNotExist(
-                    model_path.clone(),
+                    ModelPath {
+                        model_path: model_path.clone(),
+                    },
                 )) {
                     return Err(anyhow!(
                         "Model '{model_path}' does not exist on Hugging Face. Not attempting to download it again."
                     ));
                 }
 
-                let hf_cache = Cache::default();
+                let hf_cache = Cache::from_env();
                 let hf_api = ApiBuilder::from_cache(hf_cache.clone()).build()?;
                 let hf_repo = hf_api.repo(Repo::with_revision(
                     repo_id.to_owned(),
@@ -73,16 +77,18 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     .await
                 {
                     Ok(resolved_filename) => {
-                        slot_aggregated_status
-                            .register_fix(AgentIssueFix::HuggingFaceDownloadedModel);
+                        slot_aggregated_status.register_fix(
+                            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath { model_path }),
+                        );
 
                         resolved_filename
                     }
                     Err(ApiError::LockAcquisition(lock_path)) => {
                         slot_aggregated_status.register_issue(
-                            AgentIssue::HuggingFaceCannotAcquireLock(
-                                lock_path.display().to_string(),
-                            ),
+                            AgentIssue::HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock {
+                                lock_path: lock_path.display().to_string(),
+                                model_path: ModelPath { model_path },
+                            }),
                         );
 
                         warn!(
@@ -101,11 +107,25 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                     Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {
                         Some(reqwest::StatusCode::NOT_FOUND) => {
                             slot_aggregated_status.register_issue(
-                                AgentIssue::HuggingFaceModelDoesNotExist(model_path.clone()),
+                                AgentIssue::HuggingFaceModelDoesNotExist(ModelPath {
+                                    model_path: model_path.clone(),
+                                }),
                             );
 
                             return Err(anyhow!(
                                 "Model '{model_path}' does not exist on Hugging Face."
+                            ));
+                        }
+                        Some(reqwest::StatusCode::FORBIDDEN)
+                        | Some(reqwest::StatusCode::UNAUTHORIZED) => {
+                            slot_aggregated_status.register_issue(
+                                AgentIssue::HuggingFacePermissions(ModelPath {
+                                    model_path: model_path.clone(),
+                                }),
+                            );
+
+                            return Err(anyhow!(
+                                "You do not have enough permissions to download '{model_path}' from Hugging Face."
                             ));
                         }
                         _ => {

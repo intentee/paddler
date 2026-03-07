@@ -5,8 +5,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use self::tool::Tool;
+use crate::conversation_history::ConversationHistory;
 use crate::validates::Validates;
-use crate::conversation_message::ConversationMessage;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
@@ -14,7 +14,7 @@ use crate::request_params::continue_from_conversation_history_params::tool::tool
 #[serde(deny_unknown_fields)]
 pub struct ContinueFromConversationHistoryParams<TParametersSchema: Default> {
     pub add_generation_prompt: bool,
-    pub conversation_history: Vec<ConversationMessage>,
+    pub conversation_history: ConversationHistory,
     pub enable_thinking: bool,
     pub max_tokens: i32,
     #[serde(default)]

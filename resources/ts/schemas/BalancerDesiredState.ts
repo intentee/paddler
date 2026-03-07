@@ -9,6 +9,7 @@ export const BalancerDesiredStateSchema = z
     chat_template_override: ChatTemplateSchema.nullable(),
     inference_parameters: InferenceParametersSchema,
     model: AgentDesiredModelSchema,
+    multimodal_projection: AgentDesiredModelSchema,
     use_chat_template_override: z.boolean(),
   })
   .strict();
