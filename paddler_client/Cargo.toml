@@ -25,9 +25,11 @@ tokio-tungstenite = { workspace = true }
 url = { workspace = true }
 
 [features]
-integration_tests = ["integration_test_embedding", "integration_test_inference"]
+integration_tests = ["integration_test_embedding", "integration_test_inference", "integration_test_management"]
 integration_test_embedding = []
 integration_test_inference = []
+integration_test_management = []
+default = ["integration_test_management"]
 
 [dev-dependencies]
 futures-util = { workspace = true }

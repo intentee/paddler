@@ -3,18 +3,11 @@
     feature = "integration_test_inference"
 ))]
 
+mod utils;
+
 use futures_util::StreamExt;
-use paddler_client::PaddlerClient;
 use paddler_types::inference_client::Message as InferenceMessage;
 use paddler_types::inference_client::Response as InferenceResponse;
-use url::Url;
-
-fn create_paddler_client() -> PaddlerClient {
-    let management_url = Url::parse("http://127.0.0.1:8060").expect("valid management URL");
-    let inference_url = Url::parse("http://127.0.0.1:8061").expect("valid inference URL");
-
-    PaddlerClient::new(inference_url, management_url, 1)
-}
 
 #[cfg(feature = "integration_test_embedding")]
 mod embedding_tests {
@@ -29,7 +22,7 @@ mod embedding_tests {
     async fn collect_embeddings(
         params: &GenerateEmbeddingBatchParams,
     ) -> paddler_client::Result<Vec<Embedding>> {
-        let client = create_paddler_client();
+        let client = utils::create_paddler_client();
         let inference = client.inference();
         let mut stream = inference.generate_embedding_batch(params).await?;
         let mut embeddings: Vec<Embedding> = Vec::new();
@@ -180,7 +173,7 @@ async fn test_continue_from_raw_prompt() -> paddler_client::Result<()> {
     use paddler_types::request_params::ContinueFromRawPromptParams;
     use paddler_types::streamable_result::StreamableResult;
 
-    let client = create_paddler_client();
+    let client = utils::create_paddler_client();
     let params = ContinueFromRawPromptParams {
         max_tokens: 16,
         raw_prompt: "The capital of France is".to_string(),
