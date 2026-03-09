@@ -24,3 +24,33 @@ impl StreamableResult for GeneratedTokenResult {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn done_is_done() {
+        assert!(GeneratedTokenResult::Done.is_done());
+    }
+
+    #[test]
+    fn chat_template_error_is_done() {
+        assert!(GeneratedTokenResult::ChatTemplateError("err".to_string()).is_done());
+    }
+
+    #[test]
+    fn image_decoding_failed_is_done() {
+        assert!(GeneratedTokenResult::ImageDecodingFailed("err".to_string()).is_done());
+    }
+
+    #[test]
+    fn multimodal_not_supported_is_done() {
+        assert!(GeneratedTokenResult::MultimodalNotSupported("err".to_string()).is_done());
+    }
+
+    #[test]
+    fn token_is_not_done() {
+        assert!(!GeneratedTokenResult::Token("hello".to_string()).is_done());
+    }
+}

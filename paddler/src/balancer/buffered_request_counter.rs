@@ -39,3 +39,53 @@ impl BufferedRequestCounter {
         BufferedRequestCountGuard::new(self.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_counter() -> BufferedRequestCounter {
+        BufferedRequestCounter::new(Arc::new(Notify::new()))
+    }
+
+    #[test]
+    fn starts_at_zero() {
+        let counter = make_counter();
+
+        assert_eq!(counter.get(), 0);
+    }
+
+    #[test]
+    fn increment_increases_count() {
+        let counter = make_counter();
+
+        counter.increment();
+        counter.increment();
+
+        assert_eq!(counter.get(), 2);
+    }
+
+    #[test]
+    fn decrement_decreases_count() {
+        let counter = make_counter();
+
+        counter.increment();
+        counter.increment();
+        counter.decrement();
+
+        assert_eq!(counter.get(), 1);
+    }
+
+    #[test]
+    fn increment_with_guard_decrements_on_drop() {
+        let counter = Arc::new(make_counter());
+
+        let guard = counter.increment_with_guard();
+
+        assert_eq!(counter.get(), 1);
+
+        drop(guard);
+
+        assert_eq!(counter.get(), 0);
+    }
+}

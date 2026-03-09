@@ -76,3 +76,101 @@ impl AgentIssueFix {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
+    use paddler_types::agent_issue_params::SlotCannotStartParams;
+
+    use super::*;
+
+    fn model_path(path: &str) -> ModelPath {
+        ModelPath {
+            model_path: path.to_string(),
+        }
+    }
+
+    #[test]
+    fn chat_template_is_compiled_fixes_matching_compile_issue() {
+        let fix = AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a"));
+        let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
+            error: "syntax error".to_string(),
+            model_path: model_path("model_a"),
+            template_content: "template".to_string(),
+        });
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn chat_template_is_compiled_does_not_fix_different_model() {
+        let fix = AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a"));
+        let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
+            error: "syntax error".to_string(),
+            model_path: model_path("model_b"),
+            template_content: "template".to_string(),
+        });
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_state_is_reconciled_fixes_chat_template_issue() {
+        let fix = AgentIssueFix::ModelStateIsReconciled;
+        let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
+            error: "error".to_string(),
+            model_path: model_path("any_model"),
+            template_content: "template".to_string(),
+        });
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_state_is_reconciled_fixes_unable_to_find_chat_template() {
+        let fix = AgentIssueFix::ModelStateIsReconciled;
+        let issue = AgentIssue::UnableToFindChatTemplate(model_path("any_model"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn slot_started_matches_by_slot_index() {
+        let fix = AgentIssueFix::SlotStarted(3);
+        let matching_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
+            error: "failed".to_string(),
+            slot_index: 3,
+        });
+        let non_matching_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
+            error: "failed".to_string(),
+            slot_index: 5,
+        });
+
+        assert!(fix.can_fix(&matching_issue));
+        assert!(!fix.can_fix(&non_matching_issue));
+    }
+
+    #[test]
+    fn model_is_loaded_does_not_fix_unrelated_issue() {
+        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
+        let issue = AgentIssue::UnableToFindChatTemplate(model_path("model_a"));
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_is_loaded_fixes_model_cannot_be_loaded_with_same_path() {
+        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
+        let issue = AgentIssue::ModelCannotBeLoaded(model_path("model_a"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_file_exists_fixes_model_file_does_not_exist() {
+        let fix = AgentIssueFix::ModelFileExists(model_path("model_a"));
+        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_a"));
+
+        assert!(fix.can_fix(&issue));
+    }
+}

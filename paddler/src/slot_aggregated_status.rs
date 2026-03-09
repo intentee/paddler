@@ -201,3 +201,142 @@ impl ProducesSnapshot for SlotAggregatedStatus {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use paddler_types::agent_issue_params::ModelPath;
+    use paddler_types::agent_issue_params::SlotCannotStartParams;
+
+    use super::*;
+
+    fn model_path(path: &str) -> ModelPath {
+        ModelPath {
+            model_path: path.to_string(),
+        }
+    }
+
+    #[test]
+    fn register_issue_and_has_issue_round_trip() {
+        let status = SlotAggregatedStatus::new(2);
+        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_test"));
+
+        assert!(!status.has_issue(&issue));
+
+        status.register_issue(issue.clone());
+
+        assert!(status.has_issue(&issue));
+    }
+
+    #[test]
+    fn register_fix_removes_matching_issues() {
+        let status = SlotAggregatedStatus::new(2);
+        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_test"));
+
+        status.register_issue(issue.clone());
+        status.register_fix(AgentIssueFix::ModelFileExists(model_path("model_test")));
+
+        assert!(!status.has_issue(&issue));
+    }
+
+    #[test]
+    fn has_issue_like_matches_with_predicate() {
+        let status = SlotAggregatedStatus::new(2);
+        let issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
+            error: "failed".to_string(),
+            slot_index: 3,
+        });
+
+        status.register_issue(issue);
+
+        assert!(status.has_issue_like(|agent_issue| {
+            matches!(agent_issue, AgentIssue::SlotCannotStart(_))
+        }));
+
+        assert!(!status.has_issue_like(|agent_issue| {
+            matches!(agent_issue, AgentIssue::ModelCannotBeLoaded(_))
+        }));
+    }
+
+    #[test]
+    fn increment_and_decrement_total_slots() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.increment_total_slots();
+        status.increment_total_slots();
+
+        let snapshot = status.make_snapshot().unwrap();
+        assert_eq!(snapshot.slots_total, 2);
+
+        status.decrement_total_slots();
+
+        let snapshot = status.make_snapshot().unwrap();
+        assert_eq!(snapshot.slots_total, 1);
+    }
+
+    #[test]
+    fn version_increments_on_slot_changes() {
+        let status = SlotAggregatedStatus::new(2);
+
+        let initial_version = status.make_snapshot().unwrap().version;
+
+        status.increment_total_slots();
+
+        let updated_version = status.make_snapshot().unwrap().version;
+        assert!(updated_version > initial_version);
+    }
+
+    #[test]
+    fn make_snapshot_returns_correct_values() {
+        let status = SlotAggregatedStatus::new(4);
+
+        status.set_model_path(Some("test_model".to_string()));
+        status.increment_total_slots();
+        status.increment_total_slots();
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        assert_eq!(snapshot.desired_slots_total, 4);
+        assert_eq!(snapshot.model_path, Some("test_model".to_string()));
+        assert_eq!(snapshot.slots_total, 2);
+        assert_eq!(snapshot.slots_processing, 0);
+        assert_eq!(
+            snapshot.state_application_status,
+            AgentStateApplicationStatus::Fresh
+        );
+    }
+
+    #[test]
+    fn reset_clears_state() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_model_path(Some("test_model".to_string()));
+        status.increment_total_slots();
+        status.register_issue(AgentIssue::ModelFileDoesNotExist(model_path("model_test")));
+
+        status.reset();
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        assert_eq!(snapshot.slots_total, 0);
+        assert_eq!(snapshot.slots_processing, 0);
+        assert_eq!(snapshot.model_path, None);
+        assert!(snapshot.issues.is_empty());
+    }
+
+    #[test]
+    fn take_slot_and_release_slot() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.take_slot();
+
+        assert_eq!(status.make_snapshot().unwrap().slots_processing, 1);
+
+        status.take_slot();
+
+        assert_eq!(status.make_snapshot().unwrap().slots_processing, 2);
+
+        status.release_slot();
+
+        assert_eq!(status.make_snapshot().unwrap().slots_processing, 1);
+    }
+}

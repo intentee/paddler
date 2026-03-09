@@ -17,3 +17,32 @@ impl StreamableResult for EmbeddingResult {
         matches!(self, EmbeddingResult::Done | EmbeddingResult::Error(_))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
+    use crate::pooling_type::PoolingType;
+
+    #[test]
+    fn done_is_done() {
+        assert!(EmbeddingResult::Done.is_done());
+    }
+
+    #[test]
+    fn error_is_done() {
+        assert!(EmbeddingResult::Error("fail".to_string()).is_done());
+    }
+
+    #[test]
+    fn embedding_is_not_done() {
+        let result = EmbeddingResult::Embedding(Embedding {
+            embedding: vec![1.0],
+            normalization_method: EmbeddingNormalizationMethod::None,
+            pooling_type: PoolingType::Mean,
+            source_document_id: "doc".to_string(),
+        });
+
+        assert!(!result.is_done());
+    }
+}
