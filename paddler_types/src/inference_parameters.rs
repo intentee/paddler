@@ -61,3 +61,25 @@ impl Default for InferenceParameters {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_succeeds_with_default_params() {
+        let params = InferenceParameters::default();
+
+        assert!(params.validate().is_ok());
+    }
+
+    #[test]
+    fn validate_fails_when_image_resize_to_fit_is_zero() {
+        let params = InferenceParameters {
+            image_resize_to_fit: 0,
+            ..InferenceParameters::default()
+        };
+
+        assert!(params.validate().is_err());
+    }
+}

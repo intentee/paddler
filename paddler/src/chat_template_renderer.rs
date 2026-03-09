@@ -41,3 +41,42 @@ impl ChatTemplateRenderer {
             .render(context)?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[test]
+    fn new_with_valid_template_succeeds() {
+        let template = ChatTemplate {
+            content: "Hello {{ name }}!".to_string(),
+        };
+
+        assert!(ChatTemplateRenderer::new(template).is_ok());
+    }
+
+    #[test]
+    fn new_with_invalid_template_fails() {
+        let template = ChatTemplate {
+            content: "{% if unclosed %}".to_string(),
+        };
+
+        assert!(ChatTemplateRenderer::new(template).is_err());
+    }
+
+    #[test]
+    fn render_produces_expected_output() {
+        let template = ChatTemplate {
+            content: "Hello {{ name }}!".to_string(),
+        };
+        let renderer = ChatTemplateRenderer::new(template).unwrap();
+        let mut context = HashMap::new();
+        context.insert("name", "world");
+
+        let result = renderer.render(context).unwrap();
+
+        assert_eq!(result, "Hello world!");
+    }
+}

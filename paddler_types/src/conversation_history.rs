@@ -69,3 +69,97 @@ impl ConversationHistory {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_text_message(role: &str, text: &str) -> ConversationMessage {
+        ConversationMessage {
+            content: ConversationMessageContent::Text(text.to_string()),
+            role: role.to_string(),
+        }
+    }
+
+    fn make_parts_message(
+        role: &str,
+        parts: Vec<ConversationMessageContentPart>,
+    ) -> ConversationMessage {
+        ConversationMessage {
+            content: ConversationMessageContent::Parts(parts),
+            role: role.to_string(),
+        }
+    }
+
+    #[test]
+    fn extract_image_urls_from_mixed_content() {
+        let history = ConversationHistory::new(vec![
+            make_text_message("user", "hello"),
+            make_parts_message(
+                "user",
+                vec![
+                    ConversationMessageContentPart::Text {
+                        text: "look at this".to_string(),
+                    },
+                    ConversationMessageContentPart::ImageUrl {
+                        image_url: ImageUrl {
+                            url: "http://example.com/img.png".to_string(),
+                        },
+                    },
+                ],
+            ),
+        ]);
+
+        let urls = history.extract_image_urls();
+
+        assert_eq!(urls.len(), 1);
+        assert_eq!(urls[0].url, "http://example.com/img.png");
+    }
+
+    #[test]
+    fn replace_images_with_marker_replaces_image_parts() {
+        let history = ConversationHistory::new(vec![make_parts_message(
+            "user",
+            vec![
+                ConversationMessageContentPart::Text {
+                    text: "before".to_string(),
+                },
+                ConversationMessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "http://example.com/img.png".to_string(),
+                    },
+                },
+                ConversationMessageContentPart::Text {
+                    text: "after".to_string(),
+                },
+            ],
+        )]);
+
+        let marker = MediaMarker::new("[IMAGE]".to_string());
+        let result = history.replace_images_with_marker(&marker);
+
+        let parts = match &result.messages[0].content {
+            ChatTemplateMessageContent::Parts(parts) => parts,
+            ChatTemplateMessageContent::Text(_) => panic!("expected Parts variant"),
+        };
+
+        assert_eq!(parts.len(), 3);
+        assert_eq!(parts[0].text, "before");
+        assert_eq!(parts[1].text, "[IMAGE]");
+        assert_eq!(parts[2].text, "after");
+    }
+
+    #[test]
+    fn replace_images_with_marker_preserves_text_messages() {
+        let history = ConversationHistory::new(vec![make_text_message("assistant", "hello")]);
+
+        let marker = MediaMarker::new("[IMAGE]".to_string());
+        let result = history.replace_images_with_marker(&marker);
+
+        assert_eq!(
+            result.messages[0].content,
+            ChatTemplateMessageContent::Text("hello".to_string())
+        );
+        assert_eq!(result.messages[0].role, "assistant");
+    }
+}
