@@ -63,7 +63,7 @@ impl AgentIssueFix {
                 error: _,
                 slot_index,
             }) => match self {
-                AgentIssueFix::SlotStarted(started_slot_index) => started_slot_index == slot_index,
+                AgentIssueFix::SlotStarted(started_slot_index) => slot_index == started_slot_index,
                 _ => false,
             },
             AgentIssue::UnableToFindChatTemplate(issue_model_path) => match self {

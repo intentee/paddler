@@ -5,6 +5,8 @@ use futures_util::StreamExt;
 use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_types::chat_template::ChatTemplate;
+use paddler_types::model_metadata::ModelMetadata;
 use reqwest::Client;
 use serde_json::from_str;
 use url::Url;
@@ -100,6 +102,34 @@ impl<'client> ClientManagement<'client> {
             .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
 
         Ok(Box::pin(stream))
+    }
+
+    pub async fn get_chat_template_override(&self, agent_id: &str) -> Result<Option<ChatTemplate>> {
+        let response = self
+            .http_client
+            .get(format_api_url(
+                self.url,
+                &format!("/api/v1/agent/{agent_id}/chat_template_override"),
+            )?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json().await?)
+    }
+
+    pub async fn get_model_metadata(&self, agent_id: &str) -> Result<Option<ModelMetadata>> {
+        let response = self
+            .http_client
+            .get(format_api_url(
+                self.url,
+                &format!("/api/v1/agent/{agent_id}/model_metadata"),
+            )?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json().await?)
     }
 
     pub async fn get_metrics(&self) -> Result<String> {
