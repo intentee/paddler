@@ -89,10 +89,12 @@ You can use it to monitor your Paddler fleet:
 <img width="1587" height="732" alt="paddler-web-admin-panel" src="https://github.com/user-attachments/assets/de26312e-e83e-4def-8326-0aa5d559396c" />
 
 Add and update your model and customize the chat template and inference parameters:
-<img width="1422" height="1584" alt="paddler-model" src="https://github.com/user-attachments/assets/dd9d7eb0-a990-4b1c-b523-7286956baeb2" />
+<img width="1422" height="1584" alt="screencapture-127-0-0-1-8062-model-2026-03-10-01_34_50" src="https://github.com/user-attachments/assets/c52c188a-c911-4c04-a4b3-d8f89b88786f" />
+
 
 And use a GUI to test the inference:
-<img width="1413" height="984" alt="paddler-prompt" src="https://github.com/user-attachments/assets/30b35b5a-c3de-4acc-a602-c7ffaa21d0a6" />
+<img width="1413" height="984" alt="screencapture-127-0-0-1-8062-prompt-2026-03-10-01_36_04" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
+
 
 
 ## Starting out
