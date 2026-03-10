@@ -1,0 +1,20 @@
+[package]
+name = "integration_tests"
+authors.workspace = true
+description = "Integration tests for Paddler"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+paddler_client = { workspace = true }
+paddler_types = { workspace = true }
+reqwest = { workspace = true }
+serial_test = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }

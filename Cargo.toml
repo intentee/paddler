@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_types"]
+members = ["integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -48,6 +48,7 @@ rand = "0.9"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 resvg = "0.46"
 rust-embed = { version = "8.9", features = ["interpolate-folder-path"] }
+serial_test = { version = "3", features = ["file_locks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 shellexpand = "3"

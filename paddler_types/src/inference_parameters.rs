@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::pooling_type::PoolingType;
 use crate::validates::Validates;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InferenceParameters {
     pub batch_n_tokens: usize,
