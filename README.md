@@ -8,7 +8,7 @@ Paddler is an open-source LLM load balancer and serving platform. It allows you 
 
 ## Key features
 
-<img align="right" src="https://github.com/user-attachments/assets/19e74262-1918-4b1d-9b4c-bcb4f0ab79f5">
+<img align="right" alt="Paddler logo" src="https://github.com/user-attachments/assets/19e74262-1918-4b1d-9b4c-bcb4f0ab79f5">
 
 * Inference through a built-in [llama.cpp](https://github.com/ggml-org/llama.cpp) engine
 * LLM-specific load balancing
@@ -86,15 +86,13 @@ Paddler uses a built-in llama.cpp engine for inference, but has its own implemen
 Paddler comes with a built-in web admin panel. 
 
 You can use it to monitor your Paddler fleet:
-<img width="1587" height="732" alt="paddler-web-admin-panel" src="https://github.com/user-attachments/assets/de26312e-e83e-4def-8326-0aa5d559396c" />
+<img width="1587" height="732" alt="Dashboard section of the Web Admin Panel" src="https://github.com/user-attachments/assets/de26312e-e83e-4def-8326-0aa5d559396c" />
 
 Add and update your model and customize the chat template and inference parameters:
-<img width="1422" height="1584" alt="screencapture-127-0-0-1-8062-model-2026-03-10-01_34_50" src="https://github.com/user-attachments/assets/c52c188a-c911-4c04-a4b3-d8f89b88786f" />
-
+<img width="1422" height="1584" alt="Model section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c52c188a-c911-4c04-a4b3-d8f89b88786f" />
 
 And use a GUI to test the inference:
-<img width="1413" height="984" alt="screencapture-127-0-0-1-8062-prompt-2026-03-10-01_36_04" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
-
+<img width="1413" height="984" alt="Prompt section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
 
 
 ## Starting out
@@ -102,6 +100,7 @@ And use a GUI to test the inference:
 * [Use Paddler's web admin panel](https://paddler.intentee.com/docs/starting-out/using-web-admin-panel/)
 * [Generate tokens and embeddings](https://paddler.intentee.com/docs/starting-out/generating-tokens-and-embeddings/)
 * [Use function calling](https://paddler.intentee.com/docs/starting-out/using-function-calling/)
+* [Use multimodal models](https://paddler.intentee.com/docs/starting-out/using-multimodal-models/)
 * [Create a multi agent fleet](https://paddler.intentee.com/docs/starting-out/multi-agent-fleet/)
 * [Go beyond a single device](https://paddler.intentee.com/docs/starting-out/going-beyond-a-single-device/)
 
