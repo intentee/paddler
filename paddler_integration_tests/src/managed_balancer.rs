@@ -8,7 +8,9 @@ use tokio::process::Child;
 use tokio::process::Command;
 use url::Url;
 
-use crate::managed_agent::PADDLER_BINARY_PATH;
+use crate::PADDLER_BINARY_PATH;
+use crate::POLL_INTERVAL;
+use crate::TIMEOUT;
 
 pub struct ManagedBalancerParams {
     pub buffered_request_timeout: Duration,
@@ -59,8 +61,6 @@ impl ManagedBalancer {
     }
 
     pub async fn wait_for_agent_count(&self, expected: usize) -> usize {
-        let timeout = Duration::from_secs(3);
-        let poll_interval = Duration::from_millis(50);
         let start = std::time::Instant::now();
 
         loop {
@@ -70,17 +70,15 @@ impl ManagedBalancer {
                 return snapshot.agents.len();
             }
 
-            if start.elapsed() > timeout {
+            if start.elapsed() > TIMEOUT {
                 panic!("timed out waiting for {expected} agents");
             }
 
-            tokio::time::sleep(poll_interval).await;
+            tokio::time::sleep(POLL_INTERVAL).await;
         }
     }
 
     pub async fn wait_for_desired_state(&self, expected_state: &BalancerDesiredState) {
-        let timeout = Duration::from_secs(3);
-        let poll_interval = Duration::from_millis(50);
         let start = std::time::Instant::now();
 
         loop {
@@ -90,12 +88,80 @@ impl ManagedBalancer {
                 return;
             }
 
-            if start.elapsed() > timeout {
+            if start.elapsed() > TIMEOUT {
                 panic!("timed out waiting for desired state to be applied");
             }
 
-            tokio::time::sleep(poll_interval).await;
+            tokio::time::sleep(POLL_INTERVAL).await;
         }
+    }
+
+    pub async fn wait_for_buffered_requests(&self, expected: i32) -> i32 {
+        let start = std::time::Instant::now();
+
+        loop {
+            if let Ok(snapshot) = self.client.management().get_buffered_requests().await
+                && snapshot.buffered_requests_current == expected
+            {
+                return snapshot.buffered_requests_current;
+            }
+
+            if start.elapsed() > TIMEOUT {
+                panic!("timed out waiting for {expected} buffered requests");
+            }
+
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    }
+
+    pub async fn wait_for_total_desired_slots(&self, expected_total: i32) -> i32 {
+        let start = std::time::Instant::now();
+
+        loop {
+            if let Ok(snapshot) = self.client.management().get_agents().await {
+                let total: i32 = snapshot
+                    .agents
+                    .iter()
+                    .map(|agent| agent.desired_slots_total)
+                    .sum();
+
+                if total >= expected_total {
+                    return total;
+                }
+            }
+
+            if start.elapsed() > TIMEOUT {
+                panic!("timed out waiting for {expected_total} total desired slots");
+            }
+
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    }
+
+    pub async fn wait_for_total_slots(&self, expected_total: i32) -> i32 {
+        let start = std::time::Instant::now();
+
+        loop {
+            if let Ok(snapshot) = self.client.management().get_agents().await {
+                let total: i32 = snapshot.agents.iter().map(|agent| agent.slots_total).sum();
+
+                if total >= expected_total {
+                    return total;
+                }
+            }
+
+            if start.elapsed() > TIMEOUT {
+                panic!("timed out waiting for {expected_total} total slots");
+            }
+
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    }
+
+    pub async fn shutdown(&mut self) -> Result<()> {
+        self.child.kill().await?;
+
+        Ok(())
     }
 
     pub fn kill(&mut self) -> Result<()> {
@@ -105,8 +171,6 @@ impl ManagedBalancer {
     }
 
     async fn wait_until_ready(&self) -> Result<()> {
-        let timeout = Duration::from_secs(5);
-        let poll_interval = Duration::from_millis(50);
         let start = std::time::Instant::now();
 
         loop {
@@ -116,11 +180,11 @@ impl ManagedBalancer {
                 return Ok(());
             }
 
-            if start.elapsed() > timeout {
-                bail!("Balancer did not become ready within {timeout:?}");
+            if start.elapsed() > TIMEOUT {
+                bail!("Balancer did not become ready within {TIMEOUT:?}");
             }
 
-            tokio::time::sleep(poll_interval).await;
+            tokio::time::sleep(POLL_INTERVAL).await;
         }
     }
 }
