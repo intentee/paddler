@@ -2,6 +2,8 @@ use anyhow::Result;
 use tokio::process::Child;
 use tokio::process::Command;
 
+use crate::PADDLER_BINARY_PATH;
+
 pub struct ManagedAgentParams {
     pub management_addr: String,
     pub name: Option<String>,
@@ -11,8 +13,6 @@ pub struct ManagedAgentParams {
 pub struct ManagedAgent {
     child: Child,
 }
-
-pub const PADDLER_BINARY_PATH: &str = "../target/debug/paddler";
 
 impl ManagedAgent {
     pub async fn spawn(params: ManagedAgentParams) -> Result<Self> {
