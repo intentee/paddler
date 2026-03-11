@@ -2093,6 +2093,8 @@ dependencies = [
  "paddler_client",
  "paddler_types",
  "reqwest",
+ "serde",
+ "serde_json",
  "serial_test",
  "tempfile",
  "tokio",

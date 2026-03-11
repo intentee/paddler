@@ -25,6 +25,17 @@ impl<'client> ClientManagement<'client> {
         Self { url, http_client }
     }
 
+    pub async fn get_health(&self) -> Result<String> {
+        let response = self
+            .http_client
+            .get(format_api_url(self.url, "/health")?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.text().await?)
+    }
+
     pub async fn get_agents(&self) -> Result<AgentControllerPoolSnapshot> {
         let response = self
             .http_client

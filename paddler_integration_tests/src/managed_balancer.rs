@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Result;
 use anyhow::bail;
 use paddler_client::PaddlerClient;
+use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::process::Child;
 use tokio::process::Command;
@@ -14,6 +15,7 @@ use crate::TIMEOUT;
 
 pub struct ManagedBalancerParams {
     pub buffered_request_timeout: Duration,
+    pub compat_openai_addr: Option<String>,
     pub inference_addr: String,
     pub management_addr: String,
     pub max_buffered_requests: i32,
@@ -29,7 +31,9 @@ impl ManagedBalancer {
     pub async fn spawn(params: ManagedBalancerParams) -> Result<Self> {
         let state_database_url = format!("file://{}", params.state_database_path);
 
-        let child = Command::new(PADDLER_BINARY_PATH)
+        let mut command = Command::new(PADDLER_BINARY_PATH);
+
+        command
             .arg("balancer")
             .arg("--inference-addr")
             .arg(&params.inference_addr)
@@ -42,8 +46,13 @@ impl ManagedBalancer {
             .arg("--buffered-request-timeout")
             .arg(params.buffered_request_timeout.as_millis().to_string())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
+            .stderr(std::process::Stdio::piped());
+
+        if let Some(openai_addr) = &params.compat_openai_addr {
+            command.arg("--compat-openai-addr").arg(openai_addr);
+        }
+
+        let child = command.spawn()?;
 
         let inference_url = Url::parse(&format!("http://{}", params.inference_addr))?;
         let management_url = Url::parse(&format!("http://{}", params.management_addr))?;
@@ -152,6 +161,23 @@ impl ManagedBalancer {
 
             if start.elapsed() > TIMEOUT {
                 panic!("timed out waiting for {expected_total} total slots");
+            }
+
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    }
+
+    pub async fn wait_for_agent_issue(
+        &self,
+        predicate: impl Fn(&AgentIssue) -> bool,
+    ) -> AgentIssue {
+        loop {
+            if let Ok(snapshot) = self.client.management().get_agents().await {
+                for agent in &snapshot.agents {
+                    if let Some(issue) = agent.issues.iter().find(|issue| predicate(issue)) {
+                        return issue.clone();
+                    }
+                }
             }
 
             tokio::time::sleep(POLL_INTERVAL).await;
