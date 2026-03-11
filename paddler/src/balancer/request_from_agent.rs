@@ -127,12 +127,20 @@ where
                 break;
             }
             _ = sleep(inference_service_configuration.inference_item_timeout) => {
-                warn!("Timed out waiting for response for request {request_id:?}");
+                let timeout_ms = inference_service_configuration.inference_item_timeout.as_millis();
+
+                warn!(
+                    "Timed out after {timeout_ms}ms waiting for next token for request {request_id:?}. \
+                    Consider increasing --inference-item-timeout if the model needs more time to process the prompt."
+                );
 
                 respond_with_error(
                     JsonRpcError {
                         code: 504,
-                        description: "Downstream response timed out".to_string(),
+                        description: format!(
+                            "Inference timed out after {timeout_ms}ms waiting for next token. \
+                            Increase --inference-item-timeout if the prompt requires longer processing."
+                        ),
                     },
                     request_id.clone(),
                     &mut session_controller,

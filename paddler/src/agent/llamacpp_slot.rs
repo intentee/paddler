@@ -182,8 +182,13 @@ impl LlamaCppSlot {
             LlamaSampler::dist(self.rng.random::<u32>()),
         ]);
 
-        while current_token_position <= max_tokens {
+        let mut was_stopped = false;
+        let max_token_position = current_token_position + max_tokens;
+
+        while current_token_position < max_token_position {
             if generate_tokens_stop_rx.try_recv().is_ok() {
+                was_stopped = true;
+
                 break;
             }
 
@@ -214,7 +219,9 @@ impl LlamaCppSlot {
             self.continuation_batch_decode(&mut batch, &mut kv_cache_repair_actions)?;
         }
 
-        generated_tokens_tx.send(GeneratedTokenResult::Done)?;
+        if !was_stopped {
+            generated_tokens_tx.send(GeneratedTokenResult::Done)?;
+        }
 
         Ok(())
     }

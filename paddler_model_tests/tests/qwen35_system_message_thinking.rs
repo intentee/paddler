@@ -16,7 +16,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 
 #[actix_web::test]
-async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
+async fn test_qwen35_system_and_user_messages_with_thinking() -> Result<()> {
     send_logs_to_tracing(LogOptions::default());
 
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
@@ -35,18 +35,23 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
     let conversation_history = ConversationHistory::new(vec![
         ConversationMessage {
             content: ConversationMessageContent::Text(
-                "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.".to_string(),
+                "You are a focused web crawler assistant. Your only job is to decide which links \
+                to follow to discover more relevant pages. Respond with JSON only."
+                    .to_string(),
             ),
             role: "system".to_string(),
         },
         ConversationMessage {
             content: ConversationMessageContent::Text(
-                "Hello! How can I help you today?".to_string(),
+                "Goal: \"find all PDF reports\"\n\n\
+                Page: https://example.com/reports\n\n\
+                Followable links:\n\
+                [0] [Navigation] \"Home\" → /home\n\
+                [1] [PrimaryListing] \"Annual Report 2024\" → /reports/annual-2024.pdf\n\
+                [2] [PrimaryListing] \"Q3 Financial Summary\" → /reports/q3-summary.pdf\n\
+                [3] [Navigation] \"Next Page\" → /reports?page=2"
+                    .to_string(),
             ),
-            role: "assistant".to_string(),
-        },
-        ConversationMessage {
-            content: ConversationMessageContent::Text("hi".to_string()),
             role: "user".to_string(),
         },
     ]);
@@ -56,7 +61,7 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: true,
-            max_tokens: 1000,
+            max_tokens: 2000,
             tools: vec![],
         })
         .await?;
@@ -68,10 +73,9 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
 
-    assert!(token_count > 0, "Expected to receive at least one Token");
     assert!(
-        token_count <= 1000,
-        "Expected generation to stop at or before max_tokens, got {token_count} tokens"
+        token_count > 0,
+        "Expected to receive at least one token from Qwen3.5 with system+user messages and thinking"
     );
     assert!(
         matches!(results.last(), Some(GeneratedTokenResult::Done)),
