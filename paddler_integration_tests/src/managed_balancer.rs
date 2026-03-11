@@ -17,7 +17,9 @@ pub struct ManagedBalancerParams {
     pub buffered_request_timeout: Duration,
     pub compat_openai_addr: Option<String>,
     pub inference_addr: String,
+    pub inference_cors_allowed_hosts: Vec<String>,
     pub management_addr: String,
+    pub management_cors_allowed_hosts: Vec<String>,
     pub max_buffered_requests: i32,
     pub state_database_path: String,
 }
@@ -50,6 +52,14 @@ impl ManagedBalancer {
 
         if let Some(openai_addr) = &params.compat_openai_addr {
             command.arg("--compat-openai-addr").arg(openai_addr);
+        }
+
+        for host in &params.inference_cors_allowed_hosts {
+            command.arg("--inference-cors-allowed-host").arg(host);
+        }
+
+        for host in &params.management_cors_allowed_hosts {
+            command.arg("--management-cors-allowed-host").arg(host);
         }
 
         let child = command.spawn()?;

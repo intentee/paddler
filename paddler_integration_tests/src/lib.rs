@@ -35,7 +35,9 @@ pub fn balancer_params(
         buffered_request_timeout,
         compat_openai_addr: None,
         inference_addr: inference_addr.to_string(),
+        inference_cors_allowed_hosts: vec![],
         management_addr: management_addr.to_string(),
+        management_cors_allowed_hosts: vec![],
         max_buffered_requests,
         state_database_path: state_database_path.to_string(),
     }
@@ -53,7 +55,9 @@ pub fn balancer_params_with_openai(
         buffered_request_timeout,
         compat_openai_addr: Some(openai_addr.to_string()),
         inference_addr: inference_addr.to_string(),
+        inference_cors_allowed_hosts: vec![],
         management_addr: management_addr.to_string(),
+        management_cors_allowed_hosts: vec![],
         max_buffered_requests,
         state_database_path: state_database_path.to_string(),
     }
