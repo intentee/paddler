@@ -14,6 +14,8 @@ futures-util = { workspace = true }
 paddler_client = { workspace = true }
 paddler_types = { workspace = true }
 reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

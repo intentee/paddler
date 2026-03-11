@@ -17,6 +17,31 @@ use tempfile::NamedTempFile;
 
 #[tokio::test]
 #[file_serial]
+async fn test_health_endpoint_returns_ok() {
+    let state_db = NamedTempFile::new().expect("failed to create temp file");
+
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        BALANCER_MANAGEMENT_ADDR,
+        BALANCER_INFERENCE_ADDR,
+        state_db.path().to_str().unwrap(),
+        30,
+        Duration::from_secs(10),
+    ))
+    .await
+    .expect("failed to spawn balancer");
+
+    let health = balancer
+        .client()
+        .management()
+        .get_health()
+        .await
+        .expect("health endpoint should respond");
+
+    assert_eq!(health, "OK");
+}
+
+#[tokio::test]
+#[file_serial]
 async fn test_inference_fails_when_no_model_configured() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
 

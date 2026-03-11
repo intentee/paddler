@@ -42,6 +42,17 @@ impl<'client> ClientInference<'client> {
         }
     }
 
+    pub async fn get_health(&self) -> Result<String> {
+        let response = self
+            .http_client
+            .get(format_api_url(self.url, "/health")?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.text().await?)
+    }
+
     fn get_inference_socket_pool(&self) -> &InferenceSocketPool {
         self.inference_socket_pool.get_or_init(|| {
             InferenceSocketPool::new(self.url.clone(), self.inference_socket_pool_size)
