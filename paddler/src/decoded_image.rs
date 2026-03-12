@@ -294,7 +294,7 @@ mod tests {
     fn test_resized_to_fit_with_llamas_fixture() {
         let fixture_data = std::fs::read(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../paddler_model_tests/fixtures/llamas.jpg"
+            "/../fixtures/llamas.jpg"
         ))
         .expect("Failed to read llamas.jpg fixture");
 
@@ -353,7 +353,7 @@ mod tests {
 
     fn load_fixture(filename: &str) -> Vec<u8> {
         std::fs::read(format!(
-            "{}/../paddler_model_tests/fixtures/{filename}",
+            "{}/../fixtures/{filename}",
             env!("CARGO_MANIFEST_DIR"),
         ))
         .unwrap_or_else(|err| panic!("Failed to read fixture {filename}: {err}"))

@@ -10,6 +10,7 @@ version.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+base64 = { workspace = true }
 futures-util = { workspace = true }
 paddler_client = { workspace = true }
 paddler_types = { workspace = true }

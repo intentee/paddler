@@ -2089,6 +2089,7 @@ name = "integration_tests"
 version = "3.0.0"
 dependencies = [
  "anyhow",
+ "base64",
  "futures-util",
  "paddler_client",
  "paddler_types",

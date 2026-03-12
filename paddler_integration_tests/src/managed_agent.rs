@@ -24,8 +24,8 @@ impl ManagedAgent {
             .arg(&params.management_addr)
             .arg("--slots")
             .arg(params.slots.to_string())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
 
         if let Some(name) = &params.name {
             command.arg("--name").arg(name);
