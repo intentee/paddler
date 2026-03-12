@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::Result;
 use tokio::process::Child;
 use tokio::process::Command;
@@ -12,6 +14,16 @@ pub struct ManagedAgentParams {
 
 pub struct ManagedAgent {
     child: Child,
+}
+
+fn wait_for_child_exit(child: &mut Child) {
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
+            Err(_) => break,
+        }
+    }
 }
 
 impl ManagedAgent {
@@ -38,6 +50,7 @@ impl ManagedAgent {
 
     pub fn kill(&mut self) -> Result<()> {
         self.child.start_kill()?;
+        wait_for_child_exit(&mut self.child);
 
         Ok(())
     }
