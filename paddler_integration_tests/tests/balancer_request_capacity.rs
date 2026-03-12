@@ -1,3 +1,5 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::time::Duration;
 
 use futures_util::StreamExt;

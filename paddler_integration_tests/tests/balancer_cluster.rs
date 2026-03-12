@@ -1,3 +1,5 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -542,4 +544,38 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
             panic!("expected timeout error, got a successful response");
         }
     }
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_buffered_requests_stream_receives_snapshot() {
+    let state_db = NamedTempFile::new().expect("failed to create temp file");
+
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        BALANCER_MANAGEMENT_ADDR,
+        BALANCER_INFERENCE_ADDR,
+        state_db.path().to_str().unwrap(),
+        10,
+        Duration::from_secs(10),
+    ))
+    .await
+    .expect("failed to spawn balancer");
+
+    let mut stream = balancer
+        .client()
+        .management()
+        .buffered_requests_stream()
+        .await
+        .expect("buffered requests stream should connect");
+
+    let first_event = stream
+        .next()
+        .await
+        .expect("stream must produce at least one event")
+        .expect("first event should deserialize");
+
+    assert!(
+        first_event.buffered_requests_current >= 0,
+        "buffered request count must be non-negative"
+    );
 }

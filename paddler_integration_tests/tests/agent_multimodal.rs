@@ -1,3 +1,5 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::fs;
 use std::time::Duration;
 
@@ -10,6 +12,8 @@ use integration_tests::balancer_params;
 use integration_tests::managed_agent::ManagedAgent;
 use integration_tests::managed_agent::ManagedAgentParams;
 use integration_tests::managed_balancer::ManagedBalancer;
+use integration_tests::test_cluster::TestCluster;
+use integration_tests::test_cluster_params::TestClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::conversation_history::ConversationHistory;
@@ -247,4 +251,162 @@ async fn test_multimodal_inference_with_image() {
     );
 
     drop(agent);
+}
+
+fn image_message_params(
+    image_data_uri: &str,
+) -> ContinueFromConversationHistoryParams<ValidatedParametersSchema> {
+    ContinueFromConversationHistoryParams {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Parts(vec![
+                ConversationMessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: image_data_uri.to_string(),
+                    },
+                },
+                ConversationMessageContentPart::Text {
+                    text: "Describe this image".to_string(),
+                },
+            ]),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: false,
+        max_tokens: 20,
+        tools: vec![],
+    }
+}
+
+async fn expect_image_decoding_failed(cluster: &TestCluster, image_data_uri: &str) {
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .continue_from_conversation_history(image_message_params(image_data_uri))
+        .await
+        .expect("request should succeed");
+
+    let mut received_decoding_error = false;
+
+    while let Some(message) = stream.next().await {
+        let message = message.expect("message should deserialize");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(token_result) => match token_result {
+                    paddler_types::generated_token_result::GeneratedTokenResult::ImageDecodingFailed(_) => {
+                        received_decoding_error = true;
+
+                        break;
+                    }
+                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_)
+                    | paddler_types::generated_token_result::GeneratedTokenResult::Done => continue,
+                    other => panic!("expected ImageDecodingFailed, got {other:?}"),
+                },
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    assert!(
+        received_decoding_error,
+        "should have received ImageDecodingFailed"
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_image_sent_to_text_only_model_returns_error() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "text-only-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let test_image_data_uri = load_test_image_as_data_uri();
+
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .continue_from_conversation_history(image_message_params(&test_image_data_uri))
+        .await
+        .expect("request should succeed");
+
+    let mut received_error = false;
+
+    while let Some(message) = stream.next().await {
+        let message = message.expect("message should deserialize");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(token_result) => match token_result {
+                    paddler_types::generated_token_result::GeneratedTokenResult::ChatTemplateError(_)
+                    | paddler_types::generated_token_result::GeneratedTokenResult::MultimodalNotSupported(_) => {
+                        received_error = true;
+
+                        break;
+                    }
+                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_)
+                    | paddler_types::generated_token_result::GeneratedTokenResult::Done => continue,
+                    other => panic!("expected error for image on text-only model, got {other:?}"),
+                },
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    assert!(received_error, "text-only model should reject image input");
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_malformed_data_uri_returns_error() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "text-only-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    expect_image_decoding_failed(&cluster, "data:image/jpegbase64,abc123").await;
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_invalid_base64_returns_error() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "text-only-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    expect_image_decoding_failed(&cluster, "data:image/jpeg;base64,!!!not-valid-base64!!!").await;
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_remote_url_returns_error() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "text-only-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    expect_image_decoding_failed(&cluster, "https://example.com/image.jpg").await;
 }

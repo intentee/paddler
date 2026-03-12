@@ -1,16 +1,10 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::collections::BTreeSet;
-use std::time::Duration;
 
 use futures_util::StreamExt;
-use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
-use integration_tests::managed_balancer::ManagedBalancer;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use integration_tests::test_cluster::TestCluster;
+use integration_tests::test_cluster_params::TestClusterParams;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -19,62 +13,18 @@ use paddler_types::inference_client::Response;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use serial_test::file_serial;
-use tempfile::NamedTempFile;
 
-struct EmbeddingsTestCluster {
-    balancer: ManagedBalancer,
-    _agent: ManagedAgent,
-    _state_db: NamedTempFile,
-}
-
-async fn spawn_embeddings_cluster(
-    inference_parameters: InferenceParameters,
-) -> EmbeddingsTestCluster {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters,
-        model: AGENT_DESIRED_MODEL.clone(),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
-    };
-
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
-        10,
-        Duration::from_secs(10),
-    ))
-    .await
-    .expect("failed to spawn balancer");
-
-    balancer
-        .client()
-        .management()
-        .put_balancer_desired_state(&desired_state)
-        .await
-        .expect("failed to set balancer desired state");
-
-    balancer.wait_for_desired_state(&desired_state).await;
-
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
-        name: Some("embeddings-agent".to_string()),
-        slots: 4,
+async fn spawn_embeddings_cluster(inference_parameters: InferenceParameters) -> TestCluster {
+    TestCluster::spawn(TestClusterParams {
+        agent_name: "embeddings-agent".to_string(),
+        desired_state: paddler_types::balancer_desired_state::BalancerDesiredState {
+            inference_parameters,
+            ..TestClusterParams::default().desired_state
+        },
+        ..TestClusterParams::default()
     })
     .await
-    .expect("failed to spawn agent");
-
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(4).await;
-
-    EmbeddingsTestCluster {
-        balancer,
-        _agent: agent,
-        _state_db: state_db,
-    }
+    .expect("failed to spawn cluster")
 }
 
 async fn collect_embeddings_from_stream(
@@ -379,4 +329,103 @@ async fn test_embeddings_context_size_does_not_affect_batch_distribution() {
     ]);
 
     assert_eq!(returned_ids, expected_ids);
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_embeddings_have_same_dimensions() {
+    let cluster = spawn_embeddings_cluster(InferenceParameters {
+        enable_embeddings: true,
+        ..InferenceParameters::default()
+    })
+    .await;
+
+    let params = make_embedding_params(
+        vec![
+            ("doc-short", "Hello"),
+            (
+                "doc-medium",
+                "The quick brown fox jumped over the lazy dog.",
+            ),
+            (
+                "doc-long",
+                "Rust is a systems programming language focused on safety, speed, and concurrency. It achieves memory safety without garbage collection.",
+            ),
+        ],
+        EmbeddingNormalizationMethod::None,
+    );
+
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .generate_embedding_batch(&params)
+        .await
+        .expect("embedding request should succeed");
+
+    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+
+    assert_eq!(embeddings.len(), 3, "should receive exactly 3 embeddings");
+
+    let first_dimension = embeddings[0].embedding.len();
+
+    assert!(first_dimension > 0, "embedding dimension must be positive");
+
+    for embedding in &embeddings {
+        assert_eq!(
+            embedding.embedding.len(),
+            first_dimension,
+            "all embeddings must have the same dimension, but {} has {} instead of {}",
+            embedding.source_document_id,
+            embedding.embedding.len(),
+            first_dimension
+        );
+    }
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_identical_documents_produce_identical_embeddings() {
+    let cluster = spawn_embeddings_cluster(InferenceParameters {
+        enable_embeddings: true,
+        ..InferenceParameters::default()
+    })
+    .await;
+
+    let repeated_content = "Deterministic embedding output test.";
+
+    let params = make_embedding_params(
+        vec![
+            ("doc-first", repeated_content),
+            ("doc-second", repeated_content),
+        ],
+        EmbeddingNormalizationMethod::None,
+    );
+
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .generate_embedding_batch(&params)
+        .await
+        .expect("embedding request should succeed");
+
+    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+
+    assert_eq!(embeddings.len(), 2, "should receive exactly 2 embeddings");
+
+    let first = embeddings
+        .iter()
+        .find(|embedding| embedding.source_document_id == "doc-first")
+        .expect("first embedding missing");
+
+    let second = embeddings
+        .iter()
+        .find(|embedding| embedding.source_document_id == "doc-second")
+        .expect("second embedding missing");
+
+    assert_eq!(
+        first.embedding, second.embedding,
+        "identical documents must produce identical embedding vectors"
+    );
 }

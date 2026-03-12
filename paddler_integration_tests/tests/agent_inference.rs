@@ -1,141 +1,26 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use integration_tests::AGENT_DESIRED_MODEL;
 use integration_tests::BALANCER_INFERENCE_ADDR;
 use integration_tests::BALANCER_MANAGEMENT_ADDR;
 use integration_tests::BALANCER_OPENAI_ADDR;
 use integration_tests::balancer_params;
 use integration_tests::balancer_params_with_openai;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
 use integration_tests::managed_balancer::ManagedBalancer;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use integration_tests::test_cluster::TestCluster;
+use integration_tests::test_cluster_params::TestClusterParams;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::inference_client::Message;
 use paddler_types::inference_client::Response;
-use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
-
-struct InferenceTestCluster {
-    balancer: ManagedBalancer,
-    _agent: ManagedAgent,
-    _state_db: NamedTempFile,
-}
-
-async fn spawn_inference_cluster() -> InferenceTestCluster {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::default(),
-        model: AGENT_DESIRED_MODEL.clone(),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
-    };
-
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
-        10,
-        Duration::from_secs(10),
-    ))
-    .await
-    .expect("failed to spawn balancer");
-
-    balancer
-        .client()
-        .management()
-        .put_balancer_desired_state(&desired_state)
-        .await
-        .expect("failed to set balancer desired state");
-
-    balancer.wait_for_desired_state(&desired_state).await;
-
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
-        name: Some("inference-agent".to_string()),
-        slots: 4,
-    })
-    .await
-    .expect("failed to spawn agent");
-
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(4).await;
-
-    InferenceTestCluster {
-        balancer,
-        _agent: agent,
-        _state_db: state_db,
-    }
-}
-
-struct OpenAITestCluster {
-    _balancer: ManagedBalancer,
-    openai_base_url: String,
-    _agent: ManagedAgent,
-    _state_db: NamedTempFile,
-}
-
-async fn spawn_openai_cluster() -> OpenAITestCluster {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::default(),
-        model: AGENT_DESIRED_MODEL.clone(),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
-    };
-
-    let balancer = ManagedBalancer::spawn(balancer_params_with_openai(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        BALANCER_OPENAI_ADDR,
-        state_db.path().to_str().unwrap(),
-        10,
-        Duration::from_secs(10),
-    ))
-    .await
-    .expect("failed to spawn balancer");
-
-    balancer
-        .client()
-        .management()
-        .put_balancer_desired_state(&desired_state)
-        .await
-        .expect("failed to set balancer desired state");
-
-    balancer.wait_for_desired_state(&desired_state).await;
-
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
-        name: Some("openai-agent".to_string()),
-        slots: 4,
-    })
-    .await
-    .expect("failed to spawn agent");
-
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(4).await;
-
-    let openai_base_url = format!("http://{BALANCER_OPENAI_ADDR}");
-
-    OpenAITestCluster {
-        _balancer: balancer,
-        openai_base_url,
-        _agent: agent,
-        _state_db: state_db,
-    }
-}
 
 #[tokio::test]
 #[file_serial]
@@ -165,7 +50,12 @@ async fn test_inference_health_endpoint() {
 #[tokio::test]
 #[file_serial]
 async fn test_continue_from_raw_prompt() {
-    let cluster = spawn_inference_cluster().await;
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "inference-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
 
     let mut stream = cluster
         .balancer
@@ -209,7 +99,12 @@ async fn test_continue_from_raw_prompt() {
 #[tokio::test]
 #[file_serial]
 async fn test_continue_from_conversation_history() {
-    let _cluster = spawn_inference_cluster().await;
+    let _cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "inference-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
 
     let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
         add_generation_prompt: true,
@@ -273,13 +168,157 @@ async fn test_continue_from_conversation_history() {
 
 #[tokio::test]
 #[file_serial]
-async fn test_openai_chat_completions_non_streaming() {
-    let cluster = spawn_openai_cluster().await;
+async fn test_raw_prompt_respects_max_tokens() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "inference-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let max_tokens = 20;
+
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            max_tokens,
+            raw_prompt: "Once upon a time in a land far far away there lived".to_string(),
+        })
+        .await
+        .expect("raw prompt request should succeed");
+
+    let mut token_count = 0;
+
+    while let Some(message) = stream.next().await {
+        let message = message.expect("message should deserialize");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(token_result) => match token_result {
+                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
+                        token_count += 1;
+                    }
+                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
+                    other => panic!("unexpected token result: {other:?}"),
+                },
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    assert!(token_count > 0, "should have received at least one token");
+    assert!(
+        token_count <= max_tokens as usize,
+        "received {token_count} tokens, expected at most {max_tokens}"
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_conversation_history_respects_max_tokens() {
+    let _cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "inference-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let max_tokens = 20;
+
+    let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text(
+                "Tell me a long story about a dragon".to_string(),
+            ),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: true,
+        max_tokens,
+        tools: vec![],
+    };
 
     let http_client = reqwest::Client::new();
 
     let response = http_client
-        .post(format!("{}/v1/chat/completions", cluster.openai_base_url))
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&params)
+        .send()
+        .await
+        .expect("conversation history request should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+    let mut token_count = 0;
+
+    for line in body.lines() {
+        let line = line.trim();
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let message: Message =
+            serde_json::from_str(line).expect("each line should be valid inference message JSON");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(token_result) => match token_result {
+                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
+                        token_count += 1;
+                    }
+                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
+                    other => panic!("unexpected token result: {other:?}"),
+                },
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    assert!(token_count > 0, "should have received at least one token");
+    assert!(
+        token_count <= max_tokens as usize,
+        "received {token_count} tokens, expected at most {max_tokens}"
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_openai_chat_completions_non_streaming() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "openai-agent".to_string(),
+        with_openai: true,
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let openai_base_url = cluster
+        .openai_base_url
+        .as_ref()
+        .expect("openai_base_url should be set");
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!("{openai_base_url}/v1/chat/completions"))
         .json(&serde_json::json!({
             "model": "test",
             "messages": [
@@ -313,12 +352,23 @@ async fn test_openai_chat_completions_non_streaming() {
 #[tokio::test]
 #[file_serial]
 async fn test_openai_chat_completions_streaming() {
-    let cluster = spawn_openai_cluster().await;
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "openai-agent".to_string(),
+        with_openai: true,
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let openai_base_url = cluster
+        .openai_base_url
+        .as_ref()
+        .expect("openai_base_url should be set");
 
     let http_client = reqwest::Client::new();
 
     let response = http_client
-        .post(format!("{}/v1/chat/completions", cluster.openai_base_url))
+        .post(format!("{openai_base_url}/v1/chat/completions"))
         .json(&serde_json::json!({
             "model": "test",
             "messages": [
