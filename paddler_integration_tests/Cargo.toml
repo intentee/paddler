@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
+[features]
+paddler_integration_tests = []
+
 [dependencies]
 anyhow = { workspace = true }
 base64 = { workspace = true }

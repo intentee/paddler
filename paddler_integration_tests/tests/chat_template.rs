@@ -1,13 +1,10 @@
-use std::time::Duration;
+#![cfg(feature = "paddler_integration_tests")]
 
 use futures_util::StreamExt;
 use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
 use integration_tests::managed_balancer::ManagedBalancer;
+use integration_tests::test_cluster::TestCluster;
+use integration_tests::test_cluster_params::TestClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
@@ -22,64 +19,24 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serial_test::file_serial;
-use tempfile::NamedTempFile;
 
 const SIMPLE_CHAT_TEMPLATE: &str = "{{ messages[0].content }}";
 
-struct ChatTemplateTestCluster {
-    balancer: ManagedBalancer,
-    _agent: ManagedAgent,
-    _state_db: NamedTempFile,
-}
-
-async fn spawn_chat_template_cluster(
+fn chat_template_cluster_params(
     model: AgentDesiredModel,
     chat_template: ChatTemplate,
-) -> ChatTemplateTestCluster {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: Some(chat_template),
-        inference_parameters: InferenceParameters::default(),
-        model,
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: true,
-    };
-
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
-        10,
-        Duration::from_secs(10),
-    ))
-    .await
-    .expect("failed to spawn balancer");
-
-    balancer
-        .client()
-        .management()
-        .put_balancer_desired_state(&desired_state)
-        .await
-        .expect("failed to set balancer desired state");
-
-    balancer.wait_for_desired_state(&desired_state).await;
-
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
-        name: Some("chat-template-agent".to_string()),
-        slots: 1,
-    })
-    .await
-    .expect("failed to spawn agent");
-
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(1).await;
-
-    ChatTemplateTestCluster {
-        balancer,
-        _agent: agent,
-        _state_db: state_db,
+) -> TestClusterParams {
+    TestClusterParams {
+        agent_name: "chat-template-agent".to_string(),
+        agent_slots: 1,
+        desired_state: BalancerDesiredState {
+            chat_template_override: Some(chat_template),
+            inference_parameters: InferenceParameters::default(),
+            model,
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: true,
+        },
+        ..TestClusterParams::default()
     }
 }
 
@@ -178,15 +135,16 @@ async fn test_agent_can_use_chat_template_for_model() {
         content: SIMPLE_CHAT_TEMPLATE.to_string(),
     };
 
-    let cluster = spawn_chat_template_cluster(
+    let cluster = TestCluster::spawn(chat_template_cluster_params(
         AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
             filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_string(),
             repo_id: "nomic-ai/nomic-embed-text-v1.5-GGUF".to_string(),
             revision: "main".to_string(),
         }),
         chat_template.clone(),
-    )
-    .await;
+    ))
+    .await
+    .expect("failed to spawn cluster");
 
     assert_agent_uses_chat_template_override(&cluster.balancer).await;
 
@@ -216,8 +174,12 @@ async fn test_agent_overrides_chat_template() {
         content: SIMPLE_CHAT_TEMPLATE.to_string(),
     };
 
-    let cluster =
-        spawn_chat_template_cluster(AGENT_DESIRED_MODEL.clone(), chat_template.clone()).await;
+    let cluster = TestCluster::spawn(chat_template_cluster_params(
+        AGENT_DESIRED_MODEL.clone(),
+        chat_template.clone(),
+    ))
+    .await
+    .expect("failed to spawn cluster");
 
     assert_agent_uses_chat_template_override(&cluster.balancer).await;
 

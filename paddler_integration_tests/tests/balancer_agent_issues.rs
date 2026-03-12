@@ -1,13 +1,10 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::io::Write;
-use std::time::Duration;
 
 use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
-use integration_tests::managed_balancer::ManagedBalancer;
+use integration_tests::test_cluster::TestCluster;
+use integration_tests::test_cluster_params::TestClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -17,48 +14,13 @@ use paddler_types::inference_parameters::InferenceParameters;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
-struct AgentIssueTestFixture {
-    balancer: ManagedBalancer,
-    _agent: ManagedAgent,
-    _state_db: NamedTempFile,
-}
-
-async fn spawn_issue_cluster(desired_state: BalancerDesiredState) -> AgentIssueTestFixture {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
-        10,
-        Duration::from_secs(10),
-    ))
-    .await
-    .expect("failed to spawn balancer");
-
-    balancer
-        .client()
-        .management()
-        .put_balancer_desired_state(&desired_state)
-        .await
-        .expect("failed to set balancer desired state");
-
-    balancer.wait_for_desired_state(&desired_state).await;
-
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
-        name: Some("issue-test-agent".to_string()),
-        slots: 1,
-    })
-    .await
-    .expect("failed to spawn agent");
-
-    balancer.wait_for_agent_count(1).await;
-
-    AgentIssueTestFixture {
-        balancer,
-        _agent: agent,
-        _state_db: state_db,
+fn issue_cluster_params(desired_state: BalancerDesiredState) -> TestClusterParams {
+    TestClusterParams {
+        agent_name: "issue-test-agent".to_string(),
+        agent_slots: 1,
+        desired_state,
+        wait_for_slots: false,
+        ..TestClusterParams::default()
     }
 }
 
@@ -73,9 +35,11 @@ async fn test_model_file_does_not_exist() {
         use_chat_template_override: false,
     };
 
-    let fixture = spawn_issue_cluster(desired_state).await;
+    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+        .await
+        .expect("failed to spawn cluster");
 
-    let issue = fixture
+    let issue = cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ModelFileDoesNotExist(_)))
         .await;
@@ -106,9 +70,11 @@ async fn test_model_cannot_be_loaded() {
         use_chat_template_override: false,
     };
 
-    let fixture = spawn_issue_cluster(desired_state).await;
+    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+        .await
+        .expect("failed to spawn cluster");
 
-    let issue = fixture
+    let issue = cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ModelCannotBeLoaded(_)))
         .await;
@@ -136,9 +102,11 @@ async fn test_huggingface_model_does_not_exist() {
         use_chat_template_override: false,
     };
 
-    let fixture = spawn_issue_cluster(desired_state).await;
+    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+        .await
+        .expect("failed to spawn cluster");
 
-    fixture
+    cluster
         .balancer
         .wait_for_agent_issue(|issue| {
             matches!(
@@ -164,9 +132,11 @@ async fn test_unable_to_find_chat_template() {
         use_chat_template_override: false,
     };
 
-    let fixture = spawn_issue_cluster(desired_state).await;
+    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+        .await
+        .expect("failed to spawn cluster");
 
-    fixture
+    cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::UnableToFindChatTemplate(_)))
         .await;
@@ -185,9 +155,11 @@ async fn test_chat_template_does_not_compile() {
         use_chat_template_override: true,
     };
 
-    let fixture = spawn_issue_cluster(desired_state).await;
+    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+        .await
+        .expect("failed to spawn cluster");
 
-    fixture
+    cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ChatTemplateDoesNotCompile(_)))
         .await;
@@ -206,9 +178,11 @@ async fn test_multimodal_projection_cannot_be_loaded() {
         use_chat_template_override: false,
     };
 
-    let fixture = spawn_issue_cluster(desired_state).await;
+    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+        .await
+        .expect("failed to spawn cluster");
 
-    fixture
+    cluster
         .balancer
         .wait_for_agent_issue(|issue| {
             matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_))

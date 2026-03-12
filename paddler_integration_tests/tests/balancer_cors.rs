@@ -1,3 +1,5 @@
+#![cfg(feature = "paddler_integration_tests")]
+
 use std::time::Duration;
 
 use integration_tests::BALANCER_INFERENCE_ADDR;

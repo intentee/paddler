@@ -1,22 +1,14 @@
-use std::time::Duration;
+#![cfg(feature = "paddler_integration_tests")]
 
 use futures_util::StreamExt;
-use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
-use integration_tests::managed_balancer::ManagedBalancer;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use integration_tests::test_cluster::TestCluster;
+use integration_tests::test_cluster_params::TestClusterParams;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::inference_client::Message;
 use paddler_types::inference_client::Response;
-use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::FunctionCall;
@@ -26,61 +18,6 @@ use paddler_types::request_params::continue_from_conversation_history_params::to
 use serial_test::file_serial;
 use serde_json::Map;
 use serde_json::Value;
-use tempfile::NamedTempFile;
-
-struct ToolsTestCluster {
-    balancer: ManagedBalancer,
-    _agent: ManagedAgent,
-    _state_db: NamedTempFile,
-}
-
-async fn spawn_tools_cluster() -> ToolsTestCluster {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::default(),
-        model: AGENT_DESIRED_MODEL.clone(),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
-    };
-
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
-        10,
-        Duration::from_secs(10),
-    ))
-    .await
-    .expect("failed to spawn balancer");
-
-    balancer
-        .client()
-        .management()
-        .put_balancer_desired_state(&desired_state)
-        .await
-        .expect("failed to set balancer desired state");
-
-    balancer.wait_for_desired_state(&desired_state).await;
-
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
-        name: Some("tools-agent".to_string()),
-        slots: 4,
-    })
-    .await
-    .expect("failed to spawn agent");
-
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(4).await;
-
-    ToolsTestCluster {
-        balancer,
-        _agent: agent,
-        _state_db: state_db,
-    }
-}
 
 fn assert_stream_received_tokens(messages: Vec<Message>) {
     let mut received_tokens = false;
@@ -152,7 +89,12 @@ async fn collect_stream_messages(
 #[tokio::test]
 #[file_serial]
 async fn test_tools_parameter_is_optional() {
-    let cluster = spawn_tools_cluster().await;
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "tools-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
 
     let stream = cluster
         .balancer
@@ -179,7 +121,12 @@ async fn test_tools_parameter_is_optional() {
 #[tokio::test]
 #[file_serial]
 async fn test_tools_with_function() {
-    let cluster = spawn_tools_cluster().await;
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "tools-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
 
     let mut location_properties = Map::new();
     location_properties.insert(
@@ -226,7 +173,12 @@ async fn test_tools_with_function() {
 #[tokio::test]
 #[file_serial]
 async fn test_tools_schema_validation() {
-    let cluster = spawn_tools_cluster().await;
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "tools-agent".to_string(),
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
 
     let mut name_properties = Map::new();
     name_properties.insert("name".to_string(), serde_json::json!({ "type": "string" }));
