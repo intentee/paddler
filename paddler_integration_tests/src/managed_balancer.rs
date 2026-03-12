@@ -18,6 +18,7 @@ pub struct ManagedBalancerParams {
     pub compat_openai_addr: Option<String>,
     pub inference_addr: String,
     pub inference_cors_allowed_hosts: Vec<String>,
+    pub inference_item_timeout: Option<Duration>,
     pub management_addr: String,
     pub management_cors_allowed_hosts: Vec<String>,
     pub max_buffered_requests: i32,
@@ -52,6 +53,12 @@ impl ManagedBalancer {
 
         if let Some(openai_addr) = &params.compat_openai_addr {
             command.arg("--compat-openai-addr").arg(openai_addr);
+        }
+
+        if let Some(inference_item_timeout) = &params.inference_item_timeout {
+            command
+                .arg("--inference-item-timeout")
+                .arg(inference_item_timeout.as_millis().to_string());
         }
 
         for host in &params.inference_cors_allowed_hosts {
@@ -177,6 +184,30 @@ impl ManagedBalancer {
         }
     }
 
+    pub async fn wait_for_slots_processing(&self, expected_total: i32) -> i32 {
+        let start = std::time::Instant::now();
+
+        loop {
+            if let Ok(snapshot) = self.client.management().get_agents().await {
+                let total: i32 = snapshot
+                    .agents
+                    .iter()
+                    .map(|agent| agent.slots_processing)
+                    .sum();
+
+                if total >= expected_total {
+                    return total;
+                }
+            }
+
+            if start.elapsed() > TIMEOUT {
+                panic!("timed out waiting for {expected_total} slots processing");
+            }
+
+            tokio::time::sleep(POLL_INTERVAL).await;
+        }
+    }
+
     pub async fn wait_for_agent_issue(
         &self,
         predicate: impl Fn(&AgentIssue) -> bool,
@@ -202,6 +233,14 @@ impl ManagedBalancer {
 
     pub fn kill(&mut self) -> Result<()> {
         self.child.start_kill()?;
+
+        loop {
+            match self.child.try_wait() {
+                Ok(Some(_)) => break,
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
+                Err(_) => break,
+            }
+        }
 
         Ok(())
     }
