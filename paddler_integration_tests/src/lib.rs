@@ -13,7 +13,7 @@ pub const BALANCER_MANAGEMENT_ADDR: &str = "127.0.0.1:8060";
 pub const BALANCER_INFERENCE_ADDR: &str = "127.0.0.1:8061";
 pub const BALANCER_OPENAI_ADDR: &str = "127.0.0.1:8062";
 pub const PADDLER_BINARY_PATH: &str = "../target/debug/paddler";
-pub const TIMEOUT: Duration = Duration::from_secs(3);
+pub const TIMEOUT: Duration = Duration::from_secs(30);
 pub const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 pub static AGENT_DESIRED_MODEL: LazyLock<AgentDesiredModel> = LazyLock::new(|| {

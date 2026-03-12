@@ -95,6 +95,26 @@ impl<'client> ClientInference<'client> {
         Ok(Box::pin(UnboundedReceiverStream::new(rx)))
     }
 
+    pub async fn post_continue_from_conversation_history(
+        &self,
+        params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<InferenceMessage>> + Send>>> {
+        let response = self
+            .http_client
+            .post(format_api_url(
+                self.url,
+                "/api/v1/continue_from_conversation_history",
+            )?)
+            .json(params)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let stream = StreamNdjson::<InferenceMessage>::from_response(response);
+
+        Ok(Box::pin(stream))
+    }
+
     pub async fn generate_embedding_batch(
         &self,
         params: &GenerateEmbeddingBatchParams,

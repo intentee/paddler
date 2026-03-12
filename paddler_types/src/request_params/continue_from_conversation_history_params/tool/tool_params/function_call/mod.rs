@@ -1,5 +1,5 @@
-mod function;
-mod parameters;
+pub mod function;
+pub mod parameters;
 pub mod parameters_schema;
 
 use anyhow::Result;
