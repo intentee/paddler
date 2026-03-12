@@ -4,21 +4,7 @@ mod utils;
 
 use futures_util::StreamExt;
 
-async fn get_first_agent_id() -> String {
-    let client = utils::create_paddler_client();
-    let management = client.management();
-    let snapshot = management
-        .get_agents()
-        .await
-        .expect("get_agents must succeed");
-
-    assert!(
-        !snapshot.agents.is_empty(),
-        "at least one agent must be connected"
-    );
-
-    snapshot.agents[0].id.clone()
-}
+use crate::utils::get_first_agent_id;
 
 #[tokio::test]
 async fn test_get_agents_returns_agents() -> paddler_client::Result<()> {
