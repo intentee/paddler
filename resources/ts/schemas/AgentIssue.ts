@@ -3,7 +3,11 @@ import { z } from "zod";
 import { AgentIssueModelPathSchema } from "./AgentIssueModelPath";
 import { HuggingFaceDownloadLockSchema } from "./HuggingFaceDownloadLock";
 
-export const AgentIssueSchema = z.union([
+export const AgentIssueSeveritySchema = z.enum(["Error", "Warning"]);
+
+export type AgentIssueSeverity = z.infer<typeof AgentIssueSeveritySchema>;
+
+export const AgentIssueTypeSchema = z.union([
   z.object({
     ChatTemplateDoesNotCompile: z.object({
       error: z.string(),
@@ -39,5 +43,14 @@ export const AgentIssueSchema = z.union([
     UnableToFindChatTemplate: AgentIssueModelPathSchema,
   }),
 ]);
+
+export type AgentIssueType = z.infer<typeof AgentIssueTypeSchema>;
+
+export const AgentIssueSchema = z
+  .object({
+    severity: AgentIssueSeveritySchema,
+    type: AgentIssueTypeSchema,
+  })
+  .strict();
 
 export type AgentIssue = z.infer<typeof AgentIssueSchema>;

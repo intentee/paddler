@@ -3,18 +3,35 @@ import { Link } from "wouter";
 
 import { type AgentIssue } from "../schemas/AgentIssue";
 
-import { agentIssues, agentIssues__issue } from "./AgentIssues.module.css";
+import {
+  agentIssues,
+  agentIssues__issue,
+  agentIssues__issue___error,
+  agentIssues__issue___warning,
+} from "./AgentIssues.module.css";
+
+function severityClassName(severity: AgentIssue["severity"]): string {
+  switch (severity) {
+    case "Error":
+      return agentIssues__issue___error;
+    case "Warning":
+      return agentIssues__issue___warning;
+  }
+}
 
 export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
   return (
     <ul className={agentIssues}>
       {issues.map(function (issue, index) {
-        if ("ChatTemplateDoesNotCompile" in issue) {
+        const issueType = issue.type;
+        const issueClassName = `${agentIssues__issue} ${severityClassName(issue.severity)}`;
+
+        if ("ChatTemplateDoesNotCompile" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 Chat template does not compile: "
-                {issue.ChatTemplateDoesNotCompile.error}"
+                {issueType.ChatTemplateDoesNotCompile.error}"
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -27,22 +44,24 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </p>
               <strong>Template in question:</strong>{" "}
               <pre>
-                <code>{issue.ChatTemplateDoesNotCompile.template_content}</code>
+                <code>
+                  {issueType.ChatTemplateDoesNotCompile.template_content}
+                </code>
               </pre>
             </li>
           );
         }
 
-        if ("HuggingFaceCannotAcquireLock" in issue) {
+        if ("HuggingFaceCannotAcquireLock" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 HuggingFace cannot acquire lock:{" "}
-                {issue.HuggingFaceCannotAcquireLock.model_path.model_path}
+                {issueType.HuggingFaceCannotAcquireLock.model_path.model_path}
               </strong>
               <strong>Lock path:</strong>{" "}
               <pre>
-                <code>{issue.HuggingFaceCannotAcquireLock.lock_path}</code>
+                <code>{issueType.HuggingFaceCannotAcquireLock.lock_path}</code>
               </pre>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -59,12 +78,12 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("HuggingFaceModelDoesNotExist" in issue) {
+        if ("HuggingFaceModelDoesNotExist" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 HuggingFace model does not exist:{" "}
-                {issue.HuggingFaceModelDoesNotExist.model_path}
+                {issueType.HuggingFaceModelDoesNotExist.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -82,33 +101,11 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("HuggingFacePermissions" in issue) {
+        if ("ModelCannotBeLoaded" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
-                You do not have enough permissions to download model from
-                HuggingFace: {issue.HuggingFacePermissions.model_path}
-              </strong>
-              <strong>What will Paddler do?</strong>{" "}
-              <p>
-                Paddler will retry to download the model in case this might be a
-                temporary issue.
-              </p>
-              <strong>What can you do?</strong>{" "}
-              <p>
-                <Link href="/model">You need to check the model URL.</Link>
-                There is a chance that you made a typo in the organization name.
-                In that case HuggingFace reports 401 error instead of 404.
-              </p>
-            </li>
-          );
-        }
-
-        if ("ModelCannotBeLoaded" in issue) {
-          return (
-            <li className={agentIssues__issue} key={index}>
-              <strong>
-                Model cannot be loaded: {issue.ModelCannotBeLoaded.model_path}
+                Model cannot be loaded: {issueType.ModelCannotBeLoaded.model_path}
               </strong>
               <strong>What is the cause?</strong>{" "}
               <p>
@@ -137,12 +134,12 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("ModelFileDoesNotExist" in issue) {
+        if ("ModelFileDoesNotExist" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 Model file does not exist:{" "}
-                {issue.ModelFileDoesNotExist.model_path}
+                {issueType.ModelFileDoesNotExist.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -159,33 +156,11 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("MultimodalProjectionCannotBeLoaded" in issue) {
-          return (
-            <li className={agentIssues__issue} key={index}>
-              <strong>
-                Multimodal projection cannot be loaded:{" "}
-                {issue.MultimodalProjectionCannotBeLoaded.model_path}
-              </strong>
-              <strong>What will Paddler do?</strong>{" "}
-              <p>
-                Paddler will continue to run, but it will not reattempt to load
-                the model.
-              </p>
-              <strong>What can you do?</strong>{" "}
-              <p>
-                Either ensure that the file is available to the agent at a given
-                path, or <Link href="/model">change the model parameters</Link>{" "}
-                to use a different model file.
-              </p>
-            </li>
-          );
-        }
-
-        if ("SlotCannotStart" in issue) {
-          const { error, slot_index } = issue.SlotCannotStart;
+        if ("SlotCannotStart" in issueType) {
+          const { error, slot_index } = issueType.SlotCannotStart;
 
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 Unable to start slot {slot_index}: {error}
               </strong>
@@ -193,12 +168,12 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("UnableToFindChatTemplate" in issue) {
+        if ("UnableToFindChatTemplate" in issueType) {
           return (
-            <li className={agentIssues__issue} key={index}>
+            <li className={issueClassName} key={index}>
               <strong>
                 Unable to find chat template:{" "}
-                {issue.UnableToFindChatTemplate.model_path}
+                {issueType.UnableToFindChatTemplate.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
@@ -225,8 +200,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
         }
 
         return (
-          <li className={agentIssues__issue} key={index}>
-            Unknown issue: {JSON.stringify(issue)}
+          <li className={issueClassName} key={index}>
+            Unknown issue: {JSON.stringify(issueType)}
           </li>
         );
       })}

@@ -3,6 +3,8 @@ pub mod agent_controller_snapshot;
 pub mod agent_desired_model;
 pub mod agent_issue;
 pub mod agent_issue_params;
+pub mod agent_issue_severity;
+pub mod agent_issue_type;
 pub mod agent_state_application_status;
 pub mod balancer_desired_state;
 pub mod buffered_request_manager_snapshot;

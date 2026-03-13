@@ -1,5 +1,11 @@
-.agentIssuesPreviewButton {
+.agentIssuesPreviewButton___error {
   --color-button-background: #ffdae1;
+
+  composes: modelDetailsPreviewButton from "./modelDetailsPreviewButton.module.css";
+}
+
+.agentIssuesPreviewButton___warning {
+  --color-button-background: #ffffdd;
 
   composes: modelDetailsPreviewButton from "./modelDetailsPreviewButton.module.css";
 }
