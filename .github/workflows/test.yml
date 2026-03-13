@@ -32,7 +32,7 @@ jobs:
 
       - name: Set up coverage environment
         run: |
-          cargo llvm-cov show-env --sh >> "$GITHUB_ENV"
+          cargo llvm-cov show-env --sh | sed 's/^export //' | sed 's/"//g' >> "$GITHUB_ENV"
 
       - name: Build
         run: cargo build --package paddler
@@ -50,6 +50,7 @@ jobs:
           OBJECTS=$(find target/debug/deps \
             -name "agent_*" -o -name "balancer_*" -o -name "chat_template*" \
             -o -name "paddler-*" \
+            -o -name "paddler_client-*" \
             -o -name "paddler_types-*" \
             | grep -v '\.d$' | grep -v '\.o$' | sort -u | sed 's/^/-object=/')
 
