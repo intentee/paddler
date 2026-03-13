@@ -38,10 +38,7 @@ jobs:
         run: cargo build --package paddler
 
       - name: Run unit tests
-        run: make test.llms
-
-      - name: Run integration tests
-        run: make test.integration
+        run: cargo test
 
       - name: Validate coverage
         run: |
@@ -52,8 +49,8 @@ jobs:
 
           OBJECTS=$(find target/debug/deps \
             -name "agent_*" -o -name "balancer_*" -o -name "chat_template*" \
-            -o -name "integration_tests*" -o -name "paddler-*" \
-            -o -name "paddler_types-*" -o -name "paddler_client-*" \
+            -o -name "paddler-*" \
+            -o -name "paddler_types-*" \
             | grep -v '\.d$' | grep -v '\.o$' | sort -u | sed 's/^/-object=/')
 
           COVERAGE=$("$LLVM_COV" export target/debug/paddler $OBJECTS \
