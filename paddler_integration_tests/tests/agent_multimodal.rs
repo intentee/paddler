@@ -62,6 +62,7 @@ fn load_test_image_as_data_uri() -> String {
 #[file_serial]
 async fn test_load_mmproj_from_local_path() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -74,7 +75,7 @@ async fn test_load_mmproj_from_local_path() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     ))
@@ -107,6 +108,7 @@ async fn test_load_mmproj_from_local_path() {
 #[file_serial]
 async fn test_load_mmproj_from_huggingface() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -119,7 +121,7 @@ async fn test_load_mmproj_from_huggingface() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     ))
@@ -152,6 +154,7 @@ async fn test_load_mmproj_from_huggingface() {
 #[file_serial]
 async fn test_multimodal_inference_with_image() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -164,7 +167,7 @@ async fn test_multimodal_inference_with_image() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     ))

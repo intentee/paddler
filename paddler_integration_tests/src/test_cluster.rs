@@ -21,17 +21,20 @@ pub struct TestCluster {
 impl TestCluster {
     pub async fn spawn(params: TestClusterParams) -> Result<Self> {
         let state_db = NamedTempFile::new()?;
-        let state_db_path = state_db
-            .path()
-            .to_str()
-            .expect("temp file path must be valid UTF-8");
+        let state_db_url = format!(
+            "file://{}",
+            state_db
+                .path()
+                .to_str()
+                .expect("temp file path must be valid UTF-8")
+        );
 
         let mut balancer_params = if params.with_openai {
             balancer_params_with_openai(
                 BALANCER_MANAGEMENT_ADDR,
                 BALANCER_INFERENCE_ADDR,
                 BALANCER_OPENAI_ADDR,
-                state_db_path,
+                &state_db_url,
                 params.max_buffered_requests,
                 params.buffered_request_timeout,
             )
@@ -39,7 +42,7 @@ impl TestCluster {
             balancer_params(
                 BALANCER_MANAGEMENT_ADDR,
                 BALANCER_INFERENCE_ADDR,
-                state_db_path,
+                &state_db_url,
                 params.max_buffered_requests,
                 params.buffered_request_timeout,
             )

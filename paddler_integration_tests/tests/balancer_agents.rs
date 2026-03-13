@@ -34,11 +34,12 @@ async fn get_first_agent_id(balancer: &ManagedBalancer) -> String {
 #[file_serial]
 async fn test_balancer_can_register_agents() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -167,5 +168,42 @@ async fn test_get_metrics_returns_prometheus_format() {
     assert!(
         metrics.contains("slots_total"),
         "metrics must contain slots_total gauge"
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_agent_reports_download_progress() {
+    let cluster = TestCluster::spawn(TestClusterParams {
+        agent_name: "download-progress-agent".to_string(),
+        agent_slots: 2,
+        ..TestClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let snapshot = cluster
+        .balancer
+        .client()
+        .management()
+        .get_agents()
+        .await
+        .expect("failed to get agents");
+
+    assert!(
+        !snapshot.agents.is_empty(),
+        "should have at least one agent after startup"
+    );
+
+    let agent = &snapshot.agents[0];
+
+    assert_eq!(
+        agent.download_current, 0,
+        "download_current should be 0 after model is loaded"
+    );
+
+    assert_eq!(
+        agent.download_total, 0,
+        "download_total should be 0 after model is loaded"
     );
 }

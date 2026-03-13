@@ -24,7 +24,7 @@ async fn test_inference_cors_headers() {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
-        state_database_path: state_db.path().to_str().unwrap().to_string(),
+        state_database_url: format!("file://{}", state_db.path().to_str().unwrap()),
     })
     .await
     .expect("failed to spawn balancer");
@@ -69,7 +69,7 @@ async fn test_management_cors_headers() {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         management_cors_allowed_hosts: vec![allowed_origin.to_string()],
         max_buffered_requests: 10,
-        state_database_path: state_db.path().to_str().unwrap().to_string(),
+        state_database_url: format!("file://{}", state_db.path().to_str().unwrap()),
     })
     .await
     .expect("failed to spawn balancer");

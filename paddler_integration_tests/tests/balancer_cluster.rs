@@ -47,11 +47,12 @@ async fn send_buffered_requests(balancer: &ManagedBalancer, count: usize) -> Vec
 #[file_serial]
 async fn test_health_endpoint_returns_ok() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -72,11 +73,12 @@ async fn test_health_endpoint_returns_ok() {
 #[file_serial]
 async fn test_inference_fails_when_no_model_configured() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -119,6 +121,7 @@ async fn test_inference_fails_when_no_model_configured() {
 #[file_serial]
 async fn test_inference_fails_when_no_agents_registered() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -131,7 +134,7 @@ async fn test_inference_fails_when_no_agents_registered() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         1,
         Duration::from_millis(50),
     ))
@@ -183,11 +186,12 @@ async fn test_inference_fails_when_no_agents_registered() {
 #[file_serial]
 async fn test_balancer_overflows_buffer_when_feature_is_disabled() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         0,
         Duration::from_millis(50),
     ))
@@ -237,6 +241,7 @@ async fn test_balancer_overflows_buffer_when_feature_is_disabled() {
 #[file_serial]
 async fn test_balancer_can_buffer_requests() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -249,7 +254,7 @@ async fn test_balancer_can_buffer_requests() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         1,
         Duration::from_secs(120),
     ))
@@ -306,6 +311,7 @@ async fn test_balancer_can_buffer_requests() {
 #[file_serial]
 async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -318,7 +324,7 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(120),
     ))
@@ -386,6 +392,7 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
 #[file_serial]
 async fn test_buffered_requests_when_agent_is_removed() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -398,7 +405,7 @@ async fn test_buffered_requests_when_agent_is_removed() {
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(120),
     ))
@@ -436,7 +443,7 @@ async fn test_buffered_requests_when_agent_is_removed() {
 
     balancer.wait_for_agent_count(2).await;
 
-    agent_two.kill().expect("failed to kill second agent");
+    agent_two.kill();
 
     balancer.wait_for_agent_count(1).await;
 
@@ -476,6 +483,7 @@ async fn test_buffered_requests_when_agent_is_removed() {
 #[file_serial]
 async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -488,7 +496,7 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
     let mut params = balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     );
@@ -550,11 +558,12 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
 #[file_serial]
 async fn test_buffered_requests_stream_receives_snapshot() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     ))

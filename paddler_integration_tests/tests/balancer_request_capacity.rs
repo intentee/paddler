@@ -21,11 +21,12 @@ use tempfile::NamedTempFile;
 #[file_serial]
 async fn test_slots_can_handle_request() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_millis(50),
     ))
