@@ -40,7 +40,7 @@ jobs:
       - name: Run unit tests
         run: cargo test
 
-      - name: Validate coverage
+      - name: Validate test coverage
         run: |
           LLVM_PROFDATA=$(find ~/.rustup -name llvm-profdata | head -1)
           LLVM_COV=$(find ~/.rustup -name llvm-cov | head -1)
