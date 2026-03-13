@@ -25,8 +25,48 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v4
 
-      - name: Test
+      - name: Install llvm-cov tools
         run: |
-          make test
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cargo install cargo-llvm-cov
+          rustup component add llvm-tools
+
+      - name: Set up coverage environment
+        run: |
+          cargo llvm-cov show-env --sh >> "$GITHUB_ENV"
+
+      - name: Build
+        run: cargo build --package paddler
+
+      - name: Run unit tests
+        run: make test.llms
+
+      - name: Run integration tests
+        run: make test.integration
+
+      - name: Validate coverage
+        run: |
+          LLVM_PROFDATA=$(find ~/.rustup -name llvm-profdata | head -1)
+          LLVM_COV=$(find ~/.rustup -name llvm-cov | head -1)
+
+          "$LLVM_PROFDATA" merge -sparse target/paddler-*.profraw -o target/merged.profdata
+
+          OBJECTS=$(find target/debug/deps \
+            -name "agent_*" -o -name "balancer_*" -o -name "chat_template*" \
+            -o -name "integration_tests*" -o -name "paddler-*" \
+            -o -name "paddler_types-*" -o -name "paddler_client-*" \
+            | grep -v '\.d$' | grep -v '\.o$' | sort -u | sed 's/^/-object=/')
+
+          COVERAGE=$("$LLVM_COV" export target/debug/paddler $OBJECTS \
+            --instr-profile=target/merged.profdata \
+            --ignore-filename-regex='\.cargo|rustc' \
+            --format=text --summary-only \
+            | jq '.data[0].totals.lines.percent')
+
+          echo "Line coverage: ${COVERAGE}%"
+
+          THRESHOLD=90
+
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi

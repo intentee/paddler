@@ -54,7 +54,7 @@ test.llms: jarmuz-static
 
 .PHONY: test.integration
 test.integration: jarmuz-static
-	cargo test --features web_admin_panel,tests_that_use_llms,paddler_integration_tests -- --nocapture
+	cargo test --features web_admin_panel,tests_that_use_llms,paddler_integration_tests -- --nocapture --test-threads=1
 
 .PHONY: watch
 watch: node_modules
