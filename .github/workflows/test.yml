@@ -32,7 +32,7 @@ jobs:
 
       - name: Set up coverage environment
         run: |
-          cargo llvm-cov show-env --sh | sed 's/^export //' | sed 's/"//g' >> "$GITHUB_ENV"
+          cargo llvm-cov show-env --sh | sed "s/^export //" | sed "s/['\"]//g" >> "$GITHUB_ENV"
 
       - name: Build
         run: cargo build --package paddler
