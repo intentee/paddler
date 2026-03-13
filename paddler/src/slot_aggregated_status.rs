@@ -339,4 +339,60 @@ mod tests {
 
         assert_eq!(status.make_snapshot().unwrap().slots_processing, 1);
     }
+
+    #[test]
+    fn set_download_status_updates_all_fields() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(100, 500, Some("model.gguf".to_string()));
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        assert_eq!(snapshot.download_current, 100);
+        assert_eq!(snapshot.download_total, 500);
+        assert_eq!(snapshot.download_filename, Some("model.gguf".to_string()));
+    }
+
+    #[test]
+    fn increment_download_current_accumulates() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(0, 1000, Some("model.gguf".to_string()));
+        status.increment_download_current(100);
+        status.increment_download_current(200);
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        assert_eq!(snapshot.download_current, 300);
+        assert_eq!(snapshot.download_total, 1000);
+    }
+
+    #[test]
+    fn reset_download_clears_download_fields() {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(500, 1000, Some("model.gguf".to_string()));
+        status.reset_download();
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        assert_eq!(snapshot.download_current, 0);
+        assert_eq!(snapshot.download_total, 0);
+        assert_eq!(snapshot.download_filename, None);
+    }
+
+    #[test]
+    fn set_uses_chat_template_override() {
+        let status = SlotAggregatedStatus::new(2);
+
+        assert!(!status.make_snapshot().unwrap().uses_chat_template_override);
+
+        status.set_uses_chat_template_override(true);
+
+        assert!(status.make_snapshot().unwrap().uses_chat_template_override);
+
+        status.set_uses_chat_template_override(false);
+
+        assert!(!status.make_snapshot().unwrap().uses_chat_template_override);
+    }
 }

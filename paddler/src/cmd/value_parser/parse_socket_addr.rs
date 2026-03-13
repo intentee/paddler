@@ -44,3 +44,41 @@ pub fn parse_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parses_ip_and_port_directly() {
+        let result = parse_socket_addr("127.0.0.1:8080").unwrap();
+
+        assert_eq!(result.input_addr, "127.0.0.1:8080");
+        assert_eq!(result.socket_addr.port(), 8080);
+        assert!(result.socket_addr.is_ipv4());
+    }
+
+    #[test]
+    fn test_resolves_localhost_via_dns() {
+        let result = parse_socket_addr("localhost:9090").unwrap();
+
+        assert_eq!(result.input_addr, "localhost:9090");
+        assert_eq!(result.socket_addr.port(), 9090);
+    }
+
+    #[test]
+    fn test_rejects_invalid_address() {
+        let result = parse_socket_addr("not-a-valid-host-that-does-not-exist.invalid:1234");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parses_ipv6_address() {
+        let result = parse_socket_addr("[::1]:8080").unwrap();
+
+        assert_eq!(result.input_addr, "[::1]:8080");
+        assert_eq!(result.socket_addr.port(), 8080);
+        assert!(result.socket_addr.is_ipv6());
+    }
+}

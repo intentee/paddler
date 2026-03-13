@@ -1,10 +1,8 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use tokio::process::Child;
-use tokio::process::Command;
 
-use crate::PADDLER_BINARY_PATH;
+use crate::paddler_command;
+use crate::terminate_child;
 
 pub struct ManagedAgentParams {
     pub management_addr: String,
@@ -16,19 +14,9 @@ pub struct ManagedAgent {
     child: Child,
 }
 
-fn wait_for_child_exit(child: &mut Child) {
-    loop {
-        match child.try_wait() {
-            Ok(Some(_)) => break,
-            Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => break,
-        }
-    }
-}
-
 impl ManagedAgent {
     pub async fn spawn(params: ManagedAgentParams) -> Result<Self> {
-        let mut command = Command::new(PADDLER_BINARY_PATH);
+        let mut command = paddler_command();
 
         command
             .arg("agent")
@@ -48,18 +36,13 @@ impl ManagedAgent {
         Ok(Self { child })
     }
 
-    pub fn kill(&mut self) -> Result<()> {
-        self.child.start_kill()?;
-        wait_for_child_exit(&mut self.child);
-
-        Ok(())
+    pub fn kill(&mut self) {
+        terminate_child(&mut self.child);
     }
 }
 
 impl Drop for ManagedAgent {
     fn drop(&mut self) {
-        if let Err(error) = self.kill() {
-            eprintln!("Failed to kill managed agent: {error}");
-        }
+        self.kill();
     }
 }

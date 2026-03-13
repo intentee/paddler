@@ -6,12 +6,12 @@ use paddler_client::PaddlerClient;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::process::Child;
-use tokio::process::Command;
 use url::Url;
 
-use crate::PADDLER_BINARY_PATH;
 use crate::POLL_INTERVAL;
 use crate::TIMEOUT;
+use crate::paddler_command;
+use crate::terminate_child;
 
 pub struct ManagedBalancerParams {
     pub buffered_request_timeout: Duration,
@@ -22,7 +22,7 @@ pub struct ManagedBalancerParams {
     pub management_addr: String,
     pub management_cors_allowed_hosts: Vec<String>,
     pub max_buffered_requests: i32,
-    pub state_database_path: String,
+    pub state_database_url: String,
 }
 
 pub struct ManagedBalancer {
@@ -32,9 +32,7 @@ pub struct ManagedBalancer {
 
 impl ManagedBalancer {
     pub async fn spawn(params: ManagedBalancerParams) -> Result<Self> {
-        let state_database_url = format!("file://{}", params.state_database_path);
-
-        let mut command = Command::new(PADDLER_BINARY_PATH);
+        let mut command = paddler_command();
 
         command
             .arg("balancer")
@@ -43,7 +41,7 @@ impl ManagedBalancer {
             .arg("--management-addr")
             .arg(&params.management_addr)
             .arg("--state-database")
-            .arg(&state_database_url)
+            .arg(&params.state_database_url)
             .arg("--max-buffered-requests")
             .arg(params.max_buffered_requests.to_string())
             .arg("--buffered-request-timeout")
@@ -226,23 +224,13 @@ impl ManagedBalancer {
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {
-        self.child.kill().await?;
+        terminate_child(&mut self.child);
 
         Ok(())
     }
 
-    pub fn kill(&mut self) -> Result<()> {
-        self.child.start_kill()?;
-
-        loop {
-            match self.child.try_wait() {
-                Ok(Some(_)) => break,
-                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(10)),
-                Err(_) => break,
-            }
-        }
-
-        Ok(())
+    pub fn kill(&mut self) {
+        terminate_child(&mut self.child);
     }
 
     async fn wait_until_ready(&self) -> Result<()> {
@@ -266,8 +254,6 @@ impl ManagedBalancer {
 
 impl Drop for ManagedBalancer {
     fn drop(&mut self) {
-        if let Err(error) = self.kill() {
-            eprintln!("Failed to kill managed balancer: {error}");
-        }
+        self.kill();
     }
 }

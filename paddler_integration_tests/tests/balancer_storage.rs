@@ -18,7 +18,7 @@ use tempfile::NamedTempFile;
 #[file_serial]
 async fn test_desired_state_persists_across_restarts() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_path = state_db.path().to_str().unwrap().to_string();
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -31,7 +31,7 @@ async fn test_desired_state_persists_across_restarts() {
     let mut balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        &state_db_path,
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -55,7 +55,7 @@ async fn test_desired_state_persists_across_restarts() {
     let restarted_balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        &state_db_path,
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -71,11 +71,12 @@ async fn test_desired_state_persists_across_restarts() {
 #[file_serial]
 async fn test_balancer_can_switch_model() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -142,7 +143,7 @@ async fn test_balancer_can_switch_model() {
 #[file_serial]
 async fn test_chat_template_override_persists_across_restarts() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_path = state_db.path().to_str().unwrap().to_string();
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let chat_template = ChatTemplate {
         content: "{% for message in messages %}{{ message.content }}{% endfor %}".to_string(),
@@ -159,7 +160,7 @@ async fn test_chat_template_override_persists_across_restarts() {
     let mut balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        &state_db_path,
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -196,7 +197,7 @@ async fn test_chat_template_override_persists_across_restarts() {
     let restarted_balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        &state_db_path,
+        &state_db_url,
         30,
         Duration::from_secs(10),
     ))
@@ -212,4 +213,49 @@ async fn test_chat_template_override_persists_across_restarts() {
 
     assert_eq!(persisted_state.chat_template_override, Some(chat_template));
     assert!(persisted_state.use_chat_template_override);
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_desired_state_works_with_memory_storage() {
+    let desired_state = BalancerDesiredState {
+        chat_template_override: None,
+        inference_parameters: InferenceParameters::default(),
+        model: AGENT_DESIRED_MODEL.clone(),
+        multimodal_projection: AgentDesiredModel::None,
+        use_chat_template_override: false,
+    };
+
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        BALANCER_MANAGEMENT_ADDR,
+        BALANCER_INFERENCE_ADDR,
+        "memory://",
+        30,
+        Duration::from_secs(10),
+    ))
+    .await
+    .expect("failed to spawn balancer with memory storage");
+
+    balancer
+        .client()
+        .management()
+        .put_balancer_desired_state(&desired_state)
+        .await
+        .expect("failed to set balancer desired state");
+
+    balancer.wait_for_desired_state(&desired_state).await;
+
+    let retrieved_state = balancer
+        .client()
+        .management()
+        .get_balancer_desired_state()
+        .await
+        .expect("failed to get balancer desired state");
+
+    assert_eq!(retrieved_state.model, AGENT_DESIRED_MODEL.clone());
+    assert_eq!(
+        retrieved_state.multimodal_projection,
+        AgentDesiredModel::None
+    );
+    assert!(!retrieved_state.use_chat_template_override);
 }

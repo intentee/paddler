@@ -26,11 +26,12 @@ use tempfile::NamedTempFile;
 #[file_serial]
 async fn test_inference_health_endpoint() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let balancer = ManagedBalancer::spawn(balancer_params(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     ))
@@ -401,12 +402,13 @@ async fn test_openai_chat_completions_streaming() {
 #[file_serial]
 async fn test_openai_health_endpoint() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
+    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
     let _balancer = ManagedBalancer::spawn(balancer_params_with_openai(
         BALANCER_MANAGEMENT_ADDR,
         BALANCER_INFERENCE_ADDR,
         BALANCER_OPENAI_ADDR,
-        state_db.path().to_str().unwrap(),
+        &state_db_url,
         10,
         Duration::from_secs(10),
     ))

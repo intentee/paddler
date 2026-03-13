@@ -192,6 +192,66 @@ mod tests {
         output_buffer.into_inner()
     }
 
+    fn create_test_tiff(width: u32, height: u32) -> Vec<u8> {
+        use image::RgbImage;
+
+        let image_buffer = RgbImage::new(width, height);
+        let mut output_buffer = Cursor::new(Vec::new());
+
+        image::DynamicImage::ImageRgb8(image_buffer)
+            .write_to(&mut output_buffer, ImageFormat::Tiff)
+            .expect("Failed to encode test TIFF");
+
+        output_buffer.into_inner()
+    }
+
+    fn create_test_png(width: u32, height: u32) -> Vec<u8> {
+        use image::RgbImage;
+
+        let image_buffer = RgbImage::new(width, height);
+        let mut output_buffer = Cursor::new(Vec::new());
+
+        image::DynamicImage::ImageRgb8(image_buffer)
+            .write_to(&mut output_buffer, ImageFormat::Png)
+            .expect("Failed to encode test PNG");
+
+        output_buffer.into_inner()
+    }
+
+    fn create_test_gif(width: u32, height: u32) -> Vec<u8> {
+        use image::RgbaImage;
+
+        let image_buffer = RgbaImage::new(width, height);
+        let mut output_buffer = Cursor::new(Vec::new());
+
+        image::DynamicImage::ImageRgba8(image_buffer)
+            .write_to(&mut output_buffer, ImageFormat::Gif)
+            .expect("Failed to encode test GIF");
+
+        output_buffer.into_inner()
+    }
+
+    fn create_test_bmp(width: u32, height: u32) -> Vec<u8> {
+        use image::RgbImage;
+
+        let image_buffer = RgbImage::new(width, height);
+        let mut output_buffer = Cursor::new(Vec::new());
+
+        image::DynamicImage::ImageRgb8(image_buffer)
+            .write_to(&mut output_buffer, ImageFormat::Bmp)
+            .expect("Failed to encode test BMP");
+
+        output_buffer.into_inner()
+    }
+
+    fn load_fixture(filename: &str) -> Vec<u8> {
+        std::fs::read(format!(
+            "{}/../fixtures/{filename}",
+            env!("CARGO_MANIFEST_DIR"),
+        ))
+        .unwrap_or_else(|err| panic!("Failed to read fixture {filename}: {err}"))
+    }
+
     #[test]
     fn test_decodes_valid_png_data_uri() {
         let png_bytes: Vec<u8> = vec![0x89, 0x50, 0x4E, 0x47];
@@ -312,53 +372,6 @@ mod tests {
         assert_eq!(result_image.height(), 214);
     }
 
-    fn create_test_png(width: u32, height: u32) -> Vec<u8> {
-        use image::RgbImage;
-
-        let image_buffer = RgbImage::new(width, height);
-        let mut output_buffer = Cursor::new(Vec::new());
-
-        image::DynamicImage::ImageRgb8(image_buffer)
-            .write_to(&mut output_buffer, ImageFormat::Png)
-            .expect("Failed to encode test PNG");
-
-        output_buffer.into_inner()
-    }
-
-    fn create_test_gif(width: u32, height: u32) -> Vec<u8> {
-        use image::RgbaImage;
-
-        let image_buffer = RgbaImage::new(width, height);
-        let mut output_buffer = Cursor::new(Vec::new());
-
-        image::DynamicImage::ImageRgba8(image_buffer)
-            .write_to(&mut output_buffer, ImageFormat::Gif)
-            .expect("Failed to encode test GIF");
-
-        output_buffer.into_inner()
-    }
-
-    fn create_test_bmp(width: u32, height: u32) -> Vec<u8> {
-        use image::RgbImage;
-
-        let image_buffer = RgbImage::new(width, height);
-        let mut output_buffer = Cursor::new(Vec::new());
-
-        image::DynamicImage::ImageRgb8(image_buffer)
-            .write_to(&mut output_buffer, ImageFormat::Bmp)
-            .expect("Failed to encode test BMP");
-
-        output_buffer.into_inner()
-    }
-
-    fn load_fixture(filename: &str) -> Vec<u8> {
-        std::fs::read(format!(
-            "{}/../fixtures/{filename}",
-            env!("CARGO_MANIFEST_DIR"),
-        ))
-        .unwrap_or_else(|err| panic!("Failed to read fixture {filename}: {err}"))
-    }
-
     #[test]
     fn test_converted_to_png_passes_through_jpeg() {
         let jpeg_data = create_test_jpeg(100, 100);
@@ -467,5 +480,39 @@ mod tests {
             result,
             Err(DecodedImageError::InvalidMaxDimension)
         ));
+    }
+
+    #[test]
+    fn test_converted_to_png_converts_tiff() {
+        let tiff_data = create_test_tiff(100, 100);
+
+        let decoded_image = DecodedImage { data: tiff_data };
+        let result = decoded_image.converted_to_png_if_necessary(1024).unwrap();
+
+        let result_format = image::guess_format(&result.data).unwrap();
+
+        assert_eq!(result_format, ImageFormat::Png);
+    }
+
+    #[test]
+    fn test_converted_to_png_rasterizes_small_svg() {
+        let svg_data = br#"<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50">
+            <rect width="50" height="50" fill="red"/>
+        </svg>"#;
+
+        let decoded_image = DecodedImage {
+            data: svg_data.to_vec(),
+        };
+
+        let result = decoded_image.converted_to_png_if_necessary(1024).unwrap();
+
+        let result_format = image::guess_format(&result.data).unwrap();
+
+        assert_eq!(result_format, ImageFormat::Png);
+
+        let result_image = image::load_from_memory(&result.data).unwrap();
+
+        assert_eq!(result_image.width(), 50);
+        assert_eq!(result_image.height(), 50);
     }
 }

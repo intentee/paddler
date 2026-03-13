@@ -2091,6 +2091,7 @@ dependencies = [
  "anyhow",
  "base64",
  "futures-util",
+ "nix",
  "paddler_client",
  "paddler_types",
  "reqwest",
