@@ -2086,7 +2086,7 @@ dependencies = [
 
 [[package]]
 name = "integration_tests"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "base64",
@@ -2767,7 +2767,7 @@ checksum = "1a80800c0488c3a21695ea981a54918fbb37abf04f4d0720c453632255e2ff0e"
 
 [[package]]
 name = "paddler"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "actix",
  "actix-cors",
@@ -2819,7 +2819,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_client"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -2839,7 +2839,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_harness"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "paddler",
@@ -2849,7 +2849,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_model_tests"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -2862,7 +2862,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_types"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "anyhow",
  "jsonschema",
