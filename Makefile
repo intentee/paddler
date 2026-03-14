@@ -44,6 +44,10 @@ release.cuda: node_modules
 release.vulkan: node_modules
 	./jarmuz-release.mjs --vulkan
 
+.PHONY: build
+build: jarmuz-static
+	cargo build -p paddler --features web_admin_panel
+
 .PHONY: test
 test: jarmuz-static
 	cargo test --features web_admin_panel
@@ -53,7 +57,7 @@ test.llms: jarmuz-static
 	cargo test --features web_admin_panel,tests_that_use_llms -- --nocapture
 
 .PHONY: test.integration
-test.integration: jarmuz-static
+test.integration: build
 	cargo test --features web_admin_panel,tests_that_use_llms,paddler_integration_tests -- --nocapture --test-threads=1
 
 .PHONY: watch
