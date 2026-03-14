@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_types"]
+members = ["paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_second_brain_gui/src-tauri", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -56,6 +56,8 @@ tempfile = "3.20.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
+tauri = "2"
+tauri-build = "2"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
 paddler = { version = "3.0.1", path = "paddler" }

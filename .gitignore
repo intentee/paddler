@@ -4,7 +4,9 @@
 /esbuild-meta.json
 /godepgraph.png
 /models
-/node_modules
+node_modules
 /static
 /target
 /tsconfig.tsbuildinfo
+/paddler_second_brain_gui/dist
+/paddler_second_brain_gui/src-tauri/gen
