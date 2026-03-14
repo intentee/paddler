@@ -1,0 +1,17 @@
+{
+  "name": "paddler-second-brain-gui",
+  "private": true,
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "dev": "node esbuild.mjs --dev"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.8",
+    "typescript": "^5.9.2"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}
