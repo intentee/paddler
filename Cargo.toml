@@ -16,7 +16,7 @@ actix = "0.13"
 actix-cors = "0.7"
 actix-rt = "2.11"
 actix-web = "4"
-actix-web-lab = "0.24"
+actix-web-lab = "0.26"
 actix-ws = "0.3"
 anyhow = { version = "1", features = ["backtrace"] }
 askama = "0.14"
