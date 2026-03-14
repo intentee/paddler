@@ -58,10 +58,10 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
-paddler = { version = "3.0.0", path = "paddler" }
-paddler_client = { version = "3.0.0", path = "paddler_client" }
-paddler_harness = { version = "3.0.0", path = "paddler_harness" }
-paddler_types = { version = "3.0.0", path = "paddler_types", default-features = false }
+paddler = { version = "3.0.1", path = "paddler" }
+paddler_client = { version = "3.0.1", path = "paddler_client" }
+paddler_harness = { version = "3.0.1", path = "paddler_harness" }
+paddler_types = { version = "3.0.1", path = "paddler_types", default-features = false }
 
 [profile.release]
 lto = true
