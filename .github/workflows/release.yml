@@ -38,7 +38,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - id: release-version
-        uses: Propfend/release-action/release-tag-to-version@description
+        uses: intentee/release-action/release-tag-to-version@8125f727e97f72bfef24299d7c6d3217af1453bc
         with:
           release-tag: "${{ github.ref_name }}"
 
@@ -46,7 +46,7 @@ jobs:
         run: mv ./target/release/paddler ./${{ matrix.artifact_name }}
         shell: bash
 
-      - uses: Propfend/release-action/assert-version@description
+      - uses: intentee/release-action/assert-version@8125f727e97f72bfef24299d7c6d3217af1453bc
         with:
           filename: "./${{ matrix.artifact_name }}"
           expected-version: "${{ steps.release-version.outputs.version }}"
@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@v4
 
       - id: release-version
-        uses: Propfend/release-action/release-tag-to-version@description
+        uses: intentee/release-action/release-tag-to-version@8125f727e97f72bfef24299d7c6d3217af1453bc
         with:
           release-tag: "${{ github.ref_name }}"
 
