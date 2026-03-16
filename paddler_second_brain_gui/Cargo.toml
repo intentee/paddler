@@ -1,0 +1,10 @@
+[package]
+name = "paddler_second_brain_gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Desktop GUI for Paddler Second Brain"
+license.workspace = true
+
+[dependencies]
+iced = { workspace = true }
