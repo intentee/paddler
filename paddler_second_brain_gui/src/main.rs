@@ -1,30 +1,13 @@
-use iced::Center;
-use iced::widget::Column;
-use iced::widget::button;
-use iced::widget::column;
+mod balancer_status;
+mod message;
+mod second_brain;
+mod start_balancer;
+mod start_balancer_services;
+
+use second_brain::SecondBrain;
 
 fn main() -> iced::Result {
-    iced::run(SecondBrain::update, SecondBrain::view)
-}
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-#[derive(Default)]
-struct SecondBrain;
-
-#[derive(Debug, Clone, Copy)]
-enum Message {
-    ButtonPressed,
-}
-
-impl SecondBrain {
-    fn update(&mut self, message: Message) {
-        match message {
-            Message::ButtonPressed => {}
-        }
-    }
-
-    fn view<'view>(&'view self) -> Column<'view, Message> {
-        column![button("Hello from Paddler").on_press(Message::ButtonPressed),]
-            .padding(20)
-            .align_x(Center)
-    }
+    iced::application(SecondBrain::new, SecondBrain::update, SecondBrain::view).run()
 }

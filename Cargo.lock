@@ -4445,7 +4445,13 @@ dependencies = [
 name = "paddler_second_brain_gui"
 version = "3.0.1"
 dependencies = [
+ "actix-web",
+ "anyhow",
+ "env_logger",
  "iced",
+ "log",
+ "paddler",
+ "tokio",
 ]
 
 [[package]]

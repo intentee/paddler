@@ -7,4 +7,14 @@ description = "Desktop GUI for Paddler Second Brain"
 license.workspace = true
 
 [dependencies]
+actix-web = { workspace = true }
+anyhow = { workspace = true }
+env_logger = { workspace = true }
 iced = { workspace = true }
+log = { workspace = true }
+paddler = { workspace = true }
+tokio = { workspace = true }
+
+[features]
+default = []
+web_admin_panel = ["paddler/web_admin_panel"]
