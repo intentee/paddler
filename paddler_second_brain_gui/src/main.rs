@@ -1,4 +1,4 @@
-mod balancer_status;
+mod cluster_status;
 mod message;
 mod second_brain;
 mod start_balancer;

@@ -6,12 +6,12 @@ use iced::widget::column;
 use iced::widget::text;
 use tokio::sync::oneshot;
 
-use crate::balancer_status::BalancerStatus;
+use crate::cluster_status::ClusterStatus;
 use crate::message::Message;
 use crate::start_balancer::start_balancer;
 
 pub struct SecondBrain {
-    balancer_status: BalancerStatus,
+    cluster_status: ClusterStatus,
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
@@ -19,7 +19,7 @@ impl Drop for SecondBrain {
     fn drop(&mut self) {
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             if let Err(unsent_signal) = shutdown_tx.send(()) {
-                log::error!("Failed to send balancer shutdown signal: {unsent_signal:?}");
+                log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
             }
         }
     }
@@ -28,7 +28,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
-            balancer_status: BalancerStatus::Stopped,
+            cluster_status: ClusterStatus::Stopped,
             shutdown_tx: None,
         };
 
@@ -37,26 +37,37 @@ impl SecondBrain {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::StartBalancer => {
+            Message::StartCluster => {
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
                 self.shutdown_tx = Some(shutdown_tx);
-                self.balancer_status = BalancerStatus::Running;
+                self.cluster_status = ClusterStatus::Running;
 
                 Task::perform(
                     start_balancer(shutdown_rx),
                     |result: Result<(), anyhow::Error>| match result {
-                        Ok(()) => Message::BalancerStopped,
-                        Err(error) => Message::BalancerFailed(error.to_string()),
+                        Ok(()) => Message::ClusterStopped,
+                        Err(error) => Message::ClusterFailed(error.to_string()),
                     },
                 )
             }
-            Message::BalancerStopped => {
-                self.balancer_status = BalancerStatus::Stopped;
+            Message::StopCluster => {
+                if let Some(shutdown_tx) = self.shutdown_tx.take() {
+                    if let Err(unsent_signal) = shutdown_tx.send(()) {
+                        log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
+                    }
+                }
+
+                self.cluster_status = ClusterStatus::Stopped;
 
                 Task::none()
             }
-            Message::BalancerFailed(error) => {
-                self.balancer_status = BalancerStatus::Failed(error);
+            Message::ClusterStopped => {
+                self.cluster_status = ClusterStatus::Stopped;
+
+                Task::none()
+            }
+            Message::ClusterFailed(error) => {
+                self.cluster_status = ClusterStatus::Failed(error);
 
                 Task::none()
             }
@@ -64,25 +75,22 @@ impl SecondBrain {
     }
 
     pub fn view<'view>(&'view self) -> Element<'view, Message> {
-        let status_text = match &self.balancer_status {
-            BalancerStatus::Stopped => "Balancer is stopped",
-            BalancerStatus::Running => "Balancer is running",
-            BalancerStatus::Failed(error) => error.as_str(),
+        let status_text = match &self.cluster_status {
+            ClusterStatus::Stopped => "Cluster is stopped",
+            ClusterStatus::Running => "Cluster is running",
+            ClusterStatus::Failed(error) => error.as_str(),
         };
 
-        let start_button = match &self.balancer_status {
-            BalancerStatus::Stopped => button("Start Balancer").on_press(Message::StartBalancer),
-            BalancerStatus::Running => button("Start Balancer"),
-            BalancerStatus::Failed(_) => button("Start Balancer").on_press(Message::StartBalancer),
+        let action_button = match &self.cluster_status {
+            ClusterStatus::Stopped => button("Start a cluster").on_press(Message::StartCluster),
+            ClusterStatus::Running => button("Stop cluster").on_press(Message::StopCluster),
+            ClusterStatus::Failed(_) => button("Start a cluster").on_press(Message::StartCluster),
         };
 
-        column![
-            start_button,
-            text(status_text),
-        ]
-        .padding(20)
-        .spacing(10)
-        .align_x(Center)
-        .into()
+        column![action_button, text(status_text),]
+            .padding(20)
+            .spacing(10)
+            .align_x(Center)
+            .into()
     }
 }

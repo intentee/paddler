@@ -1,4 +1,4 @@
-pub enum BalancerStatus {
+pub enum ClusterStatus {
     Stopped,
     Running,
     Failed(String),

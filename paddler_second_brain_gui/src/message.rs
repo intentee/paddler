@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum Message {
-    StartBalancer,
-    BalancerStopped,
-    BalancerFailed(String),
+    StartCluster,
+    StopCluster,
+    ClusterStopped,
+    ClusterFailed(String),
 }
