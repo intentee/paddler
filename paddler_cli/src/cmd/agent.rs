@@ -4,23 +4,23 @@ use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
 use nanoid::nanoid;
+use paddler::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
+use paddler::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use paddler::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
+use paddler::agent::llamacpp_arbiter_service::LlamaCppArbiterService;
+use paddler::agent::management_socket_client_service::ManagementSocketClientService;
+use paddler::agent::model_metadata_holder::ModelMetadataHolder;
+use paddler::agent::reconciliation_service::ReconciliationService;
+use paddler::agent_applicable_state_holder::AgentApplicableStateHolder;
+use paddler::agent_desired_state::AgentDesiredState;
+use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler::service_manager::ServiceManager;
+use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
 use super::value_parser::parse_socket_addr;
-use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
-use crate::agent::llamacpp_arbiter_service::LlamaCppArbiterService;
-use crate::agent::management_socket_client_service::ManagementSocketClientService;
-use crate::agent::model_metadata_holder::ModelMetadataHolder;
-use crate::agent::reconciliation_service::ReconciliationService;
-use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::agent_desired_state::AgentDesiredState;
-use crate::resolved_socket_addr::ResolvedSocketAddr;
-use crate::service_manager::ServiceManager;
-use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
 #[derive(Parser)]
 pub struct Agent {

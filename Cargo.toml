@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_second_brain_gui", "paddler_types"]
+members = ["paddler_cli", "paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_second_brain_gui", "paddler_types"]
 resolver = "2"
 
 [workspace.package]

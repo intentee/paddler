@@ -4,9 +4,11 @@ use clap::Subcommand;
 #[cfg(feature = "web_admin_panel")]
 use esbuild_metafile::instance::initialize_instance;
 use log::info;
-use paddler::cmd::agent::Agent;
-use paddler::cmd::balancer::Balancer;
-use paddler::cmd::handler::Handler as _;
+mod cmd;
+
+use cmd::agent::Agent;
+use cmd::balancer::Balancer;
+use cmd::handler::Handler as _;
 use tokio::signal::unix::SignalKind;
 use tokio::signal::unix::signal;
 use tokio::sync::oneshot;

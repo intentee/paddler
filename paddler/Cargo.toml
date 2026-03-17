@@ -37,9 +37,9 @@ log = { workspace = true }
 minijinja = { workspace = true }
 minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
+nix = { workspace = true }
 paddler_types = { workspace = true, features = ["validation"] }
 thiserror = { workspace = true }
-nix = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
 resvg = { workspace = true }

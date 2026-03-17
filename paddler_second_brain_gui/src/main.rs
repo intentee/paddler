@@ -1,5 +1,7 @@
 use iced::Center;
-use iced::widget::{Column, button, column};
+use iced::widget::Column;
+use iced::widget::button;
+use iced::widget::column;
 
 fn main() -> iced::Result {
     iced::run(SecondBrain::update, SecondBrain::view)
@@ -21,10 +23,8 @@ impl SecondBrain {
     }
 
     fn view<'view>(&'view self) -> Column<'view, Message> {
-        column![
-            button("Hello from Paddler").on_press(Message::ButtonPressed),
-        ]
-        .padding(20)
-        .align_x(Center)
+        column![button("Hello from Paddler").on_press(Message::ButtonPressed),]
+            .padding(20)
+            .align_x(Center)
     }
 }

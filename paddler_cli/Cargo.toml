@@ -1,0 +1,29 @@
+[package]
+name = "paddler_cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "CLI binary for Paddler"
+license.workspace = true
+
+[dependencies]
+actix-rt = { workspace = true }
+actix-web = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+env_logger = { workspace = true }
+log = { workspace = true }
+nanoid = { workspace = true }
+paddler = { workspace = true }
+tokio = { workspace = true }
+
+# web dashboard deps
+esbuild-metafile = { workspace = true, optional = true }
+
+[features]
+default = []
+web_admin_panel = [
+    "dep:esbuild-metafile",
+    "paddler/web_admin_panel",
+]

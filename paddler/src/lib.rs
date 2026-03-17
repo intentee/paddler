@@ -10,7 +10,6 @@ pub mod balancer_applicable_state;
 pub mod balancer_applicable_state_holder;
 pub mod balancer_desired_state;
 pub mod chat_template_renderer;
-pub mod cmd;
 pub mod continuation_stop_parameters;
 pub mod controls_session;
 pub mod controls_websocket_endpoint;
