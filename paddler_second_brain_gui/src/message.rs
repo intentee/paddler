@@ -1,8 +1,10 @@
+use crate::model_preset::ModelPreset;
+
 #[derive(Debug, Clone)]
 pub enum Message {
     StartCluster,
     Cancel,
-    SelectModel(String),
+    SelectModel(ModelPreset),
     ToggleRunAgentLocally(bool),
     Confirm,
     ClusterStarted,

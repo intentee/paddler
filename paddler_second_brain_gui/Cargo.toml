@@ -13,6 +13,7 @@ env_logger = { workspace = true }
 iced = { workspace = true }
 log = { workspace = true }
 paddler = { workspace = true }
+paddler_types = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 

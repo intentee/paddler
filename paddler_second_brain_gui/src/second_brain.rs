@@ -55,8 +55,8 @@ impl SecondBrain {
 
                 Task::none()
             }
-            (CurrentScreen::StartClusterConfig(mut config), Message::SelectModel(model)) => {
-                config.state_data.selected_model = Some(model);
+            (CurrentScreen::StartClusterConfig(mut config), Message::SelectModel(preset)) => {
+                config.state_data.selected_model = Some(preset);
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
@@ -71,13 +71,20 @@ impl SecondBrain {
                 Task::none()
             }
             (CurrentScreen::StartClusterConfig(config), Message::Confirm) => {
+                let desired_state = config
+                    .state_data
+                    .selected_model
+                    .as_ref()
+                    .map(|preset| preset.to_balancer_desired_state())
+                    .unwrap_or_default();
+
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
                 self.shutdown_tx = Some(shutdown_tx);
                 self.screen = CurrentScreen::StartingCluster(config.confirm());
 
                 Task::batch([
                     Task::perform(
-                        start_balancer(shutdown_rx),
+                        start_balancer(desired_state, shutdown_rx),
                         |result: Result<(), anyhow::Error>| match result {
                             Ok(()) => Message::ClusterStopped,
                             Err(error) => Message::ClusterFailed(error.to_string()),

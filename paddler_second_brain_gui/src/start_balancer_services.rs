@@ -17,10 +17,14 @@ use paddler::balancer::state_database::Memory;
 use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 
-pub async fn start_balancer_services(shutdown_rx: oneshot::Receiver<()>) -> anyhow::Result<()> {
+pub async fn start_balancer_services(
+    initial_desired_state: BalancerDesiredState,
+    shutdown_rx: oneshot::Receiver<()>,
+) -> anyhow::Result<()> {
     let management_addr: SocketAddr = "127.0.0.1:8060".parse()?;
     let inference_addr: SocketAddr = "127.0.0.1:8061".parse()?;
 
@@ -41,6 +45,10 @@ pub async fn start_balancer_services(shutdown_rx: oneshot::Receiver<()>) -> anyh
     let mut service_manager = ServiceManager::default();
     let state_database: Arc<dyn StateDatabase> =
         Arc::new(Memory::new(balancer_desired_state_tx.clone()));
+
+    state_database
+        .store_balancer_desired_state(&initial_desired_state)
+        .await?;
 
     service_manager.add_service(InferenceService {
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),

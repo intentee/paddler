@@ -33,7 +33,10 @@ impl Screen<StartClusterConfig> {
 
     pub fn confirm(self) -> Screen<StartingCluster> {
         self.transition_map(|config_data| StartingClusterData {
-            selected_model: config_data.selected_model,
+            selected_model_name: config_data
+                .selected_model
+                .map(|preset| preset.display_name)
+                .unwrap_or_default(),
             run_agent_locally: config_data.run_agent_locally,
         })
     }
@@ -44,7 +47,7 @@ impl Screen<StartingCluster> {
     pub fn cluster_started(self, cluster_address: String) -> Screen<RunningCluster> {
         self.transition_map(|starting_data| RunningClusterData {
             cluster_address,
-            selected_model: starting_data.selected_model,
+            selected_model_name: starting_data.selected_model_name,
             run_agent_locally: starting_data.run_agent_locally,
         })
     }

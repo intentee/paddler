@@ -4477,6 +4477,7 @@ dependencies = [
  "iced",
  "log",
  "paddler",
+ "paddler_types",
  "statum",
  "tokio",
 ]

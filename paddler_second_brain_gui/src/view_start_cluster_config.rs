@@ -6,31 +6,32 @@ use iced::widget::text;
 use iced::widget::toggler;
 
 use crate::message::Message;
+use crate::model_preset::ModelPreset;
 use crate::start_cluster_config_data::StartClusterConfigData;
-
-const AVAILABLE_MODELS: &[&str] = &[
-    "llama-3.2-1b",
-    "llama-3.2-3b",
-    "llama-3.1-8b",
-    "mistral-7b",
-    "phi-3-mini",
-];
 
 pub fn view_start_cluster_config<'content>(
     data: &'content StartClusterConfigData,
 ) -> Element<'content, Message> {
+    let available_models = ModelPreset::available_presets();
+
+    let confirm_button = if data.selected_model.is_some() {
+        button("Start a cluster").on_press(Message::Confirm)
+    } else {
+        button("Start a cluster")
+    };
+
     column![
         button("Back").on_press(Message::Cancel),
         text("Select a model"),
         pick_list(
-            AVAILABLE_MODELS,
-            data.selected_model.as_deref(),
-            |model: &str| Message::SelectModel(model.to_owned()),
+            available_models,
+            data.selected_model.as_ref(),
+            Message::SelectModel,
         ),
         toggler(data.run_agent_locally)
             .label("Run an agent on your computer")
             .on_toggle(Message::ToggleRunAgentLocally),
-        button("Start a cluster").on_press(Message::Confirm),
+        confirm_button,
     ]
     .spacing(10)
     .into()
