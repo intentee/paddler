@@ -1,7 +1,12 @@
 #[derive(Debug, Clone)]
 pub enum Message {
     StartCluster,
-    StopCluster,
-    ClusterStopped,
+    Cancel,
+    SelectModel(String),
+    ToggleRunAgentLocally(bool),
+    Confirm,
+    ClusterStarted,
     ClusterFailed(String),
+    Stop,
+    ClusterStopped,
 }

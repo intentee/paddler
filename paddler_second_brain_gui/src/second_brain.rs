@@ -1,26 +1,32 @@
+use std::mem;
+
 use iced::Center;
 use iced::Element;
 use iced::Task;
-use iced::widget::button;
 use iced::widget::column;
 use iced::widget::text;
 use tokio::sync::oneshot;
 
-use crate::cluster_status::ClusterStatus;
 use crate::message::Message;
+use crate::screen_current::CurrentScreen;
 use crate::start_balancer::start_balancer;
+use crate::view_home::view_home;
+use crate::view_running_cluster::view_running_cluster;
+use crate::view_start_cluster_config::view_start_cluster_config;
+use crate::view_starting_cluster::view_starting_cluster;
+use crate::view_stopping_cluster::view_stopping_cluster;
 
 pub struct SecondBrain {
-    cluster_status: ClusterStatus,
+    screen: CurrentScreen,
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 impl Drop for SecondBrain {
     fn drop(&mut self) {
-        if let Some(shutdown_tx) = self.shutdown_tx.take() {
-            if let Err(unsent_signal) = shutdown_tx.send(()) {
-                log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
-            }
+        if let Some(shutdown_tx) = self.shutdown_tx.take()
+            && let Err(unsent_signal) = shutdown_tx.send(())
+        {
+            log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
         }
     }
 }
@@ -28,7 +34,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
-            cluster_status: ClusterStatus::Stopped,
+            screen: CurrentScreen::default(),
             shutdown_tx: None,
         };
 
@@ -36,60 +42,115 @@ impl SecondBrain {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::StartCluster => {
+        let screen = mem::take(&mut self.screen);
+
+        match (screen, message) {
+            (CurrentScreen::Home(home), Message::StartCluster) => {
+                self.screen = CurrentScreen::StartClusterConfig(home.start_cluster());
+
+                Task::none()
+            }
+            (CurrentScreen::StartClusterConfig(config), Message::Cancel) => {
+                self.screen = CurrentScreen::Home(config.cancel());
+
+                Task::none()
+            }
+            (CurrentScreen::StartClusterConfig(mut config), Message::SelectModel(model)) => {
+                config.state_data.selected_model = Some(model);
+                self.screen = CurrentScreen::StartClusterConfig(config);
+
+                Task::none()
+            }
+            (
+                CurrentScreen::StartClusterConfig(mut config),
+                Message::ToggleRunAgentLocally(enabled),
+            ) => {
+                config.state_data.run_agent_locally = enabled;
+                self.screen = CurrentScreen::StartClusterConfig(config);
+
+                Task::none()
+            }
+            (CurrentScreen::StartClusterConfig(config), Message::Confirm) => {
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
                 self.shutdown_tx = Some(shutdown_tx);
-                self.cluster_status = ClusterStatus::Running;
+                self.screen = CurrentScreen::StartingCluster(config.confirm());
 
-                Task::perform(
-                    start_balancer(shutdown_rx),
-                    |result: Result<(), anyhow::Error>| match result {
-                        Ok(()) => Message::ClusterStopped,
-                        Err(error) => Message::ClusterFailed(error.to_string()),
-                    },
-                )
+                Task::batch([
+                    Task::perform(
+                        start_balancer(shutdown_rx),
+                        |result: Result<(), anyhow::Error>| match result {
+                            Ok(()) => Message::ClusterStopped,
+                            Err(error) => Message::ClusterFailed(error.to_string()),
+                        },
+                    ),
+                    Task::done(Message::ClusterStarted),
+                ])
             }
-            Message::StopCluster => {
-                if let Some(shutdown_tx) = self.shutdown_tx.take() {
-                    if let Err(unsent_signal) = shutdown_tx.send(()) {
-                        log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
-                    }
+            (CurrentScreen::StartingCluster(starting), Message::ClusterStarted) => {
+                let cluster_address = "192.168.1.1".to_string(); // TODO: detect local IP
+                self.screen =
+                    CurrentScreen::RunningCluster(starting.cluster_started(cluster_address));
+
+                Task::none()
+            }
+            (CurrentScreen::StartingCluster(starting), Message::ClusterFailed(error)) => {
+                log::error!("Cluster failed to start: {error}");
+                self.shutdown_tx = None;
+                self.screen = CurrentScreen::Home(starting.cluster_failed());
+
+                Task::none()
+            }
+            (CurrentScreen::RunningCluster(running), Message::Stop) => {
+                if let Some(shutdown_tx) = self.shutdown_tx.take()
+                    && let Err(unsent_signal) = shutdown_tx.send(())
+                {
+                    log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
-
-                self.cluster_status = ClusterStatus::Stopped;
-
-                Task::none()
-            }
-            Message::ClusterStopped => {
-                self.cluster_status = ClusterStatus::Stopped;
+                self.screen = CurrentScreen::StoppingCluster(running.stop());
 
                 Task::none()
             }
-            Message::ClusterFailed(error) => {
-                self.cluster_status = ClusterStatus::Failed(error);
+            (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
+                log::error!("Cluster failed unexpectedly: {error}");
+                self.shutdown_tx = None;
+                self.screen = CurrentScreen::Home(running.cluster_failed());
+
+                Task::none()
+            }
+            (CurrentScreen::StoppingCluster(stopping), Message::ClusterStopped) => {
+                self.screen = CurrentScreen::Home(stopping.cluster_stopped());
+
+                Task::none()
+            }
+            (CurrentScreen::StoppingCluster(stopping), Message::ClusterFailed(error)) => {
+                log::error!("Cluster failed during shutdown: {error}");
+                self.screen = CurrentScreen::Home(stopping.cluster_failed());
+
+                Task::none()
+            }
+            (screen, message) => {
+                log::warn!("Unhandled message {message:?} for current screen");
+                self.screen = screen;
 
                 Task::none()
             }
         }
     }
 
-    pub fn view<'view>(&'view self) -> Element<'view, Message> {
-        let status_text = match &self.cluster_status {
-            ClusterStatus::Stopped => "Cluster is stopped",
-            ClusterStatus::Running => "Cluster is running",
-            ClusterStatus::Failed(error) => error.as_str(),
+    pub fn view(&self) -> Element<'_, Message> {
+        let screen_content = match &self.screen {
+            CurrentScreen::Home(_) => view_home(),
+            CurrentScreen::StartClusterConfig(screen) => {
+                view_start_cluster_config(&screen.state_data)
+            }
+            CurrentScreen::StartingCluster(_) => view_starting_cluster(),
+            CurrentScreen::RunningCluster(screen) => view_running_cluster(&screen.state_data),
+            CurrentScreen::StoppingCluster(_) => view_stopping_cluster(),
         };
 
-        let action_button = match &self.cluster_status {
-            ClusterStatus::Stopped => button("Start a cluster").on_press(Message::StartCluster),
-            ClusterStatus::Running => button("Stop cluster").on_press(Message::StopCluster),
-            ClusterStatus::Failed(_) => button("Start a cluster").on_press(Message::StartCluster),
-        };
-
-        column![action_button, text(status_text),]
+        column![text("Paddler second brain").size(24), screen_content]
             .padding(20)
-            .spacing(10)
+            .spacing(20)
             .align_x(Center)
             .into()
     }

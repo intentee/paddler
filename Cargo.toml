@@ -53,6 +53,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 shellexpand = "3"
 iced = "0.14"
+statum = "0.6"
 tempfile = "3.20.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }

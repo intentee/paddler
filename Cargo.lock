@@ -3437,6 +3437,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a1dc47f592c06f33f8e3aea9591776ec7c9f9e4124778ff8a3c3b87159f7e593"
 
 [[package]]
+name = "macro_registry"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19ab9348404a2145b71c3bf727ce776a347c39a3f021404f9133910038ecad40"
+dependencies = [
+ "module_path_extractor",
+ "syn",
+]
+
+[[package]]
 name = "malloc_buf"
 version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3567,6 +3577,22 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "moddef"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e519fd9c6131c1c9a4a67f8bdc4f32eb4105b16c1468adea1b8e68c98c85ec4"
+
+[[package]]
+name = "module_path_extractor"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f656ff91572d3d978c024b17b1b5cc14b7aec274daa08bf9c5e45b7745a714bc"
+dependencies = [
+ "proc-macro2",
+ "syn",
 ]
 
 [[package]]
@@ -4451,6 +4477,7 @@ dependencies = [
  "iced",
  "log",
  "paddler",
+ "statum",
  "tokio",
 ]
 
@@ -5760,6 +5787,35 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "statum"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "49d1afcdce24b50a26220589d91030320f4c6385edf8bf0f87da061e2210e8cf"
+dependencies = [
+ "statum-core",
+ "statum-macros",
+]
+
+[[package]]
+name = "statum-core"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a8143ffdd035c3f000bded6282f1bbaa19a48c381c811dba252b326ee90e1f7"
+
+[[package]]
+name = "statum-macros"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6dd1681b7963477e9994c6cfb262083fba09e842dad85c2b43ce2c5f6222391c"
+dependencies = [
+ "macro_registry",
+ "moddef",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "strict-num"
