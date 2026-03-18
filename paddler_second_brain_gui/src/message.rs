@@ -5,6 +5,7 @@ pub enum Message {
     AgentFailed(String),
     AgentStopped,
     Connect,
+    SetAgentName(String),
     Disconnect,
     JoinCluster,
     RefreshAgentStatus,

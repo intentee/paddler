@@ -87,6 +87,13 @@ impl SecondBrain {
 
                 Task::none()
             }
+            (CurrentScreen::JoinClusterConfig(mut config), Message::SetAgentName(name)) => {
+                config.state_data.agent_name = name;
+                config.state_data.error = None;
+                self.screen = CurrentScreen::JoinClusterConfig(config);
+
+                Task::none()
+            }
             (CurrentScreen::JoinClusterConfig(mut config), Message::SetClusterAddress(address)) => {
                 config.state_data.cluster_address = address;
                 config.state_data.error = None;
@@ -114,6 +121,7 @@ impl SecondBrain {
                     }
                 };
 
+                let agent_name = config.state_data.agent_name.clone();
                 let management_address = config.state_data.cluster_address.clone();
 
                 let (agent_shutdown_tx, agent_shutdown_rx) = oneshot::channel::<()>();
@@ -126,6 +134,7 @@ impl SecondBrain {
 
                 Task::perform(
                     start_agent(
+                        agent_name,
                         management_address,
                         slots,
                         agent_status_tx,
