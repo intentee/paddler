@@ -49,6 +49,9 @@ class AgentDesiredModel(BaseModel):
             return {"HuggingFace": self.huggingface.model_dump()}
 
         if self.variant == "LocalToAgent":
+            if self.local_path is None:
+                raise ValueError("local_path is required for LocalToAgent")
+
             return {"LocalToAgent": self.local_path}
 
         raise ValueError(f"Unknown AgentDesiredModel variant: {self.variant}")

@@ -32,6 +32,9 @@ class EmbeddingNormalizationMethod(BaseModel):
     @model_serializer
     def to_serde(self) -> str | dict[str, Any]:
         if self.variant == "RmsNorm":
+            if self.epsilon is None:
+                raise ValueError("epsilon is required for RmsNorm")
+
             return {"RmsNorm": {"epsilon": self.epsilon}}
 
         return self.variant
