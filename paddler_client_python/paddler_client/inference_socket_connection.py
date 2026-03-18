@@ -78,12 +78,7 @@ class InferenceSocketConnection:
             asyncio.Queue()
         )
         self._pending[request_id] = response_queue
-
-        try:
-            await self._write_queue.put(json_message)
-        except Exception:  # noqa: BLE001
-            del self._pending[request_id]
-            raise ConnectionDroppedError(request_id) from None
+        await self._write_queue.put(json_message)
 
         return ResponseStream(response_queue)
 
