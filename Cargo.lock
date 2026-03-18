@@ -2844,16 +2844,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler_harness"
-version = "3.0.1"
-dependencies = [
- "anyhow",
- "paddler",
- "paddler_types",
- "tokio",
-]
-
-[[package]]
 name = "paddler_model_tests"
 version = "3.0.1"
 dependencies = [
@@ -2861,7 +2851,7 @@ dependencies = [
  "anyhow",
  "base64",
  "llama-cpp-bindings",
- "paddler_harness",
+ "paddler",
  "paddler_types",
  "tokio",
 ]

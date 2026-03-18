@@ -546,7 +546,10 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
     match message {
         Message::Error(envelope) => {
             assert_eq!(envelope.error.code, 504);
-            assert_eq!(envelope.error.description, "Inference timed out after 0ms waiting for next token. Increase --inference-item-timeout if the prompt requires longer processing.");
+            assert_eq!(
+                envelope.error.description,
+                "Inference timed out after 0ms waiting for next token. Increase --inference-item-timeout if the prompt requires longer processing."
+            );
         }
         Message::Response(_) => {
             panic!("expected timeout error, got a successful response");
