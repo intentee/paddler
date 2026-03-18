@@ -29,8 +29,8 @@ impl Service for AgentMonitorService {
                 .unwrap_or(true);
 
             if has_changed {
-                if self.agent_count_tx.send(count).is_err() {
-                    log::warn!("Agent count receiver dropped");
+                if let Err(send_error) = self.agent_count_tx.send(count) {
+                    log::warn!("Agent count receiver dropped: {send_error}");
 
                     break;
                 }

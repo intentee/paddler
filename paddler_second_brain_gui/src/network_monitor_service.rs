@@ -34,8 +34,8 @@ impl Service for NetworkMonitorService {
                         .unwrap_or(true);
 
                     if has_changed {
-                        if self.network_interfaces_tx.send(interfaces.clone()).is_err() {
-                            log::warn!("Network interfaces receiver dropped");
+                        if let Err(send_error) = self.network_interfaces_tx.send(interfaces.clone()) {
+                            log::warn!("Network interfaces receiver dropped: {send_error}");
 
                             break;
                         }

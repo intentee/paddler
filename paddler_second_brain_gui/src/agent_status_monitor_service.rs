@@ -33,8 +33,8 @@ impl Service for AgentStatusMonitorService {
             if has_changed {
                 previous_version = Some(snapshot.version);
 
-                if self.agent_status_tx.send(snapshot).is_err() {
-                    log::warn!("Agent status receiver dropped");
+                if let Err(send_error) = self.agent_status_tx.send(snapshot) {
+                    log::warn!("Agent status receiver dropped: {send_error}");
 
                     break;
                 }

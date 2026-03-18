@@ -26,6 +26,16 @@ use crate::view_start_cluster_config::view_start_cluster_config;
 use crate::view_starting_cluster::view_starting_cluster;
 use crate::view_stopping_cluster::view_stopping_cluster;
 
+fn drain_latest<TValue>(receiver: &mut mpsc::UnboundedReceiver<TValue>) -> Option<TValue> {
+    let mut latest = None;
+
+    while let Ok(value) = receiver.try_recv() {
+        latest = Some(value);
+    }
+
+    latest
+}
+
 pub struct SecondBrain {
     agent_count_rx: Option<mpsc::UnboundedReceiver<usize>>,
     agent_shutdown_tx: Option<oneshot::Sender<()>>,
@@ -228,32 +238,17 @@ impl SecondBrain {
                 Task::none()
             }
             (CurrentScreen::RunningCluster(mut running), Message::RefreshAgentCount) => {
-                if let Some(agent_count_rx) = &mut self.agent_count_rx {
-                    let mut latest_count = None;
-
-                    while let Ok(count) = agent_count_rx.try_recv() {
-                        latest_count = Some(count);
-                    }
-
-                    if let Some(count) = latest_count {
-                        running.state_data.agent_count = count;
-                    }
+                if let Some(count) = self.agent_count_rx.as_mut().and_then(drain_latest) {
+                    running.state_data.agent_count = count;
                 }
                 self.screen = CurrentScreen::RunningCluster(running);
 
                 Task::none()
             }
             (CurrentScreen::RunningCluster(mut running), Message::RefreshNetworkInterfaces) => {
-                if let Some(network_interfaces_rx) = &mut self.network_interfaces_rx {
-                    let mut latest_interfaces = None;
-
-                    while let Ok(interfaces) = network_interfaces_rx.try_recv() {
-                        latest_interfaces = Some(interfaces);
-                    }
-
-                    if let Some(interfaces) = latest_interfaces {
-                        running.state_data.network_interfaces = interfaces;
-                    }
+                if let Some(interfaces) = self.network_interfaces_rx.as_mut().and_then(drain_latest)
+                {
+                    running.state_data.network_interfaces = interfaces;
                 }
                 self.screen = CurrentScreen::RunningCluster(running);
 
@@ -281,16 +276,8 @@ impl SecondBrain {
                 Task::none()
             }
             (CurrentScreen::AgentRunning(mut running), Message::RefreshAgentStatus) => {
-                if let Some(agent_status_rx) = &mut self.agent_status_rx {
-                    let mut latest_status = None;
-
-                    while let Ok(status) = agent_status_rx.try_recv() {
-                        latest_status = Some(status);
-                    }
-
-                    if let Some(status) = latest_status {
-                        running.state_data.status = Some(status);
-                    }
+                if let Some(status) = self.agent_status_rx.as_mut().and_then(drain_latest) {
+                    running.state_data.status = Some(status);
                 }
                 self.screen = CurrentScreen::AgentRunning(running);
 
@@ -356,7 +343,7 @@ impl SecondBrain {
         }
     }
 
-    pub fn view(&self) -> Element<'_, Message> {
+    pub fn view<'view>(&'view self) -> Element<'view, Message> {
         let screen_content = match &self.screen {
             CurrentScreen::AgentRunning(screen) => view_agent_running(&screen.state_data),
             CurrentScreen::Home(_) => view_home(),

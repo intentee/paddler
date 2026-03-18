@@ -5,7 +5,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_types::inference_parameters::InferenceParameters;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ModelPreset {
     pub display_name: String,
     pub model: HuggingFaceModelReference,
@@ -50,11 +50,5 @@ impl ModelPreset {
 impl fmt::Display for ModelPreset {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}", self.display_name)
-    }
-}
-
-impl PartialEq for ModelPreset {
-    fn eq(&self, other: &Self) -> bool {
-        self.display_name == other.display_name
     }
 }

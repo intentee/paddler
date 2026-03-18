@@ -17,7 +17,7 @@ spawner(async function ({ buildId, command }) {
 
   const results = await Promise.all([
     command(`
-      target/debug/paddler balancer
+      target/debug/paddler_cli balancer
         --inference-addr 127.0.0.1:8061
         --inference-item-timeout 30000
         --management-addr 127.0.0.1:8060
@@ -25,19 +25,19 @@ spawner(async function ({ buildId, command }) {
         --web-admin-panel-addr 127.0.0.1:8062
     `),
     command(`
-      target/debug/paddler agent
+      target/debug/paddler_cli agent
         --management-addr 127.0.0.1:8060
         --name agent-1
         --slots 4
     `),
     command(`
-      target/debug/paddler agent
+      target/debug/paddler_cli agent
         --management-addr 127.0.0.1:8060
         --name agent-2
         --slots 4
     `),
     command(`
-      target/debug/paddler agent
+      target/debug/paddler_cli agent
         --management-addr 127.0.0.1:8060
         --name agent-3
         --slots 2
