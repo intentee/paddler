@@ -156,9 +156,9 @@ class InferenceSocketConnection:
             if isinstance(data, dict):
                 request_id = None
 
-                if "Response" in data:
+                if "Response" in data and isinstance(data["Response"], dict):
                     request_id = data["Response"].get("request_id")
-                elif "Error" in data:
+                elif "Error" in data and isinstance(data["Error"], dict):
                     request_id = data["Error"].get("request_id")
 
                 if request_id and request_id in self._pending:
