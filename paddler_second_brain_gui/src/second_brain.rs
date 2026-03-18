@@ -7,7 +7,6 @@ use iced::Subscription;
 use iced::Task;
 use iced::time;
 use iced::widget::column;
-use iced::widget::text;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -175,15 +174,16 @@ impl SecondBrain {
                     }
                 };
 
-                let management_port = match config.state_data.bind_port.parse::<u16>() {
-                    Ok(port) if port > 0 => port,
-                    _ => {
-                        config.state_data.error = Some("Enter a valid port number.".to_string());
-                        self.screen = CurrentScreen::StartClusterConfig(config);
+                let management_port =
+                    match config.state_data.bind_port.parse::<std::num::NonZeroU16>() {
+                        Ok(port) => port.get(),
+                        Err(parse_error) => {
+                            config.state_data.error = Some(format!("Invalid port: {parse_error}"));
+                            self.screen = CurrentScreen::StartClusterConfig(config);
 
-                        return Task::none();
-                    }
-                };
+                            return Task::none();
+                        }
+                    };
 
                 let desired_state = config
                     .state_data
@@ -336,7 +336,7 @@ impl SecondBrain {
             CurrentScreen::RunningCluster(screen) => view_running_cluster(&screen.state_data),
         };
 
-        column![text("Paddler second brain").size(24), screen_content]
+        column![screen_content]
             .padding(20)
             .spacing(20)
             .align_x(Center)

@@ -2,6 +2,7 @@ mod agent_monitor_service;
 mod agent_running_data;
 mod agent_status_monitor_service;
 mod detect_network_interfaces;
+mod font;
 mod join_cluster_config_data;
 mod message;
 mod model_preset;
@@ -15,6 +16,12 @@ mod start_agent_services;
 mod start_balancer;
 mod start_balancer_services;
 mod start_cluster_config_data;
+mod style_button_primary;
+mod style_field_container;
+mod style_field_pick_list;
+mod style_field_pick_list_menu;
+mod style_field_text_input;
+mod variables;
 mod view_agent_running;
 mod view_home;
 mod view_join_cluster_config;
@@ -27,6 +34,9 @@ fn main() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     iced::application(SecondBrain::new, SecondBrain::update, SecondBrain::view)
+        .font(include_bytes!(
+            "../../resources/fonts/JetBrainsMono-Bold.ttf"
+        ))
         .subscription(SecondBrain::subscription)
         .run()
 }
