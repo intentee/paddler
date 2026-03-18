@@ -2,6 +2,7 @@ use statum::machine;
 use statum::state;
 use statum::transition;
 
+use crate::network_interface_address::NetworkInterfaceAddress;
 use crate::running_cluster_data::RunningClusterData;
 use crate::start_cluster_config_data::StartClusterConfigData;
 use crate::starting_cluster_data::StartingClusterData;
@@ -31,8 +32,14 @@ impl Screen<StartClusterConfig> {
         self.transition()
     }
 
-    pub fn confirm(self) -> Screen<StartingCluster> {
+    pub fn confirm(
+        self,
+        network_interfaces: Vec<NetworkInterfaceAddress>,
+        management_port: u16,
+    ) -> Screen<StartingCluster> {
         self.transition_map(|config_data| StartingClusterData {
+            network_interfaces,
+            management_port,
             selected_model_name: config_data
                 .selected_model
                 .map(|preset| preset.display_name)
@@ -44,9 +51,10 @@ impl Screen<StartClusterConfig> {
 
 #[transition]
 impl Screen<StartingCluster> {
-    pub fn cluster_started(self, cluster_address: String) -> Screen<RunningCluster> {
+    pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|starting_data| RunningClusterData {
-            cluster_address,
+            network_interfaces: starting_data.network_interfaces,
+            management_port: starting_data.management_port,
             selected_model_name: starting_data.selected_model_name,
             run_agent_locally: starting_data.run_agent_locally,
         })

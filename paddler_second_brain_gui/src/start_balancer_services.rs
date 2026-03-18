@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,14 +20,20 @@ use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::network_interface_address::NetworkInterfaceAddress;
+use crate::network_monitor_service::NetworkMonitorService;
+
 pub async fn start_balancer_services(
+    bind_ip: IpAddr,
     initial_desired_state: BalancerDesiredState,
+    network_interfaces_tx: mpsc::UnboundedSender<Vec<NetworkInterfaceAddress>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
-    let management_addr: SocketAddr = "127.0.0.1:8060".parse()?;
-    let inference_addr: SocketAddr = "127.0.0.1:8061".parse()?;
+    let management_addr = SocketAddr::new(bind_ip, 8060);
+    let inference_addr = SocketAddr::new(bind_ip, 8061);
 
     let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
 
@@ -78,6 +85,10 @@ pub async fn start_balancer_services(
         statsd_prefix: "paddler_".to_string(),
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration: None,
+    });
+
+    service_manager.add_service(NetworkMonitorService {
+        network_interfaces_tx,
     });
 
     service_manager.add_service(ReconciliationService {

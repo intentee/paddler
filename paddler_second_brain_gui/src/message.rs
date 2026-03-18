@@ -11,4 +11,5 @@ pub enum Message {
     ClusterFailed(String),
     Stop,
     ClusterStopped,
+    RefreshNetworkInterfaces,
 }

@@ -20,7 +20,7 @@ pub fn view_start_cluster_config<'content>(
         button("Start a cluster")
     };
 
-    column![
+    let mut content = column![
         button("Back").on_press(Message::Cancel),
         text("Select a model"),
         pick_list(
@@ -33,6 +33,11 @@ pub fn view_start_cluster_config<'content>(
             .on_toggle(Message::ToggleRunAgentLocally),
         confirm_button,
     ]
-    .spacing(10)
-    .into()
+    .spacing(10);
+
+    if let Some(error) = &data.error {
+        content = content.push(text(error.clone()));
+    }
+
+    content.into()
 }

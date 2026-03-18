@@ -1,13 +1,19 @@
 use std::mem;
+use std::time::Duration;
 
 use iced::Center;
 use iced::Element;
+use iced::Subscription;
 use iced::Task;
+use iced::time;
 use iced::widget::column;
 use iced::widget::text;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::detect_network_interfaces::detect_network_interfaces;
 use crate::message::Message;
+use crate::network_interface_address::NetworkInterfaceAddress;
 use crate::screen_current::CurrentScreen;
 use crate::start_balancer::start_balancer;
 use crate::view_home::view_home;
@@ -17,6 +23,7 @@ use crate::view_starting_cluster::view_starting_cluster;
 use crate::view_stopping_cluster::view_stopping_cluster;
 
 pub struct SecondBrain {
+    network_interfaces_rx: Option<mpsc::UnboundedReceiver<Vec<NetworkInterfaceAddress>>>,
     screen: CurrentScreen,
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
@@ -34,6 +41,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
+            network_interfaces_rx: None,
             screen: CurrentScreen::default(),
             shutdown_tx: None,
         };
@@ -57,6 +65,7 @@ impl SecondBrain {
             }
             (CurrentScreen::StartClusterConfig(mut config), Message::SelectModel(preset)) => {
                 config.state_data.selected_model = Some(preset);
+                config.state_data.error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
@@ -66,11 +75,29 @@ impl SecondBrain {
                 Message::ToggleRunAgentLocally(enabled),
             ) => {
                 config.state_data.run_agent_locally = enabled;
+                config.state_data.error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
             }
             (CurrentScreen::StartClusterConfig(config), Message::Confirm) => {
+                let network_interfaces = detect_network_interfaces();
+                let management_port = 8060;
+
+                let bind_ip = match network_interfaces.first() {
+                    Some(interface) => interface.ip_address,
+                    None => {
+                        let mut config = config;
+                        config.state_data.error = Some(
+                            "No local network found. Connect to internet to start a cluster."
+                                .to_string(),
+                        );
+                        self.screen = CurrentScreen::StartClusterConfig(config);
+
+                        return Task::none();
+                    }
+                };
+
                 let desired_state = config
                     .state_data
                     .selected_model
@@ -79,12 +106,18 @@ impl SecondBrain {
                     .unwrap_or_default();
 
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+                let (network_interfaces_tx, network_interfaces_rx) =
+                    mpsc::unbounded_channel::<Vec<NetworkInterfaceAddress>>();
+
+                self.network_interfaces_rx = Some(network_interfaces_rx);
                 self.shutdown_tx = Some(shutdown_tx);
-                self.screen = CurrentScreen::StartingCluster(config.confirm());
+                self.screen = CurrentScreen::StartingCluster(
+                    config.confirm(network_interfaces, management_port),
+                );
 
                 Task::batch([
                     Task::perform(
-                        start_balancer(desired_state, shutdown_rx),
+                        start_balancer(bind_ip, desired_state, network_interfaces_tx, shutdown_rx),
                         |result: Result<(), anyhow::Error>| match result {
                             Ok(()) => Message::ClusterStopped,
                             Err(error) => Message::ClusterFailed(error.to_string()),
@@ -94,9 +127,7 @@ impl SecondBrain {
                 ])
             }
             (CurrentScreen::StartingCluster(starting), Message::ClusterStarted) => {
-                let cluster_address = "192.168.1.1".to_string(); // TODO: detect local IP
-                self.screen =
-                    CurrentScreen::RunningCluster(starting.cluster_started(cluster_address));
+                self.screen = CurrentScreen::RunningCluster(starting.cluster_started());
 
                 Task::none()
             }
@@ -107,18 +138,36 @@ impl SecondBrain {
 
                 Task::none()
             }
+            (CurrentScreen::RunningCluster(mut running), Message::RefreshNetworkInterfaces) => {
+                if let Some(network_interfaces_rx) = &mut self.network_interfaces_rx {
+                    let mut latest_interfaces = None;
+
+                    while let Ok(interfaces) = network_interfaces_rx.try_recv() {
+                        latest_interfaces = Some(interfaces);
+                    }
+
+                    if let Some(interfaces) = latest_interfaces {
+                        running.state_data.network_interfaces = interfaces;
+                    }
+                }
+                self.screen = CurrentScreen::RunningCluster(running);
+
+                Task::none()
+            }
             (CurrentScreen::RunningCluster(running), Message::Stop) => {
                 if let Some(shutdown_tx) = self.shutdown_tx.take()
                     && let Err(unsent_signal) = shutdown_tx.send(())
                 {
                     log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
+                self.network_interfaces_rx = None;
                 self.screen = CurrentScreen::StoppingCluster(running.stop());
 
                 Task::none()
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
+                self.network_interfaces_rx = None;
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed());
 
@@ -141,6 +190,15 @@ impl SecondBrain {
 
                 Task::none()
             }
+        }
+    }
+
+    pub fn subscription(&self) -> Subscription<Message> {
+        match &self.screen {
+            CurrentScreen::RunningCluster(_) => {
+                time::every(Duration::from_secs(1)).map(|_| Message::RefreshNetworkInterfaces)
+            }
+            _ => Subscription::none(),
         }
     }
 

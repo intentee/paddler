@@ -1,5 +1,8 @@
+mod detect_network_interfaces;
 mod message;
 mod model_preset;
+mod network_interface_address;
+mod network_monitor_service;
 mod running_cluster_data;
 mod screen;
 mod screen_current;
@@ -19,5 +22,7 @@ use second_brain::SecondBrain;
 fn main() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    iced::application(SecondBrain::new, SecondBrain::update, SecondBrain::view).run()
+    iced::application(SecondBrain::new, SecondBrain::update, SecondBrain::view)
+        .subscription(SecondBrain::subscription)
+        .run()
 }
