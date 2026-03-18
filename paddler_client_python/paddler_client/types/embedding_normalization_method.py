@@ -19,9 +19,14 @@ class EmbeddingNormalizationMethod(BaseModel):
 
         if isinstance(data, dict):
             if "RmsNorm" in data:
+                inner = data["RmsNorm"]
+
+                if not isinstance(inner, dict) or "epsilon" not in inner:
+                    raise ValueError(f"Invalid RmsNorm payload: {data}")
+
                 return {
                     "variant": "RmsNorm",
-                    "epsilon": data["RmsNorm"]["epsilon"],
+                    "epsilon": inner["epsilon"],
                 }
 
             if "variant" in data:
