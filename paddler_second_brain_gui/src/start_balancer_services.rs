@@ -1,4 +1,3 @@
-use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,15 +25,12 @@ use tokio::sync::oneshot;
 use crate::agent_monitor_service::AgentMonitorService;
 
 pub async fn start_balancer_services(
-    bind_ip: IpAddr,
-    management_port: u16,
+    management_addr: SocketAddr,
+    inference_addr: SocketAddr,
     initial_desired_state: BalancerDesiredState,
     agent_count_tx: mpsc::UnboundedSender<usize>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
-    let management_addr = SocketAddr::new(bind_ip, management_port);
-    let inference_addr = SocketAddr::new(bind_ip, management_port + 1);
-
     let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
 
     let agent_controller_pool = Arc::new(AgentControllerPool::default());

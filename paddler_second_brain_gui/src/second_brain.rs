@@ -149,41 +149,56 @@ impl SecondBrain {
 
                 Task::none()
             }
-            (CurrentScreen::StartClusterConfig(mut config), Message::SetBindAddress(address)) => {
-                config.state_data.bind_address = address;
+            (
+                CurrentScreen::StartClusterConfig(mut config),
+                Message::SetBalancerAddress(address),
+            ) => {
+                config.state_data.balancer_address = address;
                 config.state_data.error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
             }
-            (CurrentScreen::StartClusterConfig(mut config), Message::SetBindPort(port)) => {
-                config.state_data.bind_port = port;
+            (
+                CurrentScreen::StartClusterConfig(mut config),
+                Message::SetInferenceAddress(address),
+            ) => {
+                config.state_data.inference_address = address;
                 config.state_data.error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
             }
             (CurrentScreen::StartClusterConfig(mut config), Message::Confirm) => {
-                let bind_ip = match config.state_data.bind_address.parse::<std::net::IpAddr>() {
-                    Ok(ip) => ip,
-                    Err(std::net::AddrParseError { .. }) => {
-                        config.state_data.error = Some("Enter a valid IP address.".to_string());
+                let management_addr = match config
+                    .state_data
+                    .balancer_address
+                    .parse::<std::net::SocketAddr>()
+                {
+                    Ok(addr) => addr,
+                    Err(parse_error) => {
+                        config.state_data.error =
+                            Some(format!("Invalid balancer address: {parse_error}"));
                         self.screen = CurrentScreen::StartClusterConfig(config);
 
                         return Task::none();
                     }
                 };
 
-                let management_port =
-                    match config.state_data.bind_port.parse::<std::num::NonZeroU16>() {
-                        Ok(port) => port.get(),
-                        Err(parse_error) => {
-                            config.state_data.error = Some(format!("Invalid port: {parse_error}"));
-                            self.screen = CurrentScreen::StartClusterConfig(config);
+                let inference_addr = match config
+                    .state_data
+                    .inference_address
+                    .parse::<std::net::SocketAddr>()
+                {
+                    Ok(addr) => addr,
+                    Err(parse_error) => {
+                        config.state_data.error =
+                            Some(format!("Invalid inference address: {parse_error}"));
+                        self.screen = CurrentScreen::StartClusterConfig(config);
 
-                            return Task::none();
-                        }
-                    };
+                        return Task::none();
+                    }
+                };
 
                 let desired_state = config
                     .state_data
@@ -203,8 +218,8 @@ impl SecondBrain {
                 Task::batch([
                     Task::perform(
                         start_balancer(
-                            bind_ip,
-                            management_port,
+                            management_addr,
+                            inference_addr,
                             desired_state,
                             agent_count_tx,
                             shutdown_rx,

@@ -33,9 +33,9 @@ impl Screen<Home> {
             .unwrap_or_default();
 
         self.transition_with(StartClusterConfigData {
-            bind_address: suggested_address,
-            bind_port: "8060".to_string(),
+            balancer_address: format!("{suggested_address}:8060"),
             error: None,
+            inference_address: format!("{suggested_address}:8061"),
             selected_model: None,
             starting: false,
         })
@@ -73,7 +73,7 @@ impl Screen<StartClusterConfig> {
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|config_data| RunningClusterData {
             agent_count: 0,
-            cluster_address: format!("{}:{}", config_data.bind_address, config_data.bind_port),
+            cluster_address: config_data.balancer_address.clone(),
             stopping: false,
         })
     }

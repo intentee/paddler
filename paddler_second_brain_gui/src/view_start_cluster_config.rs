@@ -31,7 +31,10 @@ pub fn view_start_cluster_config<'content>(
         button(text("Starting...").font(BOLD))
             .padding([SPACING_HALF, SPACING_BASE])
             .style(style_button_primary)
-    } else if data.selected_model.is_some() && !data.bind_address.is_empty() {
+    } else if data.selected_model.is_some()
+        && !data.balancer_address.is_empty()
+        && !data.inference_address.is_empty()
+    {
         button(text("Start a cluster").font(BOLD))
             .padding([SPACING_HALF, SPACING_BASE])
             .style(style_button_primary)
@@ -51,8 +54,8 @@ pub fn view_start_cluster_config<'content>(
         column![
             container(text("Balancer address").font(BOLD)).padding([0.0, SPACING_BASE]),
             container(
-                text_input("IP address", &data.bind_address)
-                    .on_input(Message::SetBindAddress)
+                text_input("IP:port", &data.balancer_address)
+                    .on_input(Message::SetBalancerAddress)
                     .padding(SPACING_BASE)
                     .style(style_field_text_input),
             )
@@ -61,10 +64,10 @@ pub fn view_start_cluster_config<'content>(
         ]
         .spacing(SPACING_HALF),
         column![
-            container(text("Balancer port").font(BOLD)).padding([0.0, SPACING_BASE]),
+            container(text("Inference address").font(BOLD)).padding([0.0, SPACING_BASE]),
             container(
-                text_input("Port", &data.bind_port)
-                    .on_input(Message::SetBindPort)
+                text_input("IP:port", &data.inference_address)
+                    .on_input(Message::SetInferenceAddress)
                     .padding(SPACING_BASE)
                     .style(style_field_text_input),
             )

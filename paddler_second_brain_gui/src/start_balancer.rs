@@ -1,4 +1,4 @@
-use std::net::IpAddr;
+use std::net::SocketAddr;
 
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::mpsc;
@@ -7,8 +7,8 @@ use tokio::sync::oneshot;
 use crate::start_balancer_services::start_balancer_services;
 
 pub async fn start_balancer(
-    bind_ip: IpAddr,
-    management_port: u16,
+    management_addr: SocketAddr,
+    inference_addr: SocketAddr,
     initial_desired_state: BalancerDesiredState,
     agent_count_tx: mpsc::UnboundedSender<usize>,
     shutdown_rx: oneshot::Receiver<()>,
@@ -18,8 +18,8 @@ pub async fn start_balancer(
     std::thread::spawn(move || {
         let system = actix_web::rt::System::new();
         let result = system.block_on(start_balancer_services(
-            bind_ip,
-            management_port,
+            management_addr,
+            inference_addr,
             initial_desired_state,
             agent_count_tx,
             shutdown_rx,
