@@ -70,6 +70,9 @@ class InferenceSocketConnection:
         request_id: str,
         json_message: str,
     ) -> ResponseStream:
+        if not self._connected:
+            raise ConnectionDroppedError(request_id)
+
         response_queue: asyncio.Queue[InferenceMessage | Exception] = (
             asyncio.Queue()
         )
@@ -184,3 +187,8 @@ class InferenceSocketConnection:
             logger.exception("WebSocket write error")
         finally:
             self._connected = False
+
+            for request_id, queue in self._pending.items():
+                queue.put_nowait(ConnectionDroppedError(request_id))
+
+            self._pending.clear()

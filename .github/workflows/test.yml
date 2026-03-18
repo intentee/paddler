@@ -70,8 +70,11 @@ jobs:
           fi
 
   python:
-    name: python
+    name: python (${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
     defaults:
       run:
         working-directory: paddler_client_python
@@ -83,7 +86,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
         run: pip install poetry
