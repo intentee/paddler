@@ -35,6 +35,7 @@ class ResponseStream:
         item = await self._queue.get()
 
         if isinstance(item, Exception):
+            self._done = True
             raise item
 
         if item.is_terminal:
@@ -145,12 +146,10 @@ class InferenceSocketConnection:
         except Exception:
             logger.exception("WebSocket read error")
         finally:
-            self._connected = False
+            self._drain_pending()
 
-            for request_id, queue in self._pending.items():
-                queue.put_nowait(ConnectionDroppedError(request_id))
-
-            self._pending.clear()
+            if self._write_task is not None:
+                self._write_task.cancel()
 
     def _push_parse_error_to_pending(self, raw_message: str) -> None:
         try:
@@ -172,6 +171,14 @@ class InferenceSocketConnection:
         except (json.JSONDecodeError, KeyError, TypeError):
             pass
 
+    def _drain_pending(self) -> None:
+        self._connected = False
+        pending = dict(self._pending)
+        self._pending.clear()
+
+        for request_id, queue in pending.items():
+            queue.put_nowait(ConnectionDroppedError(request_id))
+
     async def _write_loop(self) -> None:
         try:
             while self._connected:
@@ -186,9 +193,7 @@ class InferenceSocketConnection:
         except Exception:
             logger.exception("WebSocket write error")
         finally:
-            self._connected = False
+            self._drain_pending()
 
-            for request_id, queue in self._pending.items():
-                queue.put_nowait(ConnectionDroppedError(request_id))
-
-            self._pending.clear()
+            if self._read_task is not None:
+                self._read_task.cancel()
