@@ -28,7 +28,6 @@ class ClientManagement:
         self._http_client = (
             http_client if http_client is not None else httpx.AsyncClient()
         )
-        self._owns_http_client = http_client is None
 
     async def get_health(self) -> str:
         response = await self._http_client.get(f"{self._url}/health")
@@ -151,8 +150,7 @@ class ClientManagement:
         return response.text
 
     async def close(self) -> None:
-        if self._owns_http_client:
-            await self._http_client.aclose()
+        await self._http_client.aclose()
 
     async def __aenter__(self) -> Self:
         return self

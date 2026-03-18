@@ -41,7 +41,6 @@ class ClientInference:
         self._http_client = (
             http_client if http_client is not None else httpx.AsyncClient()
         )
-        self._owns_http_client = http_client is None
         self._socket_pool: InferenceSocketPool | None = None
 
     def _get_socket_pool(self) -> InferenceSocketPool:
@@ -105,8 +104,7 @@ class ClientInference:
         if self._socket_pool is not None:
             await self._socket_pool.close()
 
-        if self._owns_http_client:
-            await self._http_client.aclose()
+        await self._http_client.aclose()
 
     async def __aenter__(self) -> Self:
         return self
