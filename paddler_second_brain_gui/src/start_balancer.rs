@@ -10,6 +10,7 @@ use crate::start_balancer_services::start_balancer_services;
 pub async fn start_balancer(
     bind_ip: IpAddr,
     initial_desired_state: BalancerDesiredState,
+    agent_count_tx: mpsc::UnboundedSender<usize>,
     network_interfaces_tx: mpsc::UnboundedSender<Vec<NetworkInterfaceAddress>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
@@ -20,6 +21,7 @@ pub async fn start_balancer(
         let result = system.block_on(start_balancer_services(
             bind_ip,
             initial_desired_state,
+            agent_count_tx,
             network_interfaces_tx,
             shutdown_rx,
         ));

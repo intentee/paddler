@@ -53,6 +53,7 @@ impl Screen<StartClusterConfig> {
 impl Screen<StartingCluster> {
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|starting_data| RunningClusterData {
+            agent_count: 0,
             network_interfaces: starting_data.network_interfaces,
             management_port: starting_data.management_port,
             selected_model_name: starting_data.selected_model_name,

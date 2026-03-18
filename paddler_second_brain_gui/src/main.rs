@@ -1,3 +1,4 @@
+mod agent_monitor_service;
 mod detect_network_interfaces;
 mod message;
 mod model_preset;

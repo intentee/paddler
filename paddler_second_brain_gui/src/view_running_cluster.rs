@@ -10,7 +10,12 @@ use crate::running_cluster_data::RunningClusterData;
 pub fn view_running_cluster<'content>(
     data: &'content RunningClusterData,
 ) -> Element<'content, Message> {
-    let mut content = column![text("Your cluster").size(20)].spacing(10);
+    let agent_label = match data.agent_count {
+        1 => "1 agent connected".to_string(),
+        count => format!("{count} agents connected"),
+    };
+
+    let mut content = column![text("Your cluster").size(20), text(agent_label)].spacing(10);
 
     for interface in &data.network_interfaces {
         let address = format!("{}:{}", interface.ip_address, data.management_port);

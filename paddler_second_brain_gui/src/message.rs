@@ -11,5 +11,6 @@ pub enum Message {
     ClusterFailed(String),
     Stop,
     ClusterStopped,
+    RefreshAgentCount,
     RefreshNetworkInterfaces,
 }

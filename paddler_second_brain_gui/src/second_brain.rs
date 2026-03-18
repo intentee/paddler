@@ -23,6 +23,7 @@ use crate::view_starting_cluster::view_starting_cluster;
 use crate::view_stopping_cluster::view_stopping_cluster;
 
 pub struct SecondBrain {
+    agent_count_rx: Option<mpsc::UnboundedReceiver<usize>>,
     network_interfaces_rx: Option<mpsc::UnboundedReceiver<Vec<NetworkInterfaceAddress>>>,
     screen: CurrentScreen,
     shutdown_tx: Option<oneshot::Sender<()>>,
@@ -41,6 +42,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
+            agent_count_rx: None,
             network_interfaces_rx: None,
             screen: CurrentScreen::default(),
             shutdown_tx: None,
@@ -106,9 +108,11 @@ impl SecondBrain {
                     .unwrap_or_default();
 
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+                let (agent_count_tx, agent_count_rx) = mpsc::unbounded_channel::<usize>();
                 let (network_interfaces_tx, network_interfaces_rx) =
                     mpsc::unbounded_channel::<Vec<NetworkInterfaceAddress>>();
 
+                self.agent_count_rx = Some(agent_count_rx);
                 self.network_interfaces_rx = Some(network_interfaces_rx);
                 self.shutdown_tx = Some(shutdown_tx);
                 self.screen = CurrentScreen::StartingCluster(
@@ -117,7 +121,13 @@ impl SecondBrain {
 
                 Task::batch([
                     Task::perform(
-                        start_balancer(bind_ip, desired_state, network_interfaces_tx, shutdown_rx),
+                        start_balancer(
+                            bind_ip,
+                            desired_state,
+                            agent_count_tx,
+                            network_interfaces_tx,
+                            shutdown_rx,
+                        ),
                         |result: Result<(), anyhow::Error>| match result {
                             Ok(()) => Message::ClusterStopped,
                             Err(error) => Message::ClusterFailed(error.to_string()),
@@ -135,6 +145,22 @@ impl SecondBrain {
                 log::error!("Cluster failed to start: {error}");
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(starting.cluster_failed());
+
+                Task::none()
+            }
+            (CurrentScreen::RunningCluster(mut running), Message::RefreshAgentCount) => {
+                if let Some(agent_count_rx) = &mut self.agent_count_rx {
+                    let mut latest_count = None;
+
+                    while let Ok(count) = agent_count_rx.try_recv() {
+                        latest_count = Some(count);
+                    }
+
+                    if let Some(count) = latest_count {
+                        running.state_data.agent_count = count;
+                    }
+                }
+                self.screen = CurrentScreen::RunningCluster(running);
 
                 Task::none()
             }
@@ -160,6 +186,7 @@ impl SecondBrain {
                 {
                     log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
+                self.agent_count_rx = None;
                 self.network_interfaces_rx = None;
                 self.screen = CurrentScreen::StoppingCluster(running.stop());
 
@@ -167,6 +194,7 @@ impl SecondBrain {
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
+                self.agent_count_rx = None;
                 self.network_interfaces_rx = None;
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed());
@@ -195,9 +223,10 @@ impl SecondBrain {
 
     pub fn subscription(&self) -> Subscription<Message> {
         match &self.screen {
-            CurrentScreen::RunningCluster(_) => {
-                time::every(Duration::from_secs(1)).map(|_| Message::RefreshNetworkInterfaces)
-            }
+            CurrentScreen::RunningCluster(_) => Subscription::batch([
+                time::every(Duration::from_secs(1)).map(|_| Message::RefreshAgentCount),
+                time::every(Duration::from_secs(1)).map(|_| Message::RefreshNetworkInterfaces),
+            ]),
             _ => Subscription::none(),
         }
     }

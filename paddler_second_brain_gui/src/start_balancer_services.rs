@@ -23,12 +23,14 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::agent_monitor_service::AgentMonitorService;
 use crate::network_interface_address::NetworkInterfaceAddress;
 use crate::network_monitor_service::NetworkMonitorService;
 
 pub async fn start_balancer_services(
     bind_ip: IpAddr,
     initial_desired_state: BalancerDesiredState,
+    agent_count_tx: mpsc::UnboundedSender<usize>,
     network_interfaces_tx: mpsc::UnboundedSender<Vec<NetworkInterfaceAddress>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
@@ -85,6 +87,11 @@ pub async fn start_balancer_services(
         statsd_prefix: "paddler_".to_string(),
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration: None,
+    });
+
+    service_manager.add_service(AgentMonitorService {
+        agent_controller_pool: agent_controller_pool.clone(),
+        agent_count_tx,
     });
 
     service_manager.add_service(NetworkMonitorService {
