@@ -16,22 +16,15 @@ pub fn view_running_cluster<'content>(
     };
 
     let mut content = column![
-        button("Back").on_press(Message::Cancel),
         text("Your cluster").size(20),
         text(agent_label),
+        row![
+            text(data.cluster_address.clone()),
+            button("Copy").on_press(Message::CopyToClipboard(data.cluster_address.clone())),
+        ]
+        .spacing(10),
     ]
     .spacing(10);
-
-    for interface in &data.network_interfaces {
-        let address = format!("{}:{}", interface.ip_address, data.management_port);
-
-        content = content
-            .push(row![text(interface.interface_name.to_string()), text(address),].spacing(10));
-    }
-
-    if data.network_interfaces.is_empty() {
-        content = content.push(text("No network interfaces detected"));
-    }
 
     content = content.push(if data.stopping {
         button("Stopping...")

@@ -1,9 +1,9 @@
 use crate::model_preset::ModelPreset;
 
-#[derive(Default)]
 pub struct StartClusterConfigData {
+    pub bind_address: String,
+    pub bind_port: String,
     pub error: Option<String>,
     pub selected_model: Option<ModelPreset>,
-    pub run_agent_locally: bool,
     pub starting: bool,
 }

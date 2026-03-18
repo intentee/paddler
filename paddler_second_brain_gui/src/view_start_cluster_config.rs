@@ -3,7 +3,7 @@ use iced::widget::button;
 use iced::widget::column;
 use iced::widget::pick_list;
 use iced::widget::text;
-use iced::widget::toggler;
+use iced::widget::text_input;
 
 use crate::message::Message;
 use crate::model_preset::ModelPreset;
@@ -16,7 +16,7 @@ pub fn view_start_cluster_config<'content>(
 
     let confirm_button = if data.starting {
         button("Starting...")
-    } else if data.selected_model.is_some() {
+    } else if data.selected_model.is_some() && !data.bind_address.is_empty() {
         button("Start a cluster").on_press(Message::Confirm)
     } else {
         button("Start a cluster")
@@ -24,15 +24,16 @@ pub fn view_start_cluster_config<'content>(
 
     let mut content = column![
         button("Back").on_press(Message::Cancel),
+        text("Balancer address"),
+        text_input("IP address", &data.bind_address).on_input(Message::SetBindAddress),
+        text("Balancer port"),
+        text_input("Port", &data.bind_port).on_input(Message::SetBindPort),
         text("Select a model"),
         pick_list(
             available_models,
             data.selected_model.as_ref(),
             Message::SelectModel,
         ),
-        toggler(data.run_agent_locally)
-            .label("Run an agent on your computer")
-            .on_toggle(Message::ToggleRunAgentLocally),
         confirm_button,
     ]
     .spacing(10);
