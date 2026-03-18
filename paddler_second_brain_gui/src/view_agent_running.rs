@@ -10,7 +10,11 @@ use crate::message::Message;
 pub fn view_agent_running<'content>(
     data: &'content AgentRunningData,
 ) -> Element<'content, Message> {
-    let mut content = column![button("Disconnect").on_press(Message::Disconnect),].spacing(10);
+    let mut content = column![
+        button("Back").on_press(Message::Cancel),
+        button("Disconnect").on_press(Message::Disconnect),
+    ]
+    .spacing(10);
 
     match &data.status {
         None => {

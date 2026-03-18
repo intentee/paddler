@@ -16,14 +16,11 @@ mod start_agent_services;
 mod start_balancer;
 mod start_balancer_services;
 mod start_cluster_config_data;
-mod starting_cluster_data;
 mod view_agent_running;
 mod view_home;
 mod view_join_cluster_config;
 mod view_running_cluster;
 mod view_start_cluster_config;
-mod view_starting_cluster;
-mod view_stopping_cluster;
 
 use second_brain::SecondBrain;
 

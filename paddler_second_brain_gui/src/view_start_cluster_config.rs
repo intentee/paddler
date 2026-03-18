@@ -14,7 +14,9 @@ pub fn view_start_cluster_config<'content>(
 ) -> Element<'content, Message> {
     let available_models = ModelPreset::available_presets();
 
-    let confirm_button = if data.selected_model.is_some() {
+    let confirm_button = if data.starting {
+        button("Starting...")
+    } else if data.selected_model.is_some() {
         button("Start a cluster").on_press(Message::Confirm)
     } else {
         button("Start a cluster")

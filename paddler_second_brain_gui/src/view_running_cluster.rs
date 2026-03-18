@@ -33,7 +33,11 @@ pub fn view_running_cluster<'content>(
         content = content.push(text("No network interfaces detected"));
     }
 
-    content = content.push(button("Stop cluster").on_press(Message::Stop));
+    content = content.push(if data.stopping {
+        button("Stopping...")
+    } else {
+        button("Stop cluster").on_press(Message::Stop)
+    });
 
     content.into()
 }

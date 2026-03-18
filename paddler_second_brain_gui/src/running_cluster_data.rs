@@ -6,4 +6,5 @@ pub struct RunningClusterData {
     pub management_port: u16,
     pub selected_model_name: String,
     pub run_agent_locally: bool,
+    pub stopping: bool,
 }

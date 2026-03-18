@@ -23,8 +23,6 @@ use crate::view_home::view_home;
 use crate::view_join_cluster_config::view_join_cluster_config;
 use crate::view_running_cluster::view_running_cluster;
 use crate::view_start_cluster_config::view_start_cluster_config;
-use crate::view_starting_cluster::view_starting_cluster;
-use crate::view_stopping_cluster::view_stopping_cluster;
 
 fn drain_latest<TValue>(receiver: &mut mpsc::UnboundedReceiver<TValue>) -> Option<TValue> {
     let mut latest = None;
@@ -166,14 +164,12 @@ impl SecondBrain {
 
                 Task::none()
             }
-            (CurrentScreen::StartClusterConfig(config), Message::Confirm) => {
+            (CurrentScreen::StartClusterConfig(mut config), Message::Confirm) => {
                 let network_interfaces = detect_network_interfaces();
-                let management_port = 8060;
 
                 let bind_ip = match network_interfaces.first() {
                     Some(interface) => interface.ip_address,
                     None => {
-                        let mut config = config;
                         config.state_data.error = Some(
                             "No local network found. Connect to internet to start a cluster."
                                 .to_string(),
@@ -199,9 +195,8 @@ impl SecondBrain {
                 self.agent_count_rx = Some(agent_count_rx);
                 self.network_interfaces_rx = Some(network_interfaces_rx);
                 self.shutdown_tx = Some(shutdown_tx);
-                self.screen = CurrentScreen::StartingCluster(
-                    config.confirm(network_interfaces, management_port),
-                );
+                config.state_data.starting = true;
+                self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::batch([
                     Task::perform(
@@ -220,15 +215,20 @@ impl SecondBrain {
                     Task::done(Message::ClusterStarted),
                 ])
             }
-            (CurrentScreen::StartingCluster(starting), Message::ClusterStarted) => {
-                self.screen = CurrentScreen::RunningCluster(starting.cluster_started());
+            (CurrentScreen::StartClusterConfig(config), Message::ClusterStarted) => {
+                let network_interfaces = detect_network_interfaces();
+                let management_port = 8060;
+
+                self.screen = CurrentScreen::RunningCluster(
+                    config.cluster_started(network_interfaces, management_port),
+                );
 
                 Task::none()
             }
-            (CurrentScreen::StartingCluster(starting), Message::ClusterFailed(error)) => {
+            (CurrentScreen::StartClusterConfig(config), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed to start: {error}");
                 self.shutdown_tx = None;
-                self.screen = CurrentScreen::Home(starting.cluster_failed());
+                self.screen = CurrentScreen::Home(config.cluster_failed());
 
                 Task::none()
             }
@@ -254,7 +254,7 @@ impl SecondBrain {
 
                 Task::none()
             }
-            (CurrentScreen::RunningCluster(running), Message::Stop) => {
+            (CurrentScreen::RunningCluster(mut running), Message::Stop) => {
                 if let Some(shutdown_tx) = self.shutdown_tx.take()
                     && let Err(unsent_signal) = shutdown_tx.send(())
                 {
@@ -262,7 +262,13 @@ impl SecondBrain {
                 }
                 self.agent_count_rx = None;
                 self.network_interfaces_rx = None;
-                self.screen = CurrentScreen::StoppingCluster(running.stop());
+                running.state_data.stopping = true;
+                self.screen = CurrentScreen::RunningCluster(running);
+
+                Task::none()
+            }
+            (CurrentScreen::RunningCluster(running), Message::ClusterStopped) => {
+                self.screen = CurrentScreen::Home(running.cluster_stopped());
 
                 Task::none()
             }
@@ -272,6 +278,11 @@ impl SecondBrain {
                 self.network_interfaces_rx = None;
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed());
+
+                Task::none()
+            }
+            (CurrentScreen::AgentRunning(running), Message::Cancel) => {
+                self.screen = CurrentScreen::Home(running.back());
 
                 Task::none()
             }
@@ -310,17 +321,6 @@ impl SecondBrain {
 
                 Task::none()
             }
-            (CurrentScreen::StoppingCluster(stopping), Message::ClusterStopped) => {
-                self.screen = CurrentScreen::Home(stopping.cluster_stopped());
-
-                Task::none()
-            }
-            (CurrentScreen::StoppingCluster(stopping), Message::ClusterFailed(error)) => {
-                log::error!("Cluster failed during shutdown: {error}");
-                self.screen = CurrentScreen::Home(stopping.cluster_failed());
-
-                Task::none()
-            }
             (screen, message) => {
                 log::warn!("Unhandled message {message:?} for current screen");
                 self.screen = screen;
@@ -353,9 +353,7 @@ impl SecondBrain {
             CurrentScreen::StartClusterConfig(screen) => {
                 view_start_cluster_config(&screen.state_data)
             }
-            CurrentScreen::StartingCluster(_) => view_starting_cluster(),
             CurrentScreen::RunningCluster(screen) => view_running_cluster(&screen.state_data),
-            CurrentScreen::StoppingCluster(_) => view_stopping_cluster(),
         };
 
         column![text("Paddler second brain").size(24), screen_content]
