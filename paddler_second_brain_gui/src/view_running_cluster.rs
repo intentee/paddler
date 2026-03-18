@@ -15,7 +15,12 @@ pub fn view_running_cluster<'content>(
         count => format!("{count} agents connected"),
     };
 
-    let mut content = column![text("Your cluster").size(20), text(agent_label)].spacing(10);
+    let mut content = column![
+        button("Back").on_press(Message::Cancel),
+        text("Your cluster").size(20),
+        text(agent_label),
+    ]
+    .spacing(10);
 
     for interface in &data.network_interfaces {
         let address = format!("{}:{}", interface.ip_address, data.management_port);

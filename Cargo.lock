@@ -4489,6 +4489,7 @@ dependencies = [
  "iced",
  "if-addrs",
  "log",
+ "nanoid",
  "paddler",
  "paddler_types",
  "statum",

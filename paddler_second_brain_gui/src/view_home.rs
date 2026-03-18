@@ -7,7 +7,7 @@ use crate::message::Message;
 pub fn view_home() -> Element<'static, Message> {
     column![
         button("Start a cluster").on_press(Message::StartCluster),
-        button("Join a cluster"),
+        button("Join a cluster").on_press(Message::JoinCluster),
     ]
     .spacing(10)
     .into()
