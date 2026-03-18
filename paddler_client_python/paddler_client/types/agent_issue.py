@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, model_serializer, model_validator
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 
 class AgentIssue(BaseModel):
     variant: str
-    params: dict[str, Any] = {}
+    params: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="before")
     @classmethod
