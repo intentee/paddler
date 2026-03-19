@@ -10,6 +10,7 @@ use iced::widget::column;
 use iced::widget::container;
 use iced::widget::row;
 use iced::widget::svg;
+use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::text;
 
 use crate::font::BOLD;
@@ -27,7 +28,7 @@ use crate::view_agent_card::view_agent_card;
 pub fn view_running_cluster<'content>(
     data: &'content RunningClusterData,
 ) -> Element<'content, Message> {
-    let copy_icon = svg(svg::Handle::from_memory(
+    let copy_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../resources/icons/copy.svg").as_slice(),
     ))
     .width(16)
@@ -50,7 +51,7 @@ pub fn view_running_cluster<'content>(
     )
     .style(style_card_container);
 
-    let stop_icon = svg(svg::Handle::from_memory(
+    let stop_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../resources/icons/stop.svg").as_slice(),
     ))
     .width(16)

@@ -29,7 +29,7 @@ pub fn view_join_cluster_config<'content>(
         .unwrap_or(false);
 
     let confirm_button =
-        if !data.cluster_address.is_empty() && !data.agent_name.is_empty() && is_valid_slots {
+        if !data.cluster_address.is_empty() && is_valid_slots {
             button(text("Connect").font(BOLD))
                 .padding([SPACING_HALF, SPACING_BASE])
                 .style(style_button_primary)

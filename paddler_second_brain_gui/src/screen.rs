@@ -38,8 +38,9 @@ impl Screen<Home> {
 
         self.transition_with(StartClusterConfigData {
             balancer_address: format!("{suggested_address}:8060"),
-            error: None,
+            balancer_address_error: None,
             inference_address: format!("{suggested_address}:8061"),
+            inference_address_error: None,
             selected_model: None,
             starting: false,
         })
@@ -64,7 +65,11 @@ impl Screen<JoinClusterConfig> {
                 id: String::new(),
                 issues: BTreeSet::new(),
                 model_path: None,
-                name: Some(config_data.agent_name.clone()),
+                name: if config_data.agent_name.is_empty() {
+                    None
+                } else {
+                    Some(config_data.agent_name.clone())
+                },
                 slots_processing: 0,
                 slots_total: 0,
                 state_application_status: AgentStateApplicationStatus::Fresh,

@@ -5,7 +5,7 @@ use tokio::sync::oneshot;
 use crate::start_agent_services::start_agent_services;
 
 pub async fn start_agent(
-    agent_name: String,
+    agent_name: Option<String>,
     management_address: String,
     slots: i32,
     agent_status_tx: mpsc::UnboundedSender<SlotAggregatedStatusSnapshot>,

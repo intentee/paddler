@@ -19,7 +19,7 @@ use tokio::sync::oneshot;
 use crate::agent_status_monitor_service::AgentStatusMonitorService;
 
 pub async fn start_agent_services(
-    agent_name: String,
+    agent_name: Option<String>,
     management_address: String,
     slots: i32,
     agent_status_tx: mpsc::UnboundedSender<SlotAggregatedStatusSnapshot>,
@@ -51,7 +51,7 @@ pub async fn start_agent_services(
     service_manager.add_service(LlamaCppArbiterService {
         agent_applicable_state: None,
         agent_applicable_state_holder: agent_applicable_state_holder.clone(),
-        agent_name: Some(agent_name.clone()),
+        agent_name: agent_name.clone(),
         continue_from_conversation_history_request_rx,
         continue_from_raw_prompt_request_rx,
         desired_slots_total: slots,
@@ -68,7 +68,7 @@ pub async fn start_agent_services(
         continue_from_raw_prompt_request_tx,
         generate_embedding_batch_request_tx,
         model_metadata_holder,
-        name: Some(agent_name),
+        name: agent_name,
         receive_stream_stopper_collection: Default::default(),
         slot_aggregated_status: slot_aggregated_status_manager
             .slot_aggregated_status

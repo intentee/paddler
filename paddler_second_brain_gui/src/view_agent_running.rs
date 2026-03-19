@@ -6,6 +6,7 @@ use iced::widget::column;
 use iced::widget::container;
 use iced::widget::row;
 use iced::widget::svg;
+use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::text;
 
 use crate::agent_running_data::AgentRunningData;
@@ -22,7 +23,7 @@ use crate::view_agent_card::view_agent_card;
 pub fn view_agent_running<'content>(
     data: &'content AgentRunningData,
 ) -> Element<'content, Message> {
-    let stop_icon = svg(svg::Handle::from_memory(
+    let stop_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../resources/icons/stop.svg").as_slice(),
     ))
     .width(16)

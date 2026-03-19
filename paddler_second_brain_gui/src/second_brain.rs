@@ -1,13 +1,16 @@
 use std::mem;
 use std::net::SocketAddr;
+use std::net::TcpStream;
 use std::time::Duration;
 
 use iced::Center;
 use iced::Element;
+use iced::Fill;
 use iced::Subscription;
 use iced::Task;
 use iced::time;
 use iced::widget::column;
+use iced::widget::container;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::mpsc;
@@ -17,11 +20,17 @@ use crate::message::Message;
 use crate::screen_current::CurrentScreen;
 use crate::start_agent::start_agent;
 use crate::start_balancer::start_balancer;
+use crate::variables::SPACING_2X;
+use crate::variables::SPACING_BASE;
 use crate::view_agent_running::view_agent_running;
 use crate::view_home::view_home;
 use crate::view_join_cluster_config::view_join_cluster_config;
 use crate::view_running_cluster::view_running_cluster;
 use crate::view_start_cluster_config::view_start_cluster_config;
+
+fn is_port_in_use(address: &SocketAddr) -> bool {
+    TcpStream::connect_timeout(address, Duration::from_millis(100)).is_ok()
+}
 
 fn drain_latest<TValue>(receiver: &mut mpsc::UnboundedReceiver<TValue>) -> Option<TValue> {
     let mut latest = None;
@@ -123,7 +132,11 @@ impl SecondBrain {
                     }
                 };
 
-                let agent_name = config.state_data.agent_name.clone();
+                let agent_name = if config.state_data.agent_name.is_empty() {
+                    None
+                } else {
+                    Some(config.state_data.agent_name.clone())
+                };
                 let management_address = config.state_data.cluster_address.clone();
 
                 let (agent_shutdown_tx, agent_shutdown_rx) = oneshot::channel::<()>();
@@ -161,7 +174,8 @@ impl SecondBrain {
             }
             (CurrentScreen::StartClusterConfig(mut config), Message::SelectModel(preset)) => {
                 config.state_data.selected_model = Some(preset);
-                config.state_data.error = None;
+                config.state_data.balancer_address_error = None;
+                config.state_data.inference_address_error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
@@ -171,7 +185,7 @@ impl SecondBrain {
                 Message::SetBalancerAddress(address),
             ) => {
                 config.state_data.balancer_address = address;
-                config.state_data.error = None;
+                config.state_data.balancer_address_error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
@@ -181,35 +195,66 @@ impl SecondBrain {
                 Message::SetInferenceAddress(address),
             ) => {
                 config.state_data.inference_address = address;
-                config.state_data.error = None;
+                config.state_data.inference_address_error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
             }
             (CurrentScreen::StartClusterConfig(mut config), Message::Confirm) => {
+                config.state_data.balancer_address_error = None;
+                config.state_data.inference_address_error = None;
+
                 let management_addr = match config.state_data.balancer_address.parse::<SocketAddr>()
                 {
-                    Ok(addr) => addr,
+                    Ok(addr) => Some(addr),
                     Err(parse_error) => {
-                        config.state_data.error =
-                            Some(format!("Invalid balancer address: {parse_error}"));
-                        self.screen = CurrentScreen::StartClusterConfig(config);
-
-                        return Task::none();
+                        config.state_data.balancer_address_error =
+                            Some(format!("Invalid address: {parse_error}"));
+                        None
                     }
                 };
 
                 let inference_addr = match config.state_data.inference_address.parse::<SocketAddr>()
                 {
-                    Ok(addr) => addr,
+                    Ok(addr) => Some(addr),
                     Err(parse_error) => {
-                        config.state_data.error =
-                            Some(format!("Invalid inference address: {parse_error}"));
-                        self.screen = CurrentScreen::StartClusterConfig(config);
-
-                        return Task::none();
+                        config.state_data.inference_address_error =
+                            Some(format!("Invalid address: {parse_error}"));
+                        None
                     }
                 };
+
+                let management_addr = match management_addr {
+                    Some(addr) if is_port_in_use(&addr) => {
+                        config.state_data.balancer_address_error = Some(format!(
+                            "Port {} is already in use",
+                            addr.port()
+                        ));
+                        None
+                    }
+                    other => other,
+                };
+
+                let inference_addr = match inference_addr {
+                    Some(addr) if is_port_in_use(&addr) => {
+                        config.state_data.inference_address_error = Some(format!(
+                            "Port {} is already in use",
+                            addr.port()
+                        ));
+                        None
+                    }
+                    other => other,
+                };
+
+                let (management_addr, inference_addr) =
+                    match (management_addr, inference_addr) {
+                        (Some(management), Some(inference)) => (management, inference),
+                        _ => {
+                            self.screen = CurrentScreen::StartClusterConfig(config);
+
+                            return Task::none();
+                        }
+                    };
 
                 let desired_state = config
                     .state_data
@@ -363,11 +408,12 @@ impl SecondBrain {
             CurrentScreen::RunningCluster(screen) => view_running_cluster(&screen.state_data),
         };
 
-        column![screen_content]
+        let content_column = column![screen_content]
             .max_width(700)
-            .padding(20)
-            .spacing(20)
-            .align_x(Center)
-            .into()
+            .padding([SPACING_2X * 2.0, SPACING_BASE])
+            .spacing(SPACING_BASE)
+            .align_x(Center);
+
+        container(content_column).center_x(Fill).into()
     }
 }

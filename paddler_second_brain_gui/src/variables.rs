@@ -28,3 +28,9 @@ pub const COLOR_AGENT_BACKGROUND: Color = Color {
     a: 1.0,
 };
 pub const COLOR_BORDER: Color = Color::BLACK;
+pub const COLOR_ERROR: Color = Color {
+    r: 0xCC as f32 / 255.0,
+    g: 0x33 as f32 / 255.0,
+    b: 0x33 as f32 / 255.0,
+    a: 1.0,
+};

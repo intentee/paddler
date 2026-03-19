@@ -33,6 +33,8 @@ mod view_join_cluster_config;
 mod view_running_cluster;
 mod view_start_cluster_config;
 
+use iced::Size;
+
 use second_brain::SecondBrain;
 
 fn main() -> iced::Result {
@@ -45,6 +47,7 @@ fn main() -> iced::Result {
         .font(include_bytes!(
             "../../resources/fonts/JetBrainsMono-Bold.ttf"
         ))
+        .window_size(Size::new(800.0, 800.0))
         .subscription(SecondBrain::subscription)
         .run()
 }
