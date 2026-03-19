@@ -18,7 +18,7 @@ mod start_balancer;
 mod start_balancer_services;
 mod start_cluster_config_data;
 mod style_agent_container;
-mod style_button_danger;
+mod style_button_disconnect;
 mod style_button_primary;
 mod style_card_container;
 mod style_download_progress_bar;

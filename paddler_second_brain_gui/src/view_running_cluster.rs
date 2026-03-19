@@ -17,7 +17,7 @@ use crate::font::BOLD;
 use crate::font::REGULAR;
 use crate::message::Message;
 use crate::running_cluster_data::RunningClusterData;
-use crate::style_button_danger::style_button_danger;
+use crate::style_button_disconnect::style_button_disconnect;
 use crate::style_card_container::style_card_container;
 use crate::variables::FONT_SIZE_L2;
 use crate::variables::SPACING_2X;
@@ -86,7 +86,7 @@ pub fn view_running_cluster<'content>(
                 .align_y(Center),
         )
         .padding([SPACING_HALF, SPACING_BASE])
-        .style(style_button_danger)
+        .style(style_button_disconnect)
     } else {
         button(
             row![stop_icon, text("Stop cluster").font(BOLD)]
@@ -94,7 +94,7 @@ pub fn view_running_cluster<'content>(
                 .align_y(Center),
         )
         .padding([SPACING_HALF, SPACING_BASE])
-        .style(style_button_danger)
+        .style(style_button_disconnect)
         .on_press(Message::Stop)
     };
 

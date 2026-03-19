@@ -20,9 +20,9 @@ fn display_last_path_part(path: &str) -> String {
     path.split('/').next_back().unwrap_or(path).to_string()
 }
 
-pub fn view_agent_card<'snapshot>(
-    snapshot: &'snapshot AgentControllerSnapshot,
-) -> Element<'snapshot, Message> {
+pub fn view_agent_card<'content>(
+    snapshot: &'content AgentControllerSnapshot,
+) -> Element<'content, Message> {
     let agent_name = snapshot.name.as_deref().unwrap_or(&snapshot.id);
 
     let is_downloading =

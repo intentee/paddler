@@ -13,7 +13,7 @@ use crate::agent_running_data::AgentRunningData;
 use crate::font::BOLD;
 use crate::font::REGULAR;
 use crate::message::Message;
-use crate::style_button_danger::style_button_danger;
+use crate::style_button_disconnect::style_button_disconnect;
 use crate::variables::FONT_SIZE_L2;
 use crate::variables::SPACING_2X;
 use crate::variables::SPACING_BASE;
@@ -35,7 +35,7 @@ pub fn view_agent_running<'content>(
             .align_y(Center),
     )
     .padding([SPACING_HALF, SPACING_BASE])
-    .style(style_button_danger)
+    .style(style_button_disconnect)
     .on_press(Message::Disconnect);
 
     let connection_status = if data.connected {
