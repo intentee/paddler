@@ -28,7 +28,7 @@ pub async fn start_balancer_services(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
     initial_desired_state: BalancerDesiredState,
-    agent_count_tx: mpsc::UnboundedSender<usize>,
+    agent_names_tx: mpsc::UnboundedSender<Vec<String>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
     let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
@@ -85,7 +85,7 @@ pub async fn start_balancer_services(
 
     service_manager.add_service(AgentMonitorService {
         agent_controller_pool: agent_controller_pool.clone(),
-        agent_count_tx,
+        agent_names_tx,
     });
 
     service_manager.add_service(ReconciliationService {

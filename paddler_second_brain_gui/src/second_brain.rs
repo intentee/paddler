@@ -32,7 +32,7 @@ fn drain_latest<TValue>(receiver: &mut mpsc::UnboundedReceiver<TValue>) -> Optio
 }
 
 pub struct SecondBrain {
-    agent_count_rx: Option<mpsc::UnboundedReceiver<usize>>,
+    agent_names_rx: Option<mpsc::UnboundedReceiver<Vec<String>>>,
     agent_shutdown_tx: Option<oneshot::Sender<()>>,
     agent_status_rx: Option<mpsc::UnboundedReceiver<SlotAggregatedStatusSnapshot>>,
     screen: CurrentScreen,
@@ -58,7 +58,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
-            agent_count_rx: None,
+            agent_names_rx: None,
             agent_shutdown_tx: None,
             agent_status_rx: None,
             screen: CurrentScreen::default(),
@@ -217,9 +217,9 @@ impl SecondBrain {
                     .unwrap_or_default();
 
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-                let (agent_count_tx, agent_count_rx) = mpsc::unbounded_channel::<usize>();
+                let (agent_names_tx, agent_names_rx) = mpsc::unbounded_channel::<Vec<String>>();
 
-                self.agent_count_rx = Some(agent_count_rx);
+                self.agent_names_rx = Some(agent_names_rx);
                 self.shutdown_tx = Some(shutdown_tx);
                 config.state_data.starting = true;
                 self.screen = CurrentScreen::StartClusterConfig(config);
@@ -230,7 +230,7 @@ impl SecondBrain {
                             management_addr,
                             inference_addr,
                             desired_state,
-                            agent_count_tx,
+                            agent_names_tx,
                             shutdown_rx,
                         ),
                         |result: Result<(), anyhow::Error>| match result {
@@ -254,8 +254,8 @@ impl SecondBrain {
                 Task::none()
             }
             (CurrentScreen::RunningCluster(mut running), Message::RefreshAgentCount) => {
-                if let Some(count) = self.agent_count_rx.as_mut().and_then(drain_latest) {
-                    running.state_data.agent_count = count;
+                if let Some(names) = self.agent_names_rx.as_mut().and_then(drain_latest) {
+                    running.state_data.agent_names = names;
                 }
                 self.screen = CurrentScreen::RunningCluster(running);
 
@@ -267,7 +267,7 @@ impl SecondBrain {
                 {
                     log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
-                self.agent_count_rx = None;
+                self.agent_names_rx = None;
                 running.state_data.stopping = true;
                 self.screen = CurrentScreen::RunningCluster(running);
 
@@ -280,7 +280,7 @@ impl SecondBrain {
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
-                self.agent_count_rx = None;
+                self.agent_names_rx = None;
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed());
 
@@ -361,6 +361,7 @@ impl SecondBrain {
         };
 
         column![screen_content]
+            .max_width(700)
             .padding(20)
             .spacing(20)
             .align_x(Center)

@@ -21,4 +21,10 @@ pub const COLOR_BODY_FONT: Color = Color {
     b: 0.067,
     a: 1.0,
 };
+pub const COLOR_AGENT_BACKGROUND: Color = Color {
+    r: 250.0 / 255.0,
+    g: 240.0 / 255.0,
+    b: 230.0 / 255.0,
+    a: 1.0,
+};
 pub const COLOR_BORDER: Color = Color::BLACK;

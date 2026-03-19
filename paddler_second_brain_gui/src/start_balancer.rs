@@ -10,7 +10,7 @@ pub async fn start_balancer(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
     initial_desired_state: BalancerDesiredState,
-    agent_count_tx: mpsc::UnboundedSender<usize>,
+    agent_names_tx: mpsc::UnboundedSender<Vec<String>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
     let (result_tx, result_rx) = oneshot::channel();
@@ -21,7 +21,7 @@ pub async fn start_balancer(
             management_addr,
             inference_addr,
             initial_desired_state,
-            agent_count_tx,
+            agent_names_tx,
             shutdown_rx,
         ));
         if let Err(unsent_result) = result_tx.send(result) {

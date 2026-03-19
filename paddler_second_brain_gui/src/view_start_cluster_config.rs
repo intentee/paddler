@@ -50,7 +50,8 @@ pub fn view_start_cluster_config<'content>(
         .on_press(Message::Cancel);
 
     let mut content = column![
-        text("Start a cluster").size(FONT_SIZE_L2).font(BOLD),
+        container(text("Start a cluster").size(FONT_SIZE_L2).font(BOLD))
+            .padding([0.0, SPACING_BASE]),
         column![
             container(text("Balancer address").font(BOLD)).padding([0.0, SPACING_BASE]),
             container(

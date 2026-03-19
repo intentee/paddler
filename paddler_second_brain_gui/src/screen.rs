@@ -72,7 +72,7 @@ impl Screen<StartClusterConfig> {
 
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|config_data| RunningClusterData {
-            agent_count: 0,
+            agent_names: vec![],
             cluster_address: config_data.balancer_address.clone(),
             stopping: false,
         })

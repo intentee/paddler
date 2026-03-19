@@ -9,7 +9,25 @@ use tokio::sync::mpsc;
 
 pub struct AgentMonitorService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
-    pub agent_count_tx: mpsc::UnboundedSender<usize>,
+    pub agent_names_tx: mpsc::UnboundedSender<Vec<String>>,
+}
+
+fn collect_agent_names(pool: &AgentControllerPool) -> Vec<String> {
+    let mut names: Vec<String> = pool
+        .agents
+        .iter()
+        .map(|entry| {
+            entry
+                .value()
+                .name
+                .clone()
+                .unwrap_or_else(|| entry.key().clone())
+        })
+        .collect();
+
+    names.sort();
+
+    names
 }
 
 #[async_trait]
@@ -19,23 +37,13 @@ impl Service for AgentMonitorService {
     }
 
     async fn run(&mut self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
-        let mut previous_count: Option<usize> = None;
-
         loop {
-            let count = self.agent_controller_pool.agents.len();
+            let names = collect_agent_names(&self.agent_controller_pool);
 
-            let has_changed = previous_count
-                .map(|previous| previous != count)
-                .unwrap_or(true);
+            if let Err(send_error) = self.agent_names_tx.send(names) {
+                log::warn!("Agent names receiver dropped: {send_error}");
 
-            if has_changed {
-                if let Err(send_error) = self.agent_count_tx.send(count) {
-                    log::warn!("Agent count receiver dropped: {send_error}");
-
-                    break;
-                }
-
-                previous_count = Some(count);
+                break;
             }
 
             tokio::select! {

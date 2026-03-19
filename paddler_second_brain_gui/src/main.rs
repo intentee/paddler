@@ -16,7 +16,10 @@ mod start_agent_services;
 mod start_balancer;
 mod start_balancer_services;
 mod start_cluster_config_data;
+mod style_agent_container;
+mod style_button_danger;
 mod style_button_primary;
+mod style_card_container;
 mod style_field_container;
 mod style_field_pick_list;
 mod style_field_pick_list_menu;
@@ -34,6 +37,9 @@ fn main() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     iced::application(SecondBrain::new, SecondBrain::update, SecondBrain::view)
+        .font(include_bytes!(
+            "../../resources/fonts/JetBrainsMono-Regular.ttf"
+        ))
         .font(include_bytes!(
             "../../resources/fonts/JetBrainsMono-Bold.ttf"
         ))
