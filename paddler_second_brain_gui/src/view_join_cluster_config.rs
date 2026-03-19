@@ -28,17 +28,16 @@ pub fn view_join_cluster_config<'content>(
         .map(|slots| slots > 0)
         .unwrap_or(false);
 
-    let confirm_button =
-        if !data.cluster_address.is_empty() && is_valid_slots {
-            button(text("Connect").font(BOLD))
-                .padding([SPACING_HALF, SPACING_BASE])
-                .style(style_button_primary)
-                .on_press(Message::Connect)
-        } else {
-            button(text("Connect").font(BOLD))
-                .padding([SPACING_HALF, SPACING_BASE])
-                .style(style_button_primary)
-        };
+    let confirm_button = if !data.cluster_address.is_empty() && is_valid_slots {
+        button(text("Connect").font(BOLD))
+            .padding([SPACING_HALF, SPACING_BASE])
+            .style(style_button_primary)
+            .on_press(Message::Connect)
+    } else {
+        button(text("Connect").font(BOLD))
+            .padding([SPACING_HALF, SPACING_BASE])
+            .style(style_button_primary)
+    };
 
     let cancel_button = button(text("Cancel").font(BOLD))
         .style(button::text)

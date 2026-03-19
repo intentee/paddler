@@ -226,10 +226,8 @@ impl SecondBrain {
 
                 let management_addr = match management_addr {
                     Some(addr) if is_port_in_use(&addr) => {
-                        config.state_data.balancer_address_error = Some(format!(
-                            "Port {} is already in use",
-                            addr.port()
-                        ));
+                        config.state_data.balancer_address_error =
+                            Some(format!("Port {} is already in use", addr.port()));
                         None
                     }
                     other => other,
@@ -237,24 +235,21 @@ impl SecondBrain {
 
                 let inference_addr = match inference_addr {
                     Some(addr) if is_port_in_use(&addr) => {
-                        config.state_data.inference_address_error = Some(format!(
-                            "Port {} is already in use",
-                            addr.port()
-                        ));
+                        config.state_data.inference_address_error =
+                            Some(format!("Port {} is already in use", addr.port()));
                         None
                     }
                     other => other,
                 };
 
-                let (management_addr, inference_addr) =
-                    match (management_addr, inference_addr) {
-                        (Some(management), Some(inference)) => (management, inference),
-                        _ => {
-                            self.screen = CurrentScreen::StartClusterConfig(config);
+                let (management_addr, inference_addr) = match (management_addr, inference_addr) {
+                    (Some(management), Some(inference)) => (management, inference),
+                    _ => {
+                        self.screen = CurrentScreen::StartClusterConfig(config);
 
-                            return Task::none();
-                        }
-                    };
+                        return Task::none();
+                    }
+                };
 
                 let desired_state = config
                     .state_data
@@ -297,7 +292,7 @@ impl SecondBrain {
             (CurrentScreen::StartClusterConfig(config), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed to start: {error}");
                 self.shutdown_tx = None;
-                self.screen = CurrentScreen::Home(config.cluster_failed());
+                self.screen = CurrentScreen::Home(config.cluster_failed(error));
 
                 Task::none()
             }
@@ -330,7 +325,7 @@ impl SecondBrain {
                 log::error!("Cluster failed unexpectedly: {error}");
                 self.agent_snapshots_rx = None;
                 self.shutdown_tx = None;
-                self.screen = CurrentScreen::Home(running.cluster_failed());
+                self.screen = CurrentScreen::Home(running.cluster_failed(error));
 
                 Task::none()
             }
@@ -365,7 +360,7 @@ impl SecondBrain {
                 log::error!("Agent failed: {error}");
                 self.agent_shutdown_tx = None;
                 self.agent_status_rx = None;
-                self.screen = CurrentScreen::Home(running.agent_failed());
+                self.screen = CurrentScreen::Home(running.agent_failed(error));
 
                 Task::none()
             }
@@ -398,7 +393,7 @@ impl SecondBrain {
     pub fn view<'view>(&'view self) -> Element<'view, Message> {
         let screen_content = match &self.screen {
             CurrentScreen::AgentRunning(screen) => view_agent_running(&screen.state_data),
-            CurrentScreen::Home(_) => view_home(),
+            CurrentScreen::Home(screen) => view_home(&screen.state_data),
             CurrentScreen::JoinClusterConfig(screen) => {
                 view_join_cluster_config(&screen.state_data)
             }

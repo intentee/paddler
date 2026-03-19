@@ -11,8 +11,11 @@ use iced::widget::row;
 use iced::widget::text;
 
 use crate::font::BOLD;
+use crate::font::REGULAR;
+use crate::home_data::HomeData;
 use crate::message::Message;
 use crate::style_button_primary::style_button_primary;
+use crate::variables::COLOR_ERROR;
 use crate::variables::FONT_SIZE_L2;
 use crate::variables::SPACING_2X;
 use crate::variables::SPACING_BASE;
@@ -25,19 +28,13 @@ static CREATE_CLUSTER_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
 });
 
 static JOIN_CLUSTER_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
-    ImageHandle::from_bytes(
-        include_bytes!("../../resources/images/join_a_cluster.png").as_slice(),
-    )
+    ImageHandle::from_bytes(include_bytes!("../../resources/images/join_a_cluster.png").as_slice())
 });
 
-pub fn view_home() -> Element<'static, Message> {
-    let create_image = image(CREATE_CLUSTER_IMAGE.clone())
-        .width(200)
-        .height(200);
+pub fn view_home<'content>(data: &'content HomeData) -> Element<'content, Message> {
+    let create_image = image(CREATE_CLUSTER_IMAGE.clone()).width(200).height(200);
 
-    let join_image = image(JOIN_CLUSTER_IMAGE.clone())
-        .width(200)
-        .height(200);
+    let join_image = image(JOIN_CLUSTER_IMAGE.clone()).width(200).height(200);
 
     let start_button = button(text("Start a cluster").font(BOLD))
         .padding([SPACING_HALF, SPACING_BASE])
@@ -59,11 +56,19 @@ pub fn view_home() -> Element<'static, Message> {
 
     let options_row = row![start_column, join_column].spacing(SPACING_2X);
 
-    column![
+    let mut content = column![
         container(text("Paddler second brain").size(FONT_SIZE_L2).font(BOLD))
             .padding([0.0, SPACING_BASE]),
         container(options_row).align_x(Center),
     ]
-    .spacing(SPACING_2X)
-    .into()
+    .spacing(SPACING_2X);
+
+    if let Some(error) = &data.error {
+        content = content.push(
+            container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
+                .padding([0.0, SPACING_BASE]),
+        );
+    }
+
+    content.into()
 }

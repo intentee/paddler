@@ -8,6 +8,7 @@ use statum::transition;
 
 use crate::agent_running_data::AgentRunningData;
 use crate::detect_network_interfaces::detect_network_interfaces;
+use crate::home_data::HomeData;
 use crate::join_cluster_config_data::JoinClusterConfigData;
 use crate::running_cluster_data::RunningClusterData;
 use crate::start_cluster_config_data::StartClusterConfigData;
@@ -15,7 +16,7 @@ use crate::start_cluster_config_data::StartClusterConfigData;
 #[state]
 pub enum ScreenState {
     AgentRunning(AgentRunningData),
-    Home,
+    Home(HomeData),
     JoinClusterConfig(JoinClusterConfigData),
     StartClusterConfig(StartClusterConfigData),
     RunningCluster(RunningClusterData),
@@ -50,11 +51,11 @@ impl Screen<Home> {
 #[transition]
 impl Screen<JoinClusterConfig> {
     pub fn cancel(self) -> Screen<Home> {
-        self.transition()
+        self.transition_with(HomeData { error: None })
     }
 
     pub fn connect(self) -> Screen<AgentRunning> {
-        self.transition_map(|config_data| AgentRunningData {
+        self.transition_map(|config_data: JoinClusterConfigData| AgentRunningData {
             cluster_address: config_data.cluster_address.clone(),
             connected: false,
             snapshot: AgentControllerSnapshot {
@@ -82,40 +83,40 @@ impl Screen<JoinClusterConfig> {
 #[transition]
 impl Screen<AgentRunning> {
     pub fn disconnect(self) -> Screen<Home> {
-        self.transition()
+        self.transition_with(HomeData { error: None })
     }
 
-    pub fn agent_failed(self) -> Screen<Home> {
-        self.transition()
+    pub fn agent_failed(self, error: String) -> Screen<Home> {
+        self.transition_with(HomeData { error: Some(error) })
     }
 }
 
 #[transition]
 impl Screen<StartClusterConfig> {
     pub fn cancel(self) -> Screen<Home> {
-        self.transition()
+        self.transition_with(HomeData { error: None })
     }
 
     pub fn cluster_started(self) -> Screen<RunningCluster> {
-        self.transition_map(|config_data| RunningClusterData {
+        self.transition_map(|config_data: StartClusterConfigData| RunningClusterData {
             agent_snapshots: vec![],
             cluster_address: config_data.balancer_address.clone(),
             stopping: false,
         })
     }
 
-    pub fn cluster_failed(self) -> Screen<Home> {
-        self.transition()
+    pub fn cluster_failed(self, error: String) -> Screen<Home> {
+        self.transition_with(HomeData { error: Some(error) })
     }
 }
 
 #[transition]
 impl Screen<RunningCluster> {
     pub fn cluster_stopped(self) -> Screen<Home> {
-        self.transition()
+        self.transition_with(HomeData { error: None })
     }
 
-    pub fn cluster_failed(self) -> Screen<Home> {
-        self.transition()
+    pub fn cluster_failed(self, error: String) -> Screen<Home> {
+        self.transition_with(HomeData { error: Some(error) })
     }
 }

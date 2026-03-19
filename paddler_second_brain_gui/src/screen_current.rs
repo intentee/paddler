@@ -15,6 +15,12 @@ pub enum CurrentScreen {
 
 impl Default for CurrentScreen {
     fn default() -> Self {
-        CurrentScreen::Home(Screen::<Home>::builder().build())
+        use crate::home_data::HomeData;
+
+        CurrentScreen::Home(
+            Screen::<Home>::builder()
+                .state_data(HomeData { error: None })
+                .build(),
+        )
     }
 }

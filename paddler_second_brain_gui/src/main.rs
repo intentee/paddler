@@ -3,6 +3,7 @@ mod agent_running_data;
 mod agent_status_monitor_service;
 mod detect_network_interfaces;
 mod font;
+mod home_data;
 mod join_cluster_config_data;
 mod message;
 mod model_preset;
@@ -34,7 +35,6 @@ mod view_running_cluster;
 mod view_start_cluster_config;
 
 use iced::Size;
-
 use second_brain::SecondBrain;
 
 fn main() -> iced::Result {
