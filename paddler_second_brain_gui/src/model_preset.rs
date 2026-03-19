@@ -15,20 +15,32 @@ pub struct ModelPreset {
 
 impl ModelPreset {
     pub fn available_presets() -> Vec<ModelPreset> {
-        vec![ModelPreset {
-            display_name: "Qwen 3.5 0.8B".to_string(),
-            model: HuggingFaceModelReference {
-                repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-                filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-                revision: "main".to_string(),
+        vec![
+            ModelPreset {
+                display_name: "Qwen 3 0.6B".to_string(),
+                model: HuggingFaceModelReference {
+                    repo_id: "unsloth/Qwen3-0.6B-GGUF".to_string(),
+                    filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
+                    revision: "main".to_string(),
+                },
+                multimodal_projection: None,
+                inference_parameters: InferenceParameters::default(),
             },
-            multimodal_projection: Some(HuggingFaceModelReference {
-                repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-                filename: "mmproj-F16.gguf".to_string(),
-                revision: "main".to_string(),
-            }),
-            inference_parameters: InferenceParameters::default(),
-        }]
+            ModelPreset {
+                display_name: "Qwen 3.5 0.8B".to_string(),
+                model: HuggingFaceModelReference {
+                    repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
+                    filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
+                    revision: "main".to_string(),
+                },
+                multimodal_projection: Some(HuggingFaceModelReference {
+                    repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
+                    filename: "mmproj-F16.gguf".to_string(),
+                    revision: "main".to_string(),
+                }),
+                inference_parameters: InferenceParameters::default(),
+            },
+        ]
     }
 
     pub fn to_balancer_desired_state(&self) -> BalancerDesiredState {

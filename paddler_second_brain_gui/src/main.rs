@@ -20,6 +20,7 @@ mod style_agent_container;
 mod style_button_danger;
 mod style_button_primary;
 mod style_card_container;
+mod style_download_progress_bar;
 mod style_field_container;
 mod style_field_pick_list;
 mod style_field_pick_list_menu;

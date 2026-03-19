@@ -49,7 +49,11 @@ impl Screen<JoinClusterConfig> {
     }
 
     pub fn connect(self) -> Screen<AgentRunning> {
-        self.transition_with(AgentRunningData { status: None })
+        self.transition_map(|config_data| AgentRunningData {
+            agent_name: config_data.agent_name.clone(),
+            cluster_address: config_data.cluster_address.clone(),
+            status: None,
+        })
     }
 }
 
