@@ -1,13 +1,14 @@
 use iced::Background;
 use iced::Border;
 use iced::Color;
+use iced::Theme;
 use iced::overlay::menu;
 
 use crate::variables::COLOR_BODY_BACKGROUND;
 use crate::variables::COLOR_BODY_FONT;
 use crate::variables::COLOR_BORDER;
 
-pub fn style_field_pick_list_menu(theme: &iced::Theme) -> menu::Style {
+pub fn style_field_pick_list_menu(theme: &Theme) -> menu::Style {
     let base = menu::default(theme);
 
     menu::Style {

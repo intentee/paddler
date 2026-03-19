@@ -3,31 +3,29 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
+use paddler::produces_snapshot::ProducesSnapshot;
 use paddler::service::Service;
+use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
 pub struct AgentMonitorService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
-    pub agent_names_tx: mpsc::UnboundedSender<Vec<String>>,
+    pub agent_snapshots_tx: mpsc::UnboundedSender<Vec<AgentControllerSnapshot>>,
 }
 
-fn collect_agent_names(pool: &AgentControllerPool) -> Vec<String> {
-    let mut names: Vec<String> = pool
-        .agents
-        .iter()
-        .map(|entry| {
-            entry
-                .value()
-                .name
-                .clone()
-                .unwrap_or_else(|| entry.key().clone())
-        })
-        .collect();
+fn collect_agent_snapshots(pool: &AgentControllerPool) -> Result<Vec<AgentControllerSnapshot>> {
+    let pool_snapshot = pool.make_snapshot()?;
+    let mut agents = pool_snapshot.agents;
 
-    names.sort();
+    agents.sort_by(|left, right| {
+        let left_name = left.name.as_deref().unwrap_or(&left.id);
+        let right_name = right.name.as_deref().unwrap_or(&right.id);
 
-    names
+        left_name.cmp(right_name)
+    });
+
+    Ok(agents)
 }
 
 #[async_trait]
@@ -38,10 +36,10 @@ impl Service for AgentMonitorService {
 
     async fn run(&mut self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
         loop {
-            let names = collect_agent_names(&self.agent_controller_pool);
+            let snapshots = collect_agent_snapshots(&self.agent_controller_pool)?;
 
-            if let Err(send_error) = self.agent_names_tx.send(names) {
-                log::warn!("Agent names receiver dropped: {send_error}");
+            if let Err(send_error) = self.agent_snapshots_tx.send(snapshots) {
+                log::warn!("Agent snapshots receiver dropped: {send_error}");
 
                 break;
             }

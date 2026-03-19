@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -10,7 +11,7 @@ pub async fn start_balancer(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
     initial_desired_state: BalancerDesiredState,
-    agent_names_tx: mpsc::UnboundedSender<Vec<String>>,
+    agent_snapshots_tx: mpsc::UnboundedSender<Vec<AgentControllerSnapshot>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
     let (result_tx, result_rx) = oneshot::channel();
@@ -21,7 +22,7 @@ pub async fn start_balancer(
             management_addr,
             inference_addr,
             initial_desired_state,
-            agent_names_tx,
+            agent_snapshots_tx,
             shutdown_rx,
         ));
         if let Err(unsent_result) = result_tx.send(result) {

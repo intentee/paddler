@@ -1,10 +1,11 @@
 use iced::Shadow;
+use iced::Theme;
 use iced::Vector;
 use iced::widget::container;
 
 use crate::variables::COLOR_BORDER;
 
-pub fn style_field_container(theme: &iced::Theme) -> container::Style {
+pub fn style_field_container(theme: &Theme) -> container::Style {
     let base = container::transparent(theme);
 
     container::Style {

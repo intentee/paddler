@@ -1,11 +1,12 @@
 use iced::Background;
 use iced::Border;
+use iced::Theme;
 use iced::widget::container;
 
 use crate::variables::COLOR_BODY_BACKGROUND;
 use crate::variables::COLOR_BORDER;
 
-pub fn style_card_container(theme: &iced::Theme) -> container::Style {
+pub fn style_card_container(theme: &Theme) -> container::Style {
     let base = container::transparent(theme);
 
     container::Style {

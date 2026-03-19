@@ -1,15 +1,13 @@
 use iced::Background;
 use iced::Border;
+use iced::Theme;
 use iced::widget::text_input;
 
 use crate::variables::COLOR_BODY_BACKGROUND;
 use crate::variables::COLOR_BODY_FONT;
 use crate::variables::COLOR_BORDER;
 
-pub fn style_field_text_input(
-    theme: &iced::Theme,
-    status: text_input::Status,
-) -> text_input::Style {
+pub fn style_field_text_input(theme: &Theme, status: text_input::Status) -> text_input::Style {
     let base = text_input::default(theme, status);
 
     text_input::Style {

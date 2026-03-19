@@ -1,5 +1,7 @@
 use iced::Center;
 use iced::Element;
+use iced::Fill;
+use iced::alignment::Horizontal;
 use iced::widget::button;
 use iced::widget::column;
 use iced::widget::container;
@@ -84,7 +86,7 @@ pub fn view_start_cluster_config<'content>(
                     data.selected_model.as_ref(),
                     Message::SelectModel,
                 )
-                .width(iced::Fill)
+                .width(Fill)
                 .padding(SPACING_BASE)
                 .style(style_field_pick_list)
                 .menu_style(style_field_pick_list_menu),
@@ -99,7 +101,7 @@ pub fn view_start_cluster_config<'content>(
                 .spacing(SPACING_BASE),
         )
         .width(300)
-        .align_x(iced::alignment::Horizontal::Right),
+        .align_x(Horizontal::Right),
     ]
     .spacing(SPACING_2X);
 

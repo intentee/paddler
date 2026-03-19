@@ -1,5 +1,6 @@
 use iced::Center;
 use iced::Element;
+use iced::alignment::Horizontal;
 use iced::widget::button;
 use iced::widget::column;
 use iced::widget::container;
@@ -88,7 +89,7 @@ pub fn view_join_cluster_config<'content>(
                 .spacing(SPACING_BASE),
         )
         .width(300)
-        .align_x(iced::alignment::Horizontal::Right),
+        .align_x(Horizontal::Right),
     ]
     .spacing(SPACING_2X);
 

@@ -17,6 +17,7 @@ use paddler::balancer::state_database::Memory;
 use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
+use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -28,7 +29,7 @@ pub async fn start_balancer_services(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
     initial_desired_state: BalancerDesiredState,
-    agent_names_tx: mpsc::UnboundedSender<Vec<String>>,
+    agent_snapshots_tx: mpsc::UnboundedSender<Vec<AgentControllerSnapshot>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
     let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
@@ -85,7 +86,7 @@ pub async fn start_balancer_services(
 
     service_manager.add_service(AgentMonitorService {
         agent_controller_pool: agent_controller_pool.clone(),
-        agent_names_tx,
+        agent_snapshots_tx,
     });
 
     service_manager.add_service(ReconciliationService {

@@ -1,4 +1,5 @@
 use std::mem;
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use iced::Center;
@@ -7,6 +8,7 @@ use iced::Subscription;
 use iced::Task;
 use iced::time;
 use iced::widget::column;
+use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -32,7 +34,7 @@ fn drain_latest<TValue>(receiver: &mut mpsc::UnboundedReceiver<TValue>) -> Optio
 }
 
 pub struct SecondBrain {
-    agent_names_rx: Option<mpsc::UnboundedReceiver<Vec<String>>>,
+    agent_snapshots_rx: Option<mpsc::UnboundedReceiver<Vec<AgentControllerSnapshot>>>,
     agent_shutdown_tx: Option<oneshot::Sender<()>>,
     agent_status_rx: Option<mpsc::UnboundedReceiver<SlotAggregatedStatusSnapshot>>,
     screen: CurrentScreen,
@@ -58,7 +60,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
-            agent_names_rx: None,
+            agent_snapshots_rx: None,
             agent_shutdown_tx: None,
             agent_status_rx: None,
             screen: CurrentScreen::default(),
@@ -147,6 +149,12 @@ impl SecondBrain {
                 )
             }
             (CurrentScreen::StartClusterConfig(config), Message::Cancel) => {
+                if let Some(shutdown_tx) = self.shutdown_tx.take()
+                    && let Err(unsent_signal) = shutdown_tx.send(())
+                {
+                    log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
+                }
+                self.agent_snapshots_rx = None;
                 self.screen = CurrentScreen::Home(config.cancel());
 
                 Task::none()
@@ -179,10 +187,7 @@ impl SecondBrain {
                 Task::none()
             }
             (CurrentScreen::StartClusterConfig(mut config), Message::Confirm) => {
-                let management_addr = match config
-                    .state_data
-                    .balancer_address
-                    .parse::<std::net::SocketAddr>()
+                let management_addr = match config.state_data.balancer_address.parse::<SocketAddr>()
                 {
                     Ok(addr) => addr,
                     Err(parse_error) => {
@@ -194,10 +199,7 @@ impl SecondBrain {
                     }
                 };
 
-                let inference_addr = match config
-                    .state_data
-                    .inference_address
-                    .parse::<std::net::SocketAddr>()
+                let inference_addr = match config.state_data.inference_address.parse::<SocketAddr>()
                 {
                     Ok(addr) => addr,
                     Err(parse_error) => {
@@ -217,9 +219,10 @@ impl SecondBrain {
                     .unwrap_or_default();
 
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-                let (agent_names_tx, agent_names_rx) = mpsc::unbounded_channel::<Vec<String>>();
+                let (agent_snapshots_tx, agent_snapshots_rx) =
+                    mpsc::unbounded_channel::<Vec<AgentControllerSnapshot>>();
 
-                self.agent_names_rx = Some(agent_names_rx);
+                self.agent_snapshots_rx = Some(agent_snapshots_rx);
                 self.shutdown_tx = Some(shutdown_tx);
                 config.state_data.starting = true;
                 self.screen = CurrentScreen::StartClusterConfig(config);
@@ -230,7 +233,7 @@ impl SecondBrain {
                             management_addr,
                             inference_addr,
                             desired_state,
-                            agent_names_tx,
+                            agent_snapshots_tx,
                             shutdown_rx,
                         ),
                         |result: Result<(), anyhow::Error>| match result {
@@ -254,8 +257,8 @@ impl SecondBrain {
                 Task::none()
             }
             (CurrentScreen::RunningCluster(mut running), Message::RefreshAgentCount) => {
-                if let Some(names) = self.agent_names_rx.as_mut().and_then(drain_latest) {
-                    running.state_data.agent_names = names;
+                if let Some(snapshots) = self.agent_snapshots_rx.as_mut().and_then(drain_latest) {
+                    running.state_data.agent_snapshots = snapshots;
                 }
                 self.screen = CurrentScreen::RunningCluster(running);
 
@@ -267,7 +270,7 @@ impl SecondBrain {
                 {
                     log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
-                self.agent_names_rx = None;
+                self.agent_snapshots_rx = None;
                 running.state_data.stopping = true;
                 self.screen = CurrentScreen::RunningCluster(running);
 
@@ -280,7 +283,7 @@ impl SecondBrain {
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
-                self.agent_names_rx = None;
+                self.agent_snapshots_rx = None;
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed());
 
@@ -288,7 +291,7 @@ impl SecondBrain {
             }
             (CurrentScreen::AgentRunning(mut running), Message::RefreshAgentStatus) => {
                 if let Some(status) = self.agent_status_rx.as_mut().and_then(drain_latest) {
-                    running.state_data.status = Some(status);
+                    running.state_data.apply_status(status);
                 }
                 self.screen = CurrentScreen::AgentRunning(running);
 

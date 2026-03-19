@@ -1,9 +1,10 @@
 use iced::Background;
 use iced::Border;
 use iced::Color;
+use iced::Theme;
 use iced::widget::button;
 
-pub fn style_button_danger(theme: &iced::Theme, status: button::Status) -> button::Style {
+pub fn style_button_danger(theme: &Theme, status: button::Status) -> button::Style {
     let base = button::primary(theme, status);
 
     let background_color = Color::from_rgb(

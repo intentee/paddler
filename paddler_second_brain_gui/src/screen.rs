@@ -1,3 +1,7 @@
+use std::collections::BTreeSet;
+
+use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 use statum::machine;
 use statum::state;
 use statum::transition;
@@ -50,9 +54,22 @@ impl Screen<JoinClusterConfig> {
 
     pub fn connect(self) -> Screen<AgentRunning> {
         self.transition_map(|config_data| AgentRunningData {
-            agent_name: config_data.agent_name.clone(),
             cluster_address: config_data.cluster_address.clone(),
-            status: None,
+            connected: false,
+            snapshot: AgentControllerSnapshot {
+                desired_slots_total: 0,
+                download_current: 0,
+                download_filename: None,
+                download_total: 0,
+                id: String::new(),
+                issues: BTreeSet::new(),
+                model_path: None,
+                name: Some(config_data.agent_name.clone()),
+                slots_processing: 0,
+                slots_total: 0,
+                state_application_status: AgentStateApplicationStatus::Fresh,
+                uses_chat_template_override: false,
+            },
         })
     }
 }
@@ -76,7 +93,7 @@ impl Screen<StartClusterConfig> {
 
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|config_data| RunningClusterData {
-            agent_names: vec![],
+            agent_snapshots: vec![],
             cluster_address: config_data.balancer_address.clone(),
             stopping: false,
         })
