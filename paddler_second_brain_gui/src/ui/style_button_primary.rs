@@ -3,8 +3,8 @@ use iced::Border;
 use iced::Theme;
 use iced::widget::button;
 
-use crate::variables::COLOR_BODY_BACKGROUND;
-use crate::variables::COLOR_BORDER;
+use super::variables::COLOR_BODY_BACKGROUND;
+use super::variables::COLOR_BORDER;
 
 pub fn style_button_primary(theme: &Theme, status: button::Status) -> button::Style {
     let base = button::primary(theme, status);

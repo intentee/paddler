@@ -16,17 +16,17 @@ use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::backend::start_agent::start_agent;
+use crate::backend::start_balancer::start_balancer;
 use crate::message::Message;
 use crate::screen_current::CurrentScreen;
-use crate::start_agent::start_agent;
-use crate::start_balancer::start_balancer;
-use crate::variables::SPACING_2X;
-use crate::variables::SPACING_BASE;
-use crate::view_agent_running::view_agent_running;
-use crate::view_home::view_home;
-use crate::view_join_cluster_config::view_join_cluster_config;
-use crate::view_running_cluster::view_running_cluster;
-use crate::view_start_cluster_config::view_start_cluster_config;
+use crate::ui::variables::SPACING_2X;
+use crate::ui::variables::SPACING_BASE;
+use crate::ui::view_agent_running::view_agent_running;
+use crate::ui::view_home::view_home;
+use crate::ui::view_join_cluster_config::view_join_cluster_config;
+use crate::ui::view_running_cluster::view_running_cluster;
+use crate::ui::view_start_cluster_config::view_start_cluster_config;
 
 fn is_port_in_use(address: &SocketAddr) -> bool {
     TcpStream::connect_timeout(address, Duration::from_millis(100)).is_ok()

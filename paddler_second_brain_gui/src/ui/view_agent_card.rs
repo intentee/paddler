@@ -8,13 +8,13 @@ use iced::widget::text;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 
-use crate::font::BOLD;
-use crate::font::REGULAR;
+use super::font::BOLD;
+use super::font::REGULAR;
+use super::style_agent_container::style_agent_container;
+use super::style_download_progress_bar::style_download_progress_bar;
+use super::variables::SPACING_BASE;
+use super::variables::SPACING_HALF;
 use crate::message::Message;
-use crate::style_agent_container::style_agent_container;
-use crate::style_download_progress_bar::style_download_progress_bar;
-use crate::variables::SPACING_BASE;
-use crate::variables::SPACING_HALF;
 
 fn display_last_path_part(path: &str) -> String {
     path.split('/').next_back().unwrap_or(path).to_string()

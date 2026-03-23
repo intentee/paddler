@@ -3,7 +3,7 @@ use iced::Theme;
 use iced::Vector;
 use iced::widget::container;
 
-use crate::variables::COLOR_BORDER;
+use super::variables::COLOR_BORDER;
 
 pub fn style_field_container(theme: &Theme) -> container::Style {
     let base = container::transparent(theme);

@@ -23,7 +23,7 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::agent_monitor_service::AgentMonitorService;
+use super::agent_monitor_service::AgentMonitorService;
 
 pub async fn start_balancer_services(
     management_addr: SocketAddr,

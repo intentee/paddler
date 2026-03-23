@@ -3,8 +3,8 @@ use iced::Border;
 use iced::Theme;
 use iced::widget::progress_bar;
 
-use crate::variables::COLOR_BODY_BACKGROUND;
-use crate::variables::COLOR_BORDER;
+use super::variables::COLOR_BODY_BACKGROUND;
+use super::variables::COLOR_BORDER;
 
 pub fn style_download_progress_bar(_theme: &Theme) -> progress_bar::Style {
     progress_bar::Style {

@@ -9,22 +9,22 @@ use iced::widget::svg;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::text;
 
+use super::font::BOLD;
+use super::font::REGULAR;
+use super::style_button_disconnect::style_button_disconnect;
+use super::variables::FONT_SIZE_L2;
+use super::variables::SPACING_2X;
+use super::variables::SPACING_BASE;
+use super::variables::SPACING_HALF;
+use super::view_agent_card::view_agent_card;
 use crate::agent_running_data::AgentRunningData;
-use crate::font::BOLD;
-use crate::font::REGULAR;
 use crate::message::Message;
-use crate::style_button_disconnect::style_button_disconnect;
-use crate::variables::FONT_SIZE_L2;
-use crate::variables::SPACING_2X;
-use crate::variables::SPACING_BASE;
-use crate::variables::SPACING_HALF;
-use crate::view_agent_card::view_agent_card;
 
 pub fn view_agent_running<'content>(
     data: &'content AgentRunningData,
 ) -> Element<'content, Message> {
     let stop_icon = svg(SvgHandle::from_memory(
-        include_bytes!("../../resources/icons/stop.svg").as_slice(),
+        include_bytes!("../../../resources/icons/stop.svg").as_slice(),
     ))
     .width(16)
     .height(16);

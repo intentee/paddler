@@ -16,7 +16,7 @@ use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::agent_status_monitor_service::AgentStatusMonitorService;
+use super::agent_status_monitor_service::AgentStatusMonitorService;
 
 pub async fn start_agent_services(
     agent_name: Option<String>,

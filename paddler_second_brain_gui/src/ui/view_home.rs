@@ -10,25 +10,27 @@ use iced::widget::image::Handle as ImageHandle;
 use iced::widget::row;
 use iced::widget::text;
 
-use crate::font::BOLD;
-use crate::font::REGULAR;
+use super::font::BOLD;
+use super::font::REGULAR;
+use super::style_button_primary::style_button_primary;
+use super::variables::COLOR_ERROR;
+use super::variables::FONT_SIZE_L2;
+use super::variables::SPACING_2X;
+use super::variables::SPACING_BASE;
+use super::variables::SPACING_HALF;
 use crate::home_data::HomeData;
 use crate::message::Message;
-use crate::style_button_primary::style_button_primary;
-use crate::variables::COLOR_ERROR;
-use crate::variables::FONT_SIZE_L2;
-use crate::variables::SPACING_2X;
-use crate::variables::SPACING_BASE;
-use crate::variables::SPACING_HALF;
 
 static CREATE_CLUSTER_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(
-        include_bytes!("../../resources/images/create_a_cluster.png").as_slice(),
+        include_bytes!("../../../resources/images/create_a_cluster.png").as_slice(),
     )
 });
 
 static JOIN_CLUSTER_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
-    ImageHandle::from_bytes(include_bytes!("../../resources/images/join_a_cluster.png").as_slice())
+    ImageHandle::from_bytes(
+        include_bytes!("../../../resources/images/join_a_cluster.png").as_slice(),
+    )
 });
 
 pub fn view_home<'content>(data: &'content HomeData) -> Element<'content, Message> {

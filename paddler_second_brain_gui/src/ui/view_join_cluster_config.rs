@@ -8,16 +8,16 @@ use iced::widget::row;
 use iced::widget::text;
 use iced::widget::text_input;
 
-use crate::font::BOLD;
+use super::font::BOLD;
+use super::style_button_primary::style_button_primary;
+use super::style_field_container::style_field_container;
+use super::style_field_text_input::style_field_text_input;
+use super::variables::FONT_SIZE_L2;
+use super::variables::SPACING_2X;
+use super::variables::SPACING_BASE;
+use super::variables::SPACING_HALF;
 use crate::join_cluster_config_data::JoinClusterConfigData;
 use crate::message::Message;
-use crate::style_button_primary::style_button_primary;
-use crate::style_field_container::style_field_container;
-use crate::style_field_text_input::style_field_text_input;
-use crate::variables::FONT_SIZE_L2;
-use crate::variables::SPACING_2X;
-use crate::variables::SPACING_BASE;
-use crate::variables::SPACING_HALF;
 
 pub fn view_join_cluster_config<'content>(
     data: &'content JoinClusterConfigData,
