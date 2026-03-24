@@ -17,6 +17,7 @@ use paddler::balancer::web_admin_panel_service::configuration::Configuration as 
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::balancer::Balancer as BootstrappedBalancer;
+use paddler_bootstrap::balancer_params::BalancerParams;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
@@ -135,17 +136,17 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
-        let mut bootstrapped = BootstrappedBalancer::bootstrap(
-            self.get_inference_service_configuration(),
-            self.get_management_service_configuration(),
+        let mut bootstrapped = BootstrappedBalancer::bootstrap(BalancerParams {
+            buffered_request_timeout: self.buffered_request_timeout,
+            inference_service_configuration: self.get_inference_service_configuration(),
+            management_service_configuration: self.get_management_service_configuration(),
+            max_buffered_requests: self.max_buffered_requests,
+            openai_service_configuration: self.get_openai_service_configuration(),
+            state_database_type: self.state_database.clone(),
+            statsd_prefix: self.statsd_prefix.clone(),
             #[cfg(feature = "web_admin_panel")]
-            self.get_web_admin_panel_service_configuration(),
-            self.buffered_request_timeout,
-            self.max_buffered_requests,
-            self.get_openai_service_configuration(),
-            self.state_database.clone(),
-            self.statsd_prefix.clone(),
-        )
+            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
+        })
         .await?;
 
         if let Some(statsd_addr) = self.statsd_addr.clone() {

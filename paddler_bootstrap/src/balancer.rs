@@ -1,28 +1,24 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
 use paddler::balancer::buffered_request_manager::BufferedRequestManager;
 use paddler::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use paddler::balancer::compatibility::openai_service::OpenAIService;
-use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
 use paddler::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
 use paddler::balancer::inference_service::InferenceService;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::ManagementService;
-use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
 use paddler::balancer::reconciliation_service::ReconciliationService;
 use paddler::balancer::state_database::File;
 use paddler::balancer::state_database::Memory;
 use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
-#[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
 use tokio::sync::broadcast;
+
+use super::balancer_params::BalancerParams;
 
 pub struct Balancer {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -32,18 +28,18 @@ pub struct Balancer {
 }
 
 impl Balancer {
-    pub async fn bootstrap(
-        inference_service_configuration: InferenceServiceConfiguration,
-        management_service_configuration: ManagementServiceConfiguration,
-        #[cfg(feature = "web_admin_panel")] web_admin_panel_service_configuration: Option<
-            WebAdminPanelServiceConfiguration,
-        >,
-        buffered_request_timeout: Duration,
-        max_buffered_requests: i32,
-        openai_service_configuration: Option<OpenAIServiceConfiguration>,
-        state_database_type: StateDatabaseType,
-        statsd_prefix: String,
-    ) -> anyhow::Result<Balancer> {
+    pub async fn bootstrap(params: BalancerParams) -> anyhow::Result<Balancer> {
+        let BalancerParams {
+            buffered_request_timeout,
+            inference_service_configuration,
+            management_service_configuration,
+            max_buffered_requests,
+            openai_service_configuration,
+            state_database_type,
+            statsd_prefix,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration,
+        } = params;
         let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
 
         let agent_controller_pool = Arc::new(AgentControllerPool::default());

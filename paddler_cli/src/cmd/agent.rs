@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use clap::Parser;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent::Agent as BootstrappedAgent;
+use paddler_bootstrap::agent_params::AgentParams;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
@@ -26,11 +27,11 @@ pub struct Agent {
 #[async_trait]
 impl Handler for Agent {
     async fn handle(&self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
-        let bootstrapped = BootstrappedAgent::bootstrap(
-            self.name.clone(),
-            self.management_addr.socket_addr.to_string(),
-            self.slots,
-        );
+        let bootstrapped = BootstrappedAgent::bootstrap(AgentParams {
+            agent_name: self.name.clone(),
+            management_address: self.management_addr.socket_addr.to_string(),
+            slots: self.slots,
+        });
 
         bootstrapped.service_manager.run_forever(shutdown_rx).await
     }

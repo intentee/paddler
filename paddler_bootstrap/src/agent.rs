@@ -15,13 +15,20 @@ use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 use tokio::sync::mpsc;
 
+use super::agent_params::AgentParams;
+
 pub struct Agent {
     pub service_manager: ServiceManager,
     pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
 impl Agent {
-    pub fn bootstrap(agent_name: Option<String>, management_address: String, slots: i32) -> Agent {
+    pub fn bootstrap(params: AgentParams) -> Agent {
+        let AgentParams {
+            agent_name,
+            management_address,
+            slots,
+        } = params;
         let (agent_desired_state_tx, agent_desired_state_rx) =
             mpsc::unbounded_channel::<AgentDesiredState>();
         let (
