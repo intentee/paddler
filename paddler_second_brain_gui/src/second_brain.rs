@@ -1,6 +1,7 @@
 use std::mem;
 use std::net::SocketAddr;
 use std::net::TcpStream;
+use std::sync::Arc;
 use std::time::Duration;
 
 use iced::Center;
@@ -8,23 +9,22 @@ use iced::Element;
 use iced::Fill;
 use iced::Subscription;
 use iced::Task;
-use iced::time;
+use iced::futures::SinkExt;
 use iced::widget::column;
 use iced::widget::container;
+use paddler::balancer::agent_controller_pool::AgentControllerPool;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
+use paddler::produces_snapshot::ProducesSnapshot;
+use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::bootstrapped_agent_handle::bootstrap_agent;
 use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use tokio::sync::mpsc;
 use tokio::sync::oneshot;
+use tokio::sync::watch;
 
-use crate::agent_monitor_service::AgentMonitorService;
-use crate::agent_status_monitor_service::AgentStatusMonitorService;
 use crate::message::Message;
 use crate::screen_current::CurrentScreen;
 use crate::ui::variables::SPACING_2X;
@@ -39,20 +39,24 @@ fn is_port_in_use(address: &SocketAddr) -> bool {
     TcpStream::connect_timeout(address, Duration::from_millis(100)).is_ok()
 }
 
-fn drain_latest<TValue>(receiver: &mut mpsc::UnboundedReceiver<TValue>) -> Option<TValue> {
-    let mut latest = None;
+fn collect_sorted_agent_snapshots(
+    pool: &AgentControllerPool,
+) -> anyhow::Result<Vec<paddler_types::agent_controller_snapshot::AgentControllerSnapshot>> {
+    let pool_snapshot = pool.make_snapshot()?;
+    let mut agents = pool_snapshot.agents;
 
-    while let Ok(value) = receiver.try_recv() {
-        latest = Some(value);
-    }
+    agents.sort_by(|left, right| {
+        let left_name = left.name.as_deref().unwrap_or(&left.id);
+        let right_name = right.name.as_deref().unwrap_or(&right.id);
 
-    latest
+        left_name.cmp(right_name)
+    });
+
+    Ok(agents)
 }
 
 pub struct SecondBrain {
-    agent_snapshots_rx: Option<mpsc::UnboundedReceiver<Vec<AgentControllerSnapshot>>>,
     agent_shutdown_tx: Option<oneshot::Sender<()>>,
-    agent_status_rx: Option<mpsc::UnboundedReceiver<SlotAggregatedStatusSnapshot>>,
     screen: CurrentScreen,
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
@@ -76,9 +80,7 @@ impl Drop for SecondBrain {
 impl SecondBrain {
     pub fn new() -> (Self, Task<Message>) {
         let second_brain = Self {
-            agent_snapshots_rx: None,
             agent_shutdown_tx: None,
-            agent_status_rx: None,
             screen: CurrentScreen::default(),
             shutdown_tx: None,
         };
@@ -147,44 +149,87 @@ impl SecondBrain {
                 let management_address = config.state_data.cluster_address.clone();
 
                 let (agent_shutdown_tx, agent_shutdown_rx) = oneshot::channel::<()>();
-                let (agent_status_tx, agent_status_rx) =
-                    mpsc::unbounded_channel::<SlotAggregatedStatusSnapshot>();
+                let (status_watch_tx, status_watch_rx) =
+                    watch::channel::<Option<Arc<SlotAggregatedStatus>>>(None);
 
                 self.agent_shutdown_tx = Some(agent_shutdown_tx);
-                self.agent_status_rx = Some(agent_status_rx);
                 self.screen = CurrentScreen::AgentRunning(config.connect());
 
-                Task::perform(
-                    async move {
-                        tokio::task::spawn_blocking(move || {
-                            actix_web::rt::System::new().block_on(async {
-                                let mut bootstrapped = bootstrap_agent(BootstrapAgentParams {
-                                    agent_name,
-                                    management_address,
-                                    slots,
-                                });
+                Task::batch([
+                    Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                actix_web::rt::System::new().block_on(async {
+                                    let bootstrapped = bootstrap_agent(BootstrapAgentParams {
+                                        agent_name,
+                                        management_address,
+                                        slots,
+                                    });
 
-                                bootstrapped.service_manager.add_service(
-                                    AgentStatusMonitorService {
-                                        agent_status_tx,
-                                        slot_aggregated_status: bootstrapped.slot_aggregated_status,
-                                    },
-                                );
+                                    if status_watch_tx
+                                        .send(Some(bootstrapped.slot_aggregated_status.clone()))
+                                        .is_err()
+                                    {
+                                        return Err(anyhow::anyhow!(
+                                            "Monitor stream was dropped before receiving status"
+                                        ));
+                                    }
 
-                                bootstrapped
-                                    .service_manager
-                                    .run_forever(agent_shutdown_rx)
-                                    .await
+                                    bootstrapped
+                                        .service_manager
+                                        .run_forever(agent_shutdown_rx)
+                                        .await
+                                })
                             })
-                        })
-                        .await
-                        .map_err(|error| anyhow::anyhow!("Agent task panicked: {error}"))?
-                    },
-                    |result: Result<(), anyhow::Error>| match result {
-                        Ok(()) => Message::AgentStopped,
-                        Err(error) => Message::AgentFailed(error.to_string()),
-                    },
-                )
+                            .await
+                            .map_err(|error| anyhow::anyhow!("Agent task panicked: {error}"))?
+                        },
+                        |result: Result<(), anyhow::Error>| match result {
+                            Ok(()) => Message::AgentStopped,
+                            Err(error) => Message::AgentFailed(error.to_string()),
+                        },
+                    ),
+                    Task::stream(iced::stream::channel(1, async move |mut output| {
+                        let mut watch_rx = status_watch_rx;
+
+                        let slot_aggregated_status = loop {
+                            if watch_rx.changed().await.is_err() {
+                                return;
+                            }
+                            if let Some(status) = watch_rx.borrow_and_update().clone() {
+                                break status;
+                            }
+                        };
+
+                        loop {
+                            match slot_aggregated_status.make_snapshot() {
+                                Ok(snapshot) => {
+                                    if output
+                                        .send(Message::AgentStatusUpdated(snapshot))
+                                        .await
+                                        .is_err()
+                                    {
+                                        return;
+                                    }
+                                }
+                                Err(error) => {
+                                    log::error!("Failed to make agent status snapshot: {error}");
+
+                                    return;
+                                }
+                            }
+
+                            tokio::select! {
+                                () = slot_aggregated_status.update_notifier.notified() => {}
+                                changed_result = watch_rx.changed() => {
+                                    if changed_result.is_err() {
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    })),
+                ])
             }
             (CurrentScreen::StartClusterConfig(config), Message::Cancel) => {
                 if let Some(shutdown_tx) = self.shutdown_tx.take()
@@ -192,7 +237,6 @@ impl SecondBrain {
                 {
                     log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
-                self.agent_snapshots_rx = None;
                 self.screen = CurrentScreen::Home(config.cancel());
 
                 Task::none()
@@ -284,10 +328,9 @@ impl SecondBrain {
                     .unwrap_or_default();
 
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-                let (agent_snapshots_tx, agent_snapshots_rx) =
-                    mpsc::unbounded_channel::<Vec<AgentControllerSnapshot>>();
+                let (pool_watch_tx, pool_watch_rx) =
+                    watch::channel::<Option<Arc<AgentControllerPool>>>(None);
 
-                self.agent_snapshots_rx = Some(agent_snapshots_rx);
                 self.shutdown_tx = Some(shutdown_tx);
                 config.state_data.starting = true;
                 self.screen = CurrentScreen::StartClusterConfig(config);
@@ -297,7 +340,7 @@ impl SecondBrain {
                         async move {
                             tokio::task::spawn_blocking(move || {
                                 actix_web::rt::System::new().block_on(async {
-                                    let mut bootstrapped =
+                                    let bootstrapped =
                                         bootstrap_balancer(BootstrapBalancerParams {
                                             buffered_request_timeout: Duration::from_millis(10000),
                                             inference_service_configuration:
@@ -327,13 +370,14 @@ impl SecondBrain {
                                         .store_balancer_desired_state(&desired_state)
                                         .await?;
 
-                                    bootstrapped
-                                        .service_manager
-                                        .add_service(AgentMonitorService {
-                                            agent_controller_pool: bootstrapped
-                                                .agent_controller_pool,
-                                            agent_snapshots_tx,
-                                        });
+                                    if pool_watch_tx
+                                        .send(Some(bootstrapped.agent_controller_pool.clone()))
+                                        .is_err()
+                                    {
+                                        return Err(anyhow::anyhow!(
+                                            "Monitor stream was dropped before receiving pool"
+                                        ));
+                                    }
 
                                     bootstrapped.service_manager.run_forever(shutdown_rx).await
                                 })
@@ -347,6 +391,46 @@ impl SecondBrain {
                         },
                     ),
                     Task::done(Message::ClusterStarted),
+                    Task::stream(iced::stream::channel(1, async move |mut output| {
+                        let mut watch_rx = pool_watch_rx;
+
+                        let agent_controller_pool = loop {
+                            if watch_rx.changed().await.is_err() {
+                                return;
+                            }
+                            if let Some(pool) = watch_rx.borrow_and_update().clone() {
+                                break pool;
+                            }
+                        };
+
+                        loop {
+                            match collect_sorted_agent_snapshots(&agent_controller_pool) {
+                                Ok(snapshots) => {
+                                    if output
+                                        .send(Message::AgentSnapshotsUpdated(snapshots))
+                                        .await
+                                        .is_err()
+                                    {
+                                        return;
+                                    }
+                                }
+                                Err(error) => {
+                                    log::error!("Failed to collect agent snapshots: {error}");
+
+                                    return;
+                                }
+                            }
+
+                            tokio::select! {
+                                () = agent_controller_pool.update_notifier.notified() => {}
+                                changed_result = watch_rx.changed() => {
+                                    if changed_result.is_err() {
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    })),
                 ])
             }
             (CurrentScreen::StartClusterConfig(config), Message::ClusterStarted) => {
@@ -361,10 +445,11 @@ impl SecondBrain {
 
                 Task::none()
             }
-            (CurrentScreen::RunningCluster(mut running), Message::RefreshAgentCount) => {
-                if let Some(snapshots) = self.agent_snapshots_rx.as_mut().and_then(drain_latest) {
-                    running.state_data.agent_snapshots = snapshots;
-                }
+            (
+                CurrentScreen::RunningCluster(mut running),
+                Message::AgentSnapshotsUpdated(snapshots),
+            ) => {
+                running.state_data.agent_snapshots = snapshots;
                 self.screen = CurrentScreen::RunningCluster(running);
 
                 Task::none()
@@ -375,7 +460,6 @@ impl SecondBrain {
                 {
                     log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
                 }
-                self.agent_snapshots_rx = None;
                 running.state_data.stopping = true;
                 self.screen = CurrentScreen::RunningCluster(running);
 
@@ -388,16 +472,13 @@ impl SecondBrain {
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
-                self.agent_snapshots_rx = None;
                 self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed(error));
 
                 Task::none()
             }
-            (CurrentScreen::AgentRunning(mut running), Message::RefreshAgentStatus) => {
-                if let Some(status) = self.agent_status_rx.as_mut().and_then(drain_latest) {
-                    running.state_data.apply_status(status);
-                }
+            (CurrentScreen::AgentRunning(mut running), Message::AgentStatusUpdated(status)) => {
+                running.state_data.apply_status(status);
                 self.screen = CurrentScreen::AgentRunning(running);
 
                 Task::none()
@@ -408,7 +489,6 @@ impl SecondBrain {
                 {
                     log::error!("Failed to send agent shutdown signal: {unsent_signal:?}");
                 }
-                self.agent_status_rx = None;
                 self.screen = CurrentScreen::Home(running.disconnect());
 
                 Task::none()
@@ -416,7 +496,6 @@ impl SecondBrain {
             (CurrentScreen::AgentRunning(running), Message::AgentStopped) => {
                 log::info!("Agent stopped");
                 self.agent_shutdown_tx = None;
-                self.agent_status_rx = None;
                 self.screen = CurrentScreen::Home(running.disconnect());
 
                 Task::none()
@@ -424,7 +503,6 @@ impl SecondBrain {
             (CurrentScreen::AgentRunning(running), Message::AgentFailed(error)) => {
                 log::error!("Agent failed: {error}");
                 self.agent_shutdown_tx = None;
-                self.agent_status_rx = None;
                 self.screen = CurrentScreen::Home(running.agent_failed(error));
 
                 Task::none()
@@ -444,15 +522,7 @@ impl SecondBrain {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        match &self.screen {
-            CurrentScreen::AgentRunning(_) => {
-                time::every(Duration::from_secs(1)).map(|_| Message::RefreshAgentStatus)
-            }
-            CurrentScreen::RunningCluster(_) => {
-                time::every(Duration::from_secs(1)).map(|_| Message::RefreshAgentCount)
-            }
-            _ => Subscription::none(),
-        }
+        Subscription::none()
     }
 
     pub fn view<'view>(&'view self) -> Element<'view, Message> {
