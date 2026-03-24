@@ -4466,6 +4466,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_bootstrap"
+version = "3.0.1"
+dependencies = [
+ "anyhow",
+ "nanoid",
+ "paddler",
+ "paddler_types",
+ "tokio",
+]
+
+[[package]]
 name = "paddler_cli"
 version = "3.0.1"
 dependencies = [
@@ -4479,6 +4490,7 @@ dependencies = [
  "log",
  "nanoid",
  "paddler",
+ "paddler_bootstrap",
  "tokio",
 ]
 

@@ -1,0 +1,18 @@
+[package]
+name = "paddler_bootstrap"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Shared service wiring for Paddler CLI and desktop app"
+license.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+nanoid = { workspace = true }
+paddler = { workspace = true }
+paddler_types = { workspace = true }
+tokio = { workspace = true }
+
+[features]
+default = []
+web_admin_panel = ["paddler/web_admin_panel"]

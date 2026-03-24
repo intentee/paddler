@@ -16,6 +16,7 @@ env_logger = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
 paddler = { workspace = true }
+paddler_bootstrap = { workspace = true }
 tokio = { workspace = true }
 
 # web dashboard deps
@@ -26,4 +27,5 @@ default = []
 web_admin_panel = [
     "dep:esbuild-metafile",
     "paddler/web_admin_panel",
+    "paddler_bootstrap/web_admin_panel",
 ]

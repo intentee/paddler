@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler_cli", "paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_second_brain_gui", "paddler_types"]
+members = ["paddler_bootstrap", "paddler_cli", "paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_second_brain_gui", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -62,6 +62,7 @@ tokio-tungstenite = "0.28"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
 paddler = { version = "3.0.1", path = "paddler" }
+paddler_bootstrap = { version = "3.0.1", path = "paddler_bootstrap" }
 paddler_client = { version = "3.0.1", path = "paddler_client" }
 paddler_harness = { version = "3.0.1", path = "paddler_harness" }
 paddler_types = { version = "3.0.1", path = "paddler_types", default-features = false }

@@ -1,25 +1,11 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
-use paddler::balancer::buffered_request_manager::BufferedRequestManager;
-use paddler::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-use paddler::balancer::compatibility::openai_service::OpenAIService;
 use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
-use paddler::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
-use paddler::balancer::inference_service::InferenceService;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::management_service::ManagementService;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
-use paddler::balancer::reconciliation_service::ReconciliationService;
-use paddler::balancer::state_database::File;
-use paddler::balancer::state_database::Memory;
-use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::balancer::statsd_service::StatsdService;
 use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
@@ -29,10 +15,8 @@ use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler::service_manager::ServiceManager;
-use tokio::sync::broadcast;
+use paddler_bootstrap::balancer::Balancer as BootstrappedBalancer;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
@@ -118,6 +102,14 @@ impl Balancer {
         }
     }
 
+    fn get_openai_service_configuration(&self) -> Option<OpenAIServiceConfiguration> {
+        self.compat_openai_addr
+            .clone()
+            .map(|compat_openai_addr| OpenAIServiceConfiguration {
+                addr: compat_openai_addr.socket_addr,
+            })
+    }
+
     #[cfg(feature = "web_admin_panel")]
     fn get_web_admin_panel_service_configuration(
         &self,
@@ -143,64 +135,23 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
-        let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
-
-        let agent_controller_pool = Arc::new(AgentControllerPool::default());
-        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
-        let buffered_request_manager = Arc::new(BufferedRequestManager::new(
-            agent_controller_pool.clone(),
+        let mut bootstrapped = BootstrappedBalancer::bootstrap(
+            self.get_inference_service_configuration(),
+            self.get_management_service_configuration(),
+            #[cfg(feature = "web_admin_panel")]
+            self.get_web_admin_panel_service_configuration(),
             self.buffered_request_timeout,
             self.max_buffered_requests,
-        ));
-        let chat_template_override_sender_collection =
-            Arc::new(ChatTemplateOverrideSenderCollection::default());
-        let embedding_sender_collection = Arc::new(EmbeddingSenderCollection::default());
-        let generate_tokens_sender_collection = Arc::new(GenerateTokensSenderCollection::default());
-        let model_metadata_sender_collection = Arc::new(ModelMetadataSenderCollection::default());
-        let mut service_manager = ServiceManager::default();
-        let state_database: Arc<dyn StateDatabase> = match &self.state_database {
-            StateDatabaseType::File(path) => Arc::new(File::new(
-                balancer_desired_state_tx.clone(),
-                path.to_owned(),
-            )),
-            StateDatabaseType::Memory => Arc::new(Memory::new(balancer_desired_state_tx.clone())),
-        };
-
-        service_manager.add_service(InferenceService {
-            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-            buffered_request_manager: buffered_request_manager.clone(),
-            configuration: self.get_inference_service_configuration(),
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
-        });
-
-        service_manager.add_service(ManagementService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-            buffered_request_manager: buffered_request_manager.clone(),
-            chat_template_override_sender_collection,
-            configuration: self.get_management_service_configuration(),
-            embedding_sender_collection,
-            generate_tokens_sender_collection,
-            model_metadata_sender_collection,
-            state_database: state_database.clone(),
-            statsd_prefix: self.statsd_prefix.clone(),
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
-        });
-
-        service_manager.add_service(ReconciliationService {
-            agent_controller_pool: agent_controller_pool.clone(),
-            balancer_applicable_state_holder,
-            balancer_desired_state: state_database.read_balancer_desired_state().await?,
-            balancer_desired_state_rx,
-            is_converted_to_applicable_state: false,
-        });
+            self.get_openai_service_configuration(),
+            self.state_database.clone(),
+            self.statsd_prefix.clone(),
+        )
+        .await?;
 
         if let Some(statsd_addr) = self.statsd_addr.clone() {
-            service_manager.add_service(StatsdService {
-                agent_controller_pool,
-                buffered_request_manager: buffered_request_manager.clone(),
+            bootstrapped.service_manager.add_service(StatsdService {
+                agent_controller_pool: bootstrapped.agent_controller_pool.clone(),
+                buffered_request_manager: bootstrapped.buffered_request_manager.clone(),
                 configuration: StatsdServiceConfiguration {
                     statsd_addr: statsd_addr.socket_addr,
                     statsd_prefix: self.statsd_prefix.clone(),
@@ -211,19 +162,11 @@ impl Handler for Balancer {
 
         #[cfg(feature = "web_admin_panel")]
         if let Some(configuration) = self.get_web_admin_panel_service_configuration() {
-            service_manager.add_service(WebAdminPanelService { configuration });
+            bootstrapped
+                .service_manager
+                .add_service(WebAdminPanelService { configuration });
         }
 
-        if let Some(compat_openai_addr) = self.compat_openai_addr.clone() {
-            service_manager.add_service(OpenAIService {
-                buffered_request_manager,
-                inference_service_configuration: self.get_inference_service_configuration(),
-                openai_service_configuration: OpenAIServiceConfiguration {
-                    addr: compat_openai_addr.socket_addr,
-                },
-            });
-        }
-
-        service_manager.run_forever(shutdown_rx).await
+        bootstrapped.service_manager.run_forever(shutdown_rx).await
     }
 }
