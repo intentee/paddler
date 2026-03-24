@@ -1,4 +1,4 @@
-pub struct AgentParams {
+pub struct BootstrapAgentParams {
     pub agent_name: Option<String>,
     pub management_address: String,
     pub slots: i32,

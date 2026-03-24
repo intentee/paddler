@@ -7,7 +7,7 @@ use paddler::balancer::state_database_type::StateDatabaseType;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
-pub struct BalancerParams {
+pub struct BootstrapBalancerParams {
     pub buffered_request_timeout: Duration,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub management_service_configuration: ManagementServiceConfiguration,

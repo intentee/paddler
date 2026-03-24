@@ -16,8 +16,8 @@ use paddler::balancer::web_admin_panel_service::configuration::Configuration as 
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_bootstrap::balancer::Balancer as BootstrappedBalancer;
-use paddler_bootstrap::balancer_params::BalancerParams;
+use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
+use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
 use tokio::sync::oneshot;
 
 use super::handler::Handler;
@@ -136,7 +136,7 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
-        let mut bootstrapped = BootstrappedBalancer::bootstrap(BalancerParams {
+        let mut bootstrapped = bootstrap_balancer(BootstrapBalancerParams {
             buffered_request_timeout: self.buffered_request_timeout,
             inference_service_configuration: self.get_inference_service_configuration(),
             management_service_configuration: self.get_management_service_configuration(),
