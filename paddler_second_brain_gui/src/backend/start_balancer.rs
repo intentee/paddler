@@ -14,23 +14,17 @@ pub async fn start_balancer(
     agent_snapshots_tx: mpsc::UnboundedSender<Vec<AgentControllerSnapshot>>,
     shutdown_rx: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
-    let (result_tx, result_rx) = oneshot::channel();
-
-    std::thread::spawn(move || {
+    tokio::task::spawn_blocking(move || {
         let system = actix_web::rt::System::new();
-        let result = system.block_on(start_balancer_services(
+
+        system.block_on(start_balancer_services(
             management_addr,
             inference_addr,
             initial_desired_state,
             agent_snapshots_tx,
             shutdown_rx,
-        ));
-        if let Err(unsent_result) = result_tx.send(result) {
-            log::error!("Failed to send balancer result: {unsent_result:?}");
-        }
-    });
-
-    result_rx
-        .await
-        .map_err(|error| anyhow::anyhow!("Balancer thread terminated: {error}"))?
+        ))
+    })
+    .await
+    .map_err(|error| anyhow::anyhow!("Balancer task panicked: {error}"))?
 }
