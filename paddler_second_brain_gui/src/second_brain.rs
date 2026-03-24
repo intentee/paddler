@@ -16,10 +16,10 @@ use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::backend::start_agent::start_agent;
-use crate::backend::start_balancer::start_balancer;
 use crate::message::Message;
 use crate::screen_current::CurrentScreen;
+use crate::start_agent::start_agent;
+use crate::start_balancer::start_balancer;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
 use crate::ui::view_agent_running::view_agent_running;

@@ -5,7 +5,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use super::start_balancer_services::start_balancer_services;
+use crate::start_balancer_services::start_balancer_services;
 
 pub async fn start_balancer(
     management_addr: SocketAddr,

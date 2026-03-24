@@ -1,5 +1,6 @@
+mod agent_monitor_service;
 mod agent_running_data;
-mod backend;
+mod agent_status_monitor_service;
 mod detect_network_interfaces;
 mod home_data;
 mod join_cluster_config_data;
@@ -10,6 +11,10 @@ mod running_cluster_data;
 mod screen;
 mod screen_current;
 mod second_brain;
+mod start_agent;
+mod start_agent_services;
+mod start_balancer;
+mod start_balancer_services;
 mod start_cluster_config_data;
 mod ui;
 
