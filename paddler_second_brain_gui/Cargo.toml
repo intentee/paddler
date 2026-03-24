@@ -16,6 +16,7 @@ if-addrs = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
 paddler = { workspace = true }
+paddler_bootstrap = { workspace = true }
 paddler_types = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }

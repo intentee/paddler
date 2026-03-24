@@ -4550,6 +4550,7 @@ dependencies = [
  "log",
  "nanoid",
  "paddler",
+ "paddler_bootstrap",
  "paddler_types",
  "statum",
  "tokio",

@@ -11,15 +11,22 @@ use iced::Task;
 use iced::time;
 use iced::widget::column;
 use iced::widget::container;
+use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler::balancer::state_database_type::StateDatabaseType;
+use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
+use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
+use paddler_bootstrap::bootstrapped_agent_handle::bootstrap_agent;
+use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use crate::agent_monitor_service::AgentMonitorService;
+use crate::agent_status_monitor_service::AgentStatusMonitorService;
 use crate::message::Message;
 use crate::screen_current::CurrentScreen;
-use crate::start_agent::start_agent;
-use crate::start_balancer::start_balancer;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
 use crate::ui::view_agent_running::view_agent_running;
@@ -148,13 +155,31 @@ impl SecondBrain {
                 self.screen = CurrentScreen::AgentRunning(config.connect());
 
                 Task::perform(
-                    start_agent(
-                        agent_name,
-                        management_address,
-                        slots,
-                        agent_status_tx,
-                        agent_shutdown_rx,
-                    ),
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            actix_web::rt::System::new().block_on(async {
+                                let mut bootstrapped = bootstrap_agent(BootstrapAgentParams {
+                                    agent_name,
+                                    management_address,
+                                    slots,
+                                });
+
+                                bootstrapped.service_manager.add_service(
+                                    AgentStatusMonitorService {
+                                        agent_status_tx,
+                                        slot_aggregated_status: bootstrapped.slot_aggregated_status,
+                                    },
+                                );
+
+                                bootstrapped
+                                    .service_manager
+                                    .run_forever(agent_shutdown_rx)
+                                    .await
+                            })
+                        })
+                        .await
+                        .map_err(|error| anyhow::anyhow!("Agent task panicked: {error}"))?
+                    },
                     |result: Result<(), anyhow::Error>| match result {
                         Ok(()) => Message::AgentStopped,
                         Err(error) => Message::AgentFailed(error.to_string()),
@@ -269,13 +294,53 @@ impl SecondBrain {
 
                 Task::batch([
                     Task::perform(
-                        start_balancer(
-                            management_addr,
-                            inference_addr,
-                            desired_state,
-                            agent_snapshots_tx,
-                            shutdown_rx,
-                        ),
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                actix_web::rt::System::new().block_on(async {
+                                    let mut bootstrapped =
+                                        bootstrap_balancer(BootstrapBalancerParams {
+                                            buffered_request_timeout: Duration::from_millis(10000),
+                                            inference_service_configuration:
+                                                InferenceServiceConfiguration {
+                                                    addr: inference_addr,
+                                                    cors_allowed_hosts: vec![],
+                                                    inference_item_timeout: Duration::from_millis(
+                                                        30000,
+                                                    ),
+                                                },
+                                            management_service_configuration:
+                                                ManagementServiceConfiguration {
+                                                    addr: management_addr,
+                                                    cors_allowed_hosts: vec![],
+                                                },
+                                            max_buffered_requests: 30,
+                                            openai_service_configuration: None,
+                                            state_database_type: StateDatabaseType::Memory,
+                                            statsd_prefix: "paddler_".to_string(),
+                                            #[cfg(feature = "web_admin_panel")]
+                                            web_admin_panel_service_configuration: None,
+                                        })
+                                        .await?;
+
+                                    bootstrapped
+                                        .state_database
+                                        .store_balancer_desired_state(&desired_state)
+                                        .await?;
+
+                                    bootstrapped
+                                        .service_manager
+                                        .add_service(AgentMonitorService {
+                                            agent_controller_pool: bootstrapped
+                                                .agent_controller_pool,
+                                            agent_snapshots_tx,
+                                        });
+
+                                    bootstrapped.service_manager.run_forever(shutdown_rx).await
+                                })
+                            })
+                            .await
+                            .map_err(|error| anyhow::anyhow!("Balancer task panicked: {error}"))?
+                        },
                         |result: Result<(), anyhow::Error>| match result {
                             Ok(()) => Message::ClusterStopped,
                             Err(error) => Message::ClusterFailed(error.to_string()),
