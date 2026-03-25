@@ -45,11 +45,11 @@ fn collect_sorted_agent_snapshots(
     let pool_snapshot = pool.make_snapshot()?;
     let mut agents = pool_snapshot.agents;
 
-    agents.sort_by(|left, right| {
-        let left_name = left.name.as_deref().unwrap_or(&left.id);
-        let right_name = right.name.as_deref().unwrap_or(&right.id);
+    agents.sort_by(|current_agent, other_agent| {
+        let current_name = current_agent.name.as_deref().unwrap_or(&current_agent.id);
+        let other_name = other_agent.name.as_deref().unwrap_or(&other_agent.id);
 
-        left_name.cmp(right_name)
+        current_name.cmp(other_name)
     });
 
     Ok(agents)

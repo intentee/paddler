@@ -23,12 +23,20 @@ fn display_last_path_part(path: &str) -> String {
 pub fn view_agent_card<'content>(
     snapshot: &'content AgentControllerSnapshot,
 ) -> Element<'content, Message> {
-    let agent_name = snapshot.name.as_deref().unwrap_or(&snapshot.id);
-
     let is_downloading =
         snapshot.download_total > 0 && snapshot.download_current < snapshot.download_total;
 
-    let mut name_row = row![container(text(agent_name.to_string()).font(BOLD)).width(Fill),];
+    let mut name_row = row![];
+
+    match &snapshot.name {
+        Some(agent_name) => {
+            name_row =
+                name_row.push(container(text(agent_name.to_string()).font(BOLD)).width(Fill));
+        }
+        None => {
+            name_row = name_row.push(container("").width(Fill));
+        }
+    };
 
     if is_downloading {
         name_row = name_row.push(
