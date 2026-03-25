@@ -109,36 +109,90 @@ impl SecondBrain {
             }
             (CurrentScreen::JoinClusterConfig(mut config), Message::SetAgentName(name)) => {
                 config.state_data.agent_name = name;
-                config.state_data.error = None;
                 self.screen = CurrentScreen::JoinClusterConfig(config);
 
                 Task::none()
             }
             (CurrentScreen::JoinClusterConfig(mut config), Message::SetClusterAddress(address)) => {
                 config.state_data.cluster_address = address;
-                config.state_data.error = None;
+                config.state_data.cluster_address_error = None;
                 self.screen = CurrentScreen::JoinClusterConfig(config);
 
                 Task::none()
             }
             (CurrentScreen::JoinClusterConfig(mut config), Message::SetSlotsCount(slots)) => {
-                config.state_data.slots_count = slots;
-                config.state_data.error = None;
+                if slots.is_empty() || slots.chars().all(|character| character.is_ascii_digit()) {
+                    config.state_data.slots_count = slots;
+                    config.state_data.slots_error = None;
+                }
                 self.screen = CurrentScreen::JoinClusterConfig(config);
 
                 Task::none()
             }
-            (CurrentScreen::JoinClusterConfig(config), Message::Connect) => {
-                let slots = match config.state_data.slots_count.parse::<i32>() {
-                    Ok(slots) if slots > 0 => slots,
-                    _ => {
-                        let mut config = config;
-                        config.state_data.error =
-                            Some("Enter a valid number of slots.".to_string());
-                        self.screen = CurrentScreen::JoinClusterConfig(config);
+            (CurrentScreen::JoinClusterConfig(mut config), Message::Connect) => {
+                config.state_data.cluster_address_error = None;
+                config.state_data.slots_error = None;
 
-                        return Task::none();
+                if config.state_data.cluster_address.is_empty() {
+                    config.state_data.cluster_address_error =
+                        Some("Cluster address is required.".to_string());
+                } else if config
+                    .state_data
+                    .cluster_address
+                    .parse::<SocketAddr>()
+                    .is_err()
+                {
+                    config.state_data.cluster_address_error =
+                        Some("Invalid address, expected format: IP:port".to_string());
+                }
+
+                let slots = if config.state_data.slots_count.is_empty() {
+                    config.state_data.slots_error =
+                        Some("Number of slots is required.".to_string());
+                    None
+                } else {
+                    match config.state_data.slots_count.parse::<i32>() {
+                        Ok(slots) if slots > 0 => Some(slots),
+                        Ok(non_positive_slots) => {
+                            log::debug!(
+                                "User entered non-positive slot count: {non_positive_slots}"
+                            );
+                            config.state_data.slots_error = Some(
+                                "Invalid number of slots (the number should be greater than zero)."
+                                    .to_string(),
+                            );
+                            None
+                        }
+                        Err(error) => {
+                            let message = match error.kind() {
+                                std::num::IntErrorKind::PosOverflow => {
+                                    "Number of slots is too large."
+                                }
+                                unexpected_kind => {
+                                    log::error!(
+                                        "Unexpected slots parse error: {unexpected_kind:?}"
+                                    );
+                                    "Invalid number of slots."
+                                }
+                            };
+                            config.state_data.slots_error = Some(message.to_string());
+                            None
+                        }
                     }
+                };
+
+                if config.state_data.cluster_address_error.is_some()
+                    || config.state_data.slots_error.is_some()
+                {
+                    self.screen = CurrentScreen::JoinClusterConfig(config);
+
+                    return Task::none();
+                }
+
+                let Some(slots) = slots else {
+                    self.screen = CurrentScreen::JoinClusterConfig(config);
+
+                    return Task::none();
                 };
 
                 let agent_name = if config.state_data.agent_name.is_empty() {
@@ -243,8 +297,7 @@ impl SecondBrain {
             }
             (CurrentScreen::StartClusterConfig(mut config), Message::SelectModel(preset)) => {
                 config.state_data.selected_model = Some(preset);
-                config.state_data.balancer_address_error = None;
-                config.state_data.inference_address_error = None;
+                config.state_data.model_error = None;
                 self.screen = CurrentScreen::StartClusterConfig(config);
 
                 Task::none()
@@ -272,25 +325,34 @@ impl SecondBrain {
             (CurrentScreen::StartClusterConfig(mut config), Message::Confirm) => {
                 config.state_data.balancer_address_error = None;
                 config.state_data.inference_address_error = None;
+                config.state_data.model_error = None;
 
-                let management_addr = match config.state_data.balancer_address.parse::<SocketAddr>()
-                {
-                    Ok(addr) => Some(addr),
-                    Err(parse_error) => {
-                        config.state_data.balancer_address_error =
-                            Some(format!("Invalid address: {parse_error}"));
-                        None
-                    }
+                if config.state_data.selected_model.is_none() {
+                    config.state_data.model_error = Some("Please select a model.".to_string());
+                }
+
+                let management_addr = if config.state_data.balancer_address.is_empty() {
+                    config.state_data.balancer_address_error =
+                        Some("Balancer address is required.".to_string());
+                    None
+                } else if let Ok(addr) = config.state_data.balancer_address.parse::<SocketAddr>() {
+                    Some(addr)
+                } else {
+                    config.state_data.balancer_address_error =
+                        Some("Invalid address, expected format: IP:port".to_string());
+                    None
                 };
 
-                let inference_addr = match config.state_data.inference_address.parse::<SocketAddr>()
-                {
-                    Ok(addr) => Some(addr),
-                    Err(parse_error) => {
-                        config.state_data.inference_address_error =
-                            Some(format!("Invalid address: {parse_error}"));
-                        None
-                    }
+                let inference_addr = if config.state_data.inference_address.is_empty() {
+                    config.state_data.inference_address_error =
+                        Some("Inference address is required.".to_string());
+                    None
+                } else if let Ok(addr) = config.state_data.inference_address.parse::<SocketAddr>() {
+                    Some(addr)
+                } else {
+                    config.state_data.inference_address_error =
+                        Some("Invalid address, expected format: IP:port".to_string());
+                    None
                 };
 
                 let management_addr = match management_addr {
@@ -311,13 +373,21 @@ impl SecondBrain {
                     other => other,
                 };
 
-                let (management_addr, inference_addr) = match (management_addr, inference_addr) {
-                    (Some(management), Some(inference)) => (management, inference),
-                    _ => {
-                        self.screen = CurrentScreen::StartClusterConfig(config);
+                if config.state_data.model_error.is_some()
+                    || config.state_data.balancer_address_error.is_some()
+                    || config.state_data.inference_address_error.is_some()
+                {
+                    self.screen = CurrentScreen::StartClusterConfig(config);
 
-                        return Task::none();
-                    }
+                    return Task::none();
+                }
+
+                let (Some(management_addr), Some(inference_addr)) =
+                    (management_addr, inference_addr)
+                else {
+                    self.screen = CurrentScreen::StartClusterConfig(config);
+
+                    return Task::none();
                 };
 
                 let desired_state = config

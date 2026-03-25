@@ -42,6 +42,7 @@ impl Screen<Home> {
             balancer_address_error: None,
             inference_address: format!("{suggested_address}:8061"),
             inference_address_error: None,
+            model_error: None,
             selected_model: None,
             starting: false,
         })

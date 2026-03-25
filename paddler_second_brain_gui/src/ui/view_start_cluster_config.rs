@@ -35,18 +35,11 @@ pub fn view_start_cluster_config<'content>(
         button(text("Starting...").font(BOLD))
             .padding([SPACING_HALF, SPACING_BASE])
             .style(style_button_primary)
-    } else if data.selected_model.is_some()
-        && !data.balancer_address.is_empty()
-        && !data.inference_address.is_empty()
-    {
-        button(text("Start a cluster").font(BOLD))
-            .padding([SPACING_HALF, SPACING_BASE])
-            .style(style_button_primary)
-            .on_press(Message::Confirm)
     } else {
         button(text("Start a cluster").font(BOLD))
             .padding([SPACING_HALF, SPACING_BASE])
             .style(style_button_primary)
+            .on_press(Message::Confirm)
     };
 
     let cancel_button = button(text("Cancel").font(BOLD))
@@ -61,7 +54,7 @@ pub fn view_start_cluster_config<'content>(
                 .padding(SPACING_BASE)
                 .style(style_field_text_input),
         )
-        .width(300)
+        .width(400)
         .style(style_field_container),
     ]
     .spacing(SPACING_HALF);
@@ -69,6 +62,7 @@ pub fn view_start_cluster_config<'content>(
     if let Some(error) = &data.balancer_address_error {
         balancer_field = balancer_field.push(
             container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
+                .width(400)
                 .padding([0.0, SPACING_BASE]),
         );
     }
@@ -81,7 +75,7 @@ pub fn view_start_cluster_config<'content>(
                 .padding(SPACING_BASE)
                 .style(style_field_text_input),
         )
-        .width(300)
+        .width(400)
         .style(style_field_container),
     ]
     .spacing(SPACING_HALF);
@@ -89,6 +83,33 @@ pub fn view_start_cluster_config<'content>(
     if let Some(error) = &data.inference_address_error {
         inference_field = inference_field.push(
             container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
+                .width(400)
+                .padding([0.0, SPACING_BASE]),
+        );
+    }
+
+    let mut model_field = column![
+        container(text("Select a model").font(BOLD)).padding([0.0, SPACING_BASE]),
+        container(
+            pick_list(
+                available_models,
+                data.selected_model.as_ref(),
+                Message::SelectModel,
+            )
+            .width(Fill)
+            .padding(SPACING_BASE)
+            .style(style_field_pick_list)
+            .menu_style(style_field_pick_list_menu),
+        )
+        .width(400)
+        .style(style_field_container),
+    ]
+    .spacing(SPACING_HALF);
+
+    if let Some(error) = &data.model_error {
+        model_field = model_field.push(
+            container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
+                .width(400)
                 .padding([0.0, SPACING_BASE]),
         );
     }
@@ -98,29 +119,13 @@ pub fn view_start_cluster_config<'content>(
             .padding([0.0, SPACING_BASE]),
         balancer_field,
         inference_field,
-        column![
-            container(text("Select a model").font(BOLD)).padding([0.0, SPACING_BASE]),
-            container(
-                pick_list(
-                    available_models,
-                    data.selected_model.as_ref(),
-                    Message::SelectModel,
-                )
-                .width(Fill)
-                .padding(SPACING_BASE)
-                .style(style_field_pick_list)
-                .menu_style(style_field_pick_list_menu),
-            )
-            .width(300)
-            .style(style_field_container),
-        ]
-        .spacing(SPACING_HALF),
+        model_field,
         container(
             row![cancel_button, confirm_button]
                 .align_y(Center)
                 .spacing(SPACING_BASE),
         )
-        .width(300)
+        .width(400)
         .align_x(Horizontal::Right),
     ]
     .spacing(SPACING_2X)
