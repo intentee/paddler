@@ -87,54 +87,47 @@ struct OpenAIStreamingResponseTransformer {
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
-    async fn transform(
-        &self,
-        message: OutgoingMessage,
-    ) -> anyhow::Result<TransformResult> {
+    async fn transform(&self, message: OutgoingMessage) -> anyhow::Result<TransformResult> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
-            }) => Ok(TransformResult::Chunk(
-                serde_json::to_string(&json!({
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": current_timestamp(),
-                    "model": self.model,
-                    "system_fingerprint": self.system_fingerprint,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {},
-                            "logprobs": null,
-                            "finish_reason": "stop"
-                        }
-                    ]
-                }))?,
-            )),
+            }) => Ok(TransformResult::Chunk(serde_json::to_string(&json!({
+                "id": request_id,
+                "object": "chat.completion.chunk",
+                "created": current_timestamp(),
+                "model": self.model,
+                "system_fingerprint": self.system_fingerprint,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {},
+                        "logprobs": null,
+                        "finish_reason": "stop"
+                    }
+                ]
+            }))?)),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
-            }) => Ok(TransformResult::Chunk(
-                serde_json::to_string(&json!({
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": current_timestamp(),
-                    "model": self.model,
-                    "system_fingerprint": self.system_fingerprint,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant",
-                                "content": token,
-                            },
-                            "logprobs": null,
-                            "finish_reason": null
-                        }
-                    ]
-                }))?,
-            )),
+            }) => Ok(TransformResult::Chunk(serde_json::to_string(&json!({
+                "id": request_id,
+                "object": "chat.completion.chunk",
+                "created": current_timestamp(),
+                "model": self.model,
+                "system_fingerprint": self.system_fingerprint,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "content": token,
+                        },
+                        "logprobs": null,
+                        "finish_reason": null
+                    }
+                ]
+            }))?)),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
                     OutgoingResponse::GeneratedToken(
@@ -181,10 +174,7 @@ struct OpenAICombinedResponseTransformer {}
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
-    async fn transform(
-        &self,
-        message: OutgoingMessage,
-    ) -> anyhow::Result<TransformResult> {
+    async fn transform(&self, message: OutgoingMessage) -> anyhow::Result<TransformResult> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
@@ -576,6 +566,167 @@ mod tests {
         assert_eq!(error["error"]["message"], "something went wrong");
         assert!(error["error"]["param"].is_null());
         assert!(error["error"]["code"].is_null());
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn streaming_image_decoding_failed_returns_error_variant() -> Result<()> {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::ImageDecodingFailed(
+            "unsupported format".to_owned(),
+        ));
+        let result = transformer.transform(message).await?;
+
+        assert_error_contains(&result, "unsupported format")?;
+        assert_error_contains(&result, "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn combined_image_decoding_failed_returns_error_variant() -> Result<()> {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::ImageDecodingFailed(
+            "unsupported format".to_owned(),
+        ));
+        let result = transformer.transform(message).await?;
+
+        assert_error_contains(&result, "unsupported format")?;
+        assert_error_contains(&result, "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn streaming_multimodal_not_supported_returns_error_variant() -> Result<()> {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::MultimodalNotSupported(
+            "model does not support images".to_owned(),
+        ));
+        let result = transformer.transform(message).await?;
+
+        assert_error_contains(&result, "model does not support images")?;
+        assert_error_contains(&result, "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn combined_multimodal_not_supported_returns_error_variant() -> Result<()> {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::MultimodalNotSupported(
+            "model does not support images".to_owned(),
+        ));
+        let result = transformer.transform(message).await?;
+
+        assert_error_contains(&result, "model does not support images")?;
+        assert_error_contains(&result, "server_error")?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_text_only_request() -> Result<()> {
+        let input = serde_json::json!({
+            "model": "test-model",
+            "messages": [
+                {"role": "user", "content": "hello"}
+            ]
+        });
+
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+
+        assert_eq!(params.model, "test-model");
+        assert_eq!(params.messages.len(), 1);
+        assert_eq!(params.messages[0].role, "user");
+        assert_eq!(params.messages[0].content.text_content(), "hello");
+
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_multimodal_request_with_image() -> Result<()> {
+        let input = serde_json::json!({
+            "model": "vision-model",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "describe this image"},
+                        {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,/9j/4AAQ"}}
+                    ]
+                }
+            ]
+        });
+
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+
+        assert_eq!(params.messages.len(), 1);
+        assert_eq!(
+            params.messages[0].content.text_content(),
+            "describe this image"
+        );
+
+        let image_urls = params.messages[0].content.image_urls();
+
+        assert_eq!(image_urls.len(), 1);
+        assert_eq!(image_urls[0].url, "data:image/jpeg;base64,/9j/4AAQ");
+
+        Ok(())
+    }
+
+    #[test]
+    fn deserialize_multi_turn_conversation() -> Result<()> {
+        let input = serde_json::json!({
+            "model": "test-model",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "What is 2+2?"},
+                {"role": "assistant", "content": "4"},
+                {"role": "user", "content": "And 3+3?"}
+            ]
+        });
+
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+
+        assert_eq!(params.messages.len(), 4);
+        assert_eq!(params.messages[0].role, "system");
+        assert_eq!(params.messages[1].role, "user");
+        assert_eq!(params.messages[2].role, "assistant");
+        assert_eq!(params.messages[3].role, "user");
+
+        Ok(())
+    }
+
+    #[test]
+    fn openai_message_converts_to_conversation_message() -> Result<()> {
+        use paddler_types::conversation_message::ConversationMessage;
+
+        let input = serde_json::json!({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "OCR this"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}}
+            ]
+        });
+
+        let openai_message: super::OpenAIMessage = serde_json::from_value(input)?;
+        let conversation_message = ConversationMessage::from(&openai_message);
+
+        assert_eq!(conversation_message.role, "user");
+        assert_eq!(conversation_message.content.text_content(), "OCR this");
+        assert_eq!(conversation_message.content.image_urls().len(), 1);
 
         Ok(())
     }

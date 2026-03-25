@@ -44,7 +44,9 @@ impl ConversationMessageContent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::conversation_message_content::ConversationMessageContent;
+    use crate::conversation_message_content_part::ConversationMessageContentPart;
+    use crate::image_url::ImageUrl;
 
     #[test]
     fn text_content_from_text_variant() {
