@@ -382,7 +382,7 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
 
     balancer.wait_for_total_slots(4).await;
 
-    let mut streams = send_buffered_requests(&balancer, 4).await;
+    let mut streams = send_buffered_requests(&balancer, 5).await;
 
     let mut successful_responses = 0;
 
@@ -407,8 +407,8 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
     }
 
     assert_eq!(
-        successful_responses, 4,
-        "all 4 requests should receive successful responses"
+        successful_responses, 5,
+        "all 5 requests should receive successful responses"
     );
 }
 
