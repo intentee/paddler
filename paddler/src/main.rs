@@ -14,9 +14,16 @@ use tokio::sync::oneshot;
 #[cfg(feature = "web_admin_panel")]
 pub const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
 
+pub const CUDA_DISCLAIMER_DOCS: &str = "
+This software includes NVIDIA CUDA runtime components, 
+subject to the NVIDIA CUDA Toolkit End User License Agreement: https://docs.nvidia.com/cuda/eula/index.html
+This software contains source code provided by NVIDIA Corporation.
+Paddler is not affiliated with, endorsed by, or sponsored by NVIDIA Corporation.";
+
 #[derive(Parser)]
 #[command(arg_required_else_help(true), version, about, long_about = None)]
-/// `LLMOps` platform for hosting and scaling open-source LLMs in your own infrastructure
+#[cfg_attr(feature = "cuda", command(before_help = CUDA_DISCLAIMER_DOCS))]
+/// LLMOps platform for hosting and scaling open-source LLMs in your own infrastructure
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
