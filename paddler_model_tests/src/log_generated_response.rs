@@ -1,5 +1,6 @@
 use paddler_types::generated_token_result::GeneratedTokenResult;
 
+#[expect(clippy::print_stderr, reason = "test diagnostic output")]
 pub fn log_generated_response(results: &[GeneratedTokenResult]) {
     let token_count = results
         .iter()

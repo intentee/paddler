@@ -1,3 +1,4 @@
+#[must_use]
 pub fn l2(embedding: &[f32]) -> Vec<f32> {
     let magnitude = embedding
         .iter()

@@ -1,3 +1,8 @@
+#[must_use]
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "embedding length precision loss is acceptable for normalization math"
+)]
 pub fn rms_norm(embedding: &[f32], eps: f32) -> Vec<f32> {
     if embedding.is_empty() {
         return Vec::new();

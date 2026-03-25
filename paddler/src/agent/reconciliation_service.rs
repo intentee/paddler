@@ -37,14 +37,12 @@ impl ReconciliationService {
 
         self.is_converted_to_applicable_state = true;
         self.slot_aggregated_status.set_uses_chat_template_override(
-            if let Some(applicable_state) = &applicable_state {
-                applicable_state.chat_template_override.is_some()
-            } else {
-                false
-            },
+            applicable_state
+                .as_ref()
+                .is_some_and(|applicable_state| applicable_state.chat_template_override.is_some()),
         );
         self.slot_aggregated_status
-            .register_fix(AgentIssueFix::ModelStateIsReconciled);
+            .register_fix(&AgentIssueFix::ModelStateIsReconciled);
         self.agent_applicable_state_holder
             .set_agent_applicable_state(applicable_state)
     }
@@ -77,13 +75,10 @@ impl Service for ReconciliationService {
                 },
                 next_agent_desired_state = self.agent_desired_state_rx.recv() => {
                     self.is_converted_to_applicable_state = false;
-                    self.agent_desired_state = match next_agent_desired_state {
-                        Some(agent_desired_state) => Some(agent_desired_state),
-                        None => {
-                            error!("Agent desired state channel closed, stopping reconciliation service.");
+                    self.agent_desired_state = if let Some(agent_desired_state) = next_agent_desired_state { Some(agent_desired_state) } else {
+                        error!("Agent desired state channel closed, stopping reconciliation service.");
 
-                            break Ok(())
-                        }
+                        break Ok(())
                     };
                     self.try_convert_to_applicable_state().await;
                 }

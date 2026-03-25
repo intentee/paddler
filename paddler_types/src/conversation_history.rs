@@ -18,10 +18,12 @@ pub struct ConversationHistory {
 }
 
 impl ConversationHistory {
-    pub fn new(messages: Vec<ConversationMessage>) -> Self {
+    #[must_use]
+    pub const fn new(messages: Vec<ConversationMessage>) -> Self {
         Self { messages }
     }
 
+    #[must_use]
     pub fn extract_image_urls(&self) -> Vec<&ImageUrl> {
         self.messages
             .iter()
@@ -29,6 +31,7 @@ impl ConversationHistory {
             .collect()
     }
 
+    #[must_use]
     pub fn replace_images_with_marker(&self, media_marker: &MediaMarker) -> ChatTemplateMessages {
         let marker_string = media_marker.to_string();
 
@@ -48,13 +51,13 @@ impl ConversationHistory {
                                     .map(|part| match part {
                                         ConversationMessageContentPart::Text { text } => {
                                             ChatTemplateMessageContentPart {
-                                                content_type: "text".to_string(),
+                                                content_type: "text".to_owned(),
                                                 text: text.clone(),
                                             }
                                         }
                                         ConversationMessageContentPart::ImageUrl { .. } => {
                                             ChatTemplateMessageContentPart {
-                                                content_type: "text".to_string(),
+                                                content_type: "text".to_owned(),
                                                 text: marker_string.clone(),
                                             }
                                         }
@@ -76,8 +79,8 @@ mod tests {
 
     fn make_text_message(role: &str, text: &str) -> ConversationMessage {
         ConversationMessage {
-            content: ConversationMessageContent::Text(text.to_string()),
-            role: role.to_string(),
+            content: ConversationMessageContent::Text(text.to_owned()),
+            role: role.to_owned(),
         }
     }
 
@@ -87,7 +90,7 @@ mod tests {
     ) -> ConversationMessage {
         ConversationMessage {
             content: ConversationMessageContent::Parts(parts),
-            role: role.to_string(),
+            role: role.to_owned(),
         }
     }
 
@@ -99,11 +102,11 @@ mod tests {
                 "user",
                 vec![
                     ConversationMessageContentPart::Text {
-                        text: "look at this".to_string(),
+                        text: "look at this".to_owned(),
                     },
                     ConversationMessageContentPart::ImageUrl {
                         image_url: ImageUrl {
-                            url: "http://example.com/img.png".to_string(),
+                            url: "http://example.com/img.png".to_owned(),
                         },
                     },
                 ],
@@ -122,25 +125,24 @@ mod tests {
             "user",
             vec![
                 ConversationMessageContentPart::Text {
-                    text: "before".to_string(),
+                    text: "before".to_owned(),
                 },
                 ConversationMessageContentPart::ImageUrl {
                     image_url: ImageUrl {
-                        url: "http://example.com/img.png".to_string(),
+                        url: "http://example.com/img.png".to_owned(),
                     },
                 },
                 ConversationMessageContentPart::Text {
-                    text: "after".to_string(),
+                    text: "after".to_owned(),
                 },
             ],
         )]);
 
-        let marker = MediaMarker::new("[IMAGE]".to_string());
+        let marker = MediaMarker::new("[IMAGE]".to_owned());
         let result = history.replace_images_with_marker(&marker);
 
-        let parts = match &result.messages[0].content {
-            ChatTemplateMessageContent::Parts(parts) => parts,
-            ChatTemplateMessageContent::Text(_) => panic!("expected Parts variant"),
+        let ChatTemplateMessageContent::Parts(parts) = &result.messages[0].content else {
+            unreachable!("expected Parts variant");
         };
 
         assert_eq!(parts.len(), 3);
@@ -153,12 +155,12 @@ mod tests {
     fn replace_images_with_marker_preserves_text_messages() {
         let history = ConversationHistory::new(vec![make_text_message("assistant", "hello")]);
 
-        let marker = MediaMarker::new("[IMAGE]".to_string());
+        let marker = MediaMarker::new("[IMAGE]".to_owned());
         let result = history.replace_images_with_marker(&marker);
 
         assert_eq!(
             result.messages[0].content,
-            ChatTemplateMessageContent::Text("hello".to_string())
+            ChatTemplateMessageContent::Text("hello".to_owned())
         );
         assert_eq!(result.messages[0].role, "assistant");
     }

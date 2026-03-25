@@ -37,7 +37,7 @@ log = { workspace = true }
 minijinja = { workspace = true }
 minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
-paddler_types = { workspace = true, features = ["validation"] }
+paddler_types = { workspace = true }
 thiserror = { workspace = true }
 nix = { workspace = true }
 rand = { workspace = true }
@@ -70,3 +70,6 @@ vulkan = ["llama-cpp-bindings/vulkan"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
+
+[lints]
+workspace = true

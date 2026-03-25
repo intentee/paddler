@@ -24,10 +24,9 @@ pub struct ManagedModel {
 
 impl ManagedModel {
     pub async fn from_huggingface(params: ManagedModelParams) -> Result<Self> {
-        let multimodal_projection = match params.multimodal_projection {
-            Some(reference) => AgentDesiredModel::HuggingFace(reference),
-            None => AgentDesiredModel::None,
-        };
+        let multimodal_projection = params
+            .multimodal_projection
+            .map_or(AgentDesiredModel::None, AgentDesiredModel::HuggingFace);
 
         let desired_state = AgentDesiredState {
             chat_template_override: None,
@@ -52,7 +51,7 @@ impl ManagedModel {
             .ok_or_else(|| anyhow!("Model path is required"))?;
 
         let llamacpp_arbiter = LlamaCppArbiter {
-            agent_name: Some("managed_test_model".to_string()),
+            agent_name: Some("managed_test_model".to_owned()),
             chat_template_override: None,
             desired_slots_total: 1,
             inference_parameters: applicable_state.inference_parameters,
@@ -68,7 +67,8 @@ impl ManagedModel {
         Ok(Self { handle })
     }
 
-    pub fn handle(&self) -> &LlamaCppArbiterHandle {
+    #[must_use]
+    pub const fn handle(&self) -> &LlamaCppArbiterHandle {
         &self.handle
     }
 

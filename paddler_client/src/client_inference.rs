@@ -29,7 +29,8 @@ pub struct ClientInference<'client> {
 }
 
 impl<'client> ClientInference<'client> {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         url: &'client Url,
         http_client: &'client Client,
         inference_socket_pool_size: usize,

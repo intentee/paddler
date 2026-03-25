@@ -34,7 +34,7 @@ async fn respond(preloads: HttpPreloader, app_data: web::Data<AppData>) -> impl 
             .buffered_request_timeout
             .as_millis(),
         compat_openai_addr: match app_data.template_data.compat_openai_addr.clone() {
-            Some(addr) => addr.input_addr.clone(),
+            Some(addr) => addr.input_addr,
             None => String::new(),
         },
         inference_addr: app_data.template_data.inference_addr.input_addr.clone(),
@@ -42,7 +42,7 @@ async fn respond(preloads: HttpPreloader, app_data: web::Data<AppData>) -> impl 
         max_buffered_requests: app_data.template_data.max_buffered_requests,
         preloads,
         statsd_addr: match app_data.template_data.statsd_addr.clone() {
-            Some(addr) => addr.input_addr.clone(),
+            Some(addr) => addr.input_addr,
             None => String::new(),
         },
         statsd_prefix: app_data.template_data.statsd_prefix.clone(),

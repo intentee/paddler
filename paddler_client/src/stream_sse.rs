@@ -20,7 +20,7 @@ fn make_stream(response: Response) -> impl Stream<Item = Result<String>> + Send 
                     let line = line.trim_end_matches('\r');
 
                     if let Some(data) = line.strip_prefix("data: ") {
-                        return Some((Ok(data.to_string()), (response, buffer)));
+                        return Some((Ok(data.to_owned()), (response, buffer)));
                     }
 
                     continue;

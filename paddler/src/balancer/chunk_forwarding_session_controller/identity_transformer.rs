@@ -8,7 +8,7 @@ use super::transforms_outgoing_message::TransformsOutgoingMessage;
 pub struct IdentityTransformer;
 
 impl IdentityTransformer {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {}
     }
 }

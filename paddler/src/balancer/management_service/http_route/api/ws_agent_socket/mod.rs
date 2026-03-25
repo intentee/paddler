@@ -189,19 +189,16 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                                 break;
                             }
                             result = agent_message_rx.recv() => {
-                                match result {
-                                    Some(message) => {
-                                        websocket_session_controller
-                                            .send_response(message)
-                                            .await
-                                            .unwrap_or_else(|err| {
-                                                error!("Error sending response: {err}");
-                                            });
-                                    }
-                                    None => {
-                                        info!("Session channel closed for agent: {}", context.agent_id);
-                                        break;
-                                    }
+                                if let Some(message) = result {
+                                    websocket_session_controller
+                                        .send_response(message)
+                                        .await
+                                        .unwrap_or_else(|err| {
+                                            error!("Error sending response: {err}");
+                                        });
+                                } else {
+                                    info!("Session channel closed for agent: {}", context.agent_id);
+                                    break;
                                 }
                             }
                         }
@@ -290,7 +287,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         if let Err(err) = session
             .text(serde_json::to_string(&AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::Version(VersionParams {
-                    version: env!("CARGO_PKG_VERSION").to_string(),
+                    version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
             ))?)
             .await
@@ -313,6 +310,10 @@ struct PathParams {
 }
 
 #[get("/api/v1/agent_socket/{agent_id}")]
+#[expect(
+    clippy::future_not_send,
+    reason = "actix-web handlers run on a single-threaded runtime"
+)]
 async fn respond(
     app_data: Data<AppData>,
     path_params: Path<PathParams>,

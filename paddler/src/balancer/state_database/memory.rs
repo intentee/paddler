@@ -13,8 +13,9 @@ pub struct Memory {
 }
 
 impl Memory {
+    #[must_use]
     pub fn new(balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>) -> Self {
-        Memory {
+        Self {
             balancer_desired_state: RwLock::new(BalancerDesiredState::default()),
             balancer_desired_state_notify_tx,
         }
@@ -23,6 +24,7 @@ impl Memory {
 
 #[async_trait]
 impl StateDatabase for Memory {
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     async fn read_balancer_desired_state(&self) -> Result<BalancerDesiredState> {
         Ok(self
             .balancer_desired_state
@@ -31,6 +33,7 @@ impl StateDatabase for Memory {
             .clone())
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     async fn store_balancer_desired_state(&self, state: &BalancerDesiredState) -> Result<()> {
         {
             let mut balancer_desired_state = self

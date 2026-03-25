@@ -27,7 +27,7 @@ impl Default for TestClusterParams {
                 multimodal_projection: AgentDesiredModel::None,
                 use_chat_template_override: false,
             },
-            agent_name: "test-agent".to_string(),
+            agent_name: "test-agent".to_owned(),
             agent_slots: 4,
             with_openai: false,
             max_buffered_requests: 10,

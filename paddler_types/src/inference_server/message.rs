@@ -9,9 +9,9 @@ use crate::rpc_message::RpcMessage;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub enum Message<TParametersSchema: Default> {
+pub enum Message<TParametersSchema> {
     Error(ErrorEnvelope<Error>),
     Request(RequestEnvelope<Request<TParametersSchema>>),
 }
 
-impl<TParametersSchema: Default + Send + Serialize> RpcMessage for Message<TParametersSchema> {}
+impl<TParametersSchema: Send + Serialize> RpcMessage for Message<TParametersSchema> {}

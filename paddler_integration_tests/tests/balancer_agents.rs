@@ -1,4 +1,4 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use std::time::Duration;
 
@@ -50,24 +50,22 @@ async fn test_balancer_can_register_agents() {
 
     assert_eq!(agent_count, 0);
 
-    let _agent1 = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent1 = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("test-agent-1".to_string()),
         slots: 1,
     })
-    .await
     .expect("failed to spawn agent");
 
     let agent_count = balancer.wait_for_agent_count(1).await;
 
     assert_eq!(agent_count, 1);
 
-    let _agent2 = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent2 = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("test-agent-2".to_string()),
         slots: 1,
     })
-    .await
     .expect("failed to spawn agent");
 
     let agent_count = balancer.wait_for_agent_count(2).await;

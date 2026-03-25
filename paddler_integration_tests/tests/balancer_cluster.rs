@@ -1,4 +1,4 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use std::pin::Pin;
 use std::time::Duration;
@@ -198,12 +198,11 @@ async fn test_balancer_overflows_buffer_when_feature_is_disabled() {
     .await
     .expect("failed to spawn balancer");
 
-    let _agent = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("test-agent".to_string()),
         slots: 2,
     })
-    .await
     .expect("failed to spawn agent");
 
     balancer.wait_for_agent_count(1).await;
@@ -282,12 +281,11 @@ async fn test_balancer_can_buffer_requests() {
 
     balancer.wait_for_buffered_requests(1).await;
 
-    let _agent = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("buffered-agent".to_string()),
         slots: 4,
     })
-    .await
     .expect("failed to spawn agent");
 
     let first_message = stream.next().await;
@@ -344,20 +342,18 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
 
     balancer.wait_for_buffered_requests(7).await;
 
-    let _agent_one = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("distributed-agent-one".to_string()),
         slots: 3,
     })
-    .await
     .expect("failed to spawn first agent");
 
-    let _agent_two = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent_two = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("distributed-agent-two".to_string()),
         slots: 3,
     })
-    .await
     .expect("failed to spawn second agent");
 
     let mut successful_responses = 0;
@@ -425,20 +421,18 @@ async fn test_buffered_requests_when_agent_is_removed() {
 
     balancer.wait_for_buffered_requests(3).await;
 
-    let _agent_one = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("removable-agent-one".to_string()),
         slots: 2,
     })
-    .await
     .expect("failed to spawn first agent");
 
-    let mut agent_two = ManagedAgent::spawn(ManagedAgentParams {
+    let mut agent_two = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("removable-agent-two".to_string()),
         slots: 2,
     })
-    .await
     .expect("failed to spawn second agent");
 
     balancer.wait_for_agent_count(2).await;
@@ -516,12 +510,11 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
 
     balancer.wait_for_desired_state(&desired_state).await;
 
-    let _agent = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("timeout-agent".to_string()),
         slots: 1,
     })
-    .await
     .expect("failed to spawn agent");
 
     balancer.wait_for_agent_count(1).await;

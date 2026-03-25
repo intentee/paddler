@@ -19,7 +19,7 @@ fn make_stream<TItem: DeserializeOwned + Send + 'static>(
         |(mut response, mut buffer, _item_type_marker)| async move {
             loop {
                 if let Some(line_end) = buffer.find('\n') {
-                    let line = buffer[..line_end].trim().to_string();
+                    let line = buffer[..line_end].trim().to_owned();
                     buffer = buffer[line_end + 1..].to_string();
 
                     if line.is_empty() {
@@ -37,7 +37,7 @@ fn make_stream<TItem: DeserializeOwned + Send + 'static>(
                         buffer.push_str(&text);
                     }
                     Ok(None) => {
-                        let remaining = buffer.trim().to_string();
+                        let remaining = buffer.trim().to_owned();
                         if !remaining.is_empty() {
                             buffer.clear();
                             let result: Result<TItem> = from_str(&remaining).map_err(Into::into);

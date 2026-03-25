@@ -10,6 +10,10 @@ const CHAT_TEMPLATE_NAME: &str = "chat_template";
 
 // Known uses:
 // https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "minijinja function callback requires owned String"
+)]
 fn minijinja_raise_exception(message: String) -> std::result::Result<String, Error> {
     Err(Error::new::<String>(
         ErrorKind::InvalidOperation,
@@ -46,12 +50,15 @@ impl ChatTemplateRenderer {
 mod tests {
     use std::collections::HashMap;
 
-    use super::*;
+    use anyhow::Result;
+    use paddler_types::chat_template::ChatTemplate;
+
+    use crate::chat_template_renderer::ChatTemplateRenderer;
 
     #[test]
     fn new_with_valid_template_succeeds() {
         let template = ChatTemplate {
-            content: "Hello {{ name }}!".to_string(),
+            content: "Hello {{ name }}!".to_owned(),
         };
 
         assert!(ChatTemplateRenderer::new(template).is_ok());
@@ -60,23 +67,25 @@ mod tests {
     #[test]
     fn new_with_invalid_template_fails() {
         let template = ChatTemplate {
-            content: "{% if unclosed %}".to_string(),
+            content: "{% if unclosed %}".to_owned(),
         };
 
         assert!(ChatTemplateRenderer::new(template).is_err());
     }
 
     #[test]
-    fn render_produces_expected_output() {
+    fn render_produces_expected_output() -> Result<()> {
         let template = ChatTemplate {
-            content: "Hello {{ name }}!".to_string(),
+            content: "Hello {{ name }}!".to_owned(),
         };
-        let renderer = ChatTemplateRenderer::new(template).unwrap();
+        let renderer = ChatTemplateRenderer::new(template)?;
         let mut context = HashMap::new();
         context.insert("name", "world");
 
-        let result = renderer.render(context).unwrap();
+        let result = renderer.render(context)?;
 
         assert_eq!(result, "Hello world!");
+
+        Ok(())
     }
 }

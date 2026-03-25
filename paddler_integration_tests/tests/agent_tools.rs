@@ -1,4 +1,4 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use futures_util::StreamExt;
 use integration_tests::test_cluster::TestCluster;

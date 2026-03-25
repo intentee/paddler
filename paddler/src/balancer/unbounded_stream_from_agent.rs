@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use actix_web::Error;
 use actix_web::rt;
 use log::error;
 use nanoid::nanoid;
@@ -30,7 +29,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
     transformer: TTransformsOutgoingMessage,
-) -> Result<UnboundedReceiverStream<String>, Error>
+) -> UnboundedReceiverStream<String>
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
     AgentController: HandlesAgentStreamingResponse<TParams>,
@@ -68,5 +67,5 @@ where
         }
     });
 
-    Ok(UnboundedReceiverStream::new(chunk_rx))
+    UnboundedReceiverStream::new(chunk_rx)
 }

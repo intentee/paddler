@@ -8,12 +8,14 @@ pub struct SlotAggregatedStatusManager {
 }
 
 impl SlotAggregatedStatusManager {
+    #[must_use]
     pub fn new(desired_slots_total: i32) -> Self {
-        SlotAggregatedStatusManager {
+        Self {
             slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(desired_slots_total)),
         }
     }
 
+    #[must_use]
     pub fn bind_slot_status(&self) -> Arc<SlotStatus> {
         Arc::new(SlotStatus::new(self.slot_aggregated_status.clone()))
     }

@@ -131,17 +131,18 @@ impl LlamaCppArbiterService {
 
                     return Err(anyhow!(
                         "Multimodal projection cannot be loaded: {}",
-                        if let Some(multimodal_projection_path) = multimodal_projection_path {
-                            multimodal_projection_path.display().to_string()
-                        } else {
-                            "*cannot establish path*".to_string()
-                        }
+                        multimodal_projection_path.map_or_else(
+                            || "*cannot establish path*".to_owned(),
+                            |multimodal_projection_path| multimodal_projection_path
+                                .display()
+                                .to_string()
+                        )
                     ));
                 }
 
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelFileExists(ModelPath {
+                    .register_fix(&AgentIssueFix::ModelFileExists(ModelPath {
                         model_path: model_path_string.clone(),
                     }));
 
@@ -174,8 +175,8 @@ impl LlamaCppArbiterService {
         Ok(())
     }
 
-    async fn forward_request_to_arbiter<TRequest>(
-        &mut self,
+    fn forward_request_to_arbiter<TRequest>(
+        &self,
         request: TRequest,
         mut shutdown: broadcast::Receiver<()>,
     ) where
@@ -243,7 +244,7 @@ impl Service for LlamaCppArbiterService {
                     }
                 }
                 _ = reconciled_state.changed() => {
-                    self.agent_applicable_state = reconciled_state.borrow_and_update().clone();
+                    self.agent_applicable_state.clone_from(&reconciled_state.borrow_and_update());
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
                         .set_state_application_status(AgentStateApplicationStatus::Fresh);
@@ -256,7 +257,7 @@ impl Service for LlamaCppArbiterService {
                             self.forward_request_to_arbiter(
                                 continue_from_conversation_history_request,
                                 shutdown.resubscribe(),
-                            ).await
+                            );
                         }
                         None => {
                             break Err(anyhow!("ContinueFromConversationHistoryRequest channel closed unexpectedly"));
@@ -269,7 +270,7 @@ impl Service for LlamaCppArbiterService {
                             self.forward_request_to_arbiter(
                                 continue_from_raw_prompt_request,
                                 shutdown.resubscribe(),
-                            ).await
+                            );
                         }
                         None => {
                             break Err(anyhow!("ContinueFromRawPromptRequest channel closed unexpectedly"));
@@ -282,7 +283,7 @@ impl Service for LlamaCppArbiterService {
                             self.forward_request_to_arbiter(
                                 generate_embedding_batch_request,
                                 shutdown.resubscribe(),
-                            ).await
+                            );
                         }
                         None => {
                             break Err(anyhow!("GenerateEmbeddingBatchRequest channel closed unexpectedly"));

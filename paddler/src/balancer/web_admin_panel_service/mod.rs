@@ -30,6 +30,7 @@ impl Service for WebAdminPanelService {
             template_data: self.configuration.template_data.clone(),
         });
 
+        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
         HttpServer::new(move || {
             App::new()
                 .app_data(app_data.clone())

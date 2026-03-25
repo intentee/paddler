@@ -35,7 +35,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
         slot_aggregated_status: Self::Context,
     ) -> Result<Option<Self::ApplicableState>> {
         Ok(match self {
-            AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
+            Self::HuggingFace(HuggingFaceModelReference {
                 filename,
                 repo_id,
                 revision,
@@ -78,7 +78,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                 {
                     Ok(resolved_filename) => {
                         slot_aggregated_status.register_fix(
-                            AgentIssueFix::HuggingFaceDownloadedModel(ModelPath { model_path }),
+                            &AgentIssueFix::HuggingFaceDownloadedModel(ModelPath { model_path }),
                         );
 
                         resolved_filename
@@ -116,8 +116,9 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                                 "Model '{model_path}' does not exist on Hugging Face."
                             ));
                         }
-                        Some(reqwest::StatusCode::FORBIDDEN)
-                        | Some(reqwest::StatusCode::UNAUTHORIZED) => {
+                        Some(
+                            reqwest::StatusCode::FORBIDDEN | reqwest::StatusCode::UNAUTHORIZED,
+                        ) => {
                             slot_aggregated_status.register_issue(
                                 AgentIssue::HuggingFacePermissions(ModelPath {
                                     model_path: model_path.clone(),
@@ -130,8 +131,7 @@ impl ConvertsToApplicableState for AgentDesiredModel {
                         }
                         _ => {
                             return Err(anyhow!(
-                                "Failed to download model from Hugging Face: {}",
-                                reqwest_error
+                                "Failed to download model from Hugging Face: {reqwest_error}"
                             ));
                         }
                     },
@@ -140,8 +140,8 @@ impl ConvertsToApplicableState for AgentDesiredModel {
 
                 Some(weights_filename)
             }
-            AgentDesiredModel::LocalToAgent(path) => Some(PathBuf::from(path)),
-            AgentDesiredModel::None => None,
+            Self::LocalToAgent(path) => Some(PathBuf::from(path)),
+            Self::None => None,
         })
     }
 }

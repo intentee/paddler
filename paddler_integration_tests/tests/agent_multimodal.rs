@@ -1,4 +1,4 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use std::fs;
 use std::time::Duration;
@@ -183,12 +183,11 @@ async fn test_multimodal_inference_with_image() {
 
     balancer.wait_for_desired_state(&desired_state).await;
 
-    let agent = ManagedAgent::spawn(ManagedAgentParams {
+    let agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("multimodal-agent".to_string()),
         slots: 4,
     })
-    .await
     .expect("failed to spawn agent");
 
     balancer.wait_for_agent_count(1).await;

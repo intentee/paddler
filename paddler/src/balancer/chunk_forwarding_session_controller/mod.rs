@@ -21,7 +21,7 @@ impl<TTransformsOutgoingMessage> ChunkForwardingSessionController<TTransformsOut
 where
     TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync,
 {
-    pub fn new(
+    pub const fn new(
         chunk_tx: mpsc::UnboundedSender<String>,
         transformer: TTransformsOutgoingMessage,
     ) -> Self {

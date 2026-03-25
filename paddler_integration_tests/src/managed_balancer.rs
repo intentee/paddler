@@ -80,7 +80,8 @@ impl ManagedBalancer {
         Ok(managed_balancer)
     }
 
-    pub fn client(&self) -> &PaddlerClient {
+    #[must_use]
+    pub const fn client(&self) -> &PaddlerClient {
         &self.client
     }
 
@@ -94,9 +95,10 @@ impl ManagedBalancer {
                 return snapshot.agents.len();
             }
 
-            if start.elapsed() > TIMEOUT {
-                panic!("timed out waiting for {expected} agents");
-            }
+            assert!(
+                start.elapsed() <= TIMEOUT,
+                "timed out waiting for {expected} agents"
+            );
 
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -112,9 +114,10 @@ impl ManagedBalancer {
                 return;
             }
 
-            if start.elapsed() > TIMEOUT {
-                panic!("timed out waiting for desired state to be applied");
-            }
+            assert!(
+                start.elapsed() <= TIMEOUT,
+                "timed out waiting for desired state to be applied"
+            );
 
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -130,9 +133,10 @@ impl ManagedBalancer {
                 return snapshot.buffered_requests_current;
             }
 
-            if start.elapsed() > TIMEOUT {
-                panic!("timed out waiting for {expected} buffered requests");
-            }
+            assert!(
+                start.elapsed() <= TIMEOUT,
+                "timed out waiting for {expected} buffered requests"
+            );
 
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -154,9 +158,10 @@ impl ManagedBalancer {
                 }
             }
 
-            if start.elapsed() > TIMEOUT {
-                panic!("timed out waiting for {expected_total} total desired slots");
-            }
+            assert!(
+                start.elapsed() <= TIMEOUT,
+                "timed out waiting for {expected_total} total desired slots"
+            );
 
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -174,9 +179,10 @@ impl ManagedBalancer {
                 }
             }
 
-            if start.elapsed() > TIMEOUT {
-                panic!("timed out waiting for {expected_total} total slots");
-            }
+            assert!(
+                start.elapsed() <= TIMEOUT,
+                "timed out waiting for {expected_total} total slots"
+            );
 
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -198,9 +204,10 @@ impl ManagedBalancer {
                 }
             }
 
-            if start.elapsed() > TIMEOUT {
-                panic!("timed out waiting for {expected_total} slots processing");
-            }
+            assert!(
+                start.elapsed() <= TIMEOUT,
+                "timed out waiting for {expected_total} slots processing"
+            );
 
             tokio::time::sleep(POLL_INTERVAL).await;
         }
@@ -223,7 +230,7 @@ impl ManagedBalancer {
         }
     }
 
-    pub async fn shutdown(&mut self) -> Result<()> {
+    pub fn shutdown(&mut self) -> Result<()> {
         terminate_child(&mut self.child);
 
         Ok(())

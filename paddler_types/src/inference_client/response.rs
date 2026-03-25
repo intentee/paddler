@@ -15,12 +15,12 @@ pub enum Response {
 
 impl From<EmbeddingResult> for Response {
     fn from(result: EmbeddingResult) -> Self {
-        Response::Embedding(result)
+        Self::Embedding(result)
     }
 }
 
 impl From<GeneratedTokenResult> for Response {
     fn from(result: GeneratedTokenResult) -> Self {
-        Response::GeneratedToken(result)
+        Self::GeneratedToken(result)
     }
 }

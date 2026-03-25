@@ -24,6 +24,10 @@ clean:
 	rm -rf static
 	rm -rf target
 
+.PHONY: clippy
+clippy: jarmuz-static
+	cargo clippy --workspace --all-targets --features web_admin_panel
+
 .PHONY: fmt
 fmt: node_modules
 	./jarmuz-fmt.mjs
@@ -58,7 +62,7 @@ test.llms: jarmuz-static
 
 .PHONY: test.integration
 test.integration: build
-	cargo test --features web_admin_panel,tests_that_use_llms,paddler_integration_tests -- --nocapture --test-threads=1
+	cargo test --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler -- --nocapture --test-threads=1
 
 .PHONY: watch
 watch: node_modules

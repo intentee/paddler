@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::anyhow;
 use tempfile::NamedTempFile;
 
 use crate::BALANCER_INFERENCE_ADDR;
@@ -21,13 +22,11 @@ pub struct TestCluster {
 impl TestCluster {
     pub async fn spawn(params: TestClusterParams) -> Result<Self> {
         let state_db = NamedTempFile::new()?;
-        let state_db_url = format!(
-            "file://{}",
-            state_db
-                .path()
-                .to_str()
-                .expect("temp file path must be valid UTF-8")
-        );
+        let state_db_path = state_db
+            .path()
+            .to_str()
+            .ok_or_else(|| anyhow!("temp file path is not valid UTF-8"))?;
+        let state_db_url = format!("file://{state_db_path}");
 
         let mut balancer_params = if params.with_openai {
             balancer_params_with_openai(
@@ -60,12 +59,11 @@ impl TestCluster {
 
         balancer.wait_for_desired_state(&params.desired_state).await;
 
-        let agent = ManagedAgent::spawn(ManagedAgentParams {
-            management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        let agent = ManagedAgent::spawn(&ManagedAgentParams {
+            management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
             name: Some(params.agent_name),
             slots: params.agent_slots,
-        })
-        .await?;
+        })?;
 
         balancer.wait_for_agent_count(1).await;
 

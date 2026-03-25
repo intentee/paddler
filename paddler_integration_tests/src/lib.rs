@@ -23,7 +23,7 @@ pub const TIMEOUT: Duration = Duration::from_secs(3);
 pub const POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 static PADDLER_BINARY_PATH: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_string())
+    std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_owned())
 });
 
 pub fn paddler_command() -> Command {
@@ -38,9 +38,9 @@ pub fn paddler_command() -> Command {
 
 pub static AGENT_DESIRED_MODEL: LazyLock<AgentDesiredModel> = LazyLock::new(|| {
     AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-        filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-        repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-        revision: "main".to_string(),
+        filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+        repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+        revision: "main".to_owned(),
     })
 });
 
@@ -48,6 +48,7 @@ pub fn terminate_child(child: &mut Child) {
     let child_id = child.id();
 
     if let Some(raw_pid) = child_id {
+        #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
         let pid = Pid::from_raw(raw_pid as i32);
         let _ = kill(pid, Signal::SIGTERM);
 
@@ -68,13 +69,13 @@ pub fn terminate_child(child: &mut Child) {
 
     loop {
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(_)) | Err(_) => break,
             Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => break,
         }
     }
 }
 
+#[must_use]
 pub fn balancer_params(
     management_addr: &str,
     inference_addr: &str,
@@ -85,16 +86,17 @@ pub fn balancer_params(
     ManagedBalancerParams {
         buffered_request_timeout,
         compat_openai_addr: None,
-        inference_addr: inference_addr.to_string(),
+        inference_addr: inference_addr.to_owned(),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: management_addr.to_string(),
+        management_addr: management_addr.to_owned(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests,
-        state_database_url: state_database_url.to_string(),
+        state_database_url: state_database_url.to_owned(),
     }
 }
 
+#[must_use]
 pub fn balancer_params_with_openai(
     management_addr: &str,
     inference_addr: &str,
@@ -105,13 +107,13 @@ pub fn balancer_params_with_openai(
 ) -> ManagedBalancerParams {
     ManagedBalancerParams {
         buffered_request_timeout,
-        compat_openai_addr: Some(openai_addr.to_string()),
-        inference_addr: inference_addr.to_string(),
+        compat_openai_addr: Some(openai_addr.to_owned()),
+        inference_addr: inference_addr.to_owned(),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: management_addr.to_string(),
+        management_addr: management_addr.to_owned(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests,
-        state_database_url: state_database_url.to_string(),
+        state_database_url: state_database_url.to_owned(),
     }
 }

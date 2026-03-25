@@ -10,13 +10,9 @@ version.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+jsonschema = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-[dependencies.jsonschema]
+[lints]
 workspace = true
-optional = true
-
-[features]
-default = ["validation"]
-validation = ["dep:jsonschema"]

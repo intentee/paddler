@@ -72,6 +72,7 @@ impl AgentController {
         .await
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_download_filename(&self) -> Option<String> {
         self.download_filename
             .read()
@@ -79,6 +80,7 @@ impl AgentController {
             .clone()
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_issues(&self) -> BTreeSet<AgentIssue> {
         self.issues.read().expect("Poisoned lock on issues").clone()
     }
@@ -93,6 +95,7 @@ impl AgentController {
         .await
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_model_path(&self) -> Option<String> {
         self.model_path
             .read()
@@ -100,6 +103,7 @@ impl AgentController {
             .clone()
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_download_filename(&self, filename: Option<String>) {
         let mut locked_filename = self
             .download_filename
@@ -109,12 +113,14 @@ impl AgentController {
         *locked_filename = filename;
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_issues(&self, issues: BTreeSet<AgentIssue>) {
         let mut locked_issues = self.issues.write().expect("Poisoned lock on issues");
 
         *locked_issues = issues;
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_model_path(&self, model_path: Option<String>) {
         let mut locked_path = self
             .model_path
@@ -309,19 +315,11 @@ impl ProducesSnapshot for AgentController {
         Ok(AgentControllerSnapshot {
             desired_slots_total: self.desired_slots_total.get(),
             download_current: self.download_current.get(),
-            download_filename: self
-                .download_filename
-                .read()
-                .expect("Poisoned lock on download filename")
-                .clone(),
+            download_filename: self.get_download_filename(),
             download_total: self.download_total.get(),
             id: self.id.clone(),
             issues: self.get_issues(),
-            model_path: self
-                .model_path
-                .read()
-                .expect("Poisoned lock on model path")
-                .clone(),
+            model_path: self.get_model_path(),
             name: self.name.clone(),
             slots_processing: self.slots_processing.get(),
             slots_total: self.slots_total.get(),
@@ -378,7 +376,7 @@ mod tests {
             download_total: AtomicValue::<AtomicUsize>::new(0),
             embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
             generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
-            id: "test-agent".to_string(),
+            id: "test-agent".to_owned(),
             issues: RwLock::new(BTreeSet::new()),
             model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
             model_path: RwLock::new(None),
@@ -430,12 +428,12 @@ mod tests {
         let controller = make_agent_controller();
 
         let mut snapshot = make_snapshot_matching_initial(1);
-        snapshot.model_path = Some("test_model".to_string());
+        snapshot.model_path = Some("test_model".to_owned());
 
         let result = controller.update_from_slot_aggregated_status_snapshot(snapshot);
 
         assert!(matches!(result, AgentControllerUpdateResult::Updated));
-        assert_eq!(controller.get_model_path(), Some("test_model".to_string()));
+        assert_eq!(controller.get_model_path(), Some("test_model".to_owned()));
     }
 
     #[test]

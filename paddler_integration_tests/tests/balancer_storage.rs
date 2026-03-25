@@ -1,4 +1,4 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use std::time::Duration;
 
@@ -49,7 +49,6 @@ async fn test_desired_state_persists_across_restarts() {
 
     balancer
         .shutdown()
-        .await
         .expect("failed to shutdown first balancer");
 
     let restarted_balancer = ManagedBalancer::spawn(balancer_params(
@@ -191,7 +190,6 @@ async fn test_chat_template_override_persists_across_restarts() {
 
     balancer
         .shutdown()
-        .await
         .expect("failed to shutdown balancer");
 
     let restarted_balancer = ManagedBalancer::spawn(balancer_params(

@@ -29,10 +29,14 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
 }
 
+#[expect(
+    clippy::expect_used,
+    reason = "system time before UNIX_EPOCH means we are moving back in time"
+)]
 fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
+        .expect("time went backwards")
         .as_secs()
 }
 
@@ -47,7 +51,7 @@ struct OpenAIMessage {
 
 impl From<&OpenAIMessage> for ConversationMessage {
     fn from(openai_message: &OpenAIMessage) -> Self {
-        ConversationMessage {
+        Self {
             content: openai_message.content.clone(),
             role: openai_message.role.clone(),
         }
@@ -58,7 +62,7 @@ impl From<&OpenAIMessage> for ConversationMessage {
 struct OpenAICompletionRequestParams {
     max_completion_tokens: Option<i32>,
     messages: Vec<OpenAIMessage>,
-    /// This parameter is ignored here, but is required by the OpenAI API.
+    /// This parameter is ignored here, but is required by the `OpenAI` API.
     model: String,
     stream: Option<bool>,
 }
@@ -141,12 +145,12 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
                 ..
-            }) => Ok("".to_string()),
+            }) => Ok(String::new()),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
                 ..
             }) => Ok(token),
-            _ => Err(anyhow!("Unexpected message type: {:?}", message)),
+            _ => Err(anyhow!("Unexpected message type: {message:?}")),
         }
     }
 }
@@ -171,7 +175,7 @@ async fn respond(
     };
 
     if openai_params.stream.unwrap_or(false) {
-        http_stream_from_agent(
+        Ok(http_stream_from_agent(
             app_data.buffered_request_manager.clone(),
             app_data.inference_service_configuration.clone(),
             paddler_params,
@@ -179,14 +183,14 @@ async fn respond(
                 model: openai_params.model.clone(),
                 system_fingerprint: nanoid!(),
             },
-        )
+        ))
     } else {
         let combined_response = unbounded_stream_from_agent(
             app_data.buffered_request_manager.clone(),
             app_data.inference_service_configuration.clone(),
             paddler_params,
             OpenAICombinedResponseTransformer {},
-        )?
+        )
         .collect::<Vec<String>>()
         .await
         .join("");
@@ -231,6 +235,7 @@ async fn respond(
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
     use paddler_types::generated_token_result::GeneratedTokenResult;
     use paddler_types::inference_client::Message as OutgoingMessage;
     use paddler_types::inference_client::Response as OutgoingResponse;
@@ -242,56 +247,64 @@ mod tests {
 
     fn make_token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
         OutgoingMessage::Response(ResponseEnvelope {
-            request_id: "test-request".to_string(),
+            request_id: "test-request".to_owned(),
             response: OutgoingResponse::GeneratedToken(token_result),
         })
     }
 
     #[actix_web::test]
-    async fn streaming_token_emits_content_delta() {
+    async fn streaming_token_emits_content_delta() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
-            model: "test-model".to_string(),
-            system_fingerprint: "test-fingerprint".to_string(),
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
         };
 
-        let message = make_token_message(GeneratedTokenResult::Token("hello".to_string()));
-        let result = transformer.transform(message).await.unwrap();
+        let message = make_token_message(GeneratedTokenResult::Token("hello".to_owned()));
+        let result = transformer.transform(message).await?;
 
         assert_eq!(result["choices"][0]["delta"]["content"], "hello");
         assert_eq!(result["choices"][0]["delta"]["role"], "assistant");
         assert!(result["choices"][0]["finish_reason"].is_null());
+
+        Ok(())
     }
 
     #[actix_web::test]
-    async fn streaming_done_emits_stop_finish_reason() {
+    async fn streaming_done_emits_stop_finish_reason() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
-            model: "test-model".to_string(),
-            system_fingerprint: "test-fingerprint".to_string(),
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
         };
 
         let message = make_token_message(GeneratedTokenResult::Done);
-        let result = transformer.transform(message).await.unwrap();
+        let result = transformer.transform(message).await?;
 
         assert_eq!(result["choices"][0]["finish_reason"], "stop");
+
+        Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_token_returns_content() {
+    async fn combined_token_returns_content() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
-        let message = make_token_message(GeneratedTokenResult::Token("hello".to_string()));
-        let result = transformer.transform(message).await.unwrap();
+        let message = make_token_message(GeneratedTokenResult::Token("hello".to_owned()));
+        let result = transformer.transform(message).await?;
 
         assert_eq!(result, "hello");
+
+        Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_done_returns_empty_string() {
+    async fn combined_done_returns_empty_string() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
         let message = make_token_message(GeneratedTokenResult::Done);
-        let result = transformer.transform(message).await.unwrap();
+        let result = transformer.transform(message).await?;
 
         assert_eq!(result, "");
+
+        Ok(())
     }
 }

@@ -23,7 +23,7 @@ pub fn http_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
     transformer: TTransformsOutgoingMessage,
-) -> Result<HttpResponse, Error>
+) -> HttpResponse
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
     AgentController: HandlesAgentStreamingResponse<TParams>,
@@ -35,11 +35,11 @@ where
         inference_service_configuration,
         params,
         transformer,
-    )?
+    )
     .map(|chunk: String| Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))));
 
-    Ok(HttpResponse::Ok()
+    HttpResponse::Ok()
         .insert_header(header::ContentType::json())
         .insert_header((header::CACHE_CONTROL, "no-cache"))
-        .streaming(stream))
+        .streaming(stream)
 }

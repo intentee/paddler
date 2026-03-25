@@ -8,7 +8,8 @@ pub struct SlotRequestDropGuard {
 }
 
 impl SlotRequestDropGuard {
-    pub fn new(slot_status: Arc<SlotStatus>) -> Self {
+    #[must_use]
+    pub const fn new(slot_status: Arc<SlotStatus>) -> Self {
         Self { slot_status }
     }
 }
