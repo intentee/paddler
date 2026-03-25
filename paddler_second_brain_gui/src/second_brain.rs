@@ -414,14 +414,12 @@ impl SecondBrain {
                                 actix_web::rt::System::new().block_on(async {
                                     let bootstrapped =
                                         bootstrap_balancer(BootstrapBalancerParams {
-                                            buffered_request_timeout: Duration::from_millis(10000),
+                                            buffered_request_timeout: Duration::from_secs(10),
                                             inference_service_configuration:
                                                 InferenceServiceConfiguration {
                                                     addr: inference_addr,
                                                     cors_allowed_hosts: vec![],
-                                                    inference_item_timeout: Duration::from_millis(
-                                                        30000,
-                                                    ),
+                                                    inference_item_timeout: Duration::from_secs(30),
                                                 },
                                             management_service_configuration:
                                                 ManagementServiceConfiguration {
