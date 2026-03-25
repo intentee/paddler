@@ -256,15 +256,22 @@ async fn respond(
             },
         ))
     } else {
-        let combined_response = unbounded_stream_from_agent(
+        let chunks: Vec<String> = unbounded_stream_from_agent(
             app_data.buffered_request_manager.clone(),
             app_data.inference_service_configuration.clone(),
             paddler_params,
             OpenAICombinedResponseTransformer {},
         )
-        .collect::<Vec<String>>()
-        .await
-        .join("");
+        .collect()
+        .await;
+
+        if let Some(error_chunk) = chunks.iter().find(|chunk| chunk.starts_with(r#"{"error":"#)) {
+            return Ok(HttpResponse::InternalServerError()
+                .content_type("application/json")
+                .body(error_chunk.clone()));
+        }
+
+        let combined_response = chunks.join("");
 
         Ok(HttpResponse::Ok().json(json!({
           "id": nanoid!(),
@@ -513,6 +520,33 @@ mod tests {
 
         assert!(result.contains("too many buffered requests"));
         assert!(result.contains("rate_limit_error"));
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn openai_error_json_has_correct_structure() -> Result<()> {
+        let error = super::openai_error_json("server_error", "something went wrong");
+
+        assert_eq!(error["error"]["type"], "server_error");
+        assert_eq!(error["error"]["message"], "something went wrong");
+        assert!(error["error"]["param"].is_null());
+        assert!(error["error"]["code"].is_null());
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn combined_error_output_is_detectable_as_error() -> Result<()> {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_error_message(500, "something broke");
+        let result = transformer.transform(message).await?;
+
+        assert!(
+            result.starts_with(r#"{"error":"#),
+            "error output must start with {{\"error\": to be detected by the non-streaming handler"
+        );
 
         Ok(())
     }

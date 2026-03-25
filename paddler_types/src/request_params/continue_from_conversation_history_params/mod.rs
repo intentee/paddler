@@ -34,7 +34,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
             tools: self
                 .tools
                 .into_iter()
-                .map(super::super::validates::Validates::validate)
+                .map(Validates::validate)
                 .collect::<Result<Vec<_>>>()?,
         })
     }

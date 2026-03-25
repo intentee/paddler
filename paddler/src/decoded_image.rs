@@ -24,7 +24,7 @@ fn is_svg(data: &[u8]) -> bool {
 fn compute_target_dimension(svg_dim: f64, scale: f64) -> Result<u32, DecodedImageError> {
     let target = (svg_dim * scale).ceil();
 
-    if target < 0.0 || target > f64::from(u32::MAX) {
+    if !target.is_finite() || target < 1.0 || target > f64::from(u32::MAX) {
         return Err(DecodedImageError::ConversionFailed {
             message: format!("SVG dimension {target} is out of valid range"),
         });
@@ -567,5 +567,23 @@ mod tests {
         assert_eq!(result_image.height(), 50);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_converted_to_png_rejects_zero_dimension_svg() {
+        let svg_data = br#"<svg xmlns="http://www.w3.org/2000/svg" width="0" height="50">
+            <rect width="0" height="50" fill="red"/>
+        </svg>"#;
+
+        let decoded_image = DecodedImage {
+            data: svg_data.to_vec(),
+        };
+
+        let result = decoded_image.converted_to_png_if_necessary(1024);
+
+        assert!(matches!(
+            result,
+            Err(DecodedImageError::ConversionFailed { .. })
+        ));
     }
 }
