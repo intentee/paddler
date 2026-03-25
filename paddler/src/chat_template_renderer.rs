@@ -10,11 +10,7 @@ const CHAT_TEMPLATE_NAME: &str = "chat_template";
 
 // Known uses:
 // https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "minijinja function callback requires owned String"
-)]
-fn minijinja_raise_exception(message: String) -> std::result::Result<String, Error> {
+fn minijinja_raise_exception(message: &str) -> std::result::Result<String, Error> {
     Err(Error::new::<String>(
         ErrorKind::InvalidOperation,
         format!("Model's chat template raised an exception: '{message}'"),
