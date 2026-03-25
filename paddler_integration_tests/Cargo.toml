@@ -10,6 +10,7 @@ version.workspace = true
 
 [features]
 tests_that_use_compiled_paddler = []
+tests_that_use_llms = []
 
 [dependencies]
 anyhow = { workspace = true }

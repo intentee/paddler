@@ -17,6 +17,7 @@ use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
+use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -29,7 +30,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
     transformer: TTransformsOutgoingMessage,
-) -> UnboundedReceiverStream<String>
+) -> UnboundedReceiverStream<TransformResult>
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
     AgentController: HandlesAgentStreamingResponse<TParams>,
@@ -38,7 +39,7 @@ where
 {
     let request_id: String = nanoid!();
     let (connection_close_tx, _connection_close_rx) = broadcast::channel(1);
-    let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<String>();
+    let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<TransformResult>();
 
     rt::spawn(async move {
         let mut session_controller = ChunkForwardingSessionController::new(chunk_tx, transformer);

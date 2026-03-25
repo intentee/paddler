@@ -65,7 +65,7 @@ test.llms: jarmuz-static
 
 .PHONY: test.integration
 test.integration: target/debug/paddler
-	cargo test -p paddler_integration_tests --features tests_that_use_llms,tests_that_use_compiled_paddler -- --nocapture --test-threads=1
+	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: watch
 watch: node_modules

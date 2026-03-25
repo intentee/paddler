@@ -168,7 +168,8 @@ impl ManagedBalancer {
     }
 
     pub async fn wait_for_total_slots(&self, expected_total: i32) -> i32 {
-        let start = std::time::Instant::now();
+        let mut deadline = std::time::Instant::now() + WAIT_FOR_STATE_CHANGE_TIMEOUT;
+        let mut last_download_current: usize = 0;
 
         loop {
             if let Ok(snapshot) = self.client.management().get_agents().await {
@@ -177,10 +178,21 @@ impl ManagedBalancer {
                 if total >= expected_total {
                     return total;
                 }
+
+                let download_current: usize = snapshot
+                    .agents
+                    .iter()
+                    .map(|agent| agent.download_current)
+                    .sum();
+
+                if download_current > last_download_current {
+                    last_download_current = download_current;
+                    deadline = std::time::Instant::now() + WAIT_FOR_STATE_CHANGE_TIMEOUT;
+                }
             }
 
             assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
+                std::time::Instant::now() < deadline,
                 "timed out waiting for {expected_total} total slots"
             );
 

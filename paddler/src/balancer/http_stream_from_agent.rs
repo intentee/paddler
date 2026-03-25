@@ -12,6 +12,7 @@ use paddler_types::streamable_result::StreamableResult;
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
+use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -36,7 +37,10 @@ where
         params,
         transformer,
     )
-    .map(|chunk: String| Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))));
+    .map(|transform_result| match transform_result {
+        TransformResult::Chunk(chunk) => Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))),
+        TransformResult::Error(error) => Ok::<_, Error>(Bytes::from(format!("{error}\n"))),
+    });
 
     HttpResponse::Ok()
         .insert_header(header::ContentType::json())

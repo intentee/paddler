@@ -1,4 +1,4 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
+#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
 
 use futures_util::StreamExt;
 use paddler_integration_tests::managed_cluster::ManagedCluster;

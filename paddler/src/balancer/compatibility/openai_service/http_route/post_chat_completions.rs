@@ -20,6 +20,7 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt as _;
 
+use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::compatibility::openai_service::app_data::AppData;
 use crate::balancer::http_stream_from_agent::http_stream_from_agent;
@@ -86,52 +87,54 @@ struct OpenAIStreamingResponseTransformer {
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
-    type TransformedMessage = serde_json::Value;
-
     async fn transform(
         &self,
         message: OutgoingMessage,
-    ) -> anyhow::Result<Self::TransformedMessage> {
+    ) -> anyhow::Result<TransformResult> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
-            }) => Ok(json!({
-                "id": request_id,
-                "object": "chat.completion.chunk",
-                "created": current_timestamp(),
-                "model": self.model,
-                "system_fingerprint": self.system_fingerprint,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {},
-                        "logprobs": null,
-                        "finish_reason": "stop"
-                    }
-                ]
-            })),
+            }) => Ok(TransformResult::Chunk(
+                serde_json::to_string(&json!({
+                    "id": request_id,
+                    "object": "chat.completion.chunk",
+                    "created": current_timestamp(),
+                    "model": self.model,
+                    "system_fingerprint": self.system_fingerprint,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {},
+                            "logprobs": null,
+                            "finish_reason": "stop"
+                        }
+                    ]
+                }))?,
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
-            }) => Ok(json!({
-                "id": request_id,
-                "object": "chat.completion.chunk",
-                "created": current_timestamp(),
-                "model": self.model,
-                "system_fingerprint": self.system_fingerprint,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {
-                            "role": "assistant",
-                            "content": token,
-                        },
-                        "logprobs": null,
-                        "finish_reason": null
-                    }
-                ]
-            })),
+            }) => Ok(TransformResult::Chunk(
+                serde_json::to_string(&json!({
+                    "id": request_id,
+                    "object": "chat.completion.chunk",
+                    "created": current_timestamp(),
+                    "model": self.model,
+                    "system_fingerprint": self.system_fingerprint,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "content": token,
+                            },
+                            "logprobs": null,
+                            "finish_reason": null
+                        }
+                    ]
+                }))?,
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
                     OutgoingResponse::GeneratedToken(
@@ -144,24 +147,30 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             | OutgoingMessage::Error(ErrorEnvelope {
                 error: paddler_types::jsonrpc::Error { description, .. },
                 ..
-            }) => Ok(openai_error_json("server_error", &description)),
+            }) => Ok(TransformResult::Error(
+                openai_error_json("server_error", &description).to_string(),
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::Timeout,
                 ..
-            }) => Ok(openai_error_json("timeout", "request timed out")),
+            }) => Ok(TransformResult::Error(
+                openai_error_json("timeout", "request timed out").to_string(),
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::TooManyBufferedRequests,
                 ..
-            }) => Ok(openai_error_json(
-                "rate_limit_error",
-                "too many buffered requests",
+            }) => Ok(TransformResult::Error(
+                openai_error_json("rate_limit_error", "too many buffered requests").to_string(),
             )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::Embedding(_),
                 ..
-            }) => Ok(openai_error_json(
-                "invalid_request_error",
-                "unexpected embedding response in chat completions",
+            }) => Ok(TransformResult::Error(
+                openai_error_json(
+                    "invalid_request_error",
+                    "unexpected embedding response in chat completions",
+                )
+                .to_string(),
             )),
         }
     }
@@ -172,25 +181,19 @@ struct OpenAICombinedResponseTransformer {}
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
-    type TransformedMessage = String;
-
-    fn stringify(&self, message: &Self::TransformedMessage) -> anyhow::Result<String> {
-        Ok(message.clone())
-    }
-
     async fn transform(
         &self,
         message: OutgoingMessage,
-    ) -> anyhow::Result<Self::TransformedMessage> {
+    ) -> anyhow::Result<TransformResult> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
                 ..
-            }) => Ok(String::new()),
+            }) => Ok(TransformResult::Chunk(String::new())),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
                 ..
-            }) => Ok(token),
+            }) => Ok(TransformResult::Chunk(token)),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
                     OutgoingResponse::GeneratedToken(
@@ -203,25 +206,31 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
             | OutgoingMessage::Error(ErrorEnvelope {
                 error: paddler_types::jsonrpc::Error { description, .. },
                 ..
-            }) => Ok(openai_error_json("server_error", &description).to_string()),
+            }) => Ok(TransformResult::Error(
+                openai_error_json("server_error", &description).to_string(),
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::Timeout,
                 ..
-            }) => Ok(openai_error_json("timeout", "request timed out").to_string()),
+            }) => Ok(TransformResult::Error(
+                openai_error_json("timeout", "request timed out").to_string(),
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::TooManyBufferedRequests,
                 ..
-            }) => {
-                Ok(openai_error_json("rate_limit_error", "too many buffered requests").to_string())
-            }
+            }) => Ok(TransformResult::Error(
+                openai_error_json("rate_limit_error", "too many buffered requests").to_string(),
+            )),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::Embedding(_),
                 ..
-            }) => Ok(openai_error_json(
-                "invalid_request_error",
-                "unexpected embedding response in chat completions",
-            )
-            .to_string()),
+            }) => Ok(TransformResult::Error(
+                openai_error_json(
+                    "invalid_request_error",
+                    "unexpected embedding response in chat completions",
+                )
+                .to_string(),
+            )),
         }
     }
 }
@@ -256,7 +265,7 @@ async fn respond(
             },
         ))
     } else {
-        let chunks: Vec<String> = unbounded_stream_from_agent(
+        let results: Vec<TransformResult> = unbounded_stream_from_agent(
             app_data.buffered_request_manager.clone(),
             app_data.inference_service_configuration.clone(),
             paddler_params,
@@ -265,13 +274,22 @@ async fn respond(
         .collect()
         .await;
 
-        if let Some(error_chunk) = chunks.iter().find(|chunk| chunk.starts_with(r#"{"error":"#)) {
+        if let Some(TransformResult::Error(error_json)) = results
+            .iter()
+            .find(|result| matches!(result, TransformResult::Error(_)))
+        {
             return Ok(HttpResponse::InternalServerError()
                 .content_type("application/json")
-                .body(error_chunk.clone()));
+                .body(error_json.clone()));
         }
 
-        let combined_response = chunks.join("");
+        let combined_response: String = results
+            .into_iter()
+            .filter_map(|result| match result {
+                TransformResult::Chunk(content) => Some(content),
+                TransformResult::Error(_) => None,
+            })
+            .collect();
 
         Ok(HttpResponse::Ok().json(json!({
           "id": nanoid!(),
@@ -322,6 +340,7 @@ mod tests {
 
     use super::OpenAICombinedResponseTransformer;
     use super::OpenAIStreamingResponseTransformer;
+    use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
     use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 
     fn make_token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
@@ -348,6 +367,32 @@ mod tests {
         })
     }
 
+    fn assert_chunk_contains(result: &TransformResult, expected: &str) -> Result<()> {
+        let TransformResult::Chunk(content) = result else {
+            anyhow::bail!("expected TransformResult::Chunk, got TransformResult::Error");
+        };
+
+        assert!(
+            content.contains(expected),
+            "chunk does not contain '{expected}': {content}"
+        );
+
+        Ok(())
+    }
+
+    fn assert_error_contains(result: &TransformResult, expected: &str) -> Result<()> {
+        let TransformResult::Error(content) = result else {
+            anyhow::bail!("expected TransformResult::Error, got TransformResult::Chunk");
+        };
+
+        assert!(
+            content.contains(expected),
+            "error does not contain '{expected}': {content}"
+        );
+
+        Ok(())
+    }
+
     #[actix_web::test]
     async fn streaming_token_emits_content_delta() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
@@ -358,9 +403,8 @@ mod tests {
         let message = make_token_message(GeneratedTokenResult::Token("hello".to_owned()));
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result["choices"][0]["delta"]["content"], "hello");
-        assert_eq!(result["choices"][0]["delta"]["role"], "assistant");
-        assert!(result["choices"][0]["finish_reason"].is_null());
+        assert_chunk_contains(&result, "\"content\":\"hello\"")?;
+        assert_chunk_contains(&result, "\"role\":\"assistant\"")?;
 
         Ok(())
     }
@@ -375,7 +419,7 @@ mod tests {
         let message = make_token_message(GeneratedTokenResult::Done);
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result["choices"][0]["finish_reason"], "stop");
+        assert_chunk_contains(&result, "\"finish_reason\":\"stop\"")?;
 
         Ok(())
     }
@@ -387,25 +431,25 @@ mod tests {
         let message = make_token_message(GeneratedTokenResult::Token("hello".to_owned()));
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result, "hello");
+        assert!(matches!(result, TransformResult::Chunk(ref content) if content == "hello"));
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_done_returns_empty_string() -> Result<()> {
+    async fn combined_done_returns_empty_chunk() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
         let message = make_token_message(GeneratedTokenResult::Done);
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result, "");
+        assert!(matches!(result, TransformResult::Chunk(ref content) if content.is_empty()));
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn streaming_error_message_returns_openai_error() -> Result<()> {
+    async fn streaming_error_message_returns_error_variant() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
             model: "test-model".to_owned(),
             system_fingerprint: "test-fingerprint".to_owned(),
@@ -414,27 +458,27 @@ mod tests {
         let message = make_error_message(500, "internal server error");
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result["error"]["type"], "server_error");
-        assert_eq!(result["error"]["message"], "internal server error");
+        assert_error_contains(&result, "internal server error")?;
+        assert_error_contains(&result, "server_error")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_error_message_returns_openai_error() -> Result<()> {
+    async fn combined_error_message_returns_error_variant() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
         let message = make_error_message(500, "internal server error");
         let result = transformer.transform(message).await?;
 
-        assert!(result.contains("internal server error"));
-        assert!(result.contains("server_error"));
+        assert_error_contains(&result, "internal server error")?;
+        assert_error_contains(&result, "server_error")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn streaming_chat_template_error_returns_openai_error() -> Result<()> {
+    async fn streaming_chat_template_error_returns_error_variant() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
             model: "test-model".to_owned(),
             system_fingerprint: "test-fingerprint".to_owned(),
@@ -445,14 +489,14 @@ mod tests {
         ));
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result["error"]["type"], "server_error");
-        assert_eq!(result["error"]["message"], "bad template");
+        assert_error_contains(&result, "bad template")?;
+        assert_error_contains(&result, "server_error")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_chat_template_error_returns_openai_error() -> Result<()> {
+    async fn combined_chat_template_error_returns_error_variant() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
         let message = make_token_message(GeneratedTokenResult::ChatTemplateError(
@@ -460,14 +504,14 @@ mod tests {
         ));
         let result = transformer.transform(message).await?;
 
-        assert!(result.contains("bad template"));
-        assert!(result.contains("server_error"));
+        assert_error_contains(&result, "bad template")?;
+        assert_error_contains(&result, "server_error")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn streaming_timeout_returns_openai_error() -> Result<()> {
+    async fn streaming_timeout_returns_error_variant() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
             model: "test-model".to_owned(),
             system_fingerprint: "test-fingerprint".to_owned(),
@@ -476,27 +520,27 @@ mod tests {
         let message = make_response_message(OutgoingResponse::Timeout);
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result["error"]["type"], "timeout");
-        assert_eq!(result["error"]["message"], "request timed out");
+        assert_error_contains(&result, "request timed out")?;
+        assert_error_contains(&result, "timeout")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_timeout_returns_openai_error() -> Result<()> {
+    async fn combined_timeout_returns_error_variant() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
         let message = make_response_message(OutgoingResponse::Timeout);
         let result = transformer.transform(message).await?;
 
-        assert!(result.contains("request timed out"));
-        assert!(result.contains("timeout"));
+        assert_error_contains(&result, "request timed out")?;
+        assert_error_contains(&result, "timeout")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn streaming_too_many_buffered_requests_returns_openai_error() -> Result<()> {
+    async fn streaming_too_many_buffered_requests_returns_error_variant() -> Result<()> {
         let transformer = OpenAIStreamingResponseTransformer {
             model: "test-model".to_owned(),
             system_fingerprint: "test-fingerprint".to_owned(),
@@ -505,21 +549,21 @@ mod tests {
         let message = make_response_message(OutgoingResponse::TooManyBufferedRequests);
         let result = transformer.transform(message).await?;
 
-        assert_eq!(result["error"]["type"], "rate_limit_error");
-        assert_eq!(result["error"]["message"], "too many buffered requests");
+        assert_error_contains(&result, "too many buffered requests")?;
+        assert_error_contains(&result, "rate_limit_error")?;
 
         Ok(())
     }
 
     #[actix_web::test]
-    async fn combined_too_many_buffered_requests_returns_openai_error() -> Result<()> {
+    async fn combined_too_many_buffered_requests_returns_error_variant() -> Result<()> {
         let transformer = OpenAICombinedResponseTransformer {};
 
         let message = make_response_message(OutgoingResponse::TooManyBufferedRequests);
         let result = transformer.transform(message).await?;
 
-        assert!(result.contains("too many buffered requests"));
-        assert!(result.contains("rate_limit_error"));
+        assert_error_contains(&result, "too many buffered requests")?;
+        assert_error_contains(&result, "rate_limit_error")?;
 
         Ok(())
     }
@@ -532,21 +576,6 @@ mod tests {
         assert_eq!(error["error"]["message"], "something went wrong");
         assert!(error["error"]["param"].is_null());
         assert!(error["error"]["code"].is_null());
-
-        Ok(())
-    }
-
-    #[actix_web::test]
-    async fn combined_error_output_is_detectable_as_error() -> Result<()> {
-        let transformer = OpenAICombinedResponseTransformer {};
-
-        let message = make_error_message(500, "something broke");
-        let result = transformer.transform(message).await?;
-
-        assert!(
-            result.starts_with(r#"{"error":"#),
-            "error output must start with {{\"error\": to be detected by the non-streaming handler"
-        );
 
         Ok(())
     }
