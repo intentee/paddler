@@ -390,12 +390,20 @@ async fn test_openai_chat_completions_streaming() {
     let body = response.text().await.expect("should read response body");
     let chunks: Vec<serde_json::Value> = body
         .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| serde_json::from_str(line).expect("each line should be valid JSON"))
+        .filter(|line| line.starts_with("data: ") && *line != "data: [DONE]")
+        .map(|line| {
+            let json_str = line.trim_start_matches("data: ");
+
+            serde_json::from_str(json_str).expect("each data line should be valid JSON")
+        })
         .collect();
 
     assert!(!chunks.is_empty(), "should have received streaming chunks");
     assert_eq!(chunks[0]["object"], "chat.completion.chunk");
+    assert!(
+        body.trim_end().ends_with("data: [DONE]"),
+        "stream should end with [DONE]"
+    );
 }
 
 #[tokio::test]
