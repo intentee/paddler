@@ -49,6 +49,8 @@ Be proactive and fix any preexisting issues you encounter.
 - Always check that the unit tests pass.
 - Always test the code, make sure tests work after the changes.
 - Always write tests that check the algorithms, or meaningful edge cases. Never write tests that check things that can be handled by types instead.
+- Only write the meaningful tests; do not write the tests that rely only on external libraries, like serializing/deserializing objects.
+- Only write the tests that actually check this application's logic.
 - If some piece of code can be handled by proper types, use types instead. Write tests as a last resort.
 - In unit tests, make sure there is always just a single correct way to do a specific thing. Never accept fuzzy inputs from end users.
 - When working on tests, if you notice that the tested code can be better, you can suggest changes.
