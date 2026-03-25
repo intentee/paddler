@@ -22,3 +22,6 @@ llama-cpp-bindings = { workspace = true }
 [features]
 default = []
 tests_that_use_llms = []
+
+[lints]
+workspace = true

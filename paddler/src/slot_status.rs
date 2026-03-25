@@ -27,6 +27,7 @@ impl SlotStatus {
         self.slot_aggregated_status.decrement_total_slots();
     }
 
+    #[must_use]
     pub fn take_slot_with_guard(self: &Arc<Self>) -> SlotRequestDropGuard {
         self.take_slot();
 

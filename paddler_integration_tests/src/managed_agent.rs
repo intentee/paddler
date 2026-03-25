@@ -15,7 +15,7 @@ pub struct ManagedAgent {
 }
 
 impl ManagedAgent {
-    pub async fn spawn(params: ManagedAgentParams) -> Result<Self> {
+    pub fn spawn(params: &ManagedAgentParams) -> Result<Self> {
         let mut command = paddler_command();
 
         command

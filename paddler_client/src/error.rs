@@ -1,4 +1,5 @@
 #[derive(Debug, thiserror::Error)]
+#[expect(clippy::error_impl_error)]
 pub enum Error {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),
@@ -12,8 +13,8 @@ pub enum Error {
     #[error("URL parse error: {0}")]
     Url(#[from] url::ParseError),
 
-    #[error("WebSocket pool exhausted: no available connections")]
-    PoolExhausted,
+    #[error("Connection slot is empty after connection attempt")]
+    ConnectionSlotEmpty,
 
     #[error("Request {request_id} failed: connection dropped")]
     ConnectionDropped { request_id: String },
@@ -27,7 +28,7 @@ pub enum Error {
 
 impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
-        Error::Other(err.to_string())
+        Self::Other(err.to_string())
     }
 }
 

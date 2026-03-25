@@ -99,7 +99,7 @@ impl LlamaCppArbiter {
             let llama_context_params = Arc::new(context_params);
             let backend_clone = llama_backend.clone();
             let model = Arc::new(
-                LlamaModel::load_from_file(&backend_clone.clone(), model_path.clone(), &{
+                LlamaModel::load_from_file(&backend_clone, model_path.clone(), &{
                     if cfg!(any(
                         feature = "cuda",
                         feature = "vulkan",
@@ -164,7 +164,7 @@ impl LlamaCppArbiter {
                     Ok(renderer) => {
                         slot_aggregated_status_manager
                             .slot_aggregated_status
-                            .register_fix(AgentIssueFix::ChatTemplateIsCompiled(ModelPath {
+                            .register_fix(&AgentIssueFix::ChatTemplateIsCompiled(ModelPath {
                                 model_path: model_path.display().to_string(),
                             }));
 
@@ -205,7 +205,7 @@ impl LlamaCppArbiter {
                         Ok(mtmd_context) => {
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
-                                .register_fix(AgentIssueFix::MultimodalProjectionIsLoaded(
+                                .register_fix(&AgentIssueFix::MultimodalProjectionIsLoaded(
                                     ModelPath {
                                         model_path: multimodal_projection_path
                                             .display()
@@ -268,6 +268,18 @@ impl LlamaCppArbiter {
             });
             let system = System::new();
 
+            #[expect(
+                clippy::cast_sign_loss,
+                reason = "desired_slots_total is always non-negative when used as slot count"
+            )]
+            #[expect(
+                clippy::expect_used,
+                reason = "oneshot channel send/recv inside sync arbiter block_on cannot propagate errors"
+            )]
+            #[expect(
+                clippy::panic,
+                reason = "SyncArbiter factory closure cannot return Result"
+            )]
             system.block_on(async move {
                 llamacpp_slot_addr_tx
                     .send(SyncArbiter::start(
@@ -276,8 +288,8 @@ impl LlamaCppArbiter {
                             let index = slot_index.fetch_add(1, Ordering::SeqCst);
                             let llamacpp_slot = LlamaCppSlot::new(
                                 index,
-                                llama_backend.clone(),
-                                llama_context_params.clone(),
+                                &llama_backend,
+                                &llama_context_params,
                                 slot_context.clone(),
                                 slot_aggregated_status_manager.bind_slot_status(),
                             );
@@ -298,7 +310,7 @@ impl LlamaCppArbiter {
                                 Ok(llamacpp_slot) => {
                                     slot_aggregated_status_manager
                                         .slot_aggregated_status
-                                        .register_fix(AgentIssueFix::SlotStarted(index));
+                                        .register_fix(&AgentIssueFix::SlotStarted(index));
 
                                     llamacpp_slot
                                 }
@@ -324,7 +336,7 @@ impl LlamaCppArbiter {
             Ok(()) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelIsLoaded(ModelPath {
+                    .register_fix(&AgentIssueFix::ModelIsLoaded(ModelPath {
                         model_path: model_path_string.clone(),
                     }));
             }
@@ -346,7 +358,7 @@ impl LlamaCppArbiter {
             Ok(()) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
-                    .register_fix(AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
+                    .register_fix(&AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
                         model_path: model_path_string.clone(),
                     }));
             }

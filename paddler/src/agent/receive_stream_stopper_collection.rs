@@ -12,14 +12,15 @@ pub struct ReceiveStreamStopperCollection {
 }
 
 impl ReceiveStreamStopperCollection {
-    pub fn deregister_stopper(&self, request_id: String) -> Result<()> {
-        if let Some(stopper) = self.receive_stoppers.remove(&request_id) {
-            drop(stopper);
+    pub fn deregister_stopper(&self, request_id: &str) -> Result<()> {
+        self.receive_stoppers.remove(request_id).map_or_else(
+            || Err(anyhow!("No stopper found for request_id {request_id}")),
+            |stopper| {
+                drop(stopper);
 
-            Ok(())
-        } else {
-            Err(anyhow!("No stopper found for request_id {request_id}"))
-        }
+                Ok(())
+            },
+        )
     }
 
     pub fn register_stopper(
@@ -51,8 +52,8 @@ impl ReceiveStreamStopperCollection {
         })
     }
 
-    pub fn stop(&self, request_id: String) -> Result<()> {
-        if let Some(stopper) = self.receive_stoppers.get(&request_id) {
+    pub fn stop(&self, request_id: &str) -> Result<()> {
+        if let Some(stopper) = self.receive_stoppers.get(request_id) {
             stopper.send(())?;
 
             Ok(())
@@ -72,6 +73,8 @@ impl Default for ReceiveStreamStopperCollection {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
+
     use super::*;
 
     #[test]
@@ -81,83 +84,79 @@ mod tests {
 
         assert!(
             collection
-                .register_stopper("req_1".to_string(), sender)
+                .register_stopper("req_1".to_owned(), sender)
                 .is_ok()
         );
     }
 
     #[test]
-    fn register_duplicate_stopper_fails() {
+    fn register_duplicate_stopper_fails() -> Result<()> {
         let collection = ReceiveStreamStopperCollection::default();
         let (sender_1, _receiver_1) = mpsc::unbounded_channel();
         let (sender_2, _receiver_2) = mpsc::unbounded_channel();
 
-        collection
-            .register_stopper("req_1".to_string(), sender_1)
-            .unwrap();
+        collection.register_stopper("req_1".to_owned(), sender_1)?;
 
         assert!(
             collection
-                .register_stopper("req_1".to_string(), sender_2)
+                .register_stopper("req_1".to_owned(), sender_2)
                 .is_err()
         );
+
+        Ok(())
     }
 
     #[test]
-    fn deregister_stopper_succeeds() {
+    fn deregister_stopper_succeeds() -> Result<()> {
         let collection = ReceiveStreamStopperCollection::default();
         let (sender, _receiver) = mpsc::unbounded_channel();
 
-        collection
-            .register_stopper("req_1".to_string(), sender)
-            .unwrap();
+        collection.register_stopper("req_1".to_owned(), sender)?;
 
-        assert!(collection.deregister_stopper("req_1".to_string()).is_ok());
+        assert!(collection.deregister_stopper("req_1").is_ok());
+
+        Ok(())
     }
 
     #[test]
     fn deregister_missing_stopper_fails() {
         let collection = ReceiveStreamStopperCollection::default();
 
-        assert!(
-            collection
-                .deregister_stopper("nonexistent".to_string())
-                .is_err()
-        );
+        assert!(collection.deregister_stopper("nonexistent").is_err());
     }
 
     #[test]
-    fn stop_sends_signal() {
+    fn stop_sends_signal() -> Result<()> {
         let collection = ReceiveStreamStopperCollection::default();
         let (sender, mut receiver) = mpsc::unbounded_channel();
 
-        collection
-            .register_stopper("req_1".to_string(), sender)
-            .unwrap();
+        collection.register_stopper("req_1".to_owned(), sender)?;
 
-        assert!(collection.stop("req_1".to_string()).is_ok());
+        assert!(collection.stop("req_1").is_ok());
         assert!(receiver.try_recv().is_ok());
+
+        Ok(())
     }
 
     #[test]
     fn stop_missing_stopper_fails() {
         let collection = ReceiveStreamStopperCollection::default();
 
-        assert!(collection.stop("nonexistent".to_string()).is_err());
+        assert!(collection.stop("nonexistent").is_err());
     }
 
     #[test]
-    fn register_stopper_with_guard_auto_deregisters_on_drop() {
+    fn register_stopper_with_guard_auto_deregisters_on_drop() -> Result<()> {
         let collection = Arc::new(ReceiveStreamStopperCollection::default());
         let (sender, _receiver) = mpsc::unbounded_channel();
 
-        let guard = collection
-            .register_stopper_with_guard("req_1".to_string(), sender)
-            .unwrap();
+        let guard = collection.register_stopper_with_guard("req_1".to_owned(), sender)?;
 
         drop(guard);
 
         // After drop, the stopper should be deregistered
-        assert!(collection.deregister_stopper("req_1".to_string()).is_err());
+        assert!(collection.deregister_stopper("req_1").is_err());
+
+        Ok(())
     }
 }

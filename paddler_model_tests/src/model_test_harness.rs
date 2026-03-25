@@ -14,7 +14,8 @@ pub struct ModelTestHarness<'model> {
 }
 
 impl<'model> ModelTestHarness<'model> {
-    pub fn new(managed_model: &'model ManagedModel) -> Self {
+    #[must_use]
+    pub const fn new(managed_model: &'model ManagedModel) -> Self {
         Self { managed_model }
     }
 

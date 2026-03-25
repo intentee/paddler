@@ -17,10 +17,10 @@ impl StreamableResult for GeneratedTokenResult {
     fn is_done(&self) -> bool {
         matches!(
             self,
-            GeneratedTokenResult::ChatTemplateError(_)
-                | GeneratedTokenResult::Done
-                | GeneratedTokenResult::ImageDecodingFailed(_)
-                | GeneratedTokenResult::MultimodalNotSupported(_)
+            Self::ChatTemplateError(_)
+                | Self::Done
+                | Self::ImageDecodingFailed(_)
+                | Self::MultimodalNotSupported(_)
         )
     }
 }
@@ -36,21 +36,21 @@ mod tests {
 
     #[test]
     fn chat_template_error_is_done() {
-        assert!(GeneratedTokenResult::ChatTemplateError("err".to_string()).is_done());
+        assert!(GeneratedTokenResult::ChatTemplateError("err".to_owned()).is_done());
     }
 
     #[test]
     fn image_decoding_failed_is_done() {
-        assert!(GeneratedTokenResult::ImageDecodingFailed("err".to_string()).is_done());
+        assert!(GeneratedTokenResult::ImageDecodingFailed("err".to_owned()).is_done());
     }
 
     #[test]
     fn multimodal_not_supported_is_done() {
-        assert!(GeneratedTokenResult::MultimodalNotSupported("err".to_string()).is_done());
+        assert!(GeneratedTokenResult::MultimodalNotSupported("err".to_owned()).is_done());
     }
 
     #[test]
     fn token_is_not_done() {
-        assert!(!GeneratedTokenResult::Token("hello".to_string()).is_done());
+        assert!(!GeneratedTokenResult::Token("hello".to_owned()).is_done());
     }
 }

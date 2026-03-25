@@ -53,10 +53,14 @@ pub struct LlamaCppSlot {
 }
 
 impl LlamaCppSlot {
+    #[expect(
+        unsafe_code,
+        reason = "required for FFI lifetime extension with llama.cpp"
+    )]
     pub fn new(
         index: u32,
-        llama_backend: Arc<LlamaBackend>,
-        llama_context_params: Arc<LlamaContextParams>,
+        llama_backend: &Arc<LlamaBackend>,
+        llama_context_params: &Arc<LlamaContextParams>,
         slot_context: Arc<LlamaCppSlotContext>,
         status: Arc<SlotStatus>,
     ) -> Result<Self> {
@@ -66,14 +70,9 @@ impl LlamaCppSlot {
         );
 
         let llama_context = unsafe {
-            // SAFETY: Extending the lifetime of the model reference to 'static.
-            // This should be safe because:
-            // 1. The model is stored in an Arc, so it won't be deallocated
-            // 2. We store the Arc in the same struct, ensuring it lives as long as the context
-            // 3. The context cannot outlive the struct that contains both it and the model
             let model_ref: &'static LlamaModel = std::mem::transmute(slot_context.model.as_ref());
 
-            model_ref.new_context(&llama_backend, (*llama_context_params).clone())?
+            model_ref.new_context(llama_backend, (**llama_context_params).clone())?
         };
 
         Ok(Self {
@@ -135,6 +134,11 @@ impl LlamaCppSlot {
         self.llama_context.clear_kv_cache();
         self.llama_context.decode(batch)?;
 
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_possible_wrap,
+            reason = "embedding sequence index fits in i32 for llama.cpp FFI"
+        )]
         for (index, embedding_input_tokenized) in current_batch_embeddings.iter().enumerate() {
             let embedding = self
                 .llama_context
@@ -160,7 +164,7 @@ impl LlamaCppSlot {
     fn generate_tokens(
         &mut self,
         mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
-        generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
+        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
         max_tokens: i32,
         mut current_token_position: i32,
     ) -> Result<()> {
@@ -227,10 +231,10 @@ impl LlamaCppSlot {
     }
 
     fn ingest_multimodal_prompt(
-        &mut self,
+        &self,
         multimodal_context: &MtmdContext,
         prompt: String,
-        images: Vec<DecodedImage>,
+        images: &[DecodedImage],
     ) -> Result<i32> {
         let bitmaps: Vec<MtmdBitmap> = images
             .iter()
@@ -254,6 +258,11 @@ impl LlamaCppSlot {
 
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
 
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_possible_wrap,
+            reason = "batch_size fits in i32 for llama.cpp FFI"
+        )]
         let tokens_ingested = input_chunks
             .eval_chunks(
                 multimodal_context,
@@ -268,6 +277,11 @@ impl LlamaCppSlot {
         Ok(tokens_ingested)
     }
 
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "token counts and positions fit in i32 for llama.cpp FFI"
+    )]
     fn ingest_text_prompt(&mut self, prompt: &str) -> Result<i32> {
         let tokens_list = self
             .slot_context
@@ -339,6 +353,10 @@ impl LlamaCppSlot {
             .context("failed to tokenize embedding input batch")?;
 
         let batch_n_tokens = self.slot_context.inference_parameters.batch_n_tokens;
+        #[expect(
+            clippy::cast_possible_wrap,
+            reason = "embedding_n_seq_max fits in i32 for llama.cpp FFI"
+        )]
         let embedding_n_seq_max = self.slot_context.inference_parameters.embedding_n_seq_max as i32;
         let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max)?;
         let mut current_batch_inputs: Vec<&EmbeddingInputTokenized> = Vec::new();
@@ -458,7 +476,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             }
         };
 
-        let media_marker = MediaMarker::new(mtmd_default_marker().to_string());
+        let media_marker = MediaMarker::new(mtmd_default_marker().to_owned());
         let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
 
         let raw_prompt = match self.slot_context.chat_template_renderer.render(context! {
@@ -507,7 +525,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
 
         let current_token_position = match multimodal_context.as_ref() {
             Some(multimodal_context) => {
-                self.ingest_multimodal_prompt(multimodal_context, raw_prompt, images)?
+                self.ingest_multimodal_prompt(multimodal_context, raw_prompt, &images)?
             }
             None if !images.is_empty() => {
                 let msg = format!(
@@ -527,7 +545,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
 
         self.generate_tokens(
             generate_tokens_stop_rx,
-            generated_tokens_tx,
+            &generated_tokens_tx,
             max_tokens,
             current_token_position,
         )
@@ -558,7 +576,7 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
 
         self.generate_tokens(
             generate_tokens_stop_rx,
-            generated_tokens_tx,
+            &generated_tokens_tx,
             max_tokens,
             current_token_position,
         )

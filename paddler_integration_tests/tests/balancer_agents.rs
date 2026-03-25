@@ -1,16 +1,17 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
 
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
-use integration_tests::managed_balancer::ManagedBalancer;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
+use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
+use paddler_integration_tests::BALANCER_OPENAI_ADDR;
+use paddler_integration_tests::managed_agent::ManagedAgent;
+use paddler_integration_tests::managed_agent::ManagedAgentParams;
+use paddler_integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
@@ -36,13 +37,17 @@ async fn test_balancer_can_register_agents() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        &state_db_url,
-        30,
-        Duration::from_secs(10),
-    ))
+    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_secs(10),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 30,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 
@@ -50,24 +55,22 @@ async fn test_balancer_can_register_agents() {
 
     assert_eq!(agent_count, 0);
 
-    let _agent1 = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent1 = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("test-agent-1".to_string()),
         slots: 1,
     })
-    .await
     .expect("failed to spawn agent");
 
     let agent_count = balancer.wait_for_agent_count(1).await;
 
     assert_eq!(agent_count, 1);
 
-    let _agent2 = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent2 = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("test-agent-2".to_string()),
         slots: 1,
     })
-    .await
     .expect("failed to spawn agent");
 
     let agent_count = balancer.wait_for_agent_count(2).await;
@@ -78,10 +81,10 @@ async fn test_balancer_can_register_agents() {
 #[tokio::test]
 #[file_serial]
 async fn test_agents_stream_receives_snapshot() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "agents-test-agent".to_string(),
         agent_slots: 2,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -109,10 +112,10 @@ async fn test_agents_stream_receives_snapshot() {
 #[tokio::test]
 #[file_serial]
 async fn test_get_model_metadata() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "agents-test-agent".to_string(),
         agent_slots: 2,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -144,10 +147,10 @@ async fn test_get_model_metadata() {
 #[tokio::test]
 #[file_serial]
 async fn test_get_metrics_returns_prometheus_format() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "agents-test-agent".to_string(),
         agent_slots: 2,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -174,10 +177,10 @@ async fn test_get_metrics_returns_prometheus_format() {
 #[tokio::test]
 #[file_serial]
 async fn test_agent_reports_download_progress() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "download-progress-agent".to_string(),
         agent_slots: 2,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");

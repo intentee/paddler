@@ -25,6 +25,7 @@ pub struct PaddlerClient {
 }
 
 impl PaddlerClient {
+    #[must_use]
     pub fn new(inference_url: Url, management_url: Url, inference_socket_pool_size: usize) -> Self {
         Self {
             inference_url,
@@ -34,7 +35,8 @@ impl PaddlerClient {
         }
     }
 
-    pub fn inference<'paddler_client>(&'paddler_client self) -> ClientInference<'paddler_client> {
+    #[must_use]
+    pub const fn inference(&self) -> ClientInference<'_> {
         ClientInference::new(
             &self.inference_url,
             &self.http_client,
@@ -42,7 +44,8 @@ impl PaddlerClient {
         )
     }
 
-    pub fn management<'paddler_client>(&'paddler_client self) -> ClientManagement<'paddler_client> {
+    #[must_use]
+    pub const fn management(&self) -> ClientManagement<'_> {
         ClientManagement::new(&self.management_url, &self.http_client)
     }
 }

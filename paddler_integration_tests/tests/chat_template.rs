@@ -1,10 +1,10 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
 
 use futures_util::StreamExt;
-use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::managed_balancer::ManagedBalancer;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::AGENT_DESIRED_MODEL;
+use paddler_integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
@@ -25,8 +25,8 @@ const SIMPLE_CHAT_TEMPLATE: &str = "{{ messages[0].content }}";
 fn chat_template_cluster_params(
     model: AgentDesiredModel,
     chat_template: ChatTemplate,
-) -> TestClusterParams {
-    TestClusterParams {
+) -> ManagedClusterParams {
+    ManagedClusterParams {
         agent_name: "chat-template-agent".to_string(),
         agent_slots: 1,
         desired_state: BalancerDesiredState {
@@ -36,7 +36,7 @@ fn chat_template_cluster_params(
             multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: true,
         },
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     }
 }
 
@@ -135,7 +135,7 @@ async fn test_agent_can_use_chat_template_for_model() {
         content: SIMPLE_CHAT_TEMPLATE.to_string(),
     };
 
-    let cluster = TestCluster::spawn(chat_template_cluster_params(
+    let cluster = ManagedCluster::spawn(chat_template_cluster_params(
         AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
             filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_string(),
             repo_id: "nomic-ai/nomic-embed-text-v1.5-GGUF".to_string(),
@@ -174,7 +174,7 @@ async fn test_agent_overrides_chat_template() {
         content: SIMPLE_CHAT_TEMPLATE.to_string(),
     };
 
-    let cluster = TestCluster::spawn(chat_template_cluster_params(
+    let cluster = ManagedCluster::spawn(chat_template_cluster_params(
         AGENT_DESIRED_MODEL.clone(),
         chat_template.clone(),
     ))

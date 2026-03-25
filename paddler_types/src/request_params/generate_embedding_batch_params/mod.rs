@@ -16,10 +16,8 @@ pub struct GenerateEmbeddingBatchParams {
 
 impl GenerateEmbeddingBatchParams {
     /// Input size is the total number of characters in the resulting batches.
-    pub fn chunk_by_input_size<'embedding>(
-        &'embedding self,
-        chunk_size: usize,
-    ) -> ChunkByInputSizeIter<'embedding> {
+    #[must_use]
+    pub fn chunk_by_input_size(&self, chunk_size: usize) -> ChunkByInputSizeIter<'_> {
         ChunkByInputSizeIter {
             input_batch: &self.input_batch,
             normalization_method: &self.normalization_method,
@@ -35,8 +33,8 @@ mod tests {
 
     fn make_doc(id: &str, content: &str) -> EmbeddingInputDocument {
         EmbeddingInputDocument {
-            content: content.to_string(),
-            id: id.to_string(),
+            content: content.to_owned(),
+            id: id.to_owned(),
         }
     }
 
@@ -68,9 +66,8 @@ mod tests {
     #[test]
     fn test_chunk_empty_batch() {
         let params = make_params(vec![]);
-        let batches = params.chunk_by_input_size(100).collect::<Vec<_>>();
 
-        assert!(batches.is_empty());
+        assert!(params.chunk_by_input_size(100).next().is_none());
     }
 
     #[test]

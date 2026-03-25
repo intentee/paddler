@@ -25,7 +25,7 @@ impl FromRequestParams for ContinueFromConversationHistoryRequest {
         generated_tokens_tx: mpsc::UnboundedSender<Self::Response>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     ) -> Self {
-        ContinueFromConversationHistoryRequest {
+        Self {
             generate_tokens_stop_rx,
             generated_tokens_tx,
             params,

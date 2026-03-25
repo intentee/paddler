@@ -6,7 +6,7 @@ Keep it simple, be opinionated, follow best practices. Avoid using configurable 
 
 Keep the code beautiful. Always optimize the code for a great developer experience.
 
-Be proactive and fix preexisting issues if you encounter them.
+Be proactive and fix any preexisting issues you encounter.
 
 ## Coding Standards
 
@@ -40,7 +40,7 @@ Be proactive and fix preexisting issues if you encounter them.
 - Avoid unnecessary abstractions.
 - Before using vendor crates or modules, make sure they are well-maintained, secure, and documented.
 - Always make sure there is only one valid way to do a specific task in the codebase. Make sure everything has a single source of truth.
-- In Rust, when implementing `new` method in a struct, prefer to use a struct with parameters list instead of multiple function arguments. It should be easier to maintain.
+- In Rust, when implementing a `new` method in a struct, prefer to use a struct with a parameter list instead of multiple function arguments. It should be easier to maintain.
 
 ## Unit Tests and Quality Control
 
@@ -55,6 +55,7 @@ Be proactive and fix preexisting issues if you encounter them.
 
 ## Committing Changes
 
-- Always keep the commit messages short, human readable, descriptive. Keep commit messages as one-liners.
+- Always keep the commit messages short, human-readable, and descriptive. Keep commit messages as one-liners.
 - Do not add any metadata to commits.
 - Describe what the changes actually do instead of listing the changed files.
+

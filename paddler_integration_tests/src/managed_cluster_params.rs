@@ -6,18 +6,17 @@ use paddler_types::inference_parameters::InferenceParameters;
 
 use crate::AGENT_DESIRED_MODEL;
 
-pub struct TestClusterParams {
+pub struct ManagedClusterParams {
     pub desired_state: BalancerDesiredState,
     pub agent_name: String,
     pub agent_slots: i32,
-    pub with_openai: bool,
     pub max_buffered_requests: i32,
     pub buffered_request_timeout: Duration,
     pub inference_item_timeout: Option<Duration>,
     pub wait_for_slots: bool,
 }
 
-impl Default for TestClusterParams {
+impl Default for ManagedClusterParams {
     fn default() -> Self {
         Self {
             desired_state: BalancerDesiredState {
@@ -27,9 +26,8 @@ impl Default for TestClusterParams {
                 multimodal_projection: AgentDesiredModel::None,
                 use_chat_template_override: false,
             },
-            agent_name: "test-agent".to_string(),
+            agent_name: "test-agent".to_owned(),
             agent_slots: 4,
-            with_openai: false,
             max_buffered_requests: 10,
             buffered_request_timeout: Duration::from_secs(10),
             inference_item_timeout: None,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use paddler_types::inference_client::Message as InferenceMessage;
 use serde::Serialize;
 use serde_json::to_string;
@@ -11,7 +13,7 @@ use crate::inference_socket_connection::InferenceSocketConnection;
 
 pub struct InferenceSocketPool {
     url: Url,
-    connections: Mutex<Vec<Option<InferenceSocketConnection>>>,
+    connections: Mutex<Vec<Option<Arc<InferenceSocketConnection>>>>,
     pool_size: usize,
     next_idx: Mutex<usize>,
 }
@@ -36,20 +38,15 @@ impl InferenceSocketPool {
 
         self.ensure_connection(conn_idx).await?;
 
-        let send_result = {
-            let connections = self.connections.lock().await;
-            let connection = connections[conn_idx].as_ref().ok_or(Error::PoolExhausted)?;
-
-            connection.send(request_id.clone(), json.clone())
-        };
+        let connection = self.get_connection(conn_idx).await?;
+        let send_result = connection.send(request_id.clone(), json.clone());
 
         match send_result {
             Ok(response_rx) => Ok(response_rx),
             Err(Error::ConnectionDropped { .. }) => {
                 self.ensure_connection(conn_idx).await?;
 
-                let connections = self.connections.lock().await;
-                let connection = connections[conn_idx].as_ref().ok_or(Error::PoolExhausted)?;
+                let connection = self.get_connection(conn_idx).await?;
 
                 connection
                     .send(request_id, json)
@@ -57,6 +54,12 @@ impl InferenceSocketPool {
             }
             Err(other_error) => Err(other_error),
         }
+    }
+
+    async fn get_connection(&self, index: usize) -> Result<Arc<InferenceSocketConnection>> {
+        let connections = self.connections.lock().await;
+
+        connections[index].clone().ok_or(Error::ConnectionSlotEmpty)
     }
 
     async fn next_connection_index(&self) -> usize {
@@ -70,18 +73,16 @@ impl InferenceSocketPool {
     async fn ensure_connection(&self, index: usize) -> Result<()> {
         let needs_connect = {
             let connections = self.connections.lock().await;
-            let slot = &connections[index];
 
-            slot.is_none()
-                || slot
-                    .as_ref()
-                    .is_some_and(|connection| connection.is_disconnected())
+            connections[index]
+                .as_ref()
+                .is_none_or(|connection| connection.is_disconnected())
         };
 
         if needs_connect {
             let new_connection = InferenceSocketConnection::connect(self.url.clone()).await?;
             let mut connections = self.connections.lock().await;
-            connections[index] = Some(new_connection);
+            connections[index] = Some(Arc::new(new_connection));
         }
 
         Ok(())

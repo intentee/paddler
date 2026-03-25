@@ -23,7 +23,7 @@ impl FromRequestParams for ContinueFromRawPromptRequest {
         generated_tokens_tx: mpsc::UnboundedSender<Self::Response>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     ) -> Self {
-        ContinueFromRawPromptRequest {
+        Self {
             generate_tokens_stop_rx,
             generated_tokens_tx,
             params,

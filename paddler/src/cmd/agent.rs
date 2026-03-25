@@ -77,7 +77,7 @@ impl Handler for Agent {
             generate_embedding_batch_request_tx,
             model_metadata_holder,
             name: self.name.clone(),
-            receive_stream_stopper_collection: Default::default(),
+            receive_stream_stopper_collection: Arc::default(),
             slot_aggregated_status: slot_aggregated_status_manager
                 .slot_aggregated_status
                 .clone(),

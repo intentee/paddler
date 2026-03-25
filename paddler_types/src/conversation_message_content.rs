@@ -12,10 +12,11 @@ pub enum ConversationMessageContent {
 }
 
 impl ConversationMessageContent {
+    #[must_use]
     pub fn text_content(&self) -> String {
         match self {
-            ConversationMessageContent::Text(text) => text.clone(),
-            ConversationMessageContent::Parts(parts) => parts
+            Self::Text(text) => text.clone(),
+            Self::Parts(parts) => parts
                 .iter()
                 .filter_map(|part| match part {
                     ConversationMessageContentPart::Text { text } => Some(text.as_str()),
@@ -26,10 +27,11 @@ impl ConversationMessageContent {
         }
     }
 
+    #[must_use]
     pub fn image_urls(&self) -> Vec<&ImageUrl> {
         match self {
-            ConversationMessageContent::Text(_) => vec![],
-            ConversationMessageContent::Parts(parts) => parts
+            Self::Text(_) => vec![],
+            Self::Parts(parts) => parts
                 .iter()
                 .filter_map(|part| match part {
                     ConversationMessageContentPart::ImageUrl { image_url } => Some(image_url),
@@ -46,7 +48,7 @@ mod tests {
 
     #[test]
     fn text_content_from_text_variant() {
-        let content = ConversationMessageContent::Text("hello world".to_string());
+        let content = ConversationMessageContent::Text("hello world".to_owned());
 
         assert_eq!(content.text_content(), "hello world");
     }
@@ -55,15 +57,15 @@ mod tests {
     fn text_content_from_parts_joins_text_and_skips_images() {
         let content = ConversationMessageContent::Parts(vec![
             ConversationMessageContentPart::Text {
-                text: "hello ".to_string(),
+                text: "hello ".to_owned(),
             },
             ConversationMessageContentPart::ImageUrl {
                 image_url: ImageUrl {
-                    url: "http://example.com/img.png".to_string(),
+                    url: "http://example.com/img.png".to_owned(),
                 },
             },
             ConversationMessageContentPart::Text {
-                text: "world".to_string(),
+                text: "world".to_owned(),
             },
         ]);
 
@@ -72,7 +74,7 @@ mod tests {
 
     #[test]
     fn image_urls_from_text_variant_is_empty() {
-        let content = ConversationMessageContent::Text("hello".to_string());
+        let content = ConversationMessageContent::Text("hello".to_owned());
 
         assert!(content.image_urls().is_empty());
     }
@@ -81,16 +83,16 @@ mod tests {
     fn image_urls_from_parts_collects_image_urls() {
         let content = ConversationMessageContent::Parts(vec![
             ConversationMessageContentPart::Text {
-                text: "hello".to_string(),
+                text: "hello".to_owned(),
             },
             ConversationMessageContentPart::ImageUrl {
                 image_url: ImageUrl {
-                    url: "http://example.com/a.png".to_string(),
+                    url: "http://example.com/a.png".to_owned(),
                 },
             },
             ConversationMessageContentPart::ImageUrl {
                 image_url: ImageUrl {
-                    url: "http://example.com/b.png".to_string(),
+                    url: "http://example.com/b.png".to_owned(),
                 },
             },
         ]);

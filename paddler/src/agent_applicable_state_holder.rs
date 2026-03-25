@@ -11,6 +11,7 @@ pub struct AgentApplicableStateHolder {
 }
 
 impl AgentApplicableStateHolder {
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_agent_applicable_state(&self) -> Option<AgentApplicableState> {
         self.agent_applicable_state
             .read()
@@ -18,6 +19,7 @@ impl AgentApplicableStateHolder {
             .clone()
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_agent_applicable_state(
         &self,
         agent_applicable_state: Option<AgentApplicableState>,
@@ -28,7 +30,7 @@ impl AgentApplicableStateHolder {
                 .write()
                 .expect("Failed to acquire write lock");
 
-            *state = agent_applicable_state.clone();
+            (*state).clone_from(&agent_applicable_state);
         }
 
         Ok(self.change_notifier.send(agent_applicable_state)?)

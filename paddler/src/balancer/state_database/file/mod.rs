@@ -22,11 +22,12 @@ pub struct File {
 }
 
 impl File {
+    #[must_use]
     pub fn new(
         balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>,
         path: PathBuf,
     ) -> Self {
-        File {
+        Self {
             balancer_desired_state_notify_tx,
             path,
             write_lock: RwLock::new(()),
@@ -104,8 +105,7 @@ impl StateDatabase for File {
             .read_schema_from_file()
             .await
             .context("Unable to read state from file")?
-            .balancer_desired_state
-            .clone())
+            .balancer_desired_state)
     }
 
     async fn store_balancer_desired_state(

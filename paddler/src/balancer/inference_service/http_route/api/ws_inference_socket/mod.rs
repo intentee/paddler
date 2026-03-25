@@ -109,6 +109,10 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 }
 
 #[get("/api/v1/inference_socket")]
+#[expect(
+    clippy::future_not_send,
+    reason = "actix-web handlers run on a single-threaded runtime"
+)]
 async fn respond(
     app_data: Data<AppData>,
     payload: Payload,

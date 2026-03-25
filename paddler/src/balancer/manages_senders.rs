@@ -7,7 +7,7 @@ use serde::Serialize;
 use tokio::sync::mpsc;
 
 #[async_trait]
-pub trait ManagesSenders {
+pub trait ManagesSenders: Send + Sync {
     type Value: Send + Serialize + Sync + 'static;
 
     fn get_sender_collection(&self) -> &DashMap<String, mpsc::UnboundedSender<Self::Value>>;
@@ -15,13 +15,14 @@ pub trait ManagesSenders {
     fn deregister_sender(&self, request_id: String) -> Result<()> {
         let senders = self.get_sender_collection();
 
-        if let Some(sender) = senders.remove(&request_id) {
-            drop(sender);
+        senders.remove(&request_id).map_or_else(
+            || Err(anyhow!("No sender found for request_id {request_id}")),
+            |sender| {
+                drop(sender);
 
-            Ok(())
-        } else {
-            Err(anyhow!("No sender found for request_id {request_id}"))
-        }
+                Ok(())
+            },
+        )
     }
 
     async fn forward_response(&self, request_id: String, value: Self::Value) -> Result<()> {

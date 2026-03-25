@@ -1,10 +1,10 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
 
 use std::collections::BTreeSet;
 
 use futures_util::StreamExt;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -14,14 +14,14 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use serial_test::file_serial;
 
-async fn spawn_embeddings_cluster(inference_parameters: InferenceParameters) -> TestCluster {
-    TestCluster::spawn(TestClusterParams {
+async fn spawn_embeddings_cluster(inference_parameters: InferenceParameters) -> ManagedCluster {
+    ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "embeddings-agent".to_string(),
         desired_state: paddler_types::balancer_desired_state::BalancerDesiredState {
             inference_parameters,
-            ..TestClusterParams::default().desired_state
+            ..ManagedClusterParams::default().desired_state
         },
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster")

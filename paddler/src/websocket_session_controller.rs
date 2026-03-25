@@ -19,8 +19,9 @@ impl<TResponse> WebSocketSessionController<TResponse>
 where
     TResponse: RpcMessage + Sync,
 {
-    pub fn new(session: Session) -> Self {
-        WebSocketSessionController {
+    #[must_use]
+    pub const fn new(session: Session) -> Self {
+        Self {
             session,
             _marker: PhantomData,
         }

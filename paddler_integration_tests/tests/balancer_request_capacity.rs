@@ -1,15 +1,16 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
 
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
-use integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::AGENT_DESIRED_MODEL;
+use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
+use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
+use paddler_integration_tests::BALANCER_OPENAI_ADDR;
+use paddler_integration_tests::managed_agent::ManagedAgent;
+use paddler_integration_tests::managed_agent::ManagedAgentParams;
+use paddler_integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
@@ -23,13 +24,17 @@ async fn test_slots_can_handle_request() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        &state_db_url,
-        10,
-        Duration::from_millis(50),
-    ))
+    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_millis(50),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 10,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 
@@ -83,12 +88,11 @@ async fn test_slots_can_handle_request() {
         }
     }
 
-    let _agent = ManagedAgent::spawn(ManagedAgentParams {
+    let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("capacity-agent".to_string()),
         slots: 4,
     })
-    .await
     .expect("failed to spawn agent");
 
     balancer.wait_for_agent_count(1).await;

@@ -21,6 +21,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::balancer::inference_service::app_data::AppData;
 use crate::balancer::request_from_agent::request_from_agent;
 use crate::controls_session::ControlsSession as _;
@@ -37,13 +38,11 @@ async fn respond(
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
     let balancer_applicable_state_holder = app_data.balancer_applicable_state_holder.clone();
-    let agent_desired_state = match balancer_applicable_state_holder.get_agent_desired_state() {
-        Some(agent_desired_state) => agent_desired_state,
-        None => {
-            return Err(ErrorServiceUnavailable(
-                "Balancer applicable state is not yet set",
-            ));
-        }
+    let Some(agent_desired_state) = balancer_applicable_state_holder.get_agent_desired_state()
+    else {
+        return Err(ErrorServiceUnavailable(
+            "Balancer applicable state is not yet set",
+        ));
     };
 
     if !agent_desired_state.inference_parameters.enable_embeddings {
@@ -95,8 +94,13 @@ async fn respond(
         });
     }
 
-    let stream = UnboundedReceiverStream::new(chunk_rx)
-        .map(|chunk: String| Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))));
+    let stream = UnboundedReceiverStream::new(chunk_rx).map(|transform_result| {
+        let content = match transform_result {
+            TransformResult::Chunk(content) | TransformResult::Error(content) => content,
+        };
+
+        Ok::<_, Error>(Bytes::from(format!("{content}\n")))
+    });
 
     Ok(HttpResponse::Ok()
         .insert_header(header::ContentType::json())

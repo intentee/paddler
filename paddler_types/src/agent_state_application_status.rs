@@ -15,13 +15,11 @@ pub enum AgentStateApplicationStatus {
 }
 
 impl AgentStateApplicationStatus {
-    pub fn should_try_to_apply(&self) -> bool {
+    #[must_use]
+    pub const fn should_try_to_apply(&self) -> bool {
         match self {
-            AgentStateApplicationStatus::Applied => false,
-            AgentStateApplicationStatus::AttemptedAndNotAppliable => false,
-            AgentStateApplicationStatus::AttemptedAndRetrying => true,
-            AgentStateApplicationStatus::Fresh => true,
-            AgentStateApplicationStatus::Stuck => true,
+            Self::Applied | Self::AttemptedAndNotAppliable => false,
+            Self::AttemptedAndRetrying | Self::Fresh | Self::Stuck => true,
         }
     }
 }
@@ -31,11 +29,11 @@ impl TryFrom<i32> for AgentStateApplicationStatus {
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(AgentStateApplicationStatus::Applied),
-            1 => Ok(AgentStateApplicationStatus::AttemptedAndNotAppliable),
-            2 => Ok(AgentStateApplicationStatus::AttemptedAndRetrying),
-            3 => Ok(AgentStateApplicationStatus::Fresh),
-            4 => Ok(AgentStateApplicationStatus::Stuck),
+            0 => Ok(Self::Applied),
+            1 => Ok(Self::AttemptedAndNotAppliable),
+            2 => Ok(Self::AttemptedAndRetrying),
+            3 => Ok(Self::Fresh),
+            4 => Ok(Self::Stuck),
             _ => Err(anyhow!(
                 "Invalid value for AgentStateApplicationStatus: {value}"
             )),
@@ -73,27 +71,29 @@ mod tests {
     }
 
     #[test]
-    fn try_from_valid_values() {
+    fn try_from_valid_values() -> Result<()> {
         assert_eq!(
-            AgentStateApplicationStatus::try_from(0).unwrap(),
+            AgentStateApplicationStatus::try_from(0)?,
             AgentStateApplicationStatus::Applied
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(1).unwrap(),
+            AgentStateApplicationStatus::try_from(1)?,
             AgentStateApplicationStatus::AttemptedAndNotAppliable
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(2).unwrap(),
+            AgentStateApplicationStatus::try_from(2)?,
             AgentStateApplicationStatus::AttemptedAndRetrying
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(3).unwrap(),
+            AgentStateApplicationStatus::try_from(3)?,
             AgentStateApplicationStatus::Fresh
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(4).unwrap(),
+            AgentStateApplicationStatus::try_from(4)?,
             AgentStateApplicationStatus::Stuck
         );
+
+        Ok(())
     }
 
     #[test]

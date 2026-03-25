@@ -12,7 +12,7 @@ use crate::request_params::continue_from_conversation_history_params::tool::tool
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(tag = "type")]
-pub enum Tool<TParametersSchema: Default> {
+pub enum Tool<TParametersSchema> {
     #[serde(rename = "function")]
     Function(FunctionCall<TParametersSchema>),
 }
@@ -20,7 +20,7 @@ pub enum Tool<TParametersSchema: Default> {
 impl Validates<Tool<ValidatedParametersSchema>> for Tool<RawParametersSchema> {
     fn validate(self) -> Result<Tool<ValidatedParametersSchema>> {
         match self {
-            Tool::Function(function_call) => Ok(Tool::Function(function_call.validate()?)),
+            Self::Function(function_call) => Ok(Tool::Function(function_call.validate()?)),
         }
     }
 }

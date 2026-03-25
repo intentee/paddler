@@ -21,7 +21,8 @@ pub struct ClientManagement<'client> {
 }
 
 impl<'client> ClientManagement<'client> {
-    pub fn new(url: &'client Url, http_client: &'client Client) -> Self {
+    #[must_use]
+    pub const fn new(url: &'client Url, http_client: &'client Client) -> Self {
         Self { url, http_client }
     }
 

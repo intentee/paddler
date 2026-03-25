@@ -13,7 +13,7 @@ use crate::request_params::continue_from_conversation_history_params::tool::tool
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct FunctionCall<TParametersSchema: Default> {
+pub struct FunctionCall<TParametersSchema> {
     pub function: Function<TParametersSchema>,
 }
 
