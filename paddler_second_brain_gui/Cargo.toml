@@ -21,6 +21,9 @@ paddler_types = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 
+[lints]
+workspace = true
+
 [features]
 default = []
 web_admin_panel = ["paddler/web_admin_panel"]

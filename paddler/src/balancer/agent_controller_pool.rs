@@ -19,6 +19,7 @@ pub struct AgentControllerPool {
 }
 
 impl AgentControllerPool {
+    #[must_use]
     pub fn take_least_busy_agent_controller(&self) -> Option<Arc<AgentController>> {
         let agent_controller: Option<Arc<AgentController>> = self
             .agents
@@ -37,6 +38,7 @@ impl AgentControllerPool {
         None
     }
 
+    #[must_use]
     pub fn get_agent_controller(&self, agent_id: &str) -> Option<Arc<AgentController>> {
         self.agents.get(agent_id).map(|entry| entry.value().clone())
     }
@@ -65,11 +67,12 @@ impl AgentControllerPool {
         }
     }
 
+    #[must_use]
     pub fn total_slots(&self) -> AgentControllerPoolTotalSlots {
         let mut slots_processing = 0;
         let mut slots_total = 0;
 
-        for entry in self.agents.iter() {
+        for entry in &self.agents {
             let agent = entry.value();
 
             slots_processing += agent.slots_processing.get();
@@ -85,7 +88,7 @@ impl AgentControllerPool {
 
 impl Default for AgentControllerPool {
     fn default() -> Self {
-        AgentControllerPool {
+        Self {
             agents: DashMap::new(),
             update_notifier: Arc::new(Notify::new()),
         }
@@ -98,7 +101,7 @@ impl ProducesSnapshot for AgentControllerPool {
     fn make_snapshot(&self) -> Result<Self::Snapshot> {
         let mut agents: Vec<AgentControllerSnapshot> = Vec::with_capacity(self.agents.len());
 
-        for entry in self.agents.iter() {
+        for entry in &self.agents {
             let agent_controller = entry.value();
 
             agents.push(agent_controller.make_snapshot()?);
@@ -111,7 +114,7 @@ impl ProducesSnapshot for AgentControllerPool {
 #[async_trait]
 impl SetsDesiredState for AgentControllerPool {
     async fn set_desired_state(&self, desired_state: AgentDesiredState) -> Result<()> {
-        for agent in self.agents.iter() {
+        for agent in &self.agents {
             let agent_controller = agent.value();
 
             agent_controller

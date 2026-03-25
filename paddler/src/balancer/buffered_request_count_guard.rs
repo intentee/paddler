@@ -7,8 +7,8 @@ pub struct BufferedRequestCountGuard {
 }
 
 impl BufferedRequestCountGuard {
-    pub fn new(buffered_requests_counter: Arc<BufferedRequestCounter>) -> Self {
-        BufferedRequestCountGuard {
+    pub const fn new(buffered_requests_counter: Arc<BufferedRequestCounter>) -> Self {
+        Self {
             buffered_requests_counter,
         }
     }

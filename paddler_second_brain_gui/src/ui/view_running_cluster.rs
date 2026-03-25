@@ -25,9 +25,7 @@ use super::view_agent_card::view_agent_card;
 use crate::message::Message;
 use crate::running_cluster_data::RunningClusterData;
 
-pub fn view_running_cluster<'content>(
-    data: &'content RunningClusterData,
-) -> Element<'content, Message> {
+pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     let copy_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../../resources/icons/copy.svg").as_slice(),
     ))
@@ -61,17 +59,9 @@ pub fn view_running_cluster<'content>(
         let base = container::transparent(theme);
 
         container::Style {
-            background: Some(Background::Color(Color::from_rgb(
-                0xEE as f32 / 255.0,
-                0xFF as f32 / 255.0,
-                0xEE as f32 / 255.0,
-            ))),
+            background: Some(Background::Color(Color::from_rgb8(0xEE, 0xFF, 0xEE))),
             border: Border {
-                color: Color::from_rgb(
-                    0xCC as f32 / 255.0,
-                    0xDD as f32 / 255.0,
-                    0xCC as f32 / 255.0,
-                ),
+                color: Color::from_rgb8(0xCC, 0xDD, 0xCC),
                 width: 2.0,
                 radius: 8.into(),
             },

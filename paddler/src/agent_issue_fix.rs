@@ -16,61 +16,60 @@ pub enum AgentIssueFix {
 }
 
 impl AgentIssueFix {
+    #[must_use]
     pub fn can_fix(&self, issue: &AgentIssue) -> bool {
         match issue {
             AgentIssue::ChatTemplateDoesNotCompile(issue_params) => match self {
-                AgentIssueFix::ChatTemplateIsCompiled(fix_model_path) => {
+                Self::ChatTemplateIsCompiled(fix_model_path) => {
                     issue_params.model_path.eq(fix_model_path)
                 }
-                AgentIssueFix::ModelStateIsReconciled => true,
+                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::HuggingFaceCannotAcquireLock(hugging_face_download_lock) => match self {
-                AgentIssueFix::HuggingFaceDownloadedModel(fix_model_path)
-                | AgentIssueFix::HuggingFaceStartedDownloading(fix_model_path) => {
+                Self::HuggingFaceDownloadedModel(fix_model_path)
+                | Self::HuggingFaceStartedDownloading(fix_model_path) => {
                     hugging_face_download_lock.model_path.eq(fix_model_path)
                 }
-                AgentIssueFix::ModelStateIsReconciled => true,
+                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::HuggingFaceModelDoesNotExist(issue_model_path)
             | AgentIssue::HuggingFacePermissions(issue_model_path) => match self {
-                AgentIssueFix::HuggingFaceDownloadedModel(fix_model_path)
-                | AgentIssueFix::HuggingFaceStartedDownloading(fix_model_path)
-                | AgentIssueFix::MultimodalProjectionIsLoaded(fix_model_path) => {
+                Self::HuggingFaceDownloadedModel(fix_model_path)
+                | Self::HuggingFaceStartedDownloading(fix_model_path)
+                | Self::MultimodalProjectionIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
-                AgentIssueFix::ModelStateIsReconciled => true,
+                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::ModelCannotBeLoaded(issue_model_path) => match self {
-                AgentIssueFix::ModelIsLoaded(fix_model_path) => issue_model_path.eq(fix_model_path),
+                Self::ModelIsLoaded(fix_model_path) => issue_model_path.eq(fix_model_path),
                 _ => false,
             },
             AgentIssue::ModelFileDoesNotExist(issue_model_path) => match self {
-                AgentIssueFix::ModelFileExists(fix_model_path) => {
-                    issue_model_path.eq(fix_model_path)
-                }
-                AgentIssueFix::MultimodalProjectionIsLoaded(fix_model_path) => {
+                Self::ModelFileExists(fix_model_path)
+                | Self::MultimodalProjectionIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
                 _ => false,
             },
             AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
-                matches!(self, AgentIssueFix::MultimodalProjectionIsLoaded(_))
+                matches!(self, Self::MultimodalProjectionIsLoaded(_))
             }
             AgentIssue::SlotCannotStart(SlotCannotStartParams {
                 error: _,
                 slot_index,
             }) => match self {
-                AgentIssueFix::SlotStarted(started_slot_index) => slot_index == started_slot_index,
+                Self::SlotStarted(started_slot_index) => slot_index == started_slot_index,
                 _ => false,
             },
             AgentIssue::UnableToFindChatTemplate(issue_model_path) => match self {
-                AgentIssueFix::ModelChatTemplateIsLoaded(fix_model_path) => {
+                Self::ModelChatTemplateIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
-                AgentIssueFix::ModelStateIsReconciled => true,
+                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
         }
@@ -86,7 +85,7 @@ mod tests {
 
     fn model_path(path: &str) -> ModelPath {
         ModelPath {
-            model_path: path.to_string(),
+            model_path: path.to_owned(),
         }
     }
 
@@ -94,9 +93,9 @@ mod tests {
     fn chat_template_is_compiled_fixes_matching_compile_issue() {
         let fix = AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a"));
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-            error: "syntax error".to_string(),
+            error: "syntax error".to_owned(),
             model_path: model_path("model_a"),
-            template_content: "template".to_string(),
+            template_content: "template".to_owned(),
         });
 
         assert!(fix.can_fix(&issue));
@@ -106,9 +105,9 @@ mod tests {
     fn chat_template_is_compiled_does_not_fix_different_model() {
         let fix = AgentIssueFix::ChatTemplateIsCompiled(model_path("model_a"));
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-            error: "syntax error".to_string(),
+            error: "syntax error".to_owned(),
             model_path: model_path("model_b"),
-            template_content: "template".to_string(),
+            template_content: "template".to_owned(),
         });
 
         assert!(!fix.can_fix(&issue));
@@ -118,9 +117,9 @@ mod tests {
     fn model_state_is_reconciled_fixes_chat_template_issue() {
         let fix = AgentIssueFix::ModelStateIsReconciled;
         let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-            error: "error".to_string(),
+            error: "error".to_owned(),
             model_path: model_path("any_model"),
-            template_content: "template".to_string(),
+            template_content: "template".to_owned(),
         });
 
         assert!(fix.can_fix(&issue));
@@ -138,11 +137,11 @@ mod tests {
     fn slot_started_matches_by_slot_index() {
         let fix = AgentIssueFix::SlotStarted(3);
         let matching_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
-            error: "failed".to_string(),
+            error: "failed".to_owned(),
             slot_index: 3,
         });
         let non_matching_issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
-            error: "failed".to_string(),
+            error: "failed".to_owned(),
             slot_index: 5,
         });
 

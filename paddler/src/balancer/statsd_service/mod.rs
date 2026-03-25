@@ -26,7 +26,8 @@ pub struct StatsdService {
 }
 
 impl StatsdService {
-    async fn report_metrics(&self, client: &StatsdClient) -> Result<()> {
+    #[expect(clippy::cast_sign_loss, reason = "slot counts are always non-negative")]
+    fn report_metrics(&self, client: &StatsdClient) -> Result<()> {
         let AgentControllerPoolTotalSlots {
             slots_processing,
             slots_total,
@@ -52,10 +53,9 @@ impl Service for StatsdService {
         let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
         let statsd_sink = UdpMetricSink::from(self.configuration.statsd_addr, statsd_sink_socket)?;
 
-        let client =
-            StatsdClient::builder(&self.configuration.statsd_prefix.to_owned(), statsd_sink)
-                .with_error_handler(|err| error!("Statsd error: {err}"))
-                .build();
+        let client = StatsdClient::builder(&self.configuration.statsd_prefix.clone(), statsd_sink)
+            .with_error_handler(|err| error!("Statsd error: {err}"))
+            .build();
 
         let mut ticker = interval(self.configuration.statsd_reporting_interval);
 
@@ -65,7 +65,7 @@ impl Service for StatsdService {
             tokio::select! {
                 _ = shutdown.recv() => break Ok(()),
                 _ = ticker.tick() => {
-                    if let Err(err) = self.report_metrics(&client).await {
+                    if let Err(err) = self.report_metrics(&client) {
                         error!("Failed to report metrics: {err}");
                     }
                 }

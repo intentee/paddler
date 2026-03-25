@@ -8,6 +8,7 @@ pub struct BalancerApplicableStateHolder {
 }
 
 impl BalancerApplicableStateHolder {
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_agent_desired_state(&self) -> Option<AgentDesiredState> {
         self.balancer_applicable_state
             .read()
@@ -16,6 +17,7 @@ impl BalancerApplicableStateHolder {
             .map(|state| state.agent_desired_state.clone())
     }
 
+    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_balancer_applicable_state(
         &self,
         balancer_applicable_state: Option<BalancerApplicableState>,

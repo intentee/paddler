@@ -1,5 +1,5 @@
 [package]
-name = "integration_tests"
+name = "paddler_integration_tests"
 authors.workspace = true
 description = "Integration tests for Paddler"
 edition.workspace = true
@@ -9,7 +9,8 @@ repository.workspace = true
 version.workspace = true
 
 [features]
-paddler_integration_tests = []
+tests_that_use_compiled_paddler = []
+tests_that_use_llms = []
 
 [dependencies]
 anyhow = { workspace = true }
@@ -25,3 +26,6 @@ serial_test = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
+
+[lints]
+workspace = true

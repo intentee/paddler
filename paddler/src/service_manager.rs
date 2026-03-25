@@ -26,7 +26,7 @@ impl ServiceManager {
         let mut service_handles = Vec::with_capacity(self.services.len());
 
         for mut service in self.services {
-            let service_name = service.name().to_string();
+            let service_name = service.name().to_owned();
             let shutdown_broadcast_tx_arc_clone = shutdown_broadcast_tx_arc.clone();
 
             service_handles.push(rt::spawn(async move {

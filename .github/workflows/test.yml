@@ -12,13 +12,13 @@ on:
       - synchronize
   push:
     branches:
-      - "**"
+      - main
   workflow_call:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: test
+  rust:
+    name: rust
     runs-on: ubuntu-latest
 
     steps:
@@ -68,3 +68,37 @@ jobs:
             echo "Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             exit 1
           fi
+
+  python:
+    name: python (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    defaults:
+      run:
+        working-directory: paddler_client_python
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run ruff
+        run: poetry run ruff check
+
+      - name: Run mypy
+        run: poetry run mypy paddler_client/
+
+      - name: Run tests
+        run: poetry run pytest tests/ -v

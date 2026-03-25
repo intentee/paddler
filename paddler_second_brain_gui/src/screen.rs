@@ -56,27 +56,31 @@ impl Screen<JoinClusterConfig> {
     }
 
     pub fn connect(self) -> Screen<AgentRunning> {
-        self.transition_map(|config_data: JoinClusterConfigData| AgentRunningData {
-            cluster_address: config_data.cluster_address.clone(),
-            connected: false,
-            snapshot: AgentControllerSnapshot {
-                desired_slots_total: 0,
-                download_current: 0,
-                download_filename: None,
-                download_total: 0,
-                id: String::new(),
-                issues: BTreeSet::new(),
-                model_path: None,
-                name: if config_data.agent_name.is_empty() {
-                    None
-                } else {
-                    Some(config_data.agent_name.clone())
+        self.transition_map(|config_data: JoinClusterConfigData| {
+            let name = if config_data.agent_name.is_empty() {
+                None
+            } else {
+                Some(config_data.agent_name)
+            };
+
+            AgentRunningData {
+                cluster_address: config_data.cluster_address,
+                connected: false,
+                snapshot: AgentControllerSnapshot {
+                    desired_slots_total: 0,
+                    download_current: 0,
+                    download_filename: None,
+                    download_total: 0,
+                    id: String::new(),
+                    issues: BTreeSet::new(),
+                    model_path: None,
+                    name,
+                    slots_processing: 0,
+                    slots_total: 0,
+                    state_application_status: AgentStateApplicationStatus::Fresh,
+                    uses_chat_template_override: false,
                 },
-                slots_processing: 0,
-                slots_total: 0,
-                state_application_status: AgentStateApplicationStatus::Fresh,
-                uses_chat_template_override: false,
-            },
+            }
         })
     }
 }
@@ -101,7 +105,7 @@ impl Screen<StartClusterConfig> {
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|config_data: StartClusterConfigData| RunningClusterData {
             agent_snapshots: vec![],
-            cluster_address: config_data.balancer_address.clone(),
+            cluster_address: config_data.balancer_address,
             stopping: false,
         })
     }

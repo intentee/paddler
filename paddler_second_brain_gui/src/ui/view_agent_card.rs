@@ -17,12 +17,13 @@ use super::variables::SPACING_HALF;
 use crate::message::Message;
 
 fn display_last_path_part(path: &str) -> String {
-    path.split('/').next_back().unwrap_or(path).to_string()
+    path.split('/')
+        .next_back()
+        .unwrap_or(path)
+        .to_owned()
 }
 
-pub fn view_agent_card<'content>(
-    snapshot: &'content AgentControllerSnapshot,
-) -> Element<'content, Message> {
+pub fn view_agent_card(snapshot: &AgentControllerSnapshot) -> Element<'_, Message> {
     let is_downloading =
         snapshot.download_total > 0 && snapshot.download_current < snapshot.download_total;
 
@@ -31,15 +32,16 @@ pub fn view_agent_card<'content>(
     match &snapshot.name {
         Some(agent_name) => {
             name_row =
-                name_row.push(container(text(agent_name.to_string()).font(BOLD)).width(Fill));
+                name_row.push(container(text(agent_name.clone()).font(BOLD)).width(Fill));
         }
         None => {
             name_row = name_row.push(container("").width(Fill));
         }
-    };
+    }
 
     if is_downloading {
         name_row = name_row.push(
+            #[expect(clippy::cast_precision_loss, reason = "download sizes fit in f32 mantissa")]
             progress_bar(
                 0.0..=snapshot.download_total as f32,
                 snapshot.download_current as f32,
@@ -48,28 +50,29 @@ pub fn view_agent_card<'content>(
             .style(style_download_progress_bar),
         );
     } else {
-        let model_label = match &snapshot.model_path {
-            Some(path) => display_last_path_part(path),
-            None => "No model loaded".to_string(),
-        };
+        let model_label = snapshot
+            .model_path
+            .as_ref()
+            .map_or_else(|| "No model loaded".to_owned(), |path| display_last_path_part(path));
 
         name_row = name_row.push(text(model_label).font(REGULAR));
     }
 
     let status_label = if is_downloading {
+        #[expect(clippy::cast_precision_loss, reason = "download sizes fit in f32 mantissa")]
         let percentage =
             (snapshot.download_current as f32 / snapshot.download_total as f32) * 100.0;
 
         format!("Downloading ({percentage:.0}%)")
     } else if snapshot.model_path.is_none() {
-        "Waiting for model...".to_string()
+        "Waiting for model...".to_owned()
     } else {
         match &snapshot.state_application_status {
-            AgentStateApplicationStatus::Applied => "OK".to_string(),
-            AgentStateApplicationStatus::Fresh => "Pending".to_string(),
-            AgentStateApplicationStatus::AttemptedAndRetrying => "Retrying".to_string(),
-            AgentStateApplicationStatus::Stuck => "Retrying, but seems stuck?".to_string(),
-            AgentStateApplicationStatus::AttemptedAndNotAppliable => "Needs your help".to_string(),
+            AgentStateApplicationStatus::Applied => "OK".to_owned(),
+            AgentStateApplicationStatus::Fresh => "Pending".to_owned(),
+            AgentStateApplicationStatus::AttemptedAndRetrying => "Retrying".to_owned(),
+            AgentStateApplicationStatus::Stuck => "Retrying, but seems stuck?".to_owned(),
+            AgentStateApplicationStatus::AttemptedAndNotAppliable => "Needs your help".to_owned(),
         }
     };
 

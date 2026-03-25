@@ -46,7 +46,7 @@ impl Embedding {
             },
             normalization_method: normalization_method.clone(),
             pooling_type: self.pooling_type.clone(),
-            source_document_id: self.source_document_id.clone(),
+            source_document_id: self.source_document_id,
         })
     }
 }
@@ -60,45 +60,46 @@ mod tests {
             embedding: values,
             normalization_method: method,
             pooling_type: PoolingType::Mean,
-            source_document_id: "test".to_string(),
+            source_document_id: "test".to_owned(),
         }
     }
 
     #[test]
-    fn test_normalize_from_none_to_l2() {
+    fn test_normalize_from_none_to_l2() -> Result<()> {
         let embedding = make_embedding(vec![3.0, 4.0], EmbeddingNormalizationMethod::None);
-        let result = embedding
-            .normalize(&EmbeddingNormalizationMethod::L2)
-            .unwrap();
+        let result = embedding.normalize(&EmbeddingNormalizationMethod::L2)?;
 
         assert_eq!(result.embedding, vec![0.6, 0.8]);
         assert!(matches!(
             result.normalization_method,
             EmbeddingNormalizationMethod::L2
         ));
+
+        Ok(())
     }
 
     #[test]
-    fn test_normalize_from_none_to_rms_norm() {
+    fn test_normalize_from_none_to_rms_norm() -> Result<()> {
         let embedding =
             make_embedding(vec![2.0, 2.0, 2.0, 2.0], EmbeddingNormalizationMethod::None);
-        let result = embedding
-            .normalize(&EmbeddingNormalizationMethod::RmsNorm { epsilon: 0.0 })
-            .unwrap();
+        let result =
+            embedding.normalize(&EmbeddingNormalizationMethod::RmsNorm { epsilon: 0.0 })?;
 
         for val in &result.embedding {
             assert!((val - 1.0).abs() < 1e-6);
         }
+
+        Ok(())
     }
 
     #[test]
-    fn test_normalize_none_to_none_is_noop() {
+    fn test_normalize_none_to_none_is_noop() -> Result<()> {
         let embedding = make_embedding(vec![1.0, 2.0, 3.0], EmbeddingNormalizationMethod::None);
-        let result = embedding
-            .normalize(&EmbeddingNormalizationMethod::None)
-            .unwrap();
+        let result = embedding.normalize(&EmbeddingNormalizationMethod::None)?;
 
         assert_eq!(result.embedding, vec![1.0, 2.0, 3.0]);
+
+        Ok(())
     }
 
     #[test]
@@ -129,18 +130,18 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_preserves_metadata() {
+    fn test_normalize_preserves_metadata() -> Result<()> {
         let embedding = Embedding {
             embedding: vec![3.0, 4.0],
             normalization_method: EmbeddingNormalizationMethod::None,
             pooling_type: PoolingType::Cls,
-            source_document_id: "doc-42".to_string(),
+            source_document_id: "doc-42".to_owned(),
         };
-        let result = embedding
-            .normalize(&EmbeddingNormalizationMethod::L2)
-            .unwrap();
+        let result = embedding.normalize(&EmbeddingNormalizationMethod::L2)?;
 
         assert!(matches!(result.pooling_type, PoolingType::Cls));
         assert_eq!(result.source_document_id, "doc-42");
+
+        Ok(())
     }
 }

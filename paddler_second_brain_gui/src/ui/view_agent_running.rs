@@ -20,9 +20,7 @@ use super::view_agent_card::view_agent_card;
 use crate::agent_running_data::AgentRunningData;
 use crate::message::Message;
 
-pub fn view_agent_running<'content>(
-    data: &'content AgentRunningData,
-) -> Element<'content, Message> {
+pub fn view_agent_running(data: &AgentRunningData) -> Element<'_, Message> {
     let stop_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../../resources/icons/stop.svg").as_slice(),
     ))

@@ -20,6 +20,7 @@ pub struct BufferedRequestManager {
 }
 
 impl BufferedRequestManager {
+    #[must_use]
     pub fn new(
         agent_controller_pool: Arc<AgentControllerPool>,
         buffered_request_timeout: Duration,

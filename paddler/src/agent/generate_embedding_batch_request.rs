@@ -23,7 +23,7 @@ impl FromRequestParams for GenerateEmbeddingBatchRequest {
         generated_embedding_tx: mpsc::UnboundedSender<Self::Response>,
         generate_embedding_stop_rx: mpsc::UnboundedReceiver<()>,
     ) -> Self {
-        GenerateEmbeddingBatchRequest {
+        Self {
             generate_embedding_stop_rx,
             generated_embedding_tx,
             params,

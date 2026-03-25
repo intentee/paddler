@@ -6,7 +6,7 @@ use crate::request_params::ContinueFromRawPromptParams;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub enum Request<TParametersSchema: Default> {
+pub enum Request<TParametersSchema> {
     ContinueFromConversationHistory(ContinueFromConversationHistoryParams<TParametersSchema>),
     ContinueFromRawPrompt(ContinueFromRawPromptParams),
 }

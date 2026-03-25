@@ -21,9 +21,7 @@ use super::variables::SPACING_HALF;
 use crate::join_cluster_config_data::JoinClusterConfigData;
 use crate::message::Message;
 
-pub fn view_join_cluster_config<'content>(
-    data: &'content JoinClusterConfigData,
-) -> Element<'content, Message> {
+pub fn view_join_cluster_config(data: &JoinClusterConfigData) -> Element<'_, Message> {
     let confirm_button = button(text("Connect").font(BOLD))
         .padding([SPACING_HALF, SPACING_BASE])
         .style(style_button_primary)

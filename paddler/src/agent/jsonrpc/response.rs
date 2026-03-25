@@ -16,24 +16,24 @@ pub enum Response {
 
 impl From<Option<ChatTemplate>> for Response {
     fn from(chat_template: Option<ChatTemplate>) -> Self {
-        Response::ChatTemplateOverride(chat_template)
+        Self::ChatTemplateOverride(chat_template)
     }
 }
 
 impl From<EmbeddingResult> for Response {
     fn from(embedding_result: EmbeddingResult) -> Self {
-        Response::Embedding(embedding_result)
+        Self::Embedding(embedding_result)
     }
 }
 
 impl From<GeneratedTokenResult> for Response {
     fn from(generated_token_result: GeneratedTokenResult) -> Self {
-        Response::GeneratedToken(generated_token_result)
+        Self::GeneratedToken(generated_token_result)
     }
 }
 
 impl From<Option<ModelMetadata>> for Response {
     fn from(model_metadata: Option<ModelMetadata>) -> Self {
-        Response::ModelMetadata(model_metadata)
+        Self::ModelMetadata(model_metadata)
     }
 }

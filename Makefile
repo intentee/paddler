@@ -13,6 +13,9 @@ node_modules: package-lock.json
 	npm install --from-lockfile
 	touch node_modules
 
+target/debug/paddler: $(shell find paddler/src paddler_types/src paddler_client/src -name '*.rs')
+	cargo build -p paddler
+
 # -----------------------------------------------------------------------------
 # Phony targets
 # -----------------------------------------------------------------------------
@@ -24,6 +27,10 @@ clean:
 	rm -rf static
 	rm -rf target
 
+.PHONY: clippy
+clippy: jarmuz-static
+	cargo clippy --workspace --all-targets --features web_admin_panel
+
 .PHONY: fmt
 fmt: node_modules
 	./jarmuz-fmt.mjs
@@ -33,16 +40,16 @@ jarmuz-static: node_modules
 	./jarmuz-static.mjs
 
 .PHONY: release
-release: node_modules
-	./jarmuz-release.mjs
+release: jarmuz-static
+	cargo build --release -p paddler --features web_admin_panel
 
 .PHONY: release.cuda
-release.cuda: node_modules
-	./jarmuz-release.mjs --cuda
+release.cuda: jarmuz-static
+	cargo build --release -p paddler --features web_admin_panel,cuda
 
 .PHONY: release.vulkan
-release.vulkan: node_modules
-	./jarmuz-release.mjs --vulkan
+release.vulkan: jarmuz-static
+	cargo build --release -p paddler --features web_admin_panel,vulkan
 
 .PHONY: build
 build: jarmuz-static
@@ -57,8 +64,8 @@ test.llms: jarmuz-static
 	cargo test --features web_admin_panel,tests_that_use_llms -- --nocapture
 
 .PHONY: test.integration
-test.integration: build
-	cargo test --features web_admin_panel,tests_that_use_llms,paddler_integration_tests -- --nocapture --test-threads=1
+test.integration: target/debug/paddler
+	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: watch
 watch: node_modules

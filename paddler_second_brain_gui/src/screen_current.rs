@@ -17,7 +17,7 @@ impl Default for CurrentScreen {
     fn default() -> Self {
         use crate::home_data::HomeData;
 
-        CurrentScreen::Home(
+        Self::Home(
             Screen::<Home>::builder()
                 .state_data(HomeData { error: None })
                 .build(),

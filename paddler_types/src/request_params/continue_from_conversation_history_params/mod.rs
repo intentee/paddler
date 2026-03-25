@@ -12,7 +12,8 @@ use crate::request_params::continue_from_conversation_history_params::tool::tool
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ContinueFromConversationHistoryParams<TParametersSchema: Default> {
+#[serde(bound(deserialize = "TParametersSchema: serde::Deserialize<'de>"))]
+pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
     pub add_generation_prompt: bool,
     pub conversation_history: ConversationHistory,
     pub enable_thinking: bool,
@@ -33,7 +34,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
             tools: self
                 .tools
                 .into_iter()
-                .map(|tool| tool.validate())
+                .map(Validates::validate)
                 .collect::<Result<Vec<_>>>()?,
         })
     }

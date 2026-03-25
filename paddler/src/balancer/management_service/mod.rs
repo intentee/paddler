@@ -50,7 +50,7 @@ impl Service for ManagementService {
     }
 
     async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
-        #[allow(unused_mut)]
+        #[cfg_attr(not(feature = "web_admin_panel"), expect(unused_mut))]
         let mut cors_allowed_hosts = self.configuration.cors_allowed_hosts.clone();
 
         #[cfg(feature = "web_admin_panel")]
@@ -74,9 +74,10 @@ impl Service for ManagementService {
             statsd_prefix: self.statsd_prefix.clone(),
         });
 
+        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
         HttpServer::new(move || {
             App::new()
-                .wrap(create_cors_middleware(cors_allowed_hosts_arc.clone()))
+                .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                 .app_data(app_data.clone())
                 .configure(common_http_route::get_health::register)
                 .configure(http_route::api::get_agents::register)

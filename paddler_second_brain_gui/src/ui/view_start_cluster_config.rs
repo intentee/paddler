@@ -26,9 +26,7 @@ use crate::message::Message;
 use crate::model_preset::ModelPreset;
 use crate::start_cluster_config_data::StartClusterConfigData;
 
-pub fn view_start_cluster_config<'content>(
-    data: &'content StartClusterConfigData,
-) -> Element<'content, Message> {
+pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, Message> {
     let available_models = ModelPreset::available_presets();
 
     let confirm_button = if data.starting {

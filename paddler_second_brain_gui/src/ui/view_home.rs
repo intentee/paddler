@@ -33,7 +33,7 @@ static JOIN_CLUSTER_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     )
 });
 
-pub fn view_home<'content>(data: &'content HomeData) -> Element<'content, Message> {
+pub fn view_home(data: &HomeData) -> Element<'_, Message> {
     let create_image = image(CREATE_CLUSTER_IMAGE.clone()).width(200).height(200);
 
     let join_image = image(JOIN_CLUSTER_IMAGE.clone()).width(200).height(200);

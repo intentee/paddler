@@ -12,7 +12,7 @@ pub fn inference_socket_url(url: Url) -> Result<Url> {
         other => other,
     };
 
-    let scheme = scheme.to_string();
+    let scheme = scheme.to_owned();
 
     url.set_scheme(&scheme)
         .map_err(|()| Error::Other(format!("Failed to set URL scheme to '{scheme}'")))?;

@@ -13,7 +13,7 @@ impl Drop for ReceiveStreamStopperDropGuard {
     fn drop(&mut self) {
         if let Err(err) = self
             .receive_stream_stopper_collection
-            .deregister_stopper(self.request_id.clone())
+            .deregister_stopper(&self.request_id)
         {
             error!(
                 "Failed to deregister stopper for request_id {}: {}",

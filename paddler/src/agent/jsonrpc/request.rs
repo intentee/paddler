@@ -20,18 +20,18 @@ pub enum Request {
 
 impl From<ContinueFromConversationHistoryParams<ValidatedParametersSchema>> for Request {
     fn from(params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>) -> Self {
-        Request::ContinueFromConversationHistory(params)
+        Self::ContinueFromConversationHistory(params)
     }
 }
 
 impl From<ContinueFromRawPromptParams> for Request {
     fn from(params: ContinueFromRawPromptParams) -> Self {
-        Request::ContinueFromRawPrompt(params)
+        Self::ContinueFromRawPrompt(params)
     }
 }
 
 impl From<GenerateEmbeddingBatchParams> for Request {
     fn from(params: GenerateEmbeddingBatchParams) -> Self {
-        Request::GenerateEmbeddingBatch(params)
+        Self::GenerateEmbeddingBatch(params)
     }
 }

@@ -22,6 +22,9 @@ tokio = { workspace = true }
 # web dashboard deps
 esbuild-metafile = { workspace = true, optional = true }
 
+[lints]
+workspace = true
+
 [features]
 default = []
 web_admin_panel = [

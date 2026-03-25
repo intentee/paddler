@@ -7,7 +7,8 @@ pub struct MediaMarker {
 }
 
 impl MediaMarker {
-    pub fn new(marker: String) -> Self {
+    #[must_use]
+    pub const fn new(marker: String) -> Self {
         Self { marker }
     }
 }

@@ -8,7 +8,8 @@ pub struct AtomicValue<TAtomic> {
 }
 
 impl AtomicValue<AtomicBool> {
-    pub fn new(initial: bool) -> Self {
+    #[must_use]
+    pub const fn new(initial: bool) -> Self {
         Self {
             value: AtomicBool::new(initial),
         }
@@ -23,18 +24,19 @@ impl AtomicValue<AtomicBool> {
     }
 
     pub fn set_check(&self, value: bool) -> bool {
-        if self.get() != value {
+        if self.get() == value {
+            false
+        } else {
             self.set(value);
 
             true
-        } else {
-            false
         }
     }
 }
 
 impl AtomicValue<AtomicI32> {
-    pub fn new(initial: i32) -> Self {
+    #[must_use]
+    pub const fn new(initial: i32) -> Self {
         Self {
             value: AtomicI32::new(initial),
         }
@@ -67,18 +69,19 @@ impl AtomicValue<AtomicI32> {
     }
 
     pub fn set_check(&self, value: i32) -> bool {
-        if self.get() != value {
+        if self.get() == value {
+            false
+        } else {
             self.set(value);
 
             true
-        } else {
-            false
         }
     }
 }
 
 impl AtomicValue<AtomicUsize> {
-    pub fn new(initial: usize) -> Self {
+    #[must_use]
+    pub const fn new(initial: usize) -> Self {
         Self {
             value: AtomicUsize::new(initial),
         }
@@ -97,12 +100,12 @@ impl AtomicValue<AtomicUsize> {
     }
 
     pub fn set_check(&self, value: usize) -> bool {
-        if self.get() != value {
+        if self.get() == value {
+            false
+        } else {
             self.set(value);
 
             true
-        } else {
-            false
         }
     }
 }

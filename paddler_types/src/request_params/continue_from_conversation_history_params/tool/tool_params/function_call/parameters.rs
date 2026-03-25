@@ -8,23 +8,23 @@ use crate::request_params::continue_from_conversation_history_params::tool::tool
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
-pub enum Parameters<TParametersSchema: Default> {
+pub enum Parameters<TParametersSchema> {
     #[default]
     Empty,
     Schema(TParametersSchema),
 }
 
-impl<TParametersSchema: Default> Parameters<TParametersSchema> {
-    pub fn is_empty(&self) -> bool {
-        matches!(self, Parameters::Empty)
+impl<TParametersSchema> Parameters<TParametersSchema> {
+    pub const fn is_empty(&self) -> bool {
+        matches!(self, Self::Empty)
     }
 }
 
 impl Validates<Parameters<ValidatedParametersSchema>> for Parameters<RawParametersSchema> {
     fn validate(self) -> Result<Parameters<ValidatedParametersSchema>> {
         match self {
-            Parameters::Empty => Ok(Parameters::Empty),
-            Parameters::Schema(schema) => Ok(Parameters::Schema(schema.validate()?)),
+            Self::Empty => Ok(Parameters::Empty),
+            Self::Schema(schema) => Ok(Parameters::Schema(schema.validate()?)),
         }
     }
 }

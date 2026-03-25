@@ -42,9 +42,9 @@ impl FromStr for StateDatabaseType {
                     "}));
                 }
 
-                Ok(StateDatabaseType::File(PathBuf::from(path)))
+                Ok(Self::File(PathBuf::from(path)))
             }
-            "memory" => Ok(StateDatabaseType::Memory),
+            "memory" => Ok(Self::Memory),
             scheme => Err(anyhow!("Unsupported scheme '{scheme}'")),
         }
     }
@@ -54,12 +54,16 @@ impl FromStr for StateDatabaseType {
 mod tests {
     use std::str::FromStr;
 
+    use anyhow::Result;
+
     use super::*;
 
     #[test]
-    fn test_memory_basic() {
-        let result = StateDatabaseType::from_str("memory://").unwrap();
+    fn test_memory_basic() -> Result<()> {
+        let result = StateDatabaseType::from_str("memory://")?;
         assert!(matches!(result, StateDatabaseType::Memory));
+
+        Ok(())
     }
 
     #[test]
@@ -70,14 +74,19 @@ mod tests {
     }
 
     #[test]
-    fn test_file_absolute_path() {
-        let result = StateDatabaseType::from_str("file:///absolute/path").unwrap();
+    fn test_file_absolute_path() -> Result<()> {
+        let result = StateDatabaseType::from_str("file:///absolute/path")?;
+
         match result {
             StateDatabaseType::File(path) => {
                 assert_eq!(path, PathBuf::from("/absolute/path"));
             }
-            _ => panic!("Expected File variant"),
+            StateDatabaseType::Memory => {
+                return Err(anyhow!("Expected File variant"));
+            }
         }
+
+        Ok(())
     }
 
     #[test]

@@ -31,8 +31,8 @@ pub struct InferenceParameters {
     pub top_p: f32,
 }
 
-impl Validates<InferenceParameters> for InferenceParameters {
-    fn validate(self) -> Result<InferenceParameters> {
+impl Validates<Self> for InferenceParameters {
+    fn validate(self) -> Result<Self> {
         if self.image_resize_to_fit == 0 {
             bail!("image_resize_to_fit must be greater than zero");
         }

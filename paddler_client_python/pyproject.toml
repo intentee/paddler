@@ -1,0 +1,79 @@
+[tool.poetry]
+name = "paddler-client"
+version = "3.0.1"
+description = "Python client for Paddler LLM load balancer"
+authors = ["Intentee"]
+license = "Apache-2.0"
+homepage = "https://github.com/intentee/paddler"
+repository = "https://github.com/intentee/paddler"
+keywords = ["llm", "load-balancer", "inference", "paddler"]
+classifiers = [
+    "Typing :: Typed",
+    "Framework :: Pydantic :: 2",
+]
+packages = [{include = "paddler_client"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+httpx = "^0.28"
+websockets = "^15"
+pydantic = "^2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8"
+pytest-asyncio = "^0.25"
+ruff = "^0.11"
+mypy = "^1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+warn_untyped_fields = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "ANN401",  # Any type allowed for JSON data
+    "COM812",  # trailing comma - conflicts with formatter
+    "CPY001",  # copyright notice not needed
+    "D",       # docstrings - project prefers self-documenting code
+    "EM101",   # exception message as variable - overly pedantic for f-strings
+    "EM102",   # exception message as variable - overly pedantic for f-strings
+    "FBT",     # boolean arguments - standard for pydantic models and config
+    "ISC001",  # implicit string concatenation - conflicts with formatter
+    "PLR0913", # too many arguments
+    "S105",    # false positive on enum member names like TOKEN
+    "TC",      # TYPE_CHECKING imports - overkill for this project size
+    "TRY003",  # long exception messages - fine for ValueError with context
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "PERF401", # async for with append - clearer than comprehension in tests
+    "PLR2004", # magic values in assertions
+    "S101",    # assert statements
+    "S106",    # false positive on token keyword argument
+    "SIM117",  # nested with statements - async with can't combine easily
+    "ARG001",  # unused handler args - required by httpx.MockTransport signature
+    "SLF001",  # private member access
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

@@ -9,21 +9,19 @@ use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use tokio::process::Child;
 use tokio::process::Command;
 
-use crate::managed_balancer::ManagedBalancerParams;
-
 pub mod managed_agent;
 pub mod managed_balancer;
-pub mod test_cluster;
-pub mod test_cluster_params;
+pub mod managed_cluster;
+pub mod managed_cluster_params;
 
 pub const BALANCER_MANAGEMENT_ADDR: &str = "127.0.0.1:8060";
 pub const BALANCER_INFERENCE_ADDR: &str = "127.0.0.1:8061";
 pub const BALANCER_OPENAI_ADDR: &str = "127.0.0.1:8062";
-pub const TIMEOUT: Duration = Duration::from_secs(3);
-pub const POLL_INTERVAL: Duration = Duration::from_millis(10);
+pub const WAIT_FOR_STATE_CHANGE_TIMEOUT: Duration = Duration::from_secs(30);
+pub const WAIT_FOR_STATE_CHANGE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 static PADDLER_BINARY_PATH: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_string())
+    std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_owned())
 });
 
 pub fn paddler_command() -> Command {
@@ -38,9 +36,9 @@ pub fn paddler_command() -> Command {
 
 pub static AGENT_DESIRED_MODEL: LazyLock<AgentDesiredModel> = LazyLock::new(|| {
     AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-        filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-        repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-        revision: "main".to_string(),
+        filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+        repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+        revision: "main".to_owned(),
     })
 });
 
@@ -48,6 +46,7 @@ pub fn terminate_child(child: &mut Child) {
     let child_id = child.id();
 
     if let Some(raw_pid) = child_id {
+        #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
         let pid = Pid::from_raw(raw_pid as i32);
         let _ = kill(pid, Signal::SIGTERM);
 
@@ -68,50 +67,8 @@ pub fn terminate_child(child: &mut Child) {
 
     loop {
         match child.try_wait() {
-            Ok(Some(_)) => break,
+            Ok(Some(_)) | Err(_) => break,
             Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-            Err(_) => break,
         }
-    }
-}
-
-pub fn balancer_params(
-    management_addr: &str,
-    inference_addr: &str,
-    state_database_url: &str,
-    max_buffered_requests: i32,
-    buffered_request_timeout: Duration,
-) -> ManagedBalancerParams {
-    ManagedBalancerParams {
-        buffered_request_timeout,
-        compat_openai_addr: None,
-        inference_addr: inference_addr.to_string(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: management_addr.to_string(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests,
-        state_database_url: state_database_url.to_string(),
-    }
-}
-
-pub fn balancer_params_with_openai(
-    management_addr: &str,
-    inference_addr: &str,
-    openai_addr: &str,
-    state_database_url: &str,
-    max_buffered_requests: i32,
-    buffered_request_timeout: Duration,
-) -> ManagedBalancerParams {
-    ManagedBalancerParams {
-        buffered_request_timeout,
-        compat_openai_addr: Some(openai_addr.to_string()),
-        inference_addr: inference_addr.to_string(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: management_addr.to_string(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests,
-        state_database_url: state_database_url.to_string(),
     }
 }

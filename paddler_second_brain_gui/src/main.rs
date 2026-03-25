@@ -6,6 +6,7 @@ mod message;
 mod model_preset;
 mod network_interface_address;
 mod running_cluster_data;
+#[expect(unsafe_code, reason = "statum macros generate link_section statics")]
 mod screen;
 mod screen_current;
 mod second_brain;

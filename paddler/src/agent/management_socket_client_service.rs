@@ -156,7 +156,7 @@ impl ManagementSocketClientService {
             JsonRpcMessage::Notification(JsonRpcNotification::StopRespondingTo(request_id)) => {
                 debug!("Received StopGeneratingTokens notification for request ID: {request_id:?}");
                 receive_stream_stopper_collection
-                    .stop(request_id.clone())
+                    .stop(&request_id)
                     .context(format!(
                         "Failed to stop generating tokens for request ID: {request_id}"
                     ))?;
@@ -225,12 +225,12 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GetChatTemplateOverride,
             }) => Ok(
                 message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
-                    request_id: id.clone(),
+                    request_id: id,
                     response: JsonRpcResponse::ChatTemplateOverride(
                         if let Some(agent_applicable_state) =
                             agent_applicable_state_holder.get_agent_applicable_state()
                         {
-                            agent_applicable_state.chat_template_override.clone()
+                            agent_applicable_state.chat_template_override
                         } else {
                             None
                         },
@@ -242,7 +242,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GetModelMetadata,
             }) => Ok(
                 message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
-                    request_id: id.clone(),
+                    request_id: id,
                     response: JsonRpcResponse::ModelMetadata(
                         model_metadata_holder.get_model_metadata(),
                     ),
@@ -251,10 +251,10 @@ impl ManagementSocketClientService {
         }
     }
 
-    async fn handle_incoming_message(
+    fn handle_incoming_message(
         incoming_message_context: IncomingMessageContext,
         msg: Message,
-        pong_tx: mpsc::UnboundedSender<Bytes>,
+        pong_tx: &mpsc::UnboundedSender<Bytes>,
     ) -> Result<()> {
         match msg {
             Message::Text(text) => {
@@ -362,7 +362,7 @@ impl ManagementSocketClientService {
                                     Err(err) => {
                                         error!("Failed to serialize message: {err}");
                                     }
-                                };
+                                }
                             }
                             None => break,
                         }
@@ -428,7 +428,7 @@ impl ManagementSocketClientService {
                     break;
                 }
                 _ = shutdown.recv() => break,
-                _ = self.slot_aggregated_status.update_notifier.notified() => do_send_status_update(),
+                () = self.slot_aggregated_status.update_notifier.notified() => do_send_status_update(),
                 _ = ticker.tick() => do_send_status_update(),
                 msg = read.next() => {
                     let should_close = match msg {
@@ -446,9 +446,8 @@ impl ManagementSocketClientService {
                                         message_tx: message_tx.clone(),
                                     },
                                     msg,
-                                    pong_tx.clone(),
+                                    &pong_tx,
                                 )
-                                .await
                                 .context("Failed to handle incoming message")
                             {
                                 error!("Error handling incoming message: {err}");

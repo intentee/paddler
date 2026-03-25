@@ -58,7 +58,7 @@ where
                     respond_with_error(
                         JsonRpcError {
                             code: 500,
-                            description: "Failed to generate response".to_string(),
+                            description: "Failed to generate response".to_owned(),
                         },
                         request_id.clone(),
                         &mut session_controller,
@@ -111,7 +111,7 @@ where
                 respond_with_error(
                     JsonRpcError {
                         code: 502,
-                        description: "Agent controller connection closed".to_string(),
+                        description: "Agent controller connection closed".to_owned(),
                     },
                     request_id,
                     &mut session_controller,
@@ -126,7 +126,7 @@ where
 
                 break;
             }
-            _ = sleep(inference_service_configuration.inference_item_timeout) => {
+            () = sleep(inference_service_configuration.inference_item_timeout) => {
                 let timeout_ms = inference_service_configuration.inference_item_timeout.as_millis();
 
                 warn!(
@@ -248,7 +248,7 @@ where
                     respond_with_error(
                         JsonRpcError {
                             code: 503,
-                            description: "Buffered requests overflow".to_string(),
+                            description: "Buffered requests overflow".to_owned(),
                         },
                         request_id.clone(),
                         session_controller,
@@ -262,7 +262,7 @@ where
                     respond_with_error(
                         JsonRpcError {
                             code: 504,
-                            description: "Waiting for available slot timed out".to_string(),
+                            description: "Waiting for available slot timed out".to_owned(),
                         },
                         request_id.clone(),
                         session_controller,
@@ -276,7 +276,7 @@ where
                     respond_with_error(
                         JsonRpcError {
                             code: 500,
-                            description: "Internal server error".to_string(),
+                            description: "Internal server error".to_owned(),
                         },
                         request_id.clone(),
                         session_controller,

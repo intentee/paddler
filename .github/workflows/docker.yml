@@ -1,4 +1,4 @@
-name: test
+name: docker
 
 on:
   pull_request:
@@ -12,12 +12,12 @@ on:
       - synchronize
   push:
     branches:
-      - "**"
+      - main
   workflow_call:
   workflow_dispatch:
 
 jobs:
-  build:
+  docker:
     runs-on: ubuntu-latest
 
     steps:

@@ -1,6 +1,5 @@
 use anyhow::Result;
 use anyhow::anyhow;
-#[cfg(feature = "validation")]
 use jsonschema::validator_for;
 use serde::Deserialize;
 use serde::Serialize;
@@ -10,15 +9,9 @@ use serde_json::Value;
 use super::validated_parameters_schema::ValidatedParametersSchema;
 use crate::validates::Validates;
 
-#[cfg(feature = "validation")]
 fn validate_schema(schema: &Value) -> Result<()> {
     validator_for(schema).map_err(|err| anyhow!("{err}"))?;
 
-    Ok(())
-}
-
-#[cfg(not(feature = "validation"))]
-fn validate_schema(_schema: &Value) -> Result<()> {
     Ok(())
 }
 
@@ -74,7 +67,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_deserialize_with_valid_properties() {
+    fn test_deserialize_with_valid_properties() -> Result<()> {
         let input = json!({
             "type": "object",
             "properties": {
@@ -85,18 +78,26 @@ mod tests {
             "additionalProperties": false
         });
 
-        let raw_schema: RawParametersSchema = from_value(input).unwrap();
-        let schema: ValidatedParametersSchema = raw_schema.validate().unwrap();
+        let raw_schema: RawParametersSchema = from_value(input)?;
+        let schema: ValidatedParametersSchema = raw_schema.validate()?;
 
         assert_eq!(schema.schema_type, "object");
         assert!(schema.properties.is_some());
-        assert_eq!(schema.properties.as_ref().unwrap().len(), 2);
-        assert_eq!(schema.required, Some(vec!["name".to_string()]));
+
+        let properties = schema
+            .properties
+            .as_ref()
+            .ok_or_else(|| anyhow!("expected properties"))?;
+
+        assert_eq!(properties.len(), 2);
+        assert_eq!(schema.required, Some(vec!["name".to_owned()]));
         assert_eq!(schema.additional_properties, Some(json!(false)));
+
+        Ok(())
     }
 
     #[test]
-    fn test_deserialize_with_invalid_property_schema() {
+    fn test_deserialize_with_invalid_property_schema() -> Result<()> {
         let input = json!({
             "type": "object",
             "properties": {
@@ -104,26 +105,24 @@ mod tests {
             }
         });
 
-        let raw_schema: RawParametersSchema = from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input)?;
         let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
 
-        #[cfg(feature = "validation")]
-        {
-            assert!(result.is_err());
+        assert!(result.is_err());
 
-            let error = result.unwrap_err().to_string();
-
-            assert!(error.contains("Invalid schema for property 'name'"));
+        if let Err(error) = &result {
+            assert!(
+                error
+                    .to_string()
+                    .contains("Invalid schema for property 'name'")
+            );
         }
 
-        #[cfg(not(feature = "validation"))]
-        {
-            assert!(result.is_ok());
-        }
+        Ok(())
     }
 
     #[test]
-    fn test_deserialize_required_field_not_in_properties() {
+    fn test_deserialize_required_field_not_in_properties() -> Result<()> {
         let input = json!({
             "type": "object",
             "properties": {
@@ -132,38 +131,42 @@ mod tests {
             "required": ["name", "missing_field"]
         });
 
-        let raw_schema: RawParametersSchema = from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input)?;
         let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
 
         assert!(result.is_err());
 
-        let error = result.unwrap_err().to_string();
+        if let Err(error) = &result {
+            assert!(
+                error
+                    .to_string()
+                    .contains("Required field 'missing_field' not found in properties")
+            );
+        }
 
-        assert!(error.contains("Required field 'missing_field' not found in properties"));
+        Ok(())
     }
 
     #[test]
-    fn test_deserialize_invalid_additional_properties_schema() {
+    fn test_deserialize_invalid_additional_properties_schema() -> Result<()> {
         let input = json!({
             "type": "object",
             "additionalProperties": {"type": "not_a_type"}
         });
 
-        let raw_schema: RawParametersSchema = from_value(input).unwrap();
+        let raw_schema: RawParametersSchema = from_value(input)?;
         let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
 
-        #[cfg(feature = "validation")]
-        {
-            assert!(result.is_err());
+        assert!(result.is_err());
 
-            let error = result.unwrap_err().to_string();
-
-            assert!(error.contains("Invalid additionalProperties schema"));
+        if let Err(error) = &result {
+            assert!(
+                error
+                    .to_string()
+                    .contains("Invalid additionalProperties schema")
+            );
         }
 
-        #[cfg(not(feature = "validation"))]
-        {
-            assert!(result.is_ok());
-        }
+        Ok(())
     }
 }

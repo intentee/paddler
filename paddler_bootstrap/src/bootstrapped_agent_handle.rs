@@ -66,7 +66,7 @@ pub fn bootstrap_agent(
         generate_embedding_batch_request_tx,
         model_metadata_holder,
         name: agent_name,
-        receive_stream_stopper_collection: Default::default(),
+        receive_stream_stopper_collection: Arc::default(),
         slot_aggregated_status: slot_aggregated_status_manager
             .slot_aggregated_status
             .clone(),

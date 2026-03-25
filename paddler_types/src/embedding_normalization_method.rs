@@ -12,15 +12,17 @@ pub enum EmbeddingNormalizationMethod {
 }
 
 impl EmbeddingNormalizationMethod {
-    pub fn can_transform_to(&self, _other: &EmbeddingNormalizationMethod) -> bool {
-        if matches!(self, EmbeddingNormalizationMethod::None) {
+    #[must_use]
+    pub const fn can_transform_to(&self, _other: &Self) -> bool {
+        if matches!(self, Self::None) {
             return true;
         }
 
         false
     }
 
-    pub fn needs_transformation_to(&self, other: &EmbeddingNormalizationMethod) -> bool {
+    #[must_use]
+    pub fn needs_transformation_to(&self, other: &Self) -> bool {
         mem::discriminant(self) != mem::discriminant(other)
     }
 }

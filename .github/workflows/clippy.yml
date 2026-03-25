@@ -1,0 +1,32 @@
+name: clippy
+
+on:
+  pull_request:
+    branches:
+      - "**"
+    types:
+      - edited
+      - opened
+      - ready_for_review
+      - review_requested
+      - synchronize
+  push:
+    branches:
+      - main
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: install clippy
+        run: rustup component add clippy
+
+      - name: run clippy
+        run: make clippy

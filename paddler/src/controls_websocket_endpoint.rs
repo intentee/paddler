@@ -62,7 +62,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
 
                 Ok(ContinuationDecision::Continue)
             }
-            Some(Ok(AggregatedMessage::Close(_))) => {
+            Some(Ok(AggregatedMessage::Close(_))) | None => {
                 return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
                     close_reason: None,
                 }));
@@ -131,11 +131,6 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             Some(Err(err)) => {
                 error!("Error receiving message: {err:?}");
 
-                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
-                    close_reason: None,
-                }));
-            }
-            None => {
                 return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
                     close_reason: None,
                 }));

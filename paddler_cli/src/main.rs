@@ -18,7 +18,7 @@ pub const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true), version, about, long_about = None)]
-/// LLMOps platform for hosting and scaling open-source LLMs in your own infrastructure
+/// `LLMOps` platform for hosting and scaling open-source LLMs in your own infrastructure
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -39,6 +39,10 @@ async fn main() -> Result<()> {
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
+    #[expect(
+        clippy::expect_used,
+        reason = "signal handler setup and shutdown signaling failures are unrecoverable"
+    )]
     tokio::spawn(async move {
         let mut sigterm = signal(SignalKind::terminate()).expect("Failed to listen for SIGTERM");
         let mut sigint = signal(SignalKind::interrupt()).expect("Failed to listen for SIGINT");

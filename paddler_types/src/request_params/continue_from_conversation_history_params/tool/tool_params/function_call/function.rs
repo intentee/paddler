@@ -9,7 +9,8 @@ use crate::validates::Validates;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct Function<TParametersSchema: Default> {
+#[serde(bound(deserialize = "TParametersSchema: serde::Deserialize<'de>"))]
+pub struct Function<TParametersSchema> {
     pub name: String,
     pub description: String,
     #[serde(default, skip_serializing_if = "Parameters::is_empty")]

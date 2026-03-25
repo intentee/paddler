@@ -14,7 +14,7 @@ pub enum EmbeddingResult {
 
 impl StreamableResult for EmbeddingResult {
     fn is_done(&self) -> bool {
-        matches!(self, EmbeddingResult::Done | EmbeddingResult::Error(_))
+        matches!(self, Self::Done | Self::Error(_))
     }
 }
 
@@ -31,7 +31,7 @@ mod tests {
 
     #[test]
     fn error_is_done() {
-        assert!(EmbeddingResult::Error("fail".to_string()).is_done());
+        assert!(EmbeddingResult::Error("fail".to_owned()).is_done());
     }
 
     #[test]
@@ -40,7 +40,7 @@ mod tests {
             embedding: vec![1.0],
             normalization_method: EmbeddingNormalizationMethod::None,
             pooling_type: PoolingType::Mean,
-            source_document_id: "doc".to_string(),
+            source_document_id: "doc".to_owned(),
         });
 
         assert!(!result.is_done());

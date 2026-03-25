@@ -9,7 +9,7 @@ pub struct ChunkByInputSizeIter<'embedding_batch> {
     pub normalization_method: &'embedding_batch EmbeddingNormalizationMethod,
 }
 
-impl<'embedding_batch> Iterator for ChunkByInputSizeIter<'embedding_batch> {
+impl Iterator for ChunkByInputSizeIter<'_> {
     type Item = GenerateEmbeddingBatchParams;
 
     fn next(&mut self) -> Option<Self::Item> {

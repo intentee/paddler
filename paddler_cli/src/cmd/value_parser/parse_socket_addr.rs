@@ -12,7 +12,7 @@ fn resolve_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
     for addr in &addrs {
         if addr.is_ipv4() {
             return Ok(ResolvedSocketAddr {
-                input_addr: input_addr.to_string(),
+                input_addr: input_addr.to_owned(),
                 socket_addr: *addr,
             });
         }
@@ -21,7 +21,7 @@ fn resolve_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
     for addr in addrs {
         if addr.is_ipv6() {
             return Ok(ResolvedSocketAddr {
-                input_addr: input_addr.to_string(),
+                input_addr: input_addr.to_owned(),
                 socket_addr: addr,
             });
         }
@@ -33,7 +33,7 @@ fn resolve_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
 pub fn parse_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
     match input_addr.parse() {
         Ok(socket_addr) => Ok(ResolvedSocketAddr {
-            input_addr: input_addr.to_string(),
+            input_addr: input_addr.to_owned(),
             socket_addr,
         }),
         Err(err) => {
@@ -46,23 +46,29 @@ pub fn parse_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use anyhow::Result;
+
+    use crate::cmd::value_parser::parse_socket_addr::parse_socket_addr;
 
     #[test]
-    fn test_parses_ip_and_port_directly() {
-        let result = parse_socket_addr("127.0.0.1:8080").unwrap();
+    fn test_parses_ip_and_port_directly() -> Result<()> {
+        let result = parse_socket_addr("127.0.0.1:8080")?;
 
         assert_eq!(result.input_addr, "127.0.0.1:8080");
         assert_eq!(result.socket_addr.port(), 8080);
         assert!(result.socket_addr.is_ipv4());
+
+        Ok(())
     }
 
     #[test]
-    fn test_resolves_localhost_via_dns() {
-        let result = parse_socket_addr("localhost:9090").unwrap();
+    fn test_resolves_localhost_via_dns() -> Result<()> {
+        let result = parse_socket_addr("localhost:9090")?;
 
         assert_eq!(result.input_addr, "localhost:9090");
         assert_eq!(result.socket_addr.port(), 9090);
+
+        Ok(())
     }
 
     #[test]
@@ -73,11 +79,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parses_ipv6_address() {
-        let result = parse_socket_addr("[::1]:8080").unwrap();
+    fn test_parses_ipv6_address() -> Result<()> {
+        let result = parse_socket_addr("[::1]:8080")?;
 
         assert_eq!(result.input_addr, "[::1]:8080");
         assert_eq!(result.socket_addr.port(), 8080);
         assert!(result.socket_addr.is_ipv6());
+
+        Ok(())
     }
 }

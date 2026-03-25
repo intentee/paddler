@@ -22,8 +22,7 @@ fn is_terminal_message(message: &InferenceMessage) -> bool {
         InferenceMessage::Response(envelope) => match &envelope.response {
             Response::Embedding(result) => result.is_done(),
             Response::GeneratedToken(result) => result.is_done(),
-            Response::Timeout => true,
-            Response::TooManyBufferedRequests => true,
+            Response::Timeout | Response::TooManyBufferedRequests => true,
         },
     }
 }
@@ -61,8 +60,8 @@ pub fn spawn_inference_socket_read_task(
                     }
                 },
                 Ok(WsMessage::Close(_)) => break,
-                Ok(WsMessage::Ping(_)) | Ok(WsMessage::Pong(_)) => {}
-                Ok(WsMessage::Binary(_)) | Ok(WsMessage::Frame(_)) => {
+                Ok(WsMessage::Ping(_) | WsMessage::Pong(_)) => {}
+                Ok(WsMessage::Binary(_) | WsMessage::Frame(_)) => {
                     warn!("Received unexpected binary WebSocket message");
                 }
                 Err(err) => {
@@ -80,7 +79,7 @@ pub fn spawn_inference_socket_read_task(
                 }))
                 .is_err()
             {
-                log::debug!("Receiver already dropped for request: {}", entry.key(),);
+                log::debug!("Receiver already dropped for request: {}", entry.key());
             }
         }
 

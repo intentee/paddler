@@ -8,12 +8,12 @@ pub trait ConvertsToLlamaPoolingType {
 impl ConvertsToLlamaPoolingType for PoolingType {
     fn to_llama_pooling_type(self) -> LlamaPoolingType {
         match self {
-            PoolingType::Unspecified => LlamaPoolingType::Unspecified,
-            PoolingType::None => LlamaPoolingType::None,
-            PoolingType::Mean => LlamaPoolingType::Mean,
-            PoolingType::Cls => LlamaPoolingType::Cls,
-            PoolingType::Last => LlamaPoolingType::Last,
-            PoolingType::Rank => LlamaPoolingType::Rank,
+            Self::Unspecified => LlamaPoolingType::Unspecified,
+            Self::None => LlamaPoolingType::None,
+            Self::Mean => LlamaPoolingType::Mean,
+            Self::Cls => LlamaPoolingType::Cls,
+            Self::Last => LlamaPoolingType::Last,
+            Self::Rank => LlamaPoolingType::Rank,
         }
     }
 }

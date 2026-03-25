@@ -1,16 +1,15 @@
-#![cfg(feature = "paddler_integration_tests")]
+#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
 
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::BALANCER_OPENAI_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::balancer_params_with_openai;
-use integration_tests::managed_balancer::ManagedBalancer;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
+use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
+use paddler_integration_tests::BALANCER_OPENAI_ADDR;
+use paddler_integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -28,13 +27,17 @@ async fn test_inference_health_endpoint() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        &state_db_url,
-        10,
-        Duration::from_secs(10),
-    ))
+    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_secs(10),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 10,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 
@@ -51,9 +54,9 @@ async fn test_inference_health_endpoint() {
 #[tokio::test]
 #[file_serial]
 async fn test_continue_from_raw_prompt() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "inference-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -100,9 +103,9 @@ async fn test_continue_from_raw_prompt() {
 #[tokio::test]
 #[file_serial]
 async fn test_continue_from_conversation_history() {
-    let _cluster = TestCluster::spawn(TestClusterParams {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "inference-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -170,9 +173,9 @@ async fn test_continue_from_conversation_history() {
 #[tokio::test]
 #[file_serial]
 async fn test_raw_prompt_respects_max_tokens() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "inference-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -225,9 +228,9 @@ async fn test_raw_prompt_respects_max_tokens() {
 #[tokio::test]
 #[file_serial]
 async fn test_conversation_history_respects_max_tokens() {
-    let _cluster = TestCluster::spawn(TestClusterParams {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "inference-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -303,23 +306,17 @@ async fn test_conversation_history_respects_max_tokens() {
 #[tokio::test]
 #[file_serial]
 async fn test_openai_chat_completions_non_streaming() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "openai-agent".to_string(),
-        with_openai: true,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
 
-    let openai_base_url = cluster
-        .openai_base_url
-        .as_ref()
-        .expect("openai_base_url should be set");
-
     let http_client = reqwest::Client::new();
 
     let response = http_client
-        .post(format!("{openai_base_url}/v1/chat/completions"))
+        .post(format!("{}/v1/chat/completions", cluster.openai_base_url))
         .json(&serde_json::json!({
             "model": "test",
             "messages": [
@@ -353,23 +350,17 @@ async fn test_openai_chat_completions_non_streaming() {
 #[tokio::test]
 #[file_serial]
 async fn test_openai_chat_completions_streaming() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "openai-agent".to_string(),
-        with_openai: true,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
 
-    let openai_base_url = cluster
-        .openai_base_url
-        .as_ref()
-        .expect("openai_base_url should be set");
-
     let http_client = reqwest::Client::new();
 
     let response = http_client
-        .post(format!("{openai_base_url}/v1/chat/completions"))
+        .post(format!("{}/v1/chat/completions", cluster.openai_base_url))
         .json(&serde_json::json!({
             "model": "test",
             "messages": [
@@ -404,14 +395,17 @@ async fn test_openai_health_endpoint() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
-    let _balancer = ManagedBalancer::spawn(balancer_params_with_openai(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        BALANCER_OPENAI_ADDR,
-        &state_db_url,
-        10,
-        Duration::from_secs(10),
-    ))
+    let _balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_secs(10),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 10,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 

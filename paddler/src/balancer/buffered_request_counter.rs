@@ -13,7 +13,7 @@ pub struct BufferedRequestCounter {
 
 impl BufferedRequestCounter {
     pub fn new(update_notifier: Arc<Notify>) -> Self {
-        BufferedRequestCounter {
+        Self {
             count: Arc::new(AtomicValue::<AtomicI32>::new(0)),
             update_notifier,
         }

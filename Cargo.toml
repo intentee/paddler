@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler_bootstrap", "paddler_cli", "paddler_integration_tests", "paddler", "paddler_client", "paddler_harness", "paddler_model_tests", "paddler_second_brain_gui", "paddler_types"]
+members = ["paddler_integration_tests", "paddler", "paddler_bootstrap", "paddler_cli", "paddler_client", "paddler_model_tests", "paddler_second_brain_gui", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -64,9 +64,41 @@ url = { version = "2.5", features = ["serde"] }
 paddler = { version = "3.0.1", path = "paddler" }
 paddler_bootstrap = { version = "3.0.1", path = "paddler_bootstrap" }
 paddler_client = { version = "3.0.1", path = "paddler_client" }
-paddler_harness = { version = "3.0.1", path = "paddler_harness" }
-paddler_types = { version = "3.0.1", path = "paddler_types", default-features = false }
+paddler_types = { version = "3.0.1", path = "paddler_types" }
 
 [profile.release]
 lto = true
 codegen-units = 1
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Lint groups (priority = -1 so individual overrides take precedence)
+all = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+
+# Specific linter settings
+allow_attributes = "deny"
+dbg_macro = "deny"
+error_impl_error = "deny"
+expect_used = "deny"
+infinite_loop = "deny"
+literal_string_with_formatting_args = "allow"
+missing_docs_in_private_items = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+panic = "deny"
+print_stderr = "deny"
+print_stdout = "deny"
+rc_mutex = "deny"
+rest_pat_in_fully_bound_structs = "deny"
+self_named_module_files = "deny"
+str_to_string = "deny"
+tests_outside_test_module = "deny"
+todo = "deny"
+too_many_lines = "allow"
+unimplemented = "deny"
+unwrap_used = "deny"

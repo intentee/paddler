@@ -26,6 +26,7 @@ use tokio::sync::oneshot;
 use tokio::sync::watch;
 
 use crate::message::Message;
+use crate::model_preset::ModelPreset;
 use crate::screen_current::CurrentScreen;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
@@ -135,7 +136,7 @@ impl SecondBrain {
 
                 if config.state_data.cluster_address.is_empty() {
                     config.state_data.cluster_address_error =
-                        Some("Cluster address is required.".to_string());
+                        Some("Cluster address is required.".to_owned());
                 } else if config
                     .state_data
                     .cluster_address
@@ -143,12 +144,12 @@ impl SecondBrain {
                     .is_err()
                 {
                     config.state_data.cluster_address_error =
-                        Some("Invalid address, expected format: IP:port".to_string());
+                        Some("Invalid address, expected format: IP:port".to_owned());
                 }
 
                 let slots = if config.state_data.slots_count.is_empty() {
                     config.state_data.slots_error =
-                        Some("Number of slots is required.".to_string());
+                        Some("Number of slots is required.".to_owned());
                     None
                 } else {
                     match config.state_data.slots_count.parse::<i32>() {
@@ -159,7 +160,7 @@ impl SecondBrain {
                             );
                             config.state_data.slots_error = Some(
                                 "Invalid number of slots (the number should be greater than zero)."
-                                    .to_string(),
+                                    .to_owned(),
                             );
                             None
                         }
@@ -175,7 +176,7 @@ impl SecondBrain {
                                     "Invalid number of slots."
                                 }
                             };
-                            config.state_data.slots_error = Some(message.to_string());
+                            config.state_data.slots_error = Some(message.to_owned());
                             None
                         }
                     }
@@ -250,7 +251,8 @@ impl SecondBrain {
                             if watch_rx.changed().await.is_err() {
                                 return;
                             }
-                            if let Some(status) = watch_rx.borrow_and_update().clone() {
+                            let borrowed = watch_rx.borrow_and_update().clone();
+                            if let Some(status) = borrowed {
                                 break status;
                             }
                         };
@@ -328,30 +330,30 @@ impl SecondBrain {
                 config.state_data.model_error = None;
 
                 if config.state_data.selected_model.is_none() {
-                    config.state_data.model_error = Some("Please select a model.".to_string());
+                    config.state_data.model_error = Some("Please select a model.".to_owned());
                 }
 
                 let management_addr = if config.state_data.balancer_address.is_empty() {
                     config.state_data.balancer_address_error =
-                        Some("Balancer address is required.".to_string());
+                        Some("Balancer address is required.".to_owned());
                     None
                 } else if let Ok(addr) = config.state_data.balancer_address.parse::<SocketAddr>() {
                     Some(addr)
                 } else {
                     config.state_data.balancer_address_error =
-                        Some("Invalid address, expected format: IP:port".to_string());
+                        Some("Invalid address, expected format: IP:port".to_owned());
                     None
                 };
 
                 let inference_addr = if config.state_data.inference_address.is_empty() {
                     config.state_data.inference_address_error =
-                        Some("Inference address is required.".to_string());
+                        Some("Inference address is required.".to_owned());
                     None
                 } else if let Ok(addr) = config.state_data.inference_address.parse::<SocketAddr>() {
                     Some(addr)
                 } else {
                     config.state_data.inference_address_error =
-                        Some("Invalid address, expected format: IP:port".to_string());
+                        Some("Invalid address, expected format: IP:port".to_owned());
                     None
                 };
 
@@ -394,7 +396,7 @@ impl SecondBrain {
                     .state_data
                     .selected_model
                     .as_ref()
-                    .map(|preset| preset.to_balancer_desired_state())
+                    .map(ModelPreset::to_balancer_desired_state)
                     .unwrap_or_default();
 
                 let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
@@ -429,7 +431,7 @@ impl SecondBrain {
                                             max_buffered_requests: 30,
                                             openai_service_configuration: None,
                                             state_database_type: StateDatabaseType::Memory,
-                                            statsd_prefix: "paddler_".to_string(),
+                                            statsd_prefix: "paddler_".to_owned(),
                                             #[cfg(feature = "web_admin_panel")]
                                             web_admin_panel_service_configuration: None,
                                         })
@@ -468,7 +470,8 @@ impl SecondBrain {
                             if watch_rx.changed().await.is_err() {
                                 return;
                             }
-                            if let Some(pool) = watch_rx.borrow_and_update().clone() {
+                            let borrowed = watch_rx.borrow_and_update().clone();
+                            if let Some(pool) = borrowed {
                                 break pool;
                             }
                         };
@@ -591,11 +594,12 @@ impl SecondBrain {
         }
     }
 
+    #[expect(clippy::unused_self, reason = "signature required by iced application API")]
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::none()
     }
 
-    pub fn view<'view>(&'view self) -> Element<'view, Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let screen_content = match &self.screen {
             CurrentScreen::AgentRunning(screen) => view_agent_running(&screen.state_data),
             CurrentScreen::Home(screen) => view_home(&screen.state_data),
