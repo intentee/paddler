@@ -8,14 +8,14 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::process::Child;
 use url::Url;
 
-use crate::POLL_INTERVAL;
-use crate::TIMEOUT;
+use crate::WAIT_FOR_STATE_CHANGE_POLL_INTERVAL;
+use crate::WAIT_FOR_STATE_CHANGE_TIMEOUT;
 use crate::paddler_command;
 use crate::terminate_child;
 
 pub struct ManagedBalancerParams {
     pub buffered_request_timeout: Duration,
-    pub compat_openai_addr: Option<String>,
+    pub compat_openai_addr: String,
     pub inference_addr: String,
     pub inference_cors_allowed_hosts: Vec<String>,
     pub inference_item_timeout: Option<Duration>,
@@ -49,9 +49,9 @@ impl ManagedBalancer {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
-        if let Some(openai_addr) = &params.compat_openai_addr {
-            command.arg("--compat-openai-addr").arg(openai_addr);
-        }
+        command
+            .arg("--compat-openai-addr")
+            .arg(&params.compat_openai_addr);
 
         if let Some(inference_item_timeout) = &params.inference_item_timeout {
             command
@@ -96,11 +96,11 @@ impl ManagedBalancer {
             }
 
             assert!(
-                start.elapsed() <= TIMEOUT,
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for {expected} agents"
             );
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -115,11 +115,11 @@ impl ManagedBalancer {
             }
 
             assert!(
-                start.elapsed() <= TIMEOUT,
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for desired state to be applied"
             );
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -134,11 +134,11 @@ impl ManagedBalancer {
             }
 
             assert!(
-                start.elapsed() <= TIMEOUT,
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for {expected} buffered requests"
             );
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -159,11 +159,11 @@ impl ManagedBalancer {
             }
 
             assert!(
-                start.elapsed() <= TIMEOUT,
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for {expected_total} total desired slots"
             );
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -180,11 +180,11 @@ impl ManagedBalancer {
             }
 
             assert!(
-                start.elapsed() <= TIMEOUT,
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for {expected_total} total slots"
             );
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -205,11 +205,11 @@ impl ManagedBalancer {
             }
 
             assert!(
-                start.elapsed() <= TIMEOUT,
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for {expected_total} slots processing"
             );
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -226,7 +226,7 @@ impl ManagedBalancer {
                 }
             }
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 
@@ -250,11 +250,11 @@ impl ManagedBalancer {
                 return Ok(());
             }
 
-            if start.elapsed() > TIMEOUT {
-                bail!("Balancer did not become ready within {TIMEOUT:?}");
+            if start.elapsed() > WAIT_FOR_STATE_CHANGE_TIMEOUT {
+                bail!("Balancer did not become ready within {WAIT_FOR_STATE_CHANGE_TIMEOUT:?}");
             }
 
-            tokio::time::sleep(POLL_INTERVAL).await;
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
         }
     }
 }

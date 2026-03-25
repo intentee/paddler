@@ -1,5 +1,5 @@
 [package]
-name = "integration_tests"
+name = "paddler_integration_tests"
 authors.workspace = true
 description = "Integration tests for Paddler"
 edition.workspace = true

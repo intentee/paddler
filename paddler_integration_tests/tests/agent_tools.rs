@@ -1,8 +1,8 @@
 #![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use futures_util::StreamExt;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -89,9 +89,9 @@ async fn collect_stream_messages(
 #[tokio::test]
 #[file_serial]
 async fn test_tools_parameter_is_optional() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "tools-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -121,9 +121,9 @@ async fn test_tools_parameter_is_optional() {
 #[tokio::test]
 #[file_serial]
 async fn test_tools_with_function() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "tools-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -173,9 +173,9 @@ async fn test_tools_with_function() {
 #[tokio::test]
 #[file_serial]
 async fn test_tools_schema_validation() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "tools-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");

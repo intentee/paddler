@@ -14,6 +14,7 @@ use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::inference_client::Message as OutgoingMessage;
 use paddler_types::inference_client::Response as OutgoingResponse;
+use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::ResponseEnvelope;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use serde::Deserialize;
@@ -121,7 +122,31 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                     }
                 ]
             })),
-            _ => Ok(serde_json::to_value(&message)?),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ChatTemplateError(description)
+                        | GeneratedTokenResult::ImageDecodingFailed(description)
+                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                    ),
+                ..
+            })
+            | OutgoingMessage::Error(ErrorEnvelope {
+                error: paddler_types::jsonrpc::Error { description, .. },
+                ..
+            }) => Err(anyhow!("{description}")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::Timeout,
+                ..
+            }) => Err(anyhow!("request timed out")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::TooManyBufferedRequests,
+                ..
+            }) => Err(anyhow!("too many buffered requests")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::Embedding(_),
+                ..
+            }) => Err(anyhow!("unexpected embedding response in chat completions")),
         }
     }
 }
@@ -150,7 +175,31 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
                 ..
             }) => Ok(token),
-            _ => Err(anyhow!("Unexpected message type: {message:?}")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ChatTemplateError(description)
+                        | GeneratedTokenResult::ImageDecodingFailed(description)
+                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                    ),
+                ..
+            })
+            | OutgoingMessage::Error(ErrorEnvelope {
+                error: paddler_types::jsonrpc::Error { description, .. },
+                ..
+            }) => Err(anyhow!("{description}")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::Timeout,
+                ..
+            }) => Err(anyhow!("request timed out")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::TooManyBufferedRequests,
+                ..
+            }) => Err(anyhow!("too many buffered requests")),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::Embedding(_),
+                ..
+            }) => Err(anyhow!("unexpected embedding response in chat completions")),
         }
     }
 }
@@ -239,6 +288,7 @@ mod tests {
     use paddler_types::generated_token_result::GeneratedTokenResult;
     use paddler_types::inference_client::Message as OutgoingMessage;
     use paddler_types::inference_client::Response as OutgoingResponse;
+    use paddler_types::jsonrpc::ErrorEnvelope;
     use paddler_types::jsonrpc::ResponseEnvelope;
 
     use super::OpenAICombinedResponseTransformer;
@@ -249,6 +299,23 @@ mod tests {
         OutgoingMessage::Response(ResponseEnvelope {
             request_id: "test-request".to_owned(),
             response: OutgoingResponse::GeneratedToken(token_result),
+        })
+    }
+
+    fn make_error_message(code: i32, description: &str) -> OutgoingMessage {
+        OutgoingMessage::Error(ErrorEnvelope {
+            request_id: "test-request".to_owned(),
+            error: paddler_types::jsonrpc::Error {
+                code,
+                description: description.to_owned(),
+            },
+        })
+    }
+
+    fn make_response_message(response: OutgoingResponse) -> OutgoingMessage {
+        OutgoingMessage::Response(ResponseEnvelope {
+            request_id: "test-request".to_owned(),
+            response,
         })
     }
 
@@ -306,5 +373,149 @@ mod tests {
         assert_eq!(result, "");
 
         Ok(())
+    }
+
+    #[actix_web::test]
+    async fn streaming_error_message_returns_error() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
+        };
+
+        let message = make_error_message(500, "internal server error");
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("internal server error"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn combined_error_message_returns_error() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_error_message(500, "internal server error");
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("internal server error"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn streaming_chat_template_error_returns_error() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
+        };
+
+        let message = make_token_message(GeneratedTokenResult::ChatTemplateError(
+            "bad template".to_owned(),
+        ));
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("bad template"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn combined_chat_template_error_returns_error() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_token_message(GeneratedTokenResult::ChatTemplateError(
+            "bad template".to_owned(),
+        ));
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("bad template"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn streaming_timeout_returns_error() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
+        };
+
+        let message = make_response_message(OutgoingResponse::Timeout);
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("request timed out"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn combined_timeout_returns_error() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_response_message(OutgoingResponse::Timeout);
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("request timed out"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn streaming_too_many_buffered_requests_returns_error() {
+        let transformer = OpenAIStreamingResponseTransformer {
+            model: "test-model".to_owned(),
+            system_fingerprint: "test-fingerprint".to_owned(),
+        };
+
+        let message = make_response_message(OutgoingResponse::TooManyBufferedRequests);
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("too many buffered requests"))
+        );
+    }
+
+    #[actix_web::test]
+    async fn combined_too_many_buffered_requests_returns_error() {
+        let transformer = OpenAICombinedResponseTransformer {};
+
+        let message = make_response_message(OutgoingResponse::TooManyBufferedRequests);
+        let result = transformer.transform(message).await;
+
+        assert!(result.is_err());
+        assert!(
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.to_string().contains("too many buffered requests"))
+        );
     }
 }

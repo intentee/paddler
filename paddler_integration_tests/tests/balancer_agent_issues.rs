@@ -2,9 +2,9 @@
 
 use std::io::Write;
 
-use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::AGENT_DESIRED_MODEL;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -14,13 +14,13 @@ use paddler_types::inference_parameters::InferenceParameters;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
-fn issue_cluster_params(desired_state: BalancerDesiredState) -> TestClusterParams {
-    TestClusterParams {
+fn issue_cluster_params(desired_state: BalancerDesiredState) -> ManagedClusterParams {
+    ManagedClusterParams {
         agent_name: "issue-test-agent".to_string(),
         agent_slots: 1,
         desired_state,
         wait_for_slots: false,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     }
 }
 
@@ -35,7 +35,7 @@ async fn test_model_file_does_not_exist() {
         use_chat_template_override: false,
     };
 
-    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+    let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
         .expect("failed to spawn cluster");
 
@@ -70,7 +70,7 @@ async fn test_model_cannot_be_loaded() {
         use_chat_template_override: false,
     };
 
-    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+    let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
         .expect("failed to spawn cluster");
 
@@ -102,7 +102,7 @@ async fn test_huggingface_model_does_not_exist() {
         use_chat_template_override: false,
     };
 
-    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+    let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
         .expect("failed to spawn cluster");
 
@@ -132,7 +132,7 @@ async fn test_unable_to_find_chat_template() {
         use_chat_template_override: false,
     };
 
-    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+    let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
         .expect("failed to spawn cluster");
 
@@ -155,7 +155,7 @@ async fn test_chat_template_does_not_compile() {
         use_chat_template_override: true,
     };
 
-    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+    let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
         .expect("failed to spawn cluster");
 
@@ -178,7 +178,7 @@ async fn test_multimodal_projection_cannot_be_loaded() {
         use_chat_template_override: false,
     };
 
-    let cluster = TestCluster::spawn(issue_cluster_params(desired_state))
+    let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
         .expect("failed to spawn cluster");
 

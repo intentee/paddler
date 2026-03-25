@@ -6,14 +6,15 @@ use std::time::Duration;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use futures_util::StreamExt;
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::balancer_params;
-use integration_tests::managed_agent::ManagedAgent;
-use integration_tests::managed_agent::ManagedAgentParams;
-use integration_tests::managed_balancer::ManagedBalancer;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
+use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
+use paddler_integration_tests::BALANCER_OPENAI_ADDR;
+use paddler_integration_tests::managed_agent::ManagedAgent;
+use paddler_integration_tests::managed_agent::ManagedAgentParams;
+use paddler_integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::conversation_history::ConversationHistory;
@@ -72,13 +73,17 @@ async fn test_load_mmproj_from_local_path() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        &state_db_url,
-        10,
-        Duration::from_secs(10),
-    ))
+    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_secs(10),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 10,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 
@@ -118,13 +123,17 @@ async fn test_load_mmproj_from_huggingface() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        &state_db_url,
-        10,
-        Duration::from_secs(10),
-    ))
+    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_secs(10),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 10,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 
@@ -164,13 +173,17 @@ async fn test_multimodal_inference_with_image() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(balancer_params(
-        BALANCER_MANAGEMENT_ADDR,
-        BALANCER_INFERENCE_ADDR,
-        &state_db_url,
-        10,
-        Duration::from_secs(10),
-    ))
+    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
+        buffered_request_timeout: Duration::from_secs(10),
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
+        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout: None,
+        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests: 10,
+        state_database_url: state_db_url.to_owned(),
+    })
     .await
     .expect("failed to spawn balancer");
 
@@ -279,7 +292,7 @@ fn image_message_params(
     }
 }
 
-async fn expect_image_decoding_failed(cluster: &TestCluster, image_data_uri: &str) {
+async fn expect_image_decoding_failed(cluster: &ManagedCluster, image_data_uri: &str) {
     let mut stream = cluster
         .balancer
         .client()
@@ -325,9 +338,9 @@ async fn expect_image_decoding_failed(cluster: &TestCluster, image_data_uri: &st
 #[tokio::test]
 #[file_serial]
 async fn test_image_sent_to_text_only_model_returns_error() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "text-only-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -377,9 +390,9 @@ async fn test_image_sent_to_text_only_model_returns_error() {
 #[tokio::test]
 #[file_serial]
 async fn test_malformed_data_uri_returns_error() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "text-only-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -390,9 +403,9 @@ async fn test_malformed_data_uri_returns_error() {
 #[tokio::test]
 #[file_serial]
 async fn test_invalid_base64_returns_error() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "text-only-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -403,9 +416,9 @@ async fn test_invalid_base64_returns_error() {
 #[tokio::test]
 #[file_serial]
 async fn test_remote_url_returns_error() {
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "text-only-agent".to_string(),
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");

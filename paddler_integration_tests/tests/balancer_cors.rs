@@ -2,10 +2,11 @@
 
 use std::time::Duration;
 
-use integration_tests::BALANCER_INFERENCE_ADDR;
-use integration_tests::BALANCER_MANAGEMENT_ADDR;
-use integration_tests::managed_balancer::ManagedBalancer;
-use integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
+use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
+use paddler_integration_tests::BALANCER_OPENAI_ADDR;
+use paddler_integration_tests::managed_balancer::ManagedBalancer;
+use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
@@ -17,7 +18,7 @@ async fn test_inference_cors_headers() {
 
     let _balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: None,
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
         inference_addr: BALANCER_INFERENCE_ADDR.to_string(),
         inference_cors_allowed_hosts: vec![allowed_origin.to_string()],
         inference_item_timeout: None,
@@ -62,7 +63,7 @@ async fn test_management_cors_headers() {
 
     let _balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: None,
+        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
         inference_addr: BALANCER_INFERENCE_ADDR.to_string(),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,

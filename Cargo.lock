@@ -2091,25 +2091,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "integration_tests"
-version = "3.0.1"
-dependencies = [
- "anyhow",
- "base64",
- "futures-util",
- "nix",
- "paddler_client",
- "paddler_types",
- "reqwest",
- "serde",
- "serde_json",
- "serial_test",
- "tempfile",
- "tokio",
- "url",
-]
-
-[[package]]
 name = "interpolate_name"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2840,6 +2821,25 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
+ "url",
+]
+
+[[package]]
+name = "paddler_integration_tests"
+version = "3.0.1"
+dependencies = [
+ "anyhow",
+ "base64",
+ "futures-util",
+ "nix",
+ "paddler_client",
+ "paddler_types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "tokio",
  "url",
 ]
 

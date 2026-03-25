@@ -1,8 +1,8 @@
 #![cfg(feature = "tests_that_use_compiled_paddler")]
 
-use integration_tests::AGENT_DESIRED_MODEL;
-use integration_tests::test_cluster::TestCluster;
-use integration_tests::test_cluster_params::TestClusterParams;
+use paddler_integration_tests::AGENT_DESIRED_MODEL;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -26,7 +26,7 @@ fn invalid_mmproj_path() -> String {
 async fn test_invalid_gguf_returns_error() {
     let model_path = invalid_gguf_path();
 
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "model-loading-agent".to_string(),
         agent_slots: 1,
         desired_state: BalancerDesiredState {
@@ -37,7 +37,7 @@ async fn test_invalid_gguf_returns_error() {
             use_chat_template_override: false,
         },
         wait_for_slots: false,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
@@ -60,7 +60,7 @@ async fn test_invalid_gguf_returns_error() {
 async fn test_invalid_mmproj_returns_error() {
     let mmproj_path = invalid_mmproj_path();
 
-    let cluster = TestCluster::spawn(TestClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "model-loading-agent".to_string(),
         agent_slots: 1,
         desired_state: BalancerDesiredState {
@@ -71,7 +71,7 @@ async fn test_invalid_mmproj_returns_error() {
             use_chat_template_override: false,
         },
         wait_for_slots: false,
-        ..TestClusterParams::default()
+        ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
