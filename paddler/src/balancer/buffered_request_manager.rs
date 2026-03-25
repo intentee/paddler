@@ -38,10 +38,6 @@ impl BufferedRequestManager {
         }
     }
 
-    pub fn get_loaded_model_paths(&self) -> Vec<String> {
-        self.agent_controller_pool.get_loaded_model_paths()
-    }
-
     pub async fn wait_for_available_agent(&self) -> Result<BufferedRequestAgentWaitResult> {
         if self.buffered_request_counter.get() >= self.max_buffered_requests {
             return Ok(BufferedRequestAgentWaitResult::BufferOverflow);

@@ -49,7 +49,6 @@ impl Service for OpenAIService {
                 .wrap(create_cors_middleware(cors_allowed_hosts_arc.clone()))
                 .app_data(app_data.clone())
                 .configure(common_http_route::get_health::register)
-                .configure(http_route::get_models::register)
                 .configure(http_route::post_chat_completions::register)
         })
         .shutdown_signal(async move {

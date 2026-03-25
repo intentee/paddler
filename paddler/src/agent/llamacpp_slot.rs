@@ -423,8 +423,8 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             params:
                 ContinueFromConversationHistoryParams {
                     add_generation_prompt,
-                    conversation_history,
                     enable_thinking,
+                    conversation_history,
                     max_tokens,
                     tools,
                 },

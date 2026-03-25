@@ -65,19 +65,6 @@ impl AgentControllerPool {
         }
     }
 
-    pub fn get_loaded_model_paths(&self) -> Vec<String> {
-        let mut model_paths: Vec<String> = self
-            .agents
-            .iter()
-            .filter_map(|entry| entry.value().get_model_path())
-            .collect();
-
-        model_paths.sort();
-        model_paths.dedup();
-
-        model_paths
-    }
-
     pub fn total_slots(&self) -> AgentControllerPoolTotalSlots {
         let mut slots_processing = 0;
         let mut slots_total = 0;
