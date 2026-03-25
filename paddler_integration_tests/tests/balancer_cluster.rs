@@ -369,20 +369,19 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
     let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("distributed-agent-one".to_string()),
-        slots: 3,
+        slots: 1,
     })
     .expect("failed to spawn first agent");
 
     let _agent_two = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("distributed-agent-two".to_string()),
-        slots: 3,
+        slots: 1,
     })
     .expect("failed to spawn second agent");
 
-    balancer.wait_for_total_slots(6).await;
+    balancer.wait_for_total_slots(2).await;
 
-    // Send more requests than available slots to trigger buffering and distribution
     let mut streams = send_buffered_requests(&balancer, 7).await;
 
     let mut successful_responses = 0;
