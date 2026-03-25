@@ -25,8 +25,5 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v4
 
-      - name: install clippy
-        run: rustup component add clippy
-
       - name: run clippy
         run: make clippy

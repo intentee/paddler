@@ -1,4 +1,7 @@
-#![cfg(all(feature = "tests_that_use_compiled_paddler", feature = "tests_that_use_llms"))]
+#![cfg(all(
+    feature = "tests_that_use_compiled_paddler",
+    feature = "tests_that_use_llms"
+))]
 
 use std::pin::Pin;
 use std::time::Duration;
@@ -363,10 +366,6 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
 
     balancer.wait_for_desired_state(&desired_state).await;
 
-    let mut streams = send_buffered_requests(&balancer, 7).await;
-
-    balancer.wait_for_buffered_requests(7).await;
-
     let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
         name: Some("distributed-agent-one".to_string()),
@@ -380,6 +379,11 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
         slots: 3,
     })
     .expect("failed to spawn second agent");
+
+    balancer.wait_for_total_slots(6).await;
+
+    // Send more requests than available slots to trigger buffering and distribution
+    let mut streams = send_buffered_requests(&balancer, 7).await;
 
     let mut successful_responses = 0;
 

@@ -87,54 +87,47 @@ struct OpenAIStreamingResponseTransformer {
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
-    async fn transform(
-        &self,
-        message: OutgoingMessage,
-    ) -> anyhow::Result<TransformResult> {
+    async fn transform(&self, message: OutgoingMessage) -> anyhow::Result<TransformResult> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),
-            }) => Ok(TransformResult::Chunk(
-                serde_json::to_string(&json!({
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": current_timestamp(),
-                    "model": self.model,
-                    "system_fingerprint": self.system_fingerprint,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {},
-                            "logprobs": null,
-                            "finish_reason": "stop"
-                        }
-                    ]
-                }))?,
-            )),
+            }) => Ok(TransformResult::Chunk(serde_json::to_string(&json!({
+                "id": request_id,
+                "object": "chat.completion.chunk",
+                "created": current_timestamp(),
+                "model": self.model,
+                "system_fingerprint": self.system_fingerprint,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {},
+                        "logprobs": null,
+                        "finish_reason": "stop"
+                    }
+                ]
+            }))?)),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Token(token)),
-            }) => Ok(TransformResult::Chunk(
-                serde_json::to_string(&json!({
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": current_timestamp(),
-                    "model": self.model,
-                    "system_fingerprint": self.system_fingerprint,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant",
-                                "content": token,
-                            },
-                            "logprobs": null,
-                            "finish_reason": null
-                        }
-                    ]
-                }))?,
-            )),
+            }) => Ok(TransformResult::Chunk(serde_json::to_string(&json!({
+                "id": request_id,
+                "object": "chat.completion.chunk",
+                "created": current_timestamp(),
+                "model": self.model,
+                "system_fingerprint": self.system_fingerprint,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "content": token,
+                        },
+                        "logprobs": null,
+                        "finish_reason": null
+                    }
+                ]
+            }))?)),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
                     OutgoingResponse::GeneratedToken(
@@ -181,10 +174,7 @@ struct OpenAICombinedResponseTransformer {}
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
-    async fn transform(
-        &self,
-        message: OutgoingMessage,
-    ) -> anyhow::Result<TransformResult> {
+    async fn transform(&self, message: OutgoingMessage) -> anyhow::Result<TransformResult> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done),

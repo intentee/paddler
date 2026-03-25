@@ -16,10 +16,10 @@ use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
+use crate::Result;
 use crate::format_api_url::format_api_url;
 use crate::inference_socket_pool::InferenceSocketPool;
 use crate::stream_ndjson::StreamNdjson;
-use crate::Result;
 
 pub struct ClientInference<'client> {
     url: &'client Url,
