@@ -17,10 +17,7 @@ use super::variables::SPACING_HALF;
 use crate::message::Message;
 
 fn display_last_path_part(path: &str) -> String {
-    path.split('/')
-        .next_back()
-        .unwrap_or(path)
-        .to_owned()
+    path.split('/').next_back().unwrap_or(path).to_owned()
 }
 
 pub fn view_agent_card(snapshot: &AgentControllerSnapshot) -> Element<'_, Message> {
@@ -31,8 +28,7 @@ pub fn view_agent_card(snapshot: &AgentControllerSnapshot) -> Element<'_, Messag
 
     match &snapshot.name {
         Some(agent_name) => {
-            name_row =
-                name_row.push(container(text(agent_name.clone()).font(BOLD)).width(Fill));
+            name_row = name_row.push(container(text(agent_name.clone()).font(BOLD)).width(Fill));
         }
         None => {
             name_row = name_row.push(container("").width(Fill));
@@ -41,7 +37,10 @@ pub fn view_agent_card(snapshot: &AgentControllerSnapshot) -> Element<'_, Messag
 
     if is_downloading {
         name_row = name_row.push(
-            #[expect(clippy::cast_precision_loss, reason = "download sizes fit in f32 mantissa")]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "download sizes fit in f32 mantissa"
+            )]
             progress_bar(
                 0.0..=snapshot.download_total as f32,
                 snapshot.download_current as f32,
@@ -50,16 +49,19 @@ pub fn view_agent_card(snapshot: &AgentControllerSnapshot) -> Element<'_, Messag
             .style(style_download_progress_bar),
         );
     } else {
-        let model_label = snapshot
-            .model_path
-            .as_ref()
-            .map_or_else(|| "No model loaded".to_owned(), |path| display_last_path_part(path));
+        let model_label = snapshot.model_path.as_ref().map_or_else(
+            || "No model loaded".to_owned(),
+            |path| display_last_path_part(path),
+        );
 
         name_row = name_row.push(text(model_label).font(REGULAR));
     }
 
     let status_label = if is_downloading {
-        #[expect(clippy::cast_precision_loss, reason = "download sizes fit in f32 mantissa")]
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "download sizes fit in f32 mantissa"
+        )]
         let percentage =
             (snapshot.download_current as f32 / snapshot.download_total as f32) * 100.0;
 

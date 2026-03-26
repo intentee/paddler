@@ -148,8 +148,7 @@ impl SecondBrain {
                 }
 
                 let slots = if config.state_data.slots_count.is_empty() {
-                    config.state_data.slots_error =
-                        Some("Number of slots is required.".to_owned());
+                    config.state_data.slots_error = Some("Number of slots is required.".to_owned());
                     None
                 } else {
                     match config.state_data.slots_count.parse::<i32>() {
@@ -592,7 +591,10 @@ impl SecondBrain {
         }
     }
 
-    #[expect(clippy::unused_self, reason = "signature required by iced application API")]
+    #[expect(
+        clippy::unused_self,
+        reason = "signature required by iced application API"
+    )]
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::none()
     }
