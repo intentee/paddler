@@ -48,10 +48,11 @@ impl ServiceManager {
         }
 
         shutdown_rx.await?;
-        matches!(
-            shutdown_broadcast_tx.send(()),
-            Err(broadcast::error::SendError(()))
-        );
+
+        if let Err(err) = shutdown_broadcast_tx.send(()) {
+            error!("Failed to send shutdown signal to services: {err:#?}");
+        }
+
         join_all(service_handles).await;
 
         Ok(())
