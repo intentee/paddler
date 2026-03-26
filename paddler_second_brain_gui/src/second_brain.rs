@@ -1,6 +1,6 @@
 use std::mem;
 use std::net::SocketAddr;
-use std::net::TcpStream;
+use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -37,7 +37,7 @@ use crate::ui::view_running_cluster::view_running_cluster;
 use crate::ui::view_start_cluster_config::view_start_cluster_config;
 
 fn is_port_in_use(address: &SocketAddr) -> bool {
-    TcpStream::connect_timeout(address, Duration::from_millis(100)).is_ok()
+    TcpListener::bind(address).is_err()
 }
 
 fn collect_sorted_agent_snapshots(
