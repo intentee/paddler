@@ -26,11 +26,6 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v4
 
-      - name: set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
       - name: build the binary
         run: make release
         shell: bash
