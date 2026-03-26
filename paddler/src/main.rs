@@ -23,7 +23,7 @@ Paddler is not affiliated with, endorsed by, or sponsored by NVIDIA Corporation.
 #[derive(Parser)]
 #[command(arg_required_else_help(true), version, about, long_about = None)]
 #[cfg_attr(feature = "cuda", command(before_help = CUDA_DISCLAIMER_DOCS))]
-/// LLMOps platform for hosting and scaling open-source LLMs in your own infrastructure
+/// `LLMOps` platform for hosting and scaling open-source LLMs in your own infrastructure
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
