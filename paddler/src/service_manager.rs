@@ -29,11 +29,10 @@ impl ServiceManager {
         for mut service in self.services {
             let service_name = service.name().to_owned();
             let shutdown_broadcast_tx_arc_clone = shutdown_broadcast_tx_arc.clone();
+            let service_shutdown_rx = shutdown_broadcast_tx_arc.subscribe();
 
             service_handles.push(rt::spawn(async move {
                 info!("{service_name}: Starting");
-
-                let service_shutdown_rx = shutdown_broadcast_tx_arc_clone.subscribe();
 
                 match service.run(service_shutdown_rx).await {
                     Ok(()) => info!("{service_name}: Stopped"),
@@ -49,7 +48,10 @@ impl ServiceManager {
         }
 
         shutdown_rx.await?;
-        shutdown_broadcast_tx.send(())?;
+        matches!(
+            shutdown_broadcast_tx.send(()),
+            Err(broadcast::error::SendError(()))
+        );
         join_all(service_handles).await;
 
         Ok(())
@@ -86,7 +88,7 @@ mod tests {
         async fn run(&mut self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
             self.ready_notify.notify_one();
             shutdown_rx.recv().await?;
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_millis(10)).await;
             self.cleanup_completed.store(true, Ordering::Release);
 
             Ok(())
@@ -195,11 +197,63 @@ mod tests {
             .send(())
             .map_err(|()| anyhow::anyhow!("Failed to send shutdown signal"))?;
 
-        assert!(manager_handle.await.is_ok(), "Manager task panicked");
+        manager_handle.await??;
 
         assert!(
             cascade_received.load(Ordering::Acquire),
             "Cascade shutdown did not reach the listener service"
+        );
+
+        Ok(())
+    }
+
+    struct ImmediatelyFailingService;
+
+    #[async_trait]
+    impl Service for ImmediatelyFailingService {
+        fn name(&self) -> &'static str {
+            "test::immediately_failing_service"
+        }
+
+        async fn run(&mut self, shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+            drop(shutdown_rx);
+
+            Err(anyhow::anyhow!("immediate failure"))
+        }
+    }
+
+    #[actix_web::test]
+    async fn fast_failure_cascades_to_late_subscribers() -> Result<()> {
+        let cascade_received = Arc::new(AtomicBool::new(false));
+        let cascade_completed_notify = Arc::new(Notify::new());
+        let listener_ready_notify = Arc::new(Notify::new());
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let mut service_manager = ServiceManager::default();
+
+        service_manager.add_service(ImmediatelyFailingService);
+
+        service_manager.add_service(CascadeListenerService {
+            cascade_received: cascade_received.clone(),
+            cascade_completed_notify: cascade_completed_notify.clone(),
+            ready_notify: listener_ready_notify.clone(),
+        });
+
+        let manager_handle =
+            actix_web::rt::spawn(async move { service_manager.run_forever(shutdown_rx).await });
+
+        let cascade_result =
+            tokio::time::timeout(Duration::from_secs(1), cascade_completed_notify.notified()).await;
+
+        shutdown_tx
+            .send(())
+            .map_err(|()| anyhow::anyhow!("Failed to send shutdown signal"))?;
+
+        manager_handle.await??;
+
+        assert!(
+            cascade_result.is_ok(),
+            "Cascade shutdown did not reach the late-subscribing service"
         );
 
         Ok(())
