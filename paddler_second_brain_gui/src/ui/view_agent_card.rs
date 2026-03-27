@@ -14,13 +14,13 @@ use super::style_agent_container::style_agent_container;
 use super::style_download_progress_bar::style_download_progress_bar;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
-use crate::message::Message;
-
 fn display_last_path_part(path: &str) -> String {
     path.split('/').next_back().unwrap_or(path).to_owned()
 }
 
-pub fn view_agent_card(snapshot: &AgentControllerSnapshot) -> Element<'_, Message> {
+pub fn view_agent_card<TMessage: 'static>(
+    snapshot: &AgentControllerSnapshot,
+) -> Element<'_, TMessage> {
     let is_downloading =
         snapshot.download_total > 0 && snapshot.download_current < snapshot.download_total;
 

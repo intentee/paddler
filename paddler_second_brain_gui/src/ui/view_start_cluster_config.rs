@@ -22,9 +22,9 @@ use super::variables::FONT_SIZE_L2;
 use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
-use crate::message::Message;
 use crate::model_preset::ModelPreset;
 use crate::start_cluster_config_data::StartClusterConfigData;
+use crate::start_cluster_config_handler::Message;
 
 pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, Message> {
     let available_models = ModelPreset::available_presets();
@@ -45,10 +45,10 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
         .on_press(Message::Cancel);
 
     let mut balancer_field = column![
-        container(text("Balancer address").font(BOLD)).padding([0.0, SPACING_BASE]),
+        container(text("Cluster address").font(BOLD)).padding([0.0, SPACING_BASE]),
         container(
-            text_input("IP:port", &data.balancer_address)
-                .on_input(Message::SetBalancerAddress)
+            text_input("IP:port", &data.cluster_address)
+                .on_input(Message::SetClusterAddress)
                 .padding(SPACING_BASE)
                 .style(style_field_text_input),
         )
@@ -57,7 +57,7 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
     ]
     .spacing(SPACING_HALF);
 
-    if let Some(error) = &data.balancer_address_error {
+    if let Some(error) = &data.cluster_address_error {
         balancer_field = balancer_field.push(
             container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
                 .width(400)

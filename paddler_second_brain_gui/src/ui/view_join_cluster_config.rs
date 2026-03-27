@@ -19,7 +19,7 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use crate::join_cluster_config_data::JoinClusterConfigData;
-use crate::message::Message;
+use crate::join_cluster_config_handler::Message;
 
 pub fn view_join_cluster_config(data: &JoinClusterConfigData) -> Element<'_, Message> {
     let confirm_button = button(text("Connect").font(BOLD))

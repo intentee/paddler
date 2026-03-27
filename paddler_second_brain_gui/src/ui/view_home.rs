@@ -19,7 +19,7 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use crate::home_data::HomeData;
-use crate::message::Message;
+use crate::home_handler::Message;
 
 static CREATE_CLUSTER_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(

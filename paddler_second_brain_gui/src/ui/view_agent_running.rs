@@ -18,7 +18,7 @@ use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_agent_card::view_agent_card;
 use crate::agent_running_data::AgentRunningData;
-use crate::message::Message;
+use crate::agent_running_handler::Message;
 
 pub fn view_agent_running(data: &AgentRunningData) -> Element<'_, Message> {
     let stop_icon = svg(SvgHandle::from_memory(
@@ -38,12 +38,12 @@ pub fn view_agent_running(data: &AgentRunningData) -> Element<'_, Message> {
 
     let connection_status = if data.connected {
         text(format!(
-            "Connected to the balancer at {}",
+            "Connected to the cluster at {}",
             data.cluster_address
         ))
         .font(REGULAR)
     } else {
-        text("Connecting to the balancer...").font(REGULAR)
+        text("Connecting to the cluster...").font(REGULAR)
     };
 
     let status_row = container(

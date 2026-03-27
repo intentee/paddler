@@ -22,8 +22,8 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_agent_card::view_agent_card;
-use crate::message::Message;
 use crate::running_cluster_data::RunningClusterData;
+use crate::running_cluster_handler::Message;
 
 pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     let copy_icon = svg(SvgHandle::from_memory(
@@ -34,7 +34,7 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
 
     let address_row = container(
         row![
-            container(text(format!("Balancer address: {}", data.cluster_address)).font(REGULAR))
+            container(text(format!("Cluster address: {}", data.cluster_address)).font(REGULAR))
                 .width(Fill),
             button(
                 row![copy_icon, text("Copy address").font(BOLD)]

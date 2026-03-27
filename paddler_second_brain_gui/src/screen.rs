@@ -38,8 +38,8 @@ impl Screen<Home> {
             .unwrap_or_default();
 
         self.transition_with(StartClusterConfigData {
-            balancer_address: format!("{suggested_address}:8060"),
-            balancer_address_error: None,
+            cluster_address: format!("{suggested_address}:8060"),
+            cluster_address_error: None,
             inference_address: format!("{suggested_address}:8061"),
             inference_address_error: None,
             model_error: None,
@@ -105,7 +105,7 @@ impl Screen<StartClusterConfig> {
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|config_data: StartClusterConfigData| RunningClusterData {
             agent_snapshots: vec![],
-            cluster_address: config_data.balancer_address,
+            cluster_address: config_data.cluster_address,
             stopping: false,
         })
     }

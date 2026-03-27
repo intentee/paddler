@@ -1,29 +1,19 @@
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-
-use crate::model_preset::ModelPreset;
+use crate::agent_running_handler;
+use crate::home_handler;
+use crate::join_cluster_config_handler;
+use crate::running_cluster_handler;
+use crate::start_cluster_config_handler;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    AgentFailed(String),
-    AgentSnapshotsUpdated(Vec<AgentControllerSnapshot>),
-    AgentStatusUpdated(SlotAggregatedStatusSnapshot),
-    AgentStopped,
-    Cancel,
-    ClusterFailed(String),
+    Home(home_handler::Message),
+    StartClusterConfig(start_cluster_config_handler::Message),
+    JoinClusterConfig(join_cluster_config_handler::Message),
+    RunningCluster(running_cluster_handler::Message),
+    AgentRunning(agent_running_handler::Message),
     ClusterStarted,
     ClusterStopped,
-    Confirm,
-    Connect,
-    CopyToClipboard(String),
-    Disconnect,
-    JoinCluster,
-    SelectModel(ModelPreset),
-    SetAgentName(String),
-    SetBalancerAddress(String),
-    SetClusterAddress(String),
-    SetInferenceAddress(String),
-    SetSlotsCount(String),
-    StartCluster,
-    Stop,
+    ClusterFailed(String),
+    AgentStopped,
+    AgentFailed(String),
 }
