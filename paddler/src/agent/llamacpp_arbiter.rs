@@ -392,3 +392,34 @@ impl LlamaCppArbiter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use actix::System;
+    use tokio::sync::oneshot;
+
+    #[test]
+    #[expect(clippy::expect_used, reason = "reproducing the bug to prove it panics")]
+    fn shutdown_does_not_panic_when_sender_dropped() {
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let thread_handle = std::thread::spawn(move || {
+            let system = System::new();
+
+            system.block_on(async move {
+                shutdown_rx
+                    .await
+                    .expect("Failed to receive shutdown signal");
+
+                System::current().stop();
+            });
+        });
+
+        drop(shutdown_tx);
+
+        assert!(
+            thread_handle.join().is_ok(),
+            "Arbiter thread panicked when shutdown sender was dropped"
+        );
+    }
+}
