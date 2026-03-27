@@ -12,6 +12,7 @@ use tokio::time::interval;
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
+use crate::run_until_shutdown::run_until_shutdown;
 use crate::service::Service;
 use crate::sets_desired_state::SetsDesiredState as _;
 
@@ -47,20 +48,21 @@ impl ReconciliationService {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for ReconciliationService {
     fn name(&self) -> &'static str {
         "balancer::reconciliation_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: broadcast::Receiver<()>) -> Result<()> {
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
+        run_until_shutdown(shutdown, async |inner_shutdown| {
+            drop(inner_shutdown);
+
             tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
                 _ = ticker.tick() => {
                     if !self.is_converted_to_applicable_state {
                         self.try_convert_to_applicable_state().await;
@@ -72,6 +74,9 @@ impl Service for ReconciliationService {
                     self.try_convert_to_applicable_state().await;
                 }
             }
-        }
+
+            Ok(())
+        })
+        .await
     }
 }

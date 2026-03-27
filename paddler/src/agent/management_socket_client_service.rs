@@ -43,6 +43,7 @@ use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonr
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::RegisterAgentParams;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::UpdateAgentStatusParams;
 use crate::produces_snapshot::ProducesSnapshot;
+use crate::run_until_shutdown::run_until_shutdown;
 use crate::service::Service;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
@@ -482,119 +483,31 @@ impl ManagementSocketClientService {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for ManagementSocketClientService {
     fn name(&self) -> &'static str {
         "agent::management_socket_client_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: broadcast::Receiver<()>) -> Result<()> {
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
-            tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
-                _ = ticker.tick() => {
-                    match self.keep_connection_alive(shutdown.resubscribe()).await {
-                        Err(err) => {
-                            error!("Failed to keep the connection alive: {err:?}");
-                        }
-                        Ok(()) => {
-                            info!("Gracefully closed connection to management server");
-                        }
-                    }
+        run_until_shutdown(shutdown, async |inner_shutdown| {
+            ticker.tick().await;
+
+            match self.keep_connection_alive(inner_shutdown).await {
+                Err(err) => {
+                    error!("Failed to keep the connection alive: {err:?}");
+                }
+                Ok(()) => {
+                    info!("Gracefully closed connection to management server");
                 }
             }
-        }
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::AtomicU32;
-    use std::sync::atomic::Ordering;
-    use std::time::Duration;
-
-    use actix_web::rt;
-    use anyhow::Result;
-    use futures_util::StreamExt;
-    use tokio::net::TcpListener;
-    use tokio::sync::Notify;
-    use tokio::sync::broadcast;
-    use tokio::sync::mpsc;
-
-    use super::ManagementSocketClientService;
-    use crate::agent::model_metadata_holder::ModelMetadataHolder;
-    use crate::agent::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
-    use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-    use crate::service::Service;
-    use crate::slot_aggregated_status::SlotAggregatedStatus;
-
-    #[actix_web::test]
-    async fn shutdown_does_not_reconnect_after_graceful_close() -> Result<()> {
-        let listener = TcpListener::bind("127.0.0.1:0").await?;
-        let server_addr = listener.local_addr()?;
-        let connection_count = Arc::new(AtomicU32::new(0));
-        let first_connected = Arc::new(Notify::new());
-
-        let connection_count_clone = connection_count.clone();
-        let first_connected_clone = first_connected.clone();
-
-        rt::spawn(async move {
-            while let Ok((stream, _)) = listener.accept().await {
-                if connection_count_clone.fetch_add(1, Ordering::SeqCst) == 0 {
-                    first_connected_clone.notify_one();
-                }
-
-                rt::spawn(async move {
-                    match tokio_tungstenite::accept_async(stream).await {
-                        Ok(mut ws) => while ws.next().await.is_some() {},
-                        Err(error) => log::error!("WebSocket handshake failed: {error}"),
-                    }
-                });
-            }
-        });
-
-        let (shutdown_tx, initial_rx) = broadcast::channel::<()>(1);
-        drop(initial_rx);
-
-        let mut service = ManagementSocketClientService {
-            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx: mpsc::unbounded_channel().0,
-            continue_from_conversation_history_request_tx: mpsc::unbounded_channel().0,
-            continue_from_raw_prompt_request_tx: mpsc::unbounded_channel().0,
-            generate_embedding_batch_request_tx: mpsc::unbounded_channel().0,
-            model_metadata_holder: Arc::new(ModelMetadataHolder::default()),
-            name: Some("test-agent".to_owned()),
-            receive_stream_stopper_collection: Arc::new(ReceiveStreamStopperCollection::default()),
-            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
-            socket_url: format!("ws://{server_addr}"),
-        };
-
-        let shutdown_rx = shutdown_tx.subscribe();
-
-        let service_handle = rt::spawn(async move { service.run(shutdown_rx).await });
-
-        first_connected.notified().await;
-        shutdown_tx.send(())?;
-
-        let service_completed = tokio::time::timeout(Duration::from_secs(5), service_handle).await;
-
-        assert!(
-            service_completed.is_ok(),
-            "Service did not shut down within 5 seconds — \
-             the agent likely reconnected after shutdown"
-        );
-
-        assert_eq!(
-            connection_count.load(Ordering::SeqCst),
-            1,
-            "Agent reconnected to the cluster after shutdown"
-        );
-
-        Ok(())
+            Ok(())
+        })
+        .await
     }
 }

@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio::sync::broadcast;
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait Service: Send + 'static {
     fn name(&self) -> &'static str;
 

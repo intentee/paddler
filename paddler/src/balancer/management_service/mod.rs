@@ -43,7 +43,7 @@ pub struct ManagementService {
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for ManagementService {
     fn name(&self) -> &'static str {
         "balancer::management_service"

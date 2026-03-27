@@ -26,7 +26,7 @@ pub struct OpenAIService {
     pub openai_service_configuration: OpenAIServiceConfiguration,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for OpenAIService {
     fn name(&self) -> &'static str {
         "balancer::compatibility::openai_service"

@@ -19,7 +19,7 @@ pub struct WebAdminPanelService {
     pub configuration: WebAdminPanelServiceConfiguration,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for WebAdminPanelService {
     fn name(&self) -> &'static str {
         "balancer::web_admin_panel_service"

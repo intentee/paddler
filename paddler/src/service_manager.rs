@@ -80,7 +80,7 @@ mod tests {
         ready_notify: Arc<Notify>,
     }
 
-    #[async_trait]
+    #[async_trait(?Send)]
     impl Service for SlowShutdownService {
         fn name(&self) -> &'static str {
             "test::slow_shutdown_service"
@@ -131,7 +131,7 @@ mod tests {
         fail_notify: Arc<Notify>,
     }
 
-    #[async_trait]
+    #[async_trait(?Send)]
     impl Service for FailingService {
         fn name(&self) -> &'static str {
             "test::failing_service"
@@ -151,7 +151,7 @@ mod tests {
         ready_notify: Arc<Notify>,
     }
 
-    #[async_trait]
+    #[async_trait(?Send)]
     impl Service for CascadeListenerService {
         fn name(&self) -> &'static str {
             "test::cascade_listener_service"
@@ -210,7 +210,7 @@ mod tests {
 
     struct ImmediatelyFailingService;
 
-    #[async_trait]
+    #[async_trait(?Send)]
     impl Service for ImmediatelyFailingService {
         fn name(&self) -> &'static str {
             "test::immediately_failing_service"

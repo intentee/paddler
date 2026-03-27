@@ -30,6 +30,7 @@ use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::agent_issue_fix::AgentIssueFix;
+use crate::run_until_shutdown::run_until_shutdown;
 use crate::service::Service;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
@@ -211,21 +212,20 @@ impl LlamaCppArbiterService {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for LlamaCppArbiterService {
     fn name(&self) -> &'static str {
         "agent::llamacpp_arbiter_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: broadcast::Receiver<()>) -> Result<()> {
         let mut reconciled_state = self.agent_applicable_state_holder.subscribe();
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
+        run_until_shutdown(shutdown, async |inner_shutdown| {
             tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
                 _ = ticker.tick() => {
                     let current_status = self.slot_aggregated_status_manager.slot_aggregated_status.get_state_application_status()?;
 
@@ -256,11 +256,11 @@ impl Service for LlamaCppArbiterService {
                         Some(continue_from_conversation_history_request) => {
                             self.forward_request_to_arbiter(
                                 continue_from_conversation_history_request,
-                                shutdown.resubscribe(),
+                                inner_shutdown,
                             );
                         }
                         None => {
-                            break Err(anyhow!("ContinueFromConversationHistoryRequest channel closed unexpectedly"));
+                            return Err(anyhow!("ContinueFromConversationHistoryRequest channel closed unexpectedly"));
                         }
                     }
                 }
@@ -269,11 +269,11 @@ impl Service for LlamaCppArbiterService {
                         Some(continue_from_raw_prompt_request) => {
                             self.forward_request_to_arbiter(
                                 continue_from_raw_prompt_request,
-                                shutdown.resubscribe(),
+                                inner_shutdown,
                             );
                         }
                         None => {
-                            break Err(anyhow!("ContinueFromRawPromptRequest channel closed unexpectedly"));
+                            return Err(anyhow!("ContinueFromRawPromptRequest channel closed unexpectedly"));
                         }
                     }
                 }
@@ -282,15 +282,18 @@ impl Service for LlamaCppArbiterService {
                         Some(generate_embedding_batch_request) => {
                             self.forward_request_to_arbiter(
                                 generate_embedding_batch_request,
-                                shutdown.resubscribe(),
+                                inner_shutdown,
                             );
                         }
                         None => {
-                            break Err(anyhow!("GenerateEmbeddingBatchRequest channel closed unexpectedly"));
+                            return Err(anyhow!("GenerateEmbeddingBatchRequest channel closed unexpectedly"));
                         }
                     }
                 }
             }
-        }
+
+            Ok(())
+        })
+        .await
     }
 }

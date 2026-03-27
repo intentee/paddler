@@ -23,6 +23,7 @@ pub mod dispenses_slots;
 pub mod embedding_input_tokenized;
 pub mod produces_snapshot;
 pub mod resolved_socket_addr;
+pub mod run_until_shutdown;
 pub mod sends_rpc_message;
 pub mod service;
 pub mod service_manager;
