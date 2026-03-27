@@ -2831,6 +2831,7 @@ dependencies = [
  "anyhow",
  "base64",
  "futures-util",
+ "log",
  "nix",
  "paddler_client",
  "paddler_types",

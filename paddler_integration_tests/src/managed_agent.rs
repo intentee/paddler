@@ -1,4 +1,9 @@
+use std::time::Duration;
+
 use anyhow::Result;
+use nix::sys::signal::Signal;
+use nix::sys::signal::kill;
+use nix::unistd::Pid;
 use tokio::process::Child;
 
 use crate::paddler_command;
@@ -38,6 +43,26 @@ impl ManagedAgent {
 
     pub fn kill(&mut self) {
         terminate_child(&mut self.child);
+    }
+
+    pub async fn graceful_shutdown(&mut self, timeout: Duration) -> bool {
+        let Some(raw_pid) = self.child.id() else {
+            return false;
+        };
+
+        #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
+        let pid = Pid::from_raw(raw_pid as i32);
+        let _ = kill(pid, Signal::SIGTERM);
+
+        match tokio::time::timeout(timeout, self.child.wait()).await {
+            Ok(Ok(_exit_status)) => true,
+            Ok(Err(wait_error)) => {
+                log::error!("Failed to wait for agent process: {wait_error}");
+
+                false
+            }
+            Err(_timeout_elapsed) => false,
+        }
     }
 }
 

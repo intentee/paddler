@@ -16,6 +16,7 @@ tests_that_use_llms = []
 anyhow = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
+log = { workspace = true }
 nix = { workspace = true }
 paddler_client = { workspace = true }
 paddler_types = { workspace = true }
