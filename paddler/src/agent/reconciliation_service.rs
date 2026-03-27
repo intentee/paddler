@@ -67,9 +67,7 @@ impl Service for ReconciliationService {
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        run_until_shutdown(shutdown, async |inner_shutdown| {
-            drop(inner_shutdown);
-
+        run_until_shutdown(shutdown, async |_inner_shutdown| {
             tokio::select! {
                 _ = ticker.tick() => {
                     if !self.is_converted_to_applicable_state {

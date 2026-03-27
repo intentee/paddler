@@ -62,9 +62,7 @@ impl Service for StatsdService {
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        run_until_shutdown(shutdown, async |inner_shutdown| {
-            drop(inner_shutdown);
-
+        run_until_shutdown(shutdown, async |_inner_shutdown| {
             ticker.tick().await;
 
             if let Err(err) = self.report_metrics(&client) {
