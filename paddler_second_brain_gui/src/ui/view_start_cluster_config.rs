@@ -11,17 +11,15 @@ use iced::widget::text;
 use iced::widget::text_input;
 
 use super::font::BOLD;
-use super::font::REGULAR;
 use super::style_button_primary::style_button_primary;
-use super::style_field_container::style_field_container;
 use super::style_field_pick_list::style_field_pick_list;
 use super::style_field_pick_list_menu::style_field_pick_list_menu;
 use super::style_field_text_input::style_field_text_input;
-use super::variables::COLOR_ERROR;
 use super::variables::FONT_SIZE_L2;
 use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
+use super::view_form_field::view_form_field;
 use crate::model_preset::ModelPreset;
 use crate::start_cluster_config_data::StartClusterConfigData;
 use crate::start_cluster_config_handler::Message;
@@ -44,80 +42,43 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
         .style(button::text)
         .on_press(Message::Cancel);
 
-    let mut balancer_field = column![
-        container(text("Cluster address").font(BOLD)).padding([0.0, SPACING_BASE]),
-        container(
-            text_input("IP:port", &data.cluster_address)
-                .on_input(Message::SetClusterAddress)
-                .padding(SPACING_BASE)
-                .style(style_field_text_input),
-        )
-        .width(400)
-        .style(style_field_container),
-    ]
-    .spacing(SPACING_HALF);
+    let cluster_address_input = text_input("IP:port", &data.cluster_address)
+        .on_input(Message::SetClusterAddress)
+        .padding(SPACING_BASE)
+        .style(style_field_text_input)
+        .into();
 
-    if let Some(error) = &data.cluster_address_error {
-        balancer_field = balancer_field.push(
-            container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
-                .width(400)
-                .padding([0.0, SPACING_BASE]),
-        );
-    }
+    let inference_address_input = text_input("IP:port", &data.inference_address)
+        .on_input(Message::SetInferenceAddress)
+        .padding(SPACING_BASE)
+        .style(style_field_text_input)
+        .into();
 
-    let mut inference_field = column![
-        container(text("Inference address").font(BOLD)).padding([0.0, SPACING_BASE]),
-        container(
-            text_input("IP:port", &data.inference_address)
-                .on_input(Message::SetInferenceAddress)
-                .padding(SPACING_BASE)
-                .style(style_field_text_input),
-        )
-        .width(400)
-        .style(style_field_container),
-    ]
-    .spacing(SPACING_HALF);
-
-    if let Some(error) = &data.inference_address_error {
-        inference_field = inference_field.push(
-            container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
-                .width(400)
-                .padding([0.0, SPACING_BASE]),
-        );
-    }
-
-    let mut model_field = column![
-        container(text("Select a model").font(BOLD)).padding([0.0, SPACING_BASE]),
-        container(
-            pick_list(
-                available_models,
-                data.selected_model.as_ref(),
-                Message::SelectModel,
-            )
-            .width(Fill)
-            .padding(SPACING_BASE)
-            .style(style_field_pick_list)
-            .menu_style(style_field_pick_list_menu),
-        )
-        .width(400)
-        .style(style_field_container),
-    ]
-    .spacing(SPACING_HALF);
-
-    if let Some(error) = &data.model_error {
-        model_field = model_field.push(
-            container(text(error.clone()).font(REGULAR).color(COLOR_ERROR))
-                .width(400)
-                .padding([0.0, SPACING_BASE]),
-        );
-    }
+    let model_input = pick_list(
+        available_models,
+        data.selected_model.as_ref(),
+        Message::SelectModel,
+    )
+    .width(Fill)
+    .padding(SPACING_BASE)
+    .style(style_field_pick_list)
+    .menu_style(style_field_pick_list_menu)
+    .into();
 
     column![
         container(text("Start a cluster").size(FONT_SIZE_L2).font(BOLD))
             .padding([0.0, SPACING_BASE]),
-        balancer_field,
-        inference_field,
-        model_field,
+        view_form_field(
+            "Cluster address",
+            cluster_address_input,
+            data.cluster_address_error.as_ref()
+        ),
+        view_form_field(
+            "Inference address",
+            inference_address_input,
+            data.inference_address_error.as_ref()
+        ),
+        view_form_field("Select a model", model_input, data.model_error.as_ref()),
         container(
             row![cancel_button, confirm_button]
                 .align_y(Center)

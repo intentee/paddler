@@ -9,12 +9,10 @@ license.workspace = true
 [dependencies]
 actix-web = { workspace = true }
 anyhow = { workspace = true }
-async-trait = { workspace = true }
 env_logger = { workspace = true }
 iced = { workspace = true }
 if-addrs = { workspace = true }
 log = { workspace = true }
-nanoid = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_types = { workspace = true }

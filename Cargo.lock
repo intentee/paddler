@@ -4598,12 +4598,10 @@ version = "3.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
- "async-trait",
  "env_logger",
  "iced",
  "if-addrs",
  "log",
- "nanoid",
  "paddler",
  "paddler_bootstrap",
  "paddler_types",
