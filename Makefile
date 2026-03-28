@@ -56,7 +56,10 @@ build: jarmuz-static
 	cargo build -p paddler --features web_admin_panel
 
 .PHONY: test
-test: jarmuz-static
+test: test.llms test.integration
+
+.PHONY: test.unit
+test.unit: jarmuz-static
 	cargo test --features web_admin_panel
 
 .PHONY: test.llms
@@ -64,7 +67,9 @@ test.llms: jarmuz-static
 	cargo test --features web_admin_panel,tests_that_use_llms -- --nocapture
 
 .PHONY: test.integration
-test.integration: target/debug/paddler
+test.integration:
+	cargo build -p paddler
+	-pkill -f 'target/debug/paddler'; true
 	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: watch
