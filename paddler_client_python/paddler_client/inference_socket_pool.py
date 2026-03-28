@@ -20,9 +20,7 @@ class InferenceSocketPool:
 
         self._url = url
         self._pool_size = pool_size
-        self._connections: list[InferenceSocketConnection | None] = (
-            [None] * pool_size
-        )
+        self._connections: list[InferenceSocketConnection | None] = [None] * pool_size
         self._next_idx = 0
         self._lock = asyncio.Lock()
 

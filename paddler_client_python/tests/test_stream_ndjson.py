@@ -9,29 +9,30 @@ from paddler_client.stream_ndjson import stream_ndjson_inference_messages
 
 
 def _make_token_line(request_id: str, token: str) -> str:
-    return json.dumps({
-        "Response": {
-            "request_id": request_id,
-            "response": {"GeneratedToken": {"Token": token}},
+    return json.dumps(
+        {
+            "Response": {
+                "request_id": request_id,
+                "response": {"GeneratedToken": {"Token": token}},
+            }
         }
-    })
+    )
 
 
 def _make_done_line(request_id: str) -> str:
-    return json.dumps({
-        "Response": {
-            "request_id": request_id,
-            "response": {"GeneratedToken": "Done"},
+    return json.dumps(
+        {
+            "Response": {
+                "request_id": request_id,
+                "response": {"GeneratedToken": "Done"},
+            }
         }
-    })
+    )
 
 
 async def test_parses_multiple_ndjson_lines() -> None:
     ndjson_content = (
-        _make_token_line("r1", "hello")
-        + "\n"
-        + _make_done_line("r1")
-        + "\n"
+        _make_token_line("r1", "hello") + "\n" + _make_done_line("r1") + "\n"
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -53,11 +54,7 @@ async def test_parses_multiple_ndjson_lines() -> None:
 
 
 async def test_skips_empty_lines() -> None:
-    ndjson_content = (
-        "\n\n"
-        + _make_done_line("r1")
-        + "\n\n"
-    )
+    ndjson_content = "\n\n" + _make_done_line("r1") + "\n\n"
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, text=ndjson_content)

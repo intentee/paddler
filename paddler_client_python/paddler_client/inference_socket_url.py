@@ -15,11 +15,13 @@ def inference_socket_url(url: str) -> str:
     if new_scheme is None:
         raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
 
-    return urlunparse((
-        new_scheme,
-        parsed.netloc,
-        "/api/v1/inference_socket",
-        "",
-        parsed.query,
-        "",
-    ))
+    return urlunparse(
+        (
+            new_scheme,
+            parsed.netloc,
+            "/api/v1/inference_socket",
+            "",
+            parsed.query,
+            "",
+        )
+    )
