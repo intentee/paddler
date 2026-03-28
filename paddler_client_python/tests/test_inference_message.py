@@ -81,9 +81,7 @@ def test_parse_chat_template_error() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {
-                "GeneratedToken": {"ChatTemplateError": "bad template"}
-            },
+            "response": {"GeneratedToken": {"ChatTemplateError": "bad template"}},
         }
     }
     message = parse_inference_client_message(data)
@@ -97,9 +95,7 @@ def test_parse_image_decoding_failed() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {
-                "GeneratedToken": {"ImageDecodingFailed": "corrupt image"}
-            },
+            "response": {"GeneratedToken": {"ImageDecodingFailed": "corrupt image"}},
         }
     }
     message = parse_inference_client_message(data)
@@ -113,11 +109,7 @@ def test_parse_multimodal_not_supported() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {
-                "GeneratedToken": {
-                    "MultimodalNotSupported": "no multimodal"
-                }
-            },
+            "response": {"GeneratedToken": {"MultimodalNotSupported": "no multimodal"}},
         }
     }
     message = parse_inference_client_message(data)
@@ -181,8 +173,7 @@ def test_parse_embedding_error() -> None:
 
 def test_parse_json_string() -> None:
     json_str = (
-        '{"Response": {"request_id": "req-1",'
-        ' "response": {"GeneratedToken": "Done"}}}'
+        '{"Response": {"request_id": "req-1", "response": {"GeneratedToken": "Done"}}}'
     )
     message = parse_inference_client_message(json_str)
 
