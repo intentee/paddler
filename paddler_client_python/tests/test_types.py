@@ -48,22 +48,24 @@ from paddler_client.types.validated_parameters_schema import (
 
 def test_embedding_normalization_method_l2_serialization() -> None:
     method = EmbeddingNormalizationMethod.l2()
+    serialized = method.model_dump(mode="json")
 
-    assert method.model_dump(mode="json") == "L2"
+    assert isinstance(serialized, str)
+    assert serialized == "L2"
 
 
 def test_embedding_normalization_method_none_serialization() -> None:
     method = EmbeddingNormalizationMethod.none()
+    serialized = method.model_dump(mode="json")
 
-    assert method.model_dump(mode="json") == "None"
+    assert isinstance(serialized, str)
+    assert serialized == "None"
 
 
 def test_embedding_normalization_method_rms_norm_serialization() -> None:
     method = EmbeddingNormalizationMethod.rms_norm(epsilon=0.001)
 
-    assert method.model_dump(mode="json") == {
-        "RmsNorm": {"epsilon": 0.001}
-    }
+    assert method.model_dump(mode="json") == {"RmsNorm": {"epsilon": 0.001}}
 
 
 def test_embedding_normalization_method_l2_deserialization() -> None:
@@ -86,8 +88,10 @@ def test_embedding_normalization_method_rms_norm_deserialization() -> None:
 
 def test_agent_desired_model_none_serialization() -> None:
     model = AgentDesiredModel.none()
+    serialized = model.model_dump(mode="json")
 
-    assert model.model_dump(mode="json") == "None"
+    assert isinstance(serialized, str)
+    assert serialized == "None"
 
 
 def test_agent_desired_model_none_deserialization() -> None:
@@ -110,13 +114,15 @@ def test_agent_desired_model_huggingface_serialization() -> None:
 
 
 def test_agent_desired_model_huggingface_deserialization() -> None:
-    model = AgentDesiredModel.model_validate({
-        "HuggingFace": {
-            "filename": "model.gguf",
-            "repo_id": "org/model",
-            "revision": "main",
+    model = AgentDesiredModel.model_validate(
+        {
+            "HuggingFace": {
+                "filename": "model.gguf",
+                "repo_id": "org/model",
+                "revision": "main",
+            }
         }
-    })
+    )
 
     assert model.variant == "HuggingFace"
     assert model.huggingface is not None
@@ -131,9 +137,7 @@ def test_agent_desired_model_local_to_agent_serialization() -> None:
 
 
 def test_agent_desired_model_local_to_agent_deserialization() -> None:
-    model = AgentDesiredModel.model_validate(
-        {"LocalToAgent": "/path/to/model.gguf"}
-    )
+    model = AgentDesiredModel.model_validate({"LocalToAgent": "/path/to/model.gguf"})
 
     assert model.variant == "LocalToAgent"
     assert model.local_path == "/path/to/model.gguf"
@@ -169,9 +173,7 @@ def test_conversation_message_parts_content() -> None:
 
 
 def test_conversation_message_text_deserialization() -> None:
-    message = ConversationMessage.model_validate(
-        {"content": "hi", "role": "assistant"}
-    )
+    message = ConversationMessage.model_validate({"content": "hi", "role": "assistant"})
 
     assert message.content == "hi"
     assert message.role == "assistant"
@@ -222,10 +224,12 @@ def test_tool_with_parameters_serialization() -> None:
 
 
 def test_tool_deserialization() -> None:
-    tool = Tool.model_validate({
-        "type": "function",
-        "function": {"name": "test", "description": "desc"},
-    })
+    tool = Tool.model_validate(
+        {
+            "type": "function",
+            "function": {"name": "test", "description": "desc"},
+        }
+    )
 
     assert tool.function.name == "test"
 
@@ -245,9 +249,7 @@ def test_continue_from_conversation_history_params_serialization() -> None:
     dumped = params.model_dump(mode="json")
 
     assert dumped["add_generation_prompt"] is True
-    assert dumped["conversation_history"] == [
-        {"content": "Hello!", "role": "user"}
-    ]
+    assert dumped["conversation_history"] == [{"content": "Hello!", "role": "user"}]
     assert dumped["enable_thinking"] is False
     assert dumped["max_tokens"] == 100
     assert dumped["tools"] == []
@@ -298,22 +300,22 @@ def test_inference_parameters_serialization() -> None:
 
 
 def test_pooling_type_values() -> None:
-    assert PoolingType.MEAN == "Mean"
-    assert PoolingType.CLS == "Cls"
-    assert PoolingType.LAST == "Last"
-    assert PoolingType.NONE == "None"
-    assert PoolingType.RANK == "Rank"
-    assert PoolingType.UNSPECIFIED == "Unspecified"
+    assert PoolingType.MEAN.value == "Mean"
+    assert PoolingType.CLS.value == "Cls"
+    assert PoolingType.LAST.value == "Last"
+    assert PoolingType.NONE.value == "None"
+    assert PoolingType.RANK.value == "Rank"
+    assert PoolingType.UNSPECIFIED.value == "Unspecified"
 
 
 def test_agent_state_application_status_values() -> None:
-    assert AgentStateApplicationStatus.APPLIED == "Applied"
+    assert AgentStateApplicationStatus.APPLIED.value == "Applied"
     assert (
-        AgentStateApplicationStatus.ATTEMPTED_AND_NOT_APPLIABLE
+        AgentStateApplicationStatus.ATTEMPTED_AND_NOT_APPLIABLE.value
         == "AttemptedAndNotAppliable"
     )
-    assert AgentStateApplicationStatus.FRESH == "Fresh"
-    assert AgentStateApplicationStatus.STUCK == "Stuck"
+    assert AgentStateApplicationStatus.FRESH.value == "Fresh"
+    assert AgentStateApplicationStatus.STUCK.value == "Stuck"
 
 
 def test_agent_issue_deserialization() -> None:
@@ -332,28 +334,26 @@ def test_agent_issue_serialization() -> None:
     )
     dumped = issue.model_dump(mode="json")
 
-    assert dumped == {
-        "ModelFileDoesNotExist": {"model_path": "/path/to/model"}
-    }
+    assert dumped == {"ModelFileDoesNotExist": {"model_path": "/path/to/model"}}
 
 
 def test_agent_controller_snapshot_deserialization() -> None:
-    snapshot = AgentControllerSnapshot.model_validate({
-        "desired_slots_total": 4,
-        "download_current": 100,
-        "download_filename": "model.gguf",
-        "download_total": 1000,
-        "id": "agent-1",
-        "issues": [
-            {"SlotCannotStart": {"error": "OOM", "slot_index": 0}}
-        ],
-        "model_path": "/models/test.gguf",
-        "name": "my-agent",
-        "slots_processing": 1,
-        "slots_total": 4,
-        "state_application_status": "Fresh",
-        "uses_chat_template_override": True,
-    })
+    snapshot = AgentControllerSnapshot.model_validate(
+        {
+            "desired_slots_total": 4,
+            "download_current": 100,
+            "download_filename": "model.gguf",
+            "download_total": 1000,
+            "id": "agent-1",
+            "issues": [{"SlotCannotStart": {"error": "OOM", "slot_index": 0}}],
+            "model_path": "/models/test.gguf",
+            "name": "my-agent",
+            "slots_processing": 1,
+            "slots_total": 4,
+            "state_application_status": "Fresh",
+            "uses_chat_template_override": True,
+        }
+    )
 
     assert snapshot.id == "agent-1"
     assert snapshot.download_filename == "model.gguf"
@@ -363,21 +363,23 @@ def test_agent_controller_snapshot_deserialization() -> None:
 
 
 def test_agent_controller_pool_snapshot_deserialization() -> None:
-    pool = AgentControllerPoolSnapshot.model_validate({
-        "agents": [
-            {
-                "desired_slots_total": 2,
-                "download_current": 0,
-                "download_total": 0,
-                "id": "a1",
-                "issues": [],
-                "slots_processing": 0,
-                "slots_total": 2,
-                "state_application_status": "Applied",
-                "uses_chat_template_override": False,
-            }
-        ]
-    })
+    pool = AgentControllerPoolSnapshot.model_validate(
+        {
+            "agents": [
+                {
+                    "desired_slots_total": 2,
+                    "download_current": 0,
+                    "download_total": 0,
+                    "id": "a1",
+                    "issues": [],
+                    "slots_processing": 0,
+                    "slots_total": 2,
+                    "state_application_status": "Applied",
+                    "uses_chat_template_override": False,
+                }
+            ]
+        }
+    )
 
     assert len(pool.agents) == 1
     assert pool.agents[0].id == "a1"
@@ -400,9 +402,7 @@ def test_balancer_desired_state_with_chat_template() -> None:
     )
     dumped = state.model_dump(mode="json")
 
-    assert dumped["chat_template_override"] == {
-        "content": "{{ messages }}"
-    }
+    assert dumped["chat_template_override"] == {"content": "{{ messages }}"}
     assert dumped["use_chat_template_override"] is True
 
 
@@ -430,12 +430,14 @@ def test_model_metadata_empty() -> None:
 
 
 def test_embedding_deserialization() -> None:
-    embedding = Embedding.model_validate({
-        "embedding": [0.1, 0.2, 0.3],
-        "normalization_method": "L2",
-        "pooling_type": "Mean",
-        "source_document_id": "doc-1",
-    })
+    embedding = Embedding.model_validate(
+        {
+            "embedding": [0.1, 0.2, 0.3],
+            "normalization_method": "L2",
+            "pooling_type": "Mean",
+            "source_document_id": "doc-1",
+        }
+    )
 
     assert embedding.embedding == [0.1, 0.2, 0.3]
     assert embedding.normalization_method.variant == "L2"
@@ -444,12 +446,14 @@ def test_embedding_deserialization() -> None:
 
 
 def test_embedding_with_rms_norm_deserialization() -> None:
-    embedding = Embedding.model_validate({
-        "embedding": [1.0],
-        "normalization_method": {"RmsNorm": {"epsilon": 1e-6}},
-        "pooling_type": "Cls",
-        "source_document_id": "doc-2",
-    })
+    embedding = Embedding.model_validate(
+        {
+            "embedding": [1.0],
+            "normalization_method": {"RmsNorm": {"epsilon": 1e-6}},
+            "pooling_type": "Cls",
+            "source_document_id": "doc-2",
+        }
+    )
 
     assert embedding.normalization_method.variant == "RmsNorm"
     assert embedding.normalization_method.epsilon == 1e-6

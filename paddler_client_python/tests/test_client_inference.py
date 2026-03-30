@@ -23,21 +23,25 @@ def _make_ndjson_token_response(
     request_id: str,
     token: str,
 ) -> str:
-    return json.dumps({
-        "Response": {
-            "request_id": request_id,
-            "response": {"GeneratedToken": {"Token": token}},
+    return json.dumps(
+        {
+            "Response": {
+                "request_id": request_id,
+                "response": {"GeneratedToken": {"Token": token}},
+            }
         }
-    })
+    )
 
 
 def _make_ndjson_done_response(request_id: str) -> str:
-    return json.dumps({
-        "Response": {
-            "request_id": request_id,
-            "response": {"GeneratedToken": "Done"},
+    return json.dumps(
+        {
+            "Response": {
+                "request_id": request_id,
+                "response": {"GeneratedToken": "Done"},
+            }
         }
-    })
+    )
 
 
 async def test_get_health_returns_text() -> None:
@@ -125,36 +129,38 @@ async def test_post_continue_from_conversation_history() -> None:
         body = json.loads(received_requests[0].content)
         assert body["add_generation_prompt"] is True
         assert body["max_tokens"] == 100
-        assert body["conversation_history"] == [
-            {"content": "Hello", "role": "user"}
-        ]
+        assert body["conversation_history"] == [{"content": "Hello", "role": "user"}]
     finally:
         await client.close()
 
 
 async def test_generate_embedding_batch() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        embedding_response = json.dumps({
-            "Response": {
-                "request_id": "r1",
-                "response": {
-                    "Embedding": {
+        embedding_response = json.dumps(
+            {
+                "Response": {
+                    "request_id": "r1",
+                    "response": {
                         "Embedding": {
-                            "embedding": [0.1, 0.2],
-                            "normalization_method": "None",
-                            "pooling_type": "Mean",
-                            "source_document_id": "doc-1",
+                            "Embedding": {
+                                "embedding": [0.1, 0.2],
+                                "normalization_method": "None",
+                                "pooling_type": "Mean",
+                                "source_document_id": "doc-1",
+                            }
                         }
-                    }
-                },
+                    },
+                }
             }
-        })
-        done_response = json.dumps({
-            "Response": {
-                "request_id": "r1",
-                "response": {"Embedding": "Done"},
+        )
+        done_response = json.dumps(
+            {
+                "Response": {
+                    "request_id": "r1",
+                    "response": {"Embedding": "Done"},
+                }
             }
-        })
+        )
 
         return httpx.Response(
             200,

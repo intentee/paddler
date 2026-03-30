@@ -70,9 +70,7 @@ async def _wait_for_available_slots(client: ClientManagement) -> None:
     while elapsed < WAIT_FOR_SLOTS_TIMEOUT_SECONDS:
         snapshot = await client.get_agents()
         total_slots = sum(agent.slots_total for agent in snapshot.agents)
-        total_processing = sum(
-            agent.slots_processing for agent in snapshot.agents
-        )
+        total_processing = sum(agent.slots_processing for agent in snapshot.agents)
 
         if total_slots > 0 and total_processing == 0:
             return
@@ -80,9 +78,7 @@ async def _wait_for_available_slots(client: ClientManagement) -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
         elapsed += POLL_INTERVAL_SECONDS
 
-    raise TimeoutError(
-        f"No idle agent slots within {WAIT_FOR_SLOTS_TIMEOUT_SECONDS}s"
-    )
+    raise TimeoutError(f"No idle agent slots within {WAIT_FOR_SLOTS_TIMEOUT_SECONDS}s")
 
 
 @pytest.fixture

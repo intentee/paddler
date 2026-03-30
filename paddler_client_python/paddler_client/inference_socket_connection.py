@@ -48,9 +48,7 @@ class InferenceSocketConnection:
     def __init__(self, url: str) -> None:
         self._url = url
         self._ws: ClientConnection | None = None
-        self._pending: dict[
-            str, asyncio.Queue[InferenceMessage | Exception]
-        ] = {}
+        self._pending: dict[str, asyncio.Queue[InferenceMessage | Exception]] = {}
         self._write_queue: asyncio.Queue[str] = asyncio.Queue()
         self._read_task: asyncio.Task[None] | None = None
         self._write_task: asyncio.Task[None] | None = None
@@ -74,9 +72,7 @@ class InferenceSocketConnection:
         if not self._connected:
             raise ConnectionDroppedError(request_id)
 
-        response_queue: asyncio.Queue[InferenceMessage | Exception] = (
-            asyncio.Queue()
-        )
+        response_queue: asyncio.Queue[InferenceMessage | Exception] = asyncio.Queue()
         self._pending[request_id] = response_queue
         await self._write_queue.put(json_message)
 
@@ -107,9 +103,7 @@ class InferenceSocketConnection:
 
             async for raw_message in self._ws:
                 if not isinstance(raw_message, str):
-                    logger.warning(
-                        "Received unexpected binary WebSocket message"
-                    )
+                    logger.warning("Received unexpected binary WebSocket message")
                     continue
 
                 try:
