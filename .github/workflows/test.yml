@@ -38,7 +38,7 @@ jobs:
         run: cargo build --package paddler
 
       - name: Run unit tests
-        run: cargo test
+        run: make test.unit
 
       - name: Validate test coverage
         run: |
