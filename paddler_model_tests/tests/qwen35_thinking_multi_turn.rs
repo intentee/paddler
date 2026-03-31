@@ -56,6 +56,7 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: true,
+            grammar: None,
             max_tokens: 1000,
             tools: vec![],
         })

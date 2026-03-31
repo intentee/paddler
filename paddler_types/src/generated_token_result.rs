@@ -8,6 +8,8 @@ use crate::streamable_result::StreamableResult;
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     Done,
+    GrammarInitializationFailed(String),
+    GrammarSyntaxError(String),
     ImageDecodingFailed(String),
     MultimodalNotSupported(String),
     Token(String),
@@ -19,6 +21,8 @@ impl StreamableResult for GeneratedTokenResult {
             self,
             Self::ChatTemplateError(_)
                 | Self::Done
+                | Self::GrammarInitializationFailed(_)
+                | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
                 | Self::MultimodalNotSupported(_)
         )
@@ -37,6 +41,16 @@ mod tests {
     #[test]
     fn chat_template_error_is_done() {
         assert!(GeneratedTokenResult::ChatTemplateError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_initialization_failed_is_done() {
+        assert!(GeneratedTokenResult::GrammarInitializationFailed("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_syntax_error_is_done() {
+        assert!(GeneratedTokenResult::GrammarSyntaxError("err".to_owned()).is_done());
     }
 
     #[test]

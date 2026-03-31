@@ -36,6 +36,7 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
 
     let results = harness
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 30,
             raw_prompt:
                 "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n"

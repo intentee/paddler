@@ -39,6 +39,8 @@ use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::kv_cache_repair_action::KVCacheRepairAction;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
+use crate::agent::resolve_grammar_to_gbnf::resolve_grammar_to_gbnf;
+use crate::agent::resolved_grammar::ResolvedGrammar;
 use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
@@ -161,18 +163,41 @@ impl LlamaCppSlot {
         Ok(())
     }
 
+    fn resolve_grammar(
+        &self,
+        grammar: Option<&paddler_types::grammar_constraint::GrammarConstraint>,
+        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    ) -> Result<Option<ResolvedGrammar>> {
+        match grammar.map(resolve_grammar_to_gbnf).transpose() {
+            Ok(resolved) => Ok(resolved),
+            Err(err) => {
+                let msg = format!(
+                    "{:?}: slot {} grammar syntax error: {err}",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx.send(GeneratedTokenResult::GrammarSyntaxError(msg.clone()))?;
+
+                Err(anyhow!(msg))
+            }
+        }
+    }
+
     fn generate_tokens(
         &mut self,
         mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
         max_tokens: i32,
         mut current_token_position: i32,
+        resolved_grammar: Option<ResolvedGrammar>,
     ) -> Result<()> {
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
         let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-        let mut sampler = LlamaSampler::chain_simple([
+        let mut samplers = vec![
             LlamaSampler::penalties(
                 self.slot_context.inference_parameters.penalty_last_n,
                 self.slot_context.inference_parameters.penalty_repeat,
@@ -183,8 +208,35 @@ impl LlamaCppSlot {
             LlamaSampler::top_p(self.slot_context.inference_parameters.top_p, 0),
             LlamaSampler::min_p(self.slot_context.inference_parameters.min_p, 0),
             LlamaSampler::temp(self.slot_context.inference_parameters.temperature),
-            LlamaSampler::dist(self.rng.random::<u32>()),
-        ]);
+        ];
+
+        if let Some(resolved) = resolved_grammar {
+            let grammar_sampler = LlamaSampler::grammar(
+                &self.slot_context.model,
+                &resolved.grammar_string,
+                &resolved.root_rule,
+            )
+            .map_err(|grammar_error| {
+                let msg = format!(
+                    "{:?}: slot {} failed to initialize grammar sampler: {grammar_error}",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                let _ = generated_tokens_tx.send(
+                    GeneratedTokenResult::GrammarInitializationFailed(msg.clone()),
+                );
+
+                anyhow!(msg)
+            })?;
+
+            samplers.push(grammar_sampler);
+        }
+
+        samplers.push(LlamaSampler::dist(self.rng.random::<u32>()));
+
+        let mut sampler = LlamaSampler::chain_simple(samplers);
 
         let mut was_stopped = false;
         let max_token_position = current_token_position + max_tokens;
@@ -442,6 +494,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
                 ContinueFromConversationHistoryParams {
                     add_generation_prompt,
                     enable_thinking,
+                    grammar,
                     conversation_history,
                     max_tokens,
                     tools,
@@ -449,6 +502,8 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        let resolved_grammar = self.resolve_grammar(grammar.as_ref(), &generated_tokens_tx)?;
+
         let image_resize_to_fit = self.slot_context.inference_parameters.image_resize_to_fit;
 
         let images = match conversation_history
@@ -548,6 +603,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
             &generated_tokens_tx,
             max_tokens,
             current_token_position,
+            resolved_grammar,
         )
     }
 }
@@ -562,12 +618,15 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
             generated_tokens_tx,
             params:
                 ContinueFromRawPromptParams {
+                    grammar,
                     max_tokens,
                     raw_prompt,
                 },
         }: ContinueFromRawPromptRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        let resolved_grammar = self.resolve_grammar(grammar.as_ref(), &generated_tokens_tx)?;
+
         let _guard = self.status.take_slot_with_guard();
 
         self.llama_context.clear_kv_cache();
@@ -579,6 +638,7 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
             &generated_tokens_tx,
             max_tokens,
             current_token_position,
+            resolved_grammar,
         )
     }
 }

@@ -35,6 +35,7 @@ async fn send_buffered_requests(balancer: &ManagedBalancer, count: usize) -> Vec
             .client()
             .inference()
             .continue_from_raw_prompt(ContinueFromRawPromptParams {
+                grammar: None,
                 max_tokens: 10,
                 raw_prompt: "Hello".to_string(),
             })

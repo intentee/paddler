@@ -112,6 +112,7 @@ async fn test_qwen35_long_prompt_with_system_message() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: false,
+            grammar: None,
             max_tokens: 512,
             tools: vec![],
         })

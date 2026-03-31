@@ -54,6 +54,7 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: false,
+            grammar: None,
             max_tokens: 100,
             tools: vec![],
         })

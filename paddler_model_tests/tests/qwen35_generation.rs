@@ -42,6 +42,7 @@ async fn test_qwen35_generation_stops_cleanly() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: false,
+            grammar: None,
             max_tokens: 500,
             tools: vec![],
         })

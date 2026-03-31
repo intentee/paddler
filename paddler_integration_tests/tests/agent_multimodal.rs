@@ -290,6 +290,7 @@ fn image_message_params(
             role: "user".to_string(),
         }]),
         enable_thinking: false,
+        grammar: None,
         max_tokens: 20,
         tools: vec![],
     }

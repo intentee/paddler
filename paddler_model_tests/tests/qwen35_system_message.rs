@@ -61,6 +61,7 @@ async fn test_qwen35_system_and_user_messages_without_thinking() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: false,
+            grammar: None,
             max_tokens: 512,
             tools: vec![],
         })

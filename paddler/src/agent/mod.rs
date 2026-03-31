@@ -14,3 +14,5 @@ pub mod model_metadata_holder;
 pub mod receive_stream_stopper_collection;
 mod receive_stream_stopper_drop_guard;
 pub mod reconciliation_service;
+pub mod resolve_grammar_to_gbnf;
+pub mod resolved_grammar;
