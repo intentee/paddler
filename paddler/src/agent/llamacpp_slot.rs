@@ -26,6 +26,7 @@ use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::grammar_constraint::GrammarConstraint;
 use paddler_types::media_marker::MediaMarker;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -165,7 +166,7 @@ impl LlamaCppSlot {
 
     fn resolve_grammar(
         &self,
-        grammar: Option<&paddler_types::grammar_constraint::GrammarConstraint>,
+        grammar: Option<&GrammarConstraint>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
     ) -> Result<Option<ResolvedGrammar>> {
         match grammar.map(resolve_grammar_to_gbnf).transpose() {
@@ -179,6 +180,34 @@ impl LlamaCppSlot {
                 error!("{msg}");
 
                 generated_tokens_tx.send(GeneratedTokenResult::GrammarSyntaxError(msg.clone()))?;
+
+                Err(anyhow!(msg))
+            }
+        }
+    }
+
+    fn build_grammar_sampler(
+        &self,
+        resolved_grammar: &ResolvedGrammar,
+        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    ) -> Result<LlamaSampler> {
+        match LlamaSampler::grammar(
+            &self.slot_context.model,
+            &resolved_grammar.grammar_string,
+            &resolved_grammar.root_rule,
+        ) {
+            Ok(sampler) => Ok(sampler),
+            Err(grammar_error) => {
+                let msg = format!(
+                    "{:?}: slot {} failed to initialize grammar sampler: {grammar_error}",
+                    self.slot_context.agent_name, self.index
+                );
+
+                error!("{msg}");
+
+                generated_tokens_tx.send(GeneratedTokenResult::GrammarInitializationFailed(
+                    msg.clone(),
+                ))?;
 
                 Err(anyhow!(msg))
             }
@@ -211,27 +240,7 @@ impl LlamaCppSlot {
         ];
 
         if let Some(resolved) = resolved_grammar {
-            let grammar_sampler = LlamaSampler::grammar(
-                &self.slot_context.model,
-                &resolved.grammar_string,
-                &resolved.root_rule,
-            )
-            .map_err(|grammar_error| {
-                let msg = format!(
-                    "{:?}: slot {} failed to initialize grammar sampler: {grammar_error}",
-                    self.slot_context.agent_name, self.index
-                );
-
-                error!("{msg}");
-
-                let _ = generated_tokens_tx.send(
-                    GeneratedTokenResult::GrammarInitializationFailed(msg.clone()),
-                );
-
-                anyhow!(msg)
-            })?;
-
-            samplers.push(grammar_sampler);
+            samplers.push(self.build_grammar_sampler(&resolved, generated_tokens_tx)?);
         }
 
         samplers.push(LlamaSampler::dist(self.rng.random::<u32>()));
