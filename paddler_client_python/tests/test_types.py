@@ -18,10 +18,6 @@ from paddler_client.types.continue_from_conversation_history_params import (
 from paddler_client.types.continue_from_raw_prompt_params import (
     ContinueFromRawPromptParams,
 )
-from paddler_client.types.grammar_constraint import (
-    GbnfGrammarConstraint,
-    JsonSchemaGrammarConstraint,
-)
 from paddler_client.types.conversation_message import ConversationMessage
 from paddler_client.types.conversation_message_content_part import (
     ImageUrlContentPart,
@@ -34,6 +30,10 @@ from paddler_client.types.embedding_normalization_method import (
 )
 from paddler_client.types.generate_embedding_batch_params import (
     GenerateEmbeddingBatchParams,
+)
+from paddler_client.types.grammar_constraint import (
+    GbnfGrammarConstraint,
+    JsonSchemaGrammarConstraint,
 )
 from paddler_client.types.huggingface_model_reference import (
     HuggingFaceModelReference,
@@ -209,11 +209,11 @@ def test_tool_with_parameters_serialization() -> None:
         function=Function(
             name="get_weather",
             description="Get weather",
-            parameters=ValidatedParametersSchema(
-                schema_type="object",
-                properties={"location": {"type": "string"}},
-                required=["location"],
-            ),
+            parameters=ValidatedParametersSchema.model_validate({
+                "type": "object",
+                "properties": {"location": {"type": "string"}},
+                "required": ["location"],
+            }),
         )
     )
     dumped = tool.model_dump(

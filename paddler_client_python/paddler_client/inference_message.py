@@ -56,7 +56,8 @@ def parse_inference_client_message(
         data = json.loads(data)
 
     if not isinstance(data, dict):
-        raise TypeError(f"Unknown inference client message format: {data}")
+        msg = f"Unknown inference client message format: {data}"
+        raise TypeError(msg)
 
     if "Error" in data:
         return _parse_error_envelope(data["Error"])
@@ -69,7 +70,8 @@ def parse_inference_client_message(
             response_envelope["response"],
         )
 
-    raise ValueError(f"Unknown inference client message format: {data}")
+    msg = f"Unknown inference client message format: {data}"
+    raise ValueError(msg)
 
 
 def _parse_error_envelope(
@@ -102,7 +104,8 @@ def _parse_response(
                 kind=InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS,
             )
 
-        raise ValueError(f"Unknown response variant: {response}")
+        msg = f"Unknown response variant: {response}"
+        raise ValueError(msg)
 
     if "GeneratedToken" in response:
         return _parse_generated_token_result(
@@ -116,7 +119,17 @@ def _parse_response(
             response["Embedding"],
         )
 
-    raise ValueError(f"Unknown response: {response}")
+    msg = f"Unknown response: {response}"
+    raise ValueError(msg)
+
+
+_GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
+    "ChatTemplateError": InferenceMessageKind.CHAT_TEMPLATE_ERROR,
+    "GrammarInitializationFailed": InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
+    "GrammarSyntaxError": InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
+    "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
+    "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
+}
 
 
 def _parse_generated_token_result(
@@ -137,42 +150,16 @@ def _parse_generated_token_result(
                 token=data["Token"],
             )
 
-        if "ChatTemplateError" in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.CHAT_TEMPLATE_ERROR,
-                error_message=data["ChatTemplateError"],
-            )
+        for key, kind in _GENERATED_TOKEN_ERROR_KINDS.items():
+            if key in data:
+                return InferenceMessage(
+                    request_id=request_id,
+                    kind=kind,
+                    error_message=data[key],
+                )
 
-        if "GrammarInitializationFailed" in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
-                error_message=data["GrammarInitializationFailed"],
-            )
-
-        if "GrammarSyntaxError" in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
-                error_message=data["GrammarSyntaxError"],
-            )
-
-        if "ImageDecodingFailed" in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.IMAGE_DECODING_FAILED,
-                error_message=data["ImageDecodingFailed"],
-            )
-
-        if "MultimodalNotSupported" in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
-                error_message=data["MultimodalNotSupported"],
-            )
-
-    raise ValueError(f"Unknown GeneratedTokenResult: {data}")
+    msg = f"Unknown GeneratedTokenResult: {data}"
+    raise ValueError(msg)
 
 
 def _parse_embedding_result(
@@ -202,4 +189,5 @@ def _parse_embedding_result(
                 error_message=data["Error"],
             )
 
-    raise ValueError(f"Unknown EmbeddingResult: {data}")
+    msg = f"Unknown EmbeddingResult: {data}"
+    raise ValueError(msg)

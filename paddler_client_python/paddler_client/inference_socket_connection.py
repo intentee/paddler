@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from typing import Any, cast
 
 import websockets
 from websockets.asyncio.client import ClientConnection, connect
@@ -96,6 +97,31 @@ class InferenceSocketConnection:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._read_task
 
+    def _dispatch_message(self, raw_message: str) -> None:
+        try:
+            data = json.loads(raw_message)
+            message = parse_inference_client_message(data)
+        except Exception:
+            logger.exception("Failed to parse WebSocket message")
+            self._push_parse_error_to_pending(raw_message)
+
+            return
+
+        queue = self._pending.get(message.request_id)
+
+        if queue is None:
+            logger.warning(
+                "Received message for unknown request: %s",
+                message.request_id,
+            )
+
+            return
+
+        queue.put_nowait(message)
+
+        if message.is_terminal:
+            del self._pending[message.request_id]
+
     async def _read_loop(self) -> None:
         try:
             if self._ws is None:
@@ -106,28 +132,7 @@ class InferenceSocketConnection:
                     logger.warning("Received unexpected binary WebSocket message")
                     continue
 
-                try:
-                    data = json.loads(raw_message)
-                    message = parse_inference_client_message(data)
-                except Exception:
-                    logger.exception("Failed to parse WebSocket message")
-                    self._push_parse_error_to_pending(raw_message)
-
-                    continue
-
-                queue = self._pending.get(message.request_id)
-
-                if queue is None:
-                    logger.warning(
-                        "Received message for unknown request: %s",
-                        message.request_id,
-                    )
-                    continue
-
-                queue.put_nowait(message)
-
-                if message.is_terminal:
-                    del self._pending[message.request_id]
+                self._dispatch_message(raw_message)
         except asyncio.CancelledError:
             pass
         except websockets.ConnectionClosed:
@@ -145,12 +150,19 @@ class InferenceSocketConnection:
             data = json.loads(raw_message)
 
             if isinstance(data, dict):
-                request_id = None
+                typed_data = cast("dict[str, Any]", data)
+                request_id: str | None = None
+                response_value: object = typed_data.get("Response")
+                error_value: object = typed_data.get("Error")
 
-                if "Response" in data and isinstance(data["Response"], dict):
-                    request_id = data["Response"].get("request_id")
-                elif "Error" in data and isinstance(data["Error"], dict):
-                    request_id = data["Error"].get("request_id")
+                if isinstance(response_value, dict):
+                    typed_response = cast("dict[str, Any]", response_value)
+                    raw_id: object = typed_response.get("request_id")
+                    request_id = str(raw_id) if raw_id is not None else None
+                elif isinstance(error_value, dict):
+                    typed_error = cast("dict[str, Any]", error_value)
+                    raw_id = typed_error.get("request_id")
+                    request_id = str(raw_id) if raw_id is not None else None
 
                 if request_id and request_id in self._pending:
                     self._pending[request_id].put_nowait(

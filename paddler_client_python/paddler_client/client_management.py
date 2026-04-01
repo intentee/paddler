@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 import httpx
 
@@ -16,6 +15,9 @@ from paddler_client.types.buffered_request_manager_snapshot import (
 )
 from paddler_client.types.chat_template import ChatTemplate
 from paddler_client.types.model_metadata import ModelMetadata
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 class ClientManagement:

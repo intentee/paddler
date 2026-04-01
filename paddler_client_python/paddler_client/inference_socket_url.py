@@ -13,7 +13,8 @@ def inference_socket_url(url: str) -> str:
     new_scheme = _SCHEME_MAP.get(parsed.scheme)
 
     if new_scheme is None:
-        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+        msg = f"Unsupported URL scheme: {parsed.scheme}"
+        raise ValueError(msg)
 
     return urlunparse(
         (

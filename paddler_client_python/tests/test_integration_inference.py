@@ -25,10 +25,11 @@ def _assert_not_error(message: InferenceMessage) -> None:
         InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
         InferenceMessageKind.IMAGE_DECODING_FAILED,
     ):
-        raise AssertionError(
+        msg = (
             f"Unexpected error response: {message.kind}"
             f" ({message.error_message or message.error_code or ''})"
         )
+        raise AssertionError(msg)
 
 
 async def test_health(inference_url: str) -> None:

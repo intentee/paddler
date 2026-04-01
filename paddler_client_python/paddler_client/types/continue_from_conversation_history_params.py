@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from paddler_client.types.conversation_message import ConversationMessage
 from paddler_client.types.grammar_constraint import GrammarConstraint
@@ -11,4 +11,4 @@ class ContinueFromConversationHistoryParams(BaseModel):
     enable_thinking: bool
     grammar: GrammarConstraint | None = None
     max_tokens: int
-    tools: list[Tool] = Field(default_factory=list)
+    tools: list[Tool] = []

@@ -78,7 +78,8 @@ async def _wait_for_available_slots(client: ClientManagement) -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
         elapsed += POLL_INTERVAL_SECONDS
 
-    raise TimeoutError(f"No idle agent slots within {WAIT_FOR_SLOTS_TIMEOUT_SECONDS}s")
+    msg = f"No idle agent slots within {WAIT_FOR_SLOTS_TIMEOUT_SECONDS}s"
+    raise TimeoutError(msg)
 
 
 @pytest.fixture
