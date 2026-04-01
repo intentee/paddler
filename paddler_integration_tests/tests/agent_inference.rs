@@ -29,40 +29,44 @@ use paddler_types::request_params::continue_from_conversation_history_params::to
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
-fn collect_tokens_from_websocket_stream(
-    mut stream: Pin<Box<dyn Stream<Item = ClientResult<Message>> + Send>>,
-) -> String {
-    let runtime = tokio::runtime::Handle::current();
-
-    runtime.block_on(async {
-        let mut generated_text = String::new();
-
-        while let Some(message) = stream.next().await {
-            let message = message.expect("message should deserialize");
-
-            match message {
-                Message::Response(envelope) => match envelope.response {
-                    Response::GeneratedToken(GeneratedTokenResult::Token(token)) => {
-                        generated_text.push_str(&token);
-                    }
-                    Response::GeneratedToken(GeneratedTokenResult::Done) => break,
-                    other => panic!("unexpected response: {other:?}"),
-                },
-                Message::Error(envelope) => {
-                    panic!(
-                        "unexpected error: {} - {}",
-                        envelope.error.code, envelope.error.description
-                    );
-                }
-            }
-        }
-
-        generated_text
-    })
+struct CollectedTokens {
+    text: String,
+    count: usize,
 }
 
-fn collect_tokens_from_ndjson_body(body: &str) -> String {
-    let mut generated_text = String::new();
+async fn collect_tokens_from_websocket_stream(
+    mut stream: Pin<Box<dyn Stream<Item = ClientResult<Message>> + Send>>,
+) -> CollectedTokens {
+    let mut text = String::new();
+    let mut count = 0;
+
+    while let Some(message) = stream.next().await {
+        let message = message.expect("message should deserialize");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(GeneratedTokenResult::Token(token)) => {
+                    text.push_str(&token);
+                    count += 1;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::Done) => break,
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    CollectedTokens { text, count }
+}
+
+fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
+    let mut text = String::new();
+    let mut count = 0;
 
     for line in body.lines() {
         let line = line.trim();
@@ -77,7 +81,8 @@ fn collect_tokens_from_ndjson_body(body: &str) -> String {
         match message {
             Message::Response(envelope) => match envelope.response {
                 Response::GeneratedToken(GeneratedTokenResult::Token(token)) => {
-                    generated_text.push_str(&token);
+                    text.push_str(&token);
+                    count += 1;
                 }
                 Response::GeneratedToken(GeneratedTokenResult::Done) => break,
                 other => panic!("unexpected response: {other:?}"),
@@ -91,7 +96,7 @@ fn collect_tokens_from_ndjson_body(body: &str) -> String {
         }
     }
 
-    generated_text
+    CollectedTokens { text, count }
 }
 
 #[tokio::test]
@@ -146,10 +151,10 @@ async fn test_continue_from_raw_prompt() {
         .await
         .expect("raw prompt request should succeed");
 
-    let generated_text = collect_tokens_from_websocket_stream(stream);
+    let collected = collect_tokens_from_websocket_stream(stream).await;
 
     assert!(
-        !generated_text.is_empty(),
+        !collected.text.is_empty(),
         "should have received at least one token"
     );
 }
@@ -190,10 +195,10 @@ async fn test_continue_from_conversation_history() {
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let generated_text = collect_tokens_from_ndjson_body(&body);
+    let collected = collect_tokens_from_ndjson_body(&body);
 
     assert!(
-        !generated_text.is_empty(),
+        !collected.text.is_empty(),
         "should have received at least one token"
     );
 }
@@ -222,16 +227,16 @@ async fn test_raw_prompt_respects_max_tokens() {
         .await
         .expect("raw prompt request should succeed");
 
-    let generated_text = collect_tokens_from_websocket_stream(stream);
-    let token_count = generated_text.split_whitespace().count();
+    let collected = collect_tokens_from_websocket_stream(stream).await;
 
     assert!(
-        !generated_text.is_empty(),
+        collected.count > 0,
         "should have received at least one token"
     );
     assert!(
-        token_count <= max_tokens as usize,
-        "received {token_count} word-tokens, expected at most {max_tokens}"
+        collected.count <= max_tokens as usize,
+        "received {} tokens, expected at most {max_tokens}",
+        collected.count
     );
 }
 
@@ -275,10 +280,10 @@ async fn test_conversation_history_respects_max_tokens() {
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let generated_text = collect_tokens_from_ndjson_body(&body);
+    let collected = collect_tokens_from_ndjson_body(&body);
 
     assert!(
-        !generated_text.is_empty(),
+        !collected.text.is_empty(),
         "should have received at least one token"
     );
 }
@@ -422,11 +427,12 @@ async fn test_raw_prompt_with_gbnf_grammar() {
         .await
         .expect("grammar request should succeed");
 
-    let generated_text = collect_tokens_from_websocket_stream(stream);
+    let collected = collect_tokens_from_websocket_stream(stream).await;
 
     assert!(
-        generated_text == "yes" || generated_text == "no",
-        "GBNF grammar should constrain output to 'yes' or 'no', got: '{generated_text}'"
+        collected.text == "yes" || collected.text == "no",
+        "GBNF grammar should constrain output to 'yes' or 'no', got: '{}'",
+        collected.text
     );
 }
 
@@ -468,15 +474,19 @@ async fn test_conversation_history_with_json_schema_grammar() {
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let generated_text = collect_tokens_from_ndjson_body(&body);
+    let collected = collect_tokens_from_ndjson_body(&body);
 
-    let parsed: serde_json::Value = serde_json::from_str(&generated_text).unwrap_or_else(|err| {
-        panic!("JSON schema grammar should produce valid JSON, got '{generated_text}': {err}")
+    let parsed: serde_json::Value = serde_json::from_str(&collected.text).unwrap_or_else(|err| {
+        panic!(
+            "JSON schema grammar should produce valid JSON, got '{}': {err}",
+            collected.text
+        )
     });
 
     assert!(
         parsed.get("answer").is_some(),
-        "JSON schema grammar should produce object with 'answer' field, got: '{generated_text}'"
+        "JSON schema grammar should produce object with 'answer' field, got: '{}'",
+        collected.text
     );
 }
 
@@ -507,10 +517,10 @@ async fn test_raw_prompt_without_grammar_field_is_backwards_compatible() {
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let generated_text = collect_tokens_from_ndjson_body(&body);
+    let collected = collect_tokens_from_ndjson_body(&body);
 
     assert!(
-        !generated_text.is_empty(),
+        !collected.text.is_empty(),
         "should have received at least one token"
     );
 }
@@ -547,10 +557,10 @@ async fn test_conversation_history_without_grammar_field_is_backwards_compatible
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let generated_text = collect_tokens_from_ndjson_body(&body);
+    let collected = collect_tokens_from_ndjson_body(&body);
 
     assert!(
-        !generated_text.is_empty(),
+        !collected.text.is_empty(),
         "should have received at least one token"
     );
 }
