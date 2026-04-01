@@ -54,12 +54,11 @@ impl ManagedAgent {
 
         kill(pid, Signal::SIGTERM)?;
 
-        let exit_status = tokio::time::timeout(
-            Duration::from_secs(10),
-            self.child.wait(),
-        )
-        .await
-        .map_err(|timeout_error| anyhow!("Agent did not exit within 10 seconds after SIGTERM: {timeout_error}"))??;
+        let exit_status = tokio::time::timeout(Duration::from_secs(10), self.child.wait())
+            .await
+            .map_err(|timeout_error| {
+                anyhow!("Agent did not exit within 10 seconds after SIGTERM: {timeout_error}")
+            })??;
 
         Ok(exit_status)
     }

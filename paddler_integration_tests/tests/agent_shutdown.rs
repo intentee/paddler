@@ -39,5 +39,8 @@ async fn test_agent_shuts_down_gracefully() {
 
     let agent_count = cluster.balancer.wait_for_agent_count(0).await;
 
-    assert_eq!(agent_count, 0, "Balancer should see zero agents after agent shutdown");
+    assert_eq!(
+        agent_count, 0,
+        "Balancer should see zero agents after agent shutdown"
+    );
 }
