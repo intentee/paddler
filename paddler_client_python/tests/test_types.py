@@ -18,6 +18,10 @@ from paddler_client.types.continue_from_conversation_history_params import (
 from paddler_client.types.continue_from_raw_prompt_params import (
     ContinueFromRawPromptParams,
 )
+from paddler_client.types.grammar_constraint import (
+    GbnfGrammarConstraint,
+    JsonSchemaGrammarConstraint,
+)
 from paddler_client.types.conversation_message import ConversationMessage
 from paddler_client.types.conversation_message_content_part import (
     ImageUrlContentPart,
@@ -251,6 +255,7 @@ def test_continue_from_conversation_history_params_serialization() -> None:
     assert dumped["add_generation_prompt"] is True
     assert dumped["conversation_history"] == [{"content": "Hello!", "role": "user"}]
     assert dumped["enable_thinking"] is False
+    assert dumped["grammar"] is None
     assert dumped["max_tokens"] == 100
     assert dumped["tools"] == []
 
@@ -262,7 +267,11 @@ def test_continue_from_raw_prompt_params_serialization() -> None:
     )
     dumped = params.model_dump(mode="json")
 
-    assert dumped == {"max_tokens": 50, "raw_prompt": "Once upon a time"}
+    assert dumped == {
+        "grammar": None,
+        "max_tokens": 50,
+        "raw_prompt": "Once upon a time",
+    }
 
 
 def test_generate_embedding_batch_params_serialization() -> None:
@@ -485,3 +494,62 @@ def test_huggingface_model_reference_roundtrip() -> None:
     assert restored.filename == "model.gguf"
     assert restored.repo_id == "org/model"
     assert restored.revision == "main"
+
+
+def test_gbnf_grammar_constraint_serialization() -> None:
+    constraint = GbnfGrammarConstraint(
+        grammar='root ::= "yes" | "no"',
+        root="root",
+    )
+    dumped = constraint.model_dump(mode="json")
+
+    assert dumped == {
+        "type": "gbnf",
+        "grammar": 'root ::= "yes" | "no"',
+        "root": "root",
+    }
+
+
+def test_json_schema_grammar_constraint_serialization() -> None:
+    constraint = JsonSchemaGrammarConstraint(
+        schema_value='{"type": "object"}',
+    )
+    dumped = constraint.model_dump(mode="json", by_alias=True)
+
+    assert dumped == {
+        "type": "json_schema",
+        "schema": '{"type": "object"}',
+    }
+
+
+def test_raw_prompt_params_with_gbnf_grammar() -> None:
+    params = ContinueFromRawPromptParams(
+        grammar=GbnfGrammarConstraint(
+            grammar='root ::= "yes" | "no"',
+            root="root",
+        ),
+        max_tokens=10,
+        raw_prompt="Answer yes or no",
+    )
+    dumped = params.model_dump(mode="json")
+
+    assert dumped["grammar"]["type"] == "gbnf"
+    assert dumped["grammar"]["grammar"] == 'root ::= "yes" | "no"'
+
+
+def test_conversation_history_params_with_json_schema_grammar() -> None:
+    params = ContinueFromConversationHistoryParams(
+        add_generation_prompt=True,
+        conversation_history=[
+            ConversationMessage(content="hi", role="user"),
+        ],
+        enable_thinking=False,
+        grammar=JsonSchemaGrammarConstraint(
+            schema_value='{"type": "object"}',
+        ),
+        max_tokens=50,
+    )
+    dumped = params.model_dump(mode="json", by_alias=True)
+
+    assert dumped["grammar"]["type"] == "json_schema"
+    assert dumped["grammar"]["schema"] == '{"type": "object"}'

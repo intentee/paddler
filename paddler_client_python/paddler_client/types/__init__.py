@@ -32,6 +32,11 @@ from paddler_client.types.embedding_normalization_method import (
 from paddler_client.types.generate_embedding_batch_params import (
     GenerateEmbeddingBatchParams,
 )
+from paddler_client.types.grammar_constraint import (
+    GbnfGrammarConstraint,
+    GrammarConstraint,
+    JsonSchemaGrammarConstraint,
+)
 from paddler_client.types.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
@@ -61,7 +66,10 @@ __all__ = [
     "EmbeddingInputDocument",
     "EmbeddingNormalizationMethod",
     "Function",
+    "GbnfGrammarConstraint",
     "GenerateEmbeddingBatchParams",
+    "GrammarConstraint",
+    "JsonSchemaGrammarConstraint",
     "HuggingFaceModelReference",
     "ImageUrl",
     "ImageUrlContentPart",

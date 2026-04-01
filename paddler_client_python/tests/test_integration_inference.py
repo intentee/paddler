@@ -21,6 +21,8 @@ def _assert_not_error(message: InferenceMessage) -> None:
         InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS,
         InferenceMessageKind.SERVER_ERROR,
         InferenceMessageKind.CHAT_TEMPLATE_ERROR,
+        InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
+        InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
         InferenceMessageKind.IMAGE_DECODING_FAILED,
     ):
         raise AssertionError(

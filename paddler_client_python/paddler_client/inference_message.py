@@ -12,6 +12,8 @@ class InferenceMessageKind(StrEnum):
     TOKEN = "token"
     DONE = "done"
     CHAT_TEMPLATE_ERROR = "chat_template_error"
+    GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
+    GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
     IMAGE_DECODING_FAILED = "image_decoding_failed"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
     EMBEDDING = "embedding"
@@ -140,6 +142,20 @@ def _parse_generated_token_result(
                 request_id=request_id,
                 kind=InferenceMessageKind.CHAT_TEMPLATE_ERROR,
                 error_message=data["ChatTemplateError"],
+            )
+
+        if "GrammarInitializationFailed" in data:
+            return InferenceMessage(
+                request_id=request_id,
+                kind=InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
+                error_message=data["GrammarInitializationFailed"],
+            )
+
+        if "GrammarSyntaxError" in data:
+            return InferenceMessage(
+                request_id=request_id,
+                kind=InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
+                error_message=data["GrammarSyntaxError"],
             )
 
         if "ImageDecodingFailed" in data:
