@@ -15,17 +15,17 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from paddler_client.inference_message import InferenceMessage
-    from paddler_client.inference_socket_connection import ResponseStream
-    from paddler_client.types.continue_from_conversation_history_params import (
+    from paddler_client.continue_from_conversation_history_params import (
         ContinueFromConversationHistoryParams,
     )
-    from paddler_client.types.continue_from_raw_prompt_params import (
+    from paddler_client.continue_from_raw_prompt_params import (
         ContinueFromRawPromptParams,
     )
-    from paddler_client.types.generate_embedding_batch_params import (
+    from paddler_client.generate_embedding_batch_params import (
         GenerateEmbeddingBatchParams,
     )
+    from paddler_client.inference_message import InferenceMessage
+    from paddler_client.inference_socket_connection import ResponseStream
 
 InferenceRequestVariant = Literal[
     "ContinueFromConversationHistory",

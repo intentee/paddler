@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-from paddler_client.types.embedding import Embedding
+from paddler_client.embedding import Embedding
 
 
 class InferenceMessageKind(StrEnum):

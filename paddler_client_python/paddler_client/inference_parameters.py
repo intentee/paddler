@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from paddler_client.types.pooling_type import PoolingType
+from paddler_client.pooling_type import PoolingType
 
 
 class InferenceParameters(BaseModel):

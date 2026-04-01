@@ -5,10 +5,10 @@ import os
 
 import pytest
 
+from paddler_client.agent_desired_model import AgentDesiredModel
+from paddler_client.balancer_desired_state import BalancerDesiredState
 from paddler_client.client_management import ClientManagement
-from paddler_client.types.agent_desired_model import AgentDesiredModel
-from paddler_client.types.balancer_desired_state import BalancerDesiredState
-from paddler_client.types.huggingface_model_reference import (
+from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
 

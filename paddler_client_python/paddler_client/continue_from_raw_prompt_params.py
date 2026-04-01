@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from paddler_client.types.grammar_constraint import GrammarConstraint
+from paddler_client.grammar_constraint import GrammarConstraint
 
 
 class ContinueFromRawPromptParams(BaseModel):

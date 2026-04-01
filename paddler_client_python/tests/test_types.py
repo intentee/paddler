@@ -1,49 +1,51 @@
-from paddler_client.types.agent_controller_pool_snapshot import (
+import pytest
+
+from paddler_client.agent_controller_pool_snapshot import (
     AgentControllerPoolSnapshot,
 )
-from paddler_client.types.agent_controller_snapshot import AgentControllerSnapshot
-from paddler_client.types.agent_desired_model import AgentDesiredModel
-from paddler_client.types.agent_issue import AgentIssue
-from paddler_client.types.agent_state_application_status import (
+from paddler_client.agent_controller_snapshot import AgentControllerSnapshot
+from paddler_client.agent_desired_model import AgentDesiredModel
+from paddler_client.agent_issue import AgentIssue
+from paddler_client.agent_state_application_status import (
     AgentStateApplicationStatus,
 )
-from paddler_client.types.balancer_desired_state import BalancerDesiredState
-from paddler_client.types.buffered_request_manager_snapshot import (
+from paddler_client.balancer_desired_state import BalancerDesiredState
+from paddler_client.buffered_request_manager_snapshot import (
     BufferedRequestManagerSnapshot,
 )
-from paddler_client.types.chat_template import ChatTemplate
-from paddler_client.types.continue_from_conversation_history_params import (
+from paddler_client.chat_template import ChatTemplate
+from paddler_client.continue_from_conversation_history_params import (
     ContinueFromConversationHistoryParams,
 )
-from paddler_client.types.continue_from_raw_prompt_params import (
+from paddler_client.continue_from_raw_prompt_params import (
     ContinueFromRawPromptParams,
 )
-from paddler_client.types.conversation_message import ConversationMessage
-from paddler_client.types.conversation_message_content_part import (
+from paddler_client.conversation_message import ConversationMessage
+from paddler_client.conversation_message_content_part import (
     ImageUrlContentPart,
     TextContentPart,
 )
-from paddler_client.types.embedding import Embedding
-from paddler_client.types.embedding_input_document import EmbeddingInputDocument
-from paddler_client.types.embedding_normalization_method import (
+from paddler_client.embedding import Embedding
+from paddler_client.embedding_input_document import EmbeddingInputDocument
+from paddler_client.embedding_normalization_method import (
     EmbeddingNormalizationMethod,
 )
-from paddler_client.types.generate_embedding_batch_params import (
+from paddler_client.generate_embedding_batch_params import (
     GenerateEmbeddingBatchParams,
 )
-from paddler_client.types.grammar_constraint import (
+from paddler_client.grammar_constraint import (
     GbnfGrammarConstraint,
     JsonSchemaGrammarConstraint,
 )
-from paddler_client.types.huggingface_model_reference import (
+from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
-from paddler_client.types.image_url import ImageUrl
-from paddler_client.types.inference_parameters import InferenceParameters
-from paddler_client.types.model_metadata import ModelMetadata
-from paddler_client.types.pooling_type import PoolingType
-from paddler_client.types.tool import Function, Tool
-from paddler_client.types.validated_parameters_schema import (
+from paddler_client.image_url import ImageUrl
+from paddler_client.inference_parameters import InferenceParameters
+from paddler_client.model_metadata import ModelMetadata
+from paddler_client.pooling_type import PoolingType
+from paddler_client.tool import Function, Tool
+from paddler_client.validated_parameters_schema import (
     ValidatedParametersSchema,
 )
 
@@ -553,3 +555,79 @@ def test_conversation_history_params_with_json_schema_grammar() -> None:
 
     assert dumped["grammar"]["type"] == "json_schema"
     assert dumped["grammar"]["schema"] == '{"type": "object"}'
+
+
+def test_agent_desired_model_invalid_data_raises() -> None:
+    with pytest.raises(ValueError, match="Invalid AgentDesiredModel"):
+        AgentDesiredModel.model_validate(42)
+
+
+def test_agent_desired_model_local_to_agent_roundtrip() -> None:
+    model = AgentDesiredModel.local_to_agent("/path/to/model")
+    dumped = model.model_dump(mode="json")
+
+    assert dumped == {"LocalToAgent": "/path/to/model"}
+
+
+def test_agent_desired_model_unknown_variant_serialization_raises() -> None:
+    model = AgentDesiredModel(variant="Unknown")
+
+    with pytest.raises(ValueError, match="Unknown AgentDesiredModel variant"):
+        model.model_dump(mode="json")
+
+
+def test_agent_desired_model_local_to_agent_missing_path_raises() -> None:
+    model = AgentDesiredModel(variant="LocalToAgent", local_path=None)
+
+    with pytest.raises(ValueError, match="local_path is required"):
+        model.model_dump(mode="json")
+
+
+def test_embedding_normalization_method_rms_norm_missing_epsilon_raises() -> None:
+    method = EmbeddingNormalizationMethod(variant="RmsNorm", epsilon=None)
+
+    with pytest.raises(ValueError, match="epsilon is required"):
+        method.model_dump(mode="json")
+
+
+def test_agent_issue_string_variant_deserialization() -> None:
+    issue = AgentIssue.model_validate("SimpleIssue")
+
+    assert issue.variant == "SimpleIssue"
+    assert issue.params == {}
+
+
+def test_agent_issue_non_dict_params_deserialization() -> None:
+    issue = AgentIssue.model_validate({"SomeIssue": "a string value"})
+
+    assert issue.variant == "SomeIssue"
+    assert issue.params == {"value": "a string value"}
+
+
+def test_agent_issue_invalid_data_raises() -> None:
+    with pytest.raises(ValueError, match="Invalid AgentIssue"):
+        AgentIssue.model_validate(42)
+
+
+def test_agent_issue_empty_params_serializes_as_string() -> None:
+    issue = AgentIssue(variant="SimpleIssue")
+    serialized = issue.model_dump_json()
+
+    assert serialized == '"SimpleIssue"'
+
+
+def test_embedding_normalization_method_invalid_rms_norm_raises() -> None:
+    with pytest.raises(ValueError, match="Invalid RmsNorm payload"):
+        EmbeddingNormalizationMethod.model_validate({"RmsNorm": "not a dict"})
+
+
+def test_embedding_normalization_method_invalid_data_raises() -> None:
+    with pytest.raises(ValueError, match="Invalid EmbeddingNormalizationMethod"):
+        EmbeddingNormalizationMethod.model_validate(42)
+
+
+def test_embedding_normalization_method_rms_norm_roundtrip() -> None:
+    method = EmbeddingNormalizationMethod.rms_norm(epsilon=1e-6)
+    dumped = method.model_dump(mode="json")
+
+    assert dumped == {"RmsNorm": {"epsilon": 1e-6}}

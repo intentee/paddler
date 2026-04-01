@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from paddler_client.types.validated_parameters_schema import (
+from paddler_client.validated_parameters_schema import (
     ValidatedParametersSchema,
 )
 

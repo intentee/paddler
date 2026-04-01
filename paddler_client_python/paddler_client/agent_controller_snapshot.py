@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from paddler_client.types.agent_issue import AgentIssue
-from paddler_client.types.agent_state_application_status import (
+from paddler_client.agent_issue import AgentIssue
+from paddler_client.agent_state_application_status import (
     AgentStateApplicationStatus,
 )
 

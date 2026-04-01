@@ -2,7 +2,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 
-from paddler_client.types.huggingface_model_reference import (
+from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
 

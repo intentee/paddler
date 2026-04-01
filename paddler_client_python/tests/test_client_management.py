@@ -3,9 +3,9 @@ import json
 import httpx
 import pytest
 
+from paddler_client.balancer_desired_state import BalancerDesiredState
 from paddler_client.client_management import ClientManagement
 from paddler_client.error import HttpError
-from paddler_client.types.balancer_desired_state import BalancerDesiredState
 
 
 def _agent_snapshot_json() -> dict[str, object]:

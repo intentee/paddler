@@ -1,9 +1,9 @@
 from pydantic import BaseModel, ConfigDict
 
-from paddler_client.types.embedding_normalization_method import (
+from paddler_client.embedding_normalization_method import (
     EmbeddingNormalizationMethod,
 )
-from paddler_client.types.pooling_type import PoolingType
+from paddler_client.pooling_type import PoolingType
 
 
 class Embedding(BaseModel):

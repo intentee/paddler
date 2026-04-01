@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
-from paddler_client.types.embedding_input_document import EmbeddingInputDocument
-from paddler_client.types.embedding_normalization_method import (
+from paddler_client.embedding_input_document import EmbeddingInputDocument
+from paddler_client.embedding_normalization_method import (
     EmbeddingNormalizationMethod,
 )
 

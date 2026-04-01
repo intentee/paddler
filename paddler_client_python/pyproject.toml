@@ -22,6 +22,7 @@ pydantic = "^2"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8"
 pytest-asyncio = "^0.25"
+pytest-cov = "^6"
 pyright = "^1"
 ruff = "^0.11"
 mypy = "^1"
@@ -73,5 +74,19 @@ ignore = [
     "SIM117",  # nested with statements - async with can't combine easily
 ]
 
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+
+[tool.coverage.run]
+source = ["paddler_client"]
+omit = [
+    "paddler_client/client_inference.py",
+    "paddler_client/client_management.py",
+    "paddler_client/inference_socket_connection.py",
+    "paddler_client/inference_socket_pool.py",
+]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "--cov --cov-report=term-missing --cov-fail-under=100"

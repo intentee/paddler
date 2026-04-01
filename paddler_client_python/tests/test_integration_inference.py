@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 
 from paddler_client.client_inference import ClientInference
-from paddler_client.inference_message import InferenceMessage, InferenceMessageKind
-from paddler_client.types.continue_from_conversation_history_params import (
+from paddler_client.continue_from_conversation_history_params import (
     ContinueFromConversationHistoryParams,
 )
-from paddler_client.types.continue_from_raw_prompt_params import (
+from paddler_client.continue_from_raw_prompt_params import (
     ContinueFromRawPromptParams,
 )
-from paddler_client.types.conversation_message import ConversationMessage
+from paddler_client.conversation_message import ConversationMessage
+from paddler_client.inference_message import InferenceMessage, InferenceMessageKind
 
 pytestmark = pytest.mark.integration
 
