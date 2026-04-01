@@ -273,15 +273,11 @@ impl LlamaCppArbiter {
                 reason = "desired_slots_total is always non-negative when used as slot count"
             )]
             #[expect(
-                clippy::expect_used,
-                reason = "oneshot channel send/recv inside sync arbiter block_on cannot propagate errors"
-            )]
-            #[expect(
                 clippy::panic,
                 reason = "SyncArbiter factory closure cannot return Result"
             )]
             system.block_on(async move {
-                llamacpp_slot_addr_tx
+                if llamacpp_slot_addr_tx
                     .send(SyncArbiter::start(
                         desired_slots_total as usize,
                         move || {
@@ -317,11 +313,17 @@ impl LlamaCppArbiter {
                             }
                         },
                     ))
-                    .expect("Failed to send LlamaCppSlot address");
+                    .is_err()
+                {
+                    error!("Failed to send LlamaCppSlot address");
+                    System::current().stop();
 
-                shutdown_rx
-                    .await
-                    .expect("Failed to receive shutdown signal");
+                    return;
+                }
+
+                if let Err(err) = shutdown_rx.await {
+                    error!("Failed to receive shutdown signal: {err}");
+                }
 
                 System::current().stop();
             });

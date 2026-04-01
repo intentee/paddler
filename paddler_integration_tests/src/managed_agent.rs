@@ -1,4 +1,11 @@
+use std::process::ExitStatus;
+use std::time::Duration;
+
 use anyhow::Result;
+use anyhow::anyhow;
+use nix::sys::signal::Signal;
+use nix::sys::signal::kill;
+use nix::unistd::Pid;
 use tokio::process::Child;
 
 use crate::paddler_command;
@@ -34,6 +41,27 @@ impl ManagedAgent {
         let child = command.spawn()?;
 
         Ok(Self { child })
+    }
+
+    pub async fn graceful_shutdown(&mut self) -> Result<ExitStatus> {
+        let raw_pid = self
+            .child
+            .id()
+            .ok_or_else(|| anyhow!("Agent process already exited"))?;
+
+        #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
+        let pid = Pid::from_raw(raw_pid as i32);
+
+        kill(pid, Signal::SIGTERM)?;
+
+        let exit_status = tokio::time::timeout(
+            Duration::from_secs(10),
+            self.child.wait(),
+        )
+        .await
+        .map_err(|timeout_error| anyhow!("Agent did not exit within 10 seconds after SIGTERM: {timeout_error}"))??;
+
+        Ok(exit_status)
     }
 
     pub fn kill(&mut self) {

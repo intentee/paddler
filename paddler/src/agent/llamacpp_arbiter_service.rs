@@ -224,7 +224,7 @@ impl Service for LlamaCppArbiterService {
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        run_until_shutdown(shutdown, async |inner_shutdown| {
+        let result = run_until_shutdown(shutdown, async |inner_shutdown| {
             tokio::select! {
                 _ = ticker.tick() => {
                     let current_status = self.slot_aggregated_status_manager.slot_aggregated_status.get_state_application_status()?;
@@ -294,6 +294,14 @@ impl Service for LlamaCppArbiterService {
 
             Ok(())
         })
-        .await
+        .await;
+
+        if let Some(llamacpp_arbiter_handle) = self.llamacpp_arbiter_handle.take()
+            && let Err(err) = llamacpp_arbiter_handle.shutdown()
+        {
+            error!("Failed to shut down llama.cpp arbiter: {err}");
+        }
+
+        result
     }
 }
