@@ -17,6 +17,7 @@ use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use crate::run_until_shutdown::run_until_shutdown;
 use crate::service::Service;
 
 pub struct StatsdService {
@@ -43,13 +44,13 @@ impl StatsdService {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for StatsdService {
     fn name(&self) -> &'static str {
         "balancer::statsd_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: broadcast::Receiver<()>) -> Result<()> {
         let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
         let statsd_sink = UdpMetricSink::from(self.configuration.statsd_addr, statsd_sink_socket)?;
 
@@ -61,15 +62,15 @@ impl Service for StatsdService {
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
-            tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
-                _ = ticker.tick() => {
-                    if let Err(err) = self.report_metrics(&client) {
-                        error!("Failed to report metrics: {err}");
-                    }
-                }
+        run_until_shutdown(shutdown, async |_inner_shutdown| {
+            ticker.tick().await;
+
+            if let Err(err) = self.report_metrics(&client) {
+                error!("Failed to report metrics: {err}");
             }
-        }
+
+            Ok(())
+        })
+        .await
     }
 }

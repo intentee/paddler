@@ -43,6 +43,7 @@ use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonr
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::RegisterAgentParams;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::UpdateAgentStatusParams;
 use crate::produces_snapshot::ProducesSnapshot;
+use crate::run_until_shutdown::run_until_shutdown;
 use crate::service::Service;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
@@ -482,31 +483,31 @@ impl ManagementSocketClientService {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Service for ManagementSocketClientService {
     fn name(&self) -> &'static str {
         "agent::management_socket_client_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: broadcast::Receiver<()>) -> Result<()> {
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
-            tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
-                _ = ticker.tick() => {
-                    match self.keep_connection_alive(shutdown.resubscribe()).await {
-                        Err(err) => {
-                            error!("Failed to keep the connection alive: {err:?}");
-                        }
-                        Ok(()) => {
-                            info!("Gracefully closed connection to management server");
-                        }
-                    }
+        run_until_shutdown(shutdown, async |inner_shutdown| {
+            ticker.tick().await;
+
+            match self.keep_connection_alive(inner_shutdown).await {
+                Err(err) => {
+                    error!("Failed to keep the connection alive: {err:?}");
+                }
+                Ok(()) => {
+                    info!("Gracefully closed connection to management server");
                 }
             }
-        }
+
+            Ok(())
+        })
+        .await
     }
 }
