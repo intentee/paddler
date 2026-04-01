@@ -45,7 +45,7 @@ warn_untyped_fields = true
 
 [tool.pyright]
 pythonVersion = "3.11"
-pythonPlatform = "Linux"
+pythonPlatform = "All"
 typeCheckingMode = "strict"
 
 [tool.ruff]
