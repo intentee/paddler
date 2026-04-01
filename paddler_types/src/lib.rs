@@ -20,6 +20,7 @@ pub mod embedding_input_document;
 pub mod embedding_normalization_method;
 pub mod embedding_result;
 pub mod generated_token_result;
+pub mod grammar_constraint;
 pub mod huggingface_model_reference;
 pub mod image_url;
 pub mod inference_client;

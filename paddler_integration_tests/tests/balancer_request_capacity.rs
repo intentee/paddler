@@ -64,6 +64,7 @@ async fn test_slots_can_handle_request() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })
@@ -105,6 +106,7 @@ async fn test_slots_can_handle_request() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })

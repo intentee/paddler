@@ -22,6 +22,8 @@ pydantic = "^2"
 [tool.poetry.group.dev.dependencies]
 pytest = "^8"
 pytest-asyncio = "^0.25"
+pytest-cov = "^6"
+pyright = "^1"
 ruff = "^0.11"
 mypy = "^1"
 
@@ -32,6 +34,7 @@ build-backend = "poetry.core.masonry.api"
 [tool.mypy]
 python_version = "3.11"
 strict = true
+extra_checks = true
 plugins = ["pydantic.mypy"]
 
 [tool.pydantic-mypy]
@@ -39,6 +42,11 @@ init_forbid_extra = true
 init_typed = true
 warn_required_dynamic_aliases = true
 warn_untyped_fields = true
+
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "strict"
 
 [tool.ruff]
 line-length = 88
@@ -49,31 +57,36 @@ select = ["ALL"]
 ignore = [
     "ANN401",  # Any type allowed for JSON data
     "COM812",  # trailing comma - conflicts with formatter
-    "CPY001",  # copyright notice not needed
     "D",       # docstrings - project prefers self-documenting code
-    "EM101",   # exception message as variable - overly pedantic for f-strings
-    "EM102",   # exception message as variable - overly pedantic for f-strings
     "FBT",     # boolean arguments - standard for pydantic models and config
     "ISC001",  # implicit string concatenation - conflicts with formatter
-    "PLR0913", # too many arguments
     "S105",    # false positive on enum member names like TOKEN
-    "TC",      # TYPE_CHECKING imports - overkill for this project size
     "TRY003",  # long exception messages - fine for ValueError with context
 ]
 
-[tool.ruff.lint.mccabe]
-max-complexity = 12
-
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
+    "ARG001",  # unused handler args - required by httpx.MockTransport signature
     "PERF401", # async for with append - clearer than comprehension in tests
     "PLR2004", # magic values in assertions
     "S101",    # assert statements
     "S106",    # false positive on token keyword argument
     "SIM117",  # nested with statements - async with can't combine easily
-    "ARG001",  # unused handler args - required by httpx.MockTransport signature
-    "SLF001",  # private member access
+]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true
+
+[tool.coverage.run]
+source = ["paddler_client"]
+omit = [
+    "paddler_client/client_inference.py",
+    "paddler_client/client_management.py",
+    "paddler_client/inference_socket_connection.py",
+    "paddler_client/inference_socket_pool.py",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+addopts = "--cov --cov-report=term-missing --cov-fail-under=100"

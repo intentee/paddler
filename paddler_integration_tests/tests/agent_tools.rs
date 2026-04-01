@@ -110,6 +110,7 @@ async fn test_tools_parameter_is_optional() {
                 role: "user".to_string(),
             }]),
             enable_thinking: true,
+            grammar: None,
             max_tokens: 10,
             tools: vec![],
         })
@@ -151,6 +152,7 @@ async fn test_tools_with_function() {
                 role: "user".to_string(),
             }]),
             enable_thinking: true,
+            grammar: None,
             max_tokens: 50,
             tools: vec![Tool::Function(FunctionCall {
                 function: Function {
@@ -197,6 +199,7 @@ async fn test_tools_schema_validation() {
                 role: "user".to_string(),
             }]),
             enable_thinking: true,
+            grammar: None,
             max_tokens: 10,
             tools: vec![Tool::Function(FunctionCall {
                 function: Function {

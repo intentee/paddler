@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Discriminator, Tag
 
-from paddler_client.types.image_url import ImageUrl
+from paddler_client.image_url import ImageUrl
 
 
 class TextContentPart(BaseModel):

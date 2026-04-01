@@ -35,6 +35,7 @@ async fn send_buffered_requests(balancer: &ManagedBalancer, count: usize) -> Vec
             .client()
             .inference()
             .continue_from_raw_prompt(ContinueFromRawPromptParams {
+                grammar: None,
                 max_tokens: 10,
                 raw_prompt: "Hello".to_string(),
             })
@@ -101,6 +102,7 @@ async fn test_inference_fails_when_no_model_configured() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })
@@ -170,6 +172,7 @@ async fn test_inference_fails_when_no_agents_registered() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })
@@ -231,6 +234,7 @@ async fn test_balancer_overflows_buffer_when_feature_is_disabled() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })
@@ -297,6 +301,7 @@ async fn test_balancer_can_buffer_requests() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })
@@ -556,6 +561,7 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_string(),
         })

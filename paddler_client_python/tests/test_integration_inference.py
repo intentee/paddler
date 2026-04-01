@@ -3,14 +3,14 @@ from __future__ import annotations
 import pytest
 
 from paddler_client.client_inference import ClientInference
-from paddler_client.inference_message import InferenceMessage, InferenceMessageKind
-from paddler_client.types.continue_from_conversation_history_params import (
+from paddler_client.continue_from_conversation_history_params import (
     ContinueFromConversationHistoryParams,
 )
-from paddler_client.types.continue_from_raw_prompt_params import (
+from paddler_client.continue_from_raw_prompt_params import (
     ContinueFromRawPromptParams,
 )
-from paddler_client.types.conversation_message import ConversationMessage
+from paddler_client.conversation_message import ConversationMessage
+from paddler_client.inference_message import InferenceMessage, InferenceMessageKind
 
 pytestmark = pytest.mark.integration
 
@@ -21,12 +21,15 @@ def _assert_not_error(message: InferenceMessage) -> None:
         InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS,
         InferenceMessageKind.SERVER_ERROR,
         InferenceMessageKind.CHAT_TEMPLATE_ERROR,
+        InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
+        InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
         InferenceMessageKind.IMAGE_DECODING_FAILED,
     ):
-        raise AssertionError(
+        msg = (
             f"Unexpected error response: {message.kind}"
             f" ({message.error_message or message.error_code or ''})"
         )
+        raise AssertionError(msg)
 
 
 async def test_health(inference_url: str) -> None:
