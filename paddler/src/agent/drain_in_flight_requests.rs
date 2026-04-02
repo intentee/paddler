@@ -9,28 +9,21 @@ pub async fn drain_in_flight_requests(
     slot_aggregated_status_manager: &Arc<SlotAggregatedStatusManager>,
     shutdown: &mut broadcast::Receiver<()>,
 ) {
-    loop {
-        let notified = slot_aggregated_status_manager
-            .slot_aggregated_status
-            .update_notifier
-            .notified();
-        tokio::pin!(notified);
-
-        if slot_aggregated_status_manager
-            .slot_aggregated_status
-            .slots_processing_count()
-            == 0
-        {
-            break;
-        }
-
+    while slot_aggregated_status_manager
+        .slot_aggregated_status
+        .slots_processing_count()
+        > 0
+    {
         tokio::select! {
             _ = shutdown.recv() => {
                 info!("Shutdown during drain, proceeding immediately");
 
                 break;
             }
-            () = &mut notified => {}
+            () = slot_aggregated_status_manager
+                .slot_aggregated_status
+                .update_notifier
+                .notified() => {}
         }
     }
 }
