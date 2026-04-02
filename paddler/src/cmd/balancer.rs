@@ -97,6 +97,7 @@ pub struct Balancer {
     /// Interval (in milliseconds) at which the balancer will report metrics to statsd
     statsd_reporting_interval: Duration,
 
+    #[cfg(feature = "web_admin_panel")]
     #[arg(long, default_value = None, value_parser = parse_socket_addr)]
     /// Address of the web admin panel (enabled only if this address is specified)
     web_admin_panel_addr: Option<ResolvedSocketAddr>,

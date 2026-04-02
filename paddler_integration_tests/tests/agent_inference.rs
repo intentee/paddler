@@ -32,6 +32,8 @@ use tempfile::NamedTempFile;
 struct CollectedTokens {
     text: String,
     count: usize,
+    has_grammar_incompatible_with_thinking: bool,
+    has_grammar_rejected_model_output: bool,
 }
 
 async fn collect_tokens_from_websocket_stream(
@@ -39,6 +41,8 @@ async fn collect_tokens_from_websocket_stream(
 ) -> CollectedTokens {
     let mut text = String::new();
     let mut count = 0;
+    let mut has_grammar_incompatible_with_thinking = false;
+    let mut has_grammar_rejected_model_output = false;
 
     while let Some(message) = stream.next().await {
         let message = message.expect("message should deserialize");
@@ -50,6 +54,18 @@ async fn collect_tokens_from_websocket_stream(
                     count += 1;
                 }
                 Response::GeneratedToken(GeneratedTokenResult::Done) => break,
+                Response::GeneratedToken(
+                    GeneratedTokenResult::GrammarIncompatibleWithThinking(_),
+                ) => {
+                    has_grammar_incompatible_with_thinking = true;
+
+                    break;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::GrammarRejectedModelOutput(_)) => {
+                    has_grammar_rejected_model_output = true;
+
+                    break;
+                }
                 other => panic!("unexpected response: {other:?}"),
             },
             Message::Error(envelope) => {
@@ -61,12 +77,14 @@ async fn collect_tokens_from_websocket_stream(
         }
     }
 
-    CollectedTokens { text, count }
+    CollectedTokens { text, count, has_grammar_incompatible_with_thinking, has_grammar_rejected_model_output }
 }
 
 fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
     let mut text = String::new();
     let mut count = 0;
+    let mut has_grammar_incompatible_with_thinking = false;
+    let mut has_grammar_rejected_model_output = false;
 
     for line in body.lines() {
         let line = line.trim();
@@ -85,6 +103,18 @@ fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
                     count += 1;
                 }
                 Response::GeneratedToken(GeneratedTokenResult::Done) => break,
+                Response::GeneratedToken(
+                    GeneratedTokenResult::GrammarIncompatibleWithThinking(_),
+                ) => {
+                    has_grammar_incompatible_with_thinking = true;
+
+                    break;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::GrammarRejectedModelOutput(_)) => {
+                    has_grammar_rejected_model_output = true;
+
+                    break;
+                }
                 other => panic!("unexpected response: {other:?}"),
             },
             Message::Error(envelope) => {
@@ -96,7 +126,7 @@ fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
         }
     }
 
-    CollectedTokens { text, count }
+    CollectedTokens { text, count, has_grammar_incompatible_with_thinking, has_grammar_rejected_model_output }
 }
 
 #[tokio::test]
@@ -404,33 +434,51 @@ async fn test_openai_health_endpoint() {
 
 #[tokio::test]
 #[file_serial]
-async fn test_raw_prompt_with_gbnf_grammar() {
-    let cluster = ManagedCluster::spawn(ManagedClusterParams {
+async fn test_conversation_history_with_gbnf_grammar() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "grammar-agent".to_string(),
         ..ManagedClusterParams::default()
     })
     .await
     .expect("failed to spawn cluster");
 
-    let stream = cluster
-        .balancer
-        .client()
-        .inference()
-        .continue_from_raw_prompt(ContinueFromRawPromptParams {
-            grammar: Some(GrammarConstraint::Gbnf {
-                grammar: r#"root ::= "yes" | "no""#.to_owned(),
-                root: "root".to_owned(),
-            }),
-            max_tokens: 10,
-            raw_prompt: "The sky is blue. True or false? Answer yes or no:".to_string(),
-        })
-        .await
-        .expect("grammar request should succeed");
+    let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text(
+                "Is the sky blue? Answer with exactly yes or no.".to_string(),
+            ),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: false,
+        grammar: Some(GrammarConstraint::Gbnf {
+            grammar: r#"root ::= [Yy] [Ee] [Ss] | [Nn] [Oo]"#.to_owned(),
+            root: "root".to_owned(),
+        }),
+        max_tokens: 200,
+        tools: vec![],
+    };
 
-    let collected = collect_tokens_from_websocket_stream(stream).await;
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&params)
+        .send()
+        .await
+        .expect("gbnf grammar request should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+
+    let collected = collect_tokens_from_ndjson_body(&body);
+    let lowercase = collected.text.to_lowercase();
 
     assert!(
-        collected.text == "yes" || collected.text == "no",
+        lowercase == "yes" || lowercase == "no",
         "GBNF grammar should constrain output to 'yes' or 'no', got: '{}'",
         collected.text
     );
@@ -456,7 +504,7 @@ async fn test_conversation_history_with_json_schema_grammar() {
         grammar: Some(GrammarConstraint::JsonSchema {
             schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
         }),
-        max_tokens: 50,
+        max_tokens: 200,
         tools: vec![],
     };
 
@@ -486,6 +534,87 @@ async fn test_conversation_history_with_json_schema_grammar() {
     assert!(
         parsed.get("answer").is_some(),
         "JSON schema grammar should produce object with 'answer' field, got: '{}'",
+        collected.text
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_raw_prompt_with_gbnf_grammar_small_model() {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "small-grammar-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: Some(GrammarConstraint::Gbnf {
+                grammar: r#"root ::= "yes" | "no""#.to_owned(),
+                root: "root".to_owned(),
+            }),
+            max_tokens: 10,
+            raw_prompt: "<|im_start|>user\nIs the sky blue?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_string(),
+        })
+        .await
+        .expect("grammar request should succeed");
+
+    let collected = collect_tokens_from_websocket_stream(stream).await;
+
+    assert!(
+        collected.text == "yes" || collected.text == "no",
+        "GBNF grammar should constrain output to 'yes' or 'no', got: '{}'",
+        collected.text
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_grammar_with_thinking_returns_incompatible_error() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "thinking-grammar-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text("What is 2+2?".to_string()),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: true,
+        grammar: Some(GrammarConstraint::JsonSchema {
+            schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
+        }),
+        max_tokens: 50,
+        tools: vec![],
+    };
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&params)
+        .send()
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+    let collected = collect_tokens_from_ndjson_body(&body);
+
+    assert!(
+        collected.has_grammar_incompatible_with_thinking,
+        "Expected GrammarIncompatibleWithThinking error when using grammar with thinking enabled, got text: '{}'",
         collected.text
     );
 }

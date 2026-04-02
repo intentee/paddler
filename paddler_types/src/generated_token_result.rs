@@ -8,7 +8,9 @@ use crate::streamable_result::StreamableResult;
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     Done,
+    GrammarIncompatibleWithThinking(String),
     GrammarInitializationFailed(String),
+    GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
     MultimodalNotSupported(String),
@@ -21,7 +23,9 @@ impl StreamableResult for GeneratedTokenResult {
             self,
             Self::ChatTemplateError(_)
                 | Self::Done
+                | Self::GrammarIncompatibleWithThinking(_)
                 | Self::GrammarInitializationFailed(_)
+                | Self::GrammarRejectedModelOutput(_)
                 | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
                 | Self::MultimodalNotSupported(_)
@@ -41,6 +45,18 @@ mod tests {
     #[test]
     fn chat_template_error_is_done() {
         assert!(GeneratedTokenResult::ChatTemplateError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_incompatible_with_thinking_is_done() {
+        assert!(
+            GeneratedTokenResult::GrammarIncompatibleWithThinking("err".to_owned()).is_done()
+        );
+    }
+
+    #[test]
+    fn grammar_rejected_model_output_is_done() {
+        assert!(GeneratedTokenResult::GrammarRejectedModelOutput("err".to_owned()).is_done());
     }
 
     #[test]

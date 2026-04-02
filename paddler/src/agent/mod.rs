@@ -1,5 +1,6 @@
 pub mod continue_from_conversation_history_request;
 pub mod continue_from_raw_prompt_request;
+pub mod drain_in_flight_requests;
 mod from_request_params;
 pub mod generate_embedding_batch_request;
 pub mod jsonrpc;
@@ -16,3 +17,4 @@ mod receive_stream_stopper_drop_guard;
 pub mod reconciliation_service;
 pub mod resolve_grammar_to_gbnf;
 pub mod resolved_grammar;
+pub mod resolved_grammar_sampler;

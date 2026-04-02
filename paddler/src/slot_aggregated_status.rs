@@ -166,6 +166,10 @@ impl SlotAggregatedStatus {
         self.version.increment();
         self.update_notifier.notify_waiters();
     }
+
+    pub fn slots_processing_count(&self) -> i32 {
+        self.slots_processing.get()
+    }
 }
 
 impl DispensesSlots for SlotAggregatedStatus {

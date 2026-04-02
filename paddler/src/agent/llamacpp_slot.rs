@@ -40,8 +40,7 @@ use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::kv_cache_repair_action::KVCacheRepairAction;
 use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
-use crate::agent::resolve_grammar_to_gbnf::resolve_grammar_to_gbnf;
-use crate::agent::resolved_grammar::ResolvedGrammar;
+use crate::agent::resolved_grammar_sampler::ResolvedGrammarSampler;
 use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
@@ -167,13 +166,33 @@ impl LlamaCppSlot {
     fn resolve_grammar(
         &self,
         grammar: Option<&GrammarConstraint>,
+        enable_thinking: bool,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ) -> Result<Option<ResolvedGrammar>> {
-        match grammar.map(resolve_grammar_to_gbnf).transpose() {
-            Ok(resolved) => Ok(resolved),
+    ) -> Result<Option<ResolvedGrammarSampler>> {
+        let Some(grammar_constraint) = grammar else {
+            return Ok(None);
+        };
+
+        if enable_thinking {
+            let msg = format!(
+                "{:?}: slot {} grammar constraints and thinking mode cannot be used together. \
+                 Set enable_thinking to false when using grammar constraints.",
+                self.slot_context.agent_name, self.index
+            );
+
+            error!("{msg}");
+
+            generated_tokens_tx
+                .send(GeneratedTokenResult::GrammarIncompatibleWithThinking(msg.clone()))?;
+
+            return Err(anyhow!(msg));
+        }
+
+        match ResolvedGrammarSampler::new(grammar_constraint) {
+            Ok(resolved) => Ok(Some(resolved)),
             Err(err) => {
                 let msg = format!(
-                    "{:?}: slot {} grammar syntax error: {err}",
+                    "{:?}: slot {} grammar error: {err}",
                     self.slot_context.agent_name, self.index
                 );
 
@@ -186,47 +205,41 @@ impl LlamaCppSlot {
         }
     }
 
-    fn build_grammar_sampler(
-        &self,
-        resolved_grammar: &ResolvedGrammar,
-        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ) -> Result<LlamaSampler> {
-        match LlamaSampler::grammar(
-            &self.slot_context.model,
-            &resolved_grammar.grammar_string,
-            &resolved_grammar.root_rule,
-        ) {
-            Ok(sampler) => Ok(sampler),
-            Err(grammar_error) => {
-                let msg = format!(
-                    "{:?}: slot {} failed to initialize grammar sampler: {grammar_error}",
-                    self.slot_context.agent_name, self.index
-                );
-
-                error!("{msg}");
-
-                generated_tokens_tx.send(GeneratedTokenResult::GrammarInitializationFailed(
-                    msg.clone(),
-                ))?;
-
-                Err(anyhow!(msg))
-            }
-        }
-    }
-
     fn generate_tokens(
         &mut self,
         mut generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
         max_tokens: i32,
         mut current_token_position: i32,
-        resolved_grammar: Option<ResolvedGrammar>,
+        resolved_grammar_sampler: Option<ResolvedGrammarSampler>,
     ) -> Result<()> {
         let batch_size = self.slot_context.inference_parameters.batch_n_tokens;
         let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-        let mut samplers = vec![
+        let mut samplers = Vec::new();
+
+        if let Some(resolved) = resolved_grammar_sampler {
+            match resolved.build_sampler(&self.slot_context.model) {
+                Ok(grammar_sampler) => samplers.push(grammar_sampler),
+                Err(err) => {
+                    let msg = format!(
+                        "{:?}: slot {} failed to initialize grammar sampler: {err}",
+                        self.slot_context.agent_name, self.index
+                    );
+
+                    error!("{msg}");
+
+                    generated_tokens_tx.send(
+                        GeneratedTokenResult::GrammarInitializationFailed(msg.clone()),
+                    )?;
+
+                    return Err(anyhow!(msg));
+                }
+            }
+        }
+
+        samplers.extend([
             LlamaSampler::penalties(
                 self.slot_context.inference_parameters.penalty_last_n,
                 self.slot_context.inference_parameters.penalty_repeat,
@@ -237,13 +250,8 @@ impl LlamaCppSlot {
             LlamaSampler::top_p(self.slot_context.inference_parameters.top_p, 0),
             LlamaSampler::min_p(self.slot_context.inference_parameters.min_p, 0),
             LlamaSampler::temp(self.slot_context.inference_parameters.temperature),
-        ];
-
-        if let Some(resolved) = resolved_grammar {
-            samplers.push(self.build_grammar_sampler(&resolved, generated_tokens_tx)?);
-        }
-
-        samplers.push(LlamaSampler::dist(self.rng.random::<u32>()));
+            LlamaSampler::dist(self.rng.random::<u32>()),
+        ]);
 
         let mut sampler = LlamaSampler::chain_simple(samplers);
 
@@ -258,9 +266,22 @@ impl LlamaCppSlot {
             }
 
             {
-                let token = sampler.sample(&self.llama_context, -1);
+                let token = match sampler.sample(&self.llama_context, -1) {
+                    Ok(token) => token,
+                    Err(err) => {
+                        let msg = format!(
+                            "{:?}: slot {} grammar rejected model output: {err}",
+                            self.slot_context.agent_name, self.index
+                        );
 
-                sampler.accept(token)?;
+                        error!("{msg}");
+
+                        generated_tokens_tx
+                            .send(GeneratedTokenResult::GrammarRejectedModelOutput(msg))?;
+
+                        return Ok(());
+                    }
+                };
 
                 if self.slot_context.model.is_eog_token(token) {
                     break;
@@ -511,7 +532,7 @@ impl Handler<ContinueFromConversationHistoryRequest> for LlamaCppSlot {
         }: ContinueFromConversationHistoryRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let resolved_grammar = self.resolve_grammar(grammar.as_ref(), &generated_tokens_tx)?;
+        let resolved_grammar = self.resolve_grammar(grammar.as_ref(), enable_thinking, &generated_tokens_tx)?;
 
         let image_resize_to_fit = self.slot_context.inference_parameters.image_resize_to_fit;
 
@@ -634,7 +655,7 @@ impl Handler<ContinueFromRawPromptRequest> for LlamaCppSlot {
         }: ContinueFromRawPromptRequest,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
-        let resolved_grammar = self.resolve_grammar(grammar.as_ref(), &generated_tokens_tx)?;
+        let resolved_grammar = self.resolve_grammar(grammar.as_ref(), false, &generated_tokens_tx)?;
 
         let _guard = self.status.take_slot_with_guard();
 

@@ -25,5 +25,7 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v4
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: run clippy
         run: make clippy

@@ -60,7 +60,7 @@ test: test.unit test.models test.integration
 
 .PHONY: test.models
 test.models:
-	cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture
+	cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: test.unit
 test.unit: jarmuz-static
