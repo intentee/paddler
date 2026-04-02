@@ -137,7 +137,8 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         | GeneratedTokenResult::GrammarInitializationFailed(description)
                         | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                        | GeneratedTokenResult::MultimodalNotSupported(description)
+                        | GeneratedTokenResult::SamplerError(description),
                     ),
                 ..
             })
@@ -197,7 +198,8 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
                         | GeneratedTokenResult::GrammarInitializationFailed(description)
                         | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                        | GeneratedTokenResult::MultimodalNotSupported(description)
+                        | GeneratedTokenResult::SamplerError(description),
                     ),
                 ..
             })

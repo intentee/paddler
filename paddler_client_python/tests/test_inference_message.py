@@ -153,6 +153,20 @@ def test_parse_multimodal_not_supported() -> None:
     assert message.is_terminal
 
 
+def test_parse_sampler_error() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"SamplerError": "no candidates"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.SAMPLER_ERROR
+    assert message.error_message == "no candidates"
+    assert message.is_terminal
+
+
 def test_parse_embedding_response() -> None:
     data = {
         "Response": {

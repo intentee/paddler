@@ -18,6 +18,7 @@ use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::token::LlamaToken;
 use log::debug;
 use log::error;
 use log::info;
@@ -45,6 +46,40 @@ use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::slot_status::SlotStatus;
+
+fn sample_token(
+    context: &LlamaContext,
+    chain: &mut LlamaSampler,
+    grammar_sampler: &mut Option<LlamaSampler>,
+) -> Result<LlamaToken, GeneratedTokenResult> {
+    let mut token_data_array = context
+        .token_data_array()
+        .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
+
+    if let Some(grammar) = grammar_sampler.as_ref() {
+        token_data_array.apply_sampler(grammar);
+    }
+
+    token_data_array.apply_sampler(chain);
+
+    let token = token_data_array.selected_token().ok_or_else(|| {
+        GeneratedTokenResult::SamplerError(
+            "all token candidates were eliminated during sampling".to_owned(),
+        )
+    })?;
+
+    chain
+        .accept(token)
+        .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
+
+    if let Some(grammar) = grammar_sampler.as_mut() {
+        grammar
+            .accept(token)
+            .map_err(|err| GeneratedTokenResult::GrammarRejectedModelOutput(err.to_string()))?;
+    }
+
+    Ok(token)
+}
 
 pub struct LlamaCppSlot {
     index: u32,
@@ -191,7 +226,7 @@ impl LlamaCppSlot {
             return Err(anyhow!(msg));
         }
 
-        match GrammarSampler::new(grammar_constraint, &self.slot_context.model) {
+        match GrammarSampler::new(grammar_constraint) {
             Ok(grammar_sampler) => Ok(Some(grammar_sampler)),
             Err(err) => {
                 let msg = format!(
@@ -220,13 +255,30 @@ impl LlamaCppSlot {
         let mut batch = LlamaBatch::new(batch_size, 1)?;
         let mut decoder = encoding_rs::UTF_8.new_decoder();
 
-        let mut samplers = Vec::new();
+        let mut grammar_llama_sampler = match grammar_sampler {
+            Some(grammar_sampler) => {
+                match grammar_sampler.into_llama_sampler(&self.slot_context.model) {
+                    Ok(sampler) => Some(sampler),
+                    Err(err) => {
+                        let msg = format!(
+                            "{:?}: slot {} failed to initialize grammar sampler: {err}",
+                            self.slot_context.agent_name, self.index
+                        );
 
-        if let Some(grammar_sampler) = grammar_sampler {
-            samplers.push(grammar_sampler.into_llama_sampler());
-        }
+                        error!("{msg}");
 
-        samplers.extend([
+                        generated_tokens_tx.send(
+                            GeneratedTokenResult::GrammarInitializationFailed(msg.clone()),
+                        )?;
+
+                        return Err(anyhow!(msg));
+                    }
+                }
+            }
+            None => None,
+        };
+
+        let mut chain = LlamaSampler::chain_simple([
             LlamaSampler::penalties(
                 self.slot_context.inference_parameters.penalty_last_n,
                 self.slot_context.inference_parameters.penalty_repeat,
@@ -240,8 +292,6 @@ impl LlamaCppSlot {
             LlamaSampler::dist(self.rng.random::<u32>()),
         ]);
 
-        let mut sampler = LlamaSampler::chain_simple(samplers);
-
         let mut was_stopped = false;
         let max_token_position = current_token_position + max_tokens;
 
@@ -253,22 +303,21 @@ impl LlamaCppSlot {
             }
 
             {
-                let token = match sampler.sample(&self.llama_context, -1) {
-                    Ok(token) => token,
-                    Err(err) => {
-                        let msg = format!(
-                            "{:?}: slot {} grammar rejected model output: {err}",
-                            self.slot_context.agent_name, self.index
-                        );
+                let token =
+                    match sample_token(&self.llama_context, &mut chain, &mut grammar_llama_sampler)
+                    {
+                        Ok(token) => token,
+                        Err(result) => {
+                            error!(
+                                "{:?}: slot {} sampling error: {result:?}",
+                                self.slot_context.agent_name, self.index
+                            );
 
-                        error!("{msg}");
+                            generated_tokens_tx.send(result)?;
 
-                        generated_tokens_tx
-                            .send(GeneratedTokenResult::GrammarRejectedModelOutput(msg))?;
-
-                        return Ok(());
-                    }
-                };
+                            return Ok(());
+                        }
+                    };
 
                 if self.slot_context.model.is_eog_token(token) {
                     break;

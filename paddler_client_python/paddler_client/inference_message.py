@@ -9,19 +9,20 @@ from paddler_client.embedding import Embedding
 
 
 class InferenceMessageKind(StrEnum):
-    TOKEN = "token"
-    DONE = "done"
     CHAT_TEMPLATE_ERROR = "chat_template_error"
+    DONE = "done"
+    EMBEDDING = "embedding"
+    EMBEDDING_DONE = "embedding_done"
+    EMBEDDING_ERROR = "embedding_error"
     GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
     GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
     IMAGE_DECODING_FAILED = "image_decoding_failed"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
-    EMBEDDING = "embedding"
-    EMBEDDING_DONE = "embedding_done"
-    EMBEDDING_ERROR = "embedding_error"
-    TIMEOUT = "timeout"
-    TOO_MANY_BUFFERED_REQUESTS = "too_many_buffered_requests"
+    SAMPLER_ERROR = "sampler_error"
     SERVER_ERROR = "server_error"
+    TIMEOUT = "timeout"
+    TOKEN = "token"
+    TOO_MANY_BUFFERED_REQUESTS = "too_many_buffered_requests"
 
 
 @dataclass(frozen=True)
@@ -129,6 +130,7 @@ _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "GrammarSyntaxError": InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
     "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
     "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
+    "SamplerError": InferenceMessageKind.SAMPLER_ERROR,
 }
 
 

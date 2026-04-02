@@ -14,6 +14,7 @@ pub enum GeneratedTokenResult {
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
     MultimodalNotSupported(String),
+    SamplerError(String),
     Token(String),
 }
 
@@ -29,6 +30,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
                 | Self::MultimodalNotSupported(_)
+                | Self::SamplerError(_)
         )
     }
 }
@@ -75,6 +77,11 @@ mod tests {
     #[test]
     fn multimodal_not_supported_is_done() {
         assert!(GeneratedTokenResult::MultimodalNotSupported("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn sampler_error_is_done() {
+        assert!(GeneratedTokenResult::SamplerError("err".to_owned()).is_done());
     }
 
     #[test]
