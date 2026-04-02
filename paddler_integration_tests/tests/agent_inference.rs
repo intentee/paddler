@@ -77,7 +77,12 @@ async fn collect_tokens_from_websocket_stream(
         }
     }
 
-    CollectedTokens { text, count, has_grammar_incompatible_with_thinking, has_grammar_rejected_model_output }
+    CollectedTokens {
+        text,
+        count,
+        has_grammar_incompatible_with_thinking,
+        has_grammar_rejected_model_output,
+    }
 }
 
 fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
@@ -126,7 +131,12 @@ fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
         }
     }
 
-    CollectedTokens { text, count, has_grammar_incompatible_with_thinking, has_grammar_rejected_model_output }
+    CollectedTokens {
+        text,
+        count,
+        has_grammar_incompatible_with_thinking,
+        has_grammar_rejected_model_output,
+    }
 }
 
 #[tokio::test]

@@ -55,7 +55,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn waits_for_processing_slots_to_reach_zero() {
+    async fn waits_for_processing_slots_to_reach_zero() -> Result<(), tokio::task::JoinError> {
         let slot_aggregated_status_manager = create_status_manager(4);
         let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
@@ -63,7 +63,9 @@ mod tests {
             .slot_aggregated_status
             .take_slot();
 
-        let status = slot_aggregated_status_manager.slot_aggregated_status.clone();
+        let status = slot_aggregated_status_manager
+            .slot_aggregated_status
+            .clone();
         let release_handle = tokio::spawn(async move {
             tokio::time::sleep(Duration::from_millis(50)).await;
             status.release_slot();
@@ -78,12 +80,14 @@ mod tests {
             0
         );
 
-        release_handle.await.unwrap();
+        release_handle.await?;
         drop(shutdown_tx);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn aborts_on_shutdown_signal() {
+    async fn aborts_on_shutdown_signal() -> Result<(), tokio::task::JoinError> {
         let slot_aggregated_status_manager = create_status_manager(4);
         let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
@@ -105,6 +109,8 @@ mod tests {
             1,
         );
 
-        shutdown_handle.await.unwrap();
+        shutdown_handle.await?;
+
+        Ok(())
     }
 }

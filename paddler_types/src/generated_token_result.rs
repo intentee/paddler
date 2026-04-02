@@ -49,9 +49,7 @@ mod tests {
 
     #[test]
     fn grammar_incompatible_with_thinking_is_done() {
-        assert!(
-            GeneratedTokenResult::GrammarIncompatibleWithThinking("err".to_owned()).is_done()
-        );
+        assert!(GeneratedTokenResult::GrammarIncompatibleWithThinking("err".to_owned()).is_done());
     }
 
     #[test]

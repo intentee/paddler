@@ -49,10 +49,7 @@ pub struct LlamaCppArbiterService {
 }
 
 impl LlamaCppArbiterService {
-    async fn apply_state(
-        &mut self,
-        shutdown: &mut broadcast::Receiver<()>,
-    ) -> Result<()> {
+    async fn apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) -> Result<()> {
         if self.llamacpp_arbiter_handle.is_some() {
             drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
         }
