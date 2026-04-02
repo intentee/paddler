@@ -176,6 +176,8 @@ impl LlamaCppSlot {
         if enable_thinking {
             let msg = format!(
                 "{:?}: slot {} grammar constraints and thinking mode cannot be used together. \
+                 Grammar constraints enforce that every generated token matches the grammar, \
+                 which would suppress all thinking tokens. \
                  Set enable_thinking to false when using grammar constraints.",
                 self.slot_context.agent_name, self.index
             );
