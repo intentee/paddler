@@ -154,7 +154,7 @@ async fn test_grammar_with_thinking_returns_incompatible_error() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(managed_model_params()).await?;
     let harness = ModelTestHarness::new(&managed_model);
 
-    let result = harness
+    let results = harness
         .generate_from_conversation(ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             enable_thinking: true,
@@ -172,18 +172,14 @@ async fn test_grammar_with_thinking_returns_incompatible_error() -> Result<()> {
             max_tokens: 50,
             tools: vec![],
         })
-        .await;
+        .await?;
 
     assert!(
-        result.is_err(),
-        "Expected error when using grammar with thinking enabled"
-    );
-
-    let error_message = format!("{}", result.unwrap_err());
-
-    assert!(
-        error_message.contains("grammar constraints and thinking mode cannot be used together"),
-        "Expected grammar+thinking incompatibility error, got: '{error_message}'"
+        results.iter().any(|result| matches!(
+            result,
+            GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
+        )),
+        "Expected GrammarIncompatibleWithThinking error, got: {results:?}"
     );
 
     managed_model.shutdown()?;
