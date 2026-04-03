@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -46,20 +47,14 @@ pub struct LlamaCppArbiterService {
 
 impl LlamaCppArbiterService {
     async fn apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) -> Result<()> {
-        if let Some(arbiter_handle) = &self.continuous_batch_arbiter_handle {
-            let _ = arbiter_handle
-                .command_tx
-                .send(ContinuousBatchSchedulerCommand::Shutdown);
-
+        if self.continuous_batch_arbiter_handle.is_some() {
             drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
         }
 
-        if let Some(arbiter_handle) = self.continuous_batch_arbiter_handle.as_mut()
-            && let Some(thread_handle) = arbiter_handle.scheduler_thread_handle.take()
-        {
-            thread_handle
-                .join()
-                .map_err(|err| anyhow!("Failed to join scheduler thread: {err:?}"))??;
+        if let Some(arbiter_handle) = self.continuous_batch_arbiter_handle.as_mut() {
+            arbiter_handle
+                .shutdown()
+                .context("Unable to stop arbiter controller")?;
         }
 
         self.continuous_batch_arbiter_handle = None;
