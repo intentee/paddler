@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -174,14 +175,18 @@ impl ContinuousBatchScheduler {
                         self.scheduler_context.agent_name
                     );
                 }
-            } else if let Ok(command) = self.command_rx.recv() {
-                self.process_command(command);
             } else {
-                info!(
-                    "{:?}: command channel closed, shutting down scheduler",
-                    self.scheduler_context.agent_name
-                );
-                self.running = false;
+                match self.command_rx.recv_timeout(Duration::from_millis(100)) {
+                    Ok(command) => self.process_command(command),
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                        info!(
+                            "{:?}: command channel closed, shutting down scheduler",
+                            self.scheduler_context.agent_name
+                        );
+                        self.running = false;
+                    }
+                }
             }
         }
 

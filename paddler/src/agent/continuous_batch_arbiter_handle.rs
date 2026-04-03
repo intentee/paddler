@@ -29,11 +29,3 @@ impl ContinuousBatchArbiterHandle {
         Ok(())
     }
 }
-
-impl Drop for ContinuousBatchArbiterHandle {
-    fn drop(&mut self) {
-        let _ = self
-            .command_tx
-            .send(ContinuousBatchSchedulerCommand::Shutdown);
-    }
-}

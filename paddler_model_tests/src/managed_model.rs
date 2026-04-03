@@ -74,13 +74,7 @@ impl ManagedModel {
         &self.handle
     }
 
-    pub fn shutdown(self) -> Result<()> {
-        // Drop sends Shutdown command via the handle's Drop impl.
-        // We don't join the scheduler thread here because llama.cpp
-        // resource cleanup can be slow. The thread will exit on its
-        // own after processing the Shutdown command.
-        drop(self);
-
-        Ok(())
+    pub fn shutdown(mut self) -> Result<()> {
+        self.handle.shutdown()
     }
 }
