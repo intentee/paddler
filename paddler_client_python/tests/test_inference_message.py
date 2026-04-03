@@ -97,7 +97,7 @@ def test_parse_grammar_incompatible_with_thinking() -> None:
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
-                    "GrammarIncompatibleWithThinking": "cannot use grammar with thinking"
+                    "GrammarIncompatibleWithThinking": "err"
                 }
             },
         }
@@ -105,7 +105,7 @@ def test_parse_grammar_incompatible_with_thinking() -> None:
     message = parse_inference_client_message(data)
 
     assert message.kind == InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
-    assert message.error_message == "cannot use grammar with thinking"
+    assert message.error_message == "err"
     assert message.is_terminal
 
 

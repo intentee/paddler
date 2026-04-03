@@ -128,7 +128,9 @@ def _parse_response(
 
 _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ChatTemplateError": InferenceMessageKind.CHAT_TEMPLATE_ERROR,
-    "GrammarIncompatibleWithThinking": InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING,
+    "GrammarIncompatibleWithThinking": (
+        InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
+    ),
     "GrammarInitializationFailed": InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
     "GrammarRejectedModelOutput": InferenceMessageKind.GRAMMAR_REJECTED_MODEL_OUTPUT,
     "GrammarSyntaxError": InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
