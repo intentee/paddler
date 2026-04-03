@@ -1,4 +1,5 @@
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::token::LlamaToken;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -12,10 +13,10 @@ pub struct ContinuousBatchActiveRequest {
     pub generated_tokens_count: i32,
     pub generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
     pub generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
-    pub i_batch: i32,
+    pub i_batch: Option<i32>,
     pub max_tokens: i32,
     pub phase: ContinuousBatchRequestPhase,
-    pub prompt_tokens: Vec<llama_cpp_bindings::token::LlamaToken>,
+    pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
     pub sequence_id: i32,
     pub utf8_decoder: encoding_rs::Decoder,
@@ -30,7 +31,7 @@ impl ContinuousBatchActiveRequest {
     }
 
     #[must_use]
-    pub fn remaining_prompt_tokens(&self) -> &[llama_cpp_bindings::token::LlamaToken] {
+    pub fn remaining_prompt_tokens(&self) -> &[LlamaToken] {
         &self.prompt_tokens[self.prompt_tokens_ingested..]
     }
 }

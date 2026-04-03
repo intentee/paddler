@@ -21,20 +21,16 @@ use url::Url;
 
 #[tokio::test]
 #[file_serial]
-async fn test_slot_released_after_websocket_disconnect() {
+async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_slots: 1,
         ..ManagedClusterParams::default()
     })
-    .await
-    .expect("failed to spawn cluster");
+    .await?;
 
-    // Create a SEPARATE client (not the cluster's pooled client).
-    // When we drop this client, the WebSocket TCP connection closes —
-    // simulating what happens when a browser tab is closed.
     let disposable_client = PaddlerClient::new(
-        Url::parse(&format!("http://{BALANCER_INFERENCE_ADDR}")).expect("valid inference url"),
-        Url::parse(&format!("http://{BALANCER_MANAGEMENT_ADDR}")).expect("valid management url"),
+        Url::parse(&format!("http://{BALANCER_INFERENCE_ADDR}"))?,
+        Url::parse(&format!("http://{BALANCER_MANAGEMENT_ADDR}"))?,
         1,
     );
 
@@ -45,8 +41,7 @@ async fn test_slot_released_after_websocket_disconnect() {
             max_tokens: 500,
             raw_prompt: "Write a very long essay about the history of philosophy".to_string(),
         })
-        .await
-        .expect("inference request should connect");
+        .await?;
 
     // Wait for first token — confirms generation is active
     let first_message = stream.next().await;
@@ -109,4 +104,6 @@ async fn test_slot_released_after_websocket_disconnect() {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+
+    Ok(())
 }

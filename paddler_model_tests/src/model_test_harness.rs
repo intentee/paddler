@@ -8,6 +8,7 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use tokio::sync::mpsc;
 
+use crate::collect_generated_tokens::collect_generated_tokens;
 use crate::managed_model::ManagedModel;
 
 pub struct ModelTestHarness<'model> {
@@ -65,22 +66,4 @@ impl<'model> ModelTestHarness<'model> {
 
         collect_generated_tokens(generated_tokens_rx).await
     }
-}
-
-pub async fn collect_generated_tokens(
-    mut generated_tokens_rx: mpsc::UnboundedReceiver<GeneratedTokenResult>,
-) -> Result<Vec<GeneratedTokenResult>> {
-    let mut results = Vec::new();
-
-    while let Some(generated_token) = generated_tokens_rx.recv().await {
-        let is_done = matches!(generated_token, GeneratedTokenResult::Done);
-
-        results.push(generated_token);
-
-        if is_done {
-            break;
-        }
-    }
-
-    Ok(results)
 }

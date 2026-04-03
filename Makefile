@@ -61,12 +61,15 @@ test: test.unit test.models test.integration
 .PHONY: test.models
 test.models:
 	timeout 300 cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
+
 .PHONY: test.unit
 test.unit: jarmuz-static
-	timeout 300 cargo test --features web_admin_panel 
+	timeout 300 cargo test --features web_admin_panel
+
 .PHONY: test.integration
 test.integration: target/debug/paddler
 	timeout 300 cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
+
 .PHONY: watch
 watch: node_modules
 	./jarmuz-watch.mjs

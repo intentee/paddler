@@ -11,9 +11,11 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
+use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::token::LlamaToken;
 use log::debug;
 use log::error;
 use log::info;
@@ -32,6 +34,8 @@ use rand::Rng as _;
 use rand::rngs::ThreadRng;
 use tokio::sync::mpsc;
 
+use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
+use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
@@ -50,7 +54,7 @@ fn sample_token_at_batch_index(
     batch_index: i32,
     chain: &mut LlamaSampler,
     grammar_sampler: &mut Option<LlamaSampler>,
-) -> Result<llama_cpp_bindings::token::LlamaToken, GeneratedTokenResult> {
+) -> Result<LlamaToken, GeneratedTokenResult> {
     let mut token_data_array = llama_context
         .token_data_array_ith(batch_index)
         .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
@@ -236,7 +240,7 @@ impl ContinuousBatchScheduler {
 
     fn accept_conversation_history_request(
         &mut self,
-        request: crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest,
+        request: ContinueFromConversationHistoryRequest,
     ) {
         let generated_tokens_tx = request.generated_tokens_tx;
         let generate_tokens_stop_rx = request.generate_tokens_stop_rx;
@@ -384,10 +388,7 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn accept_raw_prompt_request(
-        &mut self,
-        request: crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest,
-    ) {
+    fn accept_raw_prompt_request(&mut self, request: ContinueFromRawPromptRequest) {
         let ContinueFromRawPromptParams {
             grammar,
             max_tokens,
@@ -438,7 +439,7 @@ impl ContinuousBatchScheduler {
         &self,
         grammar_sampler: Option<GrammarSampler>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ) -> Result<Option<LlamaSampler>, ()> {
+    ) -> Result<Option<LlamaSampler>> {
         grammar_sampler.map_or_else(
             || Ok(None),
             |grammar_sampler| match grammar_sampler
@@ -454,7 +455,9 @@ impl ContinuousBatchScheduler {
                     error!("{message}");
 
                     if generated_tokens_tx
-                        .send(GeneratedTokenResult::GrammarInitializationFailed(message))
+                        .send(GeneratedTokenResult::GrammarInitializationFailed(
+                            message.clone(),
+                        ))
                         .is_err()
                     {
                         warn!(
@@ -463,7 +466,7 @@ impl ContinuousBatchScheduler {
                         );
                     }
 
-                    Err(())
+                    Err(anyhow!(message))
                 }
             },
         )
@@ -573,7 +576,7 @@ impl ContinuousBatchScheduler {
             generated_tokens_count: 0,
             generated_tokens_tx,
             generate_tokens_stop_rx,
-            i_batch: i32::MIN,
+            i_batch: None,
             max_tokens,
             phase: ContinuousBatchRequestPhase::Ingesting,
             prompt_tokens,
@@ -589,7 +592,7 @@ impl ContinuousBatchScheduler {
     )]
     fn accept_multimodal_request(
         &mut self,
-        multimodal_context: &llama_cpp_bindings::mtmd::MtmdContext,
+        multimodal_context: &MtmdContext,
         prompt: String,
         images: &[DecodedImage],
         max_tokens: i32,
@@ -768,7 +771,7 @@ impl ContinuousBatchScheduler {
             generated_tokens_count: 0,
             generated_tokens_tx,
             generate_tokens_stop_rx,
-            i_batch: -1,
+            i_batch: Some(-1),
             max_tokens,
             phase: ContinuousBatchRequestPhase::Generating,
             prompt_tokens: Vec::new(),
@@ -792,7 +795,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                active_request.i_batch = i32::MIN;
+                active_request.i_batch = None;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
             }
         }
@@ -983,19 +986,67 @@ impl ContinuousBatchScheduler {
             .any(|request| !matches!(request.phase, ContinuousBatchRequestPhase::Completed))
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_possible_wrap,
-        reason = "token counts and positions fit in i32 for llama.cpp FFI"
-    )]
     fn execute_one_iteration(&mut self) -> Result<()> {
         let batch_n_tokens = self.scheduler_context.inference_parameters.batch_n_tokens;
         let max_sequences = self.active_requests.len();
+
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_possible_wrap,
+            reason = "token counts and positions fit in i32 for llama.cpp FFI"
+        )]
         let mut batch = LlamaBatch::new(batch_n_tokens, max_sequences.max(1) as i32)?;
+
         let mut current_batch_token_count: usize = 0;
 
-        // Phase 1: Sample from PREVIOUS decode for generating requests, then add
-        // sampled token to the new batch (matches llama.cpp batched example pattern)
+        current_batch_token_count +=
+            self.sample_generating_requests_into_batch(&mut batch, batch_n_tokens)?;
+
+        self.ingest_prompt_tokens_into_batch(
+            &mut batch,
+            batch_n_tokens,
+            current_batch_token_count,
+        )?;
+
+        if batch.n_tokens() == 0 {
+            return Ok(());
+        }
+
+        debug!(
+            "{:?}: decoding batch with {} tokens for {} active requests",
+            self.scheduler_context.agent_name,
+            batch.n_tokens(),
+            self.active_requests.len()
+        );
+
+        if let Err(err) = self.llama_context.decode(&mut batch) {
+            match err {
+                DecodeError::NoKvCacheSlot => {
+                    self.evict_largest_sequence();
+
+                    return self.execute_one_iteration();
+                }
+                DecodeError::Aborted | DecodeError::NTokensZero => {
+                    return Ok(());
+                }
+                DecodeError::Unknown(error_code) => {
+                    return Err(anyhow!(
+                        "Decode failed with unknown error code: {error_code}"
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn sample_generating_requests_into_batch(
+        &mut self,
+        batch: &mut LlamaBatch,
+        batch_n_tokens: usize,
+    ) -> Result<usize> {
+        let mut tokens_added: usize = 0;
+
         for active_request in &mut self.active_requests {
             if !matches!(
                 active_request.phase,
@@ -1004,17 +1055,17 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            if active_request.i_batch == i32::MIN {
+            let Some(batch_index) = active_request.i_batch else {
                 continue;
-            }
+            };
 
-            if current_batch_token_count >= batch_n_tokens {
+            if tokens_added >= batch_n_tokens {
                 break;
             }
 
             let sampled_token = match sample_token_at_batch_index(
                 &self.llama_context,
-                active_request.i_batch,
+                batch_index,
                 &mut active_request.chain,
                 &mut active_request.grammar_sampler,
             ) {
@@ -1032,7 +1083,7 @@ impl ContinuousBatchScheduler {
                         );
                     }
 
-                    active_request.i_batch = i32::MIN;
+                    active_request.i_batch = None;
                     active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                     continue;
@@ -1051,7 +1102,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                active_request.i_batch = i32::MIN;
+                active_request.i_batch = None;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                 continue;
@@ -1074,7 +1125,7 @@ impl ContinuousBatchScheduler {
                             self.scheduler_context.agent_name, active_request.sequence_id
                         );
 
-                        active_request.i_batch = i32::MIN;
+                        active_request.i_batch = None;
                         active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                         continue;
@@ -1099,7 +1150,7 @@ impl ContinuousBatchScheduler {
                         );
                     }
 
-                    active_request.i_batch = i32::MIN;
+                    active_request.i_batch = None;
                     active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                     continue;
@@ -1120,14 +1171,13 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                active_request.i_batch = i32::MIN;
+                active_request.i_batch = None;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                 continue;
             }
 
-            // Add sampled token to batch for next decode
-            active_request.i_batch = batch.n_tokens();
+            active_request.i_batch = Some(batch.n_tokens());
 
             batch.add(
                 sampled_token,
@@ -1137,10 +1187,23 @@ impl ContinuousBatchScheduler {
             )?;
 
             active_request.current_token_position += 1;
-            current_batch_token_count += 1;
+            tokens_added += 1;
         }
 
-        // Phase 2: Add prompt tokens for ingesting requests
+        Ok(tokens_added)
+    }
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        reason = "token counts and positions fit in i32 for llama.cpp FFI"
+    )]
+    fn ingest_prompt_tokens_into_batch(
+        &mut self,
+        batch: &mut LlamaBatch,
+        batch_n_tokens: usize,
+        mut current_batch_token_count: usize,
+    ) -> Result<()> {
         for active_request in &mut self.active_requests {
             if !matches!(active_request.phase, ContinuousBatchRequestPhase::Ingesting) {
                 continue;
@@ -1172,42 +1235,13 @@ impl ContinuousBatchScheduler {
             }
 
             if is_last_chunk {
-                active_request.i_batch = batch.n_tokens() - 1;
+                active_request.i_batch = Some(batch.n_tokens() - 1);
                 active_request.phase = ContinuousBatchRequestPhase::Generating;
             }
 
             active_request.prompt_tokens_ingested += chunk_size;
             active_request.current_token_position += chunk_size as i32;
             current_batch_token_count += chunk_size;
-        }
-
-        if batch.n_tokens() == 0 {
-            return Ok(());
-        }
-
-        debug!(
-            "{:?}: decoding batch with {} tokens for {} active requests",
-            self.scheduler_context.agent_name,
-            batch.n_tokens(),
-            self.active_requests.len()
-        );
-
-        if let Err(err) = self.llama_context.decode(&mut batch) {
-            match err {
-                DecodeError::NoKvCacheSlot => {
-                    self.evict_largest_sequence();
-
-                    return self.execute_one_iteration();
-                }
-                DecodeError::Aborted | DecodeError::NTokensZero => {
-                    return Ok(());
-                }
-                DecodeError::Unknown(error_code) => {
-                    return Err(anyhow!(
-                        "Decode failed with unknown error code: {error_code}"
-                    ));
-                }
-            }
         }
 
         Ok(())

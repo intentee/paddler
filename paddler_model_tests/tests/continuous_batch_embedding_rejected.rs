@@ -7,7 +7,7 @@ use paddler::agent::continue_from_raw_prompt_request::ContinueFromRawPromptReque
 use paddler::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use paddler::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;

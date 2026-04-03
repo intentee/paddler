@@ -9,15 +9,8 @@ use paddler::agent_desired_state::AgentDesiredState;
 use paddler::converts_to_applicable_state::ConvertsToApplicableState;
 use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
-use paddler_types::inference_parameters::InferenceParameters;
 
-pub struct ManagedModelParams {
-    pub inference_parameters: InferenceParameters,
-    pub model: HuggingFaceModelReference,
-    pub multimodal_projection: Option<HuggingFaceModelReference>,
-    pub slots: i32,
-}
+use crate::managed_model_params::ManagedModelParams;
 
 pub struct ManagedModel {
     handle: ContinuousBatchArbiterHandle,

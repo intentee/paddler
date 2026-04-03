@@ -14,13 +14,12 @@ use serial_test::file_serial;
 
 #[tokio::test]
 #[file_serial]
-async fn test_agent_exits_gracefully_during_active_generation() {
+async fn test_agent_exits_gracefully_during_active_generation() -> anyhow::Result<()> {
     let mut cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_slots: 1,
         ..ManagedClusterParams::default()
     })
-    .await
-    .expect("failed to spawn cluster");
+    .await?;
 
     let mut stream = cluster
         .balancer
@@ -31,8 +30,7 @@ async fn test_agent_exits_gracefully_during_active_generation() {
             max_tokens: 1000,
             raw_prompt: "Write a very long essay about the history of computing".to_string(),
         })
-        .await
-        .expect("inference request should connect");
+        .await?;
 
     // Wait for first token to confirm generation is active
     let first_message = stream.next().await;
@@ -56,4 +54,6 @@ async fn test_agent_exits_gracefully_during_active_generation() {
 
     // Verify balancer detects agent removal
     cluster.balancer.wait_for_agent_count(0).await;
+
+    Ok(())
 }

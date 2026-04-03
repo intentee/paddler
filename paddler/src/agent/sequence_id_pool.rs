@@ -26,7 +26,7 @@ impl SequenceIdPool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::SequenceIdPool;
 
     #[test]
     fn acquire_returns_sequential_ids() {

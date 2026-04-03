@@ -6,7 +6,7 @@ use llama_cpp_bindings::send_logs_to_tracing;
 use paddler_model_tests::load_test_image_as_data_uri::load_test_image_as_data_uri;
 use paddler_model_tests::log_generated_response::log_generated_response;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_model_tests::model_test_harness::ModelTestHarness;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;

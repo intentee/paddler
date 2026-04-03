@@ -6,7 +6,7 @@ use llama_cpp_bindings::send_logs_to_tracing;
 use paddler::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use paddler::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_types::inference_parameters::InferenceParameters;
