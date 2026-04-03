@@ -194,6 +194,9 @@ impl ContinuousBatchScheduler {
             self.cleanup_completed_request(0);
         }
 
+        self.llama_context.synchronize();
+        self.llama_context.detach_threadpool();
+
         info!(
             "{:?}: continuous batch scheduler stopped",
             self.scheduler_context.agent_name
