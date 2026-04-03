@@ -157,14 +157,14 @@ where
                     Some(response) => {
                         let is_done = response.is_done();
 
-                        send_response_to_client(
+                        let send_succeeded = send_response_to_client(
                             agent_controller.clone(),
                             response,
                             request_id.clone(),
                             &mut session_controller,
                         ).await;
 
-                        if is_done {
+                        if is_done || !send_succeeded {
                             break;
                         }
                     }
@@ -200,7 +200,8 @@ async fn send_response_to_client<TControlsSession, TResponse>(
     response: TResponse,
     request_id: String,
     session_controller: &mut TControlsSession,
-) where
+) -> bool
+where
     TControlsSession: ControlsSession<OutgoingMessage>,
     TResponse: Into<OutgoingResponse> + Send,
 {
@@ -219,7 +220,11 @@ async fn send_response_to_client<TControlsSession, TResponse>(
             .unwrap_or_else(|err| {
                 error!("Failed to stop responding to request {request_id:?}: {err}");
             });
+
+        return false;
     }
+
+    true
 }
 
 async fn wait_for_agent_controller<TControlsSession>(

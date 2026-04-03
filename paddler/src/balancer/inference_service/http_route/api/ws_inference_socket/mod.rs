@@ -2,6 +2,7 @@ mod inference_socket_controller_context;
 
 use std::sync::Arc;
 
+use actix_web::rt;
 use actix_web::Error;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
@@ -76,15 +77,22 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                         conversation_history_params,
                     ),
             }) => {
-                request_from_agent(
-                    context.buffered_request_manager.clone(),
-                    connection_close_tx,
-                    context.inference_service_configuration.clone(),
-                    conversation_history_params.validate()?,
-                    request_id,
-                    websocket_session_controller,
-                )
-                .await?;
+                let validated_params = conversation_history_params.validate()?;
+
+                rt::spawn(async move {
+                    if let Err(err) = request_from_agent(
+                        context.buffered_request_manager.clone(),
+                        connection_close_tx,
+                        context.inference_service_configuration.clone(),
+                        validated_params,
+                        request_id.clone(),
+                        websocket_session_controller,
+                    )
+                    .await
+                    {
+                        error!("Request {request_id:?} failed: {err}");
+                    }
+                });
 
                 Ok(ContinuationDecision::Continue)
             }
@@ -92,15 +100,20 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 id: request_id,
                 request: InferenceJsonRpcRequest::ContinueFromRawPrompt(raw_prompt_params),
             }) => {
-                request_from_agent(
-                    context.buffered_request_manager.clone(),
-                    connection_close_tx,
-                    context.inference_service_configuration.clone(),
-                    raw_prompt_params,
-                    request_id,
-                    websocket_session_controller,
-                )
-                .await?;
+                rt::spawn(async move {
+                    if let Err(err) = request_from_agent(
+                        context.buffered_request_manager.clone(),
+                        connection_close_tx,
+                        context.inference_service_configuration.clone(),
+                        raw_prompt_params,
+                        request_id.clone(),
+                        websocket_session_controller,
+                    )
+                    .await
+                    {
+                        error!("Request {request_id:?} failed: {err}");
+                    }
+                });
 
                 Ok(ContinuationDecision::Continue)
             }

@@ -33,10 +33,8 @@ async fn test_slot_released_after_websocket_disconnect() {
     // When we drop this client, the WebSocket TCP connection closes —
     // simulating what happens when a browser tab is closed.
     let disposable_client = PaddlerClient::new(
-        Url::parse(&format!("http://{BALANCER_INFERENCE_ADDR}"))
-            .expect("valid inference url"),
-        Url::parse(&format!("http://{BALANCER_MANAGEMENT_ADDR}"))
-            .expect("valid management url"),
+        Url::parse(&format!("http://{BALANCER_INFERENCE_ADDR}")).expect("valid inference url"),
+        Url::parse(&format!("http://{BALANCER_MANAGEMENT_ADDR}")).expect("valid management url"),
         1,
     );
 
@@ -52,7 +50,10 @@ async fn test_slot_released_after_websocket_disconnect() {
 
     // Wait for first token — confirms generation is active
     let first_message = stream.next().await;
-    assert!(first_message.is_some(), "Should receive at least one message");
+    assert!(
+        first_message.is_some(),
+        "Should receive at least one message"
+    );
 
     if let Some(Ok(Message::Response(envelope))) = &first_message {
         assert!(
@@ -80,13 +81,7 @@ async fn test_slot_released_after_websocket_disconnect() {
     let mut final_slots_processing = -1;
 
     loop {
-        if let Ok(snapshot) = cluster
-            .balancer
-            .client()
-            .management()
-            .get_agents()
-            .await
-        {
+        if let Ok(snapshot) = cluster.balancer.client().management().get_agents().await {
             let total: i32 = snapshot
                 .agents
                 .iter()
@@ -96,6 +91,11 @@ async fn test_slot_released_after_websocket_disconnect() {
             final_slots_processing = total;
 
             if total == 0 {
+                eprintln!(
+                    "Slot released {}ms after disconnect",
+                    disconnect_instant.elapsed().as_millis()
+                );
+
                 break;
             }
         }
