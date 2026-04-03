@@ -3,7 +3,6 @@ use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::DecodeError;
@@ -13,23 +12,14 @@ use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdInputText;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
 use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use minijinja::context;
-use paddler_types::embedding::Embedding;
-use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::grammar_constraint::GrammarConstraint;
-use paddler_types::media_marker::MediaMarker;
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
-use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use rand::Rng as _;
 use rand::rngs::ThreadRng;
 use tokio::sync::mpsc;
@@ -37,87 +27,20 @@ use tokio::sync::mpsc;
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
+use crate::agent::continuous_batch_embedding_processor::ContinuousBatchEmbeddingProcessor;
+use crate::agent::continuous_batch_grammar_resolver::resolve_grammar;
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::agent::continuous_batch_request_preparation::PreparedConversationHistoryRequest;
+use crate::agent::continuous_batch_request_preparation::prepare_conversation_history_request;
 use crate::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::agent::continuous_batch_token_sampler::sample_token_at_batch_index;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::grammar_sampler::GrammarSampler;
 use crate::agent::sequence_id_pool::SequenceIdPool;
 use crate::decoded_image::DecodedImage;
-use crate::decoded_image_error::DecodedImageError;
 use crate::dispenses_slots::DispensesSlots;
-use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
-
-fn sample_token_at_batch_index(
-    llama_context: &LlamaContext,
-    batch_index: i32,
-    chain: &mut LlamaSampler,
-    grammar_sampler: &mut Option<LlamaSampler>,
-) -> Result<LlamaToken, GeneratedTokenResult> {
-    let mut token_data_array = llama_context
-        .token_data_array_ith(batch_index)
-        .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
-
-    if let Some(grammar) = grammar_sampler.as_ref() {
-        token_data_array.apply_sampler(grammar);
-    }
-
-    token_data_array.apply_sampler(chain);
-
-    let token = token_data_array.selected_token().ok_or_else(|| {
-        GeneratedTokenResult::SamplerError(
-            "all token candidates were eliminated during sampling".to_owned(),
-        )
-    })?;
-
-    chain
-        .accept(token)
-        .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
-
-    if let Some(grammar) = grammar_sampler.as_mut() {
-        grammar
-            .accept(token)
-            .map_err(|err| GeneratedTokenResult::GrammarRejectedModelOutput(err.to_string()))?;
-    }
-
-    Ok(token)
-}
-
-fn resolve_grammar(
-    grammar: Option<&GrammarConstraint>,
-    enable_thinking: bool,
-    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-) -> Result<Option<GrammarSampler>> {
-    let Some(grammar_constraint) = grammar else {
-        return Ok(None);
-    };
-
-    if enable_thinking {
-        let message = "Grammar constraints are incompatible with thinking mode".to_owned();
-
-        generated_tokens_tx
-            .send(GeneratedTokenResult::GrammarIncompatibleWithThinking(
-                message.clone(),
-            ))
-            .map_err(|err| anyhow!("Failed to send grammar incompatibility error: {err}"))?;
-
-        return Err(anyhow!(message));
-    }
-
-    match GrammarSampler::new(grammar_constraint) {
-        Ok(sampler) => Ok(Some(sampler)),
-        Err(err) => {
-            let message = format!("Failed to create grammar sampler: {err}");
-
-            generated_tokens_tx
-                .send(GeneratedTokenResult::GrammarSyntaxError(message.clone()))
-                .map_err(|send_err| anyhow!("Failed to send grammar syntax error: {send_err}"))?;
-
-            Err(anyhow!(message))
-        }
-    }
-}
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
@@ -245,138 +168,28 @@ impl ContinuousBatchScheduler {
         let generated_tokens_tx = request.generated_tokens_tx;
         let generate_tokens_stop_rx = request.generate_tokens_stop_rx;
 
-        let ContinueFromConversationHistoryParams {
-            add_generation_prompt,
-            enable_thinking,
-            grammar,
-            conversation_history,
-            max_tokens,
-            tools,
-        } = request.params;
-
-        let grammar_sampler =
-            match resolve_grammar(grammar.as_ref(), enable_thinking, &generated_tokens_tx) {
-                Ok(sampler) => sampler,
-                Err(err) => {
-                    error!(
-                        "{:?}: failed to resolve grammar: {err}",
-                        self.scheduler_context.agent_name
-                    );
-
-                    return;
-                }
-            };
-
-        let image_resize_to_fit = self
-            .scheduler_context
-            .inference_parameters
-            .image_resize_to_fit;
-
-        let images = match conversation_history
-            .extract_image_urls()
-            .iter()
-            .map(|image_url| {
-                DecodedImage::from_data_uri(image_url)
-                    .and_then(|image| image.converted_to_png_if_necessary(image_resize_to_fit))
-                    .and_then(|image| image.resized_to_fit(image_resize_to_fit))
-            })
-            .collect::<Result<Vec<DecodedImage>, DecodedImageError>>()
-        {
-            Ok(images) => images,
+        let prepared = match prepare_conversation_history_request(
+            request.params,
+            &generated_tokens_tx,
+            &self.scheduler_context,
+        ) {
+            Ok(prepared) => prepared,
             Err(err) => {
-                let message = format!(
-                    "{:?}: failed to decode images: {err}",
+                error!(
+                    "{:?}: failed to prepare conversation history request: {err}",
                     self.scheduler_context.agent_name
                 );
-
-                error!("{message}");
-
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::ImageDecodingFailed(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
 
                 return;
             }
         };
 
-        let media_marker = MediaMarker::new(mtmd_default_marker().to_owned());
-        let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
-
-        let raw_prompt = match self
-            .scheduler_context
-            .chat_template_renderer
-            .render(context! {
-                add_generation_prompt,
-                bos_token => self.scheduler_context.token_bos_str,
-                enable_thinking,
-                eos_token => self.scheduler_context.token_eos_str,
-                messages => chat_template_messages.messages,
-                nl_token => self.scheduler_context.token_nl_str,
-                tools => tools,
-            }) {
-            Ok(raw_prompt) => raw_prompt,
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to render chat template: {err:?}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::ChatTemplateError(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-
-                return;
-            }
-        };
-
-        let has_images = !images.is_empty();
-        let multimodal_context = self.scheduler_context.multimodal_context.clone();
-
-        match multimodal_context.as_ref() {
-            Some(multimodal_context) if has_images => {
-                self.accept_multimodal_request(
-                    multimodal_context,
-                    raw_prompt,
-                    &images,
-                    max_tokens,
-                    grammar_sampler,
-                    generated_tokens_tx,
-                    generate_tokens_stop_rx,
-                );
-            }
-            None if has_images => {
-                let message = format!(
-                    "{:?}: received images but model does not support multimodal input",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::MultimodalNotSupported(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-            }
-            _ => {
+        match prepared {
+            PreparedConversationHistoryRequest::TextPrompt {
+                raw_prompt,
+                max_tokens,
+                grammar_sampler,
+            } => {
                 self.accept_text_prompt(
                     &raw_prompt,
                     max_tokens,
@@ -384,6 +197,26 @@ impl ContinuousBatchScheduler {
                     generated_tokens_tx,
                     generate_tokens_stop_rx,
                 );
+            }
+            PreparedConversationHistoryRequest::MultimodalPrompt {
+                raw_prompt,
+                images,
+                max_tokens,
+                grammar_sampler,
+            } => {
+                let multimodal_context = self.scheduler_context.multimodal_context.clone();
+
+                if let Some(multimodal_context) = multimodal_context.as_ref() {
+                    self.accept_multimodal_request(
+                        multimodal_context,
+                        raw_prompt,
+                        &images,
+                        max_tokens,
+                        grammar_sampler,
+                        generated_tokens_tx,
+                        generate_tokens_stop_rx,
+                    );
+                }
             }
         }
     }
@@ -828,156 +661,17 @@ impl ContinuousBatchScheduler {
 
         let request = self.pending_embedding_requests.remove(0);
 
-        if let Err(err) = self.process_embedding_batch(request) {
+        let mut processor = ContinuousBatchEmbeddingProcessor::new(
+            &mut self.llama_context,
+            &self.scheduler_context,
+        );
+
+        if let Err(err) = processor.process_embedding_batch(request) {
             error!(
                 "{:?}: failed to process embedding batch: {err:#}",
                 self.scheduler_context.agent_name
             );
         }
-    }
-
-    fn process_embedding_batch(
-        &mut self,
-        GenerateEmbeddingBatchRequest {
-            mut generate_embedding_stop_rx,
-            generated_embedding_tx,
-            params:
-                GenerateEmbeddingBatchParams {
-                    input_batch,
-                    normalization_method,
-                },
-        }: GenerateEmbeddingBatchRequest,
-    ) -> Result<()> {
-        if !self
-            .scheduler_context
-            .inference_parameters
-            .enable_embeddings
-        {
-            generated_embedding_tx.send(EmbeddingResult::Error(
-                "Embeddings are not enabled for this agent".to_owned(),
-            ))?;
-
-            return Err(anyhow!("Embeddings are not enabled"));
-        }
-
-        self.llama_context.clear_kv_cache();
-
-        let tokens_lines_list = input_batch
-            .into_iter()
-            .map(|input| {
-                match self
-                    .scheduler_context
-                    .model
-                    .str_to_token(&input.content, AddBos::Always)
-                {
-                    Ok(llama_tokens) => Ok(EmbeddingInputTokenized {
-                        id: input.id,
-                        llama_tokens,
-                    }),
-                    Err(err) => Err(anyhow!("Failed to tokenize input: {err:?}")),
-                }
-            })
-            .collect::<Result<Vec<EmbeddingInputTokenized>, _>>()
-            .context("failed to tokenize embedding input batch")?;
-
-        let batch_n_tokens = self.scheduler_context.inference_parameters.batch_n_tokens;
-
-        #[expect(
-            clippy::cast_possible_wrap,
-            reason = "embedding_n_seq_max fits in i32 for llama.cpp FFI"
-        )]
-        let embedding_n_seq_max = self
-            .scheduler_context
-            .inference_parameters
-            .embedding_n_seq_max as i32;
-        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max)?;
-        let mut current_batch_inputs: Vec<&EmbeddingInputTokenized> = Vec::new();
-        let mut current_batch_token_count: usize = 0;
-        let mut next_seq_id: i32 = 0;
-
-        for embedding_input_tokenized in &tokens_lines_list {
-            if generate_embedding_stop_rx.try_recv().is_ok() {
-                break;
-            }
-
-            let input_token_count = embedding_input_tokenized.llama_tokens.len();
-
-            if (current_batch_token_count + input_token_count > batch_n_tokens
-                || next_seq_id >= embedding_n_seq_max)
-                && !current_batch_inputs.is_empty()
-            {
-                self.embedding_batch_decode(
-                    &mut batch,
-                    &current_batch_inputs,
-                    &generated_embedding_tx,
-                    &normalization_method,
-                )?;
-
-                current_batch_inputs.clear();
-                current_batch_token_count = 0;
-                next_seq_id = 0;
-            }
-
-            batch.add_sequence(&embedding_input_tokenized.llama_tokens, next_seq_id, true)?;
-
-            current_batch_inputs.push(embedding_input_tokenized);
-            current_batch_token_count += input_token_count;
-            next_seq_id += 1;
-        }
-
-        if !current_batch_inputs.is_empty() {
-            self.embedding_batch_decode(
-                &mut batch,
-                &current_batch_inputs,
-                &generated_embedding_tx,
-                &normalization_method,
-            )?;
-        }
-
-        generated_embedding_tx.send(EmbeddingResult::Done)?;
-
-        Ok(())
-    }
-
-    fn embedding_batch_decode(
-        &mut self,
-        batch: &mut LlamaBatch,
-        current_batch_embeddings: &[&EmbeddingInputTokenized],
-        generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
-        normalization_method: &EmbeddingNormalizationMethod,
-    ) -> Result<()> {
-        self.llama_context.clear_kv_cache();
-        self.llama_context.decode(batch)?;
-
-        #[expect(
-            clippy::cast_possible_truncation,
-            clippy::cast_possible_wrap,
-            reason = "embedding sequence index fits in i32 for llama.cpp FFI"
-        )]
-        for (index, embedding_input_tokenized) in current_batch_embeddings.iter().enumerate() {
-            let embedding = self
-                .llama_context
-                .embeddings_seq_ith(index as i32)
-                .context("Failed to get embeddings")?;
-
-            generated_embedding_tx.send(EmbeddingResult::Embedding(
-                Embedding {
-                    embedding: embedding.to_vec(),
-                    normalization_method: EmbeddingNormalizationMethod::None,
-                    pooling_type: self
-                        .scheduler_context
-                        .inference_parameters
-                        .pooling_type
-                        .clone(),
-                    source_document_id: embedding_input_tokenized.id.clone(),
-                }
-                .normalize(normalization_method)?,
-            ))?;
-        }
-
-        batch.clear();
-
-        Ok(())
     }
 
     fn has_active_requests(&self) -> bool {
