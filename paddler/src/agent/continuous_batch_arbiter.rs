@@ -2,13 +2,9 @@ use core::num::NonZeroU32;
 use std::cmp::max;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::Ordering;
 use std::thread;
 use std::thread::available_parallelism;
 
-use actix::System;
-use actix::sync::SyncArbiter;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -24,22 +20,21 @@ use log::info;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
 use paddler_types::agent_issue_params::ModelPath;
-use paddler_types::agent_issue_params::SlotCannotStartParams;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
-use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
-use crate::agent::llamacpp_slot::LlamaCppSlot;
-use crate::agent::llamacpp_slot_context::LlamaCppSlotContext;
+use crate::agent::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
+use crate::agent::continuous_batch_scheduler::ContinuousBatchScheduler;
+use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
-pub struct LlamaCppArbiter {
+pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
     pub chat_template_override: Option<ChatTemplate>,
     pub desired_slots_total: i32,
@@ -51,18 +46,18 @@ pub struct LlamaCppArbiter {
     pub slot_aggregated_status_manager: Arc<SlotAggregatedStatusManager>,
 }
 
-impl LlamaCppArbiter {
-    pub async fn spawn(&self) -> Result<LlamaCppArbiterHandle> {
+impl ContinuousBatchArbiter {
+    pub async fn spawn(&self) -> Result<ContinuousBatchArbiterHandle> {
         let (chat_template_loaded_tx, chat_template_loaded_rx) = oneshot::channel::<()>();
-        let (llamacpp_slot_addr_tx, llamacpp_slot_addr_rx) = oneshot::channel();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
-        let available_parallelism: i32 = available_parallelism()?.get().try_into()?;
-        let n_threads = max(2, available_parallelism / 2);
-        let n_threads_batch = max(2, available_parallelism / 2);
+        let available_parallelism_value: i32 = available_parallelism()?.get().try_into()?;
+        let n_threads = max(2, available_parallelism_value / 2);
+        let n_threads_batch = max(2, available_parallelism_value / 2);
 
         info!("Using threads for parallelism threads/batch: {n_threads}/{n_threads_batch}");
+
+        let (command_tx, command_rx) = std::sync::mpsc::channel();
 
         let agent_name_clone = self.agent_name.clone();
         let desired_slots_total = self.desired_slots_total;
@@ -75,13 +70,25 @@ impl LlamaCppArbiter {
         let chat_template_override = self.chat_template_override.clone();
         let slot_aggregated_status_manager = self.slot_aggregated_status_manager.clone();
 
-        let sync_arbiter_thread_handle = thread::spawn(move || -> Result<()> {
+        let scheduler_thread_handle = thread::spawn(move || -> Result<()> {
             let llama_backend =
                 Arc::new(LlamaBackend::init().context("Unable to initialize llama.cpp backend")?);
-            let mut context_params = LlamaContextParams::default()
+
+            #[expect(
+                clippy::cast_sign_loss,
+                reason = "desired_slots_total is always positive"
+            )]
+            let n_seq_max = if inference_parameters.enable_embeddings {
+                inference_parameters.embedding_n_seq_max
+            } else {
+                desired_slots_total as u32
+            };
+
+            let context_params = LlamaContextParams::default()
                 .with_embeddings(inference_parameters.enable_embeddings)
                 .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
                 .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_ENABLED)
+                .with_n_seq_max(n_seq_max)
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads_batch)
                 .with_pooling_type(
@@ -91,15 +98,8 @@ impl LlamaCppArbiter {
                         .to_llama_pooling_type(),
                 );
 
-            if inference_parameters.enable_embeddings {
-                context_params =
-                    context_params.with_n_seq_max(inference_parameters.embedding_n_seq_max);
-            }
-
-            let llama_context_params = Arc::new(context_params);
-            let backend_clone = llama_backend.clone();
             let model = Arc::new(
-                LlamaModel::load_from_file(&backend_clone, model_path.clone(), &{
+                LlamaModel::load_from_file(&llama_backend, model_path.clone(), &{
                     if cfg!(any(
                         feature = "cuda",
                         feature = "vulkan",
@@ -126,9 +126,11 @@ impl LlamaCppArbiter {
 
             let mut model_metadata = ModelMetadata::default();
 
-            for i in 0..model.meta_count() {
-                model_metadata
-                    .set_meta_field(model.meta_key_by_index(i)?, model.meta_val_str_by_index(i)?);
+            for metadata_index in 0..model.meta_count() {
+                model_metadata.set_meta_field(
+                    model.meta_key_by_index(metadata_index)?,
+                    model.meta_val_str_by_index(metadata_index)?,
+                );
             }
 
             model_metadata_holder.set_model_metadata(model_metadata);
@@ -238,9 +240,9 @@ impl LlamaCppArbiter {
                 None => None,
             };
 
-            let slot_index = Arc::new(AtomicU32::new(0));
             let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
-            let slot_context = Arc::new(LlamaCppSlotContext {
+
+            let scheduler_context = Arc::new(ContinuousBatchSchedulerContext {
                 agent_name: agent_name_clone,
                 chat_template_renderer,
                 inference_parameters,
@@ -264,67 +266,33 @@ impl LlamaCppArbiter {
                     true,
                     None,
                 )?,
-                model,
+                model: model.clone(),
             });
-            let system = System::new();
 
-            #[expect(
-                clippy::cast_sign_loss,
-                reason = "desired_slots_total is always non-negative when used as slot count"
-            )]
-            #[expect(
-                clippy::expect_used,
-                reason = "oneshot channel send/recv inside sync arbiter block_on cannot propagate errors"
-            )]
-            #[expect(
-                clippy::panic,
-                reason = "SyncArbiter factory closure cannot return Result"
-            )]
-            system.block_on(async move {
-                llamacpp_slot_addr_tx
-                    .send(SyncArbiter::start(
-                        desired_slots_total as usize,
-                        move || {
-                            let index = slot_index.fetch_add(1, Ordering::SeqCst);
-                            let llamacpp_slot = LlamaCppSlot::new(
-                                index,
-                                &llama_backend,
-                                &llama_context_params,
-                                slot_context.clone(),
-                                slot_aggregated_status_manager.bind_slot_status(),
-                            );
+            let llama_context = model.new_context(&llama_backend, context_params)?;
 
-                            match llamacpp_slot {
-                                Err(err) => {
-                                    slot_aggregated_status_manager
-                                        .slot_aggregated_status
-                                        .register_issue(AgentIssue::SlotCannotStart(
-                                            SlotCannotStartParams {
-                                                error: format!("{err}"),
-                                                slot_index: index,
-                                            },
-                                        ));
+            for slot_index in 0..desired_slots_total {
+                slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .increment_total_slots();
 
-                                    panic!("Failed to create slot: {err}");
-                                }
-                                Ok(llamacpp_slot) => {
-                                    slot_aggregated_status_manager
-                                        .slot_aggregated_status
-                                        .register_fix(&AgentIssueFix::SlotStarted(index));
+                #[expect(clippy::cast_sign_loss, reason = "slot_index is always non-negative")]
+                slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .register_fix(&AgentIssueFix::SlotStarted(slot_index as u32));
+            }
 
-                                    llamacpp_slot
-                                }
-                            }
-                        },
-                    ))
-                    .expect("Failed to send LlamaCppSlot address");
+            let mut scheduler = ContinuousBatchScheduler::new(
+                command_rx,
+                scheduler_context,
+                llama_context,
+                desired_slots_total,
+                slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .clone(),
+            );
 
-                shutdown_rx
-                    .await
-                    .expect("Failed to receive shutdown signal");
-
-                System::current().stop();
-            });
+            scheduler.run();
 
             Ok(())
         });
@@ -372,8 +340,6 @@ impl LlamaCppArbiter {
                         model_path: model_path_string.clone(),
                     }))
                 {
-                    // If the model cannot be loaded, that doesn't mean that the chat template
-                    // cannot be loaded.
                     self.slot_aggregated_status_manager
                         .slot_aggregated_status
                         .register_issue(AgentIssue::UnableToFindChatTemplate(ModelPath {
@@ -383,12 +349,9 @@ impl LlamaCppArbiter {
             }
         }
 
-        Ok(LlamaCppArbiterHandle {
-            llamacpp_slot_addr: llamacpp_slot_addr_rx
-                .await
-                .context("Unable to await for llamacpp slot addr")?,
-            shutdown_tx,
-            sync_arbiter_thread_handle,
+        Ok(ContinuousBatchArbiterHandle {
+            command_tx,
+            scheduler_thread_handle: Some(scheduler_thread_handle),
         })
     }
 }

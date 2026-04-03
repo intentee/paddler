@@ -34,6 +34,7 @@ async fn test_qwen35_multimodal_inference_with_image() -> Result<()> {
             repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
             revision: "main".to_string(),
         }),
+        slots: 1,
     })
     .await?;
 

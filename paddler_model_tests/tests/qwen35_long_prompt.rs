@@ -69,6 +69,7 @@ async fn test_qwen35_long_prompt_with_system_message() -> Result<()> {
             revision: "main".to_string(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 

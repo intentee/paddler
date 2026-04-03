@@ -3,7 +3,6 @@
 use anyhow::Result;
 use llama_cpp_bindings::LogOptions;
 use llama_cpp_bindings::send_logs_to_tracing;
-use paddler_model_tests::log_generated_response::log_generated_response;
 use paddler_model_tests::managed_model::ManagedModel;
 use paddler_model_tests::managed_model::ManagedModelParams;
 use paddler_model_tests::model_test_harness::ModelTestHarness;
@@ -13,16 +12,11 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 
 #[actix_web::test]
-async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
+async fn test_slot_reused_after_first_request_completes() -> Result<()> {
     send_logs_to_tracing(LogOptions::default());
 
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
-        inference_parameters: InferenceParameters {
-            min_p: 0.0,
-            top_k: 20,
-            top_p: 0.95,
-            ..InferenceParameters::default()
-        },
+        inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
             filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
             repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
@@ -35,30 +29,44 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
 
     let harness = ModelTestHarness::new(&managed_model);
 
-    let results = harness
+    // First request
+    let results_1 = harness
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 30,
-            raw_prompt:
-                "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n"
-                    .to_string(),
+            max_tokens: 10,
+            raw_prompt: "Hello world".to_string(),
         })
         .await?;
 
-    log_generated_response(&results);
-
-    let token_count = results
+    let token_count_1 = results_1
         .iter()
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
 
+    assert!(token_count_1 > 0, "First request should produce tokens");
     assert!(
-        token_count > 0,
-        "Expected to receive at least one token from Qwen3 raw prompt"
+        matches!(results_1.last(), Some(GeneratedTokenResult::Done)),
+        "First request should end with Done"
     );
+
+    // Second request: reuses the same slot
+    let results_2 = harness
+        .generate_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
+            max_tokens: 10,
+            raw_prompt: "Goodbye world".to_string(),
+        })
+        .await?;
+
+    let token_count_2 = results_2
+        .iter()
+        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .count();
+
+    assert!(token_count_2 > 0, "Second request should produce tokens");
     assert!(
-        matches!(results.last(), Some(GeneratedTokenResult::Done)),
-        "Expected generation to end with Done"
+        matches!(results_2.last(), Some(GeneratedTokenResult::Done)),
+        "Second request should end with Done"
     );
 
     managed_model.shutdown()?;

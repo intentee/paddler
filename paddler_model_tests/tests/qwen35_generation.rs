@@ -27,6 +27,7 @@ async fn test_qwen35_generation_stops_cleanly() -> Result<()> {
             revision: "main".to_string(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 

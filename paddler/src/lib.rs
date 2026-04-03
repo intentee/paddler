@@ -30,8 +30,6 @@ pub mod sets_desired_state;
 pub mod slot_aggregated_status;
 pub mod slot_aggregated_status_download_progress;
 pub mod slot_aggregated_status_manager;
-pub mod slot_request_drop_guard;
-pub mod slot_status;
 #[cfg(feature = "web_admin_panel")]
 pub mod static_files;
 pub mod websocket_session_controller;

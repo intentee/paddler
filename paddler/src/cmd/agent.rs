@@ -64,7 +64,7 @@ impl Handler for Agent {
             continue_from_raw_prompt_request_rx,
             desired_slots_total: self.slots,
             generate_embedding_batch_request_rx,
-            llamacpp_arbiter_handle: None,
+            continuous_batch_arbiter_handle: None,
             model_metadata_holder: model_metadata_holder.clone(),
             slot_aggregated_status_manager: slot_aggregated_status_manager.clone(),
         });

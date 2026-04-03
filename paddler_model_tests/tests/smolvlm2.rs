@@ -34,6 +34,7 @@ async fn test_smolvlm2_multimodal_inference_with_image() -> Result<()> {
             repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_string(),
             revision: "main".to_string(),
         }),
+        slots: 1,
     })
     .await?;
 

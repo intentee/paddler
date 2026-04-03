@@ -34,6 +34,7 @@ async fn test_qwen25vl_multimodal_inference_with_image() -> Result<()> {
             repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_string(),
             revision: "main".to_string(),
         }),
+        slots: 1,
     })
     .await?;
 

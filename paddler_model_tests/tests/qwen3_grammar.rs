@@ -27,6 +27,7 @@ fn managed_model_params() -> ManagedModelParams {
             revision: "main".to_string(),
         },
         multimodal_projection: None,
+        slots: 1,
     }
 }
 

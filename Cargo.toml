@@ -98,3 +98,7 @@ todo = "deny"
 too_many_lines = "allow"
 unimplemented = "deny"
 unwrap_used = "deny"
+
+[patch.crates-io]
+llama-cpp-bindings = { path = "../llama-cpp-bindings/llama-cpp-bindings" }
+llama-cpp-bindings-sys = { path = "../llama-cpp-bindings/llama-cpp-bindings-sys" }

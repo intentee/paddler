@@ -27,6 +27,7 @@ async fn test_qwen35_system_and_user_messages_with_thinking() -> Result<()> {
             revision: "main".to_string(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 

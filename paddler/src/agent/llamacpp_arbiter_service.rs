@@ -1,9 +1,5 @@
-use std::fmt::Debug;
 use std::sync::Arc;
 
-use actix::Message;
-use actix_web::rt;
-use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -22,11 +18,11 @@ use tokio::time::interval;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use crate::agent::continuous_batch_arbiter::ContinuousBatchArbiter;
+use crate::agent::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
+use crate::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::agent::drain_in_flight_requests::drain_in_flight_requests;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
-use crate::agent::llamacpp_arbiter::LlamaCppArbiter;
-use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
-use crate::agent::llamacpp_slot::LlamaCppSlot;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
@@ -43,22 +39,30 @@ pub struct LlamaCppArbiterService {
     pub continue_from_raw_prompt_request_rx: mpsc::UnboundedReceiver<ContinueFromRawPromptRequest>,
     pub desired_slots_total: i32,
     pub generate_embedding_batch_request_rx: mpsc::UnboundedReceiver<GenerateEmbeddingBatchRequest>,
-    pub llamacpp_arbiter_handle: Option<LlamaCppArbiterHandle>,
+    pub continuous_batch_arbiter_handle: Option<ContinuousBatchArbiterHandle>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub slot_aggregated_status_manager: Arc<SlotAggregatedStatusManager>,
 }
 
 impl LlamaCppArbiterService {
     async fn apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) -> Result<()> {
-        if self.llamacpp_arbiter_handle.is_some() {
+        if let Some(arbiter_handle) = &self.continuous_batch_arbiter_handle {
+            let _ = arbiter_handle
+                .command_tx
+                .send(ContinuousBatchSchedulerCommand::Shutdown);
+
             drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
         }
 
-        if let Some(llamacpp_arbiter_handle) = self.llamacpp_arbiter_handle.take() {
-            llamacpp_arbiter_handle
-                .shutdown()
-                .context("Unable to stop arbiter controller")?;
+        if let Some(arbiter_handle) = self.continuous_batch_arbiter_handle.as_mut()
+            && let Some(thread_handle) = arbiter_handle.scheduler_thread_handle.take()
+        {
+            thread_handle
+                .join()
+                .map_err(|err| anyhow!("Failed to join scheduler thread: {err:?}"))??;
         }
+
+        self.continuous_batch_arbiter_handle = None;
 
         if let Some(AgentApplicableState {
             chat_template_override,
@@ -151,8 +155,8 @@ impl LlamaCppArbiterService {
                         model_path: model_path_string.clone(),
                     }));
 
-                self.llamacpp_arbiter_handle = Some(
-                    LlamaCppArbiter {
+                self.continuous_batch_arbiter_handle = Some(
+                    ContinuousBatchArbiter {
                         agent_name: self.agent_name.clone(),
                         chat_template_override,
                         desired_slots_total: self.desired_slots_total,
@@ -180,32 +184,13 @@ impl LlamaCppArbiterService {
         Ok(())
     }
 
-    fn forward_request_to_arbiter<TRequest>(
-        &self,
-        request: TRequest,
-        mut shutdown: broadcast::Receiver<()>,
-    ) where
-        TRequest: Message + Debug + Send + 'static,
-        TRequest::Result: Send + 'static,
-        LlamaCppSlot: actix::Handler<TRequest>,
-    {
-        if let Some(llamacpp_arbiter_handle) = &self.llamacpp_arbiter_handle {
-            let llamacpp_slot_addr = llamacpp_arbiter_handle.llamacpp_slot_addr.clone();
-
-            rt::spawn(async move {
-                tokio::select! {
-                    _ = shutdown.recv() => {
-                        error!("Shutdown received, stopping request processing");
-                    }
-                    result = llamacpp_slot_addr.send(request) => {
-                        if let Err(err) = result {
-                            error!("Failed to forward request to arbiter: {err}");
-                        }
-                    }
-                }
-            });
+    fn forward_command(&self, command: ContinuousBatchSchedulerCommand) {
+        if let Some(arbiter_handle) = &self.continuous_batch_arbiter_handle {
+            if let Err(err) = arbiter_handle.command_tx.send(command) {
+                error!("Failed to forward command to scheduler: {err}");
+            }
         } else {
-            error!("LlamaCppArbiterHandle is not initialized");
+            error!("ContinuousBatchArbiterHandle is not initialized");
         }
     }
 
@@ -258,10 +243,9 @@ impl Service for LlamaCppArbiterService {
                 }
                 continue_from_conversation_history_request = self.continue_from_conversation_history_request_rx.recv() => {
                     match continue_from_conversation_history_request {
-                        Some(continue_from_conversation_history_request) => {
-                            self.forward_request_to_arbiter(
-                                continue_from_conversation_history_request,
-                                shutdown.resubscribe(),
+                        Some(request) => {
+                            self.forward_command(
+                                ContinuousBatchSchedulerCommand::ContinueFromConversationHistory(request),
                             );
                         }
                         None => {
@@ -271,10 +255,9 @@ impl Service for LlamaCppArbiterService {
                 }
                 continue_from_raw_prompt_request = self.continue_from_raw_prompt_request_rx.recv() => {
                     match continue_from_raw_prompt_request {
-                        Some(continue_from_raw_prompt_request) => {
-                            self.forward_request_to_arbiter(
-                                continue_from_raw_prompt_request,
-                                shutdown.resubscribe(),
+                        Some(request) => {
+                            self.forward_command(
+                                ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(request),
                             );
                         }
                         None => {
@@ -284,10 +267,9 @@ impl Service for LlamaCppArbiterService {
                 }
                 generate_embedding_batch_request = self.generate_embedding_batch_request_rx.recv() => {
                     match generate_embedding_batch_request {
-                        Some(generate_embedding_batch_request) => {
-                            self.forward_request_to_arbiter(
-                                generate_embedding_batch_request,
-                                shutdown.resubscribe(),
+                        Some(request) => {
+                            self.forward_command(
+                                ContinuousBatchSchedulerCommand::GenerateEmbeddingBatch(request),
                             );
                         }
                         None => {

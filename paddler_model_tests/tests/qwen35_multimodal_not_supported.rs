@@ -28,6 +28,7 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
             revision: "main".to_string(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 
