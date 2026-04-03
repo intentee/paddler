@@ -573,7 +573,7 @@ impl ContinuousBatchScheduler {
             generated_tokens_count: 0,
             generated_tokens_tx,
             generate_tokens_stop_rx,
-            i_batch: -1,
+            i_batch: i32::MIN,
             max_tokens,
             phase: ContinuousBatchRequestPhase::Ingesting,
             prompt_tokens,
@@ -711,8 +711,8 @@ impl ContinuousBatchScheduler {
             .eval_chunks(
                 multimodal_context,
                 &self.llama_context,
-                sequence_id,
                 0,
+                sequence_id,
                 batch_size as i32,
                 true,
             )
@@ -741,6 +741,8 @@ impl ContinuousBatchScheduler {
                 return;
             }
         };
+
+        self.llama_context.mark_logits_initialized(-1);
 
         let Ok(llama_grammar_sampler) =
             self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
@@ -790,7 +792,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                active_request.i_batch = -1;
+                active_request.i_batch = i32::MIN;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
             }
         }
@@ -1002,7 +1004,7 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            if active_request.i_batch < 0 {
+            if active_request.i_batch == i32::MIN {
                 continue;
             }
 
@@ -1030,7 +1032,7 @@ impl ContinuousBatchScheduler {
                         );
                     }
 
-                    active_request.i_batch = -1;
+                    active_request.i_batch = i32::MIN;
                     active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                     continue;
@@ -1049,7 +1051,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                active_request.i_batch = -1;
+                active_request.i_batch = i32::MIN;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                 continue;
@@ -1072,7 +1074,7 @@ impl ContinuousBatchScheduler {
                             self.scheduler_context.agent_name, active_request.sequence_id
                         );
 
-                        active_request.i_batch = -1;
+                        active_request.i_batch = i32::MIN;
                         active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                         continue;
@@ -1097,7 +1099,7 @@ impl ContinuousBatchScheduler {
                         );
                     }
 
-                    active_request.i_batch = -1;
+                    active_request.i_batch = i32::MIN;
                     active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                     continue;
@@ -1118,7 +1120,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                active_request.i_batch = -1;
+                active_request.i_batch = i32::MIN;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                 continue;
