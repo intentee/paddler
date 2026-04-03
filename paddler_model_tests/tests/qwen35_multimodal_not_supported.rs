@@ -11,6 +11,7 @@ use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_types::image_url::ImageUrl;
 use paddler_types::inference_parameters::InferenceParameters;
@@ -50,7 +51,7 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
         role: "user".to_string(),
     }]);
 
-    let result = harness
+    let results = harness
         .generate_from_conversation(ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history,
@@ -59,18 +60,13 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
             max_tokens: 100,
             tools: vec![],
         })
-        .await;
+        .await?;
 
     assert!(
-        result.is_err(),
-        "Expected an error when sending images to a text-only model"
-    );
-
-    let error_message = result.unwrap_err().to_string();
-
-    assert!(
-        error_message.contains("multimodal"),
-        "Expected error to mention multimodal, got: {error_message}"
+        results
+            .iter()
+            .any(|result| matches!(result, GeneratedTokenResult::MultimodalNotSupported(_))),
+        "Expected MultimodalNotSupported error when sending images to a text-only model, got: {results:?}"
     );
 
     managed_model.shutdown()?;
