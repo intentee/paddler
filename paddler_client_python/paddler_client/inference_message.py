@@ -14,7 +14,9 @@ class InferenceMessageKind(StrEnum):
     EMBEDDING = "embedding"
     EMBEDDING_DONE = "embedding_done"
     EMBEDDING_ERROR = "embedding_error"
+    GRAMMAR_INCOMPATIBLE_WITH_THINKING = "grammar_incompatible_with_thinking"
     GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
+    GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
     GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
     IMAGE_DECODING_FAILED = "image_decoding_failed"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
@@ -126,7 +128,9 @@ def _parse_response(
 
 _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ChatTemplateError": InferenceMessageKind.CHAT_TEMPLATE_ERROR,
+    "GrammarIncompatibleWithThinking": InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING,
     "GrammarInitializationFailed": InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
+    "GrammarRejectedModelOutput": InferenceMessageKind.GRAMMAR_REJECTED_MODEL_OUTPUT,
     "GrammarSyntaxError": InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
     "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
     "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
