@@ -38,9 +38,9 @@ async fn test_long_and_short_prompts_complete_concurrently() -> Result<()> {
     let short_prompt = "Hi";
 
     let (tx_long, rx_long) = mpsc::unbounded_channel();
-    let (_, stop_rx_long) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, stop_rx_long) = mpsc::unbounded_channel::<()>();
     let (tx_short, rx_short) = mpsc::unbounded_channel();
-    let (_, stop_rx_short) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, stop_rx_short) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()

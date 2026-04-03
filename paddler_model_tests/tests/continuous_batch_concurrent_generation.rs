@@ -39,10 +39,11 @@ async fn test_continuous_batch_processes_four_concurrent_requests() -> Result<()
     ];
 
     let mut receivers = Vec::new();
+    let mut stop_senders = Vec::new();
 
     for prompt in &prompts {
         let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
-        let (_, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
+        let (stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
 
         managed_model
             .handle()
@@ -61,6 +62,7 @@ async fn test_continuous_batch_processes_four_concurrent_requests() -> Result<()
             .map_err(|err| anyhow::anyhow!("Failed to send command: {err}"))?;
 
         receivers.push(generated_tokens_rx);
+        stop_senders.push(stop_tx);
     }
 
     let (results_0, results_1, results_2, results_3) = tokio::join!(

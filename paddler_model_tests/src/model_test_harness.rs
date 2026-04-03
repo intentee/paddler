@@ -25,7 +25,7 @@ impl<'model> ModelTestHarness<'model> {
         params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ) -> Result<Vec<GeneratedTokenResult>> {
         let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
-        let (_, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
+        let (_stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
 
         self.managed_model
             .handle()
@@ -49,7 +49,7 @@ impl<'model> ModelTestHarness<'model> {
         params: ContinueFromRawPromptParams,
     ) -> Result<Vec<GeneratedTokenResult>> {
         let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
-        let (_, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
+        let (_stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
 
         self.managed_model
             .handle()

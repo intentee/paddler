@@ -35,7 +35,7 @@ async fn test_embedding_rejected_during_active_generation() -> Result<()> {
     .await?;
 
     let (gen_tx, mut gen_rx) = mpsc::unbounded_channel();
-    let (_, gen_stop_rx) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, gen_stop_rx) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()
@@ -56,7 +56,7 @@ async fn test_embedding_rejected_during_active_generation() -> Result<()> {
     gen_rx.recv().await;
 
     let (embed_tx, mut embed_rx) = mpsc::unbounded_channel();
-    let (_, embed_stop_rx) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, embed_stop_rx) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()

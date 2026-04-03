@@ -32,7 +32,7 @@ async fn test_second_request_rejected_when_single_slot_busy() -> Result<()> {
 
     // First request: occupy the only slot
     let (gen_tx_1, mut gen_rx_1) = mpsc::unbounded_channel();
-    let (_, gen_stop_rx_1) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, gen_stop_rx_1) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()
@@ -59,7 +59,7 @@ async fn test_second_request_rejected_when_single_slot_busy() -> Result<()> {
 
     // Second request: should be rejected (no available slots)
     let (gen_tx_2, gen_rx_2) = mpsc::unbounded_channel();
-    let (_, gen_stop_rx_2) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, gen_stop_rx_2) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()

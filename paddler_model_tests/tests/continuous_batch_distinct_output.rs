@@ -34,9 +34,9 @@ async fn test_continuous_batch_produces_distinct_output_per_sequence() -> Result
     let prompt_b = "The capital of France is";
 
     let (tx_a, rx_a) = mpsc::unbounded_channel();
-    let (_, stop_rx_a) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, stop_rx_a) = mpsc::unbounded_channel::<()>();
     let (tx_b, rx_b) = mpsc::unbounded_channel();
-    let (_, stop_rx_b) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, stop_rx_b) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()

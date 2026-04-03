@@ -35,7 +35,7 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
 
     // Start generation, receive one token, then disconnect
     let (gen_tx, mut gen_rx) = mpsc::unbounded_channel();
-    let (_, gen_stop_rx) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, gen_stop_rx) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()
@@ -68,7 +68,7 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
 
     for attempt in 0..max_attempts {
         let (gen_tx_retry, gen_rx_retry) = mpsc::unbounded_channel();
-        let (_, gen_stop_rx_retry) = mpsc::unbounded_channel::<()>();
+        let (_stop_tx, gen_stop_rx_retry) = mpsc::unbounded_channel::<()>();
 
         managed_model
             .handle()

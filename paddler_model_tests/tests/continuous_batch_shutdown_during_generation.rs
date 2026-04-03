@@ -30,7 +30,7 @@ async fn test_shutdown_during_active_generation_does_not_hang() -> Result<()> {
     .await?;
 
     let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-    let (_, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
 
     managed_model
         .handle()

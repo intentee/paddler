@@ -68,7 +68,7 @@ async fn test_slots_processing_count_zero_after_shutdown_with_active_request() -
 
     // Start generation
     let (gen_tx, mut gen_rx) = mpsc::unbounded_channel();
-    let (_, gen_stop_rx) = mpsc::unbounded_channel::<()>();
+    let (_stop_tx, gen_stop_rx) = mpsc::unbounded_channel::<()>();
 
     handle
         .command_tx
