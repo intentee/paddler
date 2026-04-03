@@ -16,9 +16,14 @@ use paddler_integration_tests::managed_agent::ManagedAgent;
 use paddler_integration_tests::managed_agent::ManagedAgentParams;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_cluster::ManagedCluster;
+use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::grammar_constraint::GrammarConstraint;
 use paddler_types::inference_client::Message;
+use paddler_types::inference_client::Response;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use serial_test::file_serial;
@@ -624,5 +629,77 @@ async fn test_buffered_requests_stream_receives_snapshot() {
     assert!(
         first_event.buffered_requests_current >= 0,
         "buffered request count must be non-negative"
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_in_flight_requests_drain_before_model_switch() {
+    let expected_output = "the quick brown fox jumps over the lazy dog";
+
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_slots: 1,
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: Some(GrammarConstraint::Gbnf {
+                grammar: format!("root ::= \"{expected_output}\""),
+                root: "root".to_owned(),
+            }),
+            max_tokens: 200,
+            raw_prompt: "Say the following: the quick brown fox jumps over the lazy dog"
+                .to_string(),
+        })
+        .await
+        .expect("inference request should connect");
+
+    let switch_state = BalancerDesiredState {
+        chat_template_override: None,
+        inference_parameters: InferenceParameters::default(),
+        model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_string()),
+        multimodal_projection: AgentDesiredModel::None,
+        use_chat_template_override: false,
+    };
+
+    cluster
+        .balancer
+        .client()
+        .management()
+        .put_balancer_desired_state(&switch_state)
+        .await
+        .expect("failed to trigger model switch");
+
+    let mut text = String::new();
+
+    while let Some(message) = stream.next().await {
+        let message = message.expect("message should deserialize");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(GeneratedTokenResult::Token(token)) => {
+                    text.push_str(&token);
+                }
+                Response::GeneratedToken(GeneratedTokenResult::Done) => break,
+                other => panic!("unexpected response during drain test: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "request failed during model switch (drain did not protect in-flight request): {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    assert_eq!(
+        text, expected_output,
+        "grammar-constrained output should complete fully despite concurrent model switch"
     );
 }

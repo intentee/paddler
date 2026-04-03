@@ -43,7 +43,9 @@ class ClientInference:
         self._url = url.rstrip("/")
         self._socket_pool_size = socket_pool_size
         self._http_client = (
-            http_client if http_client is not None else httpx.AsyncClient()
+            http_client
+            if http_client is not None
+            else httpx.AsyncClient(timeout=httpx.Timeout(timeout=300.0))
         )
         self._socket_pool: InferenceSocketPool | None = None
 

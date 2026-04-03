@@ -1,7 +1,9 @@
 pub mod continue_from_conversation_history_request;
 pub mod continue_from_raw_prompt_request;
+pub mod drain_in_flight_requests;
 mod from_request_params;
 pub mod generate_embedding_batch_request;
+pub mod grammar_sampler;
 pub mod jsonrpc;
 mod kv_cache_repair_action;
 pub mod llamacpp_arbiter;

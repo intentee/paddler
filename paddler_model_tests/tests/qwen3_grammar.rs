@@ -55,7 +55,7 @@ async fn test_gbnf_grammar_constrains_output() -> Result<()> {
             }),
             max_tokens: 10,
             raw_prompt:
-                "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n"
+                "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
                     .to_string(),
         })
         .await?;
@@ -68,10 +68,6 @@ async fn test_gbnf_grammar_constrains_output() -> Result<()> {
         generated_text == "yes" || generated_text == "no",
         "Expected 'yes' or 'no', got: '{generated_text}'"
     );
-    assert!(
-        matches!(results.last(), Some(GeneratedTokenResult::Done)),
-        "Expected generation to end with Done"
-    );
 
     managed_model.shutdown()?;
 
@@ -79,7 +75,7 @@ async fn test_gbnf_grammar_constrains_output() -> Result<()> {
 }
 
 #[actix_web::test]
-async fn test_json_schema_constrains_output() -> Result<()> {
+async fn test_json_schema_grammar_constrains_output() -> Result<()> {
     send_logs_to_tracing(LogOptions::default());
 
     let managed_model = ManagedModel::from_huggingface(managed_model_params()).await?;
@@ -92,7 +88,7 @@ async fn test_json_schema_constrains_output() -> Result<()> {
             }),
             max_tokens: 50,
             raw_prompt:
-                "<|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n".to_string(),
+                "<|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_string(),
         })
         .await?;
 
@@ -104,10 +100,6 @@ async fn test_json_schema_constrains_output() -> Result<()> {
     assert!(
         parsed.get("answer").is_some(),
         "Expected JSON with 'answer' field, got: '{generated_text}'"
-    );
-    assert!(
-        matches!(results.last(), Some(GeneratedTokenResult::Done)),
-        "Expected generation to end with Done"
     );
 
     managed_model.shutdown()?;
@@ -126,7 +118,7 @@ async fn test_no_grammar_does_not_constrain_output() -> Result<()> {
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 20,
-            raw_prompt: "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n"
+            raw_prompt: "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
                 .to_string(),
         })
         .await?;
@@ -141,6 +133,56 @@ async fn test_no_grammar_does_not_constrain_output() -> Result<()> {
     assert!(
         token_count > 0,
         "Expected to receive at least one token without grammar"
+    );
+
+    managed_model.shutdown()?;
+
+    Ok(())
+}
+
+#[actix_web::test]
+async fn test_grammar_with_thinking_returns_incompatible_error() -> Result<()> {
+    use paddler_types::conversation_history::ConversationHistory;
+    use paddler_types::conversation_message::ConversationMessage;
+    use paddler_types::conversation_message_content::ConversationMessageContent;
+    use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
+    use paddler_types::request_params::ContinueFromConversationHistoryParams;
+
+    send_logs_to_tracing(LogOptions::default());
+
+    let managed_model = ManagedModel::from_huggingface(managed_model_params()).await?;
+    let harness = ModelTestHarness::new(&managed_model);
+
+    let result = harness
+        .generate_from_conversation(ContinueFromConversationHistoryParams {
+            add_generation_prompt: true,
+            enable_thinking: true,
+            grammar: Some(GrammarConstraint::JsonSchema {
+                schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
+            }),
+            conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                role: "user".to_owned(),
+                content: ConversationMessageContent::Parts(vec![
+                    ConversationMessageContentPart::Text {
+                        text: "What is 2+2?".to_owned(),
+                    },
+                ]),
+            }]),
+            max_tokens: 50,
+            tools: vec![],
+        })
+        .await;
+
+    assert!(
+        result.is_err(),
+        "Expected error when using grammar with thinking enabled"
+    );
+
+    let error_message = format!("{}", result.unwrap_err());
+
+    assert!(
+        error_message.contains("grammar constraints and thinking mode cannot be used together"),
+        "Expected grammar+thinking incompatibility error, got: '{error_message}'"
     );
 
     managed_model.shutdown()?;

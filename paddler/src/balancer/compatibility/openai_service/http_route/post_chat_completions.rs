@@ -132,10 +132,13 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 response:
                     OutgoingResponse::GeneratedToken(
                         GeneratedTokenResult::ChatTemplateError(description)
+                        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+                        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
                         | GeneratedTokenResult::GrammarInitializationFailed(description)
                         | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                        | GeneratedTokenResult::MultimodalNotSupported(description)
+                        | GeneratedTokenResult::SamplerError(description),
                     ),
                 ..
             })
@@ -190,10 +193,13 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
                 response:
                     OutgoingResponse::GeneratedToken(
                         GeneratedTokenResult::ChatTemplateError(description)
+                        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+                        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
                         | GeneratedTokenResult::GrammarInitializationFailed(description)
                         | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                        | GeneratedTokenResult::MultimodalNotSupported(description)
+                        | GeneratedTokenResult::SamplerError(description),
                     ),
                 ..
             })

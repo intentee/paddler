@@ -91,6 +91,24 @@ def test_parse_chat_template_error() -> None:
     assert message.is_terminal
 
 
+def test_parse_grammar_incompatible_with_thinking() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "GrammarIncompatibleWithThinking": "err"
+                }
+            },
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
+    assert message.error_message == "err"
+    assert message.is_terminal
+
+
 def test_parse_grammar_initialization_failed() -> None:
     data = {
         "Response": {
@@ -106,6 +124,24 @@ def test_parse_grammar_initialization_failed() -> None:
 
     assert message.kind == InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED
     assert message.error_message == "null grammar"
+    assert message.is_terminal
+
+
+def test_parse_grammar_rejected_model_output() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "GrammarRejectedModelOutput": "token rejected"
+                }
+            },
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.GRAMMAR_REJECTED_MODEL_OUTPUT
+    assert message.error_message == "token rejected"
     assert message.is_terminal
 
 
@@ -150,6 +186,20 @@ def test_parse_multimodal_not_supported() -> None:
 
     assert message.kind == InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED
     assert message.error_message == "no multimodal"
+    assert message.is_terminal
+
+
+def test_parse_sampler_error() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"SamplerError": "no candidates"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.SAMPLER_ERROR
+    assert message.error_message == "no candidates"
     assert message.is_terminal
 
 

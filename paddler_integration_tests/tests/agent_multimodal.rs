@@ -233,6 +233,7 @@ async fn test_multimodal_inference_with_image() {
                 role: "user".to_string(),
             }]),
             enable_thinking: true,
+            grammar: None,
             max_tokens: 100,
             tools: vec![],
         })
