@@ -13,8 +13,8 @@ node_modules: package-lock.json
 	npm install --from-lockfile
 	touch node_modules
 
-target/debug/paddler: $(shell find paddler/src paddler_types/src paddler_client/src -name '*.rs')
-	cargo build -p paddler
+target/debug/paddler_cli: $(shell find paddler/src paddler_cli/src paddler_types/src paddler_client/src -name '*.rs')
+	cargo build -p paddler_cli
 
 # -----------------------------------------------------------------------------
 # Phony targets
@@ -41,19 +41,19 @@ jarmuz-static: node_modules
 
 .PHONY: release
 release: jarmuz-static
-	cargo build --release -p paddler --features web_admin_panel
+	cargo build --release -p paddler_cli --features web_admin_panel
 
 .PHONY: release.cuda
 release.cuda: jarmuz-static
-	cargo build --release -p paddler --features web_admin_panel,cuda
+	cargo build --release -p paddler_cli --features web_admin_panel,cuda
 
 .PHONY: release.vulkan
 release.vulkan: jarmuz-static
-	cargo build --release -p paddler --features web_admin_panel,vulkan
+	cargo build --release -p paddler_cli --features web_admin_panel,vulkan
 
 .PHONY: build
 build: jarmuz-static
-	cargo build -p paddler --features web_admin_panel
+	cargo build -p paddler_cli --features web_admin_panel
 
 .PHONY: test
 test: test.unit test.models test.integration
@@ -67,7 +67,7 @@ test.unit: jarmuz-static
 	cargo test --features web_admin_panel
 
 .PHONY: test.integration
-test.integration: target/debug/paddler
+test.integration: target/debug/paddler_cli
 	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: watch

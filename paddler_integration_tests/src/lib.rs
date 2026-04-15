@@ -21,7 +21,7 @@ pub const WAIT_FOR_STATE_CHANGE_TIMEOUT: Duration = Duration::from_secs(30);
 pub const WAIT_FOR_STATE_CHANGE_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 static PADDLER_BINARY_PATH: LazyLock<String> = LazyLock::new(|| {
-    std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_owned())
+    std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler_cli".to_owned())
 });
 
 pub fn paddler_command() -> Command {
