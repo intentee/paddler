@@ -19,6 +19,7 @@ mod start_cluster_config_handler;
 mod ui;
 
 use iced::Size;
+use iced::Theme;
 use second_brain::SecondBrain;
 
 fn main() -> iced::Result {
@@ -31,6 +32,7 @@ fn main() -> iced::Result {
         .font(include_bytes!(
             "../../resources/fonts/JetBrainsMono-Bold.ttf"
         ))
+        .theme(Theme::Light)
         .window_size(Size::new(800.0, 800.0))
         .subscription(SecondBrain::subscription)
         .run()
