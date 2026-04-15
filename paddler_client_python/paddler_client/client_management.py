@@ -1,21 +1,23 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 import httpx
 
-from paddler_client.error import HttpError
-from paddler_client.stream_sse import stream_sse
-from paddler_client.types.agent_controller_pool_snapshot import (
+from paddler_client.agent_controller_pool_snapshot import (
     AgentControllerPoolSnapshot,
 )
-from paddler_client.types.balancer_desired_state import BalancerDesiredState
-from paddler_client.types.buffered_request_manager_snapshot import (
+from paddler_client.balancer_desired_state import BalancerDesiredState
+from paddler_client.buffered_request_manager_snapshot import (
     BufferedRequestManagerSnapshot,
 )
-from paddler_client.types.chat_template import ChatTemplate
-from paddler_client.types.model_metadata import ModelMetadata
+from paddler_client.chat_template import ChatTemplate
+from paddler_client.error import HttpError
+from paddler_client.model_metadata import ModelMetadata
+from paddler_client.stream_sse import stream_sse
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 class ClientManagement:

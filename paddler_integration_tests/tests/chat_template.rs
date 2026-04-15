@@ -91,6 +91,7 @@ async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) 
                 role: "user".to_string(),
             }]),
             enable_thinking: false,
+            grammar: None,
             max_tokens: 10,
             tools: vec![],
         })

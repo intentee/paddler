@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator
-
-import httpx
+from typing import TYPE_CHECKING
 
 from paddler_client.inference_message import (
     InferenceMessage,
     parse_inference_client_message,
 )
 from paddler_client.raise_for_streaming_error import raise_for_streaming_error
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    import httpx
 
 
 async def stream_ndjson_inference_messages(

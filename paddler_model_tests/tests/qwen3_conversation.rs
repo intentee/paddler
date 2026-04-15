@@ -47,6 +47,7 @@ async fn test_qwen3_generates_tokens_from_conversation() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: false,
+            grammar: None,
             max_tokens: 500,
             tools: vec![],
         })

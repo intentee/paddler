@@ -1,10 +1,8 @@
-from __future__ import annotations
-
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 
-from paddler_client.types.huggingface_model_reference import (
+from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
 
@@ -23,22 +21,25 @@ class AgentDesiredModel(BaseModel):
             return {"variant": "None"}
 
         if isinstance(data, dict):
-            if "HuggingFace" in data:
+            typed_data = cast("dict[str, Any]", data)
+
+            if "HuggingFace" in typed_data:
                 return {
                     "variant": "HuggingFace",
-                    "huggingface": data["HuggingFace"],
+                    "huggingface": typed_data["HuggingFace"],
                 }
 
-            if "LocalToAgent" in data:
+            if "LocalToAgent" in typed_data:
                 return {
                     "variant": "LocalToAgent",
-                    "local_path": data["LocalToAgent"],
+                    "local_path": typed_data["LocalToAgent"],
                 }
 
-            if "variant" in data:
-                return data
+            if "variant" in typed_data:
+                return typed_data
 
-        raise ValueError(f"Invalid AgentDesiredModel: {data}")
+        msg = f"Invalid AgentDesiredModel: {data}"
+        raise ValueError(msg)
 
     @model_serializer
     def to_serde(self) -> str | dict[str, Any]:
@@ -50,22 +51,24 @@ class AgentDesiredModel(BaseModel):
 
         if self.variant == "LocalToAgent":
             if self.local_path is None:
-                raise ValueError("local_path is required for LocalToAgent")
+                msg = "local_path is required for LocalToAgent"
+                raise ValueError(msg)
 
             return {"LocalToAgent": self.local_path}
 
-        raise ValueError(f"Unknown AgentDesiredModel variant: {self.variant}")
+        msg = f"Unknown AgentDesiredModel variant: {self.variant}"
+        raise ValueError(msg)
 
     @classmethod
-    def none(cls) -> AgentDesiredModel:
+    def none(cls) -> "AgentDesiredModel":
         return cls(variant="None")
 
     @classmethod
     def from_huggingface(
         cls, reference: HuggingFaceModelReference
-    ) -> AgentDesiredModel:
+    ) -> "AgentDesiredModel":
         return cls(variant="HuggingFace", huggingface=reference)
 
     @classmethod
-    def local_to_agent(cls, path: str) -> AgentDesiredModel:
+    def local_to_agent(cls, path: str) -> "AgentDesiredModel":
         return cls(variant="LocalToAgent", local_path=path)

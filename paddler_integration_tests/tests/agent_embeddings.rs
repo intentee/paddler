@@ -8,22 +8,42 @@ use std::collections::BTreeSet;
 use futures_util::StreamExt;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
+use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
+use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_types::inference_client::Response;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use serial_test::file_serial;
+
+fn embedding_model() -> AgentDesiredModel {
+    AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
+        filename: "Qwen3-Embedding-0.6B-Q8_0.gguf".to_owned(),
+        repo_id: "Qwen/Qwen3-Embedding-0.6B-GGUF".to_owned(),
+        revision: "main".to_owned(),
+    })
+}
 
 async fn spawn_embeddings_cluster(inference_parameters: InferenceParameters) -> ManagedCluster {
     ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "embeddings-agent".to_string(),
         desired_state: paddler_types::balancer_desired_state::BalancerDesiredState {
             inference_parameters,
+            model: embedding_model(),
             ..ManagedClusterParams::default().desired_state
         },
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster")
+}
+
+async fn spawn_non_embedding_cluster() -> ManagedCluster {
+    ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "non-embeddings-agent".to_string(),
         ..ManagedClusterParams::default()
     })
     .await
@@ -88,7 +108,7 @@ fn make_embedding_params(
 #[tokio::test]
 #[file_serial]
 async fn test_embeddings_fail_when_disabled() {
-    let cluster = spawn_embeddings_cluster(InferenceParameters::default()).await;
+    let cluster = spawn_non_embedding_cluster().await;
 
     let params = make_embedding_params(
         vec![("doc-1", "Hello world")],

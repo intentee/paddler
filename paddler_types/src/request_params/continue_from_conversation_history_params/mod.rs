@@ -6,6 +6,7 @@ use serde::Serialize;
 
 use self::tool::Tool;
 use crate::conversation_history::ConversationHistory;
+use crate::grammar_constraint::GrammarConstraint;
 use crate::validates::Validates;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -17,6 +18,8 @@ pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
     pub add_generation_prompt: bool,
     pub conversation_history: ConversationHistory,
     pub enable_thinking: bool,
+    #[serde(default)]
+    pub grammar: Option<GrammarConstraint>,
     pub max_tokens: i32,
     #[serde(default)]
     pub tools: Vec<Tool<TParametersSchema>>,
@@ -30,6 +33,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
             add_generation_prompt: self.add_generation_prompt,
             conversation_history: self.conversation_history,
             enable_thinking: self.enable_thinking,
+            grammar: self.grammar,
             max_tokens: self.max_tokens,
             tools: self
                 .tools

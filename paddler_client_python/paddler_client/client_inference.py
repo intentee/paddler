@@ -1,27 +1,31 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import AsyncIterator
-from typing import Literal, Self
+from typing import TYPE_CHECKING, Literal, Self
 
 import httpx
-from pydantic import BaseModel
 
 from paddler_client.error import HttpError
-from paddler_client.inference_message import InferenceMessage
-from paddler_client.inference_socket_connection import ResponseStream
 from paddler_client.inference_socket_pool import InferenceSocketPool
 from paddler_client.inference_socket_url import inference_socket_url
 from paddler_client.stream_ndjson import stream_ndjson_inference_messages
-from paddler_client.types.continue_from_conversation_history_params import (
-    ContinueFromConversationHistoryParams,
-)
-from paddler_client.types.continue_from_raw_prompt_params import (
-    ContinueFromRawPromptParams,
-)
-from paddler_client.types.generate_embedding_batch_params import (
-    GenerateEmbeddingBatchParams,
-)
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+    from pydantic import BaseModel
+
+    from paddler_client.continue_from_conversation_history_params import (
+        ContinueFromConversationHistoryParams,
+    )
+    from paddler_client.continue_from_raw_prompt_params import (
+        ContinueFromRawPromptParams,
+    )
+    from paddler_client.generate_embedding_batch_params import (
+        GenerateEmbeddingBatchParams,
+    )
+    from paddler_client.inference_message import InferenceMessage
+    from paddler_client.inference_socket_connection import ResponseStream
 
 InferenceRequestVariant = Literal[
     "ContinueFromConversationHistory",
@@ -39,7 +43,9 @@ class ClientInference:
         self._url = url.rstrip("/")
         self._socket_pool_size = socket_pool_size
         self._http_client = (
-            http_client if http_client is not None else httpx.AsyncClient()
+            http_client
+            if http_client is not None
+            else httpx.AsyncClient(timeout=httpx.Timeout(timeout=300.0))
         )
         self._socket_pool: InferenceSocketPool | None = None
 

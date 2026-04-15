@@ -22,6 +22,7 @@ use tokio::time::interval;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use crate::agent::drain_in_flight_requests::drain_in_flight_requests;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::agent::llamacpp_arbiter::LlamaCppArbiter;
 use crate::agent::llamacpp_arbiter_handle::LlamaCppArbiterHandle;
@@ -48,7 +49,11 @@ pub struct LlamaCppArbiterService {
 }
 
 impl LlamaCppArbiterService {
-    async fn apply_state(&mut self) -> Result<()> {
+    async fn apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) -> Result<()> {
+        if self.llamacpp_arbiter_handle.is_some() {
+            drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
+        }
+
         if let Some(llamacpp_arbiter_handle) = self.llamacpp_arbiter_handle.take() {
             llamacpp_arbiter_handle
                 .shutdown()
@@ -204,8 +209,8 @@ impl LlamaCppArbiterService {
         }
     }
 
-    async fn try_to_apply_state(&mut self) {
-        if let Err(err) = self.apply_state().await {
+    async fn try_to_apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) {
+        if let Err(err) = self.apply_state(shutdown).await {
             error!("Failed to apply reconciled state change: {err}");
         }
     }
@@ -240,7 +245,7 @@ impl Service for LlamaCppArbiterService {
                                 }
                             );
 
-                        self.try_to_apply_state().await;
+                        self.try_to_apply_state(&mut shutdown.resubscribe()).await;
                     }
                 }
                 _ = reconciled_state.changed() => {
@@ -249,7 +254,7 @@ impl Service for LlamaCppArbiterService {
                         .slot_aggregated_status
                         .set_state_application_status(AgentStateApplicationStatus::Fresh);
 
-                    self.try_to_apply_state().await;
+                    self.try_to_apply_state(&mut shutdown.resubscribe()).await;
                 }
                 continue_from_conversation_history_request = self.continue_from_conversation_history_request_rx.recv() => {
                     match continue_from_conversation_history_request {

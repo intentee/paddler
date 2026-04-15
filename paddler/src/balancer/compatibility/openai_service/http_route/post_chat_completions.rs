@@ -132,8 +132,13 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 response:
                     OutgoingResponse::GeneratedToken(
                         GeneratedTokenResult::ChatTemplateError(description)
+                        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+                        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
+                        | GeneratedTokenResult::GrammarInitializationFailed(description)
+                        | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                        | GeneratedTokenResult::MultimodalNotSupported(description)
+                        | GeneratedTokenResult::SamplerError(description),
                     ),
                 ..
             })
@@ -188,8 +193,13 @@ impl TransformsOutgoingMessage for OpenAICombinedResponseTransformer {
                 response:
                     OutgoingResponse::GeneratedToken(
                         GeneratedTokenResult::ChatTemplateError(description)
+                        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+                        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
+                        | GeneratedTokenResult::GrammarInitializationFailed(description)
+                        | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description),
+                        | GeneratedTokenResult::MultimodalNotSupported(description)
+                        | GeneratedTokenResult::SamplerError(description),
                     ),
                 ..
             })
@@ -240,6 +250,7 @@ async fn respond(
                 .collect(),
         ),
         enable_thinking: true,
+        grammar: None,
         max_tokens: openai_params.max_completion_tokens.unwrap_or(2000),
         tools: vec![],
     };

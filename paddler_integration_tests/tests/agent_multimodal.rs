@@ -24,6 +24,7 @@ use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_types::image_url::ImageUrl;
 use paddler_types::inference_client::Message;
@@ -232,6 +233,7 @@ async fn test_multimodal_inference_with_image() {
                 role: "user".to_string(),
             }]),
             enable_thinking: true,
+            grammar: None,
             max_tokens: 100,
             tools: vec![],
         })
@@ -246,10 +248,10 @@ async fn test_multimodal_inference_with_image() {
         match message {
             Message::Response(envelope) => match envelope.response {
                 Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
+                    GeneratedTokenResult::Token(_) => {
                         received_tokens = true;
                     }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
+                    GeneratedTokenResult::Done => break,
                     other => panic!("unexpected token result: {other:?}"),
                 },
                 other => panic!("unexpected response: {other:?}"),
@@ -290,6 +292,7 @@ fn image_message_params(
             role: "user".to_string(),
         }]),
         enable_thinking: false,
+        grammar: None,
         max_tokens: 20,
         tools: vec![],
     }
@@ -312,13 +315,12 @@ async fn expect_image_decoding_failed(cluster: &ManagedCluster, image_data_uri: 
         match message {
             Message::Response(envelope) => match envelope.response {
                 Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::ImageDecodingFailed(_) => {
+                    GeneratedTokenResult::ImageDecodingFailed(_) => {
                         received_decoding_error = true;
 
                         break;
                     }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_)
-                    | paddler_types::generated_token_result::GeneratedTokenResult::Done => continue,
+                    GeneratedTokenResult::Token(_) | GeneratedTokenResult::Done => continue,
                     other => panic!("expected ImageDecodingFailed, got {other:?}"),
                 },
                 other => panic!("unexpected response: {other:?}"),
@@ -366,14 +368,13 @@ async fn test_image_sent_to_text_only_model_returns_error() {
         match message {
             Message::Response(envelope) => match envelope.response {
                 Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::ChatTemplateError(_)
-                    | paddler_types::generated_token_result::GeneratedTokenResult::MultimodalNotSupported(_) => {
+                    GeneratedTokenResult::ChatTemplateError(_)
+                    | GeneratedTokenResult::MultimodalNotSupported(_) => {
                         received_error = true;
 
                         break;
                     }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_)
-                    | paddler_types::generated_token_result::GeneratedTokenResult::Done => continue,
+                    GeneratedTokenResult::Token(_) | GeneratedTokenResult::Done => continue,
                     other => panic!("expected error for image on text-only model, got {other:?}"),
                 },
                 other => panic!("unexpected response: {other:?}"),

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import httpx
+from typing import TYPE_CHECKING
 
 from paddler_client.error import HttpError
+
+if TYPE_CHECKING:
+    import httpx
 
 
 async def raise_for_streaming_error(response: httpx.Response) -> None:

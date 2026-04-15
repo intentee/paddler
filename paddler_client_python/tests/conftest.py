@@ -5,10 +5,10 @@ import os
 
 import pytest
 
+from paddler_client.agent_desired_model import AgentDesiredModel
+from paddler_client.balancer_desired_state import BalancerDesiredState
 from paddler_client.client_management import ClientManagement
-from paddler_client.types.agent_desired_model import AgentDesiredModel
-from paddler_client.types.balancer_desired_state import BalancerDesiredState
-from paddler_client.types.huggingface_model_reference import (
+from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
 
@@ -78,7 +78,8 @@ async def _wait_for_available_slots(client: ClientManagement) -> None:
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
         elapsed += POLL_INTERVAL_SECONDS
 
-    raise TimeoutError(f"No idle agent slots within {WAIT_FOR_SLOTS_TIMEOUT_SECONDS}s")
+    msg = f"No idle agent slots within {WAIT_FOR_SLOTS_TIMEOUT_SECONDS}s"
+    raise TimeoutError(msg)
 
 
 @pytest.fixture

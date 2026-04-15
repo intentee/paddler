@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from paddler_client.client_management import ClientManagement
-from paddler_client.types.agent_state_application_status import (
+from paddler_client.agent_state_application_status import (
     AgentStateApplicationStatus,
 )
+from paddler_client.client_management import ClientManagement
 
 pytestmark = pytest.mark.integration
 

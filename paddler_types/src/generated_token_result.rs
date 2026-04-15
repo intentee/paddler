@@ -8,8 +8,13 @@ use crate::streamable_result::StreamableResult;
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     Done,
+    GrammarIncompatibleWithThinking(String),
+    GrammarInitializationFailed(String),
+    GrammarRejectedModelOutput(String),
+    GrammarSyntaxError(String),
     ImageDecodingFailed(String),
     MultimodalNotSupported(String),
+    SamplerError(String),
     Token(String),
 }
 
@@ -19,8 +24,13 @@ impl StreamableResult for GeneratedTokenResult {
             self,
             Self::ChatTemplateError(_)
                 | Self::Done
+                | Self::GrammarIncompatibleWithThinking(_)
+                | Self::GrammarInitializationFailed(_)
+                | Self::GrammarRejectedModelOutput(_)
+                | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
                 | Self::MultimodalNotSupported(_)
+                | Self::SamplerError(_)
         )
     }
 }
@@ -40,6 +50,26 @@ mod tests {
     }
 
     #[test]
+    fn grammar_incompatible_with_thinking_is_done() {
+        assert!(GeneratedTokenResult::GrammarIncompatibleWithThinking("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_rejected_model_output_is_done() {
+        assert!(GeneratedTokenResult::GrammarRejectedModelOutput("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_initialization_failed_is_done() {
+        assert!(GeneratedTokenResult::GrammarInitializationFailed("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_syntax_error_is_done() {
+        assert!(GeneratedTokenResult::GrammarSyntaxError("err".to_owned()).is_done());
+    }
+
+    #[test]
     fn image_decoding_failed_is_done() {
         assert!(GeneratedTokenResult::ImageDecodingFailed("err".to_owned()).is_done());
     }
@@ -47,6 +77,11 @@ mod tests {
     #[test]
     fn multimodal_not_supported_is_done() {
         assert!(GeneratedTokenResult::MultimodalNotSupported("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn sampler_error_is_done() {
+        assert!(GeneratedTokenResult::SamplerError("err".to_owned()).is_done());
     }
 
     #[test]

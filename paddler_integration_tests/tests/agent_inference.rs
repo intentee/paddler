@@ -3,9 +3,12 @@
     feature = "tests_that_use_llms"
 ))]
 
+use std::pin::Pin;
 use std::time::Duration;
 
+use futures_util::Stream;
 use futures_util::StreamExt;
+use paddler_client::Result as ClientResult;
 use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
 use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
 use paddler_integration_tests::BALANCER_OPENAI_ADDR;
@@ -16,6 +19,8 @@ use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
+use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::grammar_constraint::GrammarConstraint;
 use paddler_types::inference_client::Message;
 use paddler_types::inference_client::Response;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
@@ -23,6 +28,116 @@ use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
+
+struct CollectedTokens {
+    text: String,
+    count: usize,
+    has_grammar_incompatible_with_thinking: bool,
+    has_grammar_rejected_model_output: bool,
+}
+
+async fn collect_tokens_from_websocket_stream(
+    mut stream: Pin<Box<dyn Stream<Item = ClientResult<Message>> + Send>>,
+) -> CollectedTokens {
+    let mut text = String::new();
+    let mut count = 0;
+    let mut has_grammar_incompatible_with_thinking = false;
+    let mut has_grammar_rejected_model_output = false;
+
+    while let Some(message) = stream.next().await {
+        let message = message.expect("message should deserialize");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(GeneratedTokenResult::Token(token)) => {
+                    text.push_str(&token);
+                    count += 1;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::Done) => break,
+                Response::GeneratedToken(
+                    GeneratedTokenResult::GrammarIncompatibleWithThinking(_),
+                ) => {
+                    has_grammar_incompatible_with_thinking = true;
+
+                    break;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::GrammarRejectedModelOutput(_)) => {
+                    has_grammar_rejected_model_output = true;
+
+                    break;
+                }
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    CollectedTokens {
+        text,
+        count,
+        has_grammar_incompatible_with_thinking,
+        has_grammar_rejected_model_output,
+    }
+}
+
+fn collect_tokens_from_ndjson_body(body: &str) -> CollectedTokens {
+    let mut text = String::new();
+    let mut count = 0;
+    let mut has_grammar_incompatible_with_thinking = false;
+    let mut has_grammar_rejected_model_output = false;
+
+    for line in body.lines() {
+        let line = line.trim();
+
+        if line.is_empty() {
+            continue;
+        }
+
+        let message: Message =
+            serde_json::from_str(line).expect("each line should be valid inference message JSON");
+
+        match message {
+            Message::Response(envelope) => match envelope.response {
+                Response::GeneratedToken(GeneratedTokenResult::Token(token)) => {
+                    text.push_str(&token);
+                    count += 1;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::Done) => break,
+                Response::GeneratedToken(
+                    GeneratedTokenResult::GrammarIncompatibleWithThinking(_),
+                ) => {
+                    has_grammar_incompatible_with_thinking = true;
+
+                    break;
+                }
+                Response::GeneratedToken(GeneratedTokenResult::GrammarRejectedModelOutput(_)) => {
+                    has_grammar_rejected_model_output = true;
+
+                    break;
+                }
+                other => panic!("unexpected response: {other:?}"),
+            },
+            Message::Error(envelope) => {
+                panic!(
+                    "unexpected error: {} - {}",
+                    envelope.error.code, envelope.error.description
+                );
+            }
+        }
+    }
+
+    CollectedTokens {
+        text,
+        count,
+        has_grammar_incompatible_with_thinking,
+        has_grammar_rejected_model_output,
+    }
+}
 
 #[tokio::test]
 #[file_serial]
@@ -64,43 +179,24 @@ async fn test_continue_from_raw_prompt() {
     .await
     .expect("failed to spawn cluster");
 
-    let mut stream = cluster
+    let stream = cluster
         .balancer
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens: 10,
             raw_prompt: "The capital of France is".to_string(),
         })
         .await
         .expect("raw prompt request should succeed");
 
-    let mut received_tokens = false;
+    let collected = collect_tokens_from_websocket_stream(stream).await;
 
-    while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
-
-        match message {
-            Message::Response(envelope) => match envelope.response {
-                Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
-                        received_tokens = true;
-                    }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
-                    other => panic!("unexpected token result: {other:?}"),
-                },
-                other => panic!("unexpected response: {other:?}"),
-            },
-            Message::Error(envelope) => {
-                panic!(
-                    "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
-            }
-        }
-    }
-
-    assert!(received_tokens, "should have received at least one token");
+    assert!(
+        !collected.text.is_empty(),
+        "should have received at least one token"
+    );
 }
 
 #[tokio::test]
@@ -120,6 +216,7 @@ async fn test_continue_from_conversation_history() {
             role: "user".to_string(),
         }]),
         enable_thinking: true,
+        grammar: None,
         max_tokens: 50,
         tools: vec![],
     };
@@ -138,39 +235,12 @@ async fn test_continue_from_conversation_history() {
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let mut received_tokens = false;
+    let collected = collect_tokens_from_ndjson_body(&body);
 
-    for line in body.lines() {
-        let line = line.trim();
-
-        if line.is_empty() {
-            continue;
-        }
-
-        let message: Message =
-            serde_json::from_str(line).expect("each line should be valid inference message JSON");
-
-        match message {
-            Message::Response(envelope) => match envelope.response {
-                Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
-                        received_tokens = true;
-                    }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
-                    other => panic!("unexpected token result: {other:?}"),
-                },
-                other => panic!("unexpected response: {other:?}"),
-            },
-            Message::Error(envelope) => {
-                panic!(
-                    "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
-            }
-        }
-    }
-
-    assert!(received_tokens, "should have received at least one token");
+    assert!(
+        !collected.text.is_empty(),
+        "should have received at least one token"
+    );
 }
 
 #[tokio::test]
@@ -185,46 +255,28 @@ async fn test_raw_prompt_respects_max_tokens() {
 
     let max_tokens = 20;
 
-    let mut stream = cluster
+    let stream = cluster
         .balancer
         .client()
         .inference()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: None,
             max_tokens,
             raw_prompt: "Once upon a time in a land far far away there lived".to_string(),
         })
         .await
         .expect("raw prompt request should succeed");
 
-    let mut token_count = 0;
+    let collected = collect_tokens_from_websocket_stream(stream).await;
 
-    while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
-
-        match message {
-            Message::Response(envelope) => match envelope.response {
-                Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
-                        token_count += 1;
-                    }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
-                    other => panic!("unexpected token result: {other:?}"),
-                },
-                other => panic!("unexpected response: {other:?}"),
-            },
-            Message::Error(envelope) => {
-                panic!(
-                    "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
-            }
-        }
-    }
-
-    assert!(token_count > 0, "should have received at least one token");
     assert!(
-        token_count <= max_tokens as usize,
-        "received {token_count} tokens, expected at most {max_tokens}"
+        collected.count > 0,
+        "should have received at least one token"
+    );
+    assert!(
+        collected.count <= max_tokens as usize,
+        "received {} tokens, expected at most {max_tokens}",
+        collected.count
     );
 }
 
@@ -249,6 +301,7 @@ async fn test_conversation_history_respects_max_tokens() {
             role: "user".to_string(),
         }]),
         enable_thinking: true,
+        grammar: None,
         max_tokens,
         tools: vec![],
     };
@@ -267,42 +320,11 @@ async fn test_conversation_history_respects_max_tokens() {
     assert_eq!(response.status(), 200);
 
     let body = response.text().await.expect("should read response body");
-    let mut token_count = 0;
+    let collected = collect_tokens_from_ndjson_body(&body);
 
-    for line in body.lines() {
-        let line = line.trim();
-
-        if line.is_empty() {
-            continue;
-        }
-
-        let message: Message =
-            serde_json::from_str(line).expect("each line should be valid inference message JSON");
-
-        match message {
-            Message::Response(envelope) => match envelope.response {
-                Response::GeneratedToken(token_result) => match token_result {
-                    paddler_types::generated_token_result::GeneratedTokenResult::Token(_) => {
-                        token_count += 1;
-                    }
-                    paddler_types::generated_token_result::GeneratedTokenResult::Done => break,
-                    other => panic!("unexpected token result: {other:?}"),
-                },
-                other => panic!("unexpected response: {other:?}"),
-            },
-            Message::Error(envelope) => {
-                panic!(
-                    "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
-            }
-        }
-    }
-
-    assert!(token_count > 0, "should have received at least one token");
     assert!(
-        token_count <= max_tokens as usize,
-        "received {token_count} tokens, expected at most {max_tokens}"
+        !collected.text.is_empty(),
+        "should have received at least one token"
     );
 }
 
@@ -418,4 +440,266 @@ async fn test_openai_health_endpoint() {
 
     assert_eq!(response.status(), 200);
     assert_eq!(response.text().await.expect("should read body"), "OK");
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_conversation_history_with_gbnf_grammar() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "grammar-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text(
+                "Is the sky blue? Answer with exactly yes or no.".to_string(),
+            ),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: false,
+        grammar: Some(GrammarConstraint::Gbnf {
+            grammar: r#"root ::= [Yy] [Ee] [Ss] | [Nn] [Oo]"#.to_owned(),
+            root: "root".to_owned(),
+        }),
+        max_tokens: 200,
+        tools: vec![],
+    };
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&params)
+        .send()
+        .await
+        .expect("gbnf grammar request should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+
+    let collected = collect_tokens_from_ndjson_body(&body);
+    let lowercase = collected.text.to_lowercase();
+
+    assert!(
+        lowercase == "yes" || lowercase == "no",
+        "GBNF grammar should constrain output to 'yes' or 'no', got: '{}'",
+        collected.text
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_conversation_history_with_json_schema_grammar() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "grammar-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text("What is 2+2?".to_string()),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: false,
+        grammar: Some(GrammarConstraint::JsonSchema {
+            schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
+        }),
+        max_tokens: 200,
+        tools: vec![],
+    };
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&params)
+        .send()
+        .await
+        .expect("json schema grammar request should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+    let collected = collect_tokens_from_ndjson_body(&body);
+
+    let parsed: serde_json::Value = serde_json::from_str(&collected.text).unwrap_or_else(|err| {
+        panic!(
+            "JSON schema grammar should produce valid JSON, got '{}': {err}",
+            collected.text
+        )
+    });
+
+    assert!(
+        parsed.get("answer").is_some(),
+        "JSON schema grammar should produce object with 'answer' field, got: '{}'",
+        collected.text
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_raw_prompt_with_gbnf_grammar_small_model() {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "small-grammar-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .continue_from_raw_prompt(ContinueFromRawPromptParams {
+            grammar: Some(GrammarConstraint::Gbnf {
+                grammar: r#"root ::= "yes" | "no""#.to_owned(),
+                root: "root".to_owned(),
+            }),
+            max_tokens: 10,
+            raw_prompt: "<|im_start|>user\nIs the sky blue?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_string(),
+        })
+        .await
+        .expect("grammar request should succeed");
+
+    let collected = collect_tokens_from_websocket_stream(stream).await;
+
+    assert!(
+        collected.text == "yes" || collected.text == "no",
+        "GBNF grammar should constrain output to 'yes' or 'no', got: '{}'",
+        collected.text
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_grammar_with_thinking_returns_incompatible_error() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "thinking-grammar-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let params = ContinueFromConversationHistoryParams::<ValidatedParametersSchema> {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text("What is 2+2?".to_string()),
+            role: "user".to_string(),
+        }]),
+        enable_thinking: true,
+        grammar: Some(GrammarConstraint::JsonSchema {
+            schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
+        }),
+        max_tokens: 50,
+        tools: vec![],
+    };
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&params)
+        .send()
+        .await
+        .expect("request should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+    let collected = collect_tokens_from_ndjson_body(&body);
+
+    assert!(
+        collected.has_grammar_incompatible_with_thinking,
+        "Expected GrammarIncompatibleWithThinking error when using grammar with thinking enabled, got text: '{}'",
+        collected.text
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_raw_prompt_without_grammar_field_is_backwards_compatible() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "compat-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_raw_prompt"
+        ))
+        .json(&serde_json::json!({
+            "max_tokens": 10,
+            "raw_prompt": "Hello"
+        }))
+        .send()
+        .await
+        .expect("request without grammar field should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+    let collected = collect_tokens_from_ndjson_body(&body);
+
+    assert!(
+        !collected.text.is_empty(),
+        "should have received at least one token"
+    );
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_conversation_history_without_grammar_field_is_backwards_compatible() {
+    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "compat-agent".to_string(),
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let http_client = reqwest::Client::new();
+
+    let response = http_client
+        .post(format!(
+            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+        ))
+        .json(&serde_json::json!({
+            "add_generation_prompt": true,
+            "conversation_history": [
+                {"content": "Say hello", "role": "user"}
+            ],
+            "enable_thinking": false,
+            "max_tokens": 10,
+            "tools": []
+        }))
+        .send()
+        .await
+        .expect("request without grammar field should succeed");
+
+    assert_eq!(response.status(), 200);
+
+    let body = response.text().await.expect("should read response body");
+    let collected = collect_tokens_from_ndjson_body(&body);
+
+    assert!(
+        !collected.text.is_empty(),
+        "should have received at least one token"
+    );
 }

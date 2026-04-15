@@ -4,19 +4,19 @@ import httpx
 import pytest
 
 from paddler_client.client_inference import ClientInference
-from paddler_client.error import HttpError
-from paddler_client.inference_message import InferenceMessage, InferenceMessageKind
-from paddler_client.types.continue_from_conversation_history_params import (
+from paddler_client.continue_from_conversation_history_params import (
     ContinueFromConversationHistoryParams,
 )
-from paddler_client.types.conversation_message import ConversationMessage
-from paddler_client.types.embedding_input_document import EmbeddingInputDocument
-from paddler_client.types.embedding_normalization_method import (
+from paddler_client.conversation_message import ConversationMessage
+from paddler_client.embedding_input_document import EmbeddingInputDocument
+from paddler_client.embedding_normalization_method import (
     EmbeddingNormalizationMethod,
 )
-from paddler_client.types.generate_embedding_batch_params import (
+from paddler_client.error import HttpError
+from paddler_client.generate_embedding_batch_params import (
     GenerateEmbeddingBatchParams,
 )
+from paddler_client.inference_message import InferenceMessage, InferenceMessageKind
 
 
 def _make_ndjson_token_response(

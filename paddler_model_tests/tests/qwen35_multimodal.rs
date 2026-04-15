@@ -60,6 +60,7 @@ async fn test_qwen35_multimodal_inference_with_image() -> Result<()> {
             add_generation_prompt: true,
             conversation_history,
             enable_thinking: false,
+            grammar: None,
             max_tokens: 200,
             tools: vec![],
         })

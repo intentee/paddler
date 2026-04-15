@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 class InferenceSocketPool:
     def __init__(self, url: str, pool_size: int) -> None:
         if pool_size < 1:
-            raise ValueError(f"pool_size must be >= 1, got {pool_size}")
+            msg = f"pool_size must be >= 1, got {pool_size}"
+            raise ValueError(msg)
 
         self._url = url
         self._pool_size = pool_size

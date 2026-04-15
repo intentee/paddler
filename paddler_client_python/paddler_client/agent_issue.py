@@ -1,6 +1,4 @@
-from __future__ import annotations
-
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, Field, model_serializer, model_validator
 
@@ -16,18 +14,21 @@ class AgentIssue(BaseModel):
             return {"variant": data, "params": {}}
 
         if isinstance(data, dict):
-            if "variant" in data:
-                return data
+            typed_data = cast("dict[str, Any]", data)
 
-            if len(data) == 1:
-                variant, params = next(iter(data.items()))
+            if "variant" in typed_data:
+                return typed_data
+
+            if len(typed_data) == 1:
+                variant, params = next(iter(typed_data.items()))
 
                 if isinstance(params, dict):
                     return {"variant": variant, "params": params}
 
                 return {"variant": variant, "params": {"value": params}}
 
-        raise ValueError(f"Invalid AgentIssue: {data}")
+        msg = f"Invalid AgentIssue: {data}"
+        raise ValueError(msg)
 
     @model_serializer
     def to_serde(self) -> str | dict[str, Any]:
