@@ -22,12 +22,11 @@ pyright: .venv
 
 .PHONY: ruff
 ruff: .venv
-	ruff check paddler_client tests
+	poetry run ruff check paddler_client tests
 
 .PHONY: fmt
 fmt:
-	ruff format paddler_client tests
-	ruff check --fix paddler_client tests
+	poetry run ruff format paddler_client tests
 
 .PHONY: test
 test: .venv

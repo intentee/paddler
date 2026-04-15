@@ -5,7 +5,7 @@ use llama_cpp_bindings::LogOptions;
 use llama_cpp_bindings::send_logs_to_tracing;
 use paddler_model_tests::log_generated_response::log_generated_response;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_model_tests::model_test_harness::ModelTestHarness;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
@@ -22,19 +22,20 @@ async fn test_qwen35_generation_stops_cleanly() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 
     let harness = ModelTestHarness::new(&managed_model);
 
     let conversation_history = ConversationHistory::new(vec![ConversationMessage {
-        content: ConversationMessageContent::Text("hi".to_string()),
-        role: "user".to_string(),
+        content: ConversationMessageContent::Text("hi".to_owned()),
+        role: "user".to_owned(),
     }]);
 
     let results = harness

@@ -3,6 +3,7 @@ use std::pin::Pin;
 use futures_util::Stream;
 use futures_util::StreamExt;
 use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 use paddler_types::chat_template::ChatTemplate;
@@ -52,6 +53,20 @@ impl<'client> ClientManagement<'client> {
         let response = self
             .http_client
             .get(format_api_url(self.url, "/api/v1/balancer_desired_state")?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(response.json().await?)
+    }
+
+    pub async fn get_balancer_applicable_state(&self) -> Result<Option<AgentDesiredState>> {
+        let response = self
+            .http_client
+            .get(format_api_url(
+                self.url,
+                "/api/v1/balancer_applicable_state",
+            )?)
             .send()
             .await?
             .error_for_status()?;

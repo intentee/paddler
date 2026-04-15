@@ -1,14 +1,9 @@
 use anyhow::Result;
 use tokio::process::Child;
 
+use crate::managed_agent_params::ManagedAgentParams;
 use crate::paddler_command;
 use crate::terminate_child;
-
-pub struct ManagedAgentParams {
-    pub management_addr: String,
-    pub name: Option<String>,
-    pub slots: i32,
-}
 
 pub struct ManagedAgent {
     child: Child,

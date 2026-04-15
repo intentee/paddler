@@ -23,17 +23,13 @@ use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 
+use crate::continuation_decision::ContinuationDecision;
 use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 const MAX_FRAME_SIZE: usize = 50 * 1024 * 1024;
 const MAX_CONTINUATION_SIZE: usize = 50 * 1024 * 1024;
 const PING_INTERVAL: Duration = Duration::from_secs(3);
-
-pub enum ContinuationDecision {
-    Continue,
-    Stop(ContinuationStopParameters),
-}
 
 #[async_trait]
 pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {

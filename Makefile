@@ -29,7 +29,7 @@ clean:
 
 .PHONY: clippy
 clippy: jarmuz-static
-	cargo clippy --workspace --all-targets --features web_admin_panel
+	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
 
 .PHONY: fmt
 fmt: node_modules
@@ -60,15 +60,19 @@ test: test.unit test.models test.integration
 
 .PHONY: test.models
 test.models:
-	cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
+	timeout 300 cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
+
+.PHONY: test.cuda
+test.cuda:
+	timeout 1800 cargo test -p paddler_model_tests --features tests_that_use_llms,cuda -- --nocapture --test-threads=1
 
 .PHONY: test.unit
 test.unit: jarmuz-static
-	cargo test --features web_admin_panel
+	timeout 300 cargo test --features web_admin_panel
 
 .PHONY: test.integration
 test.integration: target/debug/paddler
-	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
+	timeout 300 cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: watch
 watch: node_modules

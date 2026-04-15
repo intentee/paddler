@@ -15,6 +15,7 @@ import { type BalancerDesiredState } from "../schemas/BalancerDesiredState";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
 import { InferenceParameterCheckbox } from "./InferenceParameterCheckbox";
 import { InferenceParameterInput } from "./InferenceParameterInput";
+import { InferenceParameterKvCacheType } from "./InferenceParameterKvCacheType";
 import { InferenceParameterPoolingType } from "./InferenceParameterPoolingType";
 
 import {
@@ -231,6 +232,27 @@ export function ChangeModelForm({
                 performance for your specific needs.
               </p>
             </details>
+            <details className={changeModelForm__details}>
+              <summary>kv_cache_type</summary>
+              <p>
+                Precision of the K and V tensors in the KV cache. Lower
+                precision = less VRAM per token.
+              </p>
+              <dl>
+                <dt>
+                  <code>F16</code>
+                </dt>
+                <dd>16-bit, baseline memory.</dd>
+                <dt>
+                  <code>Q8_0</code>
+                </dt>
+                <dd>8-bit, ~50% of F16.</dd>
+                <dt>
+                  <code>Q4_0</code>
+                </dt>
+                <dd>4-bit, ~25% of F16.</dd>
+              </dl>
+            </details>
             <InferenceParameterInput
               description="Batch Size (higher = more memory usage, lower = less inference speed)"
               name="batch_n_tokens"
@@ -243,13 +265,14 @@ export function ChangeModelForm({
               description="Max image dimension in pixels before resizing"
               name="image_resize_to_fit"
             />
-            <InferenceParameterInput
-              description="Max simultaneous sequences per embedding batch (higher = more throughput, more memory)"
-              name="embedding_n_seq_max"
-            />
+            <InferenceParameterKvCacheType description="Datatype used for the K and V tensors in the KV cache" />
             <InferenceParameterInput
               description="Minimum token probability to consider for selection"
               name="min_p"
+            />
+            <InferenceParameterInput
+              description="Number of model layers to offload to GPU (0 = CPU only; set to model's layer count for full GPU offload)"
+              name="n_gpu_layers"
             />
             <InferenceParameterInput
               description="Frequency Penalty"

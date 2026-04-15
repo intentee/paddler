@@ -5,6 +5,9 @@
 
 use std::io::Write;
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
@@ -19,7 +22,7 @@ use tempfile::NamedTempFile;
 
 fn issue_cluster_params(desired_state: BalancerDesiredState) -> ManagedClusterParams {
     ManagedClusterParams {
-        agent_name: "issue-test-agent".to_string(),
+        agent_name: "issue-test-agent".to_owned(),
         agent_slots: 1,
         desired_state,
         wait_for_slots: false,
@@ -29,18 +32,18 @@ fn issue_cluster_params(desired_state: BalancerDesiredState) -> ManagedClusterPa
 
 #[tokio::test]
 #[file_serial]
-async fn test_model_file_does_not_exist() {
+async fn test_model_file_does_not_exist() -> Result<()> {
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
-        model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_string()),
+        model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_owned()),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,
     };
 
     let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
-        .expect("failed to spawn cluster");
+        .context("failed to spawn cluster")?;
 
     let issue = cluster
         .balancer
@@ -51,19 +54,25 @@ async fn test_model_file_does_not_exist() {
         AgentIssue::ModelFileDoesNotExist(model_path) => {
             assert_eq!(model_path.model_path, "/nonexistent/model.gguf");
         }
-        other => panic!("expected ModelFileDoesNotExist, got {other:?}"),
+        other => return Err(anyhow!("expected ModelFileDoesNotExist, got {other:?}")),
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_model_cannot_be_loaded() {
-    let mut corrupt_model = NamedTempFile::new().expect("failed to create temp file");
+async fn test_model_cannot_be_loaded() -> Result<()> {
+    let mut corrupt_model = NamedTempFile::new().context("failed to create temp file")?;
     corrupt_model
         .write_all(b"this is not a valid gguf model file")
-        .expect("failed to write corrupt model");
+        .context("failed to write corrupt model")?;
 
-    let corrupt_model_path = corrupt_model.path().to_str().unwrap().to_string();
+    let corrupt_model_path = corrupt_model
+        .path()
+        .to_str()
+        .context("temp file path is not valid UTF-8")?
+        .to_owned();
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -75,7 +84,7 @@ async fn test_model_cannot_be_loaded() {
 
     let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
-        .expect("failed to spawn cluster");
+        .context("failed to spawn cluster")?;
 
     let issue = cluster
         .balancer
@@ -86,20 +95,22 @@ async fn test_model_cannot_be_loaded() {
         AgentIssue::ModelCannotBeLoaded(model_path) => {
             assert_eq!(model_path.model_path, corrupt_model_path);
         }
-        other => panic!("expected ModelCannotBeLoaded, got {other:?}"),
+        other => return Err(anyhow!("expected ModelCannotBeLoaded, got {other:?}")),
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_huggingface_model_does_not_exist() {
+async fn test_huggingface_model_does_not_exist() -> Result<()> {
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
         model: AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-            filename: "nonexistent.gguf".to_string(),
-            repo_id: "nonexistent-org/nonexistent-model-gguf".to_string(),
-            revision: "main".to_string(),
+            filename: "nonexistent.gguf".to_owned(),
+            repo_id: "nonexistent-org/nonexistent-model-gguf".to_owned(),
+            revision: "main".to_owned(),
         }),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,
@@ -107,7 +118,7 @@ async fn test_huggingface_model_does_not_exist() {
 
     let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
-        .expect("failed to spawn cluster");
+        .context("failed to spawn cluster")?;
 
     cluster
         .balancer
@@ -118,18 +129,20 @@ async fn test_huggingface_model_does_not_exist() {
             )
         })
         .await;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_unable_to_find_chat_template() {
+async fn test_unable_to_find_chat_template() -> Result<()> {
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
         model: AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-            filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_string(),
-            repo_id: "nomic-ai/nomic-embed-text-v1.5-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_owned(),
+            repo_id: "nomic-ai/nomic-embed-text-v1.5-GGUF".to_owned(),
+            revision: "main".to_owned(),
         }),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,
@@ -137,20 +150,22 @@ async fn test_unable_to_find_chat_template() {
 
     let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
-        .expect("failed to spawn cluster");
+        .context("failed to spawn cluster")?;
 
     cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::UnableToFindChatTemplate(_)))
         .await;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_chat_template_does_not_compile() {
+async fn test_chat_template_does_not_compile() -> Result<()> {
     let desired_state = BalancerDesiredState {
         chat_template_override: Some(ChatTemplate {
-            content: "{{invalid jinja template".to_string(),
+            content: "{{invalid jinja template".to_owned(),
         }),
         inference_parameters: InferenceParameters::default(),
         model: AGENT_DESIRED_MODEL.clone(),
@@ -160,30 +175,32 @@ async fn test_chat_template_does_not_compile() {
 
     let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
-        .expect("failed to spawn cluster");
+        .context("failed to spawn cluster")?;
 
     cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ChatTemplateDoesNotCompile(_)))
         .await;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_multimodal_projection_cannot_be_loaded() {
+async fn test_multimodal_projection_cannot_be_loaded() -> Result<()> {
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
         model: AGENT_DESIRED_MODEL.clone(),
         multimodal_projection: AgentDesiredModel::LocalToAgent(
-            "/nonexistent/projection.bin".to_string(),
+            "/nonexistent/projection.bin".to_owned(),
         ),
         use_chat_template_override: false,
     };
 
     let cluster = ManagedCluster::spawn(issue_cluster_params(desired_state))
         .await
-        .expect("failed to spawn cluster");
+        .context("failed to spawn cluster")?;
 
     cluster
         .balancer
@@ -191,4 +208,6 @@ async fn test_multimodal_projection_cannot_be_loaded() {
             matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_))
         })
         .await;
+
+    Ok(())
 }
