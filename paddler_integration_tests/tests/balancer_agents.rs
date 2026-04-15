@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use paddler_integration_tests::managed_agent::ManagedAgent;
-use paddler_integration_tests::managed_agent::ManagedAgentParams;
+use paddler_integration_tests::managed_agent_params::ManagedAgentParams;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
-use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_balancer_params::ManagedBalancerParams;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
-use paddler_integration_tests::pick_free_port::pick_balancer_addresses;
+use paddler_integration_tests::pick_balancer_addresses::pick_balancer_addresses;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 

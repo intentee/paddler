@@ -10,7 +10,7 @@ use futures_util::Stream;
 use futures_util::StreamExt;
 use paddler_client::Result as ClientResult;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
-use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_balancer_params::ManagedBalancerParams;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_integration_tests::pick_free_port::pick_free_port;

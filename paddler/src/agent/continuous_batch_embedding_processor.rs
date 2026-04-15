@@ -13,8 +13,8 @@ use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
-use crate::agent::embedding_batch_plan::plan_embedding_batches;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
+use crate::agent::plan_embedding_batches::plan_embedding_batches;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 
 pub struct ContinuousBatchEmbeddingProcessor<'context> {

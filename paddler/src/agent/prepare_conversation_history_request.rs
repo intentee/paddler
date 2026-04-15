@@ -10,25 +10,11 @@ use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use tokio::sync::mpsc;
 
-use crate::agent::continuous_batch_grammar_resolver::resolve_grammar;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
-use crate::agent::grammar_sampler::GrammarSampler;
+use crate::agent::prepared_conversation_history_request::PreparedConversationHistoryRequest;
+use crate::agent::resolve_grammar::resolve_grammar;
 use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
-
-pub enum PreparedConversationHistoryRequest {
-    TextPrompt {
-        raw_prompt: String,
-        max_tokens: i32,
-        grammar_sampler: Option<GrammarSampler>,
-    },
-    MultimodalPrompt {
-        raw_prompt: String,
-        images: Vec<DecodedImage>,
-        max_tokens: i32,
-        grammar_sampler: Option<GrammarSampler>,
-    },
-}
 
 pub fn prepare_conversation_history_request(
     params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,

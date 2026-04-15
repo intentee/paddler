@@ -28,7 +28,7 @@ use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::inference_service::app_data::AppData;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::balancer::request_from_agent::request_from_agent;
-use crate::controls_websocket_endpoint::ContinuationDecision;
+use crate::continuation_decision::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::websocket_session_controller::WebSocketSessionController;
 

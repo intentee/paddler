@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
-use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_balancer_params::ManagedBalancerParams;
 use paddler_integration_tests::pick_free_port::pick_free_port;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;

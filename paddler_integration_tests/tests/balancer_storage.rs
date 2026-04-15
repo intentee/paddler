@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
-use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::managed_balancer_params::ManagedBalancerParams;
 use paddler_integration_tests::pick_free_port::pick_free_port;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;

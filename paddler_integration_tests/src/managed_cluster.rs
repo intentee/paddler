@@ -3,11 +3,11 @@ use anyhow::anyhow;
 use tempfile::NamedTempFile;
 
 use crate::managed_agent::ManagedAgent;
-use crate::managed_agent::ManagedAgentParams;
+use crate::managed_agent_params::ManagedAgentParams;
 use crate::managed_balancer::ManagedBalancer;
-use crate::managed_balancer::ManagedBalancerParams;
+use crate::managed_balancer_params::ManagedBalancerParams;
 use crate::managed_cluster_params::ManagedClusterParams;
-use crate::pick_free_port::pick_balancer_addresses;
+use crate::pick_balancer_addresses::pick_balancer_addresses;
 
 pub struct ManagedCluster {
     pub balancer: ManagedBalancer,

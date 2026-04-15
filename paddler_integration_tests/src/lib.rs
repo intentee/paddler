@@ -9,10 +9,14 @@ use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use tokio::process::Child;
 use tokio::process::Command;
 
+pub mod balancer_addresses;
 pub mod managed_agent;
+pub mod managed_agent_params;
 pub mod managed_balancer;
+pub mod managed_balancer_params;
 pub mod managed_cluster;
 pub mod managed_cluster_params;
+pub mod pick_balancer_addresses;
 pub mod pick_free_port;
 
 pub const WAIT_FOR_STATE_CHANGE_TIMEOUT: Duration = Duration::from_secs(30);
