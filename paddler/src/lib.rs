@@ -16,6 +16,7 @@ pub mod continuation_stop_parameters;
 pub mod controls_session;
 pub mod controls_websocket_endpoint;
 pub mod converts_to_applicable_state;
+pub mod converts_to_llama_kv_cache_type;
 pub mod converts_to_llama_pooling_type;
 pub mod create_cors_middleware;
 pub mod decoded_image;

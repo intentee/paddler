@@ -31,6 +31,7 @@ use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerCo
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::chat_template_renderer::ChatTemplateRenderer;
+use crate::converts_to_llama_kv_cache_type::ConvertsToLlamaKvCacheType;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
@@ -92,6 +93,18 @@ impl ContinuousBatchArbiter {
                         .pooling_type
                         .clone()
                         .to_llama_pooling_type(),
+                )
+                .with_type_k(
+                    inference_parameters
+                        .kv_cache_type
+                        .clone()
+                        .to_llama_kv_cache_type(),
+                )
+                .with_type_v(
+                    inference_parameters
+                        .kv_cache_type
+                        .clone()
+                        .to_llama_kv_cache_type(),
                 );
 
             let model = Arc::new(
