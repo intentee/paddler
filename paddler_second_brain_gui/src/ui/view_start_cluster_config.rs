@@ -16,6 +16,7 @@ use super::style_field_pick_list::style_field_pick_list;
 use super::style_field_pick_list_menu::style_field_pick_list_menu;
 use super::style_field_text_input::style_field_text_input;
 use super::variables::FONT_SIZE_L2;
+use super::variables::FORM_WIDTH;
 use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
@@ -68,24 +69,29 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
     column![
         container(text("Start a cluster").size(FONT_SIZE_L2).font(BOLD))
             .padding([0.0, SPACING_BASE]),
-        view_form_field(
-            "Cluster address",
-            cluster_address_input,
-            data.cluster_address_error.as_ref()
-        ),
-        view_form_field(
-            "Inference address",
-            inference_address_input,
-            data.inference_address_error.as_ref()
-        ),
-        view_form_field("Select a model", model_input, data.model_error.as_ref()),
         container(
-            row![cancel_button, confirm_button]
-                .align_y(Center)
-                .spacing(SPACING_BASE),
+            column![
+                view_form_field(
+                    "Cluster address",
+                    cluster_address_input,
+                    data.cluster_address_error.as_ref()
+                ),
+                view_form_field(
+                    "Inference address",
+                    inference_address_input,
+                    data.inference_address_error.as_ref()
+                ),
+                view_form_field("Select a model", model_input, data.model_error.as_ref()),
+                container(
+                    row![cancel_button, confirm_button]
+                        .align_y(Center)
+                        .spacing(SPACING_BASE),
+                )
+                .align_x(Horizontal::Right),
+            ]
+            .spacing(SPACING_2X),
         )
-        .width(400)
-        .align_x(Horizontal::Right),
+        .width(FORM_WIDTH),
     ]
     .spacing(SPACING_2X)
     .into()

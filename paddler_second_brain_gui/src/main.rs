@@ -1,5 +1,6 @@
 mod agent_running_data;
 mod agent_running_handler;
+mod current_screen;
 mod detect_network_interfaces;
 mod home_data;
 mod home_handler;
@@ -12,7 +13,6 @@ mod running_cluster_data;
 mod running_cluster_handler;
 #[expect(unsafe_code, reason = "statum macros generate link_section statics")]
 mod screen;
-mod screen_current;
 mod second_brain;
 mod start_cluster_config_data;
 mod start_cluster_config_handler;

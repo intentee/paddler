@@ -15,7 +15,11 @@ use super::style_download_progress_bar::style_download_progress_bar;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 fn display_last_path_part(path: &str) -> String {
-    path.split('/').next_back().unwrap_or(path).to_owned()
+    std::path::Path::new(path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path)
+        .to_owned()
 }
 
 pub fn view_agent_card<TMessage: 'static>(

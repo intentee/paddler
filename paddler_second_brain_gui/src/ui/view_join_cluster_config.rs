@@ -12,6 +12,7 @@ use super::font::BOLD;
 use super::style_button_primary::style_button_primary;
 use super::style_field_text_input::style_field_text_input;
 use super::variables::FONT_SIZE_L2;
+use super::variables::FORM_WIDTH;
 use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
@@ -50,20 +51,25 @@ pub fn view_join_cluster_config(data: &JoinClusterConfigData) -> Element<'_, Mes
     column![
         container(text("Join a cluster").size(FONT_SIZE_L2).font(BOLD))
             .padding([0.0, SPACING_BASE]),
-        view_form_field(
-            "Cluster address",
-            cluster_address_input,
-            data.cluster_address_error.as_ref()
-        ),
-        view_form_field("Agent name (optional)", agent_name_input, None),
-        view_form_field("Slots", slots_input, data.slots_error.as_ref()),
         container(
-            row![cancel_button, confirm_button]
-                .align_y(Center)
-                .spacing(SPACING_BASE),
+            column![
+                view_form_field(
+                    "Cluster address",
+                    cluster_address_input,
+                    data.cluster_address_error.as_ref()
+                ),
+                view_form_field("Agent name (optional)", agent_name_input, None),
+                view_form_field("Slots", slots_input, data.slots_error.as_ref()),
+                container(
+                    row![cancel_button, confirm_button]
+                        .align_y(Center)
+                        .spacing(SPACING_BASE),
+                )
+                .align_x(Horizontal::Right),
+            ]
+            .spacing(SPACING_2X),
         )
-        .width(400)
-        .align_x(Horizontal::Right),
+        .width(FORM_WIDTH),
     ]
     .spacing(SPACING_2X)
     .into()

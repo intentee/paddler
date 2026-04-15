@@ -26,6 +26,7 @@ use tokio::sync::oneshot;
 use tokio::sync::watch;
 
 use crate::agent_running_handler;
+use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
 use crate::join_cluster_config_handler;
@@ -33,7 +34,6 @@ use crate::message::Message;
 use crate::running_cluster_handler;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
-use crate::screen_current::CurrentScreen;
 use crate::start_cluster_config_handler;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
@@ -42,6 +42,14 @@ use crate::ui::view_home::view_home;
 use crate::ui::view_join_cluster_config::view_join_cluster_config;
 use crate::ui::view_running_cluster::view_running_cluster;
 use crate::ui::view_start_cluster_config::view_start_cluster_config;
+
+fn send_shutdown(sender: &mut Option<oneshot::Sender<()>>, label: &str) {
+    if let Some(shutdown_tx) = sender.take()
+        && let Err(unsent_signal) = shutdown_tx.send(())
+    {
+        log::error!("Failed to send {label} shutdown signal: {unsent_signal:?}");
+    }
+}
 
 fn collect_sorted_agent_snapshots(
     pool: &AgentControllerPool,
@@ -67,17 +75,8 @@ pub struct SecondBrain {
 
 impl Drop for SecondBrain {
     fn drop(&mut self) {
-        if let Some(shutdown_tx) = self.shutdown_tx.take()
-            && let Err(unsent_signal) = shutdown_tx.send(())
-        {
-            log::error!("Failed to send cluster shutdown signal: {unsent_signal:?}");
-        }
-
-        if let Some(agent_shutdown_tx) = self.agent_shutdown_tx.take()
-            && let Err(unsent_signal) = agent_shutdown_tx.send(())
-        {
-            log::error!("Failed to send agent shutdown signal: {unsent_signal:?}");
-        }
+        send_shutdown(&mut self.shutdown_tx, "cluster");
+        send_shutdown(&mut self.agent_shutdown_tx, "agent");
     }
 }
 
@@ -143,13 +142,7 @@ impl SecondBrain {
                         Task::none()
                     }
                     start_cluster_config_handler::Action::Cancel => {
-                        if let Some(shutdown_tx) = self.shutdown_tx.take()
-                            && let Err(unsent_signal) = shutdown_tx.send(())
-                        {
-                            log::error!(
-                                "Failed to send cluster shutdown signal: {unsent_signal:?}"
-                            );
-                        }
+                        send_shutdown(&mut self.shutdown_tx, "cluster");
                         self.screen = CurrentScreen::Home(config.cancel());
 
                         Task::none()
@@ -187,13 +180,7 @@ impl SecondBrain {
                         Task::none()
                     }
                     running_cluster_handler::Action::Stop => {
-                        if let Some(shutdown_tx) = self.shutdown_tx.take()
-                            && let Err(unsent_signal) = shutdown_tx.send(())
-                        {
-                            log::error!(
-                                "Failed to send cluster shutdown signal: {unsent_signal:?}"
-                            );
-                        }
+                        send_shutdown(&mut self.shutdown_tx, "cluster");
                         self.screen = CurrentScreen::RunningCluster(running);
 
                         Task::none()
@@ -227,11 +214,7 @@ impl SecondBrain {
                         Task::none()
                     }
                     agent_running_handler::Action::Disconnect => {
-                        if let Some(agent_shutdown_tx) = self.agent_shutdown_tx.take()
-                            && let Err(unsent_signal) = agent_shutdown_tx.send(())
-                        {
-                            log::error!("Failed to send agent shutdown signal: {unsent_signal:?}");
-                        }
+                        send_shutdown(&mut self.agent_shutdown_tx, "agent");
                         self.screen = CurrentScreen::Home(running.disconnect());
 
                         Task::none()

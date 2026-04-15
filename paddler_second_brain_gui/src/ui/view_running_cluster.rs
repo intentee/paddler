@@ -1,10 +1,6 @@
-use iced::Background;
-use iced::Border;
 use iced::Center;
-use iced::Color;
 use iced::Element;
 use iced::Fill;
-use iced::Theme;
 use iced::widget::button;
 use iced::widget::column;
 use iced::widget::container;
@@ -17,6 +13,7 @@ use super::font::BOLD;
 use super::font::REGULAR;
 use super::style_button_disconnect::style_button_disconnect;
 use super::style_card_container::style_card_container;
+use super::style_status_indicator::style_status_indicator;
 use super::variables::FONT_SIZE_L2;
 use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
@@ -38,7 +35,7 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
                 .width(Fill),
             button(
                 row![copy_icon, text("Copy address").font(BOLD)]
-                    .spacing(SPACING_BASE / 2.0)
+                    .spacing(SPACING_HALF)
                     .align_y(Center),
             )
             .style(button::text)
@@ -55,19 +52,10 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     .width(16)
     .height(16);
 
-    let status_indicator = container("").width(16).height(16).style(|theme: &Theme| {
-        let base = container::transparent(theme);
-
-        container::Style {
-            background: Some(Background::Color(Color::from_rgb8(0xEE, 0xFF, 0xEE))),
-            border: Border {
-                color: Color::from_rgb8(0xCC, 0xDD, 0xCC),
-                width: 2.0,
-                radius: 8.into(),
-            },
-            ..base
-        }
-    });
+    let status_indicator = container("")
+        .width(16)
+        .height(16)
+        .style(style_status_indicator);
 
     let stop_button = if data.stopping {
         button(

@@ -6,6 +6,10 @@ const FONT_SIZE_BASE: f32 = 14.0;
 const FONT_SIZE_L1: f32 = 1.5 * FONT_SIZE_BASE;
 pub const FONT_SIZE_L2: f32 = 1.5 * FONT_SIZE_L1;
 
+// Sizing
+
+pub const FORM_WIDTH: f32 = 400.0;
+
 // Spacing
 
 pub const SPACING_BASE: f32 = 16.0;
