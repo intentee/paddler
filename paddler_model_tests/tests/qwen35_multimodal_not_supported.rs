@@ -24,9 +24,9 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -45,10 +45,10 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
                 },
             },
             ConversationMessageContentPart::Text {
-                text: "What do you see?".to_string(),
+                text: "What do you see?".to_owned(),
             },
         ]),
-        role: "user".to_string(),
+        role: "user".to_owned(),
     }]);
 
     let results = harness

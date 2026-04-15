@@ -25,9 +25,9 @@ async fn test_concurrent_conversation_history_requests() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 2,
@@ -50,8 +50,8 @@ async fn test_concurrent_conversation_history_requests() -> Result<()> {
                     params: ContinueFromConversationHistoryParams {
                         add_generation_prompt: true,
                         conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                            content: ConversationMessageContent::Text("What is 2+2?".to_string()),
-                            role: "user".to_string(),
+                            content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
+                            role: "user".to_owned(),
                         }]),
                         enable_thinking: false,
                         grammar: None,
@@ -74,8 +74,8 @@ async fn test_concurrent_conversation_history_requests() -> Result<()> {
                     params: ContinueFromConversationHistoryParams {
                         add_generation_prompt: true,
                         conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                            content: ConversationMessageContent::Text("Name a color".to_string()),
-                            role: "user".to_string(),
+                            content: ConversationMessageContent::Text("Name a color".to_owned()),
+                            role: "user".to_owned(),
                         }]),
                         enable_thinking: false,
                         grammar: None,
@@ -95,9 +95,7 @@ async fn test_concurrent_conversation_history_requests() -> Result<()> {
     let results_a = results_a?;
     let results_b = results_b?;
 
-    eprintln!("--- Conversation A ---");
     log_generated_response(&results_a);
-    eprintln!("--- Conversation B ---");
     log_generated_response(&results_b);
 
     let tokens_a = results_a

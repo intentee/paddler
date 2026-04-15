@@ -5,6 +5,9 @@
 
 use std::pin::Pin;
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::Stream;
 use futures_util::StreamExt;
 use paddler_client::Result as ClientResult;
@@ -18,11 +21,11 @@ use serial_test::file_serial;
 
 async fn collect_text_from_stream(
     mut stream: Pin<Box<dyn Stream<Item = ClientResult<Message>> + Send>>,
-) -> String {
+) -> Result<String> {
     let mut text = String::new();
 
     while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
+        let message = message.context("message should deserialize")?;
 
         match message {
             Message::Response(envelope) => match envelope.response {
@@ -30,30 +33,31 @@ async fn collect_text_from_stream(
                     text.push_str(&token);
                 }
                 Response::GeneratedToken(GeneratedTokenResult::Done) => break,
-                other => panic!("unexpected response: {other:?}"),
+                other => return Err(anyhow!("unexpected response: {other:?}")),
             },
             Message::Error(envelope) => {
-                panic!(
+                return Err(anyhow!(
                     "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
+                    envelope.error.code,
+                    envelope.error.description
+                ));
             }
         }
     }
 
-    text
+    Ok(text)
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_concurrent_generation_requests_from_multiple_clients() {
+async fn test_concurrent_generation_requests_from_multiple_clients() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "concurrent-generation-agent".to_string(),
+        agent_name: "concurrent-generation-agent".to_owned(),
         agent_slots: 4,
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let prompts = [
         "The capital of France is",
@@ -64,7 +68,7 @@ async fn test_concurrent_generation_requests_from_multiple_clients() {
 
     let client_tasks = prompts.iter().map(|prompt| {
         let client = cluster.balancer.client();
-        let prompt_string = (*prompt).to_string();
+        let prompt_string = (*prompt).to_owned();
 
         async move {
             let stream = client
@@ -75,20 +79,24 @@ async fn test_concurrent_generation_requests_from_multiple_clients() {
                     raw_prompt: prompt_string,
                 })
                 .await
-                .expect("raw prompt request should succeed");
+                .context("raw prompt request should succeed")?;
 
             collect_text_from_stream(stream).await
         }
     });
 
-    let per_client_results = futures_util::future::join_all(client_tasks).await;
+    let per_client_results: Vec<Result<String>> =
+        futures_util::future::join_all(client_tasks).await;
 
     assert_eq!(per_client_results.len(), prompts.len());
 
-    for (prompt_index, generated_text) in per_client_results.iter().enumerate() {
+    for (prompt_index, generated_text) in per_client_results.into_iter().enumerate() {
+        let text = generated_text?;
         assert!(
-            !generated_text.is_empty(),
+            !text.is_empty(),
             "client {prompt_index} should receive at least one token"
         );
     }
+
+    Ok(())
 }

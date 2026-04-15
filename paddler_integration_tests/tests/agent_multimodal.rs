@@ -6,6 +6,9 @@
 use std::fs;
 use std::time::Duration;
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use futures_util::StreamExt;
@@ -35,44 +38,50 @@ use tempfile::NamedTempFile;
 
 fn smolvlm2_model() -> AgentDesiredModel {
     AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-        filename: "SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_string(),
-        repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_string(),
-        revision: "main".to_string(),
+        filename: "SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_owned(),
+        repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_owned(),
+        revision: "main".to_owned(),
     })
 }
 
 fn smolvlm2_mmproj_huggingface() -> AgentDesiredModel {
     AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-        filename: "mmproj-SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_string(),
-        repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_string(),
-        revision: "main".to_string(),
+        filename: "mmproj-SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_owned(),
+        repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_owned(),
+        revision: "main".to_owned(),
     })
 }
 
-fn load_test_image_as_data_uri() -> String {
+fn load_test_image_as_data_uri() -> Result<String> {
     let image_bytes = fs::read(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../fixtures/llamas.jpg"
     ))
-    .expect("failed to read test fixture llamas.jpg");
+    .context("failed to read test fixture llamas.jpg")?;
 
     let encoded = BASE64_STANDARD.encode(&image_bytes);
 
-    format!("data:image/jpeg;base64,{encoded}")
+    Ok(format!("data:image/jpeg;base64,{encoded}"))
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_load_mmproj_from_local_path() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
-    let addresses = pick_balancer_addresses().expect("pick addresses");
+async fn test_load_mmproj_from_local_path() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_url = format!(
+        "file://{}",
+        state_db
+            .path()
+            .to_str()
+            .context("temp file path is not valid UTF-8")?
+    );
+    let addresses = pick_balancer_addresses().context("pick addresses")?;
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
         model: smolvlm2_model(),
-        multimodal_projection: AgentDesiredModel::LocalToAgent("/tmp/test-mmproj.gguf".to_string()),
+        multimodal_projection: AgentDesiredModel::LocalToAgent("/tmp/test-mmproj.gguf".to_owned()),
         use_chat_template_override: false,
     };
 
@@ -85,17 +94,17 @@ async fn test_load_mmproj_from_local_path() {
         management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
+        state_database_url: state_db_url.clone(),
     })
     .await
-    .expect("failed to spawn balancer");
+    .context("failed to spawn balancer")?;
 
     balancer
         .client()
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set balancer desired state");
+        .context("failed to set balancer desired state")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
@@ -104,20 +113,28 @@ async fn test_load_mmproj_from_local_path() {
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get balancer desired state");
+        .context("failed to get balancer desired state")?;
 
     assert_eq!(
         retrieved_state.multimodal_projection,
-        AgentDesiredModel::LocalToAgent("/tmp/test-mmproj.gguf".to_string())
+        AgentDesiredModel::LocalToAgent("/tmp/test-mmproj.gguf".to_owned())
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_load_mmproj_from_huggingface() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
-    let addresses = pick_balancer_addresses().expect("pick addresses");
+async fn test_load_mmproj_from_huggingface() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_url = format!(
+        "file://{}",
+        state_db
+            .path()
+            .to_str()
+            .context("temp file path is not valid UTF-8")?
+    );
+    let addresses = pick_balancer_addresses().context("pick addresses")?;
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -136,17 +153,17 @@ async fn test_load_mmproj_from_huggingface() {
         management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
+        state_database_url: state_db_url.clone(),
     })
     .await
-    .expect("failed to spawn balancer");
+    .context("failed to spawn balancer")?;
 
     balancer
         .client()
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set balancer desired state");
+        .context("failed to set balancer desired state")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
@@ -155,20 +172,28 @@ async fn test_load_mmproj_from_huggingface() {
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get balancer desired state");
+        .context("failed to get balancer desired state")?;
 
     assert_eq!(
         retrieved_state.multimodal_projection,
         smolvlm2_mmproj_huggingface()
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_multimodal_inference_with_image() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
-    let addresses = pick_balancer_addresses().expect("pick addresses");
+async fn test_multimodal_inference_with_image() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_url = format!(
+        "file://{}",
+        state_db
+            .path()
+            .to_str()
+            .context("temp file path is not valid UTF-8")?
+    );
+    let addresses = pick_balancer_addresses().context("pick addresses")?;
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -187,31 +212,31 @@ async fn test_multimodal_inference_with_image() {
         management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
+        state_database_url: state_db_url.clone(),
     })
     .await
-    .expect("failed to spawn balancer");
+    .context("failed to spawn balancer")?;
 
     balancer
         .client()
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set balancer desired state");
+        .context("failed to set balancer desired state")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
     let agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management,
-        name: Some("multimodal-agent".to_string()),
+        name: Some("multimodal-agent".to_owned()),
         slots: 4,
     })
-    .expect("failed to spawn agent");
+    .context("failed to spawn agent")?;
 
     balancer.wait_for_agent_count(1).await;
     balancer.wait_for_total_slots(4).await;
 
-    let test_image_data_uri = load_test_image_as_data_uri();
+    let test_image_data_uri = load_test_image_as_data_uri()?;
 
     let mut stream = balancer
         .client()
@@ -228,10 +253,10 @@ async fn test_multimodal_inference_with_image() {
                         },
                     },
                     ConversationMessageContentPart::Text {
-                        text: "What do you see in this image?".to_string(),
+                        text: "What do you see in this image?".to_owned(),
                     },
                 ]),
-                role: "user".to_string(),
+                role: "user".to_owned(),
             }]),
             enable_thinking: true,
             grammar: None,
@@ -239,12 +264,12 @@ async fn test_multimodal_inference_with_image() {
             tools: vec![],
         })
         .await
-        .expect("multimodal inference request should succeed");
+        .context("multimodal inference request should succeed")?;
 
     let mut received_tokens = false;
 
     while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
+        let message = message.context("message should deserialize")?;
 
         match message {
             Message::Response(envelope) => match envelope.response {
@@ -253,15 +278,16 @@ async fn test_multimodal_inference_with_image() {
                         received_tokens = true;
                     }
                     GeneratedTokenResult::Done => break,
-                    other => panic!("unexpected token result: {other:?}"),
+                    other => return Err(anyhow!("unexpected token result: {other:?}")),
                 },
-                other => panic!("unexpected response: {other:?}"),
+                other => return Err(anyhow!("unexpected response: {other:?}")),
             },
             Message::Error(envelope) => {
-                panic!(
+                return Err(anyhow!(
                     "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
+                    envelope.error.code,
+                    envelope.error.description
+                ));
             }
         }
     }
@@ -272,6 +298,8 @@ async fn test_multimodal_inference_with_image() {
     );
 
     drop(agent);
+
+    Ok(())
 }
 
 fn image_message_params(
@@ -283,14 +311,14 @@ fn image_message_params(
             content: ConversationMessageContent::Parts(vec![
                 ConversationMessageContentPart::ImageUrl {
                     image_url: ImageUrl {
-                        url: image_data_uri.to_string(),
+                        url: image_data_uri.to_owned(),
                     },
                 },
                 ConversationMessageContentPart::Text {
-                    text: "Describe this image".to_string(),
+                    text: "Describe this image".to_owned(),
                 },
             ]),
-            role: "user".to_string(),
+            role: "user".to_owned(),
         }]),
         enable_thinking: false,
         grammar: None,
@@ -299,19 +327,22 @@ fn image_message_params(
     }
 }
 
-async fn expect_image_decoding_failed(cluster: &ManagedCluster, image_data_uri: &str) {
+async fn expect_image_decoding_failed(
+    cluster: &ManagedCluster,
+    image_data_uri: &str,
+) -> Result<()> {
     let mut stream = cluster
         .balancer
         .client()
         .inference()
         .continue_from_conversation_history(image_message_params(image_data_uri))
         .await
-        .expect("request should succeed");
+        .context("request should succeed")?;
 
     let mut received_decoding_error = false;
 
     while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
+        let message = message.context("message should deserialize")?;
 
         match message {
             Message::Response(envelope) => match envelope.response {
@@ -321,16 +352,17 @@ async fn expect_image_decoding_failed(cluster: &ManagedCluster, image_data_uri: 
 
                         break;
                     }
-                    GeneratedTokenResult::Token(_) | GeneratedTokenResult::Done => continue,
-                    other => panic!("expected ImageDecodingFailed, got {other:?}"),
+                    GeneratedTokenResult::Token(_) | GeneratedTokenResult::Done => {}
+                    other => return Err(anyhow!("expected ImageDecodingFailed, got {other:?}")),
                 },
-                other => panic!("unexpected response: {other:?}"),
+                other => return Err(anyhow!("unexpected response: {other:?}")),
             },
             Message::Error(envelope) => {
-                panic!(
+                return Err(anyhow!(
                     "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
+                    envelope.error.code,
+                    envelope.error.description
+                ));
             }
         }
     }
@@ -339,19 +371,21 @@ async fn expect_image_decoding_failed(cluster: &ManagedCluster, image_data_uri: 
         received_decoding_error,
         "should have received ImageDecodingFailed"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_image_sent_to_text_only_model_returns_error() {
+async fn test_image_sent_to_text_only_model_returns_error() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "text-only-agent".to_string(),
+        agent_name: "text-only-agent".to_owned(),
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    let test_image_data_uri = load_test_image_as_data_uri();
+    let test_image_data_uri = load_test_image_as_data_uri()?;
 
     let mut stream = cluster
         .balancer
@@ -359,12 +393,12 @@ async fn test_image_sent_to_text_only_model_returns_error() {
         .inference()
         .continue_from_conversation_history(image_message_params(&test_image_data_uri))
         .await
-        .expect("request should succeed");
+        .context("request should succeed")?;
 
     let mut received_error = false;
 
     while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
+        let message = message.context("message should deserialize")?;
 
         match message {
             Message::Response(envelope) => match envelope.response {
@@ -375,58 +409,71 @@ async fn test_image_sent_to_text_only_model_returns_error() {
 
                         break;
                     }
-                    GeneratedTokenResult::Token(_) | GeneratedTokenResult::Done => continue,
-                    other => panic!("expected error for image on text-only model, got {other:?}"),
+                    GeneratedTokenResult::Token(_) | GeneratedTokenResult::Done => {}
+                    other => {
+                        return Err(anyhow!(
+                            "expected error for image on text-only model, got {other:?}"
+                        ));
+                    }
                 },
-                other => panic!("unexpected response: {other:?}"),
+                other => return Err(anyhow!("unexpected response: {other:?}")),
             },
             Message::Error(envelope) => {
-                panic!(
+                return Err(anyhow!(
                     "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
+                    envelope.error.code,
+                    envelope.error.description
+                ));
             }
         }
     }
 
     assert!(received_error, "text-only model should reject image input");
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_malformed_data_uri_returns_error() {
+async fn test_malformed_data_uri_returns_error() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "text-only-agent".to_string(),
+        agent_name: "text-only-agent".to_owned(),
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    expect_image_decoding_failed(&cluster, "data:image/jpegbase64,abc123").await;
+    expect_image_decoding_failed(&cluster, "data:image/jpegbase64,abc123").await?;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_invalid_base64_returns_error() {
+async fn test_invalid_base64_returns_error() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "text-only-agent".to_string(),
+        agent_name: "text-only-agent".to_owned(),
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    expect_image_decoding_failed(&cluster, "data:image/jpeg;base64,!!!not-valid-base64!!!").await;
+    expect_image_decoding_failed(&cluster, "data:image/jpeg;base64,!!!not-valid-base64!!!").await?;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_remote_url_returns_error() {
+async fn test_remote_url_returns_error() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "text-only-agent".to_string(),
+        agent_name: "text-only-agent".to_owned(),
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    expect_image_decoding_failed(&cluster, "https://example.com/image.jpg").await;
+    expect_image_decoding_failed(&cluster, "https://example.com/image.jpg").await?;
+
+    Ok(())
 }

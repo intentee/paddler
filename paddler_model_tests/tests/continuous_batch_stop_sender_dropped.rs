@@ -16,10 +16,10 @@ use tokio::sync::mpsc;
 
 /// When the stop signal sender is dropped (client disconnected, stopper
 /// cleaned up), the scheduler must detect the closed channel and stop
-/// generating. This simulates what happens when a WebSocket client
-/// disconnects: the ReceiveStreamStopperDropGuard drops the stop_tx.
+/// generating. This simulates what happens when a `WebSocket` client
+/// disconnects: the `ReceiveStreamStopperDropGuard` drops the `stop_tx`.
 ///
-/// Uses 2 slots: first request gets stop_tx dropped, second request must
+/// Uses 2 slots: first request gets `stop_tx` dropped, second request must
 /// complete normally — proving the scheduler stopped wasting resources
 /// on the disconnected client.
 #[actix_web::test]
@@ -29,9 +29,9 @@ async fn test_generation_stops_when_stop_sender_dropped() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 2,
@@ -51,7 +51,7 @@ async fn test_generation_stops_when_stop_sender_dropped() -> Result<()> {
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 500,
-                    raw_prompt: "Write a very long essay about philosophy".to_string(),
+                    raw_prompt: "Write a very long essay about philosophy".to_owned(),
                 },
             },
         ))
@@ -72,7 +72,7 @@ async fn test_generation_stops_when_stop_sender_dropped() -> Result<()> {
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 5,
-            raw_prompt: "Hello".to_string(),
+            raw_prompt: "Hello".to_owned(),
         })
         .await?;
 

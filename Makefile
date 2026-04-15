@@ -29,7 +29,7 @@ clean:
 
 .PHONY: clippy
 clippy: jarmuz-static
-	cargo clippy --workspace --all-targets --features web_admin_panel
+	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
 
 .PHONY: fmt
 fmt: node_modules

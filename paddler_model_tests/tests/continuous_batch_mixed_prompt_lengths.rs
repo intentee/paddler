@@ -22,9 +22,9 @@ async fn test_long_and_short_prompts_complete_concurrently() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 2,
@@ -52,7 +52,7 @@ async fn test_long_and_short_prompts_complete_concurrently() -> Result<()> {
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 20,
-                    raw_prompt: long_prompt.to_string(),
+                    raw_prompt: long_prompt.to_owned(),
                 },
             },
         ))
@@ -68,7 +68,7 @@ async fn test_long_and_short_prompts_complete_concurrently() -> Result<()> {
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 20,
-                    raw_prompt: short_prompt.to_string(),
+                    raw_prompt: short_prompt.to_owned(),
                 },
             },
         ))
@@ -82,9 +82,7 @@ async fn test_long_and_short_prompts_complete_concurrently() -> Result<()> {
     let results_long = results_long?;
     let results_short = results_short?;
 
-    eprintln!("--- Long prompt output ---");
     log_generated_response(&results_long);
-    eprintln!("--- Short prompt output ---");
     log_generated_response(&results_short);
 
     let long_tokens = results_long

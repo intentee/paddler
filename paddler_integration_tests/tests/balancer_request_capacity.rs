@@ -5,6 +5,9 @@
 
 use std::time::Duration;
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::StreamExt;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
 use paddler_integration_tests::managed_agent::ManagedAgent;
@@ -21,10 +24,16 @@ use tempfile::NamedTempFile;
 
 #[tokio::test]
 #[file_serial]
-async fn test_slots_can_handle_request() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
-    let addresses = pick_balancer_addresses().expect("pick addresses");
+async fn test_slots_can_handle_request() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_url = format!(
+        "file://{}",
+        state_db
+            .path()
+            .to_str()
+            .context("temp file path is not valid UTF-8")?
+    );
+    let addresses = pick_balancer_addresses().context("pick addresses")?;
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_millis(50),
@@ -38,7 +47,7 @@ async fn test_slots_can_handle_request() {
         state_database_url: state_db_url,
     })
     .await
-    .expect("failed to spawn balancer");
+    .context("failed to spawn balancer")?;
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -53,7 +62,7 @@ async fn test_slots_can_handle_request() {
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set balancer desired state");
+        .context("failed to set balancer desired state")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
@@ -65,18 +74,17 @@ async fn test_slots_can_handle_request() {
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
-            raw_prompt: "Hello".to_string(),
+            raw_prompt: "Hello".to_owned(),
         })
         .await;
 
-    assert!(result.is_ok(), "WebSocket connection should succeed");
+    let mut stream = result.context("WebSocket connection should succeed")?;
 
-    let mut stream = result.unwrap();
-    let first_message = stream.next().await;
-
-    assert!(first_message.is_some(), "should receive a response message");
-
-    let message = first_message.unwrap().expect("message should deserialize");
+    let message = stream
+        .next()
+        .await
+        .context("should receive a response message")?
+        .context("message should deserialize")?;
 
     match message {
         paddler_types::inference_client::Message::Error(envelope) => {
@@ -87,16 +95,18 @@ async fn test_slots_can_handle_request() {
             );
         }
         paddler_types::inference_client::Message::Response(_) => {
-            panic!("expected buffer overflow error, got a successful response");
+            return Err(anyhow!(
+                "expected buffer overflow error, got a successful response"
+            ));
         }
     }
 
     let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management,
-        name: Some("capacity-agent".to_string()),
+        name: Some("capacity-agent".to_owned()),
         slots: 4,
     })
-    .expect("failed to spawn agent");
+    .context("failed to spawn agent")?;
 
     balancer.wait_for_agent_count(1).await;
     balancer.wait_for_total_slots(4).await;
@@ -107,18 +117,17 @@ async fn test_slots_can_handle_request() {
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
-            raw_prompt: "Hello".to_string(),
+            raw_prompt: "Hello".to_owned(),
         })
         .await;
 
-    assert!(result.is_ok(), "WebSocket connection should succeed");
+    let mut stream = result.context("WebSocket connection should succeed")?;
 
-    let mut stream = result.unwrap();
-    let first_message = stream.next().await;
-
-    assert!(first_message.is_some(), "should receive a response message");
-
-    let message = first_message.unwrap().expect("message should deserialize");
+    let message = stream
+        .next()
+        .await
+        .context("should receive a response message")?
+        .context("message should deserialize")?;
 
     match message {
         paddler_types::inference_client::Message::Error(envelope) => {
@@ -129,4 +138,6 @@ async fn test_slots_can_handle_request() {
         }
         paddler_types::inference_client::Message::Response(_) => {}
     }
+
+    Ok(())
 }

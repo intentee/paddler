@@ -20,9 +20,9 @@ async fn test_stop_signal_terminates_generation_early() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -42,7 +42,7 @@ async fn test_stop_signal_terminates_generation_early() -> Result<()> {
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 500,
-                    raw_prompt: "Write a very long story about a dragon".to_string(),
+                    raw_prompt: "Write a very long story about a dragon".to_owned(),
                 },
             },
         ))
@@ -63,7 +63,6 @@ async fn test_stop_signal_terminates_generation_early() -> Result<()> {
     while let Some(result) = generated_tokens_rx.recv().await {
         match result {
             GeneratedTokenResult::Token(_) => token_count += 1,
-            GeneratedTokenResult::Done => break,
             _ => break,
         }
     }

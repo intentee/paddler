@@ -24,9 +24,9 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -47,7 +47,7 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 500,
-                    raw_prompt: "Write a very long essay about philosophy".to_string(),
+                    raw_prompt: "Write a very long essay about philosophy".to_owned(),
                 },
             },
         ))
@@ -66,7 +66,7 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
     let max_attempts = 10;
     let mut succeeded = false;
 
-    for attempt in 0..max_attempts {
+    for _attempt in 0..max_attempts {
         let (gen_tx_retry, gen_rx_retry) = mpsc::unbounded_channel();
         let (_stop_tx, gen_stop_rx_retry) = mpsc::unbounded_channel::<()>();
 
@@ -80,7 +80,7 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
                     params: ContinueFromRawPromptParams {
                         grammar: None,
                         max_tokens: 5,
-                        raw_prompt: "Hello".to_string(),
+                        raw_prompt: "Hello".to_owned(),
                     },
                 },
             ))
@@ -93,7 +93,6 @@ async fn test_generation_stops_when_client_disconnects() -> Result<()> {
             .any(|result| matches!(result, GeneratedTokenResult::Token(_)));
 
         if has_tokens {
-            eprintln!("Slot released after {attempt} retries");
             succeeded = true;
 
             break;

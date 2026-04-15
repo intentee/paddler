@@ -25,14 +25,14 @@ async fn test_qwen25vl_multimodal_inference_with_image() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf".to_string(),
-            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf".to_owned(),
+            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: Some(HuggingFaceModelReference {
-            filename: "mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf".to_string(),
-            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf".to_owned(),
+            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_owned(),
+            revision: "main".to_owned(),
         }),
         slots: 1,
     })
@@ -50,10 +50,10 @@ async fn test_qwen25vl_multimodal_inference_with_image() -> Result<()> {
                 },
             },
             ConversationMessageContentPart::Text {
-                text: "What do you see in this image?".to_string(),
+                text: "What do you see in this image?".to_owned(),
             },
         ]),
-        role: "user".to_string(),
+        role: "user".to_owned(),
     }]);
 
     let results = harness

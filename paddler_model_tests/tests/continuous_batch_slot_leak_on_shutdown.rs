@@ -19,8 +19,8 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use tokio::sync::mpsc;
 
-/// After a scheduler shuts down with active requests, slots_processing_count
-/// must be 0. If it leaks, drain_in_flight_requests hangs forever on the
+/// After a scheduler shuts down with active requests, `slots_processing_count`
+/// must be 0. If it leaks, `drain_in_flight_requests` hangs forever on the
 /// next state change.
 #[actix_web::test]
 async fn test_slots_processing_count_zero_after_shutdown_with_active_request() -> Result<()> {
@@ -32,9 +32,9 @@ async fn test_slots_processing_count_zero_after_shutdown_with_active_request() -
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
         model: AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         }),
         multimodal_projection: AgentDesiredModel::None,
     };
@@ -60,11 +60,11 @@ async fn test_slots_processing_count_zero_after_shutdown_with_active_request() -
         multimodal_projection_path: applicable_state.multimodal_projection_path,
         model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
         model_path: model_path.clone(),
-        model_path_string: model_path.display().to_string(),
+        model_path_string: format!("{}", model_path.display()),
         slot_aggregated_status_manager: slot_aggregated_status_manager.clone(),
     };
 
-    let mut handle = arbiter.spawn().await?;
+    let handle = arbiter.spawn().await?;
 
     // Start generation
     let (gen_tx, mut gen_rx) = mpsc::unbounded_channel();
@@ -79,7 +79,7 @@ async fn test_slots_processing_count_zero_after_shutdown_with_active_request() -
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 500,
-                    raw_prompt: "Write a long essay".to_string(),
+                    raw_prompt: "Write a long essay".to_owned(),
                 },
             },
         ))

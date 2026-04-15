@@ -18,9 +18,9 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 fn build_long_link_list() -> String {
     let mut lines = Vec::new();
 
-    lines.push("[2] [Unknown] \"Example Organization\" → /".to_string());
-    lines.push("[4] [Unknown] \"Example Organization\" → /".to_string());
-    lines.push("[5] [Navigation] \"Back to: Home\" → /".to_string());
+    lines.push("[2] [Unknown] \"Example Organization\" → /".to_owned());
+    lines.push("[4] [Unknown] \"Example Organization\" → /".to_owned());
+    lines.push("[5] [Navigation] \"Back to: Home\" → /".to_owned());
 
     for index in 6..=20 {
         lines.push(format!(
@@ -52,7 +52,7 @@ fn build_long_link_list() -> String {
         ));
     }
 
-    lines.push("[88] [Unknown] \"Close search window\" → ".to_string());
+    lines.push("[88] [Unknown] \"Close search window\" → ".to_owned());
 
     lines.join("\n")
 }
@@ -64,9 +64,9 @@ async fn test_qwen35_long_prompt_with_system_message() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -99,12 +99,12 @@ async fn test_qwen35_long_prompt_with_system_message() -> Result<()> {
 
     let conversation_history = ConversationHistory::new(vec![
         ConversationMessage {
-            content: ConversationMessageContent::Text(system_prompt.to_string()),
-            role: "system".to_string(),
+            content: ConversationMessageContent::Text(system_prompt.to_owned()),
+            role: "system".to_owned(),
         },
         ConversationMessage {
             content: ConversationMessageContent::Text(user_prompt),
-            role: "user".to_string(),
+            role: "user".to_owned(),
         },
     ]);
 

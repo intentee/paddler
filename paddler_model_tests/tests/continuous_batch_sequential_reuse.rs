@@ -18,9 +18,9 @@ async fn test_slot_reused_after_first_request_completes() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -34,7 +34,7 @@ async fn test_slot_reused_after_first_request_completes() -> Result<()> {
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
-            raw_prompt: "Hello world".to_string(),
+            raw_prompt: "Hello world".to_owned(),
         })
         .await?;
 
@@ -54,7 +54,7 @@ async fn test_slot_reused_after_first_request_completes() -> Result<()> {
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
-            raw_prompt: "Goodbye world".to_string(),
+            raw_prompt: "Goodbye world".to_owned(),
         })
         .await?;
 

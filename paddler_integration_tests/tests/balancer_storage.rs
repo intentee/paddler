@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer_params::ManagedBalancerParams;
@@ -13,25 +15,29 @@ use paddler_types::inference_parameters::InferenceParameters;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
-fn make_balancer_params(state_db_url: String) -> ManagedBalancerParams {
-    ManagedBalancerParams {
+fn make_balancer_params(state_db_url: String) -> Result<ManagedBalancerParams> {
+    Ok(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
-        inference_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
+        compat_openai_addr: format!("127.0.0.1:{}", pick_free_port()?),
+        inference_addr: format!("127.0.0.1:{}", pick_free_port()?),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
+        management_addr: format!("127.0.0.1:{}", pick_free_port()?),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 30,
         state_database_url: state_db_url,
-    }
+    })
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_desired_state_persists_across_restarts() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+async fn test_desired_state_persists_across_restarts() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_path = state_db
+        .path()
+        .to_str()
+        .context("temp file path is not valid UTF-8")?;
+    let state_db_url = format!("file://{state_db_path}");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -41,41 +47,47 @@ async fn test_desired_state_persists_across_restarts() {
         use_chat_template_override: false,
     };
 
-    let mut balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url.clone()))
+    let mut balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url.clone())?)
         .await
-        .expect("failed to spawn first balancer");
+        .context("failed to spawn first balancer")?;
 
     balancer
         .client()
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set balancer desired state");
+        .context("failed to set balancer desired state")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
     balancer
         .shutdown()
-        .expect("failed to shutdown first balancer");
+        .context("failed to shutdown first balancer")?;
 
-    let restarted_balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url))
+    let restarted_balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url)?)
         .await
-        .expect("failed to spawn second balancer");
+        .context("failed to spawn second balancer")?;
 
     restarted_balancer
         .wait_for_desired_state(&desired_state)
         .await;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_balancer_can_switch_model() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+async fn test_balancer_can_switch_model() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_path = state_db
+        .path()
+        .to_str()
+        .context("temp file path is not valid UTF-8")?;
+    let state_db_url = format!("file://{state_db_path}");
 
-    let balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url))
+    let balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url)?)
         .await
-        .expect("failed to spawn balancer");
+        .context("failed to spawn balancer")?;
 
     let first_desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -90,7 +102,7 @@ async fn test_balancer_can_switch_model() {
         .management()
         .put_balancer_desired_state(&first_desired_state)
         .await
-        .expect("failed to set first desired state");
+        .context("failed to set first desired state")?;
 
     balancer.wait_for_desired_state(&first_desired_state).await;
 
@@ -99,14 +111,14 @@ async fn test_balancer_can_switch_model() {
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get balancer desired state");
+        .context("failed to get balancer desired state")?;
 
     assert_eq!(retrieved_state.model, AGENT_DESIRED_MODEL.clone());
 
     let second_desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
-        model: AgentDesiredModel::LocalToAgent("alternative-model".to_string()),
+        model: AgentDesiredModel::LocalToAgent("alternative-model".to_owned()),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,
     };
@@ -116,7 +128,7 @@ async fn test_balancer_can_switch_model() {
         .management()
         .put_balancer_desired_state(&second_desired_state)
         .await
-        .expect("failed to set second desired state");
+        .context("failed to set second desired state")?;
 
     balancer.wait_for_desired_state(&second_desired_state).await;
 
@@ -125,22 +137,28 @@ async fn test_balancer_can_switch_model() {
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get balancer desired state after switch");
+        .context("failed to get balancer desired state after switch")?;
 
     assert_eq!(
         retrieved_state.model,
-        AgentDesiredModel::LocalToAgent("alternative-model".to_string())
+        AgentDesiredModel::LocalToAgent("alternative-model".to_owned())
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_chat_template_override_persists_across_restarts() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+async fn test_chat_template_override_persists_across_restarts() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_path = state_db
+        .path()
+        .to_str()
+        .context("temp file path is not valid UTF-8")?;
+    let state_db_url = format!("file://{state_db_path}");
 
     let chat_template = ChatTemplate {
-        content: "{% for message in messages %}{{ message.content }}{% endfor %}".to_string(),
+        content: "{% for message in messages %}{{ message.content }}{% endfor %}".to_owned(),
     };
 
     let desired_state = BalancerDesiredState {
@@ -151,16 +169,16 @@ async fn test_chat_template_override_persists_across_restarts() {
         use_chat_template_override: true,
     };
 
-    let mut balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url.clone()))
+    let mut balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url.clone())?)
         .await
-        .expect("failed to spawn first balancer");
+        .context("failed to spawn first balancer")?;
 
     balancer
         .client()
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set desired state with chat template");
+        .context("failed to set desired state with chat template")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
@@ -169,7 +187,7 @@ async fn test_chat_template_override_persists_across_restarts() {
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get balancer desired state");
+        .context("failed to get balancer desired state")?;
 
     assert_eq!(
         retrieved_state.chat_template_override,
@@ -177,26 +195,28 @@ async fn test_chat_template_override_persists_across_restarts() {
     );
     assert!(retrieved_state.use_chat_template_override);
 
-    balancer.shutdown().expect("failed to shutdown balancer");
+    balancer.shutdown().context("failed to shutdown balancer")?;
 
-    let restarted_balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url))
+    let restarted_balancer = ManagedBalancer::spawn(make_balancer_params(state_db_url)?)
         .await
-        .expect("failed to spawn restarted balancer");
+        .context("failed to spawn restarted balancer")?;
 
     let persisted_state = restarted_balancer
         .client()
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get persisted state after restart");
+        .context("failed to get persisted state after restart")?;
 
     assert_eq!(persisted_state.chat_template_override, Some(chat_template));
     assert!(persisted_state.use_chat_template_override);
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_desired_state_works_with_memory_storage() {
+async fn test_desired_state_works_with_memory_storage() -> Result<()> {
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
         inference_parameters: InferenceParameters::default(),
@@ -205,16 +225,16 @@ async fn test_desired_state_works_with_memory_storage() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(make_balancer_params("memory://".to_owned()))
+    let balancer = ManagedBalancer::spawn(make_balancer_params("memory://".to_owned())?)
         .await
-        .expect("failed to spawn balancer with memory storage");
+        .context("failed to spawn balancer with memory storage")?;
 
     balancer
         .client()
         .management()
         .put_balancer_desired_state(&desired_state)
         .await
-        .expect("failed to set balancer desired state");
+        .context("failed to set balancer desired state")?;
 
     balancer.wait_for_desired_state(&desired_state).await;
 
@@ -223,7 +243,7 @@ async fn test_desired_state_works_with_memory_storage() {
         .management()
         .get_balancer_desired_state()
         .await
-        .expect("failed to get balancer desired state");
+        .context("failed to get balancer desired state")?;
 
     assert_eq!(retrieved_state.model, AGENT_DESIRED_MODEL.clone());
     assert_eq!(
@@ -231,4 +251,6 @@ async fn test_desired_state_works_with_memory_storage() {
         AgentDesiredModel::None
     );
     assert!(!retrieved_state.use_chat_template_override);
+
+    Ok(())
 }

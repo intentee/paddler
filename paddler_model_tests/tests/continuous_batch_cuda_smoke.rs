@@ -20,14 +20,11 @@ use cuda_common::require_cuda_device;
 
 const QWEN3_0_6B_LAYER_COUNT: u32 = 28;
 
-#[expect(clippy::print_stderr, reason = "test diagnostic output")]
 #[actix_web::test]
 async fn cuda_continuous_batch_smoke_uses_gpu() -> Result<()> {
     send_logs_to_tracing(LogOptions::default());
 
-    let cuda_devices = require_cuda_device()?;
-
-    eprintln!("Detected CUDA devices: {cuda_devices:#?}");
+    require_cuda_device()?;
 
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters {
@@ -35,9 +32,9 @@ async fn cuda_continuous_batch_smoke_uses_gpu() -> Result<()> {
             ..InferenceParameters::default()
         },
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -57,7 +54,7 @@ async fn cuda_continuous_batch_smoke_uses_gpu() -> Result<()> {
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 16,
-                    raw_prompt: "Count from 1 to 5:".to_string(),
+                    raw_prompt: "Count from 1 to 5:".to_owned(),
                 },
             },
         ))

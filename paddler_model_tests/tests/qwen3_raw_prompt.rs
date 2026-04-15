@@ -24,9 +24,9 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
             ..InferenceParameters::default()
         },
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -41,7 +41,7 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
             max_tokens: 30,
             raw_prompt:
                 "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n"
-                    .to_string(),
+                    .to_owned(),
         })
         .await?;
 

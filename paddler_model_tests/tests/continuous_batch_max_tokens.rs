@@ -18,9 +18,9 @@ async fn test_generation_stops_at_max_tokens_boundary() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -33,7 +33,7 @@ async fn test_generation_stops_at_max_tokens_boundary() -> Result<()> {
         .generate_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 5,
-            raw_prompt: "Count from one to one hundred:".to_string(),
+            raw_prompt: "Count from one to one hundred:".to_owned(),
         })
         .await?;
 

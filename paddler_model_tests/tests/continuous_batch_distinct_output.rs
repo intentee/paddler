@@ -21,9 +21,9 @@ async fn test_continuous_batch_produces_distinct_output_per_sequence() -> Result
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 2,
@@ -48,7 +48,7 @@ async fn test_continuous_batch_produces_distinct_output_per_sequence() -> Result
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 20,
-                    raw_prompt: prompt_a.to_string(),
+                    raw_prompt: prompt_a.to_owned(),
                 },
             },
         ))
@@ -64,7 +64,7 @@ async fn test_continuous_batch_produces_distinct_output_per_sequence() -> Result
                 params: ContinueFromRawPromptParams {
                     grammar: None,
                     max_tokens: 20,
-                    raw_prompt: prompt_b.to_string(),
+                    raw_prompt: prompt_b.to_owned(),
                 },
             },
         ))
@@ -93,9 +93,6 @@ async fn test_continuous_batch_produces_distinct_output_per_sequence() -> Result
             _ => None,
         })
         .collect();
-
-    eprintln!("Output A (counting): {text_a}");
-    eprintln!("Output B (capital): {text_b}");
 
     assert_ne!(
         text_a, text_b,

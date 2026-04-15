@@ -37,7 +37,7 @@ async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 500,
-            raw_prompt: "Write a very long essay about the history of philosophy".to_string(),
+            raw_prompt: "Write a very long essay about the history of philosophy".to_owned(),
         })
         .await?;
 
@@ -70,7 +70,6 @@ async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
     // Slot must be released within 5 seconds.
     // Without the fix, it stays occupied until inference_item_timeout (30s default).
     let deadline = Instant::now() + paddler_integration_tests::WAIT_FOR_STATE_CHANGE_TIMEOUT;
-    let disconnect_instant = Instant::now();
     let mut final_slots_processing = -1;
 
     loop {
@@ -84,11 +83,6 @@ async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
             final_slots_processing = total;
 
             if total == 0 {
-                eprintln!(
-                    "Slot released {}ms after disconnect",
-                    disconnect_instant.elapsed().as_millis()
-                );
-
                 break;
             }
         }

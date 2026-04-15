@@ -5,6 +5,8 @@
 
 use std::time::Duration;
 
+use anyhow::Context as _;
+use anyhow::Result;
 use futures_util::StreamExt;
 use paddler_integration_tests::managed_agent::ManagedAgent;
 use paddler_integration_tests::managed_agent_params::ManagedAgentParams;
@@ -16,28 +18,34 @@ use paddler_integration_tests::pick_balancer_addresses::pick_balancer_addresses;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
-async fn get_first_agent_id(balancer: &ManagedBalancer) -> String {
+async fn get_first_agent_id(balancer: &ManagedBalancer) -> Result<String> {
     let snapshot = balancer
         .client()
         .management()
         .get_agents()
         .await
-        .expect("failed to get agents");
+        .context("failed to get agents")?;
 
-    snapshot
+    Ok(snapshot
         .agents
         .first()
-        .expect("should have at least one agent")
+        .context("should have at least one agent")?
         .id
-        .clone()
+        .clone())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_balancer_can_register_agents() {
-    let state_db = NamedTempFile::new().expect("failed to create temp file");
-    let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
-    let addresses = pick_balancer_addresses().expect("pick addresses");
+async fn test_balancer_can_register_agents() -> Result<()> {
+    let state_db = NamedTempFile::new().context("failed to create temp file")?;
+    let state_db_url = format!(
+        "file://{}",
+        state_db
+            .path()
+            .to_str()
+            .context("temp file path is not valid UTF-8")?
+    );
+    let addresses = pick_balancer_addresses().context("pick addresses")?;
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
@@ -51,7 +59,7 @@ async fn test_balancer_can_register_agents() {
         state_database_url: state_db_url,
     })
     .await
-    .expect("failed to spawn balancer");
+    .context("failed to spawn balancer")?;
 
     let agent_count = balancer.wait_for_agent_count(0).await;
 
@@ -59,10 +67,10 @@ async fn test_balancer_can_register_agents() {
 
     let _agent1 = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management.clone(),
-        name: Some("test-agent-1".to_string()),
+        name: Some("test-agent-1".to_owned()),
         slots: 1,
     })
-    .expect("failed to spawn agent");
+    .context("failed to spawn agent")?;
 
     let agent_count = balancer.wait_for_agent_count(1).await;
 
@@ -70,26 +78,28 @@ async fn test_balancer_can_register_agents() {
 
     let _agent2 = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management,
-        name: Some("test-agent-2".to_string()),
+        name: Some("test-agent-2".to_owned()),
         slots: 1,
     })
-    .expect("failed to spawn agent");
+    .context("failed to spawn agent")?;
 
     let agent_count = balancer.wait_for_agent_count(2).await;
 
     assert_eq!(agent_count, 2);
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_agents_stream_receives_snapshot() {
+async fn test_agents_stream_receives_snapshot() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "agents-test-agent".to_string(),
+        agent_name: "agents-test-agent".to_owned(),
         agent_slots: 2,
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let mut stream = cluster
         .balancer
@@ -97,32 +107,34 @@ async fn test_agents_stream_receives_snapshot() {
         .management()
         .agents_stream()
         .await
-        .expect("agents stream should connect");
+        .context("agents stream should connect")?;
 
     let first_event = stream
         .next()
         .await
-        .expect("stream must produce at least one event")
-        .expect("first event should deserialize");
+        .context("stream must produce at least one event")?
+        .context("first event should deserialize")?;
 
     assert!(
         !first_event.agents.is_empty(),
         "first stream event must contain agents"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_get_model_metadata() {
+async fn test_get_model_metadata() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "agents-test-agent".to_string(),
+        agent_name: "agents-test-agent".to_owned(),
         agent_slots: 2,
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    let agent_id = get_first_agent_id(&cluster.balancer).await;
+    let agent_id = get_first_agent_id(&cluster.balancer).await?;
 
     let metadata = cluster
         .balancer
@@ -130,7 +142,7 @@ async fn test_get_model_metadata() {
         .management()
         .get_model_metadata(&agent_id)
         .await
-        .expect("get_model_metadata should succeed");
+        .context("get_model_metadata should succeed")?;
 
     assert!(
         metadata.is_some(),
@@ -139,23 +151,25 @@ async fn test_get_model_metadata() {
 
     assert!(
         !metadata
-            .expect("metadata should be present")
+            .context("metadata should be present")?
             .metadata
             .is_empty(),
         "model metadata map should not be empty"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_get_metrics_returns_prometheus_format() {
+async fn test_get_metrics_returns_prometheus_format() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "agents-test-agent".to_string(),
+        agent_name: "agents-test-agent".to_owned(),
         agent_slots: 2,
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let metrics = cluster
         .balancer
@@ -163,7 +177,7 @@ async fn test_get_metrics_returns_prometheus_format() {
         .management()
         .get_metrics()
         .await
-        .expect("get_metrics should succeed");
+        .context("get_metrics should succeed")?;
 
     assert!(
         metrics.contains("slots_processing"),
@@ -174,18 +188,20 @@ async fn test_get_metrics_returns_prometheus_format() {
         metrics.contains("slots_total"),
         "metrics must contain slots_total gauge"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_agent_reports_download_progress() {
+async fn test_agent_reports_download_progress() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "download-progress-agent".to_string(),
+        agent_name: "download-progress-agent".to_owned(),
         agent_slots: 2,
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let snapshot = cluster
         .balancer
@@ -193,7 +209,7 @@ async fn test_agent_reports_download_progress() {
         .management()
         .get_agents()
         .await
-        .expect("failed to get agents");
+        .context("failed to get agents")?;
 
     assert!(
         !snapshot.agents.is_empty(),
@@ -211,4 +227,6 @@ async fn test_agent_reports_download_progress() {
         agent.download_total, 0,
         "download_total should be 0 after model is loaded"
     );
+
+    Ok(())
 }

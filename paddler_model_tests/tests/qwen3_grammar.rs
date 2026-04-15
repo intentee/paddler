@@ -22,9 +22,9 @@ fn managed_model_params() -> ManagedModelParams {
             ..InferenceParameters::default()
         },
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -57,7 +57,7 @@ async fn test_gbnf_grammar_constrains_output() -> Result<()> {
             max_tokens: 10,
             raw_prompt:
                 "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-                    .to_string(),
+                    .to_owned(),
         })
         .await?;
 
@@ -89,7 +89,7 @@ async fn test_json_schema_grammar_constrains_output() -> Result<()> {
             }),
             max_tokens: 50,
             raw_prompt:
-                "<|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_string(),
+                "<|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_owned(),
         })
         .await?;
 
@@ -120,7 +120,7 @@ async fn test_no_grammar_does_not_constrain_output() -> Result<()> {
             grammar: None,
             max_tokens: 20,
             raw_prompt: "<|im_start|>user\nSay hello<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-                .to_string(),
+                .to_owned(),
         })
         .await?;
 

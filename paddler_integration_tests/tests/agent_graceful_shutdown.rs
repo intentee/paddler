@@ -28,7 +28,7 @@ async fn test_agent_exits_gracefully_during_active_generation() -> anyhow::Resul
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 1000,
-            raw_prompt: "Write a very long essay about the history of computing".to_string(),
+            raw_prompt: "Write a very long essay about the history of computing".to_owned(),
         })
         .await?;
 

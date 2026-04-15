@@ -22,9 +22,9 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 1,
@@ -36,19 +36,19 @@ async fn test_qwen35_thinking_multi_turn_stops_cleanly() -> Result<()> {
     let conversation_history = ConversationHistory::new(vec![
         ConversationMessage {
             content: ConversationMessageContent::Text(
-                "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.".to_string(),
+                "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.".to_owned(),
             ),
-            role: "system".to_string(),
+            role: "system".to_owned(),
         },
         ConversationMessage {
             content: ConversationMessageContent::Text(
-                "Hello! How can I help you today?".to_string(),
+                "Hello! How can I help you today?".to_owned(),
             ),
-            role: "assistant".to_string(),
+            role: "assistant".to_owned(),
         },
         ConversationMessage {
-            content: ConversationMessageContent::Text("hi".to_string()),
-            role: "user".to_string(),
+            content: ConversationMessageContent::Text("hi".to_owned()),
+            role: "user".to_owned(),
         },
     ]);
 

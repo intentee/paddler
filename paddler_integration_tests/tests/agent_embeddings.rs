@@ -5,6 +5,9 @@
 
 use std::collections::BTreeSet;
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::StreamExt;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
@@ -27,9 +30,11 @@ fn embedding_model() -> AgentDesiredModel {
     })
 }
 
-async fn spawn_embeddings_cluster(inference_parameters: InferenceParameters) -> ManagedCluster {
+async fn spawn_embeddings_cluster(
+    inference_parameters: InferenceParameters,
+) -> Result<ManagedCluster> {
     ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "embeddings-agent".to_string(),
+        agent_name: "embeddings-agent".to_owned(),
         desired_state: paddler_types::balancer_desired_state::BalancerDesiredState {
             inference_parameters,
             model: embedding_model(),
@@ -38,16 +43,16 @@ async fn spawn_embeddings_cluster(inference_parameters: InferenceParameters) -> 
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster")
+    .context("failed to spawn cluster")
 }
 
-async fn spawn_non_embedding_cluster() -> ManagedCluster {
+async fn spawn_non_embedding_cluster() -> Result<ManagedCluster> {
     ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "non-embeddings-agent".to_string(),
+        agent_name: "non-embeddings-agent".to_owned(),
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster")
+    .context("failed to spawn cluster")
 }
 
 async fn collect_embeddings_from_stream(
@@ -56,11 +61,11 @@ async fn collect_embeddings_from_stream(
         Item = Result<paddler_types::inference_client::Message, paddler_client::Error>,
     > + Unpin
          ),
-) -> Vec<Embedding> {
+) -> Result<Vec<Embedding>> {
     let mut embeddings = Vec::new();
 
     while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
+        let message = message.context("message should deserialize")?;
 
         match message {
             paddler_types::inference_client::Message::Response(envelope) => {
@@ -70,23 +75,24 @@ async fn collect_embeddings_from_stream(
                     }
                     Response::Embedding(EmbeddingResult::Done) => {}
                     Response::Embedding(EmbeddingResult::Error(description)) => {
-                        panic!("unexpected embedding error: {description}");
+                        return Err(anyhow!("unexpected embedding error: {description}"));
                     }
                     other => {
-                        panic!("unexpected response variant: {other:?}");
+                        return Err(anyhow!("unexpected response variant: {other:?}"));
                     }
                 }
             }
             paddler_types::inference_client::Message::Error(envelope) => {
-                panic!(
+                return Err(anyhow!(
                     "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
+                    envelope.error.code,
+                    envelope.error.description
+                ));
             }
         }
     }
 
-    embeddings
+    Ok(embeddings)
 }
 
 fn make_embedding_params(
@@ -97,8 +103,8 @@ fn make_embedding_params(
         input_batch: documents
             .into_iter()
             .map(|(id, content)| EmbeddingInputDocument {
-                content: content.to_string(),
-                id: id.to_string(),
+                content: content.to_owned(),
+                id: id.to_owned(),
             })
             .collect(),
         normalization_method,
@@ -107,8 +113,8 @@ fn make_embedding_params(
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_fail_when_disabled() {
-    let cluster = spawn_non_embedding_cluster().await;
+async fn test_embeddings_fail_when_disabled() -> Result<()> {
+    let cluster = spawn_non_embedding_cluster().await?;
 
     let params = make_embedding_params(
         vec![("doc-1", "Hello world")],
@@ -126,16 +132,18 @@ async fn test_embeddings_fail_when_disabled() {
         result.is_err(),
         "embedding request should fail when embeddings are disabled"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_succeed_with_matching_document_ids() {
+async fn test_embeddings_succeed_with_matching_document_ids() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let params = make_embedding_params(
         vec![
@@ -154,9 +162,9 @@ async fn test_embeddings_succeed_with_matching_document_ids() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(embeddings.len(), 2, "should receive exactly 2 embeddings");
 
@@ -166,19 +174,21 @@ async fn test_embeddings_succeed_with_matching_document_ids() {
         .collect();
 
     let expected_ids: BTreeSet<String> =
-        BTreeSet::from(["doc-alpha".to_string(), "doc-beta".to_string()]);
+        BTreeSet::from(["doc-alpha".to_owned(), "doc-beta".to_owned()]);
 
     assert_eq!(returned_ids, expected_ids);
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_with_l2_normalization() {
+async fn test_embeddings_with_l2_normalization() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let params = make_embedding_params(
         vec![("doc-l2", "Testing L2 normalization on embeddings")],
@@ -191,9 +201,9 @@ async fn test_embeddings_with_l2_normalization() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(embeddings.len(), 1, "should receive exactly 1 embedding");
 
@@ -218,16 +228,18 @@ async fn test_embeddings_with_l2_normalization() {
         (l2_norm - 1.0).abs() < 1e-4,
         "L2 norm should be approximately 1.0, got {l2_norm}"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_with_rms_norm_normalization() {
+async fn test_embeddings_with_rms_norm_normalization() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let params = make_embedding_params(
         vec![("doc-rms", "Testing RMS normalization on embeddings")],
@@ -240,9 +252,9 @@ async fn test_embeddings_with_rms_norm_normalization() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(embeddings.len(), 1, "should receive exactly 1 embedding");
 
@@ -253,16 +265,18 @@ async fn test_embeddings_with_rms_norm_normalization() {
         ),
         "normalization method should be RmsNorm"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_with_no_normalization() {
+async fn test_embeddings_with_no_normalization() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let params = make_embedding_params(
         vec![("doc-none", "Testing no normalization on embeddings")],
@@ -275,9 +289,9 @@ async fn test_embeddings_with_no_normalization() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(embeddings.len(), 1, "should receive exactly 1 embedding");
 
@@ -288,18 +302,20 @@ async fn test_embeddings_with_no_normalization() {
         ),
         "normalization method should be None"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_context_size_does_not_affect_batch_distribution() {
+async fn test_embeddings_context_size_does_not_affect_batch_distribution() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         batch_n_tokens: 64,
         context_size: 512,
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let params = make_embedding_params(
         vec![
@@ -329,9 +345,9 @@ async fn test_embeddings_context_size_does_not_affect_batch_distribution() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(
         embeddings.len(),
@@ -345,23 +361,25 @@ async fn test_embeddings_context_size_does_not_affect_batch_distribution() {
         .collect();
 
     let expected_ids: BTreeSet<String> = BTreeSet::from([
-        "doc-chunk-1".to_string(),
-        "doc-chunk-2".to_string(),
-        "doc-chunk-3".to_string(),
-        "doc-chunk-4".to_string(),
+        "doc-chunk-1".to_owned(),
+        "doc-chunk-2".to_owned(),
+        "doc-chunk-3".to_owned(),
+        "doc-chunk-4".to_owned(),
     ]);
 
     assert_eq!(returned_ids, expected_ids);
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embeddings_have_same_dimensions() {
+async fn test_embeddings_have_same_dimensions() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let params = make_embedding_params(
         vec![
@@ -384,9 +402,9 @@ async fn test_embeddings_have_same_dimensions() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(embeddings.len(), 3, "should receive exactly 3 embeddings");
 
@@ -404,13 +422,15 @@ async fn test_embeddings_have_same_dimensions() {
             first_dimension
         );
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_embedding_batch_larger_than_slots_is_chunked() {
+async fn test_embedding_batch_larger_than_slots_is_chunked() -> Result<()> {
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "embeddings-agent-chunking".to_string(),
+        agent_name: "embeddings-agent-chunking".to_owned(),
         agent_slots: 4,
         desired_state: paddler_types::balancer_desired_state::BalancerDesiredState {
             inference_parameters: InferenceParameters {
@@ -423,7 +443,7 @@ async fn test_embedding_batch_larger_than_slots_is_chunked() {
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let documents: Vec<(String, String)> = (0..12)
         .map(|index| (format!("doc-{index}"), format!("Document number {index}.")))
@@ -441,9 +461,9 @@ async fn test_embedding_batch_larger_than_slots_is_chunked() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(
         embeddings.len(),
@@ -464,16 +484,18 @@ async fn test_embedding_batch_larger_than_slots_is_chunked() {
     for embedding in &embeddings {
         assert_eq!(embedding.embedding.len(), first_dimension);
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_concurrent_embedding_requests_from_multiple_clients() {
+async fn test_concurrent_embedding_requests_from_multiple_clients() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let client_count = 4;
     let docs_per_client = 3;
@@ -501,17 +523,19 @@ async fn test_concurrent_embedding_requests_from_multiple_clients() {
                 .inference()
                 .generate_embedding_batch(&params)
                 .await
-                .expect("embedding request should succeed");
+                .context("embedding request should succeed")?;
 
             collect_embeddings_from_stream(&mut stream).await
         }
     });
 
-    let per_client_results = futures_util::future::join_all(client_tasks).await;
+    let per_client_results: Vec<Result<Vec<Embedding>>> =
+        futures_util::future::join_all(client_tasks).await;
 
     assert_eq!(per_client_results.len(), client_count);
 
-    for (client_index, embeddings) in per_client_results.iter().enumerate() {
+    for (client_index, embeddings) in per_client_results.into_iter().enumerate() {
+        let embeddings = embeddings?;
         assert_eq!(
             embeddings.len(),
             docs_per_client,
@@ -531,16 +555,18 @@ async fn test_concurrent_embedding_requests_from_multiple_clients() {
             "client {client_index} should receive exactly its own document ids"
         );
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_identical_documents_produce_identical_embeddings() {
+async fn test_identical_documents_produce_identical_embeddings() -> Result<()> {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,
         ..InferenceParameters::default()
     })
-    .await;
+    .await?;
 
     let repeated_content = "Deterministic embedding output test.";
 
@@ -558,24 +584,26 @@ async fn test_identical_documents_produce_identical_embeddings() {
         .inference()
         .generate_embedding_batch(&params)
         .await
-        .expect("embedding request should succeed");
+        .context("embedding request should succeed")?;
 
-    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+    let embeddings = collect_embeddings_from_stream(&mut stream).await?;
 
     assert_eq!(embeddings.len(), 2, "should receive exactly 2 embeddings");
 
     let first = embeddings
         .iter()
         .find(|embedding| embedding.source_document_id == "doc-first")
-        .expect("first embedding missing");
+        .context("first embedding missing")?;
 
     let second = embeddings
         .iter()
         .find(|embedding| embedding.source_document_id == "doc-second")
-        .expect("second embedding missing");
+        .context("second embedding missing")?;
 
     assert_eq!(
         first.embedding, second.embedding,
         "identical documents must produce identical embedding vectors"
     );
+
+    Ok(())
 }

@@ -22,9 +22,9 @@ async fn test_continuous_batch_processes_four_concurrent_requests() -> Result<()
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
         slots: 4,
@@ -55,7 +55,7 @@ async fn test_continuous_batch_processes_four_concurrent_requests() -> Result<()
                     params: ContinueFromRawPromptParams {
                         grammar: None,
                         max_tokens: 30,
-                        raw_prompt: prompt.to_string(),
+                        raw_prompt: (*prompt).to_owned(),
                     },
                 },
             ))
@@ -80,7 +80,6 @@ async fn test_continuous_batch_processes_four_concurrent_requests() -> Result<()
     let all_results = [&results_0, &results_1, &results_2, &results_3];
 
     for (index, results) in all_results.iter().enumerate() {
-        eprintln!("--- Request {index} ({}) ---", prompts[index]);
         log_generated_response(results);
 
         let token_count = results
@@ -97,6 +96,8 @@ async fn test_continuous_batch_processes_four_concurrent_requests() -> Result<()
             "Request {index} should end with Done"
         );
     }
+
+    drop(stop_senders);
 
     managed_model.shutdown()?;
 

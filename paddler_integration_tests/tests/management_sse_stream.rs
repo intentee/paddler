@@ -42,7 +42,7 @@ async fn test_both_tabs_receive_ongoing_sse_updates() -> anyhow::Result<()> {
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 20,
-            raw_prompt: "Count to ten".to_string(),
+            raw_prompt: "Count to ten".to_owned(),
         })
         .await?;
 
@@ -51,13 +51,8 @@ async fn test_both_tabs_receive_ongoing_sse_updates() -> anyhow::Result<()> {
     let tab1_update = tokio::time::timeout(Duration::from_secs(5), tab1.chunk()).await??;
     let tab2_update = tokio::time::timeout(Duration::from_secs(5), tab2.chunk()).await??;
 
-    let tab1_got_data = tab1_update.is_some();
-    let tab2_got_data = tab2_update.is_some();
-
-    eprintln!("tab1 update: {tab1_got_data}, tab2 update: {tab2_got_data}");
-
-    assert!(tab1_got_data, "Tab 1 must receive SSE update");
-    assert!(tab2_got_data, "Tab 2 must receive SSE update");
+    assert!(tab1_update.is_some(), "Tab 1 must receive SSE update");
+    assert!(tab2_update.is_some(), "Tab 2 must receive SSE update");
 
     while let Some(msg) = inference.next().await {
         if msg.is_err() {
@@ -68,13 +63,8 @@ async fn test_both_tabs_receive_ongoing_sse_updates() -> anyhow::Result<()> {
     let tab1_final = tokio::time::timeout(Duration::from_secs(5), tab1.chunk()).await??;
     let tab2_final = tokio::time::timeout(Duration::from_secs(5), tab2.chunk()).await??;
 
-    let tab1_final_ok = tab1_final.is_some();
-    let tab2_final_ok = tab2_final.is_some();
-
-    eprintln!("tab1 final: {tab1_final_ok}, tab2 final: {tab2_final_ok}");
-
-    assert!(tab1_final_ok, "Tab 1 must receive final SSE update");
-    assert!(tab2_final_ok, "Tab 2 must receive final SSE update");
+    assert!(tab1_final.is_some(), "Tab 1 must receive final SSE update");
+    assert!(tab2_final.is_some(), "Tab 2 must receive final SSE update");
 
     drop(cluster);
 
