@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
@@ -46,7 +47,7 @@ pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
     command_rx: Receiver<ContinuousBatchSchedulerCommand>,
     llama_context: LlamaContext<'static>,
-    pending_embedding_requests: Vec<GenerateEmbeddingBatchRequest>,
+    pending_embedding_requests: VecDeque<GenerateEmbeddingBatchRequest>,
     rng: ThreadRng,
     running: bool,
     scheduler_context: Arc<ContinuousBatchSchedulerContext>,
@@ -74,7 +75,7 @@ impl ContinuousBatchScheduler {
             active_requests: Vec::new(),
             command_rx,
             llama_context,
-            pending_embedding_requests: Vec::new(),
+            pending_embedding_requests: VecDeque::new(),
             rng: rand::rng(),
             running: true,
             scheduler_context,
@@ -153,7 +154,7 @@ impl ContinuousBatchScheduler {
                 self.accept_raw_prompt_request(request);
             }
             ContinuousBatchSchedulerCommand::GenerateEmbeddingBatch(request) => {
-                self.pending_embedding_requests.push(request);
+                self.pending_embedding_requests.push_back(request);
             }
             ContinuousBatchSchedulerCommand::Shutdown => {
                 self.running = false;
@@ -635,13 +636,11 @@ impl ContinuousBatchScheduler {
     }
 
     fn try_process_embedding_request(&mut self) {
-        if self.pending_embedding_requests.is_empty() {
+        let Some(request) = self.pending_embedding_requests.pop_front() else {
             return;
-        }
+        };
 
         if self.has_active_requests() {
-            let request = self.pending_embedding_requests.remove(0);
-
             if request
                 .generated_embedding_tx
                 .send(EmbeddingResult::Error(
@@ -658,8 +657,6 @@ impl ContinuousBatchScheduler {
 
             return;
         }
-
-        let request = self.pending_embedding_requests.remove(0);
 
         let mut processor = ContinuousBatchEmbeddingProcessor::new(
             &mut self.llama_context,

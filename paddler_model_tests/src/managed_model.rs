@@ -67,7 +67,7 @@ impl ManagedModel {
         &self.handle
     }
 
-    pub fn shutdown(mut self) -> Result<()> {
+    pub fn shutdown(self) -> Result<()> {
         self.handle.shutdown()
     }
 }

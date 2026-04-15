@@ -1,3 +1,4 @@
+use std::sync::mpsc::SendError;
 use std::sync::mpsc::Sender;
 use std::thread;
 
@@ -8,24 +9,20 @@ use crate::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCo
 
 pub struct ContinuousBatchArbiterHandle {
     pub command_tx: Sender<ContinuousBatchSchedulerCommand>,
-    pub scheduler_thread_handle: Option<thread::JoinHandle<Result<()>>>,
+    pub scheduler_thread_handle: thread::JoinHandle<Result<()>>,
 }
 
 impl ContinuousBatchArbiterHandle {
-    pub fn shutdown(&mut self) -> Result<()> {
-        self.command_tx
+    pub fn shutdown(self) -> Result<()> {
+        if let Err(SendError(_unsent_command)) = self
+            .command_tx
             .send(ContinuousBatchSchedulerCommand::Shutdown)
-            .map_err(|err| anyhow!("Failed to send shutdown command: {err}"))?;
+        {
+            // Scheduler thread already dropped its receiver; join below is authoritative.
+        }
 
-        let thread_handle = self
-            .scheduler_thread_handle
-            .take()
-            .ok_or_else(|| anyhow!("Scheduler thread handle already consumed"))?;
-
-        thread_handle
+        self.scheduler_thread_handle
             .join()
-            .map_err(|err| anyhow!("Failed to join scheduler thread: {err:?}"))??;
-
-        Ok(())
+            .map_err(|err| anyhow!("Failed to join scheduler thread: {err:?}"))?
     }
 }

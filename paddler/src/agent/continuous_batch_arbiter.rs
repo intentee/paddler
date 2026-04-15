@@ -356,7 +356,7 @@ impl ContinuousBatchArbiter {
 
         Ok(ContinuousBatchArbiterHandle {
             command_tx,
-            scheduler_thread_handle: Some(scheduler_thread_handle),
+            scheduler_thread_handle,
         })
     }
 }

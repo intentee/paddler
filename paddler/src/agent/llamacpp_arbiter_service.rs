@@ -51,13 +51,11 @@ impl LlamaCppArbiterService {
             drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
         }
 
-        if let Some(arbiter_handle) = self.continuous_batch_arbiter_handle.as_mut() {
+        if let Some(arbiter_handle) = self.continuous_batch_arbiter_handle.take() {
             arbiter_handle
                 .shutdown()
                 .context("Unable to stop arbiter controller")?;
         }
-
-        self.continuous_batch_arbiter_handle = None;
 
         if let Some(AgentApplicableState {
             chat_template_override,
