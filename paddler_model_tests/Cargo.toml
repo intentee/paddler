@@ -22,6 +22,7 @@ serde_json = { workspace = true }
 
 [features]
 default = []
+cuda = ["paddler/cuda"]
 tests_that_use_llms = []
 
 [lints]

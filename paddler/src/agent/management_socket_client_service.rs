@@ -32,7 +32,6 @@ use crate::agent::jsonrpc::Message as JsonRpcMessage;
 use crate::agent::jsonrpc::Notification as JsonRpcNotification;
 use crate::agent::jsonrpc::Request as JsonRpcRequest;
 use crate::agent::jsonrpc::Response as JsonRpcResponse;
-use crate::agent::jsonrpc::notification_params::SetStateParams;
 use crate::agent::jsonrpc::notification_params::VersionParams;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
@@ -146,10 +145,8 @@ impl ManagementSocketClientService {
 
                 Ok(())
             }
-            JsonRpcMessage::Notification(JsonRpcNotification::SetState(SetStateParams {
-                desired_state,
-            })) => {
-                agent_desired_state_tx.send(desired_state)?;
+            JsonRpcMessage::Notification(JsonRpcNotification::SetState(set_state_params)) => {
+                agent_desired_state_tx.send(set_state_params.desired_state)?;
 
                 Ok(())
             }

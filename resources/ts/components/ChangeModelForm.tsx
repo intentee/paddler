@@ -248,6 +248,10 @@ export function ChangeModelForm({
               name="min_p"
             />
             <InferenceParameterInput
+              description="Number of model layers to offload to GPU (0 = CPU only; set to model's layer count for full GPU offload)"
+              name="n_gpu_layers"
+            />
+            <InferenceParameterInput
               description="Frequency Penalty"
               name="penalty_frequency"
             />

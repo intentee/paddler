@@ -95,17 +95,12 @@ impl ContinuousBatchArbiter {
                 );
 
             let model = Arc::new(
-                LlamaModel::load_from_file(&llama_backend, model_path.clone(), &{
-                    if cfg!(any(
-                        feature = "cuda",
-                        feature = "vulkan",
-                        target_os = "macos"
-                    )) {
-                        LlamaModelParams::default().with_n_gpu_layers(1000)
-                    } else {
-                        LlamaModelParams::default()
-                    }
-                })
+                LlamaModel::load_from_file(
+                    &llama_backend,
+                    model_path.clone(),
+                    &LlamaModelParams::default()
+                        .with_n_gpu_layers(inference_parameters.n_gpu_layers),
+                )
                 .context("Unable to load model from file")?,
             );
 

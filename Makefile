@@ -62,6 +62,10 @@ test: test.unit test.models test.integration
 test.models:
 	timeout 300 cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
 
+.PHONY: test.cuda
+test.cuda:
+	timeout 1800 cargo test -p paddler_model_tests --features tests_that_use_llms,cuda -- --nocapture --test-threads=1
+
 .PHONY: test.unit
 test.unit: jarmuz-static
 	timeout 300 cargo test --features web_admin_panel

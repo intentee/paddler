@@ -344,7 +344,7 @@ impl SendsRpcMessage for AgentController {
 impl SetsDesiredState for AgentController {
     async fn set_desired_state(&self, desired_state: AgentDesiredState) -> Result<()> {
         self.send_rpc_message(AgentJsonRpcMessage::Notification(
-            AgentJsonRpcNotification::SetState(SetStateParams { desired_state }),
+            AgentJsonRpcNotification::SetState(Box::new(SetStateParams { desired_state })),
         ))
         .await
     }

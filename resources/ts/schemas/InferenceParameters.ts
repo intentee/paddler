@@ -16,6 +16,7 @@ export const InferenceParametersSchema = z
     enable_embeddings: z.boolean(),
     image_resize_to_fit: z.number().int().min(1),
     min_p: z.number(),
+    n_gpu_layers: z.number().int().min(0),
     penalty_frequency: z.number(),
     penalty_last_n: z.number(),
     penalty_presence: z.number(),
