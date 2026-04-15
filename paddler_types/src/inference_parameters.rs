@@ -11,7 +11,6 @@ use crate::validates::Validates;
 pub struct InferenceParameters {
     pub batch_n_tokens: usize,
     pub context_size: u32,
-    pub embedding_n_seq_max: u32,
     pub enable_embeddings: bool,
     pub image_resize_to_fit: u32,
     /// The minimum probability for a token to be considered, relative to the probability of the most likely token
@@ -46,7 +45,6 @@ impl Default for InferenceParameters {
         Self {
             batch_n_tokens: 512,
             context_size: 8192,
-            embedding_n_seq_max: 16,
             enable_embeddings: false,
             image_resize_to_fit: 1024,
             min_p: 0.05,

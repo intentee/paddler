@@ -9,15 +9,14 @@ use std::time::Duration;
 use futures_util::Stream;
 use futures_util::StreamExt;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
-use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
-use paddler_integration_tests::BALANCER_OPENAI_ADDR;
 use paddler_integration_tests::managed_agent::ManagedAgent;
 use paddler_integration_tests::managed_agent::ManagedAgentParams;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
+use paddler_integration_tests::pick_free_port::BalancerAddresses;
+use paddler_integration_tests::pick_free_port::pick_balancer_addresses;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -31,6 +30,26 @@ use tempfile::NamedTempFile;
 
 type InferenceStream =
     Pin<Box<dyn Stream<Item = paddler_client::Result<Message>> + Send + 'static>>;
+
+fn balancer_params(
+    addresses: &BalancerAddresses,
+    buffered_request_timeout: Duration,
+    inference_item_timeout: Option<Duration>,
+    max_buffered_requests: i32,
+    state_database_url: String,
+) -> ManagedBalancerParams {
+    ManagedBalancerParams {
+        buffered_request_timeout,
+        compat_openai_addr: addresses.compat_openai.clone(),
+        inference_addr: addresses.inference.clone(),
+        inference_cors_allowed_hosts: vec![],
+        inference_item_timeout,
+        management_addr: addresses.management.clone(),
+        management_cors_allowed_hosts: vec![],
+        max_buffered_requests,
+        state_database_url,
+    }
+}
 
 async fn send_buffered_requests(balancer: &ManagedBalancer, count: usize) -> Vec<InferenceStream> {
     let mut streams = Vec::with_capacity(count);
@@ -58,18 +77,15 @@ async fn send_buffered_requests(balancer: &ManagedBalancer, count: usize) -> Vec
 async fn test_health_endpoint_returns_ok() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 30,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(10),
+        None,
+        30,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -88,18 +104,15 @@ async fn test_health_endpoint_returns_ok() {
 async fn test_inference_fails_when_no_model_configured() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 30,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(10),
+        None,
+        30,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -141,6 +154,7 @@ async fn test_inference_fails_when_no_model_configured() {
 async fn test_inference_fails_when_no_agents_registered() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -150,17 +164,13 @@ async fn test_inference_fails_when_no_agents_registered() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_millis(50),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 1,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_millis(50),
+        None,
+        1,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -211,23 +221,20 @@ async fn test_inference_fails_when_no_agents_registered() {
 async fn test_balancer_overflows_buffer_when_feature_is_disabled() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_millis(50),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 0,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_millis(50),
+        None,
+        0,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
     let _agent = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("test-agent".to_string()),
         slots: 2,
     })
@@ -270,6 +277,7 @@ async fn test_balancer_overflows_buffer_when_feature_is_disabled() {
 async fn test_balancer_can_buffer_requests() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -279,17 +287,13 @@ async fn test_balancer_can_buffer_requests() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(120),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 1,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(120),
+        None,
+        1,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -316,7 +320,7 @@ async fn test_balancer_can_buffer_requests() {
     balancer.wait_for_buffered_requests(1).await;
 
     let _agent = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("buffered-agent".to_string()),
         slots: 4,
     })
@@ -344,6 +348,7 @@ async fn test_balancer_can_buffer_requests() {
 async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -353,17 +358,13 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(120),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(120),
+        None,
+        10,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -377,14 +378,14 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
     balancer.wait_for_desired_state(&desired_state).await;
 
     let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("distributed-agent-one".to_string()),
         slots: 2,
     })
     .expect("failed to spawn first agent");
 
     let _agent_two = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("distributed-agent-two".to_string()),
         slots: 2,
     })
@@ -427,6 +428,7 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() {
 async fn test_buffered_requests_when_agent_is_removed() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -436,17 +438,13 @@ async fn test_buffered_requests_when_agent_is_removed() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(120),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(120),
+        None,
+        10,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -464,14 +462,14 @@ async fn test_buffered_requests_when_agent_is_removed() {
     balancer.wait_for_buffered_requests(3).await;
 
     let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("removable-agent-one".to_string()),
         slots: 2,
     })
     .expect("failed to spawn first agent");
 
     let mut agent_two = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("removable-agent-two".to_string()),
         slots: 2,
     })
@@ -520,6 +518,7 @@ async fn test_buffered_requests_when_agent_is_removed() {
 async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -529,17 +528,13 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
         use_chat_template_override: false,
     };
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: Some(Duration::ZERO),
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(10),
+        Some(Duration::ZERO),
+        10,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 
@@ -553,7 +548,7 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
     balancer.wait_for_desired_state(&desired_state).await;
 
     let _agent = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("timeout-agent".to_string()),
         slots: 1,
     })
@@ -598,18 +593,15 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() {
 async fn test_buffered_requests_stream_receives_snapshot() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
-    let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
-        buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
-        inference_cors_allowed_hosts: vec![],
-        inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
-        management_cors_allowed_hosts: vec![],
-        max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
-    })
+    let balancer = ManagedBalancer::spawn(balancer_params(
+        &addresses,
+        Duration::from_secs(10),
+        None,
+        10,
+        state_db_url,
+    ))
     .await
     .expect("failed to spawn balancer");
 

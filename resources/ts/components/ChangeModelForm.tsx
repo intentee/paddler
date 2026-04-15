@@ -244,10 +244,6 @@ export function ChangeModelForm({
               name="image_resize_to_fit"
             />
             <InferenceParameterInput
-              description="Max simultaneous sequences per embedding batch (higher = more throughput, more memory)"
-              name="embedding_n_seq_max"
-            />
-            <InferenceParameterInput
               description="Minimum token probability to consider for selection"
               name="min_p"
             />

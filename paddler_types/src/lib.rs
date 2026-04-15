@@ -1,6 +1,7 @@
 pub mod agent_controller_pool_snapshot;
 pub mod agent_controller_snapshot;
 pub mod agent_desired_model;
+pub mod agent_desired_state;
 pub mod agent_issue;
 pub mod agent_issue_params;
 pub mod agent_state_application_status;

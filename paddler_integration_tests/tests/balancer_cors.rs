@@ -2,11 +2,9 @@
 
 use std::time::Duration;
 
-use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
-use paddler_integration_tests::BALANCER_OPENAI_ADDR;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
+use paddler_integration_tests::pick_free_port::pick_free_port;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
@@ -16,13 +14,17 @@ async fn test_inference_cors_headers() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let allowed_origin = "http://example.com";
 
+    let management_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+    let inference_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+    let compat_openai_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+
     let _balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_string(),
+        compat_openai_addr,
+        inference_addr: inference_addr.clone(),
         inference_cors_allowed_hosts: vec![allowed_origin.to_string()],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr,
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
         state_database_url: format!("file://{}", state_db.path().to_str().unwrap()),
@@ -35,7 +37,7 @@ async fn test_inference_cors_headers() {
     let response = http_client
         .request(
             reqwest::Method::OPTIONS,
-            format!("http://{BALANCER_INFERENCE_ADDR}/health"),
+            format!("http://{inference_addr}/health"),
         )
         .header("Origin", allowed_origin)
         .header("Access-Control-Request-Method", "GET")
@@ -61,13 +63,17 @@ async fn test_management_cors_headers() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let allowed_origin = "http://example.com";
 
+    let management_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+    let inference_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+    let compat_openai_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+
     let _balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_string(),
+        compat_openai_addr,
+        inference_addr,
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: management_addr.clone(),
         management_cors_allowed_hosts: vec![allowed_origin.to_string()],
         max_buffered_requests: 10,
         state_database_url: format!("file://{}", state_db.path().to_str().unwrap()),
@@ -80,7 +86,7 @@ async fn test_management_cors_headers() {
     let response = http_client
         .request(
             reqwest::Method::OPTIONS,
-            format!("http://{BALANCER_MANAGEMENT_ADDR}/health"),
+            format!("http://{management_addr}/health"),
         )
         .header("Origin", allowed_origin)
         .header("Access-Control-Request-Method", "GET")

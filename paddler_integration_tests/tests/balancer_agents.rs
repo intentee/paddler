@@ -6,15 +6,13 @@
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
-use paddler_integration_tests::BALANCER_OPENAI_ADDR;
 use paddler_integration_tests::managed_agent::ManagedAgent;
 use paddler_integration_tests::managed_agent::ManagedAgentParams;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
+use paddler_integration_tests::pick_free_port::pick_balancer_addresses;
 use serial_test::file_serial;
 use tempfile::NamedTempFile;
 
@@ -39,17 +37,18 @@ async fn get_first_agent_id(balancer: &ManagedBalancer) -> String {
 async fn test_balancer_can_register_agents() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        compat_openai_addr: addresses.compat_openai,
+        inference_addr: addresses.inference,
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 30,
-        state_database_url: state_db_url.to_owned(),
+        state_database_url: state_db_url,
     })
     .await
     .expect("failed to spawn balancer");
@@ -59,7 +58,7 @@ async fn test_balancer_can_register_agents() {
     assert_eq!(agent_count, 0);
 
     let _agent1 = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management.clone(),
         name: Some("test-agent-1".to_string()),
         slots: 1,
     })
@@ -70,7 +69,7 @@ async fn test_balancer_can_register_agents() {
     assert_eq!(agent_count, 1);
 
     let _agent2 = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management,
         name: Some("test-agent-2".to_string()),
         slots: 1,
     })

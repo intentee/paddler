@@ -2,24 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::chat_template::ChatTemplate;
-use paddler_types::inference_parameters::InferenceParameters;
-use serde::Deserialize;
-use serde::Serialize;
+pub use paddler_types::agent_desired_state::AgentDesiredState;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::converts_to_applicable_state::ConvertsToApplicableState;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct AgentDesiredState {
-    pub chat_template_override: Option<ChatTemplate>,
-    pub inference_parameters: InferenceParameters,
-    pub model: AgentDesiredModel,
-    pub multimodal_projection: AgentDesiredModel,
-}
 
 #[async_trait]
 impl ConvertsToApplicableState for AgentDesiredState {

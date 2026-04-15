@@ -52,11 +52,14 @@ jobs:
       - name: Install Poetry
         run: pip install poetry
 
+      - name: Install dependencies
+        run: poetry install
+
       - name: Run ruff
-        run: make -C paddler_client_python ruff
+        run: poetry run ruff check
 
       - name: Run mypy
-        run: make -C paddler_client_python mypy
+        run: poetry run mypy paddler_client/
 
       - name: Run tests
-        run: make -C paddler_client_python test
+        run: poetry run pytest tests/ -v

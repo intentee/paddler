@@ -6,7 +6,6 @@
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -24,7 +23,10 @@ async fn test_both_tabs_receive_ongoing_sse_updates() -> anyhow::Result<()> {
     })
     .await?;
 
-    let agents_url = format!("http://{BALANCER_MANAGEMENT_ADDR}/api/v1/agents/stream");
+    let agents_url = format!(
+        "http://{}/api/v1/agents/stream",
+        cluster.balancer.management_addr()
+    );
     let client = reqwest::Client::new();
 
     let mut tab1 = client.get(&agents_url).send().await?;

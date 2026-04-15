@@ -8,8 +8,6 @@ use std::time::Instant;
 
 use futures_util::StreamExt;
 use paddler_client::PaddlerClient;
-use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -29,8 +27,8 @@ async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
     .await?;
 
     let disposable_client = PaddlerClient::new(
-        Url::parse(&format!("http://{BALANCER_INFERENCE_ADDR}"))?,
-        Url::parse(&format!("http://{BALANCER_MANAGEMENT_ADDR}"))?,
+        Url::parse(&format!("http://{}", cluster.balancer.inference_addr()))?,
+        Url::parse(&format!("http://{}", cluster.balancer.management_addr()))?,
         1,
     );
 

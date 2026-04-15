@@ -13,6 +13,7 @@ use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::agent::embedding_batch_plan::plan_embedding_batches;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 
@@ -77,54 +78,35 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             .context("failed to tokenize embedding input batch")?;
 
         let batch_n_tokens = self.scheduler_context.inference_parameters.batch_n_tokens;
+        let max_sequences_per_batch = self.scheduler_context.desired_slots_total;
+        let token_counts: Vec<usize> = tokens_lines_list
+            .iter()
+            .map(|input| input.llama_tokens.len())
+            .collect();
+        let planned_batches =
+            plan_embedding_batches(&token_counts, batch_n_tokens, max_sequences_per_batch);
+        let mut batch = LlamaBatch::new(batch_n_tokens, max_sequences_per_batch)?;
 
         #[expect(
+            clippy::cast_possible_truncation,
             clippy::cast_possible_wrap,
-            reason = "embedding_n_seq_max fits in i32 for llama.cpp FFI"
+            reason = "sequence index within a planned batch is bounded by max_sequences_per_batch which fits in i32"
         )]
-        let embedding_n_seq_max = self
-            .scheduler_context
-            .inference_parameters
-            .embedding_n_seq_max as i32;
-        let mut batch = LlamaBatch::new(batch_n_tokens, embedding_n_seq_max)?;
-        let mut current_batch_inputs: Vec<&EmbeddingInputTokenized> = Vec::new();
-        let mut current_batch_token_count: usize = 0;
-        let mut next_seq_id: i32 = 0;
-
-        for embedding_input_tokenized in &tokens_lines_list {
+        for planned_batch in planned_batches {
             if generate_embedding_stop_rx.try_recv().is_ok() {
                 break;
             }
 
-            let input_token_count = embedding_input_tokenized.llama_tokens.len();
+            let batch_inputs: Vec<&EmbeddingInputTokenized> =
+                tokens_lines_list[planned_batch].iter().collect();
 
-            if (current_batch_token_count + input_token_count > batch_n_tokens
-                || next_seq_id >= embedding_n_seq_max)
-                && !current_batch_inputs.is_empty()
-            {
-                self.embedding_batch_decode(
-                    &mut batch,
-                    &current_batch_inputs,
-                    &generated_embedding_tx,
-                    &normalization_method,
-                )?;
-
-                current_batch_inputs.clear();
-                current_batch_token_count = 0;
-                next_seq_id = 0;
+            for (sequence_index, input) in batch_inputs.iter().enumerate() {
+                batch.add_sequence(&input.llama_tokens, sequence_index as i32, true)?;
             }
 
-            batch.add_sequence(&embedding_input_tokenized.llama_tokens, next_seq_id, true)?;
-
-            current_batch_inputs.push(embedding_input_tokenized);
-            current_batch_token_count += input_token_count;
-            next_seq_id += 1;
-        }
-
-        if !current_batch_inputs.is_empty() {
             self.embedding_batch_decode(
                 &mut batch,
-                &current_batch_inputs,
+                &batch_inputs,
                 &generated_embedding_tx,
                 &normalization_method,
             )?;

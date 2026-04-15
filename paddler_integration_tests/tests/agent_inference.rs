@@ -9,13 +9,11 @@ use std::time::Duration;
 use futures_util::Stream;
 use futures_util::StreamExt;
 use paddler_client::Result as ClientResult;
-use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
-use paddler_integration_tests::BALANCER_OPENAI_ADDR;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
+use paddler_integration_tests::pick_free_port::pick_free_port;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -147,14 +145,14 @@ async fn test_inference_health_endpoint() {
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        compat_openai_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
+        inference_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
+        state_database_url: state_db_url,
     })
     .await
     .expect("failed to spawn balancer");
@@ -202,7 +200,7 @@ async fn test_continue_from_raw_prompt() {
 #[tokio::test]
 #[file_serial]
 async fn test_continue_from_conversation_history() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "inference-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -225,7 +223,8 @@ async fn test_continue_from_conversation_history() {
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+            "http://{}/api/v1/continue_from_conversation_history",
+            cluster.balancer.inference_addr()
         ))
         .json(&params)
         .send()
@@ -283,7 +282,7 @@ async fn test_raw_prompt_respects_max_tokens() {
 #[tokio::test]
 #[file_serial]
 async fn test_conversation_history_respects_max_tokens() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "inference-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -310,7 +309,8 @@ async fn test_conversation_history_respects_max_tokens() {
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+            "http://{}/api/v1/continue_from_conversation_history",
+            cluster.balancer.inference_addr()
         ))
         .json(&params)
         .send()
@@ -420,21 +420,23 @@ async fn test_openai_health_endpoint() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
 
+    let compat_openai_addr = format!("127.0.0.1:{}", pick_free_port().expect("pick port"));
+
     let _balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        compat_openai_addr: compat_openai_addr.clone(),
+        inference_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_addr: format!("127.0.0.1:{}", pick_free_port().expect("pick port")),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
-        state_database_url: state_db_url.to_owned(),
+        state_database_url: state_db_url,
     })
     .await
     .expect("failed to spawn balancer");
 
-    let response = reqwest::get(format!("http://{BALANCER_OPENAI_ADDR}/health"))
+    let response = reqwest::get(format!("http://{compat_openai_addr}/health"))
         .await
         .expect("openai health request should succeed");
 
@@ -445,7 +447,7 @@ async fn test_openai_health_endpoint() {
 #[tokio::test]
 #[file_serial]
 async fn test_conversation_history_with_gbnf_grammar() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "grammar-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -473,7 +475,8 @@ async fn test_conversation_history_with_gbnf_grammar() {
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+            "http://{}/api/v1/continue_from_conversation_history",
+            cluster.balancer.inference_addr()
         ))
         .json(&params)
         .send()
@@ -497,7 +500,7 @@ async fn test_conversation_history_with_gbnf_grammar() {
 #[tokio::test]
 #[file_serial]
 async fn test_conversation_history_with_json_schema_grammar() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "grammar-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -522,7 +525,8 @@ async fn test_conversation_history_with_json_schema_grammar() {
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+            "http://{}/api/v1/continue_from_conversation_history",
+            cluster.balancer.inference_addr()
         ))
         .json(&params)
         .send()
@@ -585,7 +589,7 @@ async fn test_raw_prompt_with_gbnf_grammar_small_model() {
 #[tokio::test]
 #[file_serial]
 async fn test_grammar_with_thinking_returns_incompatible_error() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "thinking-grammar-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -610,7 +614,8 @@ async fn test_grammar_with_thinking_returns_incompatible_error() {
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+            "http://{}/api/v1/continue_from_conversation_history",
+            cluster.balancer.inference_addr()
         ))
         .json(&params)
         .send()
@@ -632,7 +637,7 @@ async fn test_grammar_with_thinking_returns_incompatible_error() {
 #[tokio::test]
 #[file_serial]
 async fn test_raw_prompt_without_grammar_field_is_backwards_compatible() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "compat-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -643,7 +648,8 @@ async fn test_raw_prompt_without_grammar_field_is_backwards_compatible() {
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_raw_prompt"
+            "http://{}/api/v1/continue_from_raw_prompt",
+            cluster.balancer.inference_addr()
         ))
         .json(&serde_json::json!({
             "max_tokens": 10,
@@ -667,7 +673,7 @@ async fn test_raw_prompt_without_grammar_field_is_backwards_compatible() {
 #[tokio::test]
 #[file_serial]
 async fn test_conversation_history_without_grammar_field_is_backwards_compatible() {
-    let _cluster = ManagedCluster::spawn(ManagedClusterParams {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
         agent_name: "compat-agent".to_string(),
         ..ManagedClusterParams::default()
     })
@@ -678,7 +684,8 @@ async fn test_conversation_history_without_grammar_field_is_backwards_compatible
 
     let response = http_client
         .post(format!(
-            "http://{BALANCER_INFERENCE_ADDR}/api/v1/continue_from_conversation_history"
+            "http://{}/api/v1/continue_from_conversation_history",
+            cluster.balancer.inference_addr()
         ))
         .json(&serde_json::json!({
             "add_generation_prompt": true,

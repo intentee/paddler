@@ -408,6 +408,133 @@ async fn test_embeddings_have_same_dimensions() {
 
 #[tokio::test]
 #[file_serial]
+async fn test_embedding_batch_larger_than_slots_is_chunked() {
+    let cluster = ManagedCluster::spawn(ManagedClusterParams {
+        agent_name: "embeddings-agent-chunking".to_string(),
+        agent_slots: 4,
+        desired_state: paddler_types::balancer_desired_state::BalancerDesiredState {
+            inference_parameters: InferenceParameters {
+                enable_embeddings: true,
+                ..InferenceParameters::default()
+            },
+            model: embedding_model(),
+            ..ManagedClusterParams::default().desired_state
+        },
+        ..ManagedClusterParams::default()
+    })
+    .await
+    .expect("failed to spawn cluster");
+
+    let documents: Vec<(String, String)> = (0..12)
+        .map(|index| (format!("doc-{index}"), format!("Document number {index}.")))
+        .collect();
+    let document_refs: Vec<(&str, &str)> = documents
+        .iter()
+        .map(|(id, content)| (id.as_str(), content.as_str()))
+        .collect();
+
+    let params = make_embedding_params(document_refs, EmbeddingNormalizationMethod::None);
+
+    let mut stream = cluster
+        .balancer
+        .client()
+        .inference()
+        .generate_embedding_batch(&params)
+        .await
+        .expect("embedding request should succeed");
+
+    let embeddings = collect_embeddings_from_stream(&mut stream).await;
+
+    assert_eq!(
+        embeddings.len(),
+        12,
+        "should receive all 12 embeddings across multiple decode passes"
+    );
+
+    let returned_ids: BTreeSet<String> = embeddings
+        .iter()
+        .map(|embedding| embedding.source_document_id.clone())
+        .collect();
+    let expected_ids: BTreeSet<String> = (0..12).map(|index| format!("doc-{index}")).collect();
+
+    assert_eq!(returned_ids, expected_ids);
+
+    let first_dimension = embeddings[0].embedding.len();
+
+    for embedding in &embeddings {
+        assert_eq!(embedding.embedding.len(), first_dimension);
+    }
+}
+
+#[tokio::test]
+#[file_serial]
+async fn test_concurrent_embedding_requests_from_multiple_clients() {
+    let cluster = spawn_embeddings_cluster(InferenceParameters {
+        enable_embeddings: true,
+        ..InferenceParameters::default()
+    })
+    .await;
+
+    let client_count = 4;
+    let docs_per_client = 3;
+
+    let client_tasks = (0..client_count).map(|client_index| {
+        let client = cluster.balancer.client();
+
+        async move {
+            let documents: Vec<(String, String)> = (0..docs_per_client)
+                .map(|document_index| {
+                    (
+                        format!("client-{client_index}-doc-{document_index}"),
+                        format!("Content from client {client_index} document {document_index}."),
+                    )
+                })
+                .collect();
+            let document_refs: Vec<(&str, &str)> = documents
+                .iter()
+                .map(|(id, content)| (id.as_str(), content.as_str()))
+                .collect();
+
+            let params = make_embedding_params(document_refs, EmbeddingNormalizationMethod::None);
+
+            let mut stream = client
+                .inference()
+                .generate_embedding_batch(&params)
+                .await
+                .expect("embedding request should succeed");
+
+            collect_embeddings_from_stream(&mut stream).await
+        }
+    });
+
+    let per_client_results = futures_util::future::join_all(client_tasks).await;
+
+    assert_eq!(per_client_results.len(), client_count);
+
+    for (client_index, embeddings) in per_client_results.iter().enumerate() {
+        assert_eq!(
+            embeddings.len(),
+            docs_per_client,
+            "client {client_index} should receive all its embeddings"
+        );
+
+        let returned_ids: BTreeSet<String> = embeddings
+            .iter()
+            .map(|embedding| embedding.source_document_id.clone())
+            .collect();
+        let expected_ids: BTreeSet<String> = (0..docs_per_client)
+            .map(|document_index| format!("client-{client_index}-doc-{document_index}"))
+            .collect();
+
+        assert_eq!(
+            returned_ids, expected_ids,
+            "client {client_index} should receive exactly its own document ids"
+        );
+    }
+}
+
+#[tokio::test]
+#[file_serial]
 async fn test_identical_documents_produce_identical_embeddings() {
     let cluster = spawn_embeddings_cluster(InferenceParameters {
         enable_embeddings: true,

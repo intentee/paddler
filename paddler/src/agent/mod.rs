@@ -12,6 +12,7 @@ pub mod continuous_batch_scheduler_command;
 pub mod continuous_batch_scheduler_context;
 pub mod continuous_batch_token_sampler;
 pub mod drain_in_flight_requests;
+pub mod embedding_batch_plan;
 mod from_request_params;
 pub mod generate_embedding_batch_request;
 pub mod grammar_sampler;

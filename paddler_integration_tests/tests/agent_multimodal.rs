@@ -9,15 +9,13 @@ use std::time::Duration;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use futures_util::StreamExt;
-use paddler_integration_tests::BALANCER_INFERENCE_ADDR;
-use paddler_integration_tests::BALANCER_MANAGEMENT_ADDR;
-use paddler_integration_tests::BALANCER_OPENAI_ADDR;
 use paddler_integration_tests::managed_agent::ManagedAgent;
 use paddler_integration_tests::managed_agent::ManagedAgentParams;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_balancer::ManagedBalancerParams;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
+use paddler_integration_tests::pick_free_port::pick_balancer_addresses;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::conversation_history::ConversationHistory;
@@ -68,6 +66,7 @@ fn load_test_image_as_data_uri() -> String {
 async fn test_load_mmproj_from_local_path() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -79,11 +78,11 @@ async fn test_load_mmproj_from_local_path() {
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        compat_openai_addr: addresses.compat_openai.clone(),
+        inference_addr: addresses.inference.clone(),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
         state_database_url: state_db_url.to_owned(),
@@ -118,6 +117,7 @@ async fn test_load_mmproj_from_local_path() {
 async fn test_load_mmproj_from_huggingface() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -129,11 +129,11 @@ async fn test_load_mmproj_from_huggingface() {
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        compat_openai_addr: addresses.compat_openai.clone(),
+        inference_addr: addresses.inference.clone(),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
         state_database_url: state_db_url.to_owned(),
@@ -168,6 +168,7 @@ async fn test_load_mmproj_from_huggingface() {
 async fn test_multimodal_inference_with_image() {
     let state_db = NamedTempFile::new().expect("failed to create temp file");
     let state_db_url = format!("file://{}", state_db.path().to_str().unwrap());
+    let addresses = pick_balancer_addresses().expect("pick addresses");
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -179,11 +180,11 @@ async fn test_multimodal_inference_with_image() {
 
     let balancer = ManagedBalancer::spawn(ManagedBalancerParams {
         buffered_request_timeout: Duration::from_secs(10),
-        compat_openai_addr: BALANCER_OPENAI_ADDR.to_owned(),
-        inference_addr: BALANCER_INFERENCE_ADDR.to_owned(),
+        compat_openai_addr: addresses.compat_openai.clone(),
+        inference_addr: addresses.inference.clone(),
         inference_cors_allowed_hosts: vec![],
         inference_item_timeout: None,
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_owned(),
+        management_addr: addresses.management.clone(),
         management_cors_allowed_hosts: vec![],
         max_buffered_requests: 10,
         state_database_url: state_db_url.to_owned(),
@@ -201,7 +202,7 @@ async fn test_multimodal_inference_with_image() {
     balancer.wait_for_desired_state(&desired_state).await;
 
     let agent = ManagedAgent::spawn(&ManagedAgentParams {
-        management_addr: BALANCER_MANAGEMENT_ADDR.to_string(),
+        management_addr: addresses.management,
         name: Some("multimodal-agent".to_string()),
         slots: 4,
     })

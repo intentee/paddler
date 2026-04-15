@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Result;
 use anyhow::bail;
 use paddler_client::PaddlerClient;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::process::Child;
@@ -28,6 +29,9 @@ pub struct ManagedBalancerParams {
 pub struct ManagedBalancer {
     child: Child,
     client: PaddlerClient,
+    compat_openai_addr: String,
+    inference_addr: String,
+    management_addr: String,
 }
 
 impl ManagedBalancer {
@@ -73,7 +77,13 @@ impl ManagedBalancer {
         let management_url = Url::parse(&format!("http://{}", params.management_addr))?;
         let client = PaddlerClient::new(inference_url, management_url, 1);
 
-        let managed_balancer = Self { child, client };
+        let managed_balancer = Self {
+            child,
+            client,
+            compat_openai_addr: params.compat_openai_addr,
+            inference_addr: params.inference_addr,
+            management_addr: params.management_addr,
+        };
 
         managed_balancer.wait_until_ready().await?;
 
@@ -83,6 +93,21 @@ impl ManagedBalancer {
     #[must_use]
     pub const fn client(&self) -> &PaddlerClient {
         &self.client
+    }
+
+    #[must_use]
+    pub fn inference_addr(&self) -> &str {
+        &self.inference_addr
+    }
+
+    #[must_use]
+    pub fn management_addr(&self) -> &str {
+        &self.management_addr
+    }
+
+    #[must_use]
+    pub fn compat_openai_addr(&self) -> &str {
+        &self.compat_openai_addr
     }
 
     pub async fn wait_for_agent_count(&self, expected: usize) -> usize {
@@ -117,6 +142,29 @@ impl ManagedBalancer {
             assert!(
                 start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
                 "timed out waiting for desired state to be applied"
+            );
+
+            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
+        }
+    }
+
+    pub async fn wait_for_applicable_state(&self, expected_state: &AgentDesiredState) {
+        let start = std::time::Instant::now();
+
+        loop {
+            if let Ok(Some(state)) = self
+                .client
+                .management()
+                .get_balancer_applicable_state()
+                .await
+                && &state == expected_state
+            {
+                return;
+            }
+
+            assert!(
+                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
+                "timed out waiting for applicable state to be populated"
             );
 
             tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;

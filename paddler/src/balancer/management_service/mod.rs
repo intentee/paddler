@@ -82,6 +82,7 @@ impl Service for ManagementService {
                 .configure(common_http_route::get_health::register)
                 .configure(http_route::api::get_agents::register)
                 .configure(http_route::api::get_agents_stream::register)
+                .configure(http_route::api::get_balancer_applicable_state::register)
                 .configure(http_route::api::get_balancer_desired_state::register)
                 .configure(http_route::api::get_buffered_requests::register)
                 .configure(http_route::api::get_buffered_requests_stream::register)

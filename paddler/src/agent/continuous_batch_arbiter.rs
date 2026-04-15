@@ -78,11 +78,7 @@ impl ContinuousBatchArbiter {
                 clippy::cast_sign_loss,
                 reason = "desired_slots_total is always positive"
             )]
-            let n_seq_max = if inference_parameters.enable_embeddings {
-                inference_parameters.embedding_n_seq_max
-            } else {
-                desired_slots_total as u32
-            };
+            let n_seq_max = desired_slots_total as u32;
 
             let context_params = LlamaContextParams::default()
                 .with_embeddings(inference_parameters.enable_embeddings)
@@ -245,6 +241,7 @@ impl ContinuousBatchArbiter {
             let scheduler_context = Arc::new(ContinuousBatchSchedulerContext {
                 agent_name: agent_name_clone,
                 chat_template_renderer,
+                desired_slots_total,
                 inference_parameters,
                 model_path: model_path.clone(),
                 multimodal_context,
