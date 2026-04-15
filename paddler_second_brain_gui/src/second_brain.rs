@@ -9,8 +9,10 @@ use iced::Fill;
 use iced::Subscription;
 use iced::Task;
 use iced::futures::SinkExt;
+use iced::keyboard;
 use iced::widget::column;
 use iced::widget::container;
+use iced::widget::operation;
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
@@ -235,6 +237,15 @@ impl SecondBrain {
 
                 Task::none()
             }
+            (screen, Message::TabPressed { shift }) => {
+                self.screen = screen;
+
+                if shift {
+                    operation::focus_previous()
+                } else {
+                    operation::focus_next()
+                }
+            }
             (screen, message) => {
                 log::warn!("Unhandled message {message:?} for current screen");
                 self.screen = screen;
@@ -249,7 +260,16 @@ impl SecondBrain {
         reason = "signature required by iced application API"
     )]
     pub fn subscription(&self) -> Subscription<Message> {
-        Subscription::none()
+        keyboard::listen().filter_map(|event| match event {
+            keyboard::Event::KeyPressed {
+                key: keyboard::Key::Named(keyboard::key::Named::Tab),
+                modifiers,
+                ..
+            } => Some(Message::TabPressed {
+                shift: modifiers.shift(),
+            }),
+            _ => None,
+        })
     }
 
     pub fn view(&self) -> Element<'_, Message> {

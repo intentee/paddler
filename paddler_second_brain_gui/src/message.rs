@@ -16,4 +16,5 @@ pub enum Message {
     ClusterFailed(String),
     AgentStopped,
     AgentFailed(String),
+    TabPressed { shift: bool },
 }
