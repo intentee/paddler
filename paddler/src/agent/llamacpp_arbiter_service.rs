@@ -192,6 +192,17 @@ impl LlamaCppArbiterService {
             error!("Failed to apply reconciled state change: {err}");
         }
     }
+
+    async fn shutdown_arbiter_handle(&mut self) -> Result<()> {
+        let Some(handle) = self.continuous_batch_arbiter_handle.take() else {
+            return Ok(());
+        };
+
+        tokio::task::spawn_blocking(move || handle.shutdown())
+            .await
+            .context("Arbiter shutdown task panicked")?
+            .context("Arbiter shutdown returned an error")
+    }
 }
 
 #[async_trait]
@@ -206,7 +217,7 @@ impl Service for LlamaCppArbiterService {
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
+        let shutdown_outcome = loop {
             tokio::select! {
                 _ = shutdown.recv() => break Ok(()),
                 _ = ticker.tick() => {
@@ -271,6 +282,12 @@ impl Service for LlamaCppArbiterService {
                     }
                 }
             }
+        };
+
+        if let Err(err) = self.shutdown_arbiter_handle().await {
+            error!("Failed to shut down arbiter cleanly: {err:#}");
         }
+
+        shutdown_outcome
     }
 }

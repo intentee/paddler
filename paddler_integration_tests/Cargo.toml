@@ -9,6 +9,7 @@ repository.workspace = true
 version.workspace = true
 
 [features]
+cuda = []
 tests_that_use_compiled_paddler = []
 tests_that_use_llms = []
 
