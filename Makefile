@@ -39,6 +39,14 @@ fmt: node_modules
 jarmuz-static: node_modules
 	./jarmuz-static.mjs
 
+.PHONY: build
+build: jarmuz-static
+	cargo build -p paddler --features web_admin_panel
+
+.PHONY: build.cuda
+build.cuda: jarmuz-static
+	cargo build -p paddler --features cuda,web_admin_panel
+
 .PHONY: release
 release: jarmuz-static
 	cargo build --release -p paddler --features web_admin_panel
@@ -50,10 +58,6 @@ release.cuda: jarmuz-static
 .PHONY: release.vulkan
 release.vulkan: jarmuz-static
 	cargo build --release -p paddler --features web_admin_panel,vulkan
-
-.PHONY: build
-build: jarmuz-static
-	cargo build -p paddler --features web_admin_panel
 
 .PHONY: test
 test: test.unit test.models test.integration

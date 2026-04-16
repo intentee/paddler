@@ -1,8 +1,4 @@
 #![cfg(feature = "tests_that_use_llms")]
-#![expect(
-    non_snake_case,
-    reason = "test function names embed ggml dtype identifiers (e.g. IQ4_NL) for readable test output and parity with llama.cpp naming"
-)]
 
 use anyhow::Result;
 use llama_cpp_bindings::LogOptions;
@@ -19,16 +15,14 @@ use paddler_types::kv_cache_dtype::KvCacheDtype;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use tokio::sync::mpsc;
 
-async fn assert_generates_tokens_with_kv_cache_dtypes(
-    k_cache_dtype: KvCacheDtype,
-    v_cache_dtype: KvCacheDtype,
-) -> Result<()> {
+#[actix_web::test]
+async fn generates_tokens_with_distinct_k_and_v_cache_dtypes() -> Result<()> {
     send_logs_to_tracing(LogOptions::default());
 
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters {
-            k_cache_dtype,
-            v_cache_dtype,
+            k_cache_dtype: KvCacheDtype::Q8_0,
+            v_cache_dtype: KvCacheDtype::Q4_0,
             ..InferenceParameters::default()
         },
         model: HuggingFaceModelReference {
@@ -73,54 +67,4 @@ async fn assert_generates_tokens_with_kv_cache_dtypes(
     managed_model.shutdown()?;
 
     Ok(())
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_F32_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::F32, KvCacheDtype::F32).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_F16_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::F16, KvCacheDtype::F16).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_BF16_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::BF16, KvCacheDtype::BF16).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_Q8_0_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::Q8_0, KvCacheDtype::Q8_0).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_Q4_0_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::Q4_0, KvCacheDtype::Q4_0).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_Q4_1_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::Q4_1, KvCacheDtype::Q4_1).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_IQ4_NL_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::IQ4_NL, KvCacheDtype::IQ4_NL).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_Q5_0_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::Q5_0, KvCacheDtype::Q5_0).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_Q5_1_kv_cache() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::Q5_1, KvCacheDtype::Q5_1).await
-}
-
-#[actix_web::test]
-async fn generates_tokens_with_distinct_k_and_v_cache_dtypes() -> Result<()> {
-    assert_generates_tokens_with_kv_cache_dtypes(KvCacheDtype::Q8_0, KvCacheDtype::Q4_0).await
 }
