@@ -412,6 +412,7 @@ impl ContinuousBatchScheduler {
             generate_tokens_stop_rx,
             i_batch: None,
             max_tokens,
+            pending_sampled_token: None,
             phase: ContinuousBatchRequestPhase::Ingesting,
             prompt_tokens,
             prompt_tokens_ingested: 0,
@@ -539,6 +540,8 @@ impl ContinuousBatchScheduler {
             );
         }
 
+        self.harvest_pending_samples_before_external_decode();
+
         #[expect(
             clippy::cast_possible_truncation,
             clippy::cast_possible_wrap,
@@ -607,12 +610,60 @@ impl ContinuousBatchScheduler {
             generate_tokens_stop_rx,
             i_batch: Some(-1),
             max_tokens,
+            pending_sampled_token: None,
             phase: ContinuousBatchRequestPhase::Generating,
             prompt_tokens: Vec::new(),
             prompt_tokens_ingested: 0,
             sequence_id,
             utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
+    }
+
+    fn harvest_pending_samples_before_external_decode(&mut self) {
+        for active_request in &mut self.active_requests {
+            if !matches!(
+                active_request.phase,
+                ContinuousBatchRequestPhase::Generating
+            ) {
+                continue;
+            }
+
+            if active_request.pending_sampled_token.is_some() {
+                continue;
+            }
+
+            let Some(batch_index) = active_request.i_batch else {
+                continue;
+            };
+
+            match sample_token_at_batch_index(
+                &self.llama_context,
+                batch_index,
+                &mut active_request.chain,
+                &mut active_request.grammar_sampler,
+            ) {
+                Ok(token) => {
+                    active_request.pending_sampled_token = Some(token);
+                    active_request.i_batch = None;
+                }
+                Err(result) => {
+                    error!(
+                        "{:?}: sequence {} sampling error during pre-eval harvest: {result:?}",
+                        self.scheduler_context.agent_name, active_request.sequence_id
+                    );
+
+                    if active_request.generated_tokens_tx.send(result).is_err() {
+                        warn!(
+                            "{:?}: failed to send harvest result to client (receiver dropped)",
+                            self.scheduler_context.agent_name
+                        );
+                    }
+
+                    active_request.i_batch = None;
+                    active_request.phase = ContinuousBatchRequestPhase::Completed;
+                }
+            }
+        }
     }
 
     fn check_stop_signals(&mut self) {
@@ -746,38 +797,44 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            let Some(batch_index) = active_request.i_batch else {
-                continue;
-            };
-
             if tokens_added >= batch_n_tokens {
                 break;
             }
 
-            let sampled_token = match sample_token_at_batch_index(
-                &self.llama_context,
-                batch_index,
-                &mut active_request.chain,
-                &mut active_request.grammar_sampler,
-            ) {
-                Ok(token) => token,
-                Err(result) => {
-                    error!(
-                        "{:?}: sequence {} sampling error: {result:?}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-
-                    if active_request.generated_tokens_tx.send(result).is_err() {
-                        warn!(
-                            "{:?}: failed to send result to client (receiver dropped)",
-                            self.scheduler_context.agent_name
-                        );
-                    }
-
-                    active_request.i_batch = None;
-                    active_request.phase = ContinuousBatchRequestPhase::Completed;
-
+            let sampled_token = if let Some(harvested) =
+                active_request.pending_sampled_token.take()
+            {
+                harvested
+            } else {
+                let Some(batch_index) = active_request.i_batch else {
                     continue;
+                };
+
+                match sample_token_at_batch_index(
+                    &self.llama_context,
+                    batch_index,
+                    &mut active_request.chain,
+                    &mut active_request.grammar_sampler,
+                ) {
+                    Ok(token) => token,
+                    Err(result) => {
+                        error!(
+                            "{:?}: sequence {} sampling error: {result:?}",
+                            self.scheduler_context.agent_name, active_request.sequence_id
+                        );
+
+                        if active_request.generated_tokens_tx.send(result).is_err() {
+                            warn!(
+                                "{:?}: failed to send result to client (receiver dropped)",
+                                self.scheduler_context.agent_name
+                            );
+                        }
+
+                        active_request.i_batch = None;
+                        active_request.phase = ContinuousBatchRequestPhase::Completed;
+
+                        continue;
+                    }
                 }
             };
 

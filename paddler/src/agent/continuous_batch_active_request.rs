@@ -15,6 +15,7 @@ pub struct ContinuousBatchActiveRequest {
     pub generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     pub i_batch: Option<i32>,
     pub max_tokens: i32,
+    pub pending_sampled_token: Option<LlamaToken>,
     pub phase: ContinuousBatchRequestPhase,
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
