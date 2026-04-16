@@ -13,9 +13,9 @@ import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationCon
 import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
 import { type BalancerDesiredState } from "../schemas/BalancerDesiredState";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
+import { InferenceParameterCacheDtype } from "./InferenceParameterCacheDtype";
 import { InferenceParameterCheckbox } from "./InferenceParameterCheckbox";
 import { InferenceParameterInput } from "./InferenceParameterInput";
-import { InferenceParameterKvCacheType } from "./InferenceParameterKvCacheType";
 import { InferenceParameterPoolingType } from "./InferenceParameterPoolingType";
 
 import {
@@ -288,7 +288,14 @@ export function ChangeModelForm({
               description="How to combine token embeddings"
               disabled={!parameters.enable_embeddings}
             />
-            <InferenceParameterKvCacheType description="Datatype used for the K and V tensors in the KV cache" />
+            <InferenceParameterCacheDtype
+              name="k_cache_dtype"
+              description="Datatype for K cache tensors"
+            />
+            <InferenceParameterCacheDtype
+              name="v_cache_dtype"
+              description="Datatype for V cache tensors"
+            />
           </fieldset>
           <div className={changeModelForm__formControls}>
             <button className={changeModelForm__submitButton}>

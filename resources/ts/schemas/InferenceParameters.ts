@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-export const kvCacheTypes = ["F16", "Q4_0", "Q8_0"] as const;
+export const cacheDtypes = [
+  "F32",
+  "F16",
+  "BF16",
+  "Q8_0",
+  "Q4_0",
+  "Q4_1",
+  "IQ4_NL",
+  "Q5_0",
+  "Q5_1",
+] as const;
 
 export const poolingTypes = [
   "Cls",
@@ -17,7 +27,8 @@ export const InferenceParametersSchema = z
     context_size: z.number(),
     enable_embeddings: z.boolean(),
     image_resize_to_fit: z.number().int().min(1),
-    kv_cache_type: z.enum(kvCacheTypes),
+    k_cache_dtype: z.enum(cacheDtypes),
+    v_cache_dtype: z.enum(cacheDtypes),
     min_p: z.number(),
     n_gpu_layers: z.number().int().min(0),
     penalty_frequency: z.number(),
