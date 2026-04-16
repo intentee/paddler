@@ -12,12 +12,7 @@
   align-items: center;
   display: flex;
   height: var(--height-input);
-  padding:
-    var(--spacing-half)
-    2px
-    var(--spacing-quarter)
-    2px
-  ;
+  padding: var(--spacing-half) 2px var(--spacing-quarter) 2px;
 
   input[type="checkbox"] {
     appearance: none;

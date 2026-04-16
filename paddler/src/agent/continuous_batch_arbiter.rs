@@ -14,7 +14,7 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
-use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_ENABLED;
+use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::error;
 use log::info;
 use paddler_types::agent_issue::AgentIssue;
@@ -31,7 +31,7 @@ use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerCo
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::chat_template_renderer::ChatTemplateRenderer;
-use crate::converts_to_llama_kv_cache_type::ConvertsToLlamaKvCacheType;
+use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
@@ -84,7 +84,7 @@ impl ContinuousBatchArbiter {
             let context_params = LlamaContextParams::default()
                 .with_embeddings(inference_parameters.enable_embeddings)
                 .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
-                .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_ENABLED)
+                .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_AUTO)
                 .with_n_seq_max(n_seq_max)
                 .with_n_threads(n_threads)
                 .with_n_threads_batch(n_threads_batch)
@@ -96,15 +96,15 @@ impl ContinuousBatchArbiter {
                 )
                 .with_type_k(
                     inference_parameters
-                        .kv_cache_type
+                        .k_cache_dtype
                         .clone()
-                        .to_llama_kv_cache_type(),
+                        .to_llama_kv_cache_dtype(),
                 )
                 .with_type_v(
                     inference_parameters
-                        .kv_cache_type
+                        .v_cache_dtype
                         .clone()
-                        .to_llama_kv_cache_type(),
+                        .to_llama_kv_cache_dtype(),
                 );
 
             let model = Arc::new(

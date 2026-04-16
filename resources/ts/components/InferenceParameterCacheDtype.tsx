@@ -1,23 +1,23 @@
 import React, { useCallback, useContext, type ChangeEvent } from "react";
 
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
-import { kvCacheTypes } from "../schemas/InferenceParameters";
+import { cacheDtypes } from "../schemas/InferenceParameters";
 import {
   inferenceParameterInput,
   inferenceParameterInput__label,
   inferenceParameterInput__select,
 } from "./inferenceParameterInput.module.css";
 
-const name = "kv_cache_type";
-
-function isKvCacheType(value: string): value is (typeof kvCacheTypes)[number] {
-  return kvCacheTypes.includes(value as (typeof kvCacheTypes)[number]);
+function isCacheDtype(value: string): value is (typeof cacheDtypes)[number] {
+  return cacheDtypes.includes(value as (typeof cacheDtypes)[number]);
 }
 
-export function InferenceParameterKvCacheType({
+export function InferenceParameterCacheDtype({
   description,
+  name,
 }: {
   description: string;
+  name: "k_cache_dtype" | "v_cache_dtype";
 }) {
   const { parameters, setParameter } = useContext(InferenceParametersContext);
 
@@ -25,13 +25,13 @@ export function InferenceParameterKvCacheType({
     function (evt: ChangeEvent<HTMLSelectElement>) {
       const option = evt.currentTarget.value;
 
-      if (!isKvCacheType(option)) {
-        throw new Error(`Invalid KV cache type: ${option}`);
+      if (!isCacheDtype(option)) {
+        throw new Error(`Invalid cache dtype: ${option}`);
       }
 
       setParameter(name, option);
     },
-    [setParameter],
+    [name, setParameter],
   );
 
   return (
@@ -41,7 +41,7 @@ export function InferenceParameterKvCacheType({
       </abbr>
       <div className={inferenceParameterInput__select}>
         <select name={name} value={parameters[name]} onChange={onChange}>
-          {kvCacheTypes.map(function (option: string) {
+          {cacheDtypes.map(function (option: string) {
             return (
               <option key={option} value={option}>
                 {option}
