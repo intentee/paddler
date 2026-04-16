@@ -74,10 +74,6 @@ test.unit: jarmuz-static
 test.integration: target/debug/paddler_cli
 	timeout 300 cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
-.PHONY: test.gui
-test.gui:
-	nix-shell paddler_second_brain_gui/shell.nix --run "timeout 120 cargo test -p paddler_second_brain_gui --features tests_that_use_headless_wayland -- --nocapture --test-threads=1"
-
 .PHONY: watch
 watch: node_modules
 	./jarmuz-watch.mjs

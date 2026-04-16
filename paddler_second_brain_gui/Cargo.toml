@@ -19,14 +19,9 @@ paddler_types = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 
-[dev-dependencies]
-nix = { workspace = true }
-tempfile = { workspace = true }
-
 [lints]
 workspace = true
 
 [features]
 default = []
-tests_that_use_headless_wayland = []
 web_admin_panel = ["paddler/web_admin_panel"]

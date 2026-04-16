@@ -4590,12 +4590,10 @@ dependencies = [
  "iced",
  "if-addrs",
  "log",
- "nix",
  "paddler",
  "paddler_bootstrap",
  "paddler_types",
  "statum",
- "tempfile",
  "tokio",
 ]
 
