@@ -3,6 +3,7 @@ use anyhow::bail;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::kv_cache_dtype::KvCacheDtype;
 use crate::pooling_type::PoolingType;
 use crate::validates::Validates;
 
@@ -11,11 +12,15 @@ use crate::validates::Validates;
 pub struct InferenceParameters {
     pub batch_n_tokens: usize,
     pub context_size: u32,
-    pub embedding_n_seq_max: u32,
     pub enable_embeddings: bool,
     pub image_resize_to_fit: u32,
+    pub k_cache_dtype: KvCacheDtype,
+    pub v_cache_dtype: KvCacheDtype,
     /// The minimum probability for a token to be considered, relative to the probability of the most likely token
     pub min_p: f32,
+    /// Number of model layers to offload to GPU. 0 = CPU-only.
+    /// Set to a value >= the model's transformer block count for full GPU offload.
+    pub n_gpu_layers: u32,
     pub penalty_frequency: f32,
     /// How many tokens to scan for repetitions (-1 = context size, 0 = disabled)
     pub penalty_last_n: i32,
@@ -46,10 +51,12 @@ impl Default for InferenceParameters {
         Self {
             batch_n_tokens: 512,
             context_size: 8192,
-            embedding_n_seq_max: 16,
             enable_embeddings: false,
             image_resize_to_fit: 1024,
+            k_cache_dtype: KvCacheDtype::Q8_0,
+            v_cache_dtype: KvCacheDtype::Q8_0,
             min_p: 0.05,
+            n_gpu_layers: 0,
             penalty_frequency: 0.0,
             penalty_last_n: -1,
             penalty_presence: 0.8,

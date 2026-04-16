@@ -5,7 +5,7 @@ use llama_cpp_bindings::LogOptions;
 use llama_cpp_bindings::send_logs_to_tracing;
 use paddler_model_tests::log_generated_response::log_generated_response;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_model_tests::model_test_harness::ModelTestHarness;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
@@ -22,11 +22,12 @@ async fn test_qwen35_system_and_user_messages_with_thinking() -> Result<()> {
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 
@@ -37,9 +38,9 @@ async fn test_qwen35_system_and_user_messages_with_thinking() -> Result<()> {
             content: ConversationMessageContent::Text(
                 "You are a focused web crawler assistant. Your only job is to decide which links \
                 to follow to discover more relevant pages. Respond with JSON only."
-                    .to_string(),
+                    .to_owned(),
             ),
-            role: "system".to_string(),
+            role: "system".to_owned(),
         },
         ConversationMessage {
             content: ConversationMessageContent::Text(
@@ -50,9 +51,9 @@ async fn test_qwen35_system_and_user_messages_with_thinking() -> Result<()> {
                 [1] [PrimaryListing] \"Annual Report 2024\" → /reports/annual-2024.pdf\n\
                 [2] [PrimaryListing] \"Q3 Financial Summary\" → /reports/q3-summary.pdf\n\
                 [3] [Navigation] \"Next Page\" → /reports?page=2"
-                    .to_string(),
+                    .to_owned(),
             ),
-            role: "user".to_string(),
+            role: "user".to_owned(),
         },
     ]);
 

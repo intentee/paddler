@@ -5,7 +5,7 @@ use llama_cpp_bindings::LogOptions;
 use llama_cpp_bindings::send_logs_to_tracing;
 use paddler_model_tests::log_generated_response::log_generated_response;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_model_tests::model_test_harness::ModelTestHarness;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
@@ -24,11 +24,12 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
             ..InferenceParameters::default()
         },
         model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_string(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 
@@ -40,7 +41,7 @@ async fn test_qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
             max_tokens: 30,
             raw_prompt:
                 "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n"
-                    .to_string(),
+                    .to_owned(),
         })
         .await?;
 

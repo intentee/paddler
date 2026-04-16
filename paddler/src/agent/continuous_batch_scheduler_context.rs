@@ -7,9 +7,10 @@ use paddler_types::inference_parameters::InferenceParameters;
 
 use crate::chat_template_renderer::ChatTemplateRenderer;
 
-pub struct LlamaCppSlotContext {
+pub struct ContinuousBatchSchedulerContext {
     pub agent_name: Option<String>,
     pub chat_template_renderer: Arc<ChatTemplateRenderer>,
+    pub desired_slots_total: i32,
     pub inference_parameters: InferenceParameters,
     pub model: Arc<LlamaModel>,
     pub model_path: PathBuf,

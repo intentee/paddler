@@ -35,8 +35,8 @@ hf-hub = { version = "0.4", features = ["tokio"] }
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = { version = "0.4.0", features = ["mtmd"] }
-llama-cpp-bindings-sys = { version = "0.4.0" }
+llama-cpp-bindings = { version = "0.4.1", features = ["mtmd"] }
+llama-cpp-bindings-sys = { version = "0.4.1" }
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"
@@ -44,6 +44,7 @@ minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
 nanoid = "0.4"
 nix = { version = "0.30", features = ["signal"] }
+pastey = "0.2"
 rand = "0.9"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 resvg = "0.46"
@@ -97,8 +98,11 @@ rc_mutex = "deny"
 rest_pat_in_fully_bound_structs = "deny"
 self_named_module_files = "deny"
 str_to_string = "deny"
-tests_outside_test_module = "deny"
+# integration tests live in tests/*.rs which is already compiled test-only by Cargo;
+# wrapping every file in `#[cfg(test)] mod tests { }` would be redundant.
+tests_outside_test_module = "allow"
 todo = "deny"
 too_many_lines = "allow"
 unimplemented = "deny"
 unwrap_used = "deny"
+

@@ -3,6 +3,9 @@
     feature = "tests_that_use_llms"
 ))]
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::StreamExt;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
@@ -30,7 +33,7 @@ fn chat_template_cluster_params(
     chat_template: ChatTemplate,
 ) -> ManagedClusterParams {
     ManagedClusterParams {
-        agent_name: "chat-template-agent".to_string(),
+        agent_name: "chat-template-agent".to_owned(),
         agent_slots: 1,
         desired_state: BalancerDesiredState {
             chat_template_override: Some(chat_template),
@@ -43,42 +46,44 @@ fn chat_template_cluster_params(
     }
 }
 
-async fn get_first_agent_id(balancer: &ManagedBalancer) -> String {
+async fn get_first_agent_id(balancer: &ManagedBalancer) -> Result<String> {
     let snapshot = balancer
         .client()
         .management()
         .get_agents()
         .await
-        .expect("failed to get agents");
+        .context("failed to get agents")?;
 
-    snapshot
+    Ok(snapshot
         .agents
         .first()
-        .expect("should have at least one agent")
+        .context("should have at least one agent")?
         .id
-        .clone()
+        .clone())
 }
 
-async fn assert_agent_uses_chat_template_override(balancer: &ManagedBalancer) {
+async fn assert_agent_uses_chat_template_override(balancer: &ManagedBalancer) -> Result<()> {
     let snapshot = balancer
         .client()
         .management()
         .get_agents()
         .await
-        .expect("failed to get agents");
+        .context("failed to get agents")?;
 
     let agent = snapshot
         .agents
         .first()
-        .expect("should have at least one agent");
+        .context("should have at least one agent")?;
 
     assert!(
         agent.uses_chat_template_override,
         "agent should use chat template override"
     );
+
+    Ok(())
 }
 
-async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) {
+async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) -> Result<()> {
     let mut stream = balancer
         .client()
         .inference()
@@ -87,8 +92,8 @@ async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) 
         > {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("The capital of France is".to_string()),
-                role: "user".to_string(),
+                content: ConversationMessageContent::Text("The capital of France is".to_owned()),
+                role: "user".to_owned(),
             }]),
             enable_thinking: false,
             grammar: None,
@@ -96,12 +101,12 @@ async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) 
             tools: vec![],
         })
         .await
-        .expect("conversation history request should succeed");
+        .context("conversation history request should succeed")?;
 
     let mut received_tokens = false;
 
     while let Some(message) = stream.next().await {
-        let message = message.expect("message should deserialize");
+        let message = message.context("message should deserialize")?;
 
         match message {
             Message::Response(envelope) => match envelope.response {
@@ -111,17 +116,18 @@ async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) 
                     }
                     GeneratedTokenResult::Done => break,
                     GeneratedTokenResult::ChatTemplateError(error) => {
-                        panic!("chat template error: {error}");
+                        return Err(anyhow!("chat template error: {error}"));
                     }
-                    other => panic!("unexpected token result: {other:?}"),
+                    other => return Err(anyhow!("unexpected token result: {other:?}")),
                 },
-                other => panic!("unexpected response: {other:?}"),
+                other => return Err(anyhow!("unexpected response: {other:?}")),
             },
             Message::Error(envelope) => {
-                panic!(
+                return Err(anyhow!(
                     "unexpected error: {} - {}",
-                    envelope.error.code, envelope.error.description
-                );
+                    envelope.error.code,
+                    envelope.error.description
+                ));
             }
         }
     }
@@ -130,29 +136,31 @@ async fn assert_chat_template_renders_for_inference(balancer: &ManagedBalancer) 
         received_tokens,
         "should have received tokens proving the chat template rendered the prompt"
     );
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_agent_can_use_chat_template_for_model() {
+async fn test_agent_can_use_chat_template_for_model() -> Result<()> {
     let chat_template = ChatTemplate {
-        content: SIMPLE_CHAT_TEMPLATE.to_string(),
+        content: SIMPLE_CHAT_TEMPLATE.to_owned(),
     };
 
     let cluster = ManagedCluster::spawn(chat_template_cluster_params(
         AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-            filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_string(),
-            repo_id: "nomic-ai/nomic-embed-text-v1.5-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "nomic-embed-text-v1.5.Q2_K.gguf".to_owned(),
+            repo_id: "nomic-ai/nomic-embed-text-v1.5-GGUF".to_owned(),
+            revision: "main".to_owned(),
         }),
         chat_template.clone(),
     ))
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    assert_agent_uses_chat_template_override(&cluster.balancer).await;
+    assert_agent_uses_chat_template_override(&cluster.balancer).await?;
 
-    let agent_id = get_first_agent_id(&cluster.balancer).await;
+    let agent_id = get_first_agent_id(&cluster.balancer).await?;
 
     let retrieved_template = cluster
         .balancer
@@ -160,7 +168,7 @@ async fn test_agent_can_use_chat_template_for_model() {
         .management()
         .get_chat_template_override(&agent_id)
         .await
-        .expect("failed to get chat template override");
+        .context("failed to get chat template override")?;
 
     assert_eq!(
         retrieved_template,
@@ -168,14 +176,16 @@ async fn test_agent_can_use_chat_template_for_model() {
         "agent should have the provided chat template override"
     );
 
-    assert_chat_template_renders_for_inference(&cluster.balancer).await;
+    assert_chat_template_renders_for_inference(&cluster.balancer).await?;
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_agent_overrides_chat_template() {
+async fn test_agent_overrides_chat_template() -> Result<()> {
     let chat_template = ChatTemplate {
-        content: SIMPLE_CHAT_TEMPLATE.to_string(),
+        content: SIMPLE_CHAT_TEMPLATE.to_owned(),
     };
 
     let cluster = ManagedCluster::spawn(chat_template_cluster_params(
@@ -183,11 +193,11 @@ async fn test_agent_overrides_chat_template() {
         chat_template.clone(),
     ))
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
-    assert_agent_uses_chat_template_override(&cluster.balancer).await;
+    assert_agent_uses_chat_template_override(&cluster.balancer).await?;
 
-    let agent_id = get_first_agent_id(&cluster.balancer).await;
+    let agent_id = get_first_agent_id(&cluster.balancer).await?;
 
     let retrieved_template = cluster
         .balancer
@@ -195,7 +205,7 @@ async fn test_agent_overrides_chat_template() {
         .management()
         .get_chat_template_override(&agent_id)
         .await
-        .expect("failed to get chat template override");
+        .context("failed to get chat template override")?;
 
     assert_eq!(
         retrieved_template,
@@ -203,5 +213,7 @@ async fn test_agent_overrides_chat_template() {
         "agent should have the override template instead of the built-in one"
     );
 
-    assert_chat_template_renders_for_inference(&cluster.balancer).await;
+    assert_chat_template_renders_for_inference(&cluster.balancer).await?;
+
+    Ok(())
 }

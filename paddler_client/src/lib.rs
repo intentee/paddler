@@ -4,9 +4,9 @@ pub mod error;
 mod format_api_url;
 mod inference_socket_connection;
 mod inference_socket_pool;
-mod inference_socket_read_task;
 mod inference_socket_url;
-mod inference_socket_write_task;
+mod spawn_inference_socket_read_task;
+mod spawn_inference_socket_write_task;
 mod stream_ndjson;
 mod stream_sse;
 

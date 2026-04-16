@@ -92,7 +92,6 @@ async def test_get_balancer_desired_state_deserializes() -> None:
         "inference_parameters": {
             "batch_n_tokens": 512,
             "context_size": 8192,
-            "embedding_n_seq_max": 16,
             "enable_embeddings": False,
             "image_resize_to_fit": 1024,
             "min_p": 0.05,

@@ -3,6 +3,9 @@
     feature = "tests_that_use_llms"
 ))]
 
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::anyhow;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
@@ -13,7 +16,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use serial_test::file_serial;
 
 fn invalid_gguf_path() -> String {
-    concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf").to_string()
+    concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf").to_owned()
 }
 
 fn invalid_mmproj_path() -> String {
@@ -21,16 +24,16 @@ fn invalid_mmproj_path() -> String {
         env!("CARGO_MANIFEST_DIR"),
         "/../fixtures/invalid_mmproj.gguf"
     )
-    .to_string()
+    .to_owned()
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_invalid_gguf_returns_error() {
+async fn test_invalid_gguf_returns_error() -> Result<()> {
     let model_path = invalid_gguf_path();
 
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "model-loading-agent".to_string(),
+        agent_name: "model-loading-agent".to_owned(),
         agent_slots: 1,
         desired_state: BalancerDesiredState {
             chat_template_override: None,
@@ -43,7 +46,7 @@ async fn test_invalid_gguf_returns_error() {
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let issue = cluster
         .balancer
@@ -54,17 +57,19 @@ async fn test_invalid_gguf_returns_error() {
         AgentIssue::ModelCannotBeLoaded(reported_path) => {
             assert_eq!(reported_path.model_path, model_path);
         }
-        other => panic!("expected ModelCannotBeLoaded, got {other:?}"),
+        other => return Err(anyhow!("expected ModelCannotBeLoaded, got {other:?}")),
     }
+
+    Ok(())
 }
 
 #[tokio::test]
 #[file_serial]
-async fn test_invalid_mmproj_returns_error() {
+async fn test_invalid_mmproj_returns_error() -> Result<()> {
     let mmproj_path = invalid_mmproj_path();
 
     let cluster = ManagedCluster::spawn(ManagedClusterParams {
-        agent_name: "model-loading-agent".to_string(),
+        agent_name: "model-loading-agent".to_owned(),
         agent_slots: 1,
         desired_state: BalancerDesiredState {
             chat_template_override: None,
@@ -77,7 +82,7 @@ async fn test_invalid_mmproj_returns_error() {
         ..ManagedClusterParams::default()
     })
     .await
-    .expect("failed to spawn cluster");
+    .context("failed to spawn cluster")?;
 
     let issue = cluster
         .balancer
@@ -90,6 +95,12 @@ async fn test_invalid_mmproj_returns_error() {
         AgentIssue::MultimodalProjectionCannotBeLoaded(reported_path) => {
             assert_eq!(reported_path.model_path, mmproj_path);
         }
-        other => panic!("expected MultimodalProjectionCannotBeLoaded, got {other:?}"),
+        other => {
+            return Err(anyhow!(
+                "expected MultimodalProjectionCannotBeLoaded, got {other:?}"
+            ));
+        }
     }
+
+    Ok(())
 }

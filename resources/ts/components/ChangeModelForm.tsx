@@ -13,6 +13,7 @@ import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationCon
 import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
 import { type BalancerDesiredState } from "../schemas/BalancerDesiredState";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
+import { InferenceParameterCacheDtype } from "./InferenceParameterCacheDtype";
 import { InferenceParameterCheckbox } from "./InferenceParameterCheckbox";
 import { InferenceParameterInput } from "./InferenceParameterInput";
 import { InferenceParameterPoolingType } from "./InferenceParameterPoolingType";
@@ -244,12 +245,12 @@ export function ChangeModelForm({
               name="image_resize_to_fit"
             />
             <InferenceParameterInput
-              description="Max simultaneous sequences per embedding batch (higher = more throughput, more memory)"
-              name="embedding_n_seq_max"
-            />
-            <InferenceParameterInput
               description="Minimum token probability to consider for selection"
               name="min_p"
+            />
+            <InferenceParameterInput
+              description="Number of model layers to offload to GPU (0 = CPU only; set to model's layer count for full GPU offload)"
+              name="n_gpu_layers"
             />
             <InferenceParameterInput
               description="Frequency Penalty"
@@ -286,6 +287,14 @@ export function ChangeModelForm({
             <InferenceParameterPoolingType
               description="How to combine token embeddings"
               disabled={!parameters.enable_embeddings}
+            />
+            <InferenceParameterCacheDtype
+              name="k_cache_dtype"
+              description="Datatype for K cache tensors"
+            />
+            <InferenceParameterCacheDtype
+              name="v_cache_dtype"
+              description="Datatype for V cache tensors"
             />
           </fieldset>
           <div className={changeModelForm__formControls}>

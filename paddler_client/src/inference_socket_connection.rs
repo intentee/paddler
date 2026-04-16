@@ -12,9 +12,9 @@ use url::Url;
 
 use crate::error::Error;
 use crate::error::Result;
-use crate::inference_socket_read_task::spawn_inference_socket_read_task;
 use crate::inference_socket_url::inference_socket_url;
-use crate::inference_socket_write_task::spawn_inference_socket_write_task;
+use crate::spawn_inference_socket_read_task::spawn_inference_socket_read_task;
+use crate::spawn_inference_socket_write_task::spawn_inference_socket_write_task;
 
 pub type PendingRequests = Arc<DashMap<String, UnboundedSender<Result<InferenceMessage>>>>;
 

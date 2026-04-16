@@ -7,7 +7,7 @@ use super::notification_params::VersionParams;
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum Notification {
-    SetState(SetStateParams),
+    SetState(Box<SetStateParams>),
     StopRespondingTo(String),
     Version(VersionParams),
 }

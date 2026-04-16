@@ -1,6 +1,7 @@
 pub mod agent_controller_pool_snapshot;
 pub mod agent_controller_snapshot;
 pub mod agent_desired_model;
+pub mod agent_desired_state;
 pub mod agent_issue;
 pub mod agent_issue_params;
 pub mod agent_state_application_status;
@@ -27,6 +28,7 @@ pub mod inference_client;
 pub mod inference_parameters;
 pub mod inference_server;
 pub mod jsonrpc;
+pub mod kv_cache_dtype;
 pub mod media_marker;
 pub mod model_metadata;
 pub mod normalization;

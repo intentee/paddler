@@ -6,7 +6,6 @@ from paddler_client.pooling_type import PoolingType
 class InferenceParameters(BaseModel):
     batch_n_tokens: int = 512
     context_size: int = 8192
-    embedding_n_seq_max: int = 16
     enable_embeddings: bool = False
     image_resize_to_fit: int = 1024
     min_p: float = 0.05

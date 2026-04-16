@@ -1,13 +1,9 @@
-use actix::Message;
-use anyhow::Result;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use tokio::sync::mpsc;
 
 use crate::agent::from_request_params::FromRequestParams;
 
-#[derive(Debug, Message)]
-#[rtype(result = "Result<()>")]
 pub struct ContinueFromRawPromptRequest {
     pub generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     pub generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,

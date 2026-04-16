@@ -5,12 +5,13 @@ use llama_cpp_bindings::LogOptions;
 use llama_cpp_bindings::send_logs_to_tracing;
 use paddler_model_tests::load_test_image_as_data_uri::load_test_image_as_data_uri;
 use paddler_model_tests::managed_model::ManagedModel;
-use paddler_model_tests::managed_model::ManagedModelParams;
+use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_model_tests::model_test_harness::ModelTestHarness;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::conversation_message_content_part::ConversationMessageContentPart;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_types::image_url::ImageUrl;
 use paddler_types::inference_parameters::InferenceParameters;
@@ -23,11 +24,12 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters::default(),
         model: HuggingFaceModelReference {
-            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_string(),
-            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_string(),
-            revision: "main".to_string(),
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
+            revision: "main".to_owned(),
         },
         multimodal_projection: None,
+        slots: 1,
     })
     .await?;
 
@@ -43,13 +45,13 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
                 },
             },
             ConversationMessageContentPart::Text {
-                text: "What do you see?".to_string(),
+                text: "What do you see?".to_owned(),
             },
         ]),
-        role: "user".to_string(),
+        role: "user".to_owned(),
     }]);
 
-    let result = harness
+    let results = harness
         .generate_from_conversation(ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history,
@@ -58,18 +60,13 @@ async fn test_qwen35_rejects_image_input_without_multimodal_projection() -> Resu
             max_tokens: 100,
             tools: vec![],
         })
-        .await;
+        .await?;
 
     assert!(
-        result.is_err(),
-        "Expected an error when sending images to a text-only model"
-    );
-
-    let error_message = result.unwrap_err().to_string();
-
-    assert!(
-        error_message.contains("multimodal"),
-        "Expected error to mention multimodal, got: {error_message}"
+        results
+            .iter()
+            .any(|result| matches!(result, GeneratedTokenResult::MultimodalNotSupported(_))),
+        "Expected MultimodalNotSupported error when sending images to a text-only model, got: {results:?}"
     );
 
     managed_model.shutdown()?;
