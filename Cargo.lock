@@ -2854,6 +2854,7 @@ dependencies = [
  "llama-cpp-bindings",
  "paddler",
  "paddler_types",
+ "paste",
  "serde_json",
  "tokio",
 ]

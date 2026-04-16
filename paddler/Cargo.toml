@@ -60,6 +60,7 @@ rust-embed = { workspace = true, optional = true }
 [features]
 default = []
 cuda = ["llama-cpp-bindings/cuda"]
+metal = ["llama-cpp-bindings/metal"]
 web_admin_panel = [
     "dep:askama",
     "dep:esbuild-metafile",

@@ -1,11 +1,14 @@
-#![cfg(all(feature = "tests_that_use_llms", feature = "cuda"))]
+#![cfg(all(
+    feature = "tests_that_use_llms",
+    any(feature = "cuda", feature = "metal")
+))]
 
-use anyhow::Result;
 use llama_cpp_bindings::LogOptions;
 use llama_cpp_bindings::send_logs_to_tracing;
 use paddler::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use paddler::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use paddler_model_tests::collect_generated_tokens::collect_generated_tokens;
+use paddler_model_tests::gpu_device_test;
 use paddler_model_tests::managed_model::ManagedModel;
 use paddler_model_tests::managed_model_params::ManagedModelParams;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -14,17 +17,10 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use tokio::sync::mpsc;
 
-mod cuda_common;
-
-use cuda_common::require_cuda_device;
-
 const QWEN3_0_6B_PARTIAL_GPU_LAYER_COUNT: u32 = 14;
 
-#[actix_web::test]
-async fn cuda_continuous_batch_partial_offload_generates_tokens() -> Result<()> {
+gpu_device_test!(continuous_batch_partial_offload_generates_tokens, |device| {
     send_logs_to_tracing(LogOptions::default());
-
-    require_cuda_device()?;
 
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters {
@@ -76,4 +72,4 @@ async fn cuda_continuous_batch_partial_offload_generates_tokens() -> Result<()> 
     managed_model.shutdown()?;
 
     Ok(())
-}
+});
