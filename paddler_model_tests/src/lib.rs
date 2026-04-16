@@ -12,4 +12,4 @@ pub mod test_device_cuda;
 pub mod test_device_metal;
 
 #[doc(hidden)]
-pub use paste;
+pub use pastey;

@@ -14,7 +14,7 @@ base64 = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 paddler = { workspace = true }
 paddler_types = { workspace = true }
-paste = { workspace = true }
+pastey = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

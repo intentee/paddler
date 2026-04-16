@@ -44,7 +44,7 @@ minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
 nanoid = "0.4"
 nix = { version = "0.30", features = ["signal"] }
-paste = "1"
+pastey = "0.2"
 rand = "0.9"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 resvg = "0.46"

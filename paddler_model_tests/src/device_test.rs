@@ -30,7 +30,7 @@ macro_rules! __device_test_for {
         $variant:ident,
         |$device_binding:ident| $body:block
     ) => {
-        $crate::paste::paste! {
+        $crate::pastey::paste! {
             #[actix_web::test]
             async fn [<$prefix _ $name>]() -> ::anyhow::Result<()> {
                 let $device_binding = $crate::test_device::TestDevice::$variant;
@@ -46,7 +46,7 @@ macro_rules! __device_test_for {
         |$device_binding:ident| $body:block,
         $feature:literal
     ) => {
-        $crate::paste::paste! {
+        $crate::pastey::paste! {
             #[cfg(feature = $feature)]
             #[actix_web::test]
             async fn [<$prefix _ $name>]() -> ::anyhow::Result<()> {
