@@ -19,3 +19,26 @@ impl HomeData {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Action;
+    use super::HomeData;
+    use super::Message;
+
+    #[test]
+    fn start_cluster_message_produces_start_cluster_action() {
+        assert!(matches!(
+            HomeData::update(Message::StartCluster),
+            Action::StartCluster
+        ));
+    }
+
+    #[test]
+    fn join_cluster_message_produces_join_cluster_action() {
+        assert!(matches!(
+            HomeData::update(Message::JoinCluster),
+            Action::JoinCluster
+        ));
+    }
+}

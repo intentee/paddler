@@ -108,3 +108,170 @@ impl JoinClusterConfigData {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Action;
+    use super::JoinClusterConfigData;
+    use super::Message;
+
+    fn make_data() -> JoinClusterConfigData {
+        JoinClusterConfigData::default()
+    }
+
+    #[test]
+    fn set_agent_name_updates_field() {
+        let mut data = make_data();
+
+        let action = data.update(Message::SetAgentName("agent-1".to_owned()));
+
+        assert!(matches!(action, Action::None));
+        assert_eq!(data.agent_name, "agent-1");
+    }
+
+    #[test]
+    fn set_cluster_address_clears_prior_error() {
+        let mut data = make_data();
+        data.cluster_address_error = Some("stale error".to_owned());
+
+        let action = data.update(Message::SetClusterAddress("127.0.0.1:8060".to_owned()));
+
+        assert!(matches!(action, Action::None));
+        assert_eq!(data.cluster_address, "127.0.0.1:8060");
+        assert!(data.cluster_address_error.is_none());
+    }
+
+    #[test]
+    fn set_slots_count_accepts_digit_string() {
+        let mut data = make_data();
+
+        data.update(Message::SetSlotsCount("42".to_owned()));
+
+        assert_eq!(data.slots_count, "42");
+    }
+
+    #[test]
+    fn set_slots_count_rejects_non_digit_characters() {
+        let mut data = make_data();
+        data.slots_count = "7".to_owned();
+
+        data.update(Message::SetSlotsCount("7a".to_owned()));
+
+        assert_eq!(data.slots_count, "7");
+    }
+
+    #[test]
+    fn connect_with_empty_cluster_address_sets_cluster_address_error() {
+        let mut data = make_data();
+        data.slots_count = "4".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(action, Action::None));
+        assert_eq!(
+            data.cluster_address_error.as_deref(),
+            Some("Cluster address is required.")
+        );
+    }
+
+    #[test]
+    fn connect_with_invalid_cluster_address_sets_format_error() {
+        let mut data = make_data();
+        data.cluster_address = "not-an-address".to_owned();
+        data.slots_count = "4".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(action, Action::None));
+        assert_eq!(
+            data.cluster_address_error.as_deref(),
+            Some("Invalid address, expected format: IP:port")
+        );
+    }
+
+    #[test]
+    fn connect_with_empty_slots_sets_slots_error() {
+        let mut data = make_data();
+        data.cluster_address = "127.0.0.1:8060".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(action, Action::None));
+        assert_eq!(
+            data.slots_error.as_deref(),
+            Some("Number of slots is required.")
+        );
+    }
+
+    #[test]
+    fn connect_with_zero_slots_sets_slots_error() {
+        let mut data = make_data();
+        data.cluster_address = "127.0.0.1:8060".to_owned();
+        data.slots_count = "0".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(action, Action::None));
+        assert!(data.slots_error.is_some());
+    }
+
+    #[test]
+    fn connect_with_overflowing_slots_sets_too_large_error() {
+        let mut data = make_data();
+        data.cluster_address = "127.0.0.1:8060".to_owned();
+        data.slots_count = "99999999999999".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(action, Action::None));
+        assert_eq!(
+            data.slots_error.as_deref(),
+            Some("Number of slots is too large.")
+        );
+    }
+
+    #[test]
+    fn connect_with_valid_inputs_returns_connect_agent_action() {
+        let mut data = make_data();
+        data.cluster_address = "127.0.0.1:8060".to_owned();
+        data.agent_name = "my-agent".to_owned();
+        data.slots_count = "4".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(
+            &action,
+            Action::ConnectAgent {
+                agent_name: Some(agent_name),
+                management_address,
+                slots: 4,
+            } if agent_name == "my-agent" && management_address == "127.0.0.1:8060"
+        ));
+    }
+
+    #[test]
+    fn connect_with_empty_agent_name_produces_none_name() {
+        let mut data = make_data();
+        data.cluster_address = "127.0.0.1:8060".to_owned();
+        data.slots_count = "4".to_owned();
+
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(
+            action,
+            Action::ConnectAgent {
+                agent_name: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn cancel_returns_cancel_action() {
+        let mut data = make_data();
+
+        let action = data.update(Message::Cancel);
+
+        assert!(matches!(action, Action::Cancel));
+    }
+}
