@@ -43,7 +43,7 @@ jarmuz-static: node_modules
 build: jarmuz-static
 	cargo build -p paddler --features web_admin_panel
 
-.PHONY: build
+.PHONY: build.cuda
 build.cuda: jarmuz-static
 	cargo build -p paddler --features cuda,web_admin_panel
 

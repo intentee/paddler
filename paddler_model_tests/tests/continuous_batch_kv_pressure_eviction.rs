@@ -30,10 +30,16 @@ async fn test_eviction_terminates_and_survivor_completes() -> Result<()> {
     // A long prompt plus enough max_tokens pushes the larger sequence past that
     // budget and forces `NoKvCacheSlot` during decode. The short sequence stays
     // within budget and completes after the large one is evicted.
+    //
+    // Sampling is pinned to greedy (temperature=0) so the long sequence's decoded
+    // continuation is deterministic across runs — whether it hits EOS before
+    // exceeding the per-sequence KV budget is then a property of the model, not
+    // of the sampler's random draws.
     let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
         inference_parameters: InferenceParameters {
             batch_n_tokens: 256,
             context_size: 256,
+            temperature: 0.0,
             ..InferenceParameters::default()
         },
         model: HuggingFaceModelReference {
