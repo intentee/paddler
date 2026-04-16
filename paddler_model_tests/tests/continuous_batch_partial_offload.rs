@@ -19,57 +19,60 @@ use tokio::sync::mpsc;
 
 const QWEN3_0_6B_PARTIAL_GPU_LAYER_COUNT: u32 = 14;
 
-gpu_device_test!(continuous_batch_partial_offload_generates_tokens, |device| {
-    send_logs_to_tracing(LogOptions::default());
+gpu_device_test!(
+    continuous_batch_partial_offload_generates_tokens,
+    |device| {
+        send_logs_to_tracing(LogOptions::default());
 
-    let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
-        inference_parameters: InferenceParameters {
-            n_gpu_layers: QWEN3_0_6B_PARTIAL_GPU_LAYER_COUNT,
-            ..InferenceParameters::default()
-        },
-        model: HuggingFaceModelReference {
-            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
-            revision: "main".to_owned(),
-        },
-        multimodal_projection: None,
-        slots: 1,
-    })
-    .await?;
-
-    let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
-    let (_stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
-
-    managed_model
-        .handle()
-        .command_tx
-        .send(ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(
-            ContinueFromRawPromptRequest {
-                generated_tokens_tx,
-                generate_tokens_stop_rx,
-                params: ContinueFromRawPromptParams {
-                    grammar: None,
-                    max_tokens: 16,
-                    raw_prompt: "Count from 1 to 5:".to_owned(),
-                },
+        let managed_model = ManagedModel::from_huggingface(ManagedModelParams {
+            inference_parameters: InferenceParameters {
+                n_gpu_layers: QWEN3_0_6B_PARTIAL_GPU_LAYER_COUNT,
+                ..InferenceParameters::default()
             },
-        ))
-        .map_err(|err| anyhow::anyhow!("Failed to send command: {err}"))?;
+            model: HuggingFaceModelReference {
+                filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+                repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+                revision: "main".to_owned(),
+            },
+            multimodal_projection: None,
+            slots: 1,
+        })
+        .await?;
 
-    let results = collect_generated_tokens(generated_tokens_rx).await?;
+        let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
+        let (_stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel::<()>();
 
-    let token_count = results
-        .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
-        .count();
+        managed_model
+            .handle()
+            .command_tx
+            .send(ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(
+                ContinueFromRawPromptRequest {
+                    generated_tokens_tx,
+                    generate_tokens_stop_rx,
+                    params: ContinueFromRawPromptParams {
+                        grammar: None,
+                        max_tokens: 16,
+                        raw_prompt: "Count from 1 to 5:".to_owned(),
+                    },
+                },
+            ))
+            .map_err(|err| anyhow::anyhow!("Failed to send command: {err}"))?;
 
-    assert!(
-        token_count > 0,
-        "partial-offload test produced no tokens with n_gpu_layers={QWEN3_0_6B_PARTIAL_GPU_LAYER_COUNT}"
-    );
-    assert!(matches!(results.last(), Some(GeneratedTokenResult::Done)));
+        let results = collect_generated_tokens(generated_tokens_rx).await?;
 
-    managed_model.shutdown()?;
+        let token_count = results
+            .iter()
+            .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+            .count();
 
-    Ok(())
-});
+        assert!(
+            token_count > 0,
+            "partial-offload test produced no tokens with n_gpu_layers={QWEN3_0_6B_PARTIAL_GPU_LAYER_COUNT}"
+        );
+        assert!(matches!(results.last(), Some(GeneratedTokenResult::Done)));
+
+        managed_model.shutdown()?;
+
+        Ok(())
+    }
+);

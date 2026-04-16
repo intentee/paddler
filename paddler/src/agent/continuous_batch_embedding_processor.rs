@@ -57,8 +57,6 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             return Err(anyhow!("Embeddings are not enabled"));
         }
 
-        self.llama_context.clear_kv_cache();
-
         let tokens_lines_list = input_batch
             .into_iter()
             .map(|input| {

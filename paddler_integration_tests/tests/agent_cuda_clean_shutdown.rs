@@ -124,7 +124,10 @@ async fn test_cuda_agent_exits_cleanly_on_sigterm_during_multimodal_inference() 
         }
     }
 
-    assert!(received_token, "agent never produced a token before SIGTERM");
+    assert!(
+        received_token,
+        "agent never produced a token before SIGTERM"
+    );
 
     let exit_status = cluster
         .agent
