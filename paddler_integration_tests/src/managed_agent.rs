@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
+use nix::errno::Errno;
 use nix::sys::signal::Signal;
 use nix::sys::signal::kill;
 use nix::unistd::Pid;
@@ -55,7 +56,10 @@ impl ManagedAgent {
         #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
         let pid = Pid::from_raw(raw_pid as i32);
 
-        kill(pid, Signal::SIGTERM)?;
+        match kill(pid, Signal::SIGTERM) {
+            Ok(()) | Err(Errno::ESRCH) => {}
+            Err(err) => return Err(err.into()),
+        }
 
         timeout(graceful_exit_deadline, self.child.wait())
             .await
