@@ -1,9 +1,9 @@
 [package]
-name = "paddler_second_brain_gui"
+name = "paddler_gui"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Desktop GUI for Paddler Second Brain"
+description = "Paddler desktop application"
 license.workspace = true
 
 [dependencies]

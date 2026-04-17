@@ -59,8 +59,7 @@ pub fn view_home(data: &HomeData) -> Element<'_, Message> {
     let options_row = row![start_column, join_column].spacing(SPACING_2X);
 
     let mut content = column![
-        container(text("Paddler second brain").size(FONT_SIZE_L2).font(BOLD))
-            .padding([0.0, SPACING_BASE]),
+        container(text("Paddler App").size(FONT_SIZE_L2).font(BOLD)).padding([0.0, SPACING_BASE]),
         container(options_row).align_x(Center),
     ]
     .spacing(SPACING_2X);

@@ -69,28 +69,28 @@ fn collect_sorted_agent_snapshots(
     Ok(agents)
 }
 
-pub struct SecondBrain {
+pub struct App {
     agent_shutdown_tx: Option<oneshot::Sender<()>>,
     screen: CurrentScreen,
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
-impl Drop for SecondBrain {
+impl Drop for App {
     fn drop(&mut self) {
         send_shutdown(&mut self.shutdown_tx, "cluster");
         send_shutdown(&mut self.agent_shutdown_tx, "agent");
     }
 }
 
-impl SecondBrain {
+impl App {
     pub fn new() -> (Self, Task<Message>) {
-        let second_brain = Self {
+        let app = Self {
             agent_shutdown_tx: None,
             screen: CurrentScreen::default(),
             shutdown_tx: None,
         };
 
-        (second_brain, Task::none())
+        (app, Task::none())
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {

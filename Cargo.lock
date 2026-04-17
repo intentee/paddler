@@ -4547,6 +4547,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_gui"
+version = "3.0.1"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "env_logger",
+ "iced",
+ "if-addrs",
+ "log",
+ "paddler",
+ "paddler_bootstrap",
+ "paddler_types",
+ "statum",
+ "tokio",
+]
+
+[[package]]
 name = "paddler_integration_tests"
 version = "3.0.1"
 dependencies = [
@@ -4577,23 +4594,6 @@ dependencies = [
  "paddler_types",
  "pastey 0.2.1",
  "serde_json",
- "tokio",
-]
-
-[[package]]
-name = "paddler_second_brain_gui"
-version = "3.0.1"
-dependencies = [
- "actix-web",
- "anyhow",
- "env_logger",
- "iced",
- "if-addrs",
- "log",
- "paddler",
- "paddler_bootstrap",
- "paddler_types",
- "statum",
  "tokio",
 ]
 

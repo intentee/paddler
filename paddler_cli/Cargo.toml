@@ -28,6 +28,7 @@ workspace = true
 [features]
 default = []
 cuda = ["paddler/cuda"]
+vulkan = ["paddler/vulkan"]
 web_admin_panel = [
     "dep:esbuild-metafile",
     "paddler/web_admin_panel",
