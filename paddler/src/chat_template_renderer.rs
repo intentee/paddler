@@ -47,7 +47,10 @@ mod tests {
     use std::collections::HashMap;
 
     use anyhow::Result;
+    use minijinja::context;
     use paddler_types::chat_template::ChatTemplate;
+    use paddler_types::chat_template_message::ChatTemplateMessage;
+    use paddler_types::chat_template_message_content::ChatTemplateMessageContent;
 
     use crate::chat_template_renderer::ChatTemplateRenderer;
 
@@ -81,6 +84,46 @@ mod tests {
         let result = renderer.render(context)?;
 
         assert_eq!(result, "Hello world!");
+
+        Ok(())
+    }
+
+    #[test]
+    fn renders_messages_loop_with_roles() -> Result<()> {
+        let template = ChatTemplate {
+            content: "{% for message in messages %}{{ message.role }}:{{ message.content }}\n{% endfor %}".to_owned(),
+        };
+        let renderer = ChatTemplateRenderer::new(template)?;
+        let messages = vec![
+            ChatTemplateMessage {
+                content: ChatTemplateMessageContent::Text("hi".to_owned()),
+                role: "user".to_owned(),
+            },
+            ChatTemplateMessage {
+                content: ChatTemplateMessageContent::Text("hello".to_owned()),
+                role: "assistant".to_owned(),
+            },
+        ];
+
+        let result = renderer.render(context! { messages => messages })?;
+
+        assert_eq!(result, "user:hi\nassistant:hello\n");
+
+        Ok(())
+    }
+
+    #[test]
+    fn add_generation_prompt_branch_changes_output() -> Result<()> {
+        let template = ChatTemplate {
+            content: "A{% if add_generation_prompt %}B{% endif %}".to_owned(),
+        };
+        let renderer = ChatTemplateRenderer::new(template)?;
+
+        let with_prompt = renderer.render(context! { add_generation_prompt => true })?;
+        let without_prompt = renderer.render(context! { add_generation_prompt => false })?;
+
+        assert_eq!(with_prompt, "AB");
+        assert_eq!(without_prompt, "A");
 
         Ok(())
     }
