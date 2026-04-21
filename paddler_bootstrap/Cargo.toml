@@ -13,6 +13,9 @@ paddler = { workspace = true }
 paddler_types = { workspace = true }
 tokio = { workspace = true }
 
+[dev-dependencies]
+actix-web = { workspace = true }
+
 [lints]
 workspace = true
 

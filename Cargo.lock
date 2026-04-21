@@ -4501,6 +4501,7 @@ dependencies = [
 name = "paddler_bootstrap"
 version = "3.0.1"
 dependencies = [
+ "actix-web",
  "anyhow",
  "nanoid",
  "paddler",
