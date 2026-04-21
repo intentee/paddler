@@ -59,7 +59,6 @@ impl StartClusterConfigData {
                 self.add_model_later = add_later;
 
                 if add_later {
-                    self.selected_model = None;
                     self.model_error = None;
                 }
 
@@ -131,11 +130,14 @@ impl StartClusterConfigData {
             return Action::None;
         };
 
-        let desired_state = self
-            .selected_model
-            .as_ref()
-            .map(ModelPreset::to_balancer_desired_state)
-            .unwrap_or_default();
+        let desired_state = if self.add_model_later {
+            BalancerDesiredState::default()
+        } else {
+            self.selected_model
+                .as_ref()
+                .map(ModelPreset::to_balancer_desired_state)
+                .unwrap_or_default()
+        };
 
         self.starting = true;
 

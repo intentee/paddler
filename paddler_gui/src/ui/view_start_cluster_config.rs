@@ -1,7 +1,7 @@
 use iced::Center;
 use iced::Element;
 use iced::Fill;
-use iced::alignment::Horizontal;
+use iced::Padding;
 use iced::widget::button;
 use iced::widget::checkbox;
 use iced::widget::column;
@@ -44,6 +44,7 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
     };
 
     let cancel_button = button(text("Cancel").font(BOLD))
+        .padding([SPACING_HALF, SPACING_BASE])
         .style(button::text)
         .on_press(Message::Cancel);
 
@@ -78,14 +79,22 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
         .into()
     };
 
-    let add_model_later_checkbox: Element<'_, Message> = checkbox(data.add_model_later)
-        .label("Add a model later")
-        .font(REGULAR)
-        .size(FONT_SIZE_BASE)
-        .text_size(FONT_SIZE_BASE)
-        .on_toggle(Message::ToggleAddModelLater)
-        .style(style_field_checkbox)
-        .into();
+    let add_model_later_checkbox: Element<'_, Message> = container(
+        checkbox(data.add_model_later)
+            .label("Add a model later")
+            .font(REGULAR)
+            .size(FONT_SIZE_BASE)
+            .text_size(FONT_SIZE_BASE)
+            .on_toggle(Message::ToggleAddModelLater)
+            .style(style_field_checkbox),
+    )
+    .padding(Padding {
+        top: 4.0,
+        right: SPACING_BASE,
+        bottom: 0.0,
+        left: SPACING_BASE,
+    })
+    .into();
 
     let model_field = column![
         view_form_field("Model", model_input, data.model_error.as_ref()),
@@ -109,12 +118,9 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
                     data.inference_address_error.as_ref()
                 ),
                 model_field,
-                container(
-                    row![cancel_button, confirm_button]
-                        .align_y(Center)
-                        .spacing(SPACING_BASE),
-                )
-                .align_x(Horizontal::Right),
+                row![cancel_button, confirm_button]
+                    .align_y(Center)
+                    .spacing(SPACING_BASE),
             ]
             .spacing(SPACING_2X),
         )
