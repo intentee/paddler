@@ -13,7 +13,7 @@ node_modules: package-lock.json
 	npm ci
 	touch node_modules
 
-target/debug/paddler_cli: $(shell find paddler/src paddler_bootstrap/src paddler_cli/src paddler_client/src paddler_types/src -name '*.rs')
+target/debug/paddler: $(shell find paddler/src paddler_bootstrap/src paddler_cli/src paddler_client/src paddler_types/src -name '*.rs')
 	cargo build -p paddler_cli
 
 # -----------------------------------------------------------------------------
@@ -59,6 +59,10 @@ release.cuda: jarmuz-static
 release.vulkan: jarmuz-static
 	cargo build --release -p paddler_cli --features web_admin_panel,vulkan
 
+.PHONY: release.gui
+release.gui: jarmuz-static
+	cargo build --release -p paddler_gui
+
 .PHONY: test
 test: test.unit test.models test.integration
 
@@ -75,7 +79,7 @@ test.unit: jarmuz-static
 	cargo test --features web_admin_panel
 
 .PHONY: test.integration
-test.integration: target/debug/paddler_cli
+test.integration: target/debug/paddler
 	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
 .PHONY: watch

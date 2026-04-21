@@ -6,6 +6,10 @@ authors.workspace = true
 description = "CLI binary for Paddler"
 license.workspace = true
 
+[[bin]]
+name = "paddler"
+path = "src/main.rs"
+
 [dependencies]
 actix-rt = { workspace = true }
 actix-web = { workspace = true }

@@ -7,8 +7,23 @@ on:
       - v[0-9].[0-9]+.[0-9]+-rc[0-9]+
 
 jobs:
-  build:
-    name: build
+  resolve-version:
+    name: resolve-version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release-version.outputs.version }}
+      name: ${{ steps.release-version.outputs.name }}
+      description: ${{ steps.release-version.outputs.description }}
+      type: ${{ steps.release-version.outputs.type }}
+    steps:
+      - id: release-version
+        uses: intentee/release-action/release-tag-to-version@8125f727e97f72bfef24299d7c6d3217af1453bc
+        with:
+          release-tag: "${{ github.ref_name }}"
+
+  build-cli:
+    name: build-cli
+    needs: resolve-version
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -26,27 +41,75 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v4
 
-      - name: build the binary
+      - name: build the cli binary
         run: make release
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: release-version
-        uses: intentee/release-action/release-tag-to-version@8125f727e97f72bfef24299d7c6d3217af1453bc
-        with:
-          release-tag: "${{ github.ref_name }}"
-
-      - name: rename the binary
+      - name: rename the cli binary
         run: mv ./target/release/paddler ./${{ matrix.artifact_name }}
         shell: bash
 
-      - uses: intentee/release-action/assert-version@8125f727e97f72bfef24299d7c6d3217af1453bc
+      - name: assert cli version matches tag
+        uses: intentee/release-action/assert-version@8125f727e97f72bfef24299d7c6d3217af1453bc
         with:
           filename: "./${{ matrix.artifact_name }}"
-          expected-version: "${{ steps.release-version.outputs.version }}"
+          expected-version: "${{ needs.resolve-version.outputs.version }}"
 
-      - name: upload artifact
+      - name: upload cli artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ./${{ matrix.artifact_name }}
+
+  build-gui:
+    name: build-gui
+    needs: resolve-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            artifact_name: paddler-gui-bin-linux-libc2.35-amd64
+
+          - os: ubuntu-latest
+            artifact_name: paddler-gui-bin-linux-libc2.39-amd64
+
+          - os: macos-latest
+            artifact_name: paddler-gui-bin-macos-arm
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: install paddler_gui system dependencies (linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev libxkbcommon-dev libwayland-dev libgl-dev \
+            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
+            libxcb1-dev libfontconfig-dev pkg-config
+        shell: bash
+
+      - name: build the gui binary
+        run: make release.gui
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: rename the gui binary
+        run: mv ./target/release/paddler_gui ./${{ matrix.artifact_name }}
+        shell: bash
+
+      - name: assert gui version matches tag
+        uses: intentee/release-action/assert-version@8125f727e97f72bfef24299d7c6d3217af1453bc
+        with:
+          filename: "./${{ matrix.artifact_name }}"
+          expected-version: "${{ needs.resolve-version.outputs.version }}"
+
+      - name: upload gui artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
@@ -54,18 +117,13 @@ jobs:
 
   release:
     name: release
-    needs: build
+    needs: [resolve-version, build-cli, build-gui]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - name: checkout code
         uses: actions/checkout@v4
-
-      - id: release-version
-        uses: intentee/release-action/release-tag-to-version@8125f727e97f72bfef24299d7c6d3217af1453bc
-        with:
-          release-tag: "${{ github.ref_name }}"
 
       - name: download all artifacts
         uses: actions/download-artifact@v4
@@ -77,7 +135,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
-          name: ${{ steps.release-version.outputs.name }}
-          body: ${{ steps.release-version.outputs.description }}
-          prerelease: ${{ steps.release-version.outputs.type == 'PRE_RELEASE' }}
+          name: ${{ needs.resolve-version.outputs.name }}
+          body: ${{ needs.resolve-version.outputs.description }}
+          prerelease: ${{ needs.resolve-version.outputs.type == 'PRE_RELEASE' }}
           tag_name: ${{ github.ref }}
