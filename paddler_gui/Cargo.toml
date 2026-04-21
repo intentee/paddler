@@ -19,6 +19,9 @@ paddler_types = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 
+[dev-dependencies]
+dashmap = { workspace = true }
+
 [lints]
 workspace = true
 

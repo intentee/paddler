@@ -17,6 +17,7 @@ mod screen;
 mod start_cluster_config_data;
 mod start_cluster_config_handler;
 mod ui;
+mod wait_for_bootstrapped_agent_controller_pool;
 
 use app::App;
 use iced::Size;

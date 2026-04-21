@@ -44,6 +44,7 @@ use crate::ui::view_home::view_home;
 use crate::ui::view_join_cluster_config::view_join_cluster_config;
 use crate::ui::view_running_cluster::view_running_cluster;
 use crate::ui::view_start_cluster_config::view_start_cluster_config;
+use crate::wait_for_bootstrapped_agent_controller_pool::wait_for_bootstrapped_agent_controller_pool;
 
 fn send_shutdown(sender: &mut Option<oneshot::Sender<()>>, label: &str) {
     if let Some(shutdown_tx) = sender.take()
@@ -461,19 +462,24 @@ impl App {
                     Err(error) => Message::ClusterFailed(error.to_string()),
                 },
             ),
-            Task::done(Message::ClusterStarted),
             Task::stream(iced::stream::channel(1, async move |mut output| {
                 let mut watch_rx = pool_watch_rx;
 
-                let agent_controller_pool = loop {
-                    if watch_rx.changed().await.is_err() {
-                        return;
-                    }
-                    let borrowed = watch_rx.borrow_and_update().clone();
-                    if let Some(pool) = borrowed {
-                        break pool;
-                    }
-                };
+                let agent_controller_pool =
+                    match wait_for_bootstrapped_agent_controller_pool(&mut watch_rx).await {
+                        Ok(pool) => pool,
+                        Err(error) => {
+                            log::error!(
+                                "Failed waiting for bootstrapped agent controller pool: {error}"
+                            );
+
+                            return;
+                        }
+                    };
+
+                if output.send(Message::ClusterStarted).await.is_err() {
+                    return;
+                }
 
                 loop {
                     match collect_sorted_agent_snapshots(&agent_controller_pool) {

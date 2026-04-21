@@ -4553,6 +4553,7 @@ version = "3.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
+ "dashmap",
  "env_logger",
  "iced",
  "if-addrs",
