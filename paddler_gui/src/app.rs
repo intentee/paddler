@@ -1,18 +1,24 @@
 use std::mem;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 
+use iced::Bottom;
 use iced::Center;
 use iced::Element;
 use iced::Fill;
+use iced::Right;
 use iced::Subscription;
 use iced::Task;
 use iced::futures::SinkExt;
 use iced::keyboard;
 use iced::widget::column;
 use iced::widget::container;
+use iced::widget::image;
+use iced::widget::image::Handle as ImageHandle;
 use iced::widget::operation;
+use iced::widget::stack;
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
@@ -45,6 +51,10 @@ use crate::ui::view_join_cluster_config::view_join_cluster_config;
 use crate::ui::view_running_cluster::view_running_cluster;
 use crate::ui::view_start_cluster_config::view_start_cluster_config;
 use crate::wait_for_bootstrapped_agent_controller_pool::wait_for_bootstrapped_agent_controller_pool;
+
+static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
+    ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
+});
 
 fn send_shutdown(sender: &mut Option<oneshot::Sender<()>>, label: &str) {
     if let Some(shutdown_tx) = sender.take()
@@ -296,7 +306,21 @@ impl App {
             .spacing(SPACING_BASE)
             .align_x(Center);
 
-        container(content_column).center_x(Fill).into()
+        let base_view = container(content_column).center_x(Fill).height(Fill);
+
+        if matches!(self.screen, CurrentScreen::Home(_)) {
+            let beta_image = image(BETA_IMAGE.clone()).width(100).height(100);
+
+            let beta_overlay = container(beta_image)
+                .width(Fill)
+                .height(Fill)
+                .align_x(Right)
+                .align_y(Bottom);
+
+            stack![base_view, beta_overlay].into()
+        } else {
+            base_view.into()
+        }
     }
 
     fn spawn_agent(
