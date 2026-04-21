@@ -117,3 +117,7 @@ You can try, though. :) We have even added [AGENTS.md](AGENTS.md) with some code
 We initially wanted to use [Raft](https://raft.github.io/) consensus algorithm (thus Paddler, because it paddles on a Raft), but eventually dropped that idea. The name stayed, though.
 
 Later, people started sending us the "that's a paddlin'" clip from The Simpsons, and we just embraced it.
+
+## Thanks
+
+[<img width="100%" alt="Thank you llama.cpp" src="https://github.com/user-attachments/assets/ba12e3a3-f78f-40a6-aa1b-36b3924ac0ec" />](https://github.com/ggml-org/llama.cpp)
