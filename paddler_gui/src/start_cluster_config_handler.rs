@@ -15,6 +15,7 @@ pub enum Message {
     SetClusterAddress(String),
     SetInferenceAddress(String),
     SelectModel(ModelPreset),
+    ToggleAddModelLater(bool),
     Confirm,
     Cancel,
 }
@@ -54,6 +55,16 @@ impl StartClusterConfigData {
 
                 Action::None
             }
+            Message::ToggleAddModelLater(add_later) => {
+                self.add_model_later = add_later;
+
+                if add_later {
+                    self.selected_model = None;
+                    self.model_error = None;
+                }
+
+                Action::None
+            }
             Message::Confirm => self.validate_and_confirm(),
             Message::Cancel => Action::Cancel,
         }
@@ -64,7 +75,7 @@ impl StartClusterConfigData {
         self.inference_address_error = None;
         self.model_error = None;
 
-        if self.selected_model.is_none() {
+        if !self.add_model_later && self.selected_model.is_none() {
             self.model_error = Some("Please select a model.".to_owned());
         }
 

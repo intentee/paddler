@@ -38,6 +38,7 @@ impl Screen<Home> {
             .unwrap_or_default();
 
         self.transition_with(StartClusterConfigData {
+            add_model_later: false,
             cluster_address: format!("{suggested_address}:8060"),
             cluster_address_error: None,
             inference_address: format!("{suggested_address}:8061"),
