@@ -10,7 +10,7 @@ package-lock.json: package.json
 	npm install --package-lock-only
 
 node_modules: package-lock.json
-	npm install --from-lockfile
+	npm ci
 	touch node_modules
 
 target/debug/paddler_cli: $(shell find paddler/src paddler_bootstrap/src paddler_cli/src paddler_client/src paddler_types/src -name '*.rs')
