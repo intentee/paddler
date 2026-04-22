@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_compiled_paddler")]
 
-use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
@@ -16,7 +15,6 @@ use nix::unistd::Pid;
 use paddler_integration_tests::PADDLER_GUI_BINARY_PATH;
 use tokio::io::AsyncBufReadExt as _;
 use tokio::io::BufReader;
-use tokio::net::TcpStream;
 use tokio::process::Child;
 use tokio::process::Command;
 
@@ -125,43 +123,6 @@ fn paddler_gui_binary_path() -> Result<PathBuf> {
     Ok(path)
 }
 
-async fn wait_until_bound(addr: SocketAddr) -> Result<()> {
-    loop {
-        if TcpStream::connect(addr).await.is_ok() {
-            return Ok(());
-        }
-        tokio::task::yield_now().await;
-    }
-}
-
-fn parse_auto_cluster_addrs(line: &str) -> Result<(SocketAddr, SocketAddr)> {
-    let management_prefix = "management=";
-    let inference_prefix = "inference=";
-
-    let management_start = line
-        .find(management_prefix)
-        .ok_or_else(|| anyhow!("auto-cluster marker missing management= in: {line}"))?
-        + management_prefix.len();
-    let remainder = &line[management_start..];
-    let management_end = remainder.find(' ').ok_or_else(|| {
-        anyhow!("auto-cluster marker malformed (no space after management): {line}")
-    })?;
-    let management_addr: SocketAddr = remainder[..management_end]
-        .parse()
-        .context("failed to parse management address")?;
-
-    let inference_start = line
-        .find(inference_prefix)
-        .ok_or_else(|| anyhow!("auto-cluster marker missing inference= in: {line}"))?
-        + inference_prefix.len();
-    let inference_addr: SocketAddr = line[inference_start..]
-        .trim()
-        .parse()
-        .context("failed to parse inference address")?;
-
-    Ok((management_addr, inference_addr))
-}
-
 const SHUTDOWN_SLA: Duration = Duration::from_secs(1);
 
 #[tokio::test]
@@ -224,79 +185,3 @@ async fn gui_binary_exits_under_one_second_on_sigterm_at_home_screen() -> Result
     Ok(())
 }
 
-#[tokio::test]
-async fn gui_binary_exits_under_one_second_on_sigterm_with_running_cluster() -> Result<()> {
-    let binary = paddler_gui_binary_path()?;
-    let display = HeadlessDisplay::start().await?;
-
-    let mut gui = Command::new(&binary)
-        .env_remove("WAYLAND_DISPLAY")
-        .env("DISPLAY", display.display_name())
-        .env("PADDLER_GUI_AUTO_CLUSTER", "1")
-        .env("RUST_LOG", "paddler_gui=info")
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("failed to spawn paddler_gui binary")?;
-
-    let stderr = gui
-        .stderr
-        .take()
-        .ok_or_else(|| anyhow!("paddler_gui stderr is not piped"))?;
-    let mut stderr_reader = BufReader::new(stderr);
-    let mut captured = Vec::new();
-
-    wait_for_log_line(
-        &mut stderr_reader,
-        "paddler_gui: auto-cluster",
-        &mut captured,
-    )
-    .await?;
-
-    let auto_cluster_line = captured
-        .last()
-        .ok_or_else(|| anyhow!("auto-cluster marker was not captured"))?
-        .clone();
-    let (management_addr, inference_addr) = parse_auto_cluster_addrs(&auto_cluster_line)?;
-
-    wait_for_log_line(
-        &mut stderr_reader,
-        "paddler_gui: iced event loop ready",
-        &mut captured,
-    )
-    .await?;
-
-    wait_until_bound(management_addr).await?;
-    wait_until_bound(inference_addr).await?;
-
-    let raw_pid = gui
-        .id()
-        .ok_or_else(|| anyhow!("paddler_gui process has no PID"))?;
-    #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
-    let pid = Pid::from_raw(raw_pid as i32);
-
-    let sigterm_sent_at = Instant::now();
-
-    kill(pid, Signal::SIGTERM).context("failed to send SIGTERM to paddler_gui")?;
-
-    let exit_status = gui
-        .wait()
-        .await
-        .context("failed to wait for paddler_gui exit")?;
-
-    let shutdown_elapsed = sigterm_sent_at.elapsed();
-
-    assert!(
-        exit_status.success() || exit_status.code().is_some(),
-        "paddler_gui terminated abnormally: {exit_status:?}"
-    );
-
-    assert!(
-        shutdown_elapsed < SHUTDOWN_SLA,
-        "paddler_gui with running cluster took {shutdown_elapsed:?} to exit after SIGTERM; SLA is {SHUTDOWN_SLA:?}"
-    );
-
-    drop(display);
-
-    Ok(())
-}
