@@ -7,14 +7,13 @@ description = "Shared service wiring for Paddler CLI and desktop app"
 license.workspace = true
 
 [dependencies]
+actix-web = { workspace = true }
 anyhow = { workspace = true }
+log = { workspace = true }
 nanoid = { workspace = true }
 paddler = { workspace = true }
 paddler_types = { workspace = true }
 tokio = { workspace = true }
-
-[dev-dependencies]
-actix-web = { workspace = true }
 tokio-util = { workspace = true }
 
 [lints]

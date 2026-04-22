@@ -4504,6 +4504,7 @@ version = "3.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
+ "log",
  "nanoid",
  "paddler",
  "paddler_types",
