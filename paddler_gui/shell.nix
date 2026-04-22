@@ -20,6 +20,7 @@ pkgs.mkShell {
 
   buildInputs = icedRuntimeLibs ++ (with pkgs; [
     fontconfig
+    weston
   ]);
 
   LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath icedRuntimeLibs;

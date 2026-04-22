@@ -112,13 +112,19 @@ impl App {
             screen: CurrentScreen::default(),
         };
 
-        (app, Task::none())
+        (app, Task::done(Message::IcedEventLoopReady))
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let screen = mem::take(&mut self.screen);
 
         match (screen, message) {
+            (screen, Message::IcedEventLoopReady) => {
+                log::info!("paddler_gui: iced event loop ready");
+                self.screen = screen;
+
+                Task::none()
+            }
             (_, Message::Quit) => {
                 self.shutdown.cancel();
                 self.cluster_runner = None;
@@ -429,6 +435,11 @@ impl App {
         ])
     }
 
+    #[cfg(test)]
+    pub fn shutdown_token_for_test(&self) -> CancellationToken {
+        self.shutdown.clone()
+    }
+
     fn spawn_cluster(
         &mut self,
         management_addr: SocketAddr,
@@ -552,5 +563,32 @@ impl App {
                 }
             })),
         ])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quit_message_cancels_shutdown_token() {
+        let (mut app, _initial_task) = App::new();
+        let shutdown = app.shutdown_token_for_test();
+
+        assert!(!shutdown.is_cancelled());
+
+        let _exit_task = app.update(Message::Quit);
+
+        assert!(shutdown.is_cancelled());
+    }
+
+    #[test]
+    fn quit_message_drops_both_runners() {
+        let (mut app, _initial_task) = App::new();
+
+        let _exit_task = app.update(Message::Quit);
+
+        assert!(app.agent_runner.is_none());
+        assert!(app.cluster_runner.is_none());
     }
 }

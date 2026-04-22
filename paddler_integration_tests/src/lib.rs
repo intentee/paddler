@@ -26,6 +26,11 @@ static PADDLER_BINARY_PATH: LazyLock<String> = LazyLock::new(|| {
     std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_owned())
 });
 
+pub static PADDLER_GUI_BINARY_PATH: LazyLock<String> = LazyLock::new(|| {
+    std::env::var("PADDLER_GUI_BINARY_PATH")
+        .unwrap_or_else(|_| "../target/debug/paddler_gui".to_owned())
+});
+
 pub fn paddler_command() -> Command {
     let mut command = Command::new(PADDLER_BINARY_PATH.as_str());
 
