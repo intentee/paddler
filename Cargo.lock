@@ -4558,6 +4558,7 @@ version = "3.1.2"
 dependencies = [
  "actix-web",
  "anyhow",
+ "clap",
  "dashmap",
  "env_logger",
  "iced",

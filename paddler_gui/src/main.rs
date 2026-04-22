@@ -24,12 +24,27 @@ use std::net::SocketAddr;
 use std::net::TcpListener;
 
 use app::App;
+use clap::Parser;
+use clap::Subcommand;
 use iced::Size;
 use iced::Theme;
 use log::info;
 
 use crate::auto_cluster_config::AutoClusterConfig;
 use crate::auto_cluster_config::install_auto_cluster_config;
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Launch the desktop GUI application (default if no subcommand is given)
+    Launch,
+}
 
 fn pick_free_loopback_addr() -> anyhow::Result<SocketAddr> {
     let probe = TcpListener::bind("127.0.0.1:0")?;
@@ -44,7 +59,7 @@ fn pick_free_loopback_addr() -> anyhow::Result<SocketAddr> {
     clippy::expect_used,
     reason = "auto-cluster loopback bind is only used by the integration-test harness and is unrecoverable"
 )]
-fn main() -> iced::Result {
+fn launch_gui() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     if std::env::var_os("PADDLER_GUI_AUTO_CLUSTER").is_some() {
@@ -74,4 +89,10 @@ fn main() -> iced::Result {
         .window_size(Size::new(800.0, 800.0))
         .subscription(App::subscription)
         .run()
+}
+
+fn main() -> iced::Result {
+    match Cli::parse().command {
+        Some(Commands::Launch) | None => launch_gui(),
+    }
 }
