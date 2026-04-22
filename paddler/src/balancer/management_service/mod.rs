@@ -95,6 +95,7 @@ impl Service for ManagementService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
+        .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")
         .run()

@@ -54,6 +54,7 @@ impl Service for OpenAIService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
+        .disable_signals()
         .bind(self.openai_service_configuration.addr)
         .expect("Unable to bind server to address")
         .run()
