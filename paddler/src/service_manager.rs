@@ -1,6 +1,7 @@
 use actix_web::rt;
 use anyhow::Result;
-use futures::future::join_all;
+use futures::stream::FuturesUnordered;
+use futures::stream::StreamExt;
 use log::error;
 use log::info;
 use tokio::sync::broadcast;
@@ -20,7 +21,7 @@ impl ServiceManager {
 
     pub async fn run_forever(self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
         let (shutdown_broadcast_tx, _) = broadcast::channel::<()>(1);
-        let mut service_handles = Vec::with_capacity(self.services.len());
+        let mut service_handles = FuturesUnordered::new();
 
         for mut service in self.services {
             let service_name = service.name().to_owned();
@@ -36,9 +37,181 @@ impl ServiceManager {
             }));
         }
 
-        shutdown_rx.await?;
-        shutdown_broadcast_tx.send(())?;
-        join_all(service_handles).await;
+        tokio::select! {
+            _ = shutdown_rx => {}
+            _ = service_handles.next() => {}
+        }
+
+        drop(shutdown_broadcast_tx);
+
+        while service_handles.next().await.is_some() {}
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use anyhow::anyhow;
+    use async_trait::async_trait;
+    use tokio::sync::Notify;
+    use tokio::sync::broadcast::error::RecvError;
+
+    use super::*;
+
+    struct NeverExitingService {
+        ready: Arc<Notify>,
+    }
+
+    #[async_trait]
+    impl Service for NeverExitingService {
+        fn name(&self) -> &'static str {
+            "test::never_exiting_service"
+        }
+
+        async fn run(&mut self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+            self.ready.notify_one();
+
+            loop {
+                match shutdown_rx.recv().await {
+                    Ok(()) | Err(RecvError::Closed) => return Ok(()),
+                    Err(RecvError::Lagged(_skipped)) => {}
+                }
+            }
+        }
+    }
+
+    struct FailingOnDemandService {
+        fail: Arc<Notify>,
+    }
+
+    #[async_trait]
+    impl Service for FailingOnDemandService {
+        fn name(&self) -> &'static str {
+            "test::failing_on_demand_service"
+        }
+
+        async fn run(&mut self, _shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+            self.fail.notified().await;
+
+            Err(anyhow!("boom"))
+        }
+    }
+
+    struct ImmediatelyFailingService;
+
+    #[async_trait]
+    impl Service for ImmediatelyFailingService {
+        fn name(&self) -> &'static str {
+            "test::immediately_failing_service"
+        }
+
+        async fn run(&mut self, _shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+            Err(anyhow!("boom"))
+        }
+    }
+
+    struct ImmediatelySuccessService;
+
+    #[async_trait]
+    impl Service for ImmediatelySuccessService {
+        fn name(&self) -> &'static str {
+            "test::immediately_success_service"
+        }
+
+        async fn run(&mut self, _shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[actix_web::test]
+    async fn err_exit_cascades_to_peers() -> Result<()> {
+        let ready = Arc::new(Notify::new());
+        let fail = Arc::new(Notify::new());
+        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let mut manager = ServiceManager::default();
+        manager.add_service(NeverExitingService {
+            ready: ready.clone(),
+        });
+        manager.add_service(FailingOnDemandService { fail: fail.clone() });
+
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+
+        ready.notified().await;
+        fail.notify_one();
+
+        manager_handle.await??;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn ok_exit_cascades_to_peers() -> Result<()> {
+        let ready = Arc::new(Notify::new());
+        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let mut manager = ServiceManager::default();
+        manager.add_service(NeverExitingService {
+            ready: ready.clone(),
+        });
+        manager.add_service(ImmediatelySuccessService);
+
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+
+        ready.notified().await;
+
+        manager_handle.await??;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn fast_failure_cascades_to_late_subscriber() -> Result<()> {
+        let ready = Arc::new(Notify::new());
+        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let mut manager = ServiceManager::default();
+        manager.add_service(ImmediatelyFailingService);
+        manager.add_service(NeverExitingService {
+            ready: ready.clone(),
+        });
+
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+
+        ready.notified().await;
+
+        manager_handle.await??;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn external_shutdown_still_works() -> Result<()> {
+        let ready_first = Arc::new(Notify::new());
+        let ready_second = Arc::new(Notify::new());
+        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let mut manager = ServiceManager::default();
+        manager.add_service(NeverExitingService {
+            ready: ready_first.clone(),
+        });
+        manager.add_service(NeverExitingService {
+            ready: ready_second.clone(),
+        });
+
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+
+        ready_first.notified().await;
+        ready_second.notified().await;
+
+        if let Err(_unsent_signal) = shutdown_tx.send(()) {
+            return Err(anyhow!("run_forever dropped its shutdown receiver"));
+        }
+
+        manager_handle.await??;
 
         Ok(())
     }
