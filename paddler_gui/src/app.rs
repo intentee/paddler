@@ -34,6 +34,7 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_running_handler;
+use crate::auto_cluster_config::get_auto_cluster_config;
 use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
@@ -105,26 +106,35 @@ pub struct App {
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
-        let app = Self {
+        let mut app = Self {
             agent_runner: None,
             shutdown: CancellationToken::new(),
             cluster_runner: None,
             screen: CurrentScreen::default(),
         };
 
-        (app, Task::done(Message::IcedEventLoopReady))
+        let startup_task = get_auto_cluster_config().map_or_else(
+            || Task::done(Message::IcedEventLoopReady),
+            |config| {
+                let spawn_task = app.spawn_cluster(
+                    config.management_addr,
+                    config.inference_addr,
+                    &BalancerDesiredState::default(),
+                );
+
+                Task::batch([Task::done(Message::IcedEventLoopReady), spawn_task])
+            },
+        );
+
+        (app, startup_task)
     }
 
-    #[expect(
-        clippy::print_stdout,
-        reason = "the iced-event-loop-ready marker is an observable signal for the integration-test harness"
-    )]
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let screen = mem::take(&mut self.screen);
 
         match (screen, message) {
             (screen, Message::IcedEventLoopReady) => {
-                println!("paddler_gui: iced event loop ready");
+                log::info!("paddler_gui: iced event loop ready");
                 self.screen = screen;
 
                 Task::none()
