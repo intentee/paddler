@@ -4,7 +4,7 @@ use clap::Parser;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrapped_agent_handle::bootstrap_agent;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
 use super::value_parser::parse_socket_addr;
@@ -26,13 +26,13 @@ pub struct Agent {
 
 #[async_trait]
 impl Handler for Agent {
-    async fn handle(&self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
+    async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
         let bootstrapped = bootstrap_agent(BootstrapAgentParams {
             agent_name: self.name.clone(),
             management_address: self.management_addr.socket_addr.to_string(),
             slots: self.slots,
         });
 
-        bootstrapped.service_manager.run_forever(shutdown_rx).await
+        bootstrapped.service_manager.run_forever(shutdown).await
     }
 }

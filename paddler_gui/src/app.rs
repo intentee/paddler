@@ -32,6 +32,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent_running_handler;
 use crate::bootstrapped_balancer_bundle::BootstrappedBalancerBundle;
@@ -57,33 +58,25 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
 });
 
-fn send_shutdown(sender: &mut Option<oneshot::Sender<()>>, label: &str) {
-    if let Some(shutdown_tx) = sender.take()
-        && let Err(unsent_signal) = shutdown_tx.send(())
-    {
-        log::error!("Failed to send {label} shutdown signal: {unsent_signal:?}");
-    }
-}
-
 pub struct App {
-    agent_shutdown_tx: Option<oneshot::Sender<()>>,
+    agent_shutdown: CancellationToken,
+    cluster_shutdown: CancellationToken,
     screen: CurrentScreen,
-    shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
 impl Drop for App {
     fn drop(&mut self) {
-        send_shutdown(&mut self.shutdown_tx, "cluster");
-        send_shutdown(&mut self.agent_shutdown_tx, "agent");
+        self.cluster_shutdown.cancel();
+        self.agent_shutdown.cancel();
     }
 }
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
         let app = Self {
-            agent_shutdown_tx: None,
+            agent_shutdown: CancellationToken::new(),
+            cluster_shutdown: CancellationToken::new(),
             screen: CurrentScreen::default(),
-            shutdown_tx: None,
         };
 
         (app, Task::none())
@@ -140,7 +133,7 @@ impl App {
                         Task::none()
                     }
                     start_cluster_config_handler::Action::Cancel => {
-                        send_shutdown(&mut self.shutdown_tx, "cluster");
+                        self.cluster_shutdown.cancel();
                         self.screen = CurrentScreen::Home(config.cancel());
 
                         Task::none()
@@ -163,7 +156,6 @@ impl App {
             }
             (CurrentScreen::StartClusterConfig(config), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed to start: {error}");
-                self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(config.cluster_failed(error));
 
                 Task::none()
@@ -178,7 +170,7 @@ impl App {
                         Task::none()
                     }
                     running_cluster_handler::Action::Stop => {
-                        send_shutdown(&mut self.shutdown_tx, "cluster");
+                        self.cluster_shutdown.cancel();
                         self.screen = CurrentScreen::RunningCluster(running);
 
                         Task::none()
@@ -197,7 +189,6 @@ impl App {
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
-                self.shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed(error));
 
                 Task::none()
@@ -212,7 +203,7 @@ impl App {
                         Task::none()
                     }
                     agent_running_handler::Action::Disconnect => {
-                        send_shutdown(&mut self.agent_shutdown_tx, "agent");
+                        self.agent_shutdown.cancel();
                         self.screen = CurrentScreen::Home(running.disconnect());
 
                         Task::none()
@@ -221,14 +212,12 @@ impl App {
             }
             (CurrentScreen::AgentRunning(running), Message::AgentStopped) => {
                 log::info!("Agent stopped");
-                self.agent_shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.disconnect());
 
                 Task::none()
             }
             (CurrentScreen::AgentRunning(running), Message::AgentFailed(error)) => {
                 log::error!("Agent failed: {error}");
-                self.agent_shutdown_tx = None;
                 self.screen = CurrentScreen::Home(running.agent_failed(error));
 
                 Task::none()
@@ -315,11 +304,11 @@ impl App {
         management_address: String,
         slots: i32,
     ) -> Task<Message> {
-        let (agent_shutdown_tx, agent_shutdown_rx) = oneshot::channel::<()>();
+        self.agent_shutdown = CancellationToken::new();
+        let agent_shutdown = self.agent_shutdown.clone();
         let (status_watch_tx, status_watch_rx) =
             watch::channel::<Option<Arc<SlotAggregatedStatus>>>(None);
 
-        self.agent_shutdown_tx = Some(agent_shutdown_tx);
         self.screen = CurrentScreen::AgentRunning(screen);
 
         Task::batch([
@@ -344,7 +333,7 @@ impl App {
 
                             bootstrapped
                                 .service_manager
-                                .run_forever(agent_shutdown_rx)
+                                .run_forever(agent_shutdown)
                                 .await
                         })
                     })
@@ -408,10 +397,9 @@ impl App {
         inference_addr: SocketAddr,
         desired_state: BalancerDesiredState,
     ) -> Task<Message> {
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        self.cluster_shutdown = CancellationToken::new();
+        let cluster_shutdown = self.cluster_shutdown.clone();
         let (bundle_tx, bundle_rx) = oneshot::channel::<Arc<BootstrappedBalancerBundle>>();
-
-        self.shutdown_tx = Some(shutdown_tx);
 
         Task::batch([
             Task::perform(
@@ -458,7 +446,7 @@ impl App {
                             let state_database = bootstrapped.state_database.clone();
 
                             let service_handle = actix_web::rt::spawn(
-                                bootstrapped.service_manager.run_forever(shutdown_rx),
+                                bootstrapped.service_manager.run_forever(cluster_shutdown),
                             );
 
                             state_database

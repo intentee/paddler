@@ -11,7 +11,7 @@ use cmd::balancer::Balancer;
 use cmd::handler::Handler as _;
 use tokio::signal::unix::SignalKind;
 use tokio::signal::unix::signal;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "web_admin_panel")]
 pub const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
@@ -44,11 +44,12 @@ enum Commands {
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let shutdown = CancellationToken::new();
+    let signal_shutdown = shutdown.clone();
 
     #[expect(
         clippy::expect_used,
-        reason = "signal handler setup and shutdown signaling failures are unrecoverable"
+        reason = "signal handler setup failures are unrecoverable"
     )]
     tokio::spawn(async move {
         let mut sigterm = signal(SignalKind::terminate()).expect("Failed to listen for SIGTERM");
@@ -61,18 +62,16 @@ async fn main() -> Result<()> {
             _ = sighup.recv() => info!("Received SIGHUP"),
         }
 
-        shutdown_tx
-            .send(())
-            .expect("Failed to send shutdown signal");
+        signal_shutdown.cancel();
     });
 
     match Cli::parse().command {
-        Some(Commands::Agent(handler)) => Ok(handler.handle(shutdown_rx).await?),
+        Some(Commands::Agent(handler)) => Ok(handler.handle(shutdown).await?),
         Some(Commands::Balancer(handler)) => {
             #[cfg(feature = "web_admin_panel")]
             initialize_instance(ESBUILD_META_CONTENTS);
 
-            Ok(handler.handle(shutdown_rx).await?)
+            Ok(handler.handle(shutdown).await?)
         }
         None => Ok(()),
     }

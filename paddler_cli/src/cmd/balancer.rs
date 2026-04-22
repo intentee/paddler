@@ -18,7 +18,7 @@ use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
 use super::value_parser::parse_duration;
@@ -136,7 +136,7 @@ impl Balancer {
 
 #[async_trait]
 impl Handler for Balancer {
-    async fn handle(&self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
+    async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
         let mut bootstrapped = bootstrap_balancer(BootstrapBalancerParams {
             buffered_request_timeout: self.buffered_request_timeout,
             inference_service_configuration: self.get_inference_service_configuration(),
@@ -169,6 +169,6 @@ impl Handler for Balancer {
                 .add_service(WebAdminPanelService { configuration });
         }
 
-        bootstrapped.service_manager.run_forever(shutdown_rx).await
+        bootstrapped.service_manager.run_forever(shutdown).await
     }
 }

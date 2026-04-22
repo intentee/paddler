@@ -6,7 +6,6 @@ use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
 use log::error;
 use log::info;
-use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::service::Service;
@@ -29,18 +28,18 @@ impl ServiceManager {
         self.services.push(Box::new(service));
     }
 
-    pub async fn run_forever(self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
-        let shutdown_token = CancellationToken::new();
+    pub async fn run_forever(self, shutdown: CancellationToken) -> Result<()> {
+        let service_token = shutdown.child_token();
         let mut service_handles = FuturesUnordered::new();
 
         for mut service in self.services {
             let service_name = service.name().to_owned();
-            let service_token = shutdown_token.clone();
+            let task_token = service_token.clone();
 
             service_handles.push(rt::spawn(async move {
                 info!("{service_name}: Starting");
 
-                let result = service.run(service_token).await;
+                let result = service.run(task_token).await;
 
                 match &result {
                     Ok(()) => info!("{service_name}: Stopped"),
@@ -54,13 +53,13 @@ impl ServiceManager {
         let mut first_error: Option<anyhow::Error> = None;
 
         tokio::select! {
-            _ = shutdown_rx => {}
+            () = shutdown.cancelled() => {}
             Some(join_result) = service_handles.next() => {
                 first_error = extract_service_error(join_result);
             }
         }
 
-        shutdown_token.cancel();
+        service_token.cancel();
 
         while let Some(join_result) = service_handles.next().await {
             if let Some(service_error) = extract_service_error(join_result)
@@ -154,7 +153,7 @@ mod tests {
     async fn err_exit_cascades_to_peers() -> Result<()> {
         let ready = Arc::new(Notify::new());
         let fail = Arc::new(Notify::new());
-        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let shutdown = CancellationToken::new();
 
         let mut manager = ServiceManager::default();
         manager.add_service(NeverExitingService {
@@ -162,7 +161,7 @@ mod tests {
         });
         manager.add_service(FailingOnDemandService { fail: fail.clone() });
 
-        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown));
 
         ready.notified().await;
         fail.notify_one();
@@ -186,7 +185,7 @@ mod tests {
     #[actix_web::test]
     async fn ok_exit_cascades_to_peers() -> Result<()> {
         let ready = Arc::new(Notify::new());
-        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let shutdown = CancellationToken::new();
 
         let mut manager = ServiceManager::default();
         manager.add_service(NeverExitingService {
@@ -194,7 +193,7 @@ mod tests {
         });
         manager.add_service(ImmediatelySuccessService);
 
-        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown));
 
         ready.notified().await;
 
@@ -206,7 +205,7 @@ mod tests {
     #[actix_web::test]
     async fn fast_failure_cascades_to_late_subscriber() -> Result<()> {
         let ready = Arc::new(Notify::new());
-        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let shutdown = CancellationToken::new();
 
         let mut manager = ServiceManager::default();
         manager.add_service(ImmediatelyFailingService);
@@ -214,7 +213,7 @@ mod tests {
             ready: ready.clone(),
         });
 
-        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown));
 
         ready.notified().await;
 
@@ -236,14 +235,14 @@ mod tests {
 
     #[actix_web::test]
     async fn all_services_exit_before_cancel_is_idempotent() -> Result<()> {
-        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let shutdown = CancellationToken::new();
 
         let mut manager = ServiceManager::default();
         manager.add_service(ImmediatelySuccessService);
         manager.add_service(ImmediatelySuccessService);
         manager.add_service(ImmediatelySuccessService);
 
-        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown));
 
         manager_handle.await??;
 
@@ -254,7 +253,7 @@ mod tests {
     async fn external_shutdown_still_works() -> Result<()> {
         let ready_first = Arc::new(Notify::new());
         let ready_second = Arc::new(Notify::new());
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let shutdown = CancellationToken::new();
 
         let mut manager = ServiceManager::default();
         manager.add_service(NeverExitingService {
@@ -264,14 +263,12 @@ mod tests {
             ready: ready_second.clone(),
         });
 
-        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown.clone()));
 
         ready_first.notified().await;
         ready_second.notified().await;
 
-        if let Err(_unsent_signal) = shutdown_tx.send(()) {
-            return Err(anyhow!("run_forever dropped its shutdown receiver"));
-        }
+        shutdown.cancel();
 
         manager_handle.await??;
 

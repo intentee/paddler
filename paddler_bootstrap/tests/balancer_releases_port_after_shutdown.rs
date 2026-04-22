@@ -11,7 +11,7 @@ use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
 use tokio::net::TcpStream;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 fn pick_free_loopback_addr() -> Result<SocketAddr> {
     let probe =
@@ -39,7 +39,8 @@ async fn balancer_releases_port_after_shutdown() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let shutdown = CancellationToken::new();
+    let balancer_shutdown = shutdown.clone();
 
     let balancer_task = tokio::task::spawn_blocking(move || -> Result<()> {
         actix_web::rt::System::new().block_on(async move {
@@ -64,7 +65,7 @@ async fn balancer_releases_port_after_shutdown() -> Result<()> {
             .await?;
 
             let service_handle =
-                actix_web::rt::spawn(bootstrapped.service_manager.run_forever(shutdown_rx));
+                actix_web::rt::spawn(bootstrapped.service_manager.run_forever(balancer_shutdown));
 
             service_handle
                 .await
@@ -75,9 +76,7 @@ async fn balancer_releases_port_after_shutdown() -> Result<()> {
     wait_until_bound(management_addr).await?;
     wait_until_bound(inference_addr).await?;
 
-    shutdown_tx
-        .send(())
-        .map_err(|()| anyhow!("failed to deliver shutdown signal to balancer task"))?;
+    shutdown.cancel();
 
     balancer_task
         .await

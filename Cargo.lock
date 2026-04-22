@@ -4508,6 +4508,7 @@ dependencies = [
  "paddler",
  "paddler_types",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -4526,6 +4527,7 @@ dependencies = [
  "paddler",
  "paddler_bootstrap",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
