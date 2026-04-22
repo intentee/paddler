@@ -16,6 +16,9 @@ jobs:
       description: ${{ steps.release-version.outputs.description }}
       type: ${{ steps.release-version.outputs.type }}
     steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
       - id: release-version
         uses: intentee/release-action/release-tag-to-version@8125f727e97f72bfef24299d7c6d3217af1453bc
         with:
