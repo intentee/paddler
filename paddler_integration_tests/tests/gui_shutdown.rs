@@ -2,6 +2,8 @@
 
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -11,74 +13,63 @@ use nix::sys::signal::Signal;
 use nix::sys::signal::kill;
 use nix::unistd::Pid;
 use paddler_integration_tests::PADDLER_GUI_BINARY_PATH;
-use tempfile::TempDir;
 use tokio::io::AsyncBufReadExt as _;
 use tokio::io::BufReader;
 use tokio::process::Child;
 use tokio::process::Command;
 
-struct HeadlessWayland {
-    socket_name: String,
-    runtime_dir: TempDir,
-    weston: Child,
+struct HeadlessDisplay {
+    display_name: String,
+    xvfb: Child,
 }
 
-impl HeadlessWayland {
+impl HeadlessDisplay {
     async fn start() -> Result<Self> {
-        let runtime_dir = tempfile::Builder::new()
-            .prefix("paddler_gui_test_xdg_")
-            .tempdir()
-            .context("failed to create runtime dir for headless wayland")?;
-        let socket_name = format!("paddler-gui-test-{}", std::process::id());
+        let display_number = std::process::id() % 1000 + 99;
+        let display_name = format!(":{display_number}");
 
-        let mut weston = Command::new("weston")
-            .arg("--backend=headless")
-            .arg(format!("--socket={socket_name}"))
-            .arg("--width=800")
-            .arg("--height=800")
-            .env("XDG_RUNTIME_DIR", runtime_dir.path())
+        let mut xvfb = Command::new("Xvfb")
+            .arg(&display_name)
+            .arg("-screen")
+            .arg("0")
+            .arg("1024x768x24")
+            .arg("-nolisten")
+            .arg("tcp")
             .stdout(Stdio::null())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::null())
             .spawn()
-            .context("failed to spawn weston; is it installed in the nix-shell?")?;
+            .context("failed to spawn Xvfb; is it installed in the nix-shell?")?;
 
-        let socket_path = runtime_dir.path().join(&socket_name);
+        let lock_path = PathBuf::from(format!("/tmp/.X{display_number}-lock"));
+        let socket_path = PathBuf::from(format!("/tmp/.X11-unix/X{display_number}"));
 
         loop {
-            if socket_path.exists() {
+            if lock_path.exists() && socket_path.exists() {
                 break;
             }
 
-            match weston.try_wait() {
+            match xvfb.try_wait() {
                 Ok(Some(exit_status)) => {
-                    bail!("weston exited before creating socket: {exit_status}");
+                    bail!("Xvfb exited before becoming ready: {exit_status}");
                 }
                 Ok(None) => {}
-                Err(error) => bail!("failed to check weston status: {error}"),
+                Err(error) => bail!("failed to check Xvfb status: {error}"),
             }
 
             tokio::task::yield_now().await;
         }
 
-        Ok(Self {
-            socket_name,
-            runtime_dir,
-            weston,
-        })
+        Ok(Self { display_name, xvfb })
     }
 
-    fn runtime_dir(&self) -> &std::path::Path {
-        self.runtime_dir.path()
-    }
-
-    fn socket_name(&self) -> &str {
-        &self.socket_name
+    fn display_name(&self) -> &str {
+        &self.display_name
     }
 }
 
-impl Drop for HeadlessWayland {
+impl Drop for HeadlessDisplay {
     fn drop(&mut self) {
-        if let Some(raw_pid) = self.weston.id() {
+        if let Some(raw_pid) = self.xvfb.id() {
             #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
             let pid = Pid::from_raw(raw_pid as i32);
             let _ = kill(pid, Signal::SIGTERM);
@@ -132,29 +123,30 @@ fn paddler_gui_binary_path() -> Result<PathBuf> {
     Ok(path)
 }
 
+const SHUTDOWN_SLA: Duration = Duration::from_secs(1);
+
 #[tokio::test]
-async fn gui_binary_exits_cleanly_on_sigterm_at_home_screen() -> Result<()> {
+async fn gui_binary_exits_under_one_second_on_sigterm_at_home_screen() -> Result<()> {
     let binary = paddler_gui_binary_path()?;
-    let wayland = HeadlessWayland::start().await?;
+    let display = HeadlessDisplay::start().await?;
 
     let mut gui = Command::new(&binary)
-        .env("XDG_RUNTIME_DIR", wayland.runtime_dir())
-        .env("WAYLAND_DISPLAY", wayland.socket_name())
-        .env("RUST_LOG", "info")
+        .env_remove("WAYLAND_DISPLAY")
+        .env("DISPLAY", display.display_name())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()
         .context("failed to spawn paddler_gui binary")?;
 
-    let stderr = gui
-        .stderr
+    let stdout = gui
+        .stdout
         .take()
-        .ok_or_else(|| anyhow!("paddler_gui stderr is not piped"))?;
-    let mut stderr_reader = BufReader::new(stderr);
+        .ok_or_else(|| anyhow!("paddler_gui stdout is not piped"))?;
+    let mut stdout_reader = BufReader::new(stdout);
     let mut captured = Vec::new();
 
     wait_for_log_line(
-        &mut stderr_reader,
+        &mut stdout_reader,
         "paddler_gui: iced event loop ready",
         &mut captured,
     )
@@ -166,6 +158,8 @@ async fn gui_binary_exits_cleanly_on_sigterm_at_home_screen() -> Result<()> {
     #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
     let pid = Pid::from_raw(raw_pid as i32);
 
+    let sigterm_sent_at = Instant::now();
+
     kill(pid, Signal::SIGTERM).context("failed to send SIGTERM to paddler_gui")?;
 
     let exit_status = gui
@@ -173,12 +167,19 @@ async fn gui_binary_exits_cleanly_on_sigterm_at_home_screen() -> Result<()> {
         .await
         .context("failed to wait for paddler_gui exit")?;
 
+    let shutdown_elapsed = sigterm_sent_at.elapsed();
+
     assert!(
         exit_status.success() || exit_status.code().is_some(),
         "paddler_gui terminated abnormally: {exit_status:?}"
     );
 
-    drop(wayland);
+    assert!(
+        shutdown_elapsed < SHUTDOWN_SLA,
+        "paddler_gui took {shutdown_elapsed:?} to exit after SIGTERM; SLA is {SHUTDOWN_SLA:?}"
+    );
+
+    drop(display);
 
     Ok(())
 }

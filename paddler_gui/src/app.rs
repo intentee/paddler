@@ -115,12 +115,16 @@ impl App {
         (app, Task::done(Message::IcedEventLoopReady))
     }
 
+    #[expect(
+        clippy::print_stdout,
+        reason = "the iced-event-loop-ready marker is an observable signal for the integration-test harness"
+    )]
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let screen = mem::take(&mut self.screen);
 
         match (screen, message) {
             (screen, Message::IcedEventLoopReady) => {
-                log::info!("paddler_gui: iced event loop ready");
+                println!("paddler_gui: iced event loop ready");
                 self.screen = screen;
 
                 Task::none()

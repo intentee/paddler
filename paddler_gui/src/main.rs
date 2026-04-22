@@ -22,12 +22,15 @@ mod ui;
 use app::App;
 use iced::Size;
 use iced::Theme;
-use log::info;
 
+#[expect(
+    clippy::print_stdout,
+    reason = "the readiness marker is an observable signal for the integration-test harness"
+)]
 fn main() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    info!("paddler_gui: ready");
+    println!("paddler_gui: ready");
 
     iced::application(App::new, App::update, App::view)
         .font(include_bytes!(
