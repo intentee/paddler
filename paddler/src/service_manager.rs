@@ -1,5 +1,7 @@
 use actix_web::rt;
+use actix_web::rt::task::JoinError;
 use anyhow::Result;
+use anyhow::anyhow;
 use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
 use log::error;
@@ -8,6 +10,14 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::service::Service;
+
+fn extract_service_error(join_result: Result<Result<()>, JoinError>) -> Option<anyhow::Error> {
+    match join_result {
+        Ok(Ok(())) => None,
+        Ok(Err(service_error)) => Some(service_error),
+        Err(join_error) => Some(anyhow!("service task panicked: {join_error}")),
+    }
+}
 
 #[derive(Default)]
 pub struct ServiceManager {
@@ -30,23 +40,37 @@ impl ServiceManager {
             service_handles.push(rt::spawn(async move {
                 info!("{service_name}: Starting");
 
-                match service.run(service_token).await {
+                let result = service.run(service_token).await;
+
+                match &result {
                     Ok(()) => info!("{service_name}: Stopped"),
-                    Err(err) => error!("{service_name}: {err}"),
+                    Err(service_error) => error!("{service_name}: {service_error}"),
                 }
+
+                result
             }));
         }
 
+        let mut first_error: Option<anyhow::Error> = None;
+
         tokio::select! {
             _ = shutdown_rx => {}
-            _ = service_handles.next() => {}
+            Some(join_result) = service_handles.next() => {
+                first_error = extract_service_error(join_result);
+            }
         }
 
         shutdown_token.cancel();
 
-        while service_handles.next().await.is_some() {}
+        while let Some(join_result) = service_handles.next().await {
+            if let Some(service_error) = extract_service_error(join_result)
+                && first_error.is_none()
+            {
+                first_error = Some(service_error);
+            }
+        }
 
-        Ok(())
+        first_error.map_or_else(|| Ok(()), Err)
     }
 }
 
@@ -54,11 +78,15 @@ impl ServiceManager {
 mod tests {
     use std::sync::Arc;
 
-    use anyhow::anyhow;
     use async_trait::async_trait;
+    use thiserror::Error;
     use tokio::sync::Notify;
 
     use super::*;
+
+    #[derive(Debug, Error)]
+    #[error("intentional test failure")]
+    struct TestFailureMarker;
 
     struct NeverExitingService {
         ready: Arc<Notify>,
@@ -92,7 +120,7 @@ mod tests {
         async fn run(&mut self, _shutdown: CancellationToken) -> Result<()> {
             self.fail.notified().await;
 
-            Err(anyhow!("boom"))
+            Err(TestFailureMarker.into())
         }
     }
 
@@ -105,7 +133,7 @@ mod tests {
         }
 
         async fn run(&mut self, _shutdown: CancellationToken) -> Result<()> {
-            Err(anyhow!("boom"))
+            Err(TestFailureMarker.into())
         }
     }
 
@@ -139,7 +167,18 @@ mod tests {
         ready.notified().await;
         fail.notify_one();
 
-        manager_handle.await??;
+        let error = match manager_handle.await? {
+            Ok(()) => {
+                return Err(anyhow!(
+                    "run_forever should surface the failing service's error"
+                ));
+            }
+            Err(service_error) => service_error,
+        };
+
+        error
+            .downcast_ref::<TestFailureMarker>()
+            .ok_or_else(|| anyhow!("expected TestFailureMarker, got: {error:?}"))?;
 
         Ok(())
     }
@@ -179,7 +218,18 @@ mod tests {
 
         ready.notified().await;
 
-        manager_handle.await??;
+        let error = match manager_handle.await? {
+            Ok(()) => {
+                return Err(anyhow!(
+                    "run_forever should surface the failing service's error"
+                ));
+            }
+            Err(service_error) => service_error,
+        };
+
+        error
+            .downcast_ref::<TestFailureMarker>()
+            .ok_or_else(|| anyhow!("expected TestFailureMarker, got: {error:?}"))?;
 
         Ok(())
     }
