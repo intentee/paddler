@@ -21,6 +21,7 @@ log = { workspace = true }
 nanoid = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
+paddler_types = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 

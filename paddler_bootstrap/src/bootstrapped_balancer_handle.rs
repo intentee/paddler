@@ -14,6 +14,9 @@ use paddler::balancer::state_database::File;
 use paddler::balancer::state_database::Memory;
 use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
+use paddler::balancer::statsd_service::StatsdService;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -25,7 +28,6 @@ pub struct BootstrappedBalancerHandle {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
-    pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub service_manager: ServiceManager,
     pub state_database: Arc<dyn StateDatabase>,
 }
@@ -39,6 +41,7 @@ pub async fn bootstrap_balancer(
         openai_service_configuration,
         state_database_type,
         statsd_prefix,
+        statsd_service_configuration,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration,
     }: BootstrapBalancerParams,
@@ -85,7 +88,7 @@ pub async fn bootstrap_balancer(
         state_database: state_database.clone(),
         statsd_prefix,
         #[cfg(feature = "web_admin_panel")]
-        web_admin_panel_service_configuration,
+        web_admin_panel_service_configuration: web_admin_panel_service_configuration.clone(),
     });
 
     service_manager.add_service(ReconciliationService {
@@ -104,11 +107,25 @@ pub async fn bootstrap_balancer(
         });
     }
 
+    if let Some(statsd_configuration) = statsd_service_configuration {
+        service_manager.add_service(StatsdService {
+            agent_controller_pool: agent_controller_pool.clone(),
+            buffered_request_manager: buffered_request_manager.clone(),
+            configuration: statsd_configuration,
+        });
+    }
+
+    #[cfg(feature = "web_admin_panel")]
+    if let Some(web_admin_panel_configuration) = web_admin_panel_service_configuration {
+        service_manager.add_service(WebAdminPanelService {
+            configuration: web_admin_panel_configuration,
+        });
+    }
+
     Ok(BootstrappedBalancerHandle {
         agent_controller_pool,
         balancer_applicable_state_holder,
         balancer_desired_state_tx,
-        buffered_request_manager,
         service_manager,
         state_database,
     })

@@ -58,6 +58,7 @@ fn make_cluster_bootstrap_params(
         openai_service_configuration: None,
         state_database_type: StateDatabaseType::Memory,
         statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+        statsd_service_configuration: None,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration: None,
     }

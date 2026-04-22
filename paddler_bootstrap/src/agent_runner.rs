@@ -1,15 +1,14 @@
 use std::sync::Arc;
-use std::thread;
 
 use anyhow::Result;
-use anyhow::anyhow;
-use log::error;
+use log::debug;
 use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::bootstrap_agent_params::BootstrapAgentParams;
 use crate::bootstrapped_agent_handle::bootstrap_agent;
+use crate::service_thread::ServiceThread;
 
 pub struct AgentRunnerParams {
     pub bootstrap_params: BootstrapAgentParams,
@@ -17,53 +16,39 @@ pub struct AgentRunnerParams {
 }
 
 pub struct AgentRunner {
-    completion_rx: Option<oneshot::Receiver<Result<()>>>,
     initial_status_rx: Option<oneshot::Receiver<Arc<SlotAggregatedStatus>>>,
-    shutdown: CancellationToken,
-    thread: Option<thread::JoinHandle<()>>,
+    thread: ServiceThread,
 }
 
 impl AgentRunner {
+    #[must_use]
     pub fn start(params: AgentRunnerParams) -> Self {
         let AgentRunnerParams {
             bootstrap_params,
             parent_shutdown,
         } = params;
 
-        let shutdown = parent_shutdown
-            .as_ref()
-            .map_or_else(CancellationToken::new, CancellationToken::child_token);
-        let task_shutdown = shutdown.clone();
         let (status_tx, status_rx) = oneshot::channel::<Arc<SlotAggregatedStatus>>();
-        let (completion_tx, completion_rx) = oneshot::channel::<Result<()>>();
 
-        let thread = thread::spawn(move || {
-            let result = actix_web::rt::System::new().block_on(async move {
-                let bootstrapped = bootstrap_agent(bootstrap_params);
+        let thread = ServiceThread::spawn(parent_shutdown, move |task_shutdown| async move {
+            let bootstrapped = bootstrap_agent(bootstrap_params);
 
-                if status_tx
-                    .send(bootstrapped.slot_aggregated_status.clone())
-                    .is_err()
-                {
-                    return Err(anyhow!(
-                        "agent runner status receiver dropped before bootstrap completed"
-                    ));
-                }
+            if status_tx
+                .send(bootstrapped.slot_aggregated_status.clone())
+                .is_err()
+            {
+                debug!("agent runner status receiver dropped; continuing without publishing");
+            }
 
-                bootstrapped
-                    .service_manager
-                    .run_forever(task_shutdown)
-                    .await
-            });
-
-            let _ = completion_tx.send(result);
+            bootstrapped
+                .service_manager
+                .run_forever(task_shutdown)
+                .await
         });
 
         Self {
-            completion_rx: Some(completion_rx),
             initial_status_rx: Some(status_rx),
-            shutdown,
-            thread: Some(thread),
+            thread,
         }
     }
 
@@ -74,22 +59,10 @@ impl AgentRunner {
     }
 
     pub const fn take_completion_rx(&mut self) -> Option<oneshot::Receiver<Result<()>>> {
-        self.completion_rx.take()
+        self.thread.take_completion_rx()
     }
 
     pub fn cancel(&self) {
-        self.shutdown.cancel();
-    }
-}
-
-impl Drop for AgentRunner {
-    fn drop(&mut self) {
-        self.shutdown.cancel();
-
-        if let Some(thread) = self.thread.take()
-            && let Err(panic_payload) = thread.join()
-        {
-            error!("agent runner thread panicked: {panic_payload:?}");
-        }
+        self.thread.cancel();
     }
 }

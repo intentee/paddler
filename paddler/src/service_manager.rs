@@ -12,11 +12,18 @@ use tokio_util::sync::CancellationToken;
 
 use crate::service::Service;
 
-fn extract_service_error(join_result: Result<Result<()>, JoinError>) -> Option<anyhow::Error> {
-    match join_result {
-        Ok(Ok(())) => None,
-        Ok(Err(service_error)) => Some(service_error),
-        Err(join_error) => Some(anyhow!("service task panicked: {join_error}")),
+struct ServiceDrainEvent {
+    join_result: Result<Result<()>, JoinError>,
+    name: String,
+}
+
+impl ServiceDrainEvent {
+    fn into_service_error(self) -> Option<anyhow::Error> {
+        match self.join_result {
+            Ok(Ok(())) => None,
+            Ok(Err(service_error)) => Some(service_error),
+            Err(join_error) => Some(anyhow!("service task panicked: {join_error}")),
+        }
     }
 }
 
@@ -41,7 +48,7 @@ impl ServiceManager {
             pending_service_names.insert(service_name.clone());
 
             let task_token = service_token.clone();
-            let joined_name = service_name.clone();
+            let event_name = service_name.clone();
 
             service_handles.push(async move {
                 let join_result = rt::spawn(async move {
@@ -58,7 +65,10 @@ impl ServiceManager {
                 })
                 .await;
 
-                (joined_name, join_result)
+                ServiceDrainEvent {
+                    join_result,
+                    name: event_name,
+                }
             });
         }
 
@@ -66,9 +76,9 @@ impl ServiceManager {
 
         tokio::select! {
             () = shutdown.cancelled() => {}
-            Some((completed_name, join_result)) = service_handles.next() => {
-                pending_service_names.remove(&completed_name);
-                first_error = extract_service_error(join_result);
+            Some(event) = service_handles.next() => {
+                pending_service_names.remove(&event.name);
+                first_error = event.into_service_error();
             }
         }
 
@@ -80,12 +90,15 @@ impl ServiceManager {
 
         service_token.cancel();
 
-        while let Some((completed_name, join_result)) = service_handles.next().await {
-            pending_service_names.remove(&completed_name);
+        while let Some(event) = service_handles.next().await {
+            pending_service_names.remove(&event.name);
 
-            info!("run_forever: {completed_name} drained; remaining: {pending_service_names:?}");
+            info!(
+                "run_forever: {name} drained; remaining: {pending_service_names:?}",
+                name = event.name
+            );
 
-            if let Some(service_error) = extract_service_error(join_result)
+            if let Some(service_error) = event.into_service_error()
                 && first_error.is_none()
             {
                 first_error = Some(service_error);

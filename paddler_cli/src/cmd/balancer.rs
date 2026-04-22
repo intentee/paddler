@@ -1,23 +1,23 @@
 use std::time::Duration;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use async_trait::async_trait;
 use clap::Parser;
 use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
-use paddler::balancer::statsd_service::StatsdService;
 use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
-#[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
+use paddler_bootstrap::cluster_runner::ClusterRunner;
+use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
@@ -89,27 +89,36 @@ pub struct Balancer {
 }
 
 impl Balancer {
-    fn get_management_service_configuration(&self) -> ManagementServiceConfiguration {
-        ManagementServiceConfiguration {
-            addr: self.management_addr.socket_addr,
-            cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
+    fn build_bootstrap_params(&self) -> BootstrapBalancerParams {
+        BootstrapBalancerParams {
+            buffered_request_timeout: self.buffered_request_timeout,
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: self.inference_addr.socket_addr,
+                cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
+                inference_item_timeout: self.inference_item_timeout,
+            },
+            management_service_configuration: ManagementServiceConfiguration {
+                addr: self.management_addr.socket_addr,
+                cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
+            },
+            max_buffered_requests: self.max_buffered_requests,
+            openai_service_configuration: self.compat_openai_addr.clone().map(
+                |compat_openai_addr| OpenAIServiceConfiguration {
+                    addr: compat_openai_addr.socket_addr,
+                },
+            ),
+            state_database_type: self.state_database.clone(),
+            statsd_prefix: self.statsd_prefix.clone(),
+            statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {
+                StatsdServiceConfiguration {
+                    statsd_addr: statsd_addr.socket_addr,
+                    statsd_prefix: self.statsd_prefix.clone(),
+                    statsd_reporting_interval: self.statsd_reporting_interval,
+                }
+            }),
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
         }
-    }
-
-    fn get_inference_service_configuration(&self) -> InferenceServiceConfiguration {
-        InferenceServiceConfiguration {
-            addr: self.inference_addr.socket_addr,
-            cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
-            inference_item_timeout: self.inference_item_timeout,
-        }
-    }
-
-    fn get_openai_service_configuration(&self) -> Option<OpenAIServiceConfiguration> {
-        self.compat_openai_addr
-            .clone()
-            .map(|compat_openai_addr| OpenAIServiceConfiguration {
-                addr: compat_openai_addr.socket_addr,
-            })
     }
 
     #[cfg(feature = "web_admin_panel")]
@@ -137,38 +146,18 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
-        let mut bootstrapped = bootstrap_balancer(BootstrapBalancerParams {
-            buffered_request_timeout: self.buffered_request_timeout,
-            inference_service_configuration: self.get_inference_service_configuration(),
-            management_service_configuration: self.get_management_service_configuration(),
-            max_buffered_requests: self.max_buffered_requests,
-            openai_service_configuration: self.get_openai_service_configuration(),
-            state_database_type: self.state_database.clone(),
-            statsd_prefix: self.statsd_prefix.clone(),
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
-        })
-        .await?;
+        let mut runner = ClusterRunner::start(ClusterRunnerParams {
+            bootstrap_params: self.build_bootstrap_params(),
+            initial_desired_state: BalancerDesiredState::default(),
+            parent_shutdown: Some(shutdown),
+        });
 
-        if let Some(statsd_addr) = self.statsd_addr.clone() {
-            bootstrapped.service_manager.add_service(StatsdService {
-                agent_controller_pool: bootstrapped.agent_controller_pool.clone(),
-                buffered_request_manager: bootstrapped.buffered_request_manager.clone(),
-                configuration: StatsdServiceConfiguration {
-                    statsd_addr: statsd_addr.socket_addr,
-                    statsd_prefix: self.statsd_prefix.clone(),
-                    statsd_reporting_interval: self.statsd_reporting_interval,
-                },
-            });
-        }
+        let completion = runner
+            .take_completion_rx()
+            .ok_or_else(|| anyhow!("cluster runner completion channel missing"))?;
 
-        #[cfg(feature = "web_admin_panel")]
-        if let Some(configuration) = self.get_web_admin_panel_service_configuration() {
-            bootstrapped
-                .service_manager
-                .add_service(WebAdminPanelService { configuration });
-        }
-
-        bootstrapped.service_manager.run_forever(shutdown).await
+        completion
+            .await
+            .map_err(|error| anyhow!("cluster runner dropped: {error}"))?
     }
 }

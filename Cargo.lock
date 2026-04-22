@@ -4527,6 +4527,7 @@ dependencies = [
  "nanoid",
  "paddler",
  "paddler_bootstrap",
+ "paddler_types",
  "tokio",
  "tokio-util",
 ]

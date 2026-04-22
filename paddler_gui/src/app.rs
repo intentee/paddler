@@ -29,6 +29,7 @@ use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::cluster_runner::ClusterRunner;
 use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
+use paddler_bootstrap::unix_shutdown_signal::wait_for_unix_shutdown_signal;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -59,38 +60,10 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
 
 fn unix_shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
     iced::stream::channel(1, async move |mut output| {
-        use tokio::signal::unix::SignalKind;
-        use tokio::signal::unix::signal;
+        if let Err(error) = wait_for_unix_shutdown_signal().await {
+            log::error!("unix shutdown signal listener failed: {error}");
 
-        let mut sigterm = match signal(SignalKind::terminate()) {
-            Ok(signal_stream) => signal_stream,
-            Err(error) => {
-                log::error!("failed to listen for SIGTERM: {error}");
-
-                return;
-            }
-        };
-        let mut sigint = match signal(SignalKind::interrupt()) {
-            Ok(signal_stream) => signal_stream,
-            Err(error) => {
-                log::error!("failed to listen for SIGINT: {error}");
-
-                return;
-            }
-        };
-        let mut sighup = match signal(SignalKind::hangup()) {
-            Ok(signal_stream) => signal_stream,
-            Err(error) => {
-                log::error!("failed to listen for SIGHUP: {error}");
-
-                return;
-            }
-        };
-
-        tokio::select! {
-            _ = sigterm.recv() => log::info!("Received SIGTERM"),
-            _ = sigint.recv() => log::info!("Received SIGINT"),
-            _ = sighup.recv() => log::info!("Received SIGHUP"),
+            return;
         }
 
         let _ = output.send(Message::Quit).await;
@@ -476,6 +449,7 @@ impl App {
                 openai_service_configuration: None,
                 state_database_type: StateDatabaseType::Memory,
                 statsd_prefix: "paddler_".to_owned(),
+                statsd_service_configuration: None,
                 #[cfg(feature = "web_admin_panel")]
                 web_admin_panel_service_configuration: None,
             },
