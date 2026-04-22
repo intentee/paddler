@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 actix-web = { workspace = true }
 anyhow = { workspace = true }
+clap = { workspace = true }
 env_logger = { workspace = true }
 iced = { workspace = true }
 if-addrs = { workspace = true }
