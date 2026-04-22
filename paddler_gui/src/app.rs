@@ -56,6 +56,46 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
 });
 
+fn unix_shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
+    iced::stream::channel(1, async move |mut output| {
+        use tokio::signal::unix::SignalKind;
+        use tokio::signal::unix::signal;
+
+        let mut sigterm = match signal(SignalKind::terminate()) {
+            Ok(signal_stream) => signal_stream,
+            Err(error) => {
+                log::error!("failed to listen for SIGTERM: {error}");
+
+                return;
+            }
+        };
+        let mut sigint = match signal(SignalKind::interrupt()) {
+            Ok(signal_stream) => signal_stream,
+            Err(error) => {
+                log::error!("failed to listen for SIGINT: {error}");
+
+                return;
+            }
+        };
+        let mut sighup = match signal(SignalKind::hangup()) {
+            Ok(signal_stream) => signal_stream,
+            Err(error) => {
+                log::error!("failed to listen for SIGHUP: {error}");
+
+                return;
+            }
+        };
+
+        tokio::select! {
+            _ = sigterm.recv() => log::info!("Received SIGTERM"),
+            _ = sigint.recv() => log::info!("Received SIGINT"),
+            _ = sighup.recv() => log::info!("Received SIGHUP"),
+        }
+
+        let _ = output.send(Message::Quit).await;
+    })
+}
+
 pub struct App {
     agent_runner: Option<AgentRunner>,
     shutdown: CancellationToken,
@@ -268,6 +308,7 @@ impl App {
                 _ => None,
             }),
             window::close_requests().map(|_| Message::Quit),
+            Subscription::run(unix_shutdown_signal_stream),
         ])
     }
 
