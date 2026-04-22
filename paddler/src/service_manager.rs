@@ -4,9 +4,8 @@ use futures::stream::FuturesUnordered;
 use futures::stream::StreamExt;
 use log::error;
 use log::info;
-use tokio::sync::broadcast;
-use tokio::sync::broadcast::error::SendError;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use crate::service::Service;
 
@@ -21,17 +20,17 @@ impl ServiceManager {
     }
 
     pub async fn run_forever(self, shutdown_rx: oneshot::Receiver<()>) -> Result<()> {
-        let (shutdown_broadcast_tx, _) = broadcast::channel::<()>(1);
+        let shutdown_token = CancellationToken::new();
         let mut service_handles = FuturesUnordered::new();
 
         for mut service in self.services {
             let service_name = service.name().to_owned();
-            let service_shutdown_rx = shutdown_broadcast_tx.subscribe();
+            let service_token = shutdown_token.clone();
 
             service_handles.push(rt::spawn(async move {
                 info!("{service_name}: Starting");
 
-                match service.run(service_shutdown_rx).await {
+                match service.run(service_token).await {
                     Ok(()) => info!("{service_name}: Stopped"),
                     Err(err) => error!("{service_name}: {err}"),
                 }
@@ -43,11 +42,7 @@ impl ServiceManager {
             _ = service_handles.next() => {}
         }
 
-        // An `Err(SendError(()))` here means every service already exited and
-        // dropped its receiver, so the shutdown signal is redundant.
-        match shutdown_broadcast_tx.send(()) {
-            Ok(_) | Err(SendError(())) => {}
-        }
+        shutdown_token.cancel();
 
         while service_handles.next().await.is_some() {}
 
@@ -62,7 +57,6 @@ mod tests {
     use anyhow::anyhow;
     use async_trait::async_trait;
     use tokio::sync::Notify;
-    use tokio::sync::broadcast::error::RecvError;
 
     use super::*;
 
@@ -76,15 +70,12 @@ mod tests {
             "test::never_exiting_service"
         }
 
-        async fn run(&mut self, mut shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+        async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
             self.ready.notify_one();
 
-            loop {
-                match shutdown_rx.recv().await {
-                    Ok(()) | Err(RecvError::Closed) => return Ok(()),
-                    Err(RecvError::Lagged(_skipped)) => {}
-                }
-            }
+            shutdown.cancelled().await;
+
+            Ok(())
         }
     }
 
@@ -98,7 +89,7 @@ mod tests {
             "test::failing_on_demand_service"
         }
 
-        async fn run(&mut self, _shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+        async fn run(&mut self, _shutdown: CancellationToken) -> Result<()> {
             self.fail.notified().await;
 
             Err(anyhow!("boom"))
@@ -113,7 +104,7 @@ mod tests {
             "test::immediately_failing_service"
         }
 
-        async fn run(&mut self, _shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+        async fn run(&mut self, _shutdown: CancellationToken) -> Result<()> {
             Err(anyhow!("boom"))
         }
     }
@@ -126,7 +117,7 @@ mod tests {
             "test::immediately_success_service"
         }
 
-        async fn run(&mut self, _shutdown_rx: broadcast::Receiver<()>) -> Result<()> {
+        async fn run(&mut self, _shutdown: CancellationToken) -> Result<()> {
             Ok(())
         }
     }
@@ -194,7 +185,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn all_services_exit_before_broadcast_is_idempotent() -> Result<()> {
+    async fn all_services_exit_before_cancel_is_idempotent() -> Result<()> {
         let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
         let mut manager = ServiceManager::default();

@@ -9,8 +9,7 @@ use actix_web::HttpServer;
 use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
-use log::error;
-use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
@@ -49,7 +48,7 @@ impl Service for ManagementService {
         "balancer::management_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         #[cfg_attr(not(feature = "web_admin_panel"), expect(unused_mut))]
         let mut cors_allowed_hosts = self.configuration.cors_allowed_hosts.clone();
 
@@ -70,6 +69,7 @@ impl Service for ManagementService {
             embedding_sender_collection: self.embedding_sender_collection.clone(),
             generate_tokens_sender_collection: self.generate_tokens_sender_collection.clone(),
             model_metadata_sender_collection: self.model_metadata_sender_collection.clone(),
+            shutdown: shutdown.clone(),
             state_database: self.state_database.clone(),
             statsd_prefix: self.statsd_prefix.clone(),
         });
@@ -93,9 +93,7 @@ impl Service for ManagementService {
                 .configure(http_route::get_metrics::register)
         })
         .shutdown_signal(async move {
-            if let Err(err) = shutdown.recv().await {
-                error!("Failed to receive shutdown signal: {err}");
-            }
+            shutdown.cancelled().await;
         })
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")

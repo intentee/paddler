@@ -9,9 +9,9 @@ use paddler_types::inference_client::Response as OutgoingResponse;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::streamable_result::StreamableResult;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;
@@ -38,7 +38,7 @@ where
     TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync + 'static,
 {
     let request_id: String = nanoid!();
-    let (connection_close_tx, _connection_close_rx) = broadcast::channel(1);
+    let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<TransformResult>();
 
     rt::spawn(async move {
@@ -46,7 +46,7 @@ where
 
         if let Err(err) = request_from_agent(
             buffered_request_manager.clone(),
-            connection_close_tx,
+            connection_close,
             inference_service_configuration.clone(),
             params,
             request_id.clone(),

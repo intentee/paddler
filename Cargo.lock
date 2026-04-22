@@ -4494,6 +4494,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
+ "tokio-util",
  "url",
 ]
 
@@ -4563,6 +4564,7 @@ dependencies = [
  "paddler_types",
  "statum",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -4581,6 +4583,7 @@ dependencies = [
  "serial_test",
  "tempfile",
  "tokio",
+ "tokio-tungstenite",
  "url",
 ]
 

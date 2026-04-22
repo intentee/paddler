@@ -11,11 +11,11 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 use tokio::fs;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
@@ -46,7 +46,7 @@ pub struct LlamaCppArbiterService {
 }
 
 impl LlamaCppArbiterService {
-    async fn apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) -> Result<()> {
+    async fn apply_state(&mut self, shutdown: &CancellationToken) -> Result<()> {
         if self.continuous_batch_arbiter_handle.is_some() {
             drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
         }
@@ -187,7 +187,7 @@ impl LlamaCppArbiterService {
         }
     }
 
-    async fn try_to_apply_state(&mut self, shutdown: &mut broadcast::Receiver<()>) {
+    async fn try_to_apply_state(&mut self, shutdown: &CancellationToken) {
         if let Err(err) = self.apply_state(shutdown).await {
             error!("Failed to apply reconciled state change: {err}");
         }
@@ -211,7 +211,7 @@ impl Service for LlamaCppArbiterService {
         "agent::llamacpp_arbiter_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         let mut reconciled_state = self.agent_applicable_state_holder.subscribe();
         let mut ticker = interval(Duration::from_secs(1));
 
@@ -219,7 +219,7 @@ impl Service for LlamaCppArbiterService {
 
         let shutdown_outcome = loop {
             tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
+                () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
                     let current_status = self.slot_aggregated_status_manager.slot_aggregated_status.get_state_application_status()?;
 
@@ -234,7 +234,7 @@ impl Service for LlamaCppArbiterService {
                                 }
                             );
 
-                        self.try_to_apply_state(&mut shutdown.resubscribe()).await;
+                        self.try_to_apply_state(&shutdown).await;
                     }
                 }
                 _ = reconciled_state.changed() => {
@@ -243,7 +243,7 @@ impl Service for LlamaCppArbiterService {
                         .slot_aggregated_status
                         .set_state_application_status(AgentStateApplicationStatus::Fresh);
 
-                    self.try_to_apply_state(&mut shutdown.resubscribe()).await;
+                    self.try_to_apply_state(&shutdown).await;
                 }
                 continue_from_conversation_history_request = self.continue_from_conversation_history_request_rx.recv() => {
                     match continue_from_conversation_history_request {

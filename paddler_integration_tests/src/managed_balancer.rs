@@ -287,6 +287,15 @@ impl ManagedBalancer {
         terminate_child(&mut self.child);
     }
 
+    #[must_use]
+    pub fn pid(&self) -> Option<u32> {
+        self.child.id()
+    }
+
+    pub async fn wait_for_exit(&mut self) -> Result<std::process::ExitStatus> {
+        Ok(self.child.wait().await?)
+    }
+
     async fn wait_until_ready(&self) -> Result<()> {
         let start = std::time::Instant::now();
 

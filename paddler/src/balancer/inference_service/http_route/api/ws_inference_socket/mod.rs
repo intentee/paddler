@@ -21,7 +21,7 @@ use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::RequestEnvelope;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_types::validates::Validates as _;
-use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
@@ -54,7 +54,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
     }
 
     async fn handle_deserialized_message(
-        connection_close_tx: broadcast::Sender<()>,
+        connection_close: CancellationToken,
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
@@ -82,7 +82,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 rt::spawn(async move {
                     if let Err(err) = request_from_agent(
                         context.buffered_request_manager.clone(),
-                        connection_close_tx,
+                        connection_close,
                         context.inference_service_configuration.clone(),
                         validated_params,
                         request_id.clone(),
@@ -103,7 +103,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 rt::spawn(async move {
                     if let Err(err) = request_from_agent(
                         context.buffered_request_manager.clone(),
-                        connection_close_tx,
+                        connection_close,
                         context.inference_service_configuration.clone(),
                         raw_prompt_params,
                         request_id.clone(),
@@ -136,7 +136,7 @@ async fn respond(
         inference_service_configuration: app_data.inference_service_configuration.clone(),
     };
 
-    inference_socket_controller.respond(payload, http_request)
+    inference_socket_controller.respond(payload, http_request, app_data.shutdown.clone())
 }
 
 pub fn register(service_config: &mut ServiceConfig) {

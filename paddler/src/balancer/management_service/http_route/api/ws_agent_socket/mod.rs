@@ -25,8 +25,8 @@ use log::info;
 use paddler_types::jsonrpc::ResponseEnvelope;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use serde::Deserialize;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use self::agent_socket_controller_context::AgentSocketControllerContext;
 use self::jsonrpc::Message as ManagementJsonRpcMessage;
@@ -90,7 +90,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
     }
 
     async fn handle_deserialized_message(
-        connection_close_tx: broadcast::Sender<()>,
+        connection_close: CancellationToken,
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
         mut websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
@@ -104,7 +104,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::DeregisterAgent,
             ) => {
-                connection_close_tx.send(())?;
+                connection_close.cancel();
 
                 return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
                     close_reason: None,
@@ -136,7 +136,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     chat_template_override_sender_collection: context
                         .chat_template_override_sender_collection
                         .clone(),
-                    connection_close_rx: connection_close_tx.subscribe(),
+                    connection_close: connection_close.clone(),
                     desired_slots_total: AtomicValue::<AtomicI32>::new(desired_slots_total),
                     download_current: AtomicValue::<AtomicUsize>::new(download_current),
                     download_filename: RwLock::new(download_filename),
@@ -180,12 +180,12 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
 
                 info!("Registered agent: {}", context.agent_id);
 
-                let mut shutdown_tx_resubscribed = connection_close_tx.subscribe();
+                let forwarder_close = connection_close.clone();
 
                 rt::spawn(async move {
                     loop {
                         tokio::select! {
-                            _ = shutdown_tx_resubscribed.recv() => {
+                            () = forwarder_close.cancelled() => {
                                 break;
                             }
                             result = agent_message_rx.recv() => {
@@ -332,5 +332,5 @@ async fn respond(
         model_metadata_sender_collection: app_data.model_metadata_sender_collection.clone(),
     };
 
-    agent_socket_controller.respond(payload, req)
+    agent_socket_controller.respond(payload, req, app_data.shutdown.clone())
 }

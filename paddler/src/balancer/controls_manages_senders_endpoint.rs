@@ -33,12 +33,12 @@ pub trait ControlsManagesSendersEndpoint {
             return Ok(HttpResponse::NotFound().finish());
         };
 
-        let mut connection_close_rx = agent_controller.connection_close_rx.resubscribe();
+        let connection_close = agent_controller.connection_close.clone();
 
         match self.get_manages_senders_controller(agent_controller).await {
             Ok(mut receive_response_controller) => {
                 tokio::select! {
-                    _ = connection_close_rx.recv() => Ok(HttpResponse::BadGateway().finish()),
+                    () = connection_close.cancelled() => Ok(HttpResponse::BadGateway().finish()),
                     () = sleep(TIMEOUT) => Ok(HttpResponse::GatewayTimeout().finish()),
                     response = receive_response_controller.response_rx.recv() => response.map_or_else(
                         || Ok(HttpResponse::NotFound().finish()),

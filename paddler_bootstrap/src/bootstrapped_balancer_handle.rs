@@ -16,12 +16,15 @@ use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 
 use super::bootstrap_balancer_params::BootstrapBalancerParams;
 
 pub struct BootstrappedBalancerHandle {
     pub agent_controller_pool: Arc<AgentControllerPool>,
+    pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub service_manager: ServiceManager,
     pub state_database: Arc<dyn StateDatabase>,
@@ -87,7 +90,7 @@ pub async fn bootstrap_balancer(
 
     service_manager.add_service(ReconciliationService {
         agent_controller_pool: agent_controller_pool.clone(),
-        balancer_applicable_state_holder,
+        balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
         balancer_desired_state: state_database.read_balancer_desired_state().await?,
         balancer_desired_state_rx,
         is_converted_to_applicable_state: false,
@@ -103,6 +106,8 @@ pub async fn bootstrap_balancer(
 
     Ok(BootstrappedBalancerHandle {
         agent_controller_pool,
+        balancer_applicable_state_holder,
+        balancer_desired_state_tx,
         buffered_request_manager,
         service_manager,
         state_database,

@@ -19,7 +19,6 @@ use iced::widget::image;
 use iced::widget::image::Handle as ImageHandle;
 use iced::widget::operation;
 use iced::widget::stack;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
@@ -30,16 +29,19 @@ use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::bootstrapped_agent_handle::bootstrap_agent;
 use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
+use tokio::sync::broadcast;
 use tokio::sync::oneshot;
 use tokio::sync::watch;
 
 use crate::agent_running_handler;
+use crate::bootstrapped_balancer_bundle::BootstrappedBalancerBundle;
 use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
 use crate::join_cluster_config_handler;
 use crate::message::Message;
 use crate::running_cluster_handler;
+use crate::running_cluster_snapshot::RunningClusterSnapshot;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
 use crate::start_cluster_config_handler;
@@ -50,7 +52,6 @@ use crate::ui::view_home::view_home;
 use crate::ui::view_join_cluster_config::view_join_cluster_config;
 use crate::ui::view_running_cluster::view_running_cluster;
 use crate::ui::view_start_cluster_config::view_start_cluster_config;
-use crate::wait_for_bootstrapped_agent_controller_pool::wait_for_bootstrapped_agent_controller_pool;
 
 static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
@@ -62,22 +63,6 @@ fn send_shutdown(sender: &mut Option<oneshot::Sender<()>>, label: &str) {
     {
         log::error!("Failed to send {label} shutdown signal: {unsent_signal:?}");
     }
-}
-
-fn collect_sorted_agent_snapshots(
-    pool: &AgentControllerPool,
-) -> anyhow::Result<Vec<paddler_types::agent_controller_snapshot::AgentControllerSnapshot>> {
-    let pool_snapshot = pool.make_snapshot()?;
-    let mut agents = pool_snapshot.agents;
-
-    agents.sort_by(|current_agent, other_agent| {
-        let current_name = current_agent.name.as_deref().unwrap_or(&current_agent.id);
-        let other_name = other_agent.name.as_deref().unwrap_or(&other_agent.id);
-
-        current_name.cmp(other_name)
-    });
-
-    Ok(agents)
 }
 
 pub struct App {
@@ -424,8 +409,7 @@ impl App {
         desired_state: BalancerDesiredState,
     ) -> Task<Message> {
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-        let (pool_watch_tx, pool_watch_rx) =
-            watch::channel::<Option<Arc<AgentControllerPool>>>(None);
+        let (bundle_tx, bundle_rx) = oneshot::channel::<Arc<BootstrappedBalancerBundle>>();
 
         self.shutdown_tx = Some(shutdown_tx);
 
@@ -454,12 +438,20 @@ impl App {
                             })
                             .await?;
 
-                            if pool_watch_tx
-                                .send(Some(bootstrapped.agent_controller_pool.clone()))
-                                .is_err()
-                            {
+                            let bundle = Arc::new(BootstrappedBalancerBundle {
+                                agent_controller_pool: bootstrapped.agent_controller_pool.clone(),
+                                balancer_applicable_state_holder: bootstrapped
+                                    .balancer_applicable_state_holder
+                                    .clone(),
+                                balancer_desired_state_rx: bootstrapped
+                                    .balancer_desired_state_tx
+                                    .subscribe(),
+                                initial_desired_state: desired_state.clone(),
+                            });
+
+                            if bundle_tx.send(bundle).is_err() {
                                 return Err(anyhow::anyhow!(
-                                    "Monitor stream was dropped before receiving pool"
+                                    "Monitor stream was dropped before receiving bundle"
                                 ));
                             }
 
@@ -487,32 +479,34 @@ impl App {
                 },
             ),
             Task::stream(iced::stream::channel(1, async move |mut output| {
-                let mut watch_rx = pool_watch_rx;
+                let bundle = match bundle_rx.await {
+                    Ok(bundle) => bundle,
+                    Err(error) => {
+                        log::error!("Bootstrap handoff dropped before publishing bundle: {error}");
 
-                let agent_controller_pool =
-                    match wait_for_bootstrapped_agent_controller_pool(&mut watch_rx).await {
-                        Ok(pool) => pool,
-                        Err(error) => {
-                            log::error!(
-                                "Failed waiting for bootstrapped agent controller pool: {error}"
-                            );
+                        return;
+                    }
+                };
 
-                            return;
-                        }
-                    };
+                let mut desired_state_rx = bundle.balancer_desired_state_rx.resubscribe();
+                let mut current_desired_state = bundle.initial_desired_state.clone();
 
                 if output.send(Message::ClusterStarted).await.is_err() {
                     return;
                 }
 
                 loop {
-                    match collect_sorted_agent_snapshots(&agent_controller_pool) {
-                        Ok(snapshots) => {
+                    match RunningClusterSnapshot::build(
+                        &bundle.agent_controller_pool,
+                        &bundle.balancer_applicable_state_holder,
+                        current_desired_state.clone(),
+                    ) {
+                        Ok(snapshot) => {
                             if output
                                 .send(Message::RunningCluster(
-                                    running_cluster_handler::Message::AgentSnapshotsUpdated(
-                                        snapshots,
-                                    ),
+                                    running_cluster_handler::Message::SnapshotUpdated(Box::new(
+                                        snapshot,
+                                    )),
                                 ))
                                 .await
                                 .is_err()
@@ -521,17 +515,33 @@ impl App {
                             }
                         }
                         Err(error) => {
-                            log::error!("Failed to collect agent snapshots: {error}");
+                            log::error!("Failed to build running cluster snapshot: {error}");
 
                             return;
                         }
                     }
 
                     tokio::select! {
-                        () = agent_controller_pool.update_notifier.notified() => {}
-                        changed_result = watch_rx.changed() => {
-                            if changed_result.is_err() {
-                                return;
+                        () = bundle.agent_controller_pool.update_notifier.notified() => {}
+                        () = bundle.balancer_applicable_state_holder.update_notifier.notified() => {}
+                        desired_state_result = desired_state_rx.recv() => {
+                            match desired_state_result {
+                                Ok(new_desired_state) => {
+                                    current_desired_state = new_desired_state;
+                                }
+                                Err(broadcast::error::RecvError::Lagged(missed)) => {
+                                    log::warn!(
+                                        "Desired-state broadcast lagged by {missed} messages; \
+                                         continuing with the last known state"
+                                    );
+                                }
+                                Err(broadcast::error::RecvError::Closed) => {
+                                    log::info!(
+                                        "Desired-state broadcast closed; ending snapshot stream"
+                                    );
+
+                                    return;
+                                }
                             }
                         }
                     }

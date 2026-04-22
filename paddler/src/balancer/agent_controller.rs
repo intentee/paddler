@@ -9,8 +9,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::debug;
 use nanoid::nanoid;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::agent_issue::AgentIssue;
@@ -42,7 +42,7 @@ use crate::sets_desired_state::SetsDesiredState;
 pub struct AgentController {
     pub agent_message_tx: mpsc::UnboundedSender<AgentJsonRpcMessage>,
     pub chat_template_override_sender_collection: Arc<ChatTemplateOverrideSenderCollection>,
-    pub connection_close_rx: broadcast::Receiver<()>,
+    pub connection_close: CancellationToken,
     pub desired_slots_total: AtomicValue<AtomicI32>,
     pub download_current: AtomicValue<AtomicUsize>,
     pub download_filename: RwLock<Option<String>>,
@@ -362,14 +362,13 @@ mod tests {
 
     fn make_agent_controller() -> AgentController {
         let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
-        let (_close_tx, connection_close_rx) = broadcast::channel(1);
 
         AgentController {
             agent_message_tx,
             chat_template_override_sender_collection: Arc::new(
                 ChatTemplateOverrideSenderCollection::default(),
             ),
-            connection_close_rx,
+            connection_close: CancellationToken::new(),
             desired_slots_total: AtomicValue::<AtomicI32>::new(0),
             download_current: AtomicValue::<AtomicUsize>::new(0),
             download_filename: RwLock::new(None),

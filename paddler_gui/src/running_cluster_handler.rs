@@ -1,10 +1,9 @@
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-
 use crate::running_cluster_data::RunningClusterData;
+use crate::running_cluster_snapshot::RunningClusterSnapshot;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    AgentSnapshotsUpdated(Vec<AgentControllerSnapshot>),
+    SnapshotUpdated(Box<RunningClusterSnapshot>),
     Stop,
     CopyToClipboard(String),
 }
@@ -18,8 +17,8 @@ pub enum Action {
 impl RunningClusterData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
-            Message::AgentSnapshotsUpdated(snapshots) => {
-                self.agent_snapshots = snapshots;
+            Message::SnapshotUpdated(snapshot) => {
+                self.snapshot = *snapshot;
 
                 Action::None
             }

@@ -8,6 +8,7 @@ use iced::widget::row;
 use iced::widget::svg;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::text;
+use paddler_types::agent_desired_model::AgentDesiredModel;
 
 use super::font::BOLD;
 use super::font::REGULAR;
@@ -22,6 +23,19 @@ use super::view_agent_card::view_agent_card;
 use crate::running_cluster_data::RunningClusterData;
 use crate::running_cluster_handler::Message;
 
+fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
+    match desired_model {
+        AgentDesiredModel::HuggingFace(reference) => {
+            format!(
+                "HuggingFace {}/{} ({})",
+                reference.repo_id, reference.filename, reference.revision,
+            )
+        }
+        AgentDesiredModel::LocalToAgent(path) => format!("Local: {path}"),
+        AgentDesiredModel::None => "(not set)".to_owned(),
+    }
+}
+
 pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     let copy_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../../resources/icons/copy.svg").as_slice(),
@@ -29,19 +43,34 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     .width(16)
     .height(16);
 
+    let desired_model_label = format_desired_model(&data.snapshot.balancer_desired_state.model);
+    let applied_model_label = data
+        .snapshot
+        .balancer_applicable_state
+        .as_ref()
+        .map_or_else(
+            || "(reconciling...)".to_owned(),
+            |applicable| format_desired_model(&applicable.agent_desired_state.model),
+        );
+
     let address_row = container(
-        row![
-            container(text(format!("Cluster address: {}", data.cluster_address)).font(REGULAR))
-                .width(Fill),
-            button(
-                row![copy_icon, text("Copy address").font(BOLD)]
-                    .spacing(SPACING_HALF)
-                    .align_y(Center),
-            )
-            .style(button::text)
-            .on_press(Message::CopyToClipboard(data.cluster_address.clone())),
+        column![
+            row![
+                container(text(format!("Cluster address: {}", data.cluster_address)).font(REGULAR))
+                    .width(Fill),
+                button(
+                    row![copy_icon, text("Copy address").font(BOLD)]
+                        .spacing(SPACING_HALF)
+                        .align_y(Center),
+                )
+                .style(button::text)
+                .on_press(Message::CopyToClipboard(data.cluster_address.clone())),
+            ]
+            .align_y(Center),
+            text(format!("Configured model: {desired_model_label}")).font(REGULAR),
+            text(format!("Applied model: {applied_model_label}")).font(REGULAR),
         ]
-        .align_y(Center)
+        .spacing(SPACING_HALF)
         .padding(SPACING_BASE),
     )
     .style(style_card_container);
@@ -98,13 +127,13 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     ]
     .spacing(SPACING_2X);
 
-    if data.agent_snapshots.is_empty() {
+    if data.snapshot.agent_snapshots.is_empty() {
         content = content.push(
             container(text("Waiting for agents to connect...").font(REGULAR))
                 .padding([0.0, SPACING_BASE]),
         );
     } else {
-        for agent_snapshot in &data.agent_snapshots {
+        for agent_snapshot in &data.snapshot.agent_snapshots {
             content = content.push(view_agent_card(agent_snapshot));
         }
     }

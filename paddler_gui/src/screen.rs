@@ -11,6 +11,7 @@ use crate::detect_network_interfaces::detect_network_interfaces;
 use crate::home_data::HomeData;
 use crate::join_cluster_config_data::JoinClusterConfigData;
 use crate::running_cluster_data::RunningClusterData;
+use crate::running_cluster_snapshot::RunningClusterSnapshot;
 use crate::start_cluster_config_data::StartClusterConfigData;
 
 #[state]
@@ -105,8 +106,8 @@ impl Screen<StartClusterConfig> {
 
     pub fn cluster_started(self) -> Screen<RunningCluster> {
         self.transition_map(|config_data: StartClusterConfigData| RunningClusterData {
-            agent_snapshots: vec![],
             cluster_address: config_data.cluster_address,
+            snapshot: RunningClusterSnapshot::default(),
             stopping: false,
         })
     }
