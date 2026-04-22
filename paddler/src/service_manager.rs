@@ -5,6 +5,7 @@ use futures::stream::StreamExt;
 use log::error;
 use log::info;
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::SendError;
 use tokio::sync::oneshot;
 
 use crate::service::Service;
@@ -42,7 +43,11 @@ impl ServiceManager {
             _ = service_handles.next() => {}
         }
 
-        drop(shutdown_broadcast_tx);
+        // An `Err(SendError(()))` here means every service already exited and
+        // dropped its receiver, so the shutdown signal is redundant.
+        match shutdown_broadcast_tx.send(()) {
+            Ok(_) | Err(SendError(())) => {}
+        }
 
         while service_handles.next().await.is_some() {}
 
@@ -182,6 +187,22 @@ mod tests {
         let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
 
         ready.notified().await;
+
+        manager_handle.await??;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn all_services_exit_before_broadcast_is_idempotent() -> Result<()> {
+        let (_shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+        let mut manager = ServiceManager::default();
+        manager.add_service(ImmediatelySuccessService);
+        manager.add_service(ImmediatelySuccessService);
+        manager.add_service(ImmediatelySuccessService);
+
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown_rx));
 
         manager_handle.await??;
 
