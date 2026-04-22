@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use actix_web::rt;
 use actix_web::rt::task::JoinError;
 use anyhow::Result;
@@ -31,43 +33,66 @@ impl ServiceManager {
     pub async fn run_forever(self, shutdown: CancellationToken) -> Result<()> {
         let service_token = shutdown.child_token();
         let mut service_handles = FuturesUnordered::new();
+        let mut pending_service_names: BTreeSet<String> = BTreeSet::new();
 
         for mut service in self.services {
             let service_name = service.name().to_owned();
+
+            pending_service_names.insert(service_name.clone());
+
             let task_token = service_token.clone();
+            let joined_name = service_name.clone();
 
-            service_handles.push(rt::spawn(async move {
-                info!("{service_name}: Starting");
+            service_handles.push(async move {
+                let join_result = rt::spawn(async move {
+                    info!("{service_name}: Starting");
 
-                let result = service.run(task_token).await;
+                    let result = service.run(task_token).await;
 
-                match &result {
-                    Ok(()) => info!("{service_name}: Stopped"),
-                    Err(service_error) => error!("{service_name}: {service_error}"),
-                }
+                    match &result {
+                        Ok(()) => info!("{service_name}: Stopped"),
+                        Err(service_error) => error!("{service_name}: {service_error}"),
+                    }
 
-                result
-            }));
+                    result
+                })
+                .await;
+
+                (joined_name, join_result)
+            });
         }
 
         let mut first_error: Option<anyhow::Error> = None;
 
         tokio::select! {
             () = shutdown.cancelled() => {}
-            Some(join_result) = service_handles.next() => {
+            Some((completed_name, join_result)) = service_handles.next() => {
+                pending_service_names.remove(&completed_name);
                 first_error = extract_service_error(join_result);
             }
         }
 
+        info!(
+            "run_forever: shutdown triggered; draining {} service(s): {:?}",
+            pending_service_names.len(),
+            pending_service_names
+        );
+
         service_token.cancel();
 
-        while let Some(join_result) = service_handles.next().await {
+        while let Some((completed_name, join_result)) = service_handles.next().await {
+            pending_service_names.remove(&completed_name);
+
+            info!("run_forever: {completed_name} drained; remaining: {pending_service_names:?}");
+
             if let Some(service_error) = extract_service_error(join_result)
                 && first_error.is_none()
             {
                 first_error = Some(service_error);
             }
         }
+
+        info!("run_forever: all services drained");
 
         first_error.map_or_else(|| Ok(()), Err)
     }
@@ -229,6 +254,29 @@ mod tests {
         error
             .downcast_ref::<TestFailureMarker>()
             .ok_or_else(|| anyhow!("expected TestFailureMarker, got: {error:?}"))?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn drains_all_services_on_external_cancel() -> Result<()> {
+        let ready = Arc::new(Notify::new());
+        let shutdown = CancellationToken::new();
+
+        let mut manager = ServiceManager::default();
+        manager.add_service(NeverExitingService {
+            ready: ready.clone(),
+        });
+        manager.add_service(ImmediatelySuccessService);
+        manager.add_service(ImmediatelySuccessService);
+        manager.add_service(ImmediatelySuccessService);
+
+        let manager_handle = actix_web::rt::spawn(manager.run_forever(shutdown.clone()));
+
+        ready.notified().await;
+        shutdown.cancel();
+
+        manager_handle.await??;
 
         Ok(())
     }
