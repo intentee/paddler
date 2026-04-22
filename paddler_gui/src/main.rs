@@ -1,7 +1,6 @@
 mod agent_running_data;
 mod agent_running_handler;
 mod app;
-mod bootstrapped_balancer_bundle;
 mod current_screen;
 mod detect_network_interfaces;
 mod home_data;

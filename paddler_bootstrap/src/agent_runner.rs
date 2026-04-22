@@ -17,9 +17,10 @@ pub struct AgentRunnerParams {
 }
 
 pub struct AgentRunner {
+    completion_rx: Option<oneshot::Receiver<Result<()>>>,
     initial_status_rx: Option<oneshot::Receiver<Arc<SlotAggregatedStatus>>>,
     shutdown: CancellationToken,
-    thread: Option<thread::JoinHandle<Result<()>>>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl AgentRunner {
@@ -34,9 +35,10 @@ impl AgentRunner {
             .map_or_else(CancellationToken::new, CancellationToken::child_token);
         let task_shutdown = shutdown.clone();
         let (status_tx, status_rx) = oneshot::channel::<Arc<SlotAggregatedStatus>>();
+        let (completion_tx, completion_rx) = oneshot::channel::<Result<()>>();
 
-        let thread = thread::spawn(move || -> Result<()> {
-            actix_web::rt::System::new().block_on(async move {
+        let thread = thread::spawn(move || {
+            let result = actix_web::rt::System::new().block_on(async move {
                 let bootstrapped = bootstrap_agent(bootstrap_params);
 
                 if status_tx
@@ -52,10 +54,13 @@ impl AgentRunner {
                     .service_manager
                     .run_forever(task_shutdown)
                     .await
-            })
+            });
+
+            let _ = completion_tx.send(result);
         });
 
         Self {
+            completion_rx: Some(completion_rx),
             initial_status_rx: Some(status_rx),
             shutdown,
             thread: Some(thread),
@@ -68,6 +73,10 @@ impl AgentRunner {
         self.initial_status_rx.take()
     }
 
+    pub const fn take_completion_rx(&mut self) -> Option<oneshot::Receiver<Result<()>>> {
+        self.completion_rx.take()
+    }
+
     pub fn cancel(&self) {
         self.shutdown.cancel();
     }
@@ -77,16 +86,10 @@ impl Drop for AgentRunner {
     fn drop(&mut self) {
         self.shutdown.cancel();
 
-        if let Some(thread) = self.thread.take() {
-            match thread.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(service_error)) => {
-                    error!("agent runner exited with error: {service_error}");
-                }
-                Err(panic_payload) => {
-                    error!("agent runner thread panicked: {panic_payload:?}");
-                }
-            }
+        if let Some(thread) = self.thread.take()
+            && let Err(panic_payload) = thread.join()
+        {
+            error!("agent runner thread panicked: {panic_payload:?}");
         }
     }
 }

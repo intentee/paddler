@@ -28,9 +28,10 @@ pub struct ClusterRunnerParams {
 }
 
 pub struct ClusterRunner {
+    completion_rx: Option<oneshot::Receiver<Result<()>>>,
     initial_bundle_rx: Option<oneshot::Receiver<Arc<BootstrappedBalancerBundle>>>,
     shutdown: CancellationToken,
-    thread: Option<thread::JoinHandle<Result<()>>>,
+    thread: Option<thread::JoinHandle<()>>,
 }
 
 impl ClusterRunner {
@@ -46,9 +47,10 @@ impl ClusterRunner {
             .map_or_else(CancellationToken::new, CancellationToken::child_token);
         let task_shutdown = shutdown.clone();
         let (bundle_tx, bundle_rx) = oneshot::channel::<Arc<BootstrappedBalancerBundle>>();
+        let (completion_tx, completion_rx) = oneshot::channel::<Result<()>>();
 
-        let thread = thread::spawn(move || -> Result<()> {
-            actix_web::rt::System::new().block_on(async move {
+        let thread = thread::spawn(move || {
+            let result = actix_web::rt::System::new().block_on(async move {
                 let bootstrapped = bootstrap_balancer(bootstrap_params).await?;
 
                 let bundle = Arc::new(BootstrappedBalancerBundle {
@@ -75,10 +77,13 @@ impl ClusterRunner {
                     .service_manager
                     .run_forever(task_shutdown)
                     .await
-            })
+            });
+
+            let _ = completion_tx.send(result);
         });
 
         Self {
+            completion_rx: Some(completion_rx),
             initial_bundle_rx: Some(bundle_rx),
             shutdown,
             thread: Some(thread),
@@ -91,6 +96,10 @@ impl ClusterRunner {
         self.initial_bundle_rx.take()
     }
 
+    pub const fn take_completion_rx(&mut self) -> Option<oneshot::Receiver<Result<()>>> {
+        self.completion_rx.take()
+    }
+
     pub fn cancel(&self) {
         self.shutdown.cancel();
     }
@@ -100,16 +109,10 @@ impl Drop for ClusterRunner {
     fn drop(&mut self) {
         self.shutdown.cancel();
 
-        if let Some(thread) = self.thread.take() {
-            match thread.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(service_error)) => {
-                    error!("cluster runner exited with error: {service_error}");
-                }
-                Err(panic_payload) => {
-                    error!("cluster runner thread panicked: {panic_payload:?}");
-                }
-            }
+        if let Some(thread) = self.thread.take()
+            && let Err(panic_payload) = thread.join()
+        {
+            error!("cluster runner thread panicked: {panic_payload:?}");
         }
     }
 }

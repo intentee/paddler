@@ -1,6 +1,5 @@
 use std::mem;
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -19,23 +18,22 @@ use iced::widget::image;
 use iced::widget::image::Handle as ImageHandle;
 use iced::widget::operation;
 use iced::widget::stack;
+use iced::window;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::produces_snapshot::ProducesSnapshot;
-use paddler::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_bootstrap::agent_runner::AgentRunner;
+use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::bootstrapped_agent_handle::bootstrap_agent;
-use paddler_bootstrap::bootstrapped_balancer_handle::bootstrap_balancer;
+use paddler_bootstrap::cluster_runner::ClusterRunner;
+use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
-use tokio::sync::oneshot;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_running_handler;
-use crate::bootstrapped_balancer_bundle::BootstrappedBalancerBundle;
 use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
@@ -59,23 +57,18 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
 });
 
 pub struct App {
-    agent_shutdown: CancellationToken,
-    cluster_shutdown: CancellationToken,
+    agent_runner: Option<AgentRunner>,
+    shutdown: CancellationToken,
+    cluster_runner: Option<ClusterRunner>,
     screen: CurrentScreen,
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        self.cluster_shutdown.cancel();
-        self.agent_shutdown.cancel();
-    }
 }
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
         let app = Self {
-            agent_shutdown: CancellationToken::new(),
-            cluster_shutdown: CancellationToken::new(),
+            agent_runner: None,
+            shutdown: CancellationToken::new(),
+            cluster_runner: None,
             screen: CurrentScreen::default(),
         };
 
@@ -86,6 +79,13 @@ impl App {
         let screen = mem::take(&mut self.screen);
 
         match (screen, message) {
+            (_, Message::Quit) => {
+                self.shutdown.cancel();
+                self.cluster_runner = None;
+                self.agent_runner = None;
+
+                iced::exit()
+            }
             (CurrentScreen::Home(home), Message::Home(msg)) => {
                 let action = HomeData::update(msg);
 
@@ -133,7 +133,9 @@ impl App {
                         Task::none()
                     }
                     start_cluster_config_handler::Action::Cancel => {
-                        self.cluster_shutdown.cancel();
+                        if let Some(runner) = self.cluster_runner.as_ref() {
+                            runner.cancel();
+                        }
                         self.screen = CurrentScreen::Home(config.cancel());
 
                         Task::none()
@@ -145,7 +147,7 @@ impl App {
                     } => {
                         self.screen = CurrentScreen::StartClusterConfig(config);
 
-                        self.spawn_cluster(management_addr, inference_addr, desired_state)
+                        self.spawn_cluster(management_addr, inference_addr, &desired_state)
                     }
                 }
             }
@@ -156,6 +158,7 @@ impl App {
             }
             (CurrentScreen::StartClusterConfig(config), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed to start: {error}");
+                self.cluster_runner = None;
                 self.screen = CurrentScreen::Home(config.cluster_failed(error));
 
                 Task::none()
@@ -170,7 +173,9 @@ impl App {
                         Task::none()
                     }
                     running_cluster_handler::Action::Stop => {
-                        self.cluster_shutdown.cancel();
+                        if let Some(runner) = self.cluster_runner.as_ref() {
+                            runner.cancel();
+                        }
                         self.screen = CurrentScreen::RunningCluster(running);
 
                         Task::none()
@@ -183,12 +188,14 @@ impl App {
                 }
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterStopped) => {
+                self.cluster_runner = None;
                 self.screen = CurrentScreen::Home(running.cluster_stopped());
 
                 Task::none()
             }
             (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
                 log::error!("Cluster failed unexpectedly: {error}");
+                self.cluster_runner = None;
                 self.screen = CurrentScreen::Home(running.cluster_failed(error));
 
                 Task::none()
@@ -203,7 +210,9 @@ impl App {
                         Task::none()
                     }
                     agent_running_handler::Action::Disconnect => {
-                        self.agent_shutdown.cancel();
+                        if let Some(runner) = self.agent_runner.as_ref() {
+                            runner.cancel();
+                        }
                         self.screen = CurrentScreen::Home(running.disconnect());
 
                         Task::none()
@@ -212,12 +221,14 @@ impl App {
             }
             (CurrentScreen::AgentRunning(running), Message::AgentStopped) => {
                 log::info!("Agent stopped");
+                self.agent_runner = None;
                 self.screen = CurrentScreen::Home(running.disconnect());
 
                 Task::none()
             }
             (CurrentScreen::AgentRunning(running), Message::AgentFailed(error)) => {
                 log::error!("Agent failed: {error}");
+                self.agent_runner = None;
                 self.screen = CurrentScreen::Home(running.agent_failed(error));
 
                 Task::none()
@@ -245,16 +256,19 @@ impl App {
         reason = "signature required by iced application API"
     )]
     pub fn subscription(&self) -> Subscription<Message> {
-        keyboard::listen().filter_map(|event| match event {
-            keyboard::Event::KeyPressed {
-                key: keyboard::Key::Named(keyboard::key::Named::Tab),
-                modifiers,
-                ..
-            } => Some(Message::TabPressed {
-                shift: modifiers.shift(),
+        Subscription::batch([
+            keyboard::listen().filter_map(|event| match event {
+                keyboard::Event::KeyPressed {
+                    key: keyboard::Key::Named(keyboard::key::Named::Tab),
+                    modifiers,
+                    ..
+                } => Some(Message::TabPressed {
+                    shift: modifiers.shift(),
+                }),
+                _ => None,
             }),
-            _ => None,
-        })
+            window::close_requests().map(|_| Message::Quit),
+        ])
     }
 
     pub fn view(&self) -> Element<'_, Message> {
@@ -304,41 +318,30 @@ impl App {
         management_address: String,
         slots: i32,
     ) -> Task<Message> {
-        self.agent_shutdown = CancellationToken::new();
-        let agent_shutdown = self.agent_shutdown.clone();
-        let (status_watch_tx, status_watch_rx) =
-            watch::channel::<Option<Arc<SlotAggregatedStatus>>>(None);
+        let mut runner = AgentRunner::start(AgentRunnerParams {
+            bootstrap_params: BootstrapAgentParams {
+                agent_name,
+                management_address,
+                slots,
+            },
+            parent_shutdown: Some(self.shutdown.clone()),
+        });
 
+        let initial_status_rx = runner.take_initial_status_rx();
+        let completion_rx = runner.take_completion_rx();
+
+        self.agent_runner = Some(runner);
         self.screen = CurrentScreen::AgentRunning(screen);
 
         Task::batch([
             Task::perform(
                 async move {
-                    tokio::task::spawn_blocking(move || {
-                        actix_web::rt::System::new().block_on(async {
-                            let bootstrapped = bootstrap_agent(BootstrapAgentParams {
-                                agent_name,
-                                management_address,
-                                slots,
-                            });
-
-                            if status_watch_tx
-                                .send(Some(bootstrapped.slot_aggregated_status.clone()))
-                                .is_err()
-                            {
-                                return Err(anyhow::anyhow!(
-                                    "Monitor stream was dropped before receiving status"
-                                ));
-                            }
-
-                            bootstrapped
-                                .service_manager
-                                .run_forever(agent_shutdown)
-                                .await
-                        })
-                    })
-                    .await
-                    .map_err(|error| anyhow::anyhow!("Agent task panicked: {error}"))?
+                    match completion_rx {
+                        Some(rx) => rx
+                            .await
+                            .map_err(|error| anyhow::anyhow!("Agent runner dropped: {error}"))?,
+                        None => Err(anyhow::anyhow!("Agent runner completion channel missing")),
+                    }
                 },
                 |result: Result<(), anyhow::Error>| match result {
                     Ok(()) => Message::AgentStopped,
@@ -346,15 +349,16 @@ impl App {
                 },
             ),
             Task::stream(iced::stream::channel(1, async move |mut output| {
-                let mut watch_rx = status_watch_rx;
+                let Some(initial_status_rx) = initial_status_rx else {
+                    return;
+                };
 
-                let slot_aggregated_status = loop {
-                    if watch_rx.changed().await.is_err() {
+                let slot_aggregated_status = match initial_status_rx.await {
+                    Ok(status) => status,
+                    Err(error) => {
+                        log::error!("Agent status channel dropped: {error}");
+
                         return;
-                    }
-                    let borrowed = watch_rx.borrow_and_update().clone();
-                    if let Some(status) = borrowed {
-                        break status;
                     }
                 };
 
@@ -378,14 +382,7 @@ impl App {
                         }
                     }
 
-                    tokio::select! {
-                        () = slot_aggregated_status.update_notifier.notified() => {}
-                        changed_result = watch_rx.changed() => {
-                            if changed_result.is_err() {
-                                return;
-                            }
-                        }
-                    }
+                    slot_aggregated_status.update_notifier.notified().await;
                 }
             })),
         ])
@@ -395,71 +392,45 @@ impl App {
         &mut self,
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
-        desired_state: BalancerDesiredState,
+        desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
-        self.cluster_shutdown = CancellationToken::new();
-        let cluster_shutdown = self.cluster_shutdown.clone();
-        let (bundle_tx, bundle_rx) = oneshot::channel::<Arc<BootstrappedBalancerBundle>>();
+        let mut runner = ClusterRunner::start(ClusterRunnerParams {
+            bootstrap_params: BootstrapBalancerParams {
+                buffered_request_timeout: Duration::from_secs(10),
+                inference_service_configuration: InferenceServiceConfiguration {
+                    addr: inference_addr,
+                    cors_allowed_hosts: vec![],
+                    inference_item_timeout: Duration::from_secs(30),
+                },
+                management_service_configuration: ManagementServiceConfiguration {
+                    addr: management_addr,
+                    cors_allowed_hosts: vec![],
+                },
+                max_buffered_requests: 30,
+                openai_service_configuration: None,
+                state_database_type: StateDatabaseType::Memory,
+                statsd_prefix: "paddler_".to_owned(),
+                #[cfg(feature = "web_admin_panel")]
+                web_admin_panel_service_configuration: None,
+            },
+            initial_desired_state: desired_state.clone(),
+            parent_shutdown: Some(self.shutdown.clone()),
+        });
+
+        let initial_bundle_rx = runner.take_initial_bundle_rx();
+        let completion_rx = runner.take_completion_rx();
+
+        self.cluster_runner = Some(runner);
 
         Task::batch([
             Task::perform(
                 async move {
-                    tokio::task::spawn_blocking(move || {
-                        actix_web::rt::System::new().block_on(async {
-                            let bootstrapped = bootstrap_balancer(BootstrapBalancerParams {
-                                buffered_request_timeout: Duration::from_secs(10),
-                                inference_service_configuration: InferenceServiceConfiguration {
-                                    addr: inference_addr,
-                                    cors_allowed_hosts: vec![],
-                                    inference_item_timeout: Duration::from_secs(30),
-                                },
-                                management_service_configuration: ManagementServiceConfiguration {
-                                    addr: management_addr,
-                                    cors_allowed_hosts: vec![],
-                                },
-                                max_buffered_requests: 30,
-                                openai_service_configuration: None,
-                                state_database_type: StateDatabaseType::Memory,
-                                statsd_prefix: "paddler_".to_owned(),
-                                #[cfg(feature = "web_admin_panel")]
-                                web_admin_panel_service_configuration: None,
-                            })
-                            .await?;
-
-                            let bundle = Arc::new(BootstrappedBalancerBundle {
-                                agent_controller_pool: bootstrapped.agent_controller_pool.clone(),
-                                balancer_applicable_state_holder: bootstrapped
-                                    .balancer_applicable_state_holder
-                                    .clone(),
-                                balancer_desired_state_rx: bootstrapped
-                                    .balancer_desired_state_tx
-                                    .subscribe(),
-                                initial_desired_state: desired_state.clone(),
-                            });
-
-                            if bundle_tx.send(bundle).is_err() {
-                                return Err(anyhow::anyhow!(
-                                    "Monitor stream was dropped before receiving bundle"
-                                ));
-                            }
-
-                            let state_database = bootstrapped.state_database.clone();
-
-                            let service_handle = actix_web::rt::spawn(
-                                bootstrapped.service_manager.run_forever(cluster_shutdown),
-                            );
-
-                            state_database
-                                .store_balancer_desired_state(&desired_state)
-                                .await?;
-
-                            service_handle.await.map_err(|error| {
-                                anyhow::anyhow!("Service manager task failed: {error}")
-                            })?
-                        })
-                    })
-                    .await
-                    .map_err(|error| anyhow::anyhow!("Balancer task panicked: {error}"))?
+                    match completion_rx {
+                        Some(rx) => rx
+                            .await
+                            .map_err(|error| anyhow::anyhow!("Cluster runner dropped: {error}"))?,
+                        None => Err(anyhow::anyhow!("Cluster runner completion channel missing")),
+                    }
                 },
                 |result: Result<(), anyhow::Error>| match result {
                     Ok(()) => Message::ClusterStopped,
@@ -467,7 +438,11 @@ impl App {
                 },
             ),
             Task::stream(iced::stream::channel(1, async move |mut output| {
-                let bundle = match bundle_rx.await {
+                let Some(initial_bundle_rx) = initial_bundle_rx else {
+                    return;
+                };
+
+                let bundle = match initial_bundle_rx.await {
                     Ok(bundle) => bundle,
                     Err(error) => {
                         log::error!("Bootstrap handoff dropped before publishing bundle: {error}");

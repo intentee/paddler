@@ -4578,6 +4578,8 @@ dependencies = [
  "base64",
  "futures-util",
  "nix",
+ "paddler",
+ "paddler_bootstrap",
  "paddler_client",
  "paddler_types",
  "reqwest",
@@ -4587,6 +4589,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "url",
 ]
 
