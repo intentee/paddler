@@ -9,8 +9,7 @@ use actix_web::HttpServer;
 use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
-use log::error;
-use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::compatibility::openai_service::app_data::AppData;
@@ -32,7 +31,7 @@ impl Service for OpenAIService {
         "balancer::compatibility::openai_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         let cors_allowed_hosts = self
             .inference_service_configuration
             .cors_allowed_hosts
@@ -53,10 +52,9 @@ impl Service for OpenAIService {
                 .configure(http_route::post_chat_completions::register)
         })
         .shutdown_signal(async move {
-            if let Err(err) = shutdown.recv().await {
-                error!("Failed to receive shutdown signal: {err}");
-            }
+            shutdown.cancelled().await;
         })
+        .disable_signals()
         .bind(self.openai_service_configuration.addr)
         .expect("Unable to bind server to address")
         .run()

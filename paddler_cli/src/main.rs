@@ -3,19 +3,19 @@ use clap::Parser;
 use clap::Subcommand;
 #[cfg(feature = "web_admin_panel")]
 use esbuild_metafile::instance::initialize_instance;
-use log::info;
-use paddler::cmd::agent::Agent;
-use paddler::cmd::balancer::Balancer;
-use paddler::cmd::handler::Handler as _;
-use tokio::signal::unix::SignalKind;
-use tokio::signal::unix::signal;
-use tokio::sync::oneshot;
+mod cmd;
+
+use cmd::agent::Agent;
+use cmd::balancer::Balancer;
+use cmd::handler::Handler as _;
+use paddler_bootstrap::unix_shutdown_signal::wait_for_unix_shutdown_signal;
+use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "web_admin_panel")]
 pub const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
 
 pub const CUDA_DISCLAIMER_DOCS: &str = "
-This software includes NVIDIA CUDA runtime components, 
+This software includes NVIDIA CUDA runtime components,
 subject to the NVIDIA CUDA Toolkit End User License Agreement: https://docs.nvidia.com/cuda/eula/index.html
 This software contains source code provided by NVIDIA Corporation.
 Paddler is not affiliated with, endorsed by, or sponsored by NVIDIA Corporation.";
@@ -38,39 +38,28 @@ enum Commands {
     Balancer(Balancer),
 }
 
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    let shutdown = CancellationToken::new();
+    let signal_shutdown = shutdown.clone();
 
-    #[expect(
-        clippy::expect_used,
-        reason = "signal handler setup and shutdown signaling failures are unrecoverable"
-    )]
     tokio::spawn(async move {
-        let mut sigterm = signal(SignalKind::terminate()).expect("Failed to listen for SIGTERM");
-        let mut sigint = signal(SignalKind::interrupt()).expect("Failed to listen for SIGINT");
-        let mut sighup = signal(SignalKind::hangup()).expect("Failed to listen for SIGHUP");
-
-        tokio::select! {
-            _ = sigterm.recv() => info!("Received SIGTERM"),
-            _ = sigint.recv() => info!("Received SIGINT (Ctrl+C)"),
-            _ = sighup.recv() => info!("Received SIGHUP"),
+        if let Err(error) = wait_for_unix_shutdown_signal().await {
+            log::error!("unix shutdown signal listener failed: {error}");
+            return;
         }
-
-        shutdown_tx
-            .send(())
-            .expect("Failed to send shutdown signal");
+        signal_shutdown.cancel();
     });
 
     match Cli::parse().command {
-        Some(Commands::Agent(handler)) => Ok(handler.handle(shutdown_rx).await?),
+        Some(Commands::Agent(handler)) => Ok(handler.handle(shutdown).await?),
         Some(Commands::Balancer(handler)) => {
             #[cfg(feature = "web_admin_panel")]
             initialize_instance(ESBUILD_META_CONTENTS);
 
-            Ok(handler.handle(shutdown_rx).await?)
+            Ok(handler.handle(shutdown).await?)
         }
         None => Ok(()),
     }

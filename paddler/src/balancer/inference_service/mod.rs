@@ -9,8 +9,7 @@ use actix_web::HttpServer;
 use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
-use log::error;
-use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::http_route as common_http_route;
@@ -36,7 +35,7 @@ impl Service for InferenceService {
         "balancer::inference_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         #[cfg_attr(not(feature = "web_admin_panel"), expect(unused_mut))]
         let mut cors_allowed_hosts = self.configuration.cors_allowed_hosts.clone();
 
@@ -51,6 +50,7 @@ impl Service for InferenceService {
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.configuration.clone(),
+            shutdown: shutdown.clone(),
         });
 
         #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
@@ -65,10 +65,9 @@ impl Service for InferenceService {
                 .configure(http_route::api::ws_inference_socket::register)
         })
         .shutdown_signal(async move {
-            if let Err(err) = shutdown.recv().await {
-                error!("Failed to receive shutdown signal: {err}");
-            }
+            shutdown.cancelled().await;
         })
+        .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")
         .run()

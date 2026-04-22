@@ -1,10 +1,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 #[async_trait]
 pub trait Service: Send + 'static {
     fn name(&self) -> &'static str;
 
-    async fn run(&mut self, shutdown_rx: broadcast::Receiver<()>) -> Result<()>;
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()>;
 }

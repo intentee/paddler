@@ -17,6 +17,7 @@ pub fn register(cfg: &mut web::ServiceConfig) {
 
 #[get("/api/v1/agents/stream")]
 async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> {
+    let shutdown = app_data.shutdown.clone();
     let event_stream = async_stream::stream! {
         let send_event = |info| {
             match serde_json::to_string(&info) {
@@ -38,7 +39,10 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
                 Err(err) => error!("Failed to get agent controller pool snapshot: {err}"),
             }
 
-            app_data.agent_controller_pool.update_notifier.notified().await;
+            tokio::select! {
+                () = app_data.agent_controller_pool.update_notifier.notified() => {}
+                () = shutdown.cancelled() => return,
+            }
         }
     };
 

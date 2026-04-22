@@ -1,7 +1,17 @@
 @font-face {
   font-display: swap;
   font-family: "JetBrains Mono";
-  src: url(https://fonts.gstatic.com/s/jetbrainsmono/v23/tDbX2o-flEEny0FZhsfKu5WU4xD-Cw6nSHrV.woff2)
-    format("woff2");
+  src: url("../fonts/JetBrainsMono-Regular.ttf") format("truetype");
+  /*src: url(https://fonts.gstatic.com/s/jetbrainsmono/v23/tDbX2o-flEEny0FZhsfKu5WU4xD-Cw6nSHrV.woff2)
+    format("woff2");*/
   font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "JetBrains Mono";
+  src: url("../fonts/JetBrainsMono-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
 }

@@ -39,7 +39,6 @@ minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
 paddler_types = { workspace = true }
 thiserror = { workspace = true }
-nix = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }
 resvg = { workspace = true }
@@ -49,6 +48,7 @@ shellexpand = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true }
 url = { workspace = true }
 
 # web dashboard deps

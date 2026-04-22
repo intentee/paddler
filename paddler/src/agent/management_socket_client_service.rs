@@ -11,13 +11,13 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
+use tokio_util::sync::CancellationToken;
 
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
@@ -48,7 +48,7 @@ use crate::slot_aggregated_status::SlotAggregatedStatus;
 struct IncomingMessageContext {
     agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
     agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
-    connection_close_tx: broadcast::Sender<()>,
+    connection_close: CancellationToken,
     continue_from_conversation_history_request_tx:
         mpsc::UnboundedSender<ContinueFromConversationHistoryRequest>,
     continue_from_raw_prompt_request_tx: mpsc::UnboundedSender<ContinueFromRawPromptRequest>,
@@ -74,7 +74,7 @@ pub struct ManagementSocketClientService {
 
 impl ManagementSocketClientService {
     async fn generate_responses<TRequest: FromRequestParams + 'static>(
-        connection_close_tx: broadcast::Sender<()>,
+        connection_close: CancellationToken,
         id: String,
         message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
         request_params: TRequest::RequestParams,
@@ -94,11 +94,9 @@ impl ManagementSocketClientService {
             stop_rx,
         ))?;
 
-        let mut connection_close_rx = connection_close_tx.subscribe();
-
         loop {
             tokio::select! {
-                _ = connection_close_rx.recv() => break,
+                () = connection_close.cancelled() => break,
                 response = response_rx.recv() => {
                     match response {
                         Some(response) => {
@@ -124,7 +122,7 @@ impl ManagementSocketClientService {
         IncomingMessageContext {
             agent_applicable_state_holder,
             agent_desired_state_tx,
-            connection_close_tx,
+            connection_close,
             continue_from_conversation_history_request_tx,
             continue_from_raw_prompt_request_tx,
             generate_embedding_batch_request_tx,
@@ -180,7 +178,7 @@ impl ManagementSocketClientService {
                     ),
             }) => {
                 Self::generate_responses(
-                    connection_close_tx,
+                    connection_close,
                     id,
                     message_tx,
                     continue_from_conversation_history_params,
@@ -194,7 +192,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::ContinueFromRawPrompt(generate_tokens_params),
             }) => {
                 Self::generate_responses(
-                    connection_close_tx,
+                    connection_close,
                     id,
                     message_tx,
                     generate_tokens_params,
@@ -208,7 +206,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GenerateEmbeddingBatch(generate_embedding_batch_params),
             }) => {
                 Self::generate_responses(
-                    connection_close_tx,
+                    connection_close,
                     id,
                     message_tx,
                     generate_embedding_batch_params,
@@ -255,12 +253,11 @@ impl ManagementSocketClientService {
     ) -> Result<()> {
         match msg {
             Message::Text(text) => {
-                let mut connection_close_rx =
-                    incoming_message_context.connection_close_tx.subscribe();
+                let connection_close = incoming_message_context.connection_close.clone();
 
                 rt::spawn(async move {
                     tokio::select! {
-                        _ = connection_close_rx.recv() => {
+                        () = connection_close.cancelled() => {
                             info!("Connection close signal received, shutting down");
                         }
                         result = Self::handle_deserialized_message(
@@ -304,28 +301,28 @@ impl ManagementSocketClientService {
         }
     }
 
-    async fn keep_connection_alive(&self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn keep_connection_alive(&self, shutdown: CancellationToken) -> Result<()> {
         info!("Connecting to management server at {}", self.socket_url);
 
         let (ws_stream, _response) = connect_async(self.socket_url.clone()).await?;
 
         info!("Connected to management server");
 
-        let (connection_close_tx, mut connection_close_rx) = broadcast::channel::<()>(1);
+        let connection_close = CancellationToken::new();
         let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
         let (mut write, mut read) = ws_stream.split();
 
-        let mut connection_close_rx_resubscribed = connection_close_rx.resubscribe();
-        let mut shutdown_resubscribed = shutdown.resubscribe();
+        let forward_connection_close = connection_close.clone();
+        let forward_shutdown = shutdown.clone();
 
         let message_forward_handle = rt::spawn(async move {
             loop {
                 tokio::select! {
-                    _ = connection_close_rx_resubscribed.recv() => {
+                    () = forward_connection_close.cancelled() => {
                         break;
                     }
-                    _ = shutdown_resubscribed.recv() => {
+                    () = forward_shutdown.cancelled() => {
                         info!("Shutdown signal received, deregistering agent");
 
                         write.send(Message::Text(match serde_json::to_string(
@@ -419,12 +416,12 @@ impl ManagementSocketClientService {
 
         loop {
             tokio::select! {
-                _ = connection_close_rx.recv() => {
+                () = connection_close.cancelled() => {
                     info!("Connection close signal received, shutting down");
 
                     break;
                 }
-                _ = shutdown.recv() => break,
+                () = shutdown.cancelled() => break,
                 () = self.slot_aggregated_status.update_notifier.notified() => do_send_status_update(),
                 _ = ticker.tick() => do_send_status_update(),
                 msg = read.next() => {
@@ -434,7 +431,7 @@ impl ManagementSocketClientService {
                                     IncomingMessageContext {
                                         agent_applicable_state_holder: self.agent_applicable_state_holder.clone(),
                                         agent_desired_state_tx: self.agent_desired_state_tx.clone(),
-                                        connection_close_tx: connection_close_tx.clone(),
+                                        connection_close: connection_close.clone(),
                                         continue_from_conversation_history_request_tx: self.continue_from_conversation_history_request_tx.clone(),
                                         continue_from_raw_prompt_request_tx: self.continue_from_raw_prompt_request_tx.clone(),
                                         generate_embedding_batch_request_tx: self.generate_embedding_batch_request_tx.clone(),
@@ -461,9 +458,7 @@ impl ManagementSocketClientService {
                     };
 
                     if should_close {
-                        if let Err(err) = connection_close_tx.send(()) {
-                            error!("Failed to send connection close signal: {err}");
-                        }
+                        connection_close.cancel();
 
                         break;
                     }
@@ -485,16 +480,16 @@ impl Service for ManagementSocketClientService {
         "agent::management_socket_client_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
             tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
+                () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    match self.keep_connection_alive(shutdown.resubscribe()).await {
+                    match self.keep_connection_alive(shutdown.clone()).await {
                         Err(err) => {
                             error!("Failed to keep the connection alive: {err:?}");
                         }

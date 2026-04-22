@@ -1,4 +1,4 @@
-mod agent_controller;
+pub mod agent_controller;
 pub mod agent_controller_pool;
 mod agent_controller_pool_total_slots;
 mod agent_controller_update_result;

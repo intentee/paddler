@@ -3,11 +3,11 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::agent_desired_state::AgentDesiredState;
@@ -60,14 +60,14 @@ impl Service for ReconciliationService {
         "agent::reconciliation_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
             tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
+                () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
                     if !self.is_converted_to_applicable_state {
                         self.try_convert_to_applicable_state().await;

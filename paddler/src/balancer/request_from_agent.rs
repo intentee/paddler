@@ -11,8 +11,8 @@ use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::ResponseEnvelope;
 use paddler_types::streamable_result::StreamableResult;
-use tokio::sync::broadcast;
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;
@@ -26,7 +26,7 @@ use crate::controls_session::ControlsSession;
 
 pub async fn request_from_agent<TControlsSession, TParams>(
     buffered_request_manager: Arc<BufferedRequestManager>,
-    connection_close_tx: broadcast::Sender<()>,
+    connection_close: CancellationToken,
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
     request_id: String,
@@ -40,7 +40,7 @@ where
 {
     match wait_for_agent_controller(
         buffered_request_manager.clone(),
-        connection_close_tx.subscribe(),
+        connection_close.clone(),
         request_id.clone(),
         &mut session_controller,
     )
@@ -71,7 +71,7 @@ where
 
             forward_responses_stream(
                 agent_controller,
-                connection_close_tx.subscribe(),
+                connection_close,
                 inference_service_configuration,
                 receive_response_controller,
                 request_id,
@@ -87,7 +87,7 @@ where
 
 async fn forward_responses_stream<TControlsSession, TManagesSenders>(
     agent_controller: Arc<AgentController>,
-    mut connection_close_rx: broadcast::Receiver<()>,
+    connection_close: CancellationToken,
     inference_service_configuration: InferenceServiceConfiguration,
     mut receive_response_controller: ManagesSendersController<TManagesSenders>,
     request_id: String,
@@ -100,12 +100,11 @@ where
 {
     debug!("Found available agent controller for request: {request_id:?}");
 
-    let mut agent_controller_connection_close_resubscribed =
-        agent_controller.connection_close_rx.resubscribe();
+    let agent_connection_close = agent_controller.connection_close.clone();
 
     loop {
         tokio::select! {
-            _ = agent_controller_connection_close_resubscribed.recv() => {
+            () = agent_connection_close.cancelled() => {
                 error!("Agent controller connection closed");
 
                 respond_with_error(
@@ -119,7 +118,7 @@ where
 
                 break;
             }
-            _ = connection_close_rx.recv() => {
+            () = connection_close.cancelled() => {
                 agent_controller.stop_responding_to(request_id.clone()).await.unwrap_or_else(|err| {
                     error!("Failed to stop request {request_id:?}: {err}");
                 });
@@ -229,7 +228,7 @@ where
 
 async fn wait_for_agent_controller<TControlsSession>(
     buffered_request_manager: Arc<BufferedRequestManager>,
-    mut connection_close_rx: broadcast::Receiver<()>,
+    connection_close: CancellationToken,
     request_id: String,
     session_controller: &mut TControlsSession,
 ) -> Result<Option<Arc<AgentController>>>
@@ -239,7 +238,7 @@ where
     let buffered_request_manager = buffered_request_manager.clone();
 
     tokio::select! {
-        _ = connection_close_rx.recv() => {
+        () = connection_close.cancelled() => {
             debug!("Connection close signal received, stopping GenerateTokens loop.");
 
             Ok(None)

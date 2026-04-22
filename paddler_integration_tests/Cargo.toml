@@ -12,12 +12,15 @@ version.workspace = true
 cuda = []
 tests_that_use_compiled_paddler = []
 tests_that_use_llms = []
+web_admin_panel = ["paddler/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
 
 [dependencies]
 anyhow = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
 nix = { workspace = true }
+paddler = { workspace = true }
+paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
 paddler_types = { workspace = true }
 reqwest = { workspace = true }
@@ -26,6 +29,8 @@ serde_json = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true }
 url = { workspace = true }
 
 [lints]

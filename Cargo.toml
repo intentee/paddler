@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler_integration_tests", "paddler", "paddler_client", "paddler_model_tests", "paddler_types"]
+members = ["paddler", "paddler_bootstrap", "paddler_cli", "paddler_client", "paddler_gui", "paddler_integration_tests", "paddler_model_tests", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -53,13 +53,18 @@ serial_test = { version = "3", features = ["file_locks"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 shellexpand = "3"
+iced = { version = "0.14", features = ["image", "svg", "tokio"] }
+if-addrs = "0.13"
+statum = "0.6"
 tempfile = "3.20.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-tungstenite = "0.28"
+tokio-util = "0.7"
 thiserror = "2"
 url = { version = "2.5", features = ["serde"] }
 paddler = { version = "3.0.1", path = "paddler" }
+paddler_bootstrap = { version = "3.0.1", path = "paddler_bootstrap" }
 paddler_client = { version = "3.0.1", path = "paddler_client" }
 paddler_types = { version = "3.0.1", path = "paddler_types" }
 

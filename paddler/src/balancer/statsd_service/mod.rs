@@ -9,9 +9,9 @@ use cadence::Gauged;
 use cadence::StatsdClient;
 use cadence::UdpMetricSink;
 use log::error;
-use tokio::sync::broadcast;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
+use tokio_util::sync::CancellationToken;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
@@ -49,7 +49,7 @@ impl Service for StatsdService {
         "balancer::statsd_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
         let statsd_sink = UdpMetricSink::from(self.configuration.statsd_addr, statsd_sink_socket)?;
 
@@ -63,7 +63,7 @@ impl Service for StatsdService {
 
         loop {
             tokio::select! {
-                _ = shutdown.recv() => break Ok(()),
+                () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
                     if let Err(err) = self.report_metrics(&client) {
                         error!("Failed to report metrics: {err}");

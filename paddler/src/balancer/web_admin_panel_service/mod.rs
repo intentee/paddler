@@ -8,8 +8,7 @@ use actix_web::HttpServer;
 use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
-use log::error;
-use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 use crate::balancer::web_admin_panel_service::app_data::AppData;
 use crate::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
@@ -25,7 +24,7 @@ impl Service for WebAdminPanelService {
         "balancer::web_admin_panel_service"
     }
 
-    async fn run(&mut self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
+    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
         let app_data: Data<AppData> = Data::new(AppData {
             template_data: self.configuration.template_data.clone(),
         });
@@ -39,10 +38,9 @@ impl Service for WebAdminPanelService {
                 .configure(http_route::home::register)
         })
         .shutdown_signal(async move {
-            if let Err(err) = shutdown.recv().await {
-                error!("Failed to receive shutdown signal: {err}");
-            }
+            shutdown.cancelled().await;
         })
+        .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")
         .run()

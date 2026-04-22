@@ -15,9 +15,9 @@ use paddler_types::inference_client::Message as OutgoingMessage;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_util::sync::CancellationToken;
 
 use crate::balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
@@ -51,7 +51,7 @@ async fn respond(
         ));
     }
 
-    let (connection_close_tx, _connection_close_rx) = broadcast::channel::<()>(1);
+    let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
     // Distribute the embeddings evenly across the available agents
@@ -61,7 +61,7 @@ async fn respond(
     ) {
         let buffered_request_manager_clone = app_data.buffered_request_manager.clone();
         let chunk_tx_clone = chunk_tx.clone();
-        let connection_close_tx_clone = connection_close_tx.clone();
+        let connection_close_clone = connection_close.clone();
         let inference_service_configuration_clone =
             app_data.inference_service_configuration.clone();
 
@@ -72,7 +72,7 @@ async fn respond(
 
             if let Err(err) = request_from_agent(
                 buffered_request_manager_clone,
-                connection_close_tx_clone,
+                connection_close_clone,
                 inference_service_configuration_clone,
                 batch,
                 request_id.clone(),

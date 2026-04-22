@@ -1,0 +1,31 @@
+[package]
+name = "paddler_gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Paddler desktop application"
+license.workspace = true
+
+[dependencies]
+actix-web = { workspace = true }
+anyhow = { workspace = true }
+env_logger = { workspace = true }
+iced = { workspace = true }
+if-addrs = { workspace = true }
+log = { workspace = true }
+paddler = { workspace = true }
+paddler_bootstrap = { workspace = true }
+paddler_types = { workspace = true }
+statum = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+dashmap = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+web_admin_panel = ["paddler/web_admin_panel"]

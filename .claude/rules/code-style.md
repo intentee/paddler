@@ -1,0 +1,23 @@
+# Coding Standards
+
+- Keep at most a single public struct per module.
+- Keep at most a single public function per module (multiple public struct methods are OK).
+- Keep module names elegant and clearly readable. The name of the module, or any file, should be enough to determine its contents unambiguously.
+- Keep modules structure as flat as possible, avoid logical grouping of modules, instead keep the naming consistent.
+- Keep standalone, private functions and structs above the public struct or function that is exported.
+- Group the modules by name prefix. For example, `client_foo`, `client_bar`, etc., wherever it makes sense to do so.
+- Decide to group the modules based on software architecture, messaging hierarchy, or inheritance. Do not group modules just for the sake of it.
+- Maintain a tree-like structure of modules, avoid circular dependencies at all costs. Extract common functions or structs into separate modules, or separate subprojects in the workspace.
+- Name files the same way as the struct or function they contain.
+- Be explicit, do not use general import statements that involve "*", prefer to import everything explicitly.
+- Do not use copy-pasted or copied code in any capacity. If you have issues extracting something into a module, discuss the steps first.
+- Keeping slightly different message types, or other kinds of structs that are only slightly different, because of the context they are used in, is fine.
+- Each function or method should do just a single thing. The single responsibility principle is really important.
+- Always use descriptive and explicit variable names, even in anonymous functions. Never use single-letter variable names.
+- Instead of writing comments that explain what the code does, make the code self-documenting.
+- Handle all the errors; never ignore them. Make sure the application does not panic.
+- Use object-oriented style and composition. Avoid functions that take a struct as a parameter; move it to the struct implementation instead.
+- Avoid unnecessary abstractions.
+- Before using vendor crates or modules, make sure they are well-maintained, secure, and documented.
+- Always make sure there is only one valid way to do a specific task in the codebase. Make sure everything has a single source of truth.
+- Prefer using data/value objects instead of inline types

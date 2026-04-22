@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::agent_issue::AgentIssue;
 use crate::agent_state_application_status::AgentStateApplicationStatus;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AgentControllerSnapshot {
     pub desired_slots_total: i32,
