@@ -7,6 +7,8 @@ use anyhow::Result;
 use anyhow::anyhow;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler::balancer::state_database::File as StateDatabaseFile;
+use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
@@ -14,8 +16,13 @@ use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::cluster_runner::ClusterRunner;
 use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
+use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler_types::chat_template::ChatTemplate;
+use paddler_types::inference_parameters::InferenceParameters;
+use tempfile::NamedTempFile;
 use tokio::net::TcpStream;
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 fn pick_free_loopback_addr() -> Result<SocketAddr> {
@@ -79,7 +86,7 @@ async fn cluster_runner_exits_when_dropped() -> Result<()> {
 
     let runner = ClusterRunner::start(ClusterRunnerParams {
         bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: BalancerDesiredState::default(),
+        initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
 
@@ -103,7 +110,7 @@ async fn cluster_runner_exits_on_explicit_cancel() -> Result<()> {
 
     let mut runner = ClusterRunner::start(ClusterRunnerParams {
         bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: BalancerDesiredState::default(),
+        initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
 
@@ -130,7 +137,7 @@ async fn cluster_runner_cancels_from_parent_token() -> Result<()> {
 
     let runner = ClusterRunner::start(ClusterRunnerParams {
         bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: BalancerDesiredState::default(),
+        initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: Some(parent.clone()),
     });
 
@@ -142,6 +149,66 @@ async fn cluster_runner_cancels_from_parent_token() -> Result<()> {
 
     TcpListener::bind(management_addr)
         .context("management port is still held after parent cancel")?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn cluster_runner_preserves_persisted_desired_state_when_no_initial_provided() -> Result<()> {
+    let state_db_file = NamedTempFile::new()?;
+    let state_db_path = state_db_file.path().to_path_buf();
+
+    let persisted_state = BalancerDesiredState {
+        chat_template_override: Some(ChatTemplate {
+            content: "persisted-chat-template".to_owned(),
+        }),
+        inference_parameters: InferenceParameters::default(),
+        model: AgentDesiredModel::LocalToAgent("persisted-model".to_owned()),
+        multimodal_projection: AgentDesiredModel::None,
+        use_chat_template_override: true,
+    };
+
+    {
+        let (tx, _rx) = broadcast::channel(100);
+        let seeded_database = StateDatabaseFile::new(tx, state_db_path.clone());
+
+        seeded_database
+            .store_balancer_desired_state(&persisted_state)
+            .await?;
+    }
+
+    let management_addr = pick_free_loopback_addr()?;
+    let inference_addr = pick_free_loopback_addr()?;
+
+    let mut bootstrap_params = make_cluster_bootstrap_params(management_addr, inference_addr);
+
+    bootstrap_params.state_database_type = StateDatabaseType::File(state_db_path.clone());
+
+    let mut runner = ClusterRunner::start(ClusterRunnerParams {
+        bootstrap_params,
+        initial_desired_state: None,
+        parent_shutdown: None,
+    });
+
+    wait_until_bound(management_addr).await?;
+
+    let bundle_rx = runner
+        .take_initial_bundle_rx()
+        .ok_or_else(|| anyhow!("ClusterRunner did not expose initial_bundle_rx"))?;
+    let bundle = bundle_rx
+        .await
+        .map_err(|error| anyhow!("bundle channel dropped: {error}"))?;
+
+    assert_eq!(bundle.initial_desired_state, persisted_state);
+
+    runner.cancel();
+    drop(runner);
+
+    let (tx, _rx) = broadcast::channel(100);
+    let verify_database = StateDatabaseFile::new(tx, state_db_path);
+    let on_disk = verify_database.read_balancer_desired_state().await?;
+
+    assert_eq!(on_disk, persisted_state);
 
     Ok(())
 }

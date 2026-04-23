@@ -17,7 +17,6 @@ use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::cluster_runner::ClusterRunner;
 use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
@@ -148,7 +147,7 @@ impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
         let mut runner = ClusterRunner::start(ClusterRunnerParams {
             bootstrap_params: self.build_bootstrap_params(),
-            initial_desired_state: BalancerDesiredState::default(),
+            initial_desired_state: None,
             parent_shutdown: Some(shutdown),
         });
 

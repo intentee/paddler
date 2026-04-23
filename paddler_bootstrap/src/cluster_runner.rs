@@ -22,7 +22,7 @@ pub struct BootstrappedBalancerBundle {
 
 pub struct ClusterRunnerParams {
     pub bootstrap_params: BootstrapBalancerParams,
-    pub initial_desired_state: BalancerDesiredState,
+    pub initial_desired_state: Option<BalancerDesiredState>,
     pub parent_shutdown: Option<CancellationToken>,
 }
 
@@ -45,23 +45,35 @@ impl ClusterRunner {
         let thread = ServiceThread::spawn(parent_shutdown, move |task_shutdown| async move {
             let bootstrapped = bootstrap_balancer(bootstrap_params).await?;
 
+            let effective_initial_desired_state = match &initial_desired_state {
+                Some(state) => {
+                    bootstrapped
+                        .state_database
+                        .store_balancer_desired_state(state)
+                        .await?;
+
+                    state.clone()
+                }
+                None => {
+                    bootstrapped
+                        .state_database
+                        .read_balancer_desired_state()
+                        .await?
+                }
+            };
+
             let bundle = Arc::new(BootstrappedBalancerBundle {
                 agent_controller_pool: bootstrapped.agent_controller_pool.clone(),
                 balancer_applicable_state_holder: bootstrapped
                     .balancer_applicable_state_holder
                     .clone(),
                 balancer_desired_state_rx: bootstrapped.balancer_desired_state_tx.subscribe(),
-                initial_desired_state: initial_desired_state.clone(),
+                initial_desired_state: effective_initial_desired_state,
             });
 
             if bundle_tx.send(bundle).is_err() {
                 debug!("cluster runner bundle receiver dropped; continuing without publishing");
             }
-
-            bootstrapped
-                .state_database
-                .store_balancer_desired_state(&initial_desired_state)
-                .await?;
 
             bootstrapped
                 .service_manager

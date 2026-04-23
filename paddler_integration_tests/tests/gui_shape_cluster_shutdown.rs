@@ -103,7 +103,7 @@ async fn balancer_exits_while_real_agent_is_connected() -> Result<()> {
 
     let cluster = ClusterRunner::start(ClusterRunnerParams {
         bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: BalancerDesiredState::default(),
+        initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
 
@@ -141,7 +141,7 @@ async fn agent_exits_while_connected_to_balancer() -> Result<()> {
 
     let cluster = ClusterRunner::start(ClusterRunnerParams {
         bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: BalancerDesiredState::default(),
+        initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
 

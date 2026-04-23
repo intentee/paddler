@@ -439,7 +439,7 @@ impl App {
                 #[cfg(feature = "web_admin_panel")]
                 web_admin_panel_service_configuration: None,
             },
-            initial_desired_state: desired_state.clone(),
+            initial_desired_state: Some(desired_state.clone()),
             parent_shutdown: Some(self.shutdown.clone()),
         });
 
