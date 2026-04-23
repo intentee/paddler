@@ -7,12 +7,13 @@ use anyhow::Error;
 use anyhow::Result;
 use anyhow::anyhow;
 use indoc::formatdoc;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
 use url::Url;
 
 #[derive(Clone)]
 pub enum StateDatabaseType {
     File(PathBuf),
-    Memory,
+    Memory(Box<BalancerDesiredState>),
 }
 
 impl FromStr for StateDatabaseType {
@@ -44,7 +45,7 @@ impl FromStr for StateDatabaseType {
 
                 Ok(Self::File(PathBuf::from(path)))
             }
-            "memory" => Ok(Self::Memory),
+            "memory" => Ok(Self::Memory(Box::default())),
             scheme => Err(anyhow!("Unsupported scheme '{scheme}'")),
         }
     }
@@ -61,7 +62,7 @@ mod tests {
     #[test]
     fn test_memory_basic() -> Result<()> {
         let result = StateDatabaseType::from_str("memory://")?;
-        assert!(matches!(result, StateDatabaseType::Memory));
+        assert!(matches!(result, StateDatabaseType::Memory(_)));
 
         Ok(())
     }
@@ -81,7 +82,7 @@ mod tests {
             StateDatabaseType::File(path) => {
                 assert_eq!(path, PathBuf::from("/absolute/path"));
             }
-            StateDatabaseType::Memory => {
+            StateDatabaseType::Memory(_) => {
                 return Err(anyhow!("Expected File variant"));
             }
         }

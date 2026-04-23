@@ -12,7 +12,6 @@ use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_client::PaddlerClient;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::net::TcpStream;
 use url::Url;
 
@@ -71,7 +70,6 @@ fn make_balancer_runner_params(
             cors_allowed_hosts: vec![],
             inference_item_timeout: Duration::from_secs(30),
         },
-        initial_desired_state: Some(BalancerDesiredState::default()),
         management_service_configuration: ManagementServiceConfiguration {
             addr: management_addr,
             cors_allowed_hosts: vec![],
@@ -79,7 +77,7 @@ fn make_balancer_runner_params(
         max_buffered_requests: 30,
         openai_service_configuration: None,
         parent_shutdown: None,
-        state_database_type: StateDatabaseType::Memory,
+        state_database_type: StateDatabaseType::Memory(Box::default()),
         statsd_prefix: "paddler_gui_shape_test_".to_owned(),
         statsd_service_configuration: None,
         #[cfg(feature = "web_admin_panel")]

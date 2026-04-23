@@ -14,9 +14,12 @@ pub struct Memory {
 
 impl Memory {
     #[must_use]
-    pub fn new(balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>) -> Self {
+    pub const fn new(
+        balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>,
+        initial_desired_state: BalancerDesiredState,
+    ) -> Self {
         Self {
-            balancer_desired_state: RwLock::new(BalancerDesiredState::default()),
+            balancer_desired_state: RwLock::new(initial_desired_state),
             balancer_desired_state_notify_tx,
         }
     }

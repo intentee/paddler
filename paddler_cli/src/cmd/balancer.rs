@@ -118,7 +118,6 @@ impl Handler for Balancer {
                 cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
                 inference_item_timeout: self.inference_item_timeout,
             },
-            initial_desired_state: None,
             management_service_configuration: ManagementServiceConfiguration {
                 addr: self.management_addr.socket_addr,
                 cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),

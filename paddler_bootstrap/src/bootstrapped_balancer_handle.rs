@@ -83,7 +83,10 @@ pub async fn bootstrap_balancer(
         StateDatabaseType::File(path) => {
             Arc::new(File::new(balancer_desired_state_tx.clone(), path))
         }
-        StateDatabaseType::Memory => Arc::new(Memory::new(balancer_desired_state_tx.clone())),
+        StateDatabaseType::Memory(initial_desired_state) => Arc::new(Memory::new(
+            balancer_desired_state_tx.clone(),
+            *initial_desired_state,
+        )),
     };
 
     service_manager.add_service(InferenceService {

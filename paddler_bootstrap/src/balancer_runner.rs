@@ -24,7 +24,6 @@ use crate::service_thread::ServiceThread;
 pub struct BalancerRunnerParams {
     pub buffered_request_timeout: Duration,
     pub inference_service_configuration: InferenceServiceConfiguration,
-    pub initial_desired_state: Option<BalancerDesiredState>,
     pub management_service_configuration: ManagementServiceConfiguration,
     pub max_buffered_requests: i32,
     pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
@@ -49,7 +48,6 @@ impl BalancerRunner {
         BalancerRunnerParams {
             buffered_request_timeout,
             inference_service_configuration,
-            initial_desired_state,
             management_service_configuration,
             max_buffered_requests,
             openai_service_configuration,
@@ -81,14 +79,7 @@ impl BalancerRunner {
         })
         .await?;
 
-        let effective_initial_desired_state = match initial_desired_state {
-            Some(state) => {
-                state_database.store_balancer_desired_state(&state).await?;
-
-                state
-            }
-            None => state_database.read_balancer_desired_state().await?,
-        };
+        let initial_desired_state = state_database.read_balancer_desired_state().await?;
 
         let thread = ServiceThread::spawn(parent_shutdown, move |task_shutdown| async move {
             service_manager.run_forever(task_shutdown).await
@@ -98,7 +89,7 @@ impl BalancerRunner {
             agent_controller_pool,
             balancer_applicable_state_holder,
             balancer_desired_state_tx,
-            initial_desired_state: effective_initial_desired_state,
+            initial_desired_state,
             thread,
         })
     }

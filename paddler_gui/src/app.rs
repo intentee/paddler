@@ -409,7 +409,6 @@ impl App {
                 cors_allowed_hosts: vec![],
                 inference_item_timeout: Duration::from_secs(30),
             },
-            initial_desired_state: Some(desired_state.clone()),
             management_service_configuration: ManagementServiceConfiguration {
                 addr: management_addr,
                 cors_allowed_hosts: vec![],
@@ -417,7 +416,7 @@ impl App {
             max_buffered_requests: 30,
             openai_service_configuration: None,
             parent_shutdown: Some(cancel),
-            state_database_type: StateDatabaseType::Memory,
+            state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
             statsd_prefix: "paddler_".to_owned(),
             statsd_service_configuration: None,
             #[cfg(feature = "web_admin_panel")]

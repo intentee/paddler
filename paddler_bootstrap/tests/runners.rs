@@ -46,7 +46,6 @@ async fn wait_until_bound(addr: SocketAddr) -> Result<()> {
 fn make_balancer_runner_params(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
-    initial_desired_state: Option<BalancerDesiredState>,
     parent_shutdown: Option<CancellationToken>,
 ) -> BalancerRunnerParams {
     BalancerRunnerParams {
@@ -56,7 +55,6 @@ fn make_balancer_runner_params(
             cors_allowed_hosts: vec![],
             inference_item_timeout: Duration::from_secs(30),
         },
-        initial_desired_state,
         management_service_configuration: ManagementServiceConfiguration {
             addr: management_addr,
             cors_allowed_hosts: vec![],
@@ -64,7 +62,7 @@ fn make_balancer_runner_params(
         max_buffered_requests: 30,
         openai_service_configuration: None,
         parent_shutdown,
-        state_database_type: StateDatabaseType::Memory,
+        state_database_type: StateDatabaseType::Memory(Box::default()),
         statsd_prefix: "paddler_bootstrap_test_".to_owned(),
         statsd_service_configuration: None,
         #[cfg(feature = "web_admin_panel")]
@@ -92,7 +90,6 @@ async fn balancer_runner_exits_when_dropped() -> Result<()> {
     let runner = BalancerRunner::start(make_balancer_runner_params(
         management_addr,
         inference_addr,
-        Some(BalancerDesiredState::default()),
         None,
     ))
     .await?;
@@ -118,7 +115,6 @@ async fn balancer_runner_exits_on_explicit_cancel() -> Result<()> {
     let runner = BalancerRunner::start(make_balancer_runner_params(
         management_addr,
         inference_addr,
-        Some(BalancerDesiredState::default()),
         None,
     ))
     .await?;
@@ -145,7 +141,6 @@ async fn balancer_runner_cancels_from_parent_token() -> Result<()> {
     let runner = BalancerRunner::start(make_balancer_runner_params(
         management_addr,
         inference_addr,
-        Some(BalancerDesiredState::default()),
         Some(parent.clone()),
     ))
     .await?;
@@ -163,8 +158,7 @@ async fn balancer_runner_cancels_from_parent_token() -> Result<()> {
 }
 
 #[tokio::test]
-async fn balancer_runner_preserves_persisted_desired_state_when_no_initial_provided() -> Result<()>
-{
+async fn balancer_runner_preserves_persisted_desired_state() -> Result<()> {
     let state_db_file = NamedTempFile::new()?;
     let state_db_path = state_db_file.path().to_path_buf();
 
@@ -190,7 +184,7 @@ async fn balancer_runner_preserves_persisted_desired_state_when_no_initial_provi
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let mut params = make_balancer_runner_params(management_addr, inference_addr, None, None);
+    let mut params = make_balancer_runner_params(management_addr, inference_addr, None);
 
     params.state_database_type = StateDatabaseType::File(state_db_path.clone());
 

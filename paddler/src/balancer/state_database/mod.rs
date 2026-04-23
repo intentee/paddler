@@ -58,7 +58,7 @@ mod tests {
     #[tokio::test]
     async fn test_memory_database() -> Result<()> {
         let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
-        let db = Memory::new(balancer_desired_state_tx);
+        let db = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
 
         subtest_store_desired_state(&db).await?;
 
