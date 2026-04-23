@@ -53,7 +53,7 @@ async fn test_agent_exits_gracefully_during_active_generation() -> anyhow::Resul
     cluster.agent.kill();
 
     // Verify balancer detects agent removal
-    cluster.balancer.wait_for_agent_count(0).await;
+    cluster.balancer.wait_for_agent_count(0).await?;
 
     Ok(())
 }

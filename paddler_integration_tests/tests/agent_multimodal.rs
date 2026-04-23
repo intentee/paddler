@@ -106,7 +106,7 @@ async fn test_load_mmproj_from_local_path() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let retrieved_state = balancer
         .client()
@@ -165,7 +165,7 @@ async fn test_load_mmproj_from_huggingface() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let retrieved_state = balancer
         .client()
@@ -224,7 +224,7 @@ async fn test_multimodal_inference_with_image() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management,
@@ -233,8 +233,8 @@ async fn test_multimodal_inference_with_image() -> Result<()> {
     })
     .context("failed to spawn agent")?;
 
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(4).await;
+    balancer.wait_for_agent_count(1).await?;
+    balancer.wait_for_total_slots(4).await?;
 
     let test_image_data_uri = load_test_image_as_data_uri()?;
 

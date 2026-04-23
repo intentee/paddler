@@ -51,7 +51,7 @@ async fn test_invalid_gguf_returns_error() -> Result<()> {
     let issue = cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ModelCannotBeLoaded(_)))
-        .await;
+        .await?;
 
     match issue {
         AgentIssue::ModelCannotBeLoaded(reported_path) => {
@@ -89,7 +89,7 @@ async fn test_invalid_mmproj_returns_error() -> Result<()> {
         .wait_for_agent_issue(|issue| {
             matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_))
         })
-        .await;
+        .await?;
 
     match issue {
         AgentIssue::MultimodalProjectionCannotBeLoaded(reported_path) => {

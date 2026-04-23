@@ -17,6 +17,10 @@ use paddler_types::request_params::ContinueFromRawPromptParams;
 use serial_test::file_serial;
 use url::Url;
 
+// Slot must be released within this SLA after a WebSocket disconnect.
+// Without the fix, it stays occupied until inference_item_timeout (30s default).
+const SLOT_RELEASE_SLA: Duration = Duration::from_secs(15);
+
 #[tokio::test]
 #[file_serial]
 async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
@@ -60,16 +64,14 @@ async fn test_slot_released_after_websocket_disconnect() -> anyhow::Result<()> {
     }
 
     // Verify slot is occupied
-    cluster.balancer.wait_for_slots_processing(1).await;
+    cluster.balancer.wait_for_slots_processing(1).await?;
 
     // CLOSE THE WEBSOCKET — drop stream AND client.
     // This closes the TCP connection, just like closing a browser tab.
     drop(stream);
     drop(disposable_client);
 
-    // Slot must be released within 5 seconds.
-    // Without the fix, it stays occupied until inference_item_timeout (30s default).
-    let deadline = Instant::now() + paddler_integration_tests::WAIT_FOR_STATE_CHANGE_TIMEOUT;
+    let deadline = Instant::now() + SLOT_RELEASE_SLA;
     let mut final_slots_processing = -1;
 
     loop {

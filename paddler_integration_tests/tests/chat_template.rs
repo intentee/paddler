@@ -8,8 +8,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt;
 use paddler_integration_tests::AGENT_DESIRED_MODEL;
-use paddler_integration_tests::WAIT_FOR_STATE_CHANGE_POLL_INTERVAL;
-use paddler_integration_tests::WAIT_FOR_STATE_CHANGE_TIMEOUT;
 use paddler_integration_tests::managed_balancer::ManagedBalancer;
 use paddler_integration_tests::managed_cluster::ManagedCluster;
 use paddler_integration_tests::managed_cluster_params::ManagedClusterParams;
@@ -61,6 +59,11 @@ async fn wait_for_chat_template_override(
     agent_id: &str,
     expected: &ChatTemplate,
 ) -> Result<()> {
+    const CHAT_TEMPLATE_OVERRIDE_POLL_INTERVAL: std::time::Duration =
+        std::time::Duration::from_millis(50);
+    const CHAT_TEMPLATE_OVERRIDE_TIMEOUT: std::time::Duration =
+        std::time::Duration::from_secs(30);
+
     let start = std::time::Instant::now();
 
     loop {
@@ -75,13 +78,13 @@ async fn wait_for_chat_template_override(
             return Ok(());
         }
 
-        if start.elapsed() > WAIT_FOR_STATE_CHANGE_TIMEOUT {
+        if start.elapsed() > CHAT_TEMPLATE_OVERRIDE_TIMEOUT {
             return Err(anyhow!(
                 "timed out waiting for agent to apply chat template override; current: {current:?}"
             ));
         }
 
-        tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
+        tokio::time::sleep(CHAT_TEMPLATE_OVERRIDE_POLL_INTERVAL).await;
     }
 }
 
@@ -100,10 +103,10 @@ async fn swap_chat_template(
         .await
         .context("failed to put new desired state")?;
 
-    balancer.wait_for_desired_state(&new_state).await;
+    balancer.wait_for_desired_state(&new_state).await?;
     balancer
         .wait_for_applicable_state(&new_state.to_agent_desired_state())
-        .await;
+        .await?;
     wait_for_chat_template_override(balancer, agent_id, &new_template).await?;
 
     Ok(())
@@ -447,11 +450,11 @@ async fn test_agent_drains_in_flight_then_applies_chat_template_swap() -> Result
         "in-flight stream must terminate cleanly with Done despite the concurrent swap"
     );
 
-    cluster.balancer.wait_for_desired_state(&new_state).await;
+    cluster.balancer.wait_for_desired_state(&new_state).await?;
     cluster
         .balancer
         .wait_for_applicable_state(&new_state.to_agent_desired_state())
-        .await;
+        .await?;
     wait_for_chat_template_override(&cluster.balancer, &agent_id, &template_b).await?;
 
     let retrieved_template = cluster

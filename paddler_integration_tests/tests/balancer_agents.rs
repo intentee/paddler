@@ -61,7 +61,7 @@ async fn test_balancer_can_register_agents() -> Result<()> {
     .await
     .context("failed to spawn balancer")?;
 
-    let agent_count = balancer.wait_for_agent_count(0).await;
+    let agent_count = balancer.wait_for_agent_count(0).await?;
 
     assert_eq!(agent_count, 0);
 
@@ -72,7 +72,7 @@ async fn test_balancer_can_register_agents() -> Result<()> {
     })
     .context("failed to spawn agent")?;
 
-    let agent_count = balancer.wait_for_agent_count(1).await;
+    let agent_count = balancer.wait_for_agent_count(1).await?;
 
     assert_eq!(agent_count, 1);
 
@@ -83,7 +83,7 @@ async fn test_balancer_can_register_agents() -> Result<()> {
     })
     .context("failed to spawn agent")?;
 
-    let agent_count = balancer.wait_for_agent_count(2).await;
+    let agent_count = balancer.wait_for_agent_count(2).await?;
 
     assert_eq!(agent_count, 2);
 

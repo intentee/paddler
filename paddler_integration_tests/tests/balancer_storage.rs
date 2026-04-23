@@ -58,7 +58,7 @@ async fn test_desired_state_persists_across_restarts() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     balancer
         .shutdown()
@@ -70,7 +70,7 @@ async fn test_desired_state_persists_across_restarts() -> Result<()> {
 
     restarted_balancer
         .wait_for_desired_state(&desired_state)
-        .await;
+        .await?;
 
     Ok(())
 }
@@ -104,7 +104,9 @@ async fn test_balancer_can_switch_model() -> Result<()> {
         .await
         .context("failed to set first desired state")?;
 
-    balancer.wait_for_desired_state(&first_desired_state).await;
+    balancer
+        .wait_for_desired_state(&first_desired_state)
+        .await?;
 
     let retrieved_state = balancer
         .client()
@@ -130,7 +132,9 @@ async fn test_balancer_can_switch_model() -> Result<()> {
         .await
         .context("failed to set second desired state")?;
 
-    balancer.wait_for_desired_state(&second_desired_state).await;
+    balancer
+        .wait_for_desired_state(&second_desired_state)
+        .await?;
 
     let retrieved_state = balancer
         .client()
@@ -180,7 +184,7 @@ async fn test_chat_template_override_persists_across_restarts() -> Result<()> {
         .await
         .context("failed to set desired state with chat template")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let retrieved_state = balancer
         .client()
@@ -236,7 +240,7 @@ async fn test_desired_state_works_with_memory_storage() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let retrieved_state = balancer
         .client()

@@ -210,7 +210,7 @@ async fn test_inference_fails_when_no_agents_registered() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let result = balancer
         .client()
@@ -278,7 +278,7 @@ async fn test_balancer_overflows_buffer_when_feature_is_disabled() -> Result<()>
     })
     .context("failed to spawn agent")?;
 
-    balancer.wait_for_agent_count(1).await;
+    balancer.wait_for_agent_count(1).await?;
 
     let result = balancer
         .client()
@@ -351,7 +351,7 @@ async fn test_balancer_can_buffer_requests() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let mut stream = balancer
         .client()
@@ -364,7 +364,7 @@ async fn test_balancer_can_buffer_requests() -> Result<()> {
         .await
         .context("WebSocket connection should succeed")?;
 
-    balancer.wait_for_buffered_requests(1).await;
+    balancer.wait_for_buffered_requests(1).await?;
 
     let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management.clone(),
@@ -431,7 +431,7 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() ->
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management.clone(),
@@ -447,7 +447,7 @@ async fn test_balancer_distributes_buffered_requests_across_multiple_agents() ->
     })
     .context("failed to spawn second agent")?;
 
-    balancer.wait_for_total_slots(4).await;
+    balancer.wait_for_total_slots(4).await?;
 
     let mut streams = send_buffered_requests(&balancer, 5).await?;
 
@@ -520,11 +520,11 @@ async fn test_buffered_requests_when_agent_is_removed() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let mut streams = send_buffered_requests(&balancer, 3).await?;
 
-    balancer.wait_for_buffered_requests(3).await;
+    balancer.wait_for_buffered_requests(3).await?;
 
     let _agent_one = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management.clone(),
@@ -540,11 +540,11 @@ async fn test_buffered_requests_when_agent_is_removed() -> Result<()> {
     })
     .context("failed to spawn second agent")?;
 
-    balancer.wait_for_agent_count(2).await;
+    balancer.wait_for_agent_count(2).await?;
 
     agent_two.kill();
 
-    balancer.wait_for_agent_count(1).await;
+    balancer.wait_for_agent_count(1).await?;
 
     let mut successful_responses = 0;
     let mut error_responses = 0;
@@ -618,7 +618,7 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() -> Result<(
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
     let _agent = ManagedAgent::spawn(&ManagedAgentParams {
         management_addr: addresses.management.clone(),
@@ -627,8 +627,8 @@ async fn test_inference_item_timeout_zero_causes_immediate_timeout() -> Result<(
     })
     .context("failed to spawn agent")?;
 
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(1).await;
+    balancer.wait_for_agent_count(1).await?;
+    balancer.wait_for_total_slots(1).await?;
 
     let mut stream = balancer
         .client()

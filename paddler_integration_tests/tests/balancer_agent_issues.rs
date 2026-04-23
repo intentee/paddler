@@ -48,7 +48,7 @@ async fn test_model_file_does_not_exist() -> Result<()> {
     let issue = cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ModelFileDoesNotExist(_)))
-        .await;
+        .await?;
 
     match issue {
         AgentIssue::ModelFileDoesNotExist(model_path) => {
@@ -89,7 +89,7 @@ async fn test_model_cannot_be_loaded() -> Result<()> {
     let issue = cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ModelCannotBeLoaded(_)))
-        .await;
+        .await?;
 
     match issue {
         AgentIssue::ModelCannotBeLoaded(model_path) => {
@@ -128,7 +128,7 @@ async fn test_huggingface_model_does_not_exist() -> Result<()> {
                 AgentIssue::HuggingFaceModelDoesNotExist(_) | AgentIssue::HuggingFacePermissions(_)
             )
         })
-        .await;
+        .await?;
 
     Ok(())
 }
@@ -155,7 +155,7 @@ async fn test_unable_to_find_chat_template() -> Result<()> {
     cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::UnableToFindChatTemplate(_)))
-        .await;
+        .await?;
 
     Ok(())
 }
@@ -180,7 +180,7 @@ async fn test_chat_template_does_not_compile() -> Result<()> {
     cluster
         .balancer
         .wait_for_agent_issue(|issue| matches!(issue, AgentIssue::ChatTemplateDoesNotCompile(_)))
-        .await;
+        .await?;
 
     Ok(())
 }
@@ -207,7 +207,7 @@ async fn test_multimodal_projection_cannot_be_loaded() -> Result<()> {
         .wait_for_agent_issue(|issue| {
             matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_))
         })
-        .await;
+        .await?;
 
     Ok(())
 }

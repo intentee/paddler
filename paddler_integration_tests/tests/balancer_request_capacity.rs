@@ -64,9 +64,9 @@ async fn test_slots_can_handle_request() -> Result<()> {
         .await
         .context("failed to set balancer desired state")?;
 
-    balancer.wait_for_desired_state(&desired_state).await;
+    balancer.wait_for_desired_state(&desired_state).await?;
 
-    balancer.wait_for_agent_count(0).await;
+    balancer.wait_for_agent_count(0).await?;
 
     let result = balancer
         .client()
@@ -108,8 +108,8 @@ async fn test_slots_can_handle_request() -> Result<()> {
     })
     .context("failed to spawn agent")?;
 
-    balancer.wait_for_agent_count(1).await;
-    balancer.wait_for_total_slots(4).await;
+    balancer.wait_for_agent_count(1).await?;
+    balancer.wait_for_total_slots(4).await?;
 
     let result = balancer
         .client()
