@@ -6,12 +6,14 @@ pub enum Message {
     SnapshotUpdated(Box<RunningClusterSnapshot>),
     Stop,
     CopyToClipboard(String),
+    OpenUrl(String),
 }
 
 pub enum Action {
     None,
     Stop,
     CopyToClipboard(String),
+    OpenUrl(String),
 }
 
 impl RunningClusterData {
@@ -28,6 +30,7 @@ impl RunningClusterData {
                 Action::Stop
             }
             Message::CopyToClipboard(content) => Action::CopyToClipboard(content),
+            Message::OpenUrl(url) => Action::OpenUrl(url),
         }
     }
 }

@@ -22,7 +22,13 @@ use iced::window;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::produces_snapshot::ProducesSnapshot;
+#[cfg(feature = "web_admin_panel")]
+use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
@@ -92,6 +98,7 @@ impl App {
                 let spawn_task = app.spawn_cluster(
                     config.management_addr,
                     config.inference_addr,
+                    None,
                     &BalancerDesiredState::default(),
                 );
 
@@ -176,11 +183,17 @@ impl App {
                     start_cluster_config_handler::Action::StartCluster {
                         management_addr,
                         inference_addr,
+                        web_admin_panel_addr,
                         desired_state,
                     } => {
                         self.screen = CurrentScreen::StartClusterConfig(config);
 
-                        self.spawn_cluster(management_addr, inference_addr, &desired_state)
+                        self.spawn_cluster(
+                            management_addr,
+                            inference_addr,
+                            web_admin_panel_addr,
+                            &desired_state,
+                        )
                     }
                 }
             }
@@ -217,6 +230,15 @@ impl App {
                         self.screen = CurrentScreen::RunningCluster(running);
 
                         iced::clipboard::write::<Message>(content).discard()
+                    }
+                    running_cluster_handler::Action::OpenUrl(url) => {
+                        self.screen = CurrentScreen::RunningCluster(running);
+
+                        if let Err(error) = open::that(&url) {
+                            log::error!("Failed to open URL {url}: {error}");
+                        }
+
+                        Task::none()
                     }
                 }
             }
@@ -431,11 +453,45 @@ impl App {
         &mut self,
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
+        #[cfg_attr(
+            not(feature = "web_admin_panel"),
+            expect(
+                unused_variables,
+                reason = "web admin panel configuration is only built when the feature is enabled"
+            )
+        )]
+        web_admin_panel_addr: Option<SocketAddr>,
         desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
+        let buffered_request_timeout = Duration::from_secs(10);
+        let max_buffered_requests = 30;
+        let statsd_prefix = "paddler_";
+
+        #[cfg(feature = "web_admin_panel")]
+        let web_admin_panel_service_configuration =
+            web_admin_panel_addr.map(|addr| WebAdminPanelServiceConfiguration {
+                addr,
+                template_data: TemplateData {
+                    buffered_request_timeout,
+                    compat_openai_addr: None,
+                    inference_addr: ResolvedSocketAddr {
+                        input_addr: inference_addr.to_string(),
+                        socket_addr: inference_addr,
+                    },
+                    management_addr: ResolvedSocketAddr {
+                        input_addr: management_addr.to_string(),
+                        socket_addr: management_addr,
+                    },
+                    max_buffered_requests,
+                    statsd_addr: None,
+                    statsd_prefix: statsd_prefix.to_owned(),
+                    statsd_reporting_interval: Duration::from_secs(10),
+                },
+            });
+
         let mut runner = ClusterRunner::start(ClusterRunnerParams {
             bootstrap_params: BootstrapBalancerParams {
-                buffered_request_timeout: Duration::from_secs(10),
+                buffered_request_timeout,
                 inference_service_configuration: InferenceServiceConfiguration {
                     addr: inference_addr,
                     cors_allowed_hosts: vec![],
@@ -445,13 +501,13 @@ impl App {
                     addr: management_addr,
                     cors_allowed_hosts: vec![],
                 },
-                max_buffered_requests: 30,
+                max_buffered_requests,
                 openai_service_configuration: None,
                 state_database_type: StateDatabaseType::Memory,
-                statsd_prefix: "paddler_".to_owned(),
+                statsd_prefix: statsd_prefix.to_owned(),
                 statsd_service_configuration: None,
                 #[cfg(feature = "web_admin_panel")]
-                web_admin_panel_service_configuration: None,
+                web_admin_panel_service_configuration,
             },
             initial_desired_state: desired_state.clone(),
             parent_shutdown: Some(self.shutdown.clone()),

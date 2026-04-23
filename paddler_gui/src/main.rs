@@ -24,12 +24,17 @@ use std::net::SocketAddr;
 use std::net::TcpListener;
 
 use app::App;
+#[cfg(feature = "web_admin_panel")]
+use esbuild_metafile::instance::initialize_instance;
 use iced::Size;
 use iced::Theme;
 use log::info;
 
 use crate::auto_cluster_config::AutoClusterConfig;
 use crate::auto_cluster_config::install_auto_cluster_config;
+
+#[cfg(feature = "web_admin_panel")]
+const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
 
 fn pick_free_loopback_addr() -> anyhow::Result<SocketAddr> {
     let probe = TcpListener::bind("127.0.0.1:0")?;
@@ -46,6 +51,9 @@ fn pick_free_loopback_addr() -> anyhow::Result<SocketAddr> {
 )]
 fn main() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    #[cfg(feature = "web_admin_panel")]
+    initialize_instance(ESBUILD_META_CONTENTS);
 
     if std::env::var_os("PADDLER_GUI_AUTO_CLUSTER").is_some() {
         let management_addr = pick_free_loopback_addr()

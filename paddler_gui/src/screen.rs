@@ -47,6 +47,9 @@ impl Screen<Home> {
             model_error: None,
             selected_model: None,
             starting: false,
+            web_admin_panel_address: String::new(),
+            web_admin_panel_address_error: None,
+            web_admin_panel_address_placeholder: format!("{suggested_address}:8062"),
         })
     }
 }
@@ -109,6 +112,8 @@ impl Screen<StartClusterConfig> {
             cluster_address: config_data.cluster_address,
             snapshot: RunningClusterSnapshot::default(),
             stopping: false,
+            web_admin_panel_address: Some(config_data.web_admin_panel_address)
+                .filter(|address| !address.is_empty()),
         })
     }
 

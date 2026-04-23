@@ -10,9 +10,11 @@ license.workspace = true
 actix-web = { workspace = true }
 anyhow = { workspace = true }
 env_logger = { workspace = true }
+esbuild-metafile = { workspace = true, optional = true }
 iced = { workspace = true }
 if-addrs = { workspace = true }
 log = { workspace = true }
+open = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_types = { workspace = true }
@@ -28,4 +30,8 @@ workspace = true
 
 [features]
 default = []
-web_admin_panel = ["paddler/web_admin_panel"]
+web_admin_panel = [
+    "dep:esbuild-metafile",
+    "paddler/web_admin_panel",
+    "paddler_bootstrap/web_admin_panel",
+]
