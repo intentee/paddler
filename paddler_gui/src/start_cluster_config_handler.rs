@@ -21,10 +21,31 @@ fn check_port(address: &SocketAddr) -> PortCheck {
     }
 }
 
+fn validate_optional_address(raw: &str) -> Result<Option<SocketAddr>, String> {
+    if raw.is_empty() {
+        return Ok(None);
+    }
+
+    let addr = raw
+        .parse::<SocketAddr>()
+        .map_err(|error| format!("Invalid address ({error}), expected format: IP:port"))?;
+
+    match check_port(&addr) {
+        PortCheck::Available => Ok(Some(addr)),
+        PortCheck::InUse => Err(format!("Port {} is already in use", addr.port())),
+        PortCheck::BindFailed(error) => Err(format!("Cannot bind to {addr}: {error}")),
+    }
+}
+
+fn validate_required_address(raw: &str) -> Result<SocketAddr, String> {
+    validate_optional_address(raw)?.ok_or_else(|| "Address is required.".to_owned())
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     SetClusterAddress(String),
     SetInferenceAddress(String),
+    SetWebAdminPanelAddress(String),
     SelectModel(ModelPreset),
     ToggleAddModelLater(bool),
     Confirm,
@@ -41,6 +62,7 @@ pub enum Action {
     StartCluster {
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
+        web_admin_panel_addr: Option<SocketAddr>,
         desired_state: BalancerDesiredState,
     },
 }
@@ -66,6 +88,12 @@ impl StartClusterConfigData {
 
                 Action::None
             }
+            Message::SetWebAdminPanelAddress(address) => {
+                self.web_admin_panel_address = address;
+                self.web_admin_panel_address_error = None;
+
+                Action::None
+            }
             Message::ToggleAddModelLater(add_later) => {
                 self.add_model_later = add_later;
 
@@ -83,69 +111,41 @@ impl StartClusterConfigData {
     fn validate_and_confirm(&mut self) -> Action {
         self.cluster_address_error = None;
         self.inference_address_error = None;
+        self.web_admin_panel_address_error = None;
         self.model_error = None;
 
         if !self.add_model_later && self.selected_model.is_none() {
             self.model_error = Some("Please select a model.".to_owned());
         }
 
-        let management_addr = if self.cluster_address.is_empty() {
-            self.cluster_address_error = Some("Cluster address is required.".to_owned());
-            None
-        } else if let Ok(addr) = self.cluster_address.parse::<SocketAddr>() {
-            Some(addr)
-        } else {
-            self.cluster_address_error =
-                Some("Invalid address, expected format: IP:port".to_owned());
-            None
+        let management_addr = match validate_required_address(&self.cluster_address) {
+            Ok(addr) => Some(addr),
+            Err(message) => {
+                self.cluster_address_error = Some(message);
+                None
+            }
         };
 
-        let inference_addr = if self.inference_address.is_empty() {
-            self.inference_address_error = Some("Inference address is required.".to_owned());
-            None
-        } else if let Ok(addr) = self.inference_address.parse::<SocketAddr>() {
-            Some(addr)
-        } else {
-            self.inference_address_error =
-                Some("Invalid address, expected format: IP:port".to_owned());
-            None
+        let inference_addr = match validate_required_address(&self.inference_address) {
+            Ok(addr) => Some(addr),
+            Err(message) => {
+                self.inference_address_error = Some(message);
+                None
+            }
         };
 
-        let management_addr = match management_addr {
-            Some(addr) => match check_port(&addr) {
-                PortCheck::Available => Some(addr),
-                PortCheck::InUse => {
-                    self.cluster_address_error =
-                        Some(format!("Port {} is already in use", addr.port()));
-                    None
-                }
-                PortCheck::BindFailed(error) => {
-                    self.cluster_address_error = Some(format!("Cannot bind to {addr}: {error}"));
-                    None
-                }
-            },
-            None => None,
-        };
-
-        let inference_addr = match inference_addr {
-            Some(addr) => match check_port(&addr) {
-                PortCheck::Available => Some(addr),
-                PortCheck::InUse => {
-                    self.inference_address_error =
-                        Some(format!("Port {} is already in use", addr.port()));
-                    None
-                }
-                PortCheck::BindFailed(error) => {
-                    self.inference_address_error = Some(format!("Cannot bind to {addr}: {error}"));
-                    None
-                }
-            },
-            None => None,
+        let web_admin_panel_addr = match validate_optional_address(&self.web_admin_panel_address) {
+            Ok(addr) => addr,
+            Err(message) => {
+                self.web_admin_panel_address_error = Some(message);
+                None
+            }
         };
 
         if self.model_error.is_some()
             || self.cluster_address_error.is_some()
             || self.inference_address_error.is_some()
+            || self.web_admin_panel_address_error.is_some()
         {
             return Action::None;
         }
@@ -169,6 +169,7 @@ impl StartClusterConfigData {
         Action::StartCluster {
             management_addr,
             inference_addr,
+            web_admin_panel_addr,
             desired_state,
         }
     }
@@ -184,6 +185,8 @@ mod tests {
 
     use super::PortCheck;
     use super::check_port;
+    use super::validate_optional_address;
+    use super::validate_required_address;
 
     const LOOPBACK_ANY_PORT: &str = "127.0.0.1:0";
     const UNASSIGNED_TEST_NET_ADDRESS: &str = "192.0.2.1:0";
@@ -230,6 +233,23 @@ mod tests {
             PortCheck::Available => {
                 bail!("bind should fail against an unassigned address")
             }
+        }
+    }
+
+    #[test]
+    fn required_address_rejects_empty_input() -> Result<()> {
+        match validate_required_address("") {
+            Err(_) => Ok(()),
+            Ok(address) => bail!("empty required input should not parse, got {address}"),
+        }
+    }
+
+    #[test]
+    fn optional_address_treats_empty_as_none() -> Result<()> {
+        match validate_optional_address("") {
+            Ok(None) => Ok(()),
+            Ok(Some(address)) => bail!("empty optional input should not parse to {address}"),
+            Err(error) => bail!("empty optional input should not error: {error}"),
         }
     }
 }

@@ -60,6 +60,15 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
         .style(style_field_text_input)
         .into();
 
+    let web_admin_panel_address_input = text_input(
+        &data.web_admin_panel_address_placeholder,
+        &data.web_admin_panel_address,
+    )
+    .on_input(Message::SetWebAdminPanelAddress)
+    .padding(SPACING_BASE)
+    .style(style_field_text_input)
+    .into();
+
     let model_input: Element<'_, Message> = if data.add_model_later {
         text_input("Model will be added later", "")
             .padding(SPACING_BASE)
@@ -116,6 +125,11 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
                     "Inference address",
                     inference_address_input,
                     data.inference_address_error.as_ref()
+                ),
+                view_form_field(
+                    "Web admin panel (optional)",
+                    web_admin_panel_address_input,
+                    data.web_admin_panel_address_error.as_ref()
                 ),
                 model_field,
                 row![cancel_button, confirm_button]
