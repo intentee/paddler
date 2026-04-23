@@ -80,7 +80,11 @@ test.unit: jarmuz-static
 
 .PHONY: test.integration
 test.integration: target/debug/paddler
-	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
+	@for test_file in paddler_integration_tests/tests/*.rs; do \
+		test_name=$$(basename $$test_file .rs); \
+		echo "==> cargo test --test $$test_name"; \
+		cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms --test $$test_name -- --nocapture --test-threads=1 || exit $$?; \
+	done
 
 .PHONY: watch
 watch: node_modules
