@@ -9,6 +9,8 @@ use actix_web::HttpServer;
 use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
+use paddler_types::balancer_desired_state::BalancerDesiredState;
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
@@ -30,6 +32,7 @@ use crate::service::Service;
 pub struct ManagementService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub chat_template_override_sender_collection: Arc<ChatTemplateOverrideSenderCollection>,
     pub configuration: ManagementServiceConfiguration,
@@ -62,6 +65,7 @@ impl Service for ManagementService {
         let app_data = Data::new(AppData {
             agent_controller_pool: self.agent_controller_pool.clone(),
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
+            balancer_desired_state_tx: self.balancer_desired_state_tx.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             chat_template_override_sender_collection: self
                 .chat_template_override_sender_collection
@@ -83,7 +87,9 @@ impl Service for ManagementService {
                 .configure(http_route::api::get_agents::register)
                 .configure(http_route::api::get_agents_stream::register)
                 .configure(http_route::api::get_balancer_applicable_state::register)
+                .configure(http_route::api::get_balancer_applicable_state_stream::register)
                 .configure(http_route::api::get_balancer_desired_state::register)
+                .configure(http_route::api::get_balancer_desired_state_stream::register)
                 .configure(http_route::api::get_buffered_requests::register)
                 .configure(http_route::api::get_buffered_requests_stream::register)
                 .configure(http_route::api::get_chat_template_override::register)

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use paddler_types::balancer_desired_state::BalancerDesiredState;
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
@@ -14,6 +16,7 @@ use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 pub struct AppData {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub chat_template_override_sender_collection: Arc<ChatTemplateOverrideSenderCollection>,
     pub embedding_sender_collection: Arc<EmbeddingSenderCollection>,

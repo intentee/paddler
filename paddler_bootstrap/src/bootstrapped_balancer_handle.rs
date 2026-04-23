@@ -79,6 +79,7 @@ pub async fn bootstrap_balancer(
     service_manager.add_service(ManagementService {
         agent_controller_pool: agent_controller_pool.clone(),
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
+        balancer_desired_state_tx: balancer_desired_state_tx.clone(),
         buffered_request_manager: buffered_request_manager.clone(),
         chat_template_override_sender_collection,
         configuration: management_service_configuration,
