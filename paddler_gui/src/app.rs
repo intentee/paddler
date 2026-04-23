@@ -41,7 +41,6 @@ use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_running_handler;
-use crate::auto_cluster_config::get_auto_cluster_config;
 use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
@@ -85,28 +84,14 @@ pub struct App {
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
-        let mut app = Self {
+        let app = Self {
             agent_runner: None,
             shutdown: CancellationToken::new(),
             cluster_runner: None,
             screen: CurrentScreen::default(),
         };
 
-        let startup_task = get_auto_cluster_config().map_or_else(
-            || Task::done(Message::IcedEventLoopReady),
-            |config| {
-                let spawn_task = app.spawn_cluster(
-                    config.management_addr,
-                    config.inference_addr,
-                    None,
-                    &BalancerDesiredState::default(),
-                );
-
-                Task::batch([Task::done(Message::IcedEventLoopReady), spawn_task])
-            },
-        );
-
-        (app, startup_task)
+        (app, Task::done(Message::IcedEventLoopReady))
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {

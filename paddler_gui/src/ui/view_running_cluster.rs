@@ -153,8 +153,8 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     }
 
     content = content.push(status_row);
-    content = content
-        .push(container(text("Connected agents").font(BOLD)).padding([0.0, SPACING_BASE]));
+    content =
+        content.push(container(text("Connected agents").font(BOLD)).padding([0.0, SPACING_BASE]));
 
     if data.snapshot.agent_snapshots.is_empty() {
         content = content.push(
