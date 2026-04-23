@@ -45,8 +45,8 @@ pub struct BalancerRunner {
 }
 
 impl BalancerRunner {
-    pub async fn start(params: BalancerRunnerParams) -> Result<Self> {
-        let BalancerRunnerParams {
+    pub async fn start(
+        BalancerRunnerParams {
             buffered_request_timeout,
             inference_service_configuration,
             initial_desired_state,
@@ -59,8 +59,8 @@ impl BalancerRunner {
             statsd_service_configuration,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
-        } = params;
-
+        }: BalancerRunnerParams,
+    ) -> Result<Self> {
         let BootstrappedBalancerHandle {
             agent_controller_pool,
             balancer_applicable_state_holder,

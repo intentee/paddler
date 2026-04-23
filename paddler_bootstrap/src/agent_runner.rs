@@ -23,14 +23,14 @@ pub struct AgentRunner {
 
 impl AgentRunner {
     #[must_use]
-    pub fn start(params: AgentRunnerParams) -> Self {
-        let AgentRunnerParams {
+    pub fn start(
+        AgentRunnerParams {
             agent_name,
             management_address,
             parent_shutdown,
             slots,
-        } = params;
-
+        }: AgentRunnerParams,
+    ) -> Self {
         let BootstrappedAgentHandle {
             service_manager,
             slot_aggregated_status,
