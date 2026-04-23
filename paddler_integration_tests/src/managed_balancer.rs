@@ -1,17 +1,24 @@
+use std::time::Duration;
+
 use anyhow::Result;
-use anyhow::bail;
+use anyhow::anyhow;
+use futures_util::StreamExt as _;
 use paddler_client::PaddlerClient;
 use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::process::Child;
+use tokio::time::timeout;
 use url::Url;
 
-use crate::WAIT_FOR_STATE_CHANGE_POLL_INTERVAL;
-use crate::WAIT_FOR_STATE_CHANGE_TIMEOUT;
+use crate::BALANCER_READY_TIMEOUT;
+use crate::WAIT_FOR_EVENT_IDLE_TIMEOUT;
 use crate::managed_balancer_params::ManagedBalancerParams;
 use crate::paddler_command;
 use crate::terminate_child;
+use crate::wait_for_stream_predicate::wait_for_stream_predicate;
+
+const HEALTH_PROBE_BACKOFF: Duration = Duration::from_millis(50);
 
 pub struct ManagedBalancer {
     child: Child,
@@ -62,19 +69,18 @@ impl ManagedBalancer {
 
         let inference_url = Url::parse(&format!("http://{}", params.inference_addr))?;
         let management_url = Url::parse(&format!("http://{}", params.management_addr))?;
-        let client = PaddlerClient::new(inference_url, management_url, 1);
+        let compat_openai_url = Url::parse(&format!("http://{}", params.compat_openai_addr))?;
+        let client = PaddlerClient::new(inference_url.clone(), management_url.clone(), 1);
 
-        let managed_balancer = Self {
+        wait_until_ready(&management_url, &inference_url, &compat_openai_url).await?;
+
+        Ok(Self {
             child,
             client,
             compat_openai_addr: params.compat_openai_addr,
             inference_addr: params.inference_addr,
             management_addr: params.management_addr,
-        };
-
-        managed_balancer.wait_until_ready().await?;
-
-        Ok(managed_balancer)
+        })
     }
 
     #[must_use]
@@ -97,91 +103,98 @@ impl ManagedBalancer {
         &self.compat_openai_addr
     }
 
-    pub async fn wait_for_agent_count(&self, expected: usize) -> usize {
-        let start = std::time::Instant::now();
+    pub async fn wait_for_agent_count(&self, expected: usize) -> Result<usize> {
+        let stream = self.client.management().agents_stream().await?;
 
-        loop {
-            if let Ok(snapshot) = self.client.management().get_agents().await
-                && snapshot.agents.len() == expected
-            {
-                return snapshot.agents.len();
-            }
-
-            assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
-                "timed out waiting for {expected} agents"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |snapshot| {
+                if snapshot.agents.len() == expected {
+                    Some(snapshot.agents.len())
+                } else {
+                    None
+                }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "expected agent count",
+        )
+        .await
     }
 
-    pub async fn wait_for_desired_state(&self, expected_state: &BalancerDesiredState) {
-        let start = std::time::Instant::now();
+    pub async fn wait_for_desired_state(
+        &self,
+        expected_state: &BalancerDesiredState,
+    ) -> Result<()> {
+        let stream = self
+            .client
+            .management()
+            .balancer_desired_state_stream()
+            .await?;
 
-        loop {
-            if let Ok(state) = self.client.management().get_balancer_desired_state().await
-                && &state == expected_state
-            {
-                return;
-            }
-
-            assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
-                "timed out waiting for desired state to be applied"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |state| {
+                if state == expected_state {
+                    Some(())
+                } else {
+                    None
+                }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "balancer desired state",
+        )
+        .await
     }
 
-    pub async fn wait_for_applicable_state(&self, expected_state: &AgentDesiredState) {
-        let start = std::time::Instant::now();
+    pub async fn wait_for_applicable_state(
+        &self,
+        expected_state: &AgentDesiredState,
+    ) -> Result<()> {
+        let stream = self
+            .client
+            .management()
+            .balancer_applicable_state_stream()
+            .await?;
 
-        loop {
-            if let Ok(Some(state)) = self
-                .client
-                .management()
-                .get_balancer_applicable_state()
-                .await
-                && &state == expected_state
-            {
-                return;
-            }
-
-            assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
-                "timed out waiting for applicable state to be populated"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |state| {
+                if state.as_ref() == Some(expected_state) {
+                    Some(())
+                } else {
+                    None
+                }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "balancer applicable state",
+        )
+        .await
     }
 
-    pub async fn wait_for_buffered_requests(&self, expected: i32) -> i32 {
-        let start = std::time::Instant::now();
+    pub async fn wait_for_buffered_requests(&self, expected: i32) -> Result<i32> {
+        let stream = self.client.management().buffered_requests_stream().await?;
 
-        loop {
-            if let Ok(snapshot) = self.client.management().get_buffered_requests().await
-                && snapshot.buffered_requests_current == expected
-            {
-                return snapshot.buffered_requests_current;
-            }
-
-            assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
-                "timed out waiting for {expected} buffered requests"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |snapshot| {
+                if snapshot.buffered_requests_current == expected {
+                    Some(snapshot.buffered_requests_current)
+                } else {
+                    None
+                }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "buffered request count",
+        )
+        .await
     }
 
-    pub async fn wait_for_total_desired_slots(&self, expected_total: i32) -> i32 {
-        let start = std::time::Instant::now();
+    pub async fn wait_for_total_desired_slots(&self, expected_total: i32) -> Result<i32> {
+        let stream = self.client.management().agents_stream().await?;
 
-        loop {
-            if let Ok(snapshot) = self.client.management().get_agents().await {
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |snapshot| {
                 let total: i32 = snapshot
                     .agents
                     .iter()
@@ -189,57 +202,43 @@ impl ManagedBalancer {
                     .sum();
 
                 if total >= expected_total {
-                    return total;
+                    Some(total)
+                } else {
+                    None
                 }
-            }
-
-            assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
-                "timed out waiting for {expected_total} total desired slots"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "total desired slots",
+        )
+        .await
     }
 
-    pub async fn wait_for_total_slots(&self, expected_total: i32) -> i32 {
-        let mut deadline = std::time::Instant::now() + WAIT_FOR_STATE_CHANGE_TIMEOUT;
-        let mut last_download_current: usize = 0;
+    pub async fn wait_for_total_slots(&self, expected_total: i32) -> Result<i32> {
+        let stream = self.client.management().agents_stream().await?;
 
-        loop {
-            if let Ok(snapshot) = self.client.management().get_agents().await {
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |snapshot| {
                 let total: i32 = snapshot.agents.iter().map(|agent| agent.slots_total).sum();
 
                 if total >= expected_total {
-                    return total;
+                    Some(total)
+                } else {
+                    None
                 }
-
-                let download_current: usize = snapshot
-                    .agents
-                    .iter()
-                    .map(|agent| agent.download_current)
-                    .sum();
-
-                if download_current > last_download_current {
-                    last_download_current = download_current;
-                    deadline = std::time::Instant::now() + WAIT_FOR_STATE_CHANGE_TIMEOUT;
-                }
-            }
-
-            assert!(
-                std::time::Instant::now() < deadline,
-                "timed out waiting for {expected_total} total slots"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "total slots",
+        )
+        .await
     }
 
-    pub async fn wait_for_slots_processing(&self, expected_total: i32) -> i32 {
-        let start = std::time::Instant::now();
+    pub async fn wait_for_slots_processing(&self, expected_total: i32) -> Result<i32> {
+        let stream = self.client.management().agents_stream().await?;
 
-        loop {
-            if let Ok(snapshot) = self.client.management().get_agents().await {
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |snapshot| {
                 let total: i32 = snapshot
                     .agents
                     .iter()
@@ -247,34 +246,40 @@ impl ManagedBalancer {
                     .sum();
 
                 if total >= expected_total {
-                    return total;
+                    Some(total)
+                } else {
+                    None
                 }
-            }
-
-            assert!(
-                start.elapsed() <= WAIT_FOR_STATE_CHANGE_TIMEOUT,
-                "timed out waiting for {expected_total} slots processing"
-            );
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "processing slots",
+        )
+        .await
     }
 
-    pub async fn wait_for_agent_issue(
+    pub async fn wait_for_agent_issue<TPredicate>(
         &self,
-        predicate: impl Fn(&AgentIssue) -> bool,
-    ) -> AgentIssue {
-        loop {
-            if let Ok(snapshot) = self.client.management().get_agents().await {
-                for agent in &snapshot.agents {
-                    if let Some(issue) = agent.issues.iter().find(|issue| predicate(issue)) {
-                        return issue.clone();
-                    }
-                }
-            }
+        predicate: TPredicate,
+    ) -> Result<AgentIssue>
+    where
+        TPredicate: Fn(&AgentIssue) -> bool + Send + Sync,
+    {
+        let stream = self.client.management().agents_stream().await?;
 
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
+        wait_for_stream_predicate(
+            stream.map(|result| result.map_err(anyhow::Error::from)),
+            |snapshot| {
+                snapshot
+                    .agents
+                    .iter()
+                    .flat_map(|agent| agent.issues.iter())
+                    .find(|issue| predicate(issue))
+                    .cloned()
+            },
+            WAIT_FOR_EVENT_IDLE_TIMEOUT,
+            "matching agent issue",
+        )
+        .await
     }
 
     pub fn shutdown(&mut self) -> Result<()> {
@@ -295,28 +300,51 @@ impl ManagedBalancer {
     pub async fn wait_for_exit(&mut self) -> Result<std::process::ExitStatus> {
         Ok(self.child.wait().await?)
     }
-
-    async fn wait_until_ready(&self) -> Result<()> {
-        let start = std::time::Instant::now();
-
-        loop {
-            let response = self.client.management().get_agents().await;
-
-            if response.is_ok() {
-                return Ok(());
-            }
-
-            if start.elapsed() > WAIT_FOR_STATE_CHANGE_TIMEOUT {
-                bail!("Balancer did not become ready within {WAIT_FOR_STATE_CHANGE_TIMEOUT:?}");
-            }
-
-            tokio::time::sleep(WAIT_FOR_STATE_CHANGE_POLL_INTERVAL).await;
-        }
-    }
 }
 
 impl Drop for ManagedBalancer {
     fn drop(&mut self) {
         self.kill();
+    }
+}
+
+async fn wait_until_ready(
+    management_url: &Url,
+    inference_url: &Url,
+    compat_openai_url: &Url,
+) -> Result<()> {
+    let health_client = reqwest::Client::new();
+
+    let probe = async {
+        tokio::try_join!(
+            wait_for_http_health(&health_client, management_url, "management"),
+            wait_for_http_health(&health_client, inference_url, "inference"),
+            wait_for_http_health(&health_client, compat_openai_url, "compat-openai"),
+        )
+    };
+
+    timeout(BALANCER_READY_TIMEOUT, probe)
+        .await
+        .map_err(|_| {
+            anyhow!("balancer services did not become reachable within {BALANCER_READY_TIMEOUT:?}")
+        })??;
+
+    Ok(())
+}
+
+async fn wait_for_http_health(
+    health_client: &reqwest::Client,
+    service_url: &Url,
+    service_name: &'static str,
+) -> Result<()> {
+    let health_url = service_url
+        .join("/health")
+        .map_err(|error| anyhow!("failed to build /health url for {service_name}: {error}"))?;
+
+    loop {
+        match health_client.get(health_url.clone()).send().await {
+            Ok(response) if response.status().is_success() => return Ok(()),
+            Ok(_) | Err(_) => tokio::time::sleep(HEALTH_PROBE_BACKOFF).await,
+        }
     }
 }

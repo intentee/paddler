@@ -18,9 +18,10 @@ pub mod managed_cluster;
 pub mod managed_cluster_params;
 pub mod pick_balancer_addresses;
 pub mod pick_free_port;
+pub mod wait_for_stream_predicate;
 
-pub const WAIT_FOR_STATE_CHANGE_TIMEOUT: Duration = Duration::from_secs(30);
-pub const WAIT_FOR_STATE_CHANGE_POLL_INTERVAL: Duration = Duration::from_millis(10);
+pub const BALANCER_READY_TIMEOUT: Duration = Duration::from_secs(10);
+pub const WAIT_FOR_EVENT_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 static PADDLER_BINARY_PATH: LazyLock<String> = LazyLock::new(|| {
     std::env::var("PADDLER_BINARY_PATH").unwrap_or_else(|_| "../target/debug/paddler".to_owned())

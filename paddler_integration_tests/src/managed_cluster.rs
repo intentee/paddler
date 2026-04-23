@@ -49,13 +49,15 @@ impl ManagedCluster {
             .put_balancer_desired_state(&params.desired_state)
             .await?;
 
-        balancer.wait_for_desired_state(&params.desired_state).await;
+        balancer
+            .wait_for_desired_state(&params.desired_state)
+            .await?;
 
         let expected_applicable_state = params.desired_state.to_agent_desired_state();
 
         balancer
             .wait_for_applicable_state(&expected_applicable_state)
-            .await;
+            .await?;
 
         let agent = ManagedAgent::spawn(&ManagedAgentParams {
             management_addr,
@@ -63,10 +65,10 @@ impl ManagedCluster {
             slots: params.agent_slots,
         })?;
 
-        balancer.wait_for_agent_count(1).await;
+        balancer.wait_for_agent_count(1).await?;
 
         if params.wait_for_slots {
-            balancer.wait_for_total_slots(params.agent_slots).await;
+            balancer.wait_for_total_slots(params.agent_slots).await?;
         }
 
         let openai_base_url = format!("http://{compat_openai_addr}");
