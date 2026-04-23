@@ -10,10 +10,10 @@ use paddler::balancer::management_service::configuration::Configuration as Manag
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::cluster_runner::ClusterRunner;
-use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
 use paddler_client::PaddlerClient;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::net::TcpStream;
@@ -63,7 +63,7 @@ async fn wait_for_agent_registered(
     }
 }
 
-fn make_cluster_bootstrap_params(
+fn make_balancer_bootstrap_params(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
 ) -> BootstrapBalancerParams {
@@ -101,8 +101,8 @@ async fn balancer_exits_while_real_agent_is_connected() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let cluster = ClusterRunner::start(ClusterRunnerParams {
-        bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
+    let balancer = BalancerRunner::start(BalancerRunnerParams {
+        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
         initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
@@ -123,13 +123,13 @@ async fn balancer_exits_while_real_agent_is_connected() -> Result<()> {
 
     wait_for_agent_registered(management_addr, inference_addr).await?;
 
-    drop(cluster);
+    drop(balancer);
     drop(agent);
 
     TcpListener::bind(management_addr)
-        .context("management port is still held after cluster + agent drop")?;
+        .context("management port is still held after balancer + agent drop")?;
     TcpListener::bind(inference_addr)
-        .context("inference port is still held after cluster + agent drop")?;
+        .context("inference port is still held after balancer + agent drop")?;
 
     Ok(())
 }
@@ -139,8 +139,8 @@ async fn agent_exits_while_connected_to_balancer() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let cluster = ClusterRunner::start(ClusterRunnerParams {
-        bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
+    let balancer = BalancerRunner::start(BalancerRunnerParams {
+        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
         initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
@@ -162,10 +162,10 @@ async fn agent_exits_while_connected_to_balancer() -> Result<()> {
     wait_for_agent_registered(management_addr, inference_addr).await?;
 
     drop(agent);
-    drop(cluster);
+    drop(balancer);
 
     TcpListener::bind(management_addr)
-        .context("management port is still held after agent + cluster drop")?;
+        .context("management port is still held after agent + balancer drop")?;
 
     Ok(())
 }

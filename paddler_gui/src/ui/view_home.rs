@@ -41,12 +41,12 @@ pub fn view_home(data: &HomeData) -> Element<'_, Message> {
     let start_button = button(text("Start a cluster").font(BOLD))
         .padding([SPACING_HALF, SPACING_BASE])
         .style(style_button_primary)
-        .on_press(Message::StartCluster);
+        .on_press(Message::StartBalancer);
 
     let join_button = button(text("Join a cluster").font(BOLD))
         .padding([SPACING_HALF, SPACING_BASE])
         .style(style_button_primary)
-        .on_press(Message::JoinCluster);
+        .on_press(Message::JoinBalancer);
 
     let start_column = column![create_image, start_button]
         .spacing(SPACING_BASE)

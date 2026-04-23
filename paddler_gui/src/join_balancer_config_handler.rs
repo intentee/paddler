@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
 
-use crate::join_cluster_config_data::JoinClusterConfigData;
+use crate::join_balancer_config_data::JoinBalancerConfigData;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     SetAgentName(String),
-    SetClusterAddress(String),
+    SetBalancerAddress(String),
     SetSlotsCount(String),
     Connect,
     Cancel,
@@ -21,7 +21,7 @@ pub enum Action {
     },
 }
 
-impl JoinClusterConfigData {
+impl JoinBalancerConfigData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::SetAgentName(name) => {
@@ -29,9 +29,9 @@ impl JoinClusterConfigData {
 
                 Action::None
             }
-            Message::SetClusterAddress(address) => {
-                self.cluster_address = address;
-                self.cluster_address_error = None;
+            Message::SetBalancerAddress(address) => {
+                self.balancer_address = address;
+                self.balancer_address_error = None;
 
                 Action::None
             }
@@ -49,13 +49,13 @@ impl JoinClusterConfigData {
     }
 
     fn validate_and_connect(&mut self) -> Action {
-        self.cluster_address_error = None;
+        self.balancer_address_error = None;
         self.slots_error = None;
 
-        if self.cluster_address.is_empty() {
-            self.cluster_address_error = Some("Cluster address is required.".to_owned());
-        } else if self.cluster_address.parse::<SocketAddr>().is_err() {
-            self.cluster_address_error =
+        if self.balancer_address.is_empty() {
+            self.balancer_address_error = Some("Cluster address is required.".to_owned());
+        } else if self.balancer_address.parse::<SocketAddr>().is_err() {
+            self.balancer_address_error =
                 Some("Invalid address, expected format: IP:port".to_owned());
         }
 
@@ -87,7 +87,7 @@ impl JoinClusterConfigData {
             }
         };
 
-        if self.cluster_address_error.is_some() || self.slots_error.is_some() {
+        if self.balancer_address_error.is_some() || self.slots_error.is_some() {
             return Action::None;
         }
 
@@ -103,7 +103,7 @@ impl JoinClusterConfigData {
 
         Action::ConnectAgent {
             agent_name,
-            management_address: self.cluster_address.clone(),
+            management_address: self.balancer_address.clone(),
             slots,
         }
     }

@@ -20,21 +20,21 @@ pub struct BootstrappedBalancerBundle {
     pub initial_desired_state: BalancerDesiredState,
 }
 
-pub struct ClusterRunnerParams {
+pub struct BalancerRunnerParams {
     pub bootstrap_params: BootstrapBalancerParams,
     pub initial_desired_state: Option<BalancerDesiredState>,
     pub parent_shutdown: Option<CancellationToken>,
 }
 
-pub struct ClusterRunner {
+pub struct BalancerRunner {
     initial_bundle_rx: Option<oneshot::Receiver<Arc<BootstrappedBalancerBundle>>>,
     thread: ServiceThread,
 }
 
-impl ClusterRunner {
+impl BalancerRunner {
     #[must_use]
-    pub fn start(params: ClusterRunnerParams) -> Self {
-        let ClusterRunnerParams {
+    pub fn start(params: BalancerRunnerParams) -> Self {
+        let BalancerRunnerParams {
             bootstrap_params,
             initial_desired_state,
             parent_shutdown,
@@ -72,7 +72,7 @@ impl ClusterRunner {
             });
 
             if bundle_tx.send(bundle).is_err() {
-                debug!("cluster runner bundle receiver dropped; continuing without publishing");
+                debug!("balancer runner bundle receiver dropped; continuing without publishing");
             }
 
             bootstrapped

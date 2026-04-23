@@ -1,9 +1,9 @@
-use crate::running_cluster_data::RunningClusterData;
-use crate::running_cluster_snapshot::RunningClusterSnapshot;
+use crate::running_balancer_data::RunningBalancerData;
+use crate::running_balancer_snapshot::RunningBalancerSnapshot;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    SnapshotUpdated(Box<RunningClusterSnapshot>),
+    SnapshotUpdated(Box<RunningBalancerSnapshot>),
     Stop,
     CopyToClipboard(String),
 }
@@ -14,7 +14,7 @@ pub enum Action {
     CopyToClipboard(String),
 }
 
-impl RunningClusterData {
+impl RunningBalancerData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::SnapshotUpdated(snapshot) => {

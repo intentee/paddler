@@ -14,9 +14,9 @@ use paddler::balancer::web_admin_panel_service::configuration::Configuration as 
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::cluster_runner::ClusterRunner;
-use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
 use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
@@ -145,7 +145,7 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
-        let mut runner = ClusterRunner::start(ClusterRunnerParams {
+        let mut runner = BalancerRunner::start(BalancerRunnerParams {
             bootstrap_params: self.build_bootstrap_params(),
             initial_desired_state: None,
             parent_shutdown: Some(shutdown),
@@ -153,10 +153,10 @@ impl Handler for Balancer {
 
         let completion = runner
             .take_completion_rx()
-            .ok_or_else(|| anyhow!("cluster runner completion channel missing"))?;
+            .ok_or_else(|| anyhow!("balancer runner completion channel missing"))?;
 
         completion
             .await
-            .map_err(|error| anyhow!("cluster runner dropped: {error}"))?
+            .map_err(|error| anyhow!("balancer runner dropped: {error}"))?
     }
 }

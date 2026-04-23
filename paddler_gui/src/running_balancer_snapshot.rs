@@ -8,13 +8,13 @@ use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 
 #[derive(Clone, Debug, Default)]
-pub struct RunningClusterSnapshot {
+pub struct RunningBalancerSnapshot {
     pub agent_snapshots: Vec<AgentControllerSnapshot>,
     pub balancer_applicable_state: Option<BalancerApplicableState>,
     pub balancer_desired_state: BalancerDesiredState,
 }
 
-impl RunningClusterSnapshot {
+impl RunningBalancerSnapshot {
     pub fn build(
         agent_controller_pool: &AgentControllerPool,
         balancer_applicable_state_holder: &BalancerApplicableStateHolder,
@@ -118,7 +118,7 @@ mod tests {
         let holder = BalancerApplicableStateHolder::default();
 
         let snapshot =
-            RunningClusterSnapshot::build(&pool, &holder, BalancerDesiredState::default())?;
+            RunningBalancerSnapshot::build(&pool, &holder, BalancerDesiredState::default())?;
 
         assert!(snapshot.agent_snapshots.is_empty());
         assert!(snapshot.balancer_applicable_state.is_none());
@@ -141,7 +141,7 @@ mod tests {
             ..BalancerDesiredState::default()
         };
 
-        let snapshot = RunningClusterSnapshot::build(&pool, &holder, desired.clone())?;
+        let snapshot = RunningBalancerSnapshot::build(&pool, &holder, desired.clone())?;
 
         let applicable = snapshot
             .balancer_applicable_state
@@ -172,7 +172,7 @@ mod tests {
         pool.register_agent_controller("id_m".to_owned(), make_agent_controller("id_m", None))?;
 
         let snapshot =
-            RunningClusterSnapshot::build(&pool, &holder, BalancerDesiredState::default())?;
+            RunningBalancerSnapshot::build(&pool, &holder, BalancerDesiredState::default())?;
 
         let labels: Vec<String> = snapshot
             .agent_snapshots

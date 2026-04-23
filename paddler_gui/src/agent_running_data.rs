@@ -2,7 +2,7 @@ use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 pub struct AgentRunningData {
-    pub cluster_address: String,
+    pub balancer_address: String,
     pub connected: bool,
     pub snapshot: AgentControllerSnapshot,
 }

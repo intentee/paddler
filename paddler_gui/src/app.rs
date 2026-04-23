@@ -25,10 +25,10 @@ use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::produces_snapshot::ProducesSnapshot;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::cluster_runner::ClusterRunner;
-use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
 use paddler_bootstrap::unix_shutdown_signal::wait_for_unix_shutdown_signal;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
@@ -38,20 +38,20 @@ use crate::agent_running_handler;
 use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
-use crate::join_cluster_config_handler;
+use crate::join_balancer_config_handler;
 use crate::message::Message;
-use crate::running_cluster_handler;
-use crate::running_cluster_snapshot::RunningClusterSnapshot;
+use crate::running_balancer_handler;
+use crate::running_balancer_snapshot::RunningBalancerSnapshot;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
-use crate::start_cluster_config_handler;
+use crate::start_balancer_config_handler;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
 use crate::ui::view_agent_running::view_agent_running;
 use crate::ui::view_home::view_home;
-use crate::ui::view_join_cluster_config::view_join_cluster_config;
-use crate::ui::view_running_cluster::view_running_cluster;
-use crate::ui::view_start_cluster_config::view_start_cluster_config;
+use crate::ui::view_join_balancer_config::view_join_balancer_config;
+use crate::ui::view_running_balancer::view_running_balancer;
+use crate::ui::view_start_balancer_config::view_start_balancer_config;
 
 static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
@@ -72,7 +72,7 @@ fn unix_shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
 pub struct App {
     agent_runner: Option<AgentRunner>,
     shutdown: CancellationToken,
-    cluster_runner: Option<ClusterRunner>,
+    balancer_runner: Option<BalancerRunner>,
     screen: CurrentScreen,
 }
 
@@ -81,7 +81,7 @@ impl App {
         let app = Self {
             agent_runner: None,
             shutdown: CancellationToken::new(),
-            cluster_runner: None,
+            balancer_runner: None,
             screen: CurrentScreen::default(),
         };
 
@@ -100,7 +100,7 @@ impl App {
             }
             (_, Message::Quit) => {
                 self.shutdown.cancel();
-                self.cluster_runner = None;
+                self.balancer_runner = None;
                 self.agent_runner = None;
 
                 iced::exit()
@@ -109,113 +109,113 @@ impl App {
                 let action = HomeData::update(msg);
 
                 match action {
-                    home_handler::Action::StartCluster => {
-                        self.screen = CurrentScreen::StartClusterConfig(home.start_cluster());
+                    home_handler::Action::StartBalancer => {
+                        self.screen = CurrentScreen::StartBalancerConfig(home.start_balancer());
 
                         Task::none()
                     }
-                    home_handler::Action::JoinCluster => {
-                        self.screen = CurrentScreen::JoinClusterConfig(home.join_cluster());
+                    home_handler::Action::JoinBalancer => {
+                        self.screen = CurrentScreen::JoinBalancerConfig(home.join_balancer());
 
                         Task::none()
                     }
                 }
             }
-            (CurrentScreen::JoinClusterConfig(mut config), Message::JoinClusterConfig(msg)) => {
+            (CurrentScreen::JoinBalancerConfig(mut config), Message::JoinBalancerConfig(msg)) => {
                 let action = config.state_data.update(msg);
 
                 match action {
-                    join_cluster_config_handler::Action::None => {
-                        self.screen = CurrentScreen::JoinClusterConfig(config);
+                    join_balancer_config_handler::Action::None => {
+                        self.screen = CurrentScreen::JoinBalancerConfig(config);
 
                         Task::none()
                     }
-                    join_cluster_config_handler::Action::Cancel => {
+                    join_balancer_config_handler::Action::Cancel => {
                         self.screen = CurrentScreen::Home(config.cancel());
 
                         Task::none()
                     }
-                    join_cluster_config_handler::Action::ConnectAgent {
+                    join_balancer_config_handler::Action::ConnectAgent {
                         agent_name,
                         management_address,
                         slots,
                     } => self.spawn_agent(config.connect(), agent_name, management_address, slots),
                 }
             }
-            (CurrentScreen::StartClusterConfig(mut config), Message::StartClusterConfig(msg)) => {
+            (CurrentScreen::StartBalancerConfig(mut config), Message::StartBalancerConfig(msg)) => {
                 let action = config.state_data.update(msg);
 
                 match action {
-                    start_cluster_config_handler::Action::None => {
-                        self.screen = CurrentScreen::StartClusterConfig(config);
+                    start_balancer_config_handler::Action::None => {
+                        self.screen = CurrentScreen::StartBalancerConfig(config);
 
                         Task::none()
                     }
-                    start_cluster_config_handler::Action::Cancel => {
-                        if let Some(runner) = self.cluster_runner.as_ref() {
+                    start_balancer_config_handler::Action::Cancel => {
+                        if let Some(runner) = self.balancer_runner.as_ref() {
                             runner.cancel();
                         }
                         self.screen = CurrentScreen::Home(config.cancel());
 
                         Task::none()
                     }
-                    start_cluster_config_handler::Action::StartCluster {
+                    start_balancer_config_handler::Action::StartBalancer {
                         management_addr,
                         inference_addr,
                         desired_state,
                     } => {
-                        self.screen = CurrentScreen::StartClusterConfig(config);
+                        self.screen = CurrentScreen::StartBalancerConfig(config);
 
-                        self.spawn_cluster(management_addr, inference_addr, &desired_state)
+                        self.spawn_balancer(management_addr, inference_addr, &desired_state)
                     }
                 }
             }
-            (CurrentScreen::StartClusterConfig(config), Message::ClusterStarted) => {
-                self.screen = CurrentScreen::RunningCluster(config.cluster_started());
+            (CurrentScreen::StartBalancerConfig(config), Message::BalancerStarted) => {
+                self.screen = CurrentScreen::RunningBalancer(config.balancer_started());
 
                 Task::none()
             }
-            (CurrentScreen::StartClusterConfig(config), Message::ClusterFailed(error)) => {
-                log::error!("Cluster failed to start: {error}");
-                self.cluster_runner = None;
-                self.screen = CurrentScreen::Home(config.cluster_failed(error));
+            (CurrentScreen::StartBalancerConfig(config), Message::BalancerFailed(error)) => {
+                log::error!("Balancer failed to start: {error}");
+                self.balancer_runner = None;
+                self.screen = CurrentScreen::Home(config.balancer_failed(error));
 
                 Task::none()
             }
-            (CurrentScreen::RunningCluster(mut running), Message::RunningCluster(msg)) => {
+            (CurrentScreen::RunningBalancer(mut running), Message::RunningBalancer(msg)) => {
                 let action = running.state_data.update(msg);
 
                 match action {
-                    running_cluster_handler::Action::None => {
-                        self.screen = CurrentScreen::RunningCluster(running);
+                    running_balancer_handler::Action::None => {
+                        self.screen = CurrentScreen::RunningBalancer(running);
 
                         Task::none()
                     }
-                    running_cluster_handler::Action::Stop => {
-                        if let Some(runner) = self.cluster_runner.as_ref() {
+                    running_balancer_handler::Action::Stop => {
+                        if let Some(runner) = self.balancer_runner.as_ref() {
                             runner.cancel();
                         }
-                        self.screen = CurrentScreen::RunningCluster(running);
+                        self.screen = CurrentScreen::RunningBalancer(running);
 
                         Task::none()
                     }
-                    running_cluster_handler::Action::CopyToClipboard(content) => {
-                        self.screen = CurrentScreen::RunningCluster(running);
+                    running_balancer_handler::Action::CopyToClipboard(content) => {
+                        self.screen = CurrentScreen::RunningBalancer(running);
 
                         iced::clipboard::write::<Message>(content).discard()
                     }
                 }
             }
-            (CurrentScreen::RunningCluster(running), Message::ClusterStopped) => {
-                self.cluster_runner = None;
-                self.screen = CurrentScreen::Home(running.cluster_stopped());
+            (CurrentScreen::RunningBalancer(running), Message::BalancerStopped) => {
+                self.balancer_runner = None;
+                self.screen = CurrentScreen::Home(running.balancer_stopped());
 
                 Task::none()
             }
-            (CurrentScreen::RunningCluster(running), Message::ClusterFailed(error)) => {
-                log::error!("Cluster failed unexpectedly: {error}");
-                self.cluster_runner = None;
-                self.screen = CurrentScreen::Home(running.cluster_failed(error));
+            (CurrentScreen::RunningBalancer(running), Message::BalancerFailed(error)) => {
+                log::error!("Balancer failed unexpectedly: {error}");
+                self.balancer_runner = None;
+                self.screen = CurrentScreen::Home(running.balancer_failed(error));
 
                 Task::none()
             }
@@ -297,14 +297,14 @@ impl App {
                 view_agent_running(&screen.state_data).map(Message::AgentRunning)
             }
             CurrentScreen::Home(screen) => view_home(&screen.state_data).map(Message::Home),
-            CurrentScreen::JoinClusterConfig(screen) => {
-                view_join_cluster_config(&screen.state_data).map(Message::JoinClusterConfig)
+            CurrentScreen::JoinBalancerConfig(screen) => {
+                view_join_balancer_config(&screen.state_data).map(Message::JoinBalancerConfig)
             }
-            CurrentScreen::StartClusterConfig(screen) => {
-                view_start_cluster_config(&screen.state_data).map(Message::StartClusterConfig)
+            CurrentScreen::StartBalancerConfig(screen) => {
+                view_start_balancer_config(&screen.state_data).map(Message::StartBalancerConfig)
             }
-            CurrentScreen::RunningCluster(screen) => {
-                view_running_cluster(&screen.state_data).map(Message::RunningCluster)
+            CurrentScreen::RunningBalancer(screen) => {
+                view_running_balancer(&screen.state_data).map(Message::RunningBalancer)
             }
         };
 
@@ -413,13 +413,13 @@ impl App {
         self.shutdown.clone()
     }
 
-    fn spawn_cluster(
+    fn spawn_balancer(
         &mut self,
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
         desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
-        let mut runner = ClusterRunner::start(ClusterRunnerParams {
+        let mut runner = BalancerRunner::start(BalancerRunnerParams {
             bootstrap_params: BootstrapBalancerParams {
                 buffered_request_timeout: Duration::from_secs(10),
                 inference_service_configuration: InferenceServiceConfiguration {
@@ -446,7 +446,7 @@ impl App {
         let initial_bundle_rx = runner.take_initial_bundle_rx();
         let completion_rx = runner.take_completion_rx();
 
-        self.cluster_runner = Some(runner);
+        self.balancer_runner = Some(runner);
 
         Task::batch([
             Task::perform(
@@ -454,13 +454,13 @@ impl App {
                     match completion_rx {
                         Some(rx) => rx
                             .await
-                            .map_err(|error| anyhow::anyhow!("Cluster runner dropped: {error}"))?,
-                        None => Err(anyhow::anyhow!("Cluster runner completion channel missing")),
+                            .map_err(|error| anyhow::anyhow!("Balancer runner dropped: {error}"))?,
+                        None => Err(anyhow::anyhow!("Balancer runner completion channel missing")),
                     }
                 },
                 |result: Result<(), anyhow::Error>| match result {
-                    Ok(()) => Message::ClusterStopped,
-                    Err(error) => Message::ClusterFailed(error.to_string()),
+                    Ok(()) => Message::BalancerStopped,
+                    Err(error) => Message::BalancerFailed(error.to_string()),
                 },
             ),
             Task::stream(iced::stream::channel(1, async move |mut output| {
@@ -480,20 +480,20 @@ impl App {
                 let mut desired_state_rx = bundle.balancer_desired_state_rx.resubscribe();
                 let mut current_desired_state = bundle.initial_desired_state.clone();
 
-                if output.send(Message::ClusterStarted).await.is_err() {
+                if output.send(Message::BalancerStarted).await.is_err() {
                     return;
                 }
 
                 loop {
-                    match RunningClusterSnapshot::build(
+                    match RunningBalancerSnapshot::build(
                         &bundle.agent_controller_pool,
                         &bundle.balancer_applicable_state_holder,
                         current_desired_state.clone(),
                     ) {
                         Ok(snapshot) => {
                             if output
-                                .send(Message::RunningCluster(
-                                    running_cluster_handler::Message::SnapshotUpdated(Box::new(
+                                .send(Message::RunningBalancer(
+                                    running_balancer_handler::Message::SnapshotUpdated(Box::new(
                                         snapshot,
                                     )),
                                 ))
@@ -504,7 +504,7 @@ impl App {
                             }
                         }
                         Err(error) => {
-                            log::error!("Failed to build running cluster snapshot: {error}");
+                            log::error!("Failed to build running balancer snapshot: {error}");
 
                             return;
                         }
@@ -563,6 +563,6 @@ mod tests {
         let _exit_task = app.update(Message::Quit);
 
         assert!(app.agent_runner.is_none());
-        assert!(app.cluster_runner.is_none());
+        assert!(app.balancer_runner.is_none());
     }
 }

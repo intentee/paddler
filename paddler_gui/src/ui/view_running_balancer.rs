@@ -20,8 +20,8 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_agent_card::view_agent_card;
-use crate::running_cluster_data::RunningClusterData;
-use crate::running_cluster_handler::Message;
+use crate::running_balancer_data::RunningBalancerData;
+use crate::running_balancer_handler::Message;
 
 fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
     match desired_model {
@@ -36,7 +36,7 @@ fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
     }
 }
 
-pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
+pub fn view_running_balancer(data: &RunningBalancerData) -> Element<'_, Message> {
     let copy_icon = svg(SvgHandle::from_memory(
         include_bytes!("../../../resources/icons/copy.svg").as_slice(),
     ))
@@ -56,15 +56,17 @@ pub fn view_running_cluster(data: &RunningClusterData) -> Element<'_, Message> {
     let address_row = container(
         column![
             row![
-                container(text(format!("Cluster address: {}", data.cluster_address)).font(REGULAR))
-                    .width(Fill),
+                container(
+                    text(format!("Cluster address: {}", data.balancer_address)).font(REGULAR)
+                )
+                .width(Fill),
                 button(
                     row![copy_icon, text("Copy address").font(BOLD)]
                         .spacing(SPACING_HALF)
                         .align_y(Center),
                 )
                 .style(button::text)
-                .on_press(Message::CopyToClipboard(data.cluster_address.clone())),
+                .on_press(Message::CopyToClipboard(data.balancer_address.clone())),
             ]
             .align_y(Center),
             text(format!("Configured model: {desired_model_label}")).font(REGULAR),

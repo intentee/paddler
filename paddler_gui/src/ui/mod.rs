@@ -1,9 +1,9 @@
 pub mod variables;
 pub mod view_agent_running;
 pub mod view_home;
-pub mod view_join_cluster_config;
-pub mod view_running_cluster;
-pub mod view_start_cluster_config;
+pub mod view_join_balancer_config;
+pub mod view_running_balancer;
+pub mod view_start_balancer_config;
 
 mod font;
 mod style_agent_container;

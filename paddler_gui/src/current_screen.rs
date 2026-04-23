@@ -1,16 +1,16 @@
 use crate::screen::AgentRunning;
 use crate::screen::Home;
-use crate::screen::JoinClusterConfig;
-use crate::screen::RunningCluster;
+use crate::screen::JoinBalancerConfig;
+use crate::screen::RunningBalancer;
 use crate::screen::Screen;
-use crate::screen::StartClusterConfig;
+use crate::screen::StartBalancerConfig;
 
 pub enum CurrentScreen {
     AgentRunning(Screen<AgentRunning>),
     Home(Screen<Home>),
-    JoinClusterConfig(Screen<JoinClusterConfig>),
-    StartClusterConfig(Screen<StartClusterConfig>),
-    RunningCluster(Screen<RunningCluster>),
+    JoinBalancerConfig(Screen<JoinBalancerConfig>),
+    StartBalancerConfig(Screen<StartBalancerConfig>),
+    RunningBalancer(Screen<RunningBalancer>),
 }
 
 impl Default for CurrentScreen {

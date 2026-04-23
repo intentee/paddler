@@ -26,10 +26,10 @@ use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_form_field::view_form_field;
 use crate::model_preset::ModelPreset;
-use crate::start_cluster_config_data::StartClusterConfigData;
-use crate::start_cluster_config_handler::Message;
+use crate::start_balancer_config_data::StartBalancerConfigData;
+use crate::start_balancer_config_handler::Message;
 
-pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, Message> {
+pub fn view_start_balancer_config(data: &StartBalancerConfigData) -> Element<'_, Message> {
     let available_models = ModelPreset::available_presets();
 
     let confirm_button = if data.starting {
@@ -48,8 +48,8 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
         .style(button::text)
         .on_press(Message::Cancel);
 
-    let cluster_address_input = text_input("IP:port", &data.cluster_address)
-        .on_input(Message::SetClusterAddress)
+    let balancer_address_input = text_input("IP:port", &data.balancer_address)
+        .on_input(Message::SetBalancerAddress)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
         .into();
@@ -109,8 +109,8 @@ pub fn view_start_cluster_config(data: &StartClusterConfigData) -> Element<'_, M
             column![
                 view_form_field(
                     "Cluster address",
-                    cluster_address_input,
-                    data.cluster_address_error.as_ref()
+                    balancer_address_input,
+                    data.balancer_address_error.as_ref()
                 ),
                 view_form_field(
                     "Inference address",

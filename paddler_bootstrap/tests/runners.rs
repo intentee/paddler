@@ -12,10 +12,10 @@ use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::cluster_runner::ClusterRunner;
-use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
@@ -46,7 +46,7 @@ async fn wait_until_bound(addr: SocketAddr) -> Result<()> {
     }
 }
 
-fn make_cluster_bootstrap_params(
+fn make_balancer_bootstrap_params(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
 ) -> BootstrapBalancerParams {
@@ -80,12 +80,12 @@ fn make_agent_bootstrap_params(management_addr: SocketAddr) -> BootstrapAgentPar
 }
 
 #[tokio::test]
-async fn cluster_runner_exits_when_dropped() -> Result<()> {
+async fn balancer_runner_exits_when_dropped() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let runner = ClusterRunner::start(ClusterRunnerParams {
-        bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
+    let runner = BalancerRunner::start(BalancerRunnerParams {
+        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
         initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
@@ -96,20 +96,20 @@ async fn cluster_runner_exits_when_dropped() -> Result<()> {
     drop(runner);
 
     TcpListener::bind(management_addr)
-        .context("management port is still held after cluster runner drop")?;
+        .context("management port is still held after balancer runner drop")?;
     TcpListener::bind(inference_addr)
-        .context("inference port is still held after cluster runner drop")?;
+        .context("inference port is still held after balancer runner drop")?;
 
     Ok(())
 }
 
 #[tokio::test]
-async fn cluster_runner_exits_on_explicit_cancel() -> Result<()> {
+async fn balancer_runner_exits_on_explicit_cancel() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let mut runner = ClusterRunner::start(ClusterRunnerParams {
-        bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
+    let mut runner = BalancerRunner::start(BalancerRunnerParams {
+        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
         initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: None,
     });
@@ -129,14 +129,14 @@ async fn cluster_runner_exits_on_explicit_cancel() -> Result<()> {
 }
 
 #[tokio::test]
-async fn cluster_runner_cancels_from_parent_token() -> Result<()> {
+async fn balancer_runner_cancels_from_parent_token() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
     let parent = CancellationToken::new();
 
-    let runner = ClusterRunner::start(ClusterRunnerParams {
-        bootstrap_params: make_cluster_bootstrap_params(management_addr, inference_addr),
+    let runner = BalancerRunner::start(BalancerRunnerParams {
+        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
         initial_desired_state: Some(BalancerDesiredState::default()),
         parent_shutdown: Some(parent.clone()),
     });
@@ -154,7 +154,8 @@ async fn cluster_runner_cancels_from_parent_token() -> Result<()> {
 }
 
 #[tokio::test]
-async fn cluster_runner_preserves_persisted_desired_state_when_no_initial_provided() -> Result<()> {
+async fn balancer_runner_preserves_persisted_desired_state_when_no_initial_provided() -> Result<()>
+{
     let state_db_file = NamedTempFile::new()?;
     let state_db_path = state_db_file.path().to_path_buf();
 
@@ -180,11 +181,11 @@ async fn cluster_runner_preserves_persisted_desired_state_when_no_initial_provid
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let mut bootstrap_params = make_cluster_bootstrap_params(management_addr, inference_addr);
+    let mut bootstrap_params = make_balancer_bootstrap_params(management_addr, inference_addr);
 
     bootstrap_params.state_database_type = StateDatabaseType::File(state_db_path.clone());
 
-    let mut runner = ClusterRunner::start(ClusterRunnerParams {
+    let mut runner = BalancerRunner::start(BalancerRunnerParams {
         bootstrap_params,
         initial_desired_state: None,
         parent_shutdown: None,
@@ -194,7 +195,7 @@ async fn cluster_runner_preserves_persisted_desired_state_when_no_initial_provid
 
     let bundle_rx = runner
         .take_initial_bundle_rx()
-        .ok_or_else(|| anyhow!("ClusterRunner did not expose initial_bundle_rx"))?;
+        .ok_or_else(|| anyhow!("BalancerRunner did not expose initial_bundle_rx"))?;
     let bundle = bundle_rx
         .await
         .map_err(|error| anyhow!("bundle channel dropped: {error}"))?;

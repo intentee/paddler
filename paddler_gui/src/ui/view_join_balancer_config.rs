@@ -17,10 +17,10 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_form_field::view_form_field;
-use crate::join_cluster_config_data::JoinClusterConfigData;
-use crate::join_cluster_config_handler::Message;
+use crate::join_balancer_config_data::JoinBalancerConfigData;
+use crate::join_balancer_config_handler::Message;
 
-pub fn view_join_cluster_config(data: &JoinClusterConfigData) -> Element<'_, Message> {
+pub fn view_join_balancer_config(data: &JoinBalancerConfigData) -> Element<'_, Message> {
     let confirm_button = button(text("Connect").font(BOLD))
         .padding([SPACING_HALF, SPACING_BASE])
         .style(style_button_primary)
@@ -30,8 +30,8 @@ pub fn view_join_cluster_config(data: &JoinClusterConfigData) -> Element<'_, Mes
         .style(button::text)
         .on_press(Message::Cancel);
 
-    let cluster_address_input = text_input("IP:port", &data.cluster_address)
-        .on_input(Message::SetClusterAddress)
+    let balancer_address_input = text_input("IP:port", &data.balancer_address)
+        .on_input(Message::SetBalancerAddress)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
         .into();
@@ -55,8 +55,8 @@ pub fn view_join_cluster_config(data: &JoinClusterConfigData) -> Element<'_, Mes
             column![
                 view_form_field(
                     "Cluster address",
-                    cluster_address_input,
-                    data.cluster_address_error.as_ref()
+                    balancer_address_input,
+                    data.balancer_address_error.as_ref()
                 ),
                 view_form_field("Agent name (optional)", agent_name_input, None),
                 view_form_field("Slots", slots_input, data.slots_error.as_ref()),
