@@ -131,6 +131,44 @@ impl<'client> ClientManagement<'client> {
         Ok(Box::pin(stream))
     }
 
+    pub async fn balancer_desired_state_stream(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<BalancerDesiredState>> + Send>>> {
+        let response = self
+            .http_client
+            .get(format_api_url(
+                self.url,
+                "/api/v1/balancer_desired_state/stream",
+            )?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let stream = StreamSse::from_response(response)
+            .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
+
+        Ok(Box::pin(stream))
+    }
+
+    pub async fn balancer_applicable_state_stream(
+        &self,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Option<AgentDesiredState>>> + Send>>> {
+        let response = self
+            .http_client
+            .get(format_api_url(
+                self.url,
+                "/api/v1/balancer_applicable_state/stream",
+            )?)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let stream = StreamSse::from_response(response)
+            .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
+
+        Ok(Box::pin(stream))
+    }
+
     pub async fn get_chat_template_override(&self, agent_id: &str) -> Result<Option<ChatTemplate>> {
         let response = self
             .http_client
