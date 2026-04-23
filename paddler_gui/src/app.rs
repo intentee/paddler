@@ -27,8 +27,6 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
-use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_bootstrap::unix_shutdown_signal::wait_for_unix_shutdown_signal;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
@@ -70,18 +68,18 @@ fn unix_shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
 }
 
 pub struct App {
-    agent_runner: Option<AgentRunner>,
+    agent_cancel: Option<CancellationToken>,
     shutdown: CancellationToken,
-    balancer_runner: Option<BalancerRunner>,
+    balancer_cancel: Option<CancellationToken>,
     screen: CurrentScreen,
 }
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
         let app = Self {
-            agent_runner: None,
+            agent_cancel: None,
             shutdown: CancellationToken::new(),
-            balancer_runner: None,
+            balancer_cancel: None,
             screen: CurrentScreen::default(),
         };
 
@@ -100,8 +98,8 @@ impl App {
             }
             (_, Message::Quit) => {
                 self.shutdown.cancel();
-                self.balancer_runner = None;
-                self.agent_runner = None;
+                self.balancer_cancel = None;
+                self.agent_cancel = None;
 
                 iced::exit()
             }
@@ -152,8 +150,8 @@ impl App {
                         Task::none()
                     }
                     start_balancer_config_handler::Action::Cancel => {
-                        if let Some(runner) = self.balancer_runner.as_ref() {
-                            runner.cancel();
+                        if let Some(cancel) = self.balancer_cancel.as_ref() {
+                            cancel.cancel();
                         }
                         self.screen = CurrentScreen::Home(config.cancel());
 
@@ -177,7 +175,7 @@ impl App {
             }
             (CurrentScreen::StartBalancerConfig(config), Message::BalancerFailed(error)) => {
                 log::error!("Balancer failed to start: {error}");
-                self.balancer_runner = None;
+                self.balancer_cancel = None;
                 self.screen = CurrentScreen::Home(config.balancer_failed(error));
 
                 Task::none()
@@ -192,8 +190,8 @@ impl App {
                         Task::none()
                     }
                     running_balancer_handler::Action::Stop => {
-                        if let Some(runner) = self.balancer_runner.as_ref() {
-                            runner.cancel();
+                        if let Some(cancel) = self.balancer_cancel.as_ref() {
+                            cancel.cancel();
                         }
                         self.screen = CurrentScreen::RunningBalancer(running);
 
@@ -207,14 +205,14 @@ impl App {
                 }
             }
             (CurrentScreen::RunningBalancer(running), Message::BalancerStopped) => {
-                self.balancer_runner = None;
+                self.balancer_cancel = None;
                 self.screen = CurrentScreen::Home(running.balancer_stopped());
 
                 Task::none()
             }
             (CurrentScreen::RunningBalancer(running), Message::BalancerFailed(error)) => {
                 log::error!("Balancer failed unexpectedly: {error}");
-                self.balancer_runner = None;
+                self.balancer_cancel = None;
                 self.screen = CurrentScreen::Home(running.balancer_failed(error));
 
                 Task::none()
@@ -229,8 +227,8 @@ impl App {
                         Task::none()
                     }
                     agent_running_handler::Action::Disconnect => {
-                        if let Some(runner) = self.agent_runner.as_ref() {
-                            runner.cancel();
+                        if let Some(cancel) = self.agent_cancel.as_ref() {
+                            cancel.cancel();
                         }
                         self.screen = CurrentScreen::Home(running.disconnect());
 
@@ -240,14 +238,14 @@ impl App {
             }
             (CurrentScreen::AgentRunning(running), Message::AgentStopped) => {
                 log::info!("Agent stopped");
-                self.agent_runner = None;
+                self.agent_cancel = None;
                 self.screen = CurrentScreen::Home(running.disconnect());
 
                 Task::none()
             }
             (CurrentScreen::AgentRunning(running), Message::AgentFailed(error)) => {
                 log::error!("Agent failed: {error}");
-                self.agent_runner = None;
+                self.agent_cancel = None;
                 self.screen = CurrentScreen::Home(running.agent_failed(error));
 
                 Task::none()
@@ -338,74 +336,56 @@ impl App {
         management_address: String,
         slots: i32,
     ) -> Task<Message> {
-        let mut runner = AgentRunner::start(AgentRunnerParams {
-            bootstrap_params: BootstrapAgentParams {
-                agent_name,
-                management_address,
-                slots,
-            },
-            parent_shutdown: Some(self.shutdown.clone()),
-        });
-
-        let initial_status_rx = runner.take_initial_status_rx();
-        let completion_rx = runner.take_completion_rx();
-
-        self.agent_runner = Some(runner);
+        let cancel = self.shutdown.child_token();
+        self.agent_cancel = Some(cancel.clone());
         self.screen = CurrentScreen::AgentRunning(screen);
 
-        Task::batch([
-            Task::perform(
-                async move {
-                    match completion_rx {
-                        Some(rx) => rx
+        Task::stream(iced::stream::channel(1, async move |mut output| {
+            let mut runner = AgentRunner::start(AgentRunnerParams {
+                agent_name,
+                management_address,
+                parent_shutdown: Some(cancel),
+                slots,
+            });
+
+            let slot_aggregated_status = runner.slot_aggregated_status.clone();
+            let completion_future = runner.wait_for_completion();
+            tokio::pin!(completion_future);
+
+            loop {
+                match slot_aggregated_status.make_snapshot() {
+                    Ok(snapshot) => {
+                        if output
+                            .send(Message::AgentRunning(
+                                agent_running_handler::Message::AgentStatusUpdated(snapshot),
+                            ))
                             .await
-                            .map_err(|error| anyhow::anyhow!("Agent runner dropped: {error}"))?,
-                        None => Err(anyhow::anyhow!("Agent runner completion channel missing")),
-                    }
-                },
-                |result: Result<(), anyhow::Error>| match result {
-                    Ok(()) => Message::AgentStopped,
-                    Err(error) => Message::AgentFailed(error.to_string()),
-                },
-            ),
-            Task::stream(iced::stream::channel(1, async move |mut output| {
-                let Some(initial_status_rx) = initial_status_rx else {
-                    return;
-                };
-
-                let slot_aggregated_status = match initial_status_rx.await {
-                    Ok(status) => status,
-                    Err(error) => {
-                        log::error!("Agent status channel dropped: {error}");
-
-                        return;
-                    }
-                };
-
-                loop {
-                    match slot_aggregated_status.make_snapshot() {
-                        Ok(snapshot) => {
-                            if output
-                                .send(Message::AgentRunning(
-                                    agent_running_handler::Message::AgentStatusUpdated(snapshot),
-                                ))
-                                .await
-                                .is_err()
-                            {
-                                return;
-                            }
-                        }
-                        Err(error) => {
-                            log::error!("Failed to make agent status snapshot: {error}");
-
+                            .is_err()
+                        {
                             return;
                         }
                     }
+                    Err(error) => {
+                        log::error!("Failed to make agent status snapshot: {error}");
 
-                    slot_aggregated_status.update_notifier.notified().await;
+                        return;
+                    }
                 }
-            })),
-        ])
+
+                tokio::select! {
+                    () = slot_aggregated_status.update_notifier.notified() => {}
+                    result = &mut completion_future => {
+                        let message = match result {
+                            Ok(()) => Message::AgentStopped,
+                            Err(error) => Message::AgentFailed(error.to_string()),
+                        };
+                        let _ = output.send(message).await;
+
+                        return;
+                    }
+                }
+            }
+        }))
     }
 
     #[cfg(test)]
@@ -419,124 +399,114 @@ impl App {
         inference_addr: SocketAddr,
         desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
-        let mut runner = BalancerRunner::start(BalancerRunnerParams {
-            bootstrap_params: BootstrapBalancerParams {
-                buffered_request_timeout: Duration::from_secs(10),
-                inference_service_configuration: InferenceServiceConfiguration {
-                    addr: inference_addr,
-                    cors_allowed_hosts: vec![],
-                    inference_item_timeout: Duration::from_secs(30),
-                },
-                management_service_configuration: ManagementServiceConfiguration {
-                    addr: management_addr,
-                    cors_allowed_hosts: vec![],
-                },
-                max_buffered_requests: 30,
-                openai_service_configuration: None,
-                state_database_type: StateDatabaseType::Memory,
-                statsd_prefix: "paddler_".to_owned(),
-                statsd_service_configuration: None,
-                #[cfg(feature = "web_admin_panel")]
-                web_admin_panel_service_configuration: None,
+        let cancel = self.shutdown.child_token();
+        self.balancer_cancel = Some(cancel.clone());
+
+        let params = BalancerRunnerParams {
+            buffered_request_timeout: Duration::from_secs(10),
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: inference_addr,
+                cors_allowed_hosts: vec![],
+                inference_item_timeout: Duration::from_secs(30),
             },
             initial_desired_state: Some(desired_state.clone()),
-            parent_shutdown: Some(self.shutdown.clone()),
-        });
+            management_service_configuration: ManagementServiceConfiguration {
+                addr: management_addr,
+                cors_allowed_hosts: vec![],
+            },
+            max_buffered_requests: 30,
+            openai_service_configuration: None,
+            parent_shutdown: Some(cancel),
+            state_database_type: StateDatabaseType::Memory,
+            statsd_prefix: "paddler_".to_owned(),
+            statsd_service_configuration: None,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration: None,
+        };
 
-        let initial_bundle_rx = runner.take_initial_bundle_rx();
-        let completion_rx = runner.take_completion_rx();
+        Task::stream(iced::stream::channel(1, async move |mut output| {
+            let mut runner = match BalancerRunner::start(params).await {
+                Ok(runner) => runner,
+                Err(error) => {
+                    let _ = output
+                        .send(Message::BalancerFailed(error.to_string()))
+                        .await;
 
-        self.balancer_runner = Some(runner);
-
-        Task::batch([
-            Task::perform(
-                async move {
-                    match completion_rx {
-                        Some(rx) => rx
-                            .await
-                            .map_err(|error| anyhow::anyhow!("Balancer runner dropped: {error}"))?,
-                        None => Err(anyhow::anyhow!("Balancer runner completion channel missing")),
-                    }
-                },
-                |result: Result<(), anyhow::Error>| match result {
-                    Ok(()) => Message::BalancerStopped,
-                    Err(error) => Message::BalancerFailed(error.to_string()),
-                },
-            ),
-            Task::stream(iced::stream::channel(1, async move |mut output| {
-                let Some(initial_bundle_rx) = initial_bundle_rx else {
-                    return;
-                };
-
-                let bundle = match initial_bundle_rx.await {
-                    Ok(bundle) => bundle,
-                    Err(error) => {
-                        log::error!("Bootstrap handoff dropped before publishing bundle: {error}");
-
-                        return;
-                    }
-                };
-
-                let mut desired_state_rx = bundle.balancer_desired_state_rx.resubscribe();
-                let mut current_desired_state = bundle.initial_desired_state.clone();
-
-                if output.send(Message::BalancerStarted).await.is_err() {
                     return;
                 }
+            };
 
-                loop {
-                    match RunningBalancerSnapshot::build(
-                        &bundle.agent_controller_pool,
-                        &bundle.balancer_applicable_state_holder,
-                        current_desired_state.clone(),
-                    ) {
-                        Ok(snapshot) => {
-                            if output
-                                .send(Message::RunningBalancer(
-                                    running_balancer_handler::Message::SnapshotUpdated(Box::new(
-                                        snapshot,
-                                    )),
-                                ))
-                                .await
-                                .is_err()
-                            {
-                                return;
-                            }
-                        }
-                        Err(error) => {
-                            log::error!("Failed to build running balancer snapshot: {error}");
+            let completion_future = runner.wait_for_completion();
+            tokio::pin!(completion_future);
 
+            if output.send(Message::BalancerStarted).await.is_err() {
+                return;
+            }
+
+            let mut desired_state_rx = runner.balancer_desired_state_tx.subscribe();
+            let mut current_desired_state = runner.initial_desired_state.clone();
+
+            loop {
+                match RunningBalancerSnapshot::build(
+                    &runner.agent_controller_pool,
+                    &runner.balancer_applicable_state_holder,
+                    current_desired_state.clone(),
+                ) {
+                    Ok(snapshot) => {
+                        if output
+                            .send(Message::RunningBalancer(
+                                running_balancer_handler::Message::SnapshotUpdated(Box::new(
+                                    snapshot,
+                                )),
+                            ))
+                            .await
+                            .is_err()
+                        {
                             return;
                         }
                     }
+                    Err(error) => {
+                        log::error!("Failed to build running balancer snapshot: {error}");
 
-                    tokio::select! {
-                        () = bundle.agent_controller_pool.update_notifier.notified() => {}
-                        () = bundle.balancer_applicable_state_holder.update_notifier.notified() => {}
-                        desired_state_result = desired_state_rx.recv() => {
-                            match desired_state_result {
-                                Ok(new_desired_state) => {
-                                    current_desired_state = new_desired_state;
-                                }
-                                Err(broadcast::error::RecvError::Lagged(missed)) => {
-                                    log::warn!(
-                                        "Desired-state broadcast lagged by {missed} messages; \
-                                         continuing with the last known state"
-                                    );
-                                }
-                                Err(broadcast::error::RecvError::Closed) => {
-                                    log::info!(
-                                        "Desired-state broadcast closed; ending snapshot stream"
-                                    );
+                        return;
+                    }
+                }
 
-                                    return;
-                                }
+                tokio::select! {
+                    () = runner.agent_controller_pool.update_notifier.notified() => {}
+                    () = runner.balancer_applicable_state_holder.update_notifier.notified() => {}
+                    desired_state_result = desired_state_rx.recv() => {
+                        match desired_state_result {
+                            Ok(new_desired_state) => {
+                                current_desired_state = new_desired_state;
+                            }
+                            Err(broadcast::error::RecvError::Lagged(missed)) => {
+                                log::warn!(
+                                    "Desired-state broadcast lagged by {missed} messages; \
+                                     continuing with the last known state"
+                                );
+                            }
+                            Err(broadcast::error::RecvError::Closed) => {
+                                log::info!(
+                                    "Desired-state broadcast closed; ending snapshot stream"
+                                );
+
+                                return;
                             }
                         }
                     }
+                    result = &mut completion_future => {
+                        let message = match result {
+                            Ok(()) => Message::BalancerStopped,
+                            Err(error) => Message::BalancerFailed(error.to_string()),
+                        };
+                        let _ = output.send(message).await;
+
+                        return;
+                    }
                 }
-            })),
-        ])
+            }
+        }))
     }
 }
 
@@ -562,7 +532,7 @@ mod tests {
 
         let _exit_task = app.update(Message::Quit);
 
-        assert!(app.agent_runner.is_none());
-        assert!(app.balancer_runner.is_none());
+        assert!(app.agent_cancel.is_none());
+        assert!(app.balancer_cancel.is_none());
     }
 }

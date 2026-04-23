@@ -2,6 +2,7 @@ use std::future::Future;
 use std::thread;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use log::error;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
@@ -35,8 +36,17 @@ impl ServiceThread {
         }
     }
 
-    pub const fn take_completion_rx(&mut self) -> Option<oneshot::Receiver<Result<()>>> {
-        self.completion_rx.take()
+    pub fn wait_for_completion(&mut self) -> impl Future<Output = Result<()>> + Send + 'static {
+        let completion_rx = self.completion_rx.take();
+
+        async move {
+            let completion_rx = completion_rx
+                .ok_or_else(|| anyhow!("service thread completion already consumed"))?;
+
+            completion_rx.await.map_err(|error| {
+                anyhow!("service thread dropped before reporting completion: {error}")
+            })?
+        }
     }
 
     pub fn cancel(&self) {

@@ -184,4 +184,3 @@ async fn gui_binary_exits_under_one_second_on_sigterm_at_home_screen() -> Result
 
     Ok(())
 }
-

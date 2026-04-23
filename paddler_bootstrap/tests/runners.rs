@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database::File as StateDatabaseFile;
@@ -14,8 +13,6 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
-use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
@@ -46,23 +43,27 @@ async fn wait_until_bound(addr: SocketAddr) -> Result<()> {
     }
 }
 
-fn make_balancer_bootstrap_params(
+fn make_balancer_runner_params(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
-) -> BootstrapBalancerParams {
-    BootstrapBalancerParams {
+    initial_desired_state: Option<BalancerDesiredState>,
+    parent_shutdown: Option<CancellationToken>,
+) -> BalancerRunnerParams {
+    BalancerRunnerParams {
         buffered_request_timeout: Duration::from_secs(10),
         inference_service_configuration: InferenceServiceConfiguration {
             addr: inference_addr,
             cors_allowed_hosts: vec![],
             inference_item_timeout: Duration::from_secs(30),
         },
+        initial_desired_state,
         management_service_configuration: ManagementServiceConfiguration {
             addr: management_addr,
             cors_allowed_hosts: vec![],
         },
         max_buffered_requests: 30,
         openai_service_configuration: None,
+        parent_shutdown,
         state_database_type: StateDatabaseType::Memory,
         statsd_prefix: "paddler_bootstrap_test_".to_owned(),
         statsd_service_configuration: None,
@@ -71,10 +72,14 @@ fn make_balancer_bootstrap_params(
     }
 }
 
-fn make_agent_bootstrap_params(management_addr: SocketAddr) -> BootstrapAgentParams {
-    BootstrapAgentParams {
+fn make_agent_runner_params(
+    management_addr: SocketAddr,
+    parent_shutdown: Option<CancellationToken>,
+) -> AgentRunnerParams {
+    AgentRunnerParams {
         agent_name: Some("test-agent".to_owned()),
         management_address: management_addr.to_string(),
+        parent_shutdown,
         slots: 1,
     }
 }
@@ -84,11 +89,13 @@ async fn balancer_runner_exits_when_dropped() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let runner = BalancerRunner::start(BalancerRunnerParams {
-        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: Some(BalancerDesiredState::default()),
-        parent_shutdown: None,
-    });
+    let runner = BalancerRunner::start(make_balancer_runner_params(
+        management_addr,
+        inference_addr,
+        Some(BalancerDesiredState::default()),
+        None,
+    ))
+    .await?;
 
     wait_until_bound(management_addr).await?;
     wait_until_bound(inference_addr).await?;
@@ -108,18 +115,18 @@ async fn balancer_runner_exits_on_explicit_cancel() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let mut runner = BalancerRunner::start(BalancerRunnerParams {
-        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: Some(BalancerDesiredState::default()),
-        parent_shutdown: None,
-    });
+    let runner = BalancerRunner::start(make_balancer_runner_params(
+        management_addr,
+        inference_addr,
+        Some(BalancerDesiredState::default()),
+        None,
+    ))
+    .await?;
 
     wait_until_bound(management_addr).await?;
     wait_until_bound(inference_addr).await?;
 
     runner.cancel();
-
-    let _ = runner.take_initial_bundle_rx();
     drop(runner);
 
     TcpListener::bind(management_addr)
@@ -135,11 +142,13 @@ async fn balancer_runner_cancels_from_parent_token() -> Result<()> {
 
     let parent = CancellationToken::new();
 
-    let runner = BalancerRunner::start(BalancerRunnerParams {
-        bootstrap_params: make_balancer_bootstrap_params(management_addr, inference_addr),
-        initial_desired_state: Some(BalancerDesiredState::default()),
-        parent_shutdown: Some(parent.clone()),
-    });
+    let runner = BalancerRunner::start(make_balancer_runner_params(
+        management_addr,
+        inference_addr,
+        Some(BalancerDesiredState::default()),
+        Some(parent.clone()),
+    ))
+    .await?;
 
     wait_until_bound(management_addr).await?;
     wait_until_bound(inference_addr).await?;
@@ -181,26 +190,15 @@ async fn balancer_runner_preserves_persisted_desired_state_when_no_initial_provi
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let mut bootstrap_params = make_balancer_bootstrap_params(management_addr, inference_addr);
+    let mut params = make_balancer_runner_params(management_addr, inference_addr, None, None);
 
-    bootstrap_params.state_database_type = StateDatabaseType::File(state_db_path.clone());
+    params.state_database_type = StateDatabaseType::File(state_db_path.clone());
 
-    let mut runner = BalancerRunner::start(BalancerRunnerParams {
-        bootstrap_params,
-        initial_desired_state: None,
-        parent_shutdown: None,
-    });
+    let runner = BalancerRunner::start(params).await?;
 
     wait_until_bound(management_addr).await?;
 
-    let bundle_rx = runner
-        .take_initial_bundle_rx()
-        .ok_or_else(|| anyhow!("BalancerRunner did not expose initial_bundle_rx"))?;
-    let bundle = bundle_rx
-        .await
-        .map_err(|error| anyhow!("bundle channel dropped: {error}"))?;
-
-    assert_eq!(bundle.initial_desired_state, persisted_state);
+    assert_eq!(runner.initial_desired_state, persisted_state);
 
     runner.cancel();
     drop(runner);
@@ -218,17 +216,7 @@ async fn balancer_runner_preserves_persisted_desired_state_when_no_initial_provi
 async fn agent_runner_exits_when_dropped() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
 
-    let mut runner = AgentRunner::start(AgentRunnerParams {
-        bootstrap_params: make_agent_bootstrap_params(management_addr),
-        parent_shutdown: None,
-    });
-
-    let status_rx = runner
-        .take_initial_status_rx()
-        .ok_or_else(|| anyhow!("AgentRunner did not expose initial_status_rx"))?;
-    let _status = status_rx
-        .await
-        .map_err(|error| anyhow!("agent bootstrap never published status: {error}"))?;
+    let runner = AgentRunner::start(make_agent_runner_params(management_addr, None));
 
     drop(runner);
 
@@ -241,17 +229,10 @@ async fn agent_runner_cancels_from_parent_token() -> Result<()> {
 
     let parent = CancellationToken::new();
 
-    let mut runner = AgentRunner::start(AgentRunnerParams {
-        bootstrap_params: make_agent_bootstrap_params(management_addr),
-        parent_shutdown: Some(parent.clone()),
-    });
-
-    let status_rx = runner
-        .take_initial_status_rx()
-        .ok_or_else(|| anyhow!("AgentRunner did not expose initial_status_rx"))?;
-    let _status = status_rx
-        .await
-        .map_err(|error| anyhow!("agent bootstrap never published status: {error}"))?;
+    let runner = AgentRunner::start(make_agent_runner_params(
+        management_addr,
+        Some(parent.clone()),
+    ));
 
     parent.cancel();
     drop(runner);

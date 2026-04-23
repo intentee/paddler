@@ -1,100 +1,110 @@
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
-use log::debug;
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
+use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler::balancer::state_database_type::StateDatabaseType;
+use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
-use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
-use crate::bootstrap_balancer_params::BootstrapBalancerParams;
+use crate::bootstrapped_balancer_handle::BalancerBootstrapConfig;
+use crate::bootstrapped_balancer_handle::BootstrappedBalancerHandle;
 use crate::bootstrapped_balancer_handle::bootstrap_balancer;
 use crate::service_thread::ServiceThread;
 
-pub struct BootstrappedBalancerBundle {
-    pub agent_controller_pool: Arc<AgentControllerPool>,
-    pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
-    pub balancer_desired_state_rx: broadcast::Receiver<BalancerDesiredState>,
-    pub initial_desired_state: BalancerDesiredState,
-}
-
 pub struct BalancerRunnerParams {
-    pub bootstrap_params: BootstrapBalancerParams,
+    pub buffered_request_timeout: Duration,
+    pub inference_service_configuration: InferenceServiceConfiguration,
     pub initial_desired_state: Option<BalancerDesiredState>,
+    pub management_service_configuration: ManagementServiceConfiguration,
+    pub max_buffered_requests: i32,
+    pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
     pub parent_shutdown: Option<CancellationToken>,
+    pub state_database_type: StateDatabaseType,
+    pub statsd_prefix: String,
+    pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
+    #[cfg(feature = "web_admin_panel")]
+    pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
 
 pub struct BalancerRunner {
-    initial_bundle_rx: Option<oneshot::Receiver<Arc<BootstrappedBalancerBundle>>>,
+    pub agent_controller_pool: Arc<AgentControllerPool>,
+    pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
+    pub initial_desired_state: BalancerDesiredState,
     thread: ServiceThread,
 }
 
 impl BalancerRunner {
-    #[must_use]
-    pub fn start(params: BalancerRunnerParams) -> Self {
+    pub async fn start(params: BalancerRunnerParams) -> Result<Self> {
         let BalancerRunnerParams {
-            bootstrap_params,
+            buffered_request_timeout,
+            inference_service_configuration,
             initial_desired_state,
+            management_service_configuration,
+            max_buffered_requests,
+            openai_service_configuration,
             parent_shutdown,
+            state_database_type,
+            statsd_prefix,
+            statsd_service_configuration,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration,
         } = params;
 
-        let (bundle_tx, bundle_rx) = oneshot::channel::<Arc<BootstrappedBalancerBundle>>();
+        let BootstrappedBalancerHandle {
+            agent_controller_pool,
+            balancer_applicable_state_holder,
+            balancer_desired_state_tx,
+            service_manager,
+            state_database,
+        } = bootstrap_balancer(BalancerBootstrapConfig {
+            buffered_request_timeout,
+            inference_service_configuration,
+            management_service_configuration,
+            max_buffered_requests,
+            openai_service_configuration,
+            state_database_type,
+            statsd_prefix,
+            statsd_service_configuration,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration,
+        })
+        .await?;
+
+        let effective_initial_desired_state = match initial_desired_state {
+            Some(state) => {
+                state_database.store_balancer_desired_state(&state).await?;
+
+                state
+            }
+            None => state_database.read_balancer_desired_state().await?,
+        };
 
         let thread = ServiceThread::spawn(parent_shutdown, move |task_shutdown| async move {
-            let bootstrapped = bootstrap_balancer(bootstrap_params).await?;
-
-            let effective_initial_desired_state = match &initial_desired_state {
-                Some(state) => {
-                    bootstrapped
-                        .state_database
-                        .store_balancer_desired_state(state)
-                        .await?;
-
-                    state.clone()
-                }
-                None => {
-                    bootstrapped
-                        .state_database
-                        .read_balancer_desired_state()
-                        .await?
-                }
-            };
-
-            let bundle = Arc::new(BootstrappedBalancerBundle {
-                agent_controller_pool: bootstrapped.agent_controller_pool.clone(),
-                balancer_applicable_state_holder: bootstrapped
-                    .balancer_applicable_state_holder
-                    .clone(),
-                balancer_desired_state_rx: bootstrapped.balancer_desired_state_tx.subscribe(),
-                initial_desired_state: effective_initial_desired_state,
-            });
-
-            if bundle_tx.send(bundle).is_err() {
-                debug!("balancer runner bundle receiver dropped; continuing without publishing");
-            }
-
-            bootstrapped
-                .service_manager
-                .run_forever(task_shutdown)
-                .await
+            service_manager.run_forever(task_shutdown).await
         });
 
-        Self {
-            initial_bundle_rx: Some(bundle_rx),
+        Ok(Self {
+            agent_controller_pool,
+            balancer_applicable_state_holder,
+            balancer_desired_state_tx,
+            initial_desired_state: effective_initial_desired_state,
             thread,
-        }
+        })
     }
 
-    pub const fn take_initial_bundle_rx(
-        &mut self,
-    ) -> Option<oneshot::Receiver<Arc<BootstrappedBalancerBundle>>> {
-        self.initial_bundle_rx.take()
-    }
-
-    pub const fn take_completion_rx(&mut self) -> Option<oneshot::Receiver<Result<()>>> {
-        self.thread.take_completion_rx()
+    pub fn wait_for_completion(&mut self) -> impl Future<Output = Result<()>> + Send + 'static {
+        self.thread.wait_for_completion()
     }
 
     pub fn cancel(&self) {
