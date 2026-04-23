@@ -28,7 +28,7 @@ fn validate_optional_address(raw: &str) -> Result<Option<SocketAddr>, String> {
 
     let addr = raw
         .parse::<SocketAddr>()
-        .map_err(|_| "Invalid address, expected format: IP:port".to_owned())?;
+        .map_err(|error| format!("Invalid address ({error}), expected format: IP:port"))?;
 
     match check_port(&addr) {
         PortCheck::Available => Ok(Some(addr)),
