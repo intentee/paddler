@@ -27,7 +27,7 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_bootstrap::unix_shutdown_signal::wait_for_unix_shutdown_signal;
+use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -55,10 +55,10 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
 });
 
-fn unix_shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
+fn shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
     iced::stream::channel(1, async move |mut output| {
-        if let Err(error) = wait_for_unix_shutdown_signal().await {
-            log::error!("unix shutdown signal listener failed: {error}");
+        if let Err(error) = wait_for_shutdown_signal().await {
+            log::error!("shutdown signal listener failed: {error}");
 
             return;
         }
@@ -285,7 +285,7 @@ impl App {
                 _ => None,
             }),
             window::close_requests().map(|_| Message::Quit),
-            Subscription::run(unix_shutdown_signal_stream),
+            Subscription::run(shutdown_signal_stream),
         ])
     }
 

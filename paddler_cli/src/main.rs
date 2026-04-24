@@ -8,7 +8,7 @@ mod cmd;
 use cmd::agent::Agent;
 use cmd::balancer::Balancer;
 use cmd::handler::Handler as _;
-use paddler_bootstrap::unix_shutdown_signal::wait_for_unix_shutdown_signal;
+use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
 use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "web_admin_panel")]
@@ -46,8 +46,8 @@ async fn main() -> Result<()> {
     let signal_shutdown = shutdown.clone();
 
     tokio::spawn(async move {
-        if let Err(error) = wait_for_unix_shutdown_signal().await {
-            log::error!("unix shutdown signal listener failed: {error}");
+        if let Err(error) = wait_for_shutdown_signal().await {
+            log::error!("shutdown signal listener failed: {error}");
             return;
         }
         signal_shutdown.cancel();
