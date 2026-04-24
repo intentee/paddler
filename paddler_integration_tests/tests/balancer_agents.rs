@@ -105,7 +105,7 @@ async fn test_agents_stream_receives_snapshot() -> Result<()> {
         .balancer
         .client()
         .management()
-        .agents_stream()
+        .get_agents_stream()
         .await
         .context("agents stream should connect")?;
 

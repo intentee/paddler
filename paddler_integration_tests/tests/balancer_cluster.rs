@@ -689,7 +689,7 @@ async fn test_buffered_requests_stream_receives_snapshot() -> Result<()> {
     let mut stream = balancer
         .client()
         .management()
-        .buffered_requests_stream()
+        .get_buffered_requests_stream()
         .await
         .context("buffered requests stream should connect")?;
 

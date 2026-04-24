@@ -12,7 +12,7 @@ use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use crate::error::Error;
-use crate::inference_socket_connection::PendingRequests;
+use crate::inference_socket::pending_requests::PendingRequests;
 
 type WebSocketReadStream = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
 
@@ -27,10 +27,7 @@ fn is_terminal_message(message: &InferenceMessage) -> bool {
     }
 }
 
-pub fn spawn_inference_socket_read_task(
-    ws_read: WebSocketReadStream,
-    pending: PendingRequests,
-) -> JoinHandle<()> {
+pub fn spawn_read_task(ws_read: WebSocketReadStream, pending: PendingRequests) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut ws_read = ws_read;
 

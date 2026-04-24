@@ -39,11 +39,11 @@ fn make_stream(response: Response) -> impl Stream<Item = Result<String>> + Send 
     )
 }
 
-pub struct StreamSse {
+pub struct Sse {
     lines: Pin<Box<dyn Stream<Item = Result<String>> + Send>>,
 }
 
-impl StreamSse {
+impl Sse {
     pub fn from_response(response: Response) -> Self {
         let stream = make_stream(response);
 
@@ -53,7 +53,7 @@ impl StreamSse {
     }
 }
 
-impl Stream for StreamSse {
+impl Stream for Sse {
     type Item = Result<String>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

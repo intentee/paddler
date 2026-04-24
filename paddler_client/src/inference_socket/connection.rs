@@ -12,30 +12,29 @@ use url::Url;
 
 use crate::error::Error;
 use crate::error::Result;
-use crate::inference_socket_url::inference_socket_url;
-use crate::spawn_inference_socket_read_task::spawn_inference_socket_read_task;
-use crate::spawn_inference_socket_write_task::spawn_inference_socket_write_task;
+use crate::inference_socket::pending_requests::PendingRequests;
+use crate::inference_socket::spawn_read_task::spawn_read_task;
+use crate::inference_socket::spawn_write_task::spawn_write_task;
+use crate::inference_socket::url::url;
 
-pub type PendingRequests = Arc<DashMap<String, UnboundedSender<Result<InferenceMessage>>>>;
-
-pub struct InferenceSocketConnection {
+pub struct Connection {
     write_tx: UnboundedSender<String>,
     pending: PendingRequests,
     _read_task: JoinHandle<()>,
     _write_task: JoinHandle<()>,
 }
 
-impl InferenceSocketConnection {
-    pub async fn connect(url: Url) -> Result<Self> {
-        let ws_url = inference_socket_url(url)?;
+impl Connection {
+    pub async fn connect(connection_url: Url) -> Result<Self> {
+        let ws_url = url(connection_url)?;
         let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
         let (ws_write, ws_read) = ws_stream.split();
 
         let pending: PendingRequests = Arc::new(DashMap::new());
         let (write_tx, write_rx) = mpsc::unbounded_channel::<String>();
 
-        let write_task = spawn_inference_socket_write_task(ws_write, write_rx);
-        let read_task = spawn_inference_socket_read_task(ws_read, pending.clone());
+        let write_task = spawn_write_task(ws_write, write_rx);
+        let read_task = spawn_read_task(ws_read, pending.clone());
 
         Ok(Self {
             write_tx,

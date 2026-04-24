@@ -56,11 +56,11 @@ fn make_stream<TItem: DeserializeOwned + Send + 'static>(
     )
 }
 
-pub struct StreamNdjson<TItem> {
+pub struct Ndjson<TItem> {
     inner: Pin<Box<dyn Stream<Item = Result<TItem>> + Send>>,
 }
 
-impl<TItem: DeserializeOwned + Send + 'static> StreamNdjson<TItem> {
+impl<TItem: DeserializeOwned + Send + 'static> Ndjson<TItem> {
     pub fn from_response(response: Response) -> Self {
         let stream = make_stream::<TItem>(response);
 
@@ -70,7 +70,7 @@ impl<TItem: DeserializeOwned + Send + 'static> StreamNdjson<TItem> {
     }
 }
 
-impl<TItem> Stream for StreamNdjson<TItem> {
+impl<TItem> Stream for Ndjson<TItem> {
     type Item = Result<TItem>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

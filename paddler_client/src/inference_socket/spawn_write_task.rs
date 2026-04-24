@@ -10,7 +10,7 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 type WebSocketWriteSink =
     SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, WsMessage>;
 
-pub fn spawn_inference_socket_write_task(
+pub fn spawn_write_task(
     ws_write: WebSocketWriteSink,
     write_rx: UnboundedReceiver<String>,
 ) -> JoinHandle<()> {

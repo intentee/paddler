@@ -9,21 +9,21 @@ use url::Url;
 
 use crate::error::Error;
 use crate::error::Result;
-use crate::inference_socket_connection::InferenceSocketConnection;
+use crate::inference_socket::connection::Connection;
 
-pub struct InferenceSocketPool {
+pub struct Pool {
     url: Url,
-    connections: Mutex<Vec<Option<Arc<InferenceSocketConnection>>>>,
-    pool_size: usize,
+    connections: Mutex<Vec<Option<Arc<Connection>>>>,
+    capacity: usize,
     next_idx: Mutex<usize>,
 }
 
-impl InferenceSocketPool {
-    pub fn new(url: Url, pool_size: usize) -> Self {
+impl Pool {
+    pub fn new(url: Url, capacity: usize) -> Self {
         Self {
             url,
-            connections: Mutex::new((0..pool_size).map(|_| None).collect()),
-            pool_size,
+            connections: Mutex::new((0..capacity).map(|_| None).collect()),
+            capacity,
             next_idx: Mutex::new(0),
         }
     }
@@ -56,7 +56,7 @@ impl InferenceSocketPool {
         }
     }
 
-    async fn get_connection(&self, index: usize) -> Result<Arc<InferenceSocketConnection>> {
+    async fn get_connection(&self, index: usize) -> Result<Arc<Connection>> {
         let connections = self.connections.lock().await;
 
         connections[index].clone().ok_or(Error::ConnectionSlotEmpty)
@@ -64,7 +64,7 @@ impl InferenceSocketPool {
 
     async fn next_connection_index(&self) -> usize {
         let mut idx = self.next_idx.lock().await;
-        let conn_idx = *idx % self.pool_size;
+        let conn_idx = *idx % self.capacity;
         *idx = idx.wrapping_add(1);
 
         conn_idx
@@ -80,7 +80,7 @@ impl InferenceSocketPool {
         };
 
         if needs_connect {
-            let new_connection = InferenceSocketConnection::connect(self.url.clone()).await?;
+            let new_connection = Connection::connect(self.url.clone()).await?;
             let mut connections = self.connections.lock().await;
             connections[index] = Some(Arc::new(new_connection));
         }
