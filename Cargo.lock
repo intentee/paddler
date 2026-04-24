@@ -4709,6 +4709,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_tests"
+version = "3.1.2"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "base64",
+ "futures-util",
+ "llama-cpp-bindings",
+ "log",
+ "nix",
+ "paddler",
+ "paddler_bootstrap",
+ "paddler_client",
+ "paddler_types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
 name = "paddler_types"
 version = "3.1.2"
 dependencies = [

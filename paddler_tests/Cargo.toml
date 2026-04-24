@@ -1,0 +1,41 @@
+[package]
+name = "paddler_tests"
+authors.workspace = true
+description = "Stable test harness and integration/model tests for Paddler"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[features]
+default = []
+cuda = ["paddler/cuda"]
+metal = ["paddler/metal"]
+tests_that_use_compiled_paddler = []
+tests_that_use_llms = []
+web_admin_panel = ["paddler/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+base64 = { workspace = true }
+futures-util = { workspace = true }
+llama-cpp-bindings = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true }
+paddler = { workspace = true }
+paddler_bootstrap = { workspace = true }
+paddler_client = { workspace = true }
+paddler_types = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true
