@@ -234,32 +234,37 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn accept_raw_prompt_request(&mut self, request: ContinueFromRawPromptRequest) {
-        let ContinueFromRawPromptParams {
-            grammar,
-            max_tokens,
-            raw_prompt,
-        } = request.params;
+    fn accept_raw_prompt_request(
+        &mut self,
+        ContinueFromRawPromptRequest {
+            generate_tokens_stop_rx,
+            generated_tokens_tx,
+            params:
+                ContinueFromRawPromptParams {
+                    grammar,
+                    max_tokens,
+                    raw_prompt,
+                },
+        }: ContinueFromRawPromptRequest,
+    ) {
+        let grammar_sampler = match resolve_grammar(grammar.as_ref(), false, &generated_tokens_tx) {
+            Ok(sampler) => sampler,
+            Err(err) => {
+                error!(
+                    "{:?}: failed to resolve grammar: {err}",
+                    self.scheduler_context.agent_name
+                );
 
-        let grammar_sampler =
-            match resolve_grammar(grammar.as_ref(), false, &request.generated_tokens_tx) {
-                Ok(sampler) => sampler,
-                Err(err) => {
-                    error!(
-                        "{:?}: failed to resolve grammar: {err}",
-                        self.scheduler_context.agent_name
-                    );
-
-                    return;
-                }
-            };
+                return;
+            }
+        };
 
         self.accept_text_prompt(
             &raw_prompt,
             max_tokens,
             grammar_sampler,
-            request.generated_tokens_tx,
-            request.generate_tokens_stop_rx,
+            generated_tokens_tx,
+            generate_tokens_stop_rx,
         );
     }
 

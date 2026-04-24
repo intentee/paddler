@@ -19,6 +19,7 @@ pub trait StateDatabase: Send + Sync {
 mod tests {
     use anyhow::Result;
     use paddler_types::agent_desired_model::AgentDesiredModel;
+    use paddler_types::chat_template::ChatTemplate;
     use paddler_types::inference_parameters::InferenceParameters;
     use tempfile::NamedTempFile;
     use tokio::sync::broadcast;
@@ -57,9 +58,44 @@ mod tests {
     #[tokio::test]
     async fn test_memory_database() -> Result<()> {
         let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
-        let db = Memory::new(balancer_desired_state_tx);
+        let db = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
 
         subtest_store_desired_state(&db).await?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_file_database_persists_chat_template_override_across_fresh_instance() -> Result<()>
+    {
+        let tempfile = NamedTempFile::new()?;
+        let path = tempfile.path().to_path_buf();
+
+        let chat_template = ChatTemplate {
+            content: "{% for message in messages %}{{ message.content }}{% endfor %}".to_owned(),
+        };
+        let desired_state = BalancerDesiredState {
+            chat_template_override: Some(chat_template.clone()),
+            inference_parameters: InferenceParameters::default(),
+            model: AgentDesiredModel::LocalToAgent("test_model_path".to_owned()),
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: true,
+        };
+
+        {
+            let (tx, _rx) = broadcast::channel(100);
+            let db = File::new(tx, path.clone());
+
+            db.store_balancer_desired_state(&desired_state).await?;
+        }
+
+        let (tx, _rx) = broadcast::channel(100);
+        let db = File::new(tx, path);
+        let read_back = db.read_balancer_desired_state().await?;
+
+        assert_eq!(read_back.chat_template_override, Some(chat_template));
+        assert!(read_back.use_chat_template_override);
+        assert_eq!(read_back.model, desired_state.model);
 
         Ok(())
     }

@@ -17,19 +17,17 @@ use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
 
 pub fn prepare_conversation_history_request(
-    params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    scheduler_context: &ContinuousBatchSchedulerContext,
-) -> Result<PreparedConversationHistoryRequest> {
-    let ContinueFromConversationHistoryParams {
+    ContinueFromConversationHistoryParams {
         add_generation_prompt,
         enable_thinking,
         grammar,
         conversation_history,
         max_tokens,
         tools,
-    } = params;
-
+    }: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    scheduler_context: &ContinuousBatchSchedulerContext,
+) -> Result<PreparedConversationHistoryRequest> {
     let grammar_sampler = resolve_grammar(grammar.as_ref(), enable_thinking, generated_tokens_tx)?;
 
     let image_resize_to_fit = scheduler_context.inference_parameters.image_resize_to_fit;

@@ -1,13 +1,17 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
 use paddler::balancer::buffered_request_manager::BufferedRequestManager;
 use paddler::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use paddler::balancer::compatibility::openai_service::OpenAIService;
+use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
 use paddler::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
 use paddler::balancer::inference_service::InferenceService;
+use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::ManagementService;
+use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
 use paddler::balancer::reconciliation_service::ReconciliationService;
 use paddler::balancer::state_database::File;
@@ -15,14 +19,28 @@ use paddler::balancer::state_database::Memory;
 use paddler::balancer::state_database::StateDatabase;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::balancer::statsd_service::StatsdService;
+use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::service_manager::ServiceManager;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 
-use super::bootstrap_balancer_params::BootstrapBalancerParams;
+pub struct BalancerBootstrapConfig {
+    pub buffered_request_timeout: Duration,
+    pub inference_service_configuration: InferenceServiceConfiguration,
+    pub management_service_configuration: ManagementServiceConfiguration,
+    pub max_buffered_requests: i32,
+    pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
+    pub state_database_type: StateDatabaseType,
+    pub statsd_prefix: String,
+    pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
+    #[cfg(feature = "web_admin_panel")]
+    pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
+}
 
 pub struct BootstrappedBalancerHandle {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -33,7 +51,7 @@ pub struct BootstrappedBalancerHandle {
 }
 
 pub async fn bootstrap_balancer(
-    BootstrapBalancerParams {
+    BalancerBootstrapConfig {
         buffered_request_timeout,
         inference_service_configuration,
         management_service_configuration,
@@ -44,7 +62,7 @@ pub async fn bootstrap_balancer(
         statsd_service_configuration,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration,
-    }: BootstrapBalancerParams,
+    }: BalancerBootstrapConfig,
 ) -> anyhow::Result<BootstrappedBalancerHandle> {
     let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
 
@@ -65,7 +83,10 @@ pub async fn bootstrap_balancer(
         StateDatabaseType::File(path) => {
             Arc::new(File::new(balancer_desired_state_tx.clone(), path))
         }
-        StateDatabaseType::Memory => Arc::new(Memory::new(balancer_desired_state_tx.clone())),
+        StateDatabaseType::Memory(initial_desired_state) => Arc::new(Memory::new(
+            balancer_desired_state_tx.clone(),
+            *initial_desired_state,
+        )),
     };
 
     service_manager.add_service(InferenceService {

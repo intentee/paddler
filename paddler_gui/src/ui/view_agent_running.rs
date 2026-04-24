@@ -39,7 +39,7 @@ pub fn view_agent_running(data: &AgentRunningData) -> Element<'_, Message> {
     let connection_status = if data.connected {
         text(format!(
             "Connected to the cluster at {}",
-            data.cluster_address
+            data.balancer_address
         ))
         .font(REGULAR)
     } else {

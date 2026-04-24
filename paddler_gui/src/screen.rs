@@ -9,18 +9,18 @@ use statum::transition;
 use crate::agent_running_data::AgentRunningData;
 use crate::detect_network_interfaces::detect_network_interfaces;
 use crate::home_data::HomeData;
-use crate::join_cluster_config_data::JoinClusterConfigData;
-use crate::running_cluster_data::RunningClusterData;
-use crate::running_cluster_snapshot::RunningClusterSnapshot;
-use crate::start_cluster_config_data::StartClusterConfigData;
+use crate::join_balancer_form_data::JoinBalancerFormData;
+use crate::running_balancer_data::RunningBalancerData;
+use crate::running_balancer_snapshot::RunningBalancerSnapshot;
+use crate::start_balancer_form_data::StartBalancerFormData;
 
 #[state]
 pub enum ScreenState {
     AgentRunning(AgentRunningData),
     Home(HomeData),
-    JoinClusterConfig(JoinClusterConfigData),
-    StartClusterConfig(StartClusterConfigData),
-    RunningCluster(RunningClusterData),
+    JoinBalancerForm(JoinBalancerFormData),
+    StartBalancerForm(StartBalancerFormData),
+    RunningBalancer(RunningBalancerData),
 }
 
 #[machine]
@@ -28,20 +28,20 @@ pub struct Screen<ScreenState> {}
 
 #[transition]
 impl Screen<Home> {
-    pub fn join_cluster(self) -> Screen<JoinClusterConfig> {
-        self.transition_with(JoinClusterConfigData::default())
+    pub fn join_balancer(self) -> Screen<JoinBalancerForm> {
+        self.transition_with(JoinBalancerFormData::default())
     }
 
-    pub fn start_cluster(self) -> Screen<StartClusterConfig> {
+    pub fn start_balancer(self) -> Screen<StartBalancerForm> {
         let suggested_address = detect_network_interfaces()
             .first()
             .map(|interface| interface.ip_address.to_string())
             .unwrap_or_default();
 
-        self.transition_with(StartClusterConfigData {
+        self.transition_with(StartBalancerFormData {
             add_model_later: false,
-            cluster_address: format!("{suggested_address}:8060"),
-            cluster_address_error: None,
+            balancer_address: format!("{suggested_address}:8060"),
+            balancer_address_error: None,
             inference_address: format!("{suggested_address}:8061"),
             inference_address_error: None,
             model_error: None,
@@ -55,21 +55,21 @@ impl Screen<Home> {
 }
 
 #[transition]
-impl Screen<JoinClusterConfig> {
+impl Screen<JoinBalancerForm> {
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
     pub fn connect(self) -> Screen<AgentRunning> {
-        self.transition_map(|config_data: JoinClusterConfigData| {
-            let name = if config_data.agent_name.is_empty() {
+        self.transition_map(|form_data: JoinBalancerFormData| {
+            let name = if form_data.agent_name.is_empty() {
                 None
             } else {
-                Some(config_data.agent_name)
+                Some(form_data.agent_name)
             };
 
             AgentRunningData {
-                cluster_address: config_data.cluster_address,
+                balancer_address: form_data.balancer_address,
                 connected: false,
                 snapshot: AgentControllerSnapshot {
                     desired_slots_total: 0,
@@ -102,33 +102,33 @@ impl Screen<AgentRunning> {
 }
 
 #[transition]
-impl Screen<StartClusterConfig> {
+impl Screen<StartBalancerForm> {
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
-    pub fn cluster_started(self) -> Screen<RunningCluster> {
-        self.transition_map(|config_data: StartClusterConfigData| RunningClusterData {
-            cluster_address: config_data.cluster_address,
-            snapshot: RunningClusterSnapshot::default(),
+    pub fn balancer_started(self) -> Screen<RunningBalancer> {
+        self.transition_map(|form_data: StartBalancerFormData| RunningBalancerData {
+            balancer_address: form_data.balancer_address,
+            snapshot: RunningBalancerSnapshot::default(),
             stopping: false,
-            web_admin_panel_address: Some(config_data.web_admin_panel_address)
+            web_admin_panel_address: Some(form_data.web_admin_panel_address)
                 .filter(|address| !address.is_empty()),
         })
     }
 
-    pub fn cluster_failed(self, error: String) -> Screen<Home> {
+    pub fn balancer_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
 }
 
 #[transition]
-impl Screen<RunningCluster> {
-    pub fn cluster_stopped(self) -> Screen<Home> {
+impl Screen<RunningBalancer> {
+    pub fn balancer_stopped(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
-    pub fn cluster_failed(self, error: String) -> Screen<Home> {
+    pub fn balancer_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
 }

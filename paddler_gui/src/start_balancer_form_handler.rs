@@ -5,7 +5,7 @@ use std::net::TcpListener;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 
 use crate::model_preset::ModelPreset;
-use crate::start_cluster_config_data::StartClusterConfigData;
+use crate::start_balancer_form_data::StartBalancerFormData;
 
 enum PortCheck {
     Available,
@@ -43,7 +43,7 @@ fn validate_required_address(raw: &str) -> Result<SocketAddr, String> {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    SetClusterAddress(String),
+    SetBalancerAddress(String),
     SetInferenceAddress(String),
     SetWebAdminPanelAddress(String),
     SelectModel(ModelPreset),
@@ -59,7 +59,7 @@ pub enum Message {
 pub enum Action {
     None,
     Cancel,
-    StartCluster {
+    StartBalancer {
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
         web_admin_panel_addr: Option<SocketAddr>,
@@ -67,7 +67,7 @@ pub enum Action {
     },
 }
 
-impl StartClusterConfigData {
+impl StartBalancerFormData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::SelectModel(preset) => {
@@ -76,9 +76,9 @@ impl StartClusterConfigData {
 
                 Action::None
             }
-            Message::SetClusterAddress(address) => {
-                self.cluster_address = address;
-                self.cluster_address_error = None;
+            Message::SetBalancerAddress(address) => {
+                self.balancer_address = address;
+                self.balancer_address_error = None;
 
                 Action::None
             }
@@ -109,7 +109,7 @@ impl StartClusterConfigData {
     }
 
     fn validate_and_confirm(&mut self) -> Action {
-        self.cluster_address_error = None;
+        self.balancer_address_error = None;
         self.inference_address_error = None;
         self.web_admin_panel_address_error = None;
         self.model_error = None;
@@ -118,10 +118,10 @@ impl StartClusterConfigData {
             self.model_error = Some("Please select a model.".to_owned());
         }
 
-        let management_addr = match validate_required_address(&self.cluster_address) {
+        let management_addr = match validate_required_address(&self.balancer_address) {
             Ok(addr) => Some(addr),
             Err(message) => {
-                self.cluster_address_error = Some(message);
+                self.balancer_address_error = Some(message);
                 None
             }
         };
@@ -143,7 +143,7 @@ impl StartClusterConfigData {
         };
 
         if self.model_error.is_some()
-            || self.cluster_address_error.is_some()
+            || self.balancer_address_error.is_some()
             || self.inference_address_error.is_some()
             || self.web_admin_panel_address_error.is_some()
         {
@@ -166,7 +166,7 @@ impl StartClusterConfigData {
 
         self.starting = true;
 
-        Action::StartCluster {
+        Action::StartBalancer {
             management_addr,
             inference_addr,
             web_admin_panel_addr,

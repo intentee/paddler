@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use clap::Parser;
 use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
@@ -14,10 +13,8 @@ use paddler::balancer::web_admin_panel_service::configuration::Configuration as 
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_bootstrap::bootstrap_balancer_params::BootstrapBalancerParams;
-use paddler_bootstrap::cluster_runner::ClusterRunner;
-use paddler_bootstrap::cluster_runner::ClusterRunnerParams;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
@@ -89,38 +86,6 @@ pub struct Balancer {
 }
 
 impl Balancer {
-    fn build_bootstrap_params(&self) -> BootstrapBalancerParams {
-        BootstrapBalancerParams {
-            buffered_request_timeout: self.buffered_request_timeout,
-            inference_service_configuration: InferenceServiceConfiguration {
-                addr: self.inference_addr.socket_addr,
-                cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
-                inference_item_timeout: self.inference_item_timeout,
-            },
-            management_service_configuration: ManagementServiceConfiguration {
-                addr: self.management_addr.socket_addr,
-                cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
-            },
-            max_buffered_requests: self.max_buffered_requests,
-            openai_service_configuration: self.compat_openai_addr.clone().map(
-                |compat_openai_addr| OpenAIServiceConfiguration {
-                    addr: compat_openai_addr.socket_addr,
-                },
-            ),
-            state_database_type: self.state_database.clone(),
-            statsd_prefix: self.statsd_prefix.clone(),
-            statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {
-                StatsdServiceConfiguration {
-                    statsd_addr: statsd_addr.socket_addr,
-                    statsd_prefix: self.statsd_prefix.clone(),
-                    statsd_reporting_interval: self.statsd_reporting_interval,
-                }
-            }),
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
-        }
-    }
-
     #[cfg(feature = "web_admin_panel")]
     fn get_web_admin_panel_service_configuration(
         &self,
@@ -146,18 +111,38 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
-        let mut runner = ClusterRunner::start(ClusterRunnerParams {
-            bootstrap_params: self.build_bootstrap_params(),
-            initial_desired_state: BalancerDesiredState::default(),
+        let mut runner = BalancerRunner::start(BalancerRunnerParams {
+            buffered_request_timeout: self.buffered_request_timeout,
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: self.inference_addr.socket_addr,
+                cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
+                inference_item_timeout: self.inference_item_timeout,
+            },
+            management_service_configuration: ManagementServiceConfiguration {
+                addr: self.management_addr.socket_addr,
+                cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
+            },
+            max_buffered_requests: self.max_buffered_requests,
+            openai_service_configuration: self.compat_openai_addr.clone().map(
+                |compat_openai_addr| OpenAIServiceConfiguration {
+                    addr: compat_openai_addr.socket_addr,
+                },
+            ),
             parent_shutdown: Some(shutdown),
-        });
+            state_database_type: self.state_database.clone(),
+            statsd_prefix: self.statsd_prefix.clone(),
+            statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {
+                StatsdServiceConfiguration {
+                    statsd_addr: statsd_addr.socket_addr,
+                    statsd_prefix: self.statsd_prefix.clone(),
+                    statsd_reporting_interval: self.statsd_reporting_interval,
+                }
+            }),
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
+        })
+        .await?;
 
-        let completion = runner
-            .take_completion_rx()
-            .ok_or_else(|| anyhow!("cluster runner completion channel missing"))?;
-
-        completion
-            .await
-            .map_err(|error| anyhow!("cluster runner dropped: {error}"))?
+        runner.wait_for_completion().await
     }
 }

@@ -1,11 +1,9 @@
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use clap::Parser;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
-use paddler_bootstrap::bootstrap_agent_params::BootstrapAgentParams;
 use tokio_util::sync::CancellationToken;
 
 use super::handler::Handler;
@@ -30,20 +28,12 @@ pub struct Agent {
 impl Handler for Agent {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
         let mut runner = AgentRunner::start(AgentRunnerParams {
-            bootstrap_params: BootstrapAgentParams {
-                agent_name: self.name.clone(),
-                management_address: self.management_addr.socket_addr.to_string(),
-                slots: self.slots,
-            },
+            agent_name: self.name.clone(),
+            management_address: self.management_addr.socket_addr.to_string(),
             parent_shutdown: Some(shutdown),
+            slots: self.slots,
         });
 
-        let completion = runner
-            .take_completion_rx()
-            .ok_or_else(|| anyhow!("agent runner completion channel missing"))?;
-
-        completion
-            .await
-            .map_err(|error| anyhow!("agent runner dropped: {error}"))?
+        runner.wait_for_completion().await
     }
 }
