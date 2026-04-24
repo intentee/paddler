@@ -47,6 +47,9 @@ impl Screen<Home> {
             model_error: None,
             selected_model: None,
             starting: false,
+            web_admin_panel_address: String::new(),
+            web_admin_panel_address_error: None,
+            web_admin_panel_address_placeholder: format!("{suggested_address}:8062"),
         })
     }
 }
@@ -109,6 +112,8 @@ impl Screen<StartBalancerForm> {
             balancer_address: form_data.balancer_address,
             snapshot: RunningBalancerSnapshot::default(),
             stopping: false,
+            web_admin_panel_address: Some(form_data.web_admin_panel_address)
+                .filter(|address| !address.is_empty()),
         })
     }
 

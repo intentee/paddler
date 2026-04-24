@@ -22,7 +22,13 @@ use iced::window;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+#[cfg(feature = "web_admin_panel")]
+use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::produces_snapshot::ProducesSnapshot;
+#[cfg(feature = "web_admin_panel")]
+use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -160,11 +166,17 @@ impl App {
                     start_balancer_form_handler::Action::StartBalancer {
                         management_addr,
                         inference_addr,
+                        web_admin_panel_addr,
                         desired_state,
                     } => {
                         self.screen = CurrentScreen::StartBalancerForm(form);
 
-                        self.spawn_balancer(management_addr, inference_addr, &desired_state)
+                        self.spawn_balancer(
+                            management_addr,
+                            inference_addr,
+                            web_admin_panel_addr,
+                            &desired_state,
+                        )
                     }
                 }
             }
@@ -201,6 +213,15 @@ impl App {
                         self.screen = CurrentScreen::RunningBalancer(running);
 
                         iced::clipboard::write::<Message>(content).discard()
+                    }
+                    running_balancer_handler::Action::OpenUrl(url) => {
+                        self.screen = CurrentScreen::RunningBalancer(running);
+
+                        if let Err(error) = open::that(&url) {
+                            log::error!("Failed to open URL {url}: {error}");
+                        }
+
+                        Task::none()
                     }
                 }
             }
@@ -397,13 +418,47 @@ impl App {
         &mut self,
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
+        #[cfg_attr(
+            not(feature = "web_admin_panel"),
+            expect(
+                unused_variables,
+                reason = "web admin panel configuration is only built when the feature is enabled"
+            )
+        )]
+        web_admin_panel_addr: Option<SocketAddr>,
         desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
         let cancel = self.shutdown.child_token();
         self.balancer_cancel = Some(cancel.clone());
 
+        let buffered_request_timeout = Duration::from_secs(10);
+        let max_buffered_requests = 30;
+        let statsd_prefix = "paddler_";
+
+        #[cfg(feature = "web_admin_panel")]
+        let web_admin_panel_service_configuration =
+            web_admin_panel_addr.map(|addr| WebAdminPanelServiceConfiguration {
+                addr,
+                template_data: TemplateData {
+                    buffered_request_timeout,
+                    compat_openai_addr: None,
+                    inference_addr: ResolvedSocketAddr {
+                        input_addr: inference_addr.to_string(),
+                        socket_addr: inference_addr,
+                    },
+                    management_addr: ResolvedSocketAddr {
+                        input_addr: management_addr.to_string(),
+                        socket_addr: management_addr,
+                    },
+                    max_buffered_requests,
+                    statsd_addr: None,
+                    statsd_prefix: statsd_prefix.to_owned(),
+                    statsd_reporting_interval: Duration::from_secs(10),
+                },
+            });
+
         let params = BalancerRunnerParams {
-            buffered_request_timeout: Duration::from_secs(10),
+            buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: inference_addr,
                 cors_allowed_hosts: vec![],
@@ -413,14 +468,14 @@ impl App {
                 addr: management_addr,
                 cors_allowed_hosts: vec![],
             },
-            max_buffered_requests: 30,
+            max_buffered_requests,
             openai_service_configuration: None,
             parent_shutdown: Some(cancel),
             state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
-            statsd_prefix: "paddler_".to_owned(),
+            statsd_prefix: statsd_prefix.to_owned(),
             statsd_service_configuration: None,
             #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration: None,
+            web_admin_panel_service_configuration,
         };
 
         Task::stream(iced::stream::channel(1, async move |mut output| {

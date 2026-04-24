@@ -22,9 +22,14 @@ mod ui;
 use app::App;
 use clap::Parser;
 use clap::Subcommand;
+#[cfg(feature = "web_admin_panel")]
+use esbuild_metafile::instance::initialize_instance;
 use iced::Size;
 use iced::Theme;
 use log::info;
+
+#[cfg(feature = "web_admin_panel")]
+const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -41,6 +46,9 @@ enum Commands {
 
 fn launch_gui() -> iced::Result {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+    #[cfg(feature = "web_admin_panel")]
+    initialize_instance(ESBUILD_META_CONTENTS);
 
     info!("paddler_gui: ready");
 

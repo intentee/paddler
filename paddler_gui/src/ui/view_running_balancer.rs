@@ -124,10 +124,39 @@ pub fn view_running_balancer(data: &RunningBalancerData) -> Element<'_, Message>
     let mut content = column![
         container(text("Your cluster").size(FONT_SIZE_L2).font(BOLD)).padding([0.0, SPACING_BASE]),
         address_row,
-        status_row,
-        container(text("Connected agents").font(BOLD)).padding([0.0, SPACING_BASE]),
     ]
     .spacing(SPACING_2X);
+
+    if let Some(address) = &data.web_admin_panel_address {
+        let open_in_new_icon = svg(SvgHandle::from_memory(
+            include_bytes!("../../../resources/icons/open_in_new.svg").as_slice(),
+        ))
+        .width(16)
+        .height(16);
+
+        content = content.push(
+            container(
+                row![
+                    container(text(format!("Web admin panel: {address}")).font(REGULAR))
+                        .width(Fill),
+                    button(
+                        row![open_in_new_icon, text("Open in browser").font(BOLD)]
+                            .spacing(SPACING_HALF)
+                            .align_y(Center),
+                    )
+                    .style(button::text)
+                    .on_press(Message::OpenUrl(format!("http://{address}"))),
+                ]
+                .align_y(Center)
+                .padding(SPACING_BASE),
+            )
+            .style(style_card_container),
+        );
+    }
+
+    content = content.push(status_row);
+    content =
+        content.push(container(text("Connected agents").font(BOLD)).padding([0.0, SPACING_BASE]));
 
     if data.snapshot.agent_snapshots.is_empty() {
         content = content.push(

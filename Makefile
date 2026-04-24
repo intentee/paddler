@@ -61,7 +61,7 @@ release.vulkan: jarmuz-static
 
 .PHONY: release.gui
 release.gui: jarmuz-static
-	cargo build --release -p paddler_gui
+	cargo build --release -p paddler_gui --features web_admin_panel
 
 .PHONY: test
 test: test.unit test.models test.integration

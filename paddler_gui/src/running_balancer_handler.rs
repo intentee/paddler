@@ -6,12 +6,14 @@ pub enum Message {
     SnapshotUpdated(Box<RunningBalancerSnapshot>),
     Stop,
     CopyToClipboard(String),
+    OpenUrl(String),
 }
 
 pub enum Action {
     None,
     Stop,
     CopyToClipboard(String),
+    OpenUrl(String),
 }
 
 impl RunningBalancerData {
@@ -28,6 +30,7 @@ impl RunningBalancerData {
                 Action::Stop
             }
             Message::CopyToClipboard(content) => Action::CopyToClipboard(content),
+            Message::OpenUrl(url) => Action::OpenUrl(url),
         }
     }
 }
