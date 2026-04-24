@@ -5,8 +5,8 @@ mod current_screen;
 mod detect_network_interfaces;
 mod home_data;
 mod home_handler;
-mod join_balancer_config_data;
-mod join_balancer_config_handler;
+mod join_balancer_form_data;
+mod join_balancer_form_handler;
 mod message;
 mod model_preset;
 mod network_interface_address;
@@ -15,8 +15,8 @@ mod running_balancer_handler;
 mod running_balancer_snapshot;
 #[expect(unsafe_code, reason = "statum macros generate link_section statics")]
 mod screen;
-mod start_balancer_config_data;
-mod start_balancer_config_handler;
+mod start_balancer_form_data;
+mod start_balancer_form_handler;
 mod ui;
 
 use app::App;

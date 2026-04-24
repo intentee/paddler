@@ -36,20 +36,20 @@ use crate::agent_running_handler;
 use crate::current_screen::CurrentScreen;
 use crate::home_data::HomeData;
 use crate::home_handler;
-use crate::join_balancer_config_handler;
+use crate::join_balancer_form_handler;
 use crate::message::Message;
 use crate::running_balancer_handler;
 use crate::running_balancer_snapshot::RunningBalancerSnapshot;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
-use crate::start_balancer_config_handler;
+use crate::start_balancer_form_handler;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
 use crate::ui::view_agent_running::view_agent_running;
 use crate::ui::view_home::view_home;
-use crate::ui::view_join_balancer_config::view_join_balancer_config;
+use crate::ui::view_join_balancer_form::view_join_balancer_form;
 use crate::ui::view_running_balancer::view_running_balancer;
-use crate::ui::view_start_balancer_config::view_start_balancer_config;
+use crate::ui::view_start_balancer_form::view_start_balancer_form;
 
 static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
@@ -108,75 +108,75 @@ impl App {
 
                 match action {
                     home_handler::Action::StartBalancer => {
-                        self.screen = CurrentScreen::StartBalancerConfig(home.start_balancer());
+                        self.screen = CurrentScreen::StartBalancerForm(home.start_balancer());
 
                         Task::none()
                     }
                     home_handler::Action::JoinBalancer => {
-                        self.screen = CurrentScreen::JoinBalancerConfig(home.join_balancer());
+                        self.screen = CurrentScreen::JoinBalancerForm(home.join_balancer());
 
                         Task::none()
                     }
                 }
             }
-            (CurrentScreen::JoinBalancerConfig(mut config), Message::JoinBalancerConfig(msg)) => {
-                let action = config.state_data.update(msg);
+            (CurrentScreen::JoinBalancerForm(mut form), Message::JoinBalancerForm(msg)) => {
+                let action = form.state_data.update(msg);
 
                 match action {
-                    join_balancer_config_handler::Action::None => {
-                        self.screen = CurrentScreen::JoinBalancerConfig(config);
+                    join_balancer_form_handler::Action::None => {
+                        self.screen = CurrentScreen::JoinBalancerForm(form);
 
                         Task::none()
                     }
-                    join_balancer_config_handler::Action::Cancel => {
-                        self.screen = CurrentScreen::Home(config.cancel());
+                    join_balancer_form_handler::Action::Cancel => {
+                        self.screen = CurrentScreen::Home(form.cancel());
 
                         Task::none()
                     }
-                    join_balancer_config_handler::Action::ConnectAgent {
+                    join_balancer_form_handler::Action::ConnectAgent {
                         agent_name,
                         management_address,
                         slots,
-                    } => self.spawn_agent(config.connect(), agent_name, management_address, slots),
+                    } => self.spawn_agent(form.connect(), agent_name, management_address, slots),
                 }
             }
-            (CurrentScreen::StartBalancerConfig(mut config), Message::StartBalancerConfig(msg)) => {
-                let action = config.state_data.update(msg);
+            (CurrentScreen::StartBalancerForm(mut form), Message::StartBalancerForm(msg)) => {
+                let action = form.state_data.update(msg);
 
                 match action {
-                    start_balancer_config_handler::Action::None => {
-                        self.screen = CurrentScreen::StartBalancerConfig(config);
+                    start_balancer_form_handler::Action::None => {
+                        self.screen = CurrentScreen::StartBalancerForm(form);
 
                         Task::none()
                     }
-                    start_balancer_config_handler::Action::Cancel => {
+                    start_balancer_form_handler::Action::Cancel => {
                         if let Some(cancel) = self.balancer_cancel.as_ref() {
                             cancel.cancel();
                         }
-                        self.screen = CurrentScreen::Home(config.cancel());
+                        self.screen = CurrentScreen::Home(form.cancel());
 
                         Task::none()
                     }
-                    start_balancer_config_handler::Action::StartBalancer {
+                    start_balancer_form_handler::Action::StartBalancer {
                         management_addr,
                         inference_addr,
                         desired_state,
                     } => {
-                        self.screen = CurrentScreen::StartBalancerConfig(config);
+                        self.screen = CurrentScreen::StartBalancerForm(form);
 
                         self.spawn_balancer(management_addr, inference_addr, &desired_state)
                     }
                 }
             }
-            (CurrentScreen::StartBalancerConfig(config), Message::BalancerStarted) => {
-                self.screen = CurrentScreen::RunningBalancer(config.balancer_started());
+            (CurrentScreen::StartBalancerForm(form), Message::BalancerStarted) => {
+                self.screen = CurrentScreen::RunningBalancer(form.balancer_started());
 
                 Task::none()
             }
-            (CurrentScreen::StartBalancerConfig(config), Message::BalancerFailed(error)) => {
+            (CurrentScreen::StartBalancerForm(form), Message::BalancerFailed(error)) => {
                 log::error!("Balancer failed to start: {error}");
                 self.balancer_cancel = None;
-                self.screen = CurrentScreen::Home(config.balancer_failed(error));
+                self.screen = CurrentScreen::Home(form.balancer_failed(error));
 
                 Task::none()
             }
@@ -295,11 +295,11 @@ impl App {
                 view_agent_running(&screen.state_data).map(Message::AgentRunning)
             }
             CurrentScreen::Home(screen) => view_home(&screen.state_data).map(Message::Home),
-            CurrentScreen::JoinBalancerConfig(screen) => {
-                view_join_balancer_config(&screen.state_data).map(Message::JoinBalancerConfig)
+            CurrentScreen::JoinBalancerForm(screen) => {
+                view_join_balancer_form(&screen.state_data).map(Message::JoinBalancerForm)
             }
-            CurrentScreen::StartBalancerConfig(screen) => {
-                view_start_balancer_config(&screen.state_data).map(Message::StartBalancerConfig)
+            CurrentScreen::StartBalancerForm(screen) => {
+                view_start_balancer_form(&screen.state_data).map(Message::StartBalancerForm)
             }
             CurrentScreen::RunningBalancer(screen) => {
                 view_running_balancer(&screen.state_data).map(Message::RunningBalancer)

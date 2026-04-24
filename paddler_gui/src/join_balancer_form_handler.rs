@@ -1,6 +1,6 @@
 use std::net::SocketAddr;
 
-use crate::join_balancer_config_data::JoinBalancerConfigData;
+use crate::join_balancer_form_data::JoinBalancerFormData;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -21,7 +21,7 @@ pub enum Action {
     },
 }
 
-impl JoinBalancerConfigData {
+impl JoinBalancerFormData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::SetAgentName(name) => {

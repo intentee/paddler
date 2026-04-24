@@ -1,6 +1,6 @@
 use crate::model_preset::ModelPreset;
 
-pub struct StartBalancerConfigData {
+pub struct StartBalancerFormData {
     pub add_model_later: bool,
     pub balancer_address: String,
     pub balancer_address_error: Option<String>,

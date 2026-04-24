@@ -5,7 +5,7 @@ use std::net::TcpListener;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 
 use crate::model_preset::ModelPreset;
-use crate::start_balancer_config_data::StartBalancerConfigData;
+use crate::start_balancer_form_data::StartBalancerFormData;
 
 enum PortCheck {
     Available,
@@ -45,7 +45,7 @@ pub enum Action {
     },
 }
 
-impl StartBalancerConfigData {
+impl StartBalancerFormData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::SelectModel(preset) => {

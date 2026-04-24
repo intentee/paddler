@@ -1,15 +1,15 @@
 use crate::screen::AgentRunning;
 use crate::screen::Home;
-use crate::screen::JoinBalancerConfig;
+use crate::screen::JoinBalancerForm;
 use crate::screen::RunningBalancer;
 use crate::screen::Screen;
-use crate::screen::StartBalancerConfig;
+use crate::screen::StartBalancerForm;
 
 pub enum CurrentScreen {
     AgentRunning(Screen<AgentRunning>),
     Home(Screen<Home>),
-    JoinBalancerConfig(Screen<JoinBalancerConfig>),
-    StartBalancerConfig(Screen<StartBalancerConfig>),
+    JoinBalancerForm(Screen<JoinBalancerForm>),
+    StartBalancerForm(Screen<StartBalancerForm>),
     RunningBalancer(Screen<RunningBalancer>),
 }
 

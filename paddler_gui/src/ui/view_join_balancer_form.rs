@@ -17,10 +17,10 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_form_field::view_form_field;
-use crate::join_balancer_config_data::JoinBalancerConfigData;
-use crate::join_balancer_config_handler::Message;
+use crate::join_balancer_form_data::JoinBalancerFormData;
+use crate::join_balancer_form_handler::Message;
 
-pub fn view_join_balancer_config(data: &JoinBalancerConfigData) -> Element<'_, Message> {
+pub fn view_join_balancer_form(data: &JoinBalancerFormData) -> Element<'_, Message> {
     let confirm_button = button(text("Connect").font(BOLD))
         .padding([SPACING_HALF, SPACING_BASE])
         .style(style_button_primary)

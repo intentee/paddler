@@ -9,17 +9,17 @@ use statum::transition;
 use crate::agent_running_data::AgentRunningData;
 use crate::detect_network_interfaces::detect_network_interfaces;
 use crate::home_data::HomeData;
-use crate::join_balancer_config_data::JoinBalancerConfigData;
+use crate::join_balancer_form_data::JoinBalancerFormData;
 use crate::running_balancer_data::RunningBalancerData;
 use crate::running_balancer_snapshot::RunningBalancerSnapshot;
-use crate::start_balancer_config_data::StartBalancerConfigData;
+use crate::start_balancer_form_data::StartBalancerFormData;
 
 #[state]
 pub enum ScreenState {
     AgentRunning(AgentRunningData),
     Home(HomeData),
-    JoinBalancerConfig(JoinBalancerConfigData),
-    StartBalancerConfig(StartBalancerConfigData),
+    JoinBalancerForm(JoinBalancerFormData),
+    StartBalancerForm(StartBalancerFormData),
     RunningBalancer(RunningBalancerData),
 }
 
@@ -28,17 +28,17 @@ pub struct Screen<ScreenState> {}
 
 #[transition]
 impl Screen<Home> {
-    pub fn join_balancer(self) -> Screen<JoinBalancerConfig> {
-        self.transition_with(JoinBalancerConfigData::default())
+    pub fn join_balancer(self) -> Screen<JoinBalancerForm> {
+        self.transition_with(JoinBalancerFormData::default())
     }
 
-    pub fn start_balancer(self) -> Screen<StartBalancerConfig> {
+    pub fn start_balancer(self) -> Screen<StartBalancerForm> {
         let suggested_address = detect_network_interfaces()
             .first()
             .map(|interface| interface.ip_address.to_string())
             .unwrap_or_default();
 
-        self.transition_with(StartBalancerConfigData {
+        self.transition_with(StartBalancerFormData {
             add_model_later: false,
             balancer_address: format!("{suggested_address}:8060"),
             balancer_address_error: None,
@@ -52,21 +52,21 @@ impl Screen<Home> {
 }
 
 #[transition]
-impl Screen<JoinBalancerConfig> {
+impl Screen<JoinBalancerForm> {
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
     pub fn connect(self) -> Screen<AgentRunning> {
-        self.transition_map(|config_data: JoinBalancerConfigData| {
-            let name = if config_data.agent_name.is_empty() {
+        self.transition_map(|form_data: JoinBalancerFormData| {
+            let name = if form_data.agent_name.is_empty() {
                 None
             } else {
-                Some(config_data.agent_name)
+                Some(form_data.agent_name)
             };
 
             AgentRunningData {
-                balancer_address: config_data.balancer_address,
+                balancer_address: form_data.balancer_address,
                 connected: false,
                 snapshot: AgentControllerSnapshot {
                     desired_slots_total: 0,
@@ -99,14 +99,14 @@ impl Screen<AgentRunning> {
 }
 
 #[transition]
-impl Screen<StartBalancerConfig> {
+impl Screen<StartBalancerForm> {
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
     pub fn balancer_started(self) -> Screen<RunningBalancer> {
-        self.transition_map(|config_data: StartBalancerConfigData| RunningBalancerData {
-            balancer_address: config_data.balancer_address,
+        self.transition_map(|form_data: StartBalancerFormData| RunningBalancerData {
+            balancer_address: form_data.balancer_address,
             snapshot: RunningBalancerSnapshot::default(),
             stopping: false,
         })
