@@ -82,12 +82,14 @@ impl SubprocessCluster {
 
         let paddler_client = PaddlerClient::new(inference_base_url, management_base_url, 1);
 
-        paddler_client
-            .management()
-            .put_balancer_desired_state(&desired_state)
-            .await
-            .map_err(anyhow::Error::new)
-            .context("failed to PUT desired state on subprocess balancer")?;
+        if let Some(desired_state) = desired_state.as_ref() {
+            paddler_client
+                .management()
+                .put_balancer_desired_state(desired_state)
+                .await
+                .map_err(anyhow::Error::new)
+                .context("failed to PUT desired state on subprocess balancer")?;
+        }
 
         let mut agents_watcher = AgentsStreamWatcher::connect(&paddler_client.management()).await?;
         let buffered_requests_watcher =

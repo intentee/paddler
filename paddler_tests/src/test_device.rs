@@ -41,9 +41,9 @@ impl TestDevice {
         match self {
             Self::Cpu => Ok(()),
             #[cfg(feature = "cuda")]
-            Self::Cuda => require_backend_device("CUDA", "cuda"),
+            Self::Cuda => require_backend_device("CUDA"),
             #[cfg(feature = "metal")]
-            Self::Metal => require_backend_device("Metal", "metal"),
+            Self::Metal => require_backend_device("Metal"),
         }
     }
 
@@ -72,11 +72,13 @@ impl TestDevice {
 }
 
 #[cfg(any(feature = "cuda", feature = "metal"))]
-fn require_backend_device(backend_name: &str, feature_name: &str) -> Result<()> {
+fn require_backend_device(backend_name: &str) -> Result<()> {
     let backend = LlamaBackend::init()?;
 
     if !backend.supports_gpu_offload() {
-        bail!("binary built without GPU offload support; rebuild with --features {feature_name}");
+        bail!(
+            "binary built without GPU offload support; rebuild with --features cuda or --features metal"
+        );
     }
 
     drop(backend);

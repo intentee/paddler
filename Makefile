@@ -64,23 +64,26 @@ release.gui: jarmuz-static
 	cargo build --release -p paddler_gui --features web_admin_panel
 
 .PHONY: test
-test: test.unit test.models test.integration
-
-.PHONY: test.models
-test.models:
-	cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
-
-.PHONY: test.cuda
-test.cuda:
-	cargo test -p paddler_model_tests --features tests_that_use_llms,cuda -- --nocapture --test-threads=1
+test: test.unit test.harness test.gui
 
 .PHONY: test.unit
 test.unit: jarmuz-static
 	cargo test --features web_admin_panel
 
-.PHONY: test.integration
-test.integration: target/debug/paddler
-	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
+.PHONY: test.harness
+test.harness: target/debug/paddler
+	PADDLER_TEST_DEVICE=cpu cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
+
+.PHONY: test.harness.cuda
+test.harness.cuda: target/debug/paddler
+	PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms,cuda -- --nocapture --test-threads=1
+
+.PHONY: test.gui
+test.gui: target/debug/paddler target/debug/paddler_gui
+	cargo test -p paddler_gui_tests --features tests_that_use_compiled_paddler -- --nocapture --test-threads=1
+
+target/debug/paddler_gui: $(shell find paddler_gui/src -name '*.rs')
+	cargo build -p paddler_gui
 
 .PHONY: watch
 watch: node_modules

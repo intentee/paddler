@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::current_test_device::CURRENT_TEST_DEVICE;
+use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::in_process_cluster::InProcessCluster;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
@@ -17,7 +17,9 @@ use reqwest::Client;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
-    CURRENT_TEST_DEVICE
+    let device = current_test_device()?;
+
+    device
         .require_available()
         .context("selected device is unavailable")?;
 
@@ -28,8 +30,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
-        inference_parameters: CURRENT_TEST_DEVICE
-            .inference_parameters_for_full_offload(gpu_layer_count),
+        inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
         model: AgentDesiredModel::HuggingFace(reference),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,
@@ -68,7 +69,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     assert!(
         token_count > 0,
         "smoke test on {} produced no tokens",
-        CURRENT_TEST_DEVICE.name()
+        device.name()
     );
 
     assert!(
