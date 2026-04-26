@@ -16,6 +16,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result<()> {
     let device = current_test_device()?;

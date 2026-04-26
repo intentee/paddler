@@ -30,6 +30,36 @@ jobs:
       - name: Run unit tests
         run: make test.unit
 
+  harness-cpu:
+    name: harness (cpu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run harness tests on CPU
+        env:
+          PADDLER_TEST_DEVICE: cpu
+        run: make test
+
+  harness-cuda:
+    name: harness (cuda)
+    runs-on: [self-hosted, cuda]
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run harness tests on CUDA
+        env:
+          PADDLER_TEST_DEVICE: cuda
+        run: make test
+
   python:
     name: python (${{ matrix.python-version }})
     runs-on: ubuntu-latest

@@ -37,5 +37,8 @@ tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
 url = { workspace = true }
 
+[dev-dependencies]
+serial_test = { workspace = true }
+
 [lints]
 workspace = true

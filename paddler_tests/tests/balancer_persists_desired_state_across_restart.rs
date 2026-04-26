@@ -14,6 +14,7 @@ use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_desired_state_across_restart() -> Result<()> {
     let database = StateDatabaseFile::new()?;

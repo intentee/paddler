@@ -18,6 +18,7 @@ use paddler_types::request_params::continue_from_conversation_history_params::to
 use reqwest::Client;
 use serde_json::Map;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
     let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;

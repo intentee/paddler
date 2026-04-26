@@ -14,7 +14,7 @@ use crate::cluster_handle::ClusterHandle;
 use crate::cluster_handle_params::ClusterHandleParams;
 use crate::paddler_command::paddler_command;
 use crate::subprocess_cluster_params::SubprocessClusterParams;
-use crate::wait_until_balancer_healthy::wait_until_balancer_healthy;
+use crate::wait_until_healthy::wait_until_healthy;
 
 pub struct SubprocessCluster;
 
@@ -76,7 +76,7 @@ impl SubprocessCluster {
         let management_base_url = addresses.management_base_url()?;
         let inference_base_url = addresses.inference_base_url()?;
 
-        wait_until_balancer_healthy(&management_base_url)
+        wait_until_healthy(&management_base_url, "health")
             .await
             .context("subprocess balancer did not become healthy")?;
 

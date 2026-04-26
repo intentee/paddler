@@ -22,6 +22,7 @@ use paddler_types::inference_client::Message;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result<()> {
     let device = current_test_device()?;
@@ -83,11 +84,7 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
     cluster
         .agents
         .until(|snapshot| {
-            snapshot.agents.len() == 1
-                && snapshot
-                    .agents
-                    .iter()
-                    .any(|agent| agent.slots_total >= 4)
+            snapshot.agents.len() == 1 && snapshot.agents.iter().any(|agent| agent.slots_total >= 4)
         })
         .await
         .context("agent should register with 4 slots")?;

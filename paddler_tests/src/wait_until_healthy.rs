@@ -1,13 +1,17 @@
+use std::time::Duration;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use reqwest::Client;
 use reqwest::StatusCode;
 use url::Url;
 
-pub async fn wait_until_balancer_healthy(management_base_url: &Url) -> Result<()> {
-    let health_url = management_base_url
-        .join("health")
-        .context("failed to construct /health URL from management base URL")?;
+const HEALTHCHECK_PROBE_INTERVAL: Duration = Duration::from_millis(20);
+
+pub async fn wait_until_healthy(base_url: &Url, endpoint: &str) -> Result<()> {
+    let health_url = base_url
+        .join(endpoint)
+        .with_context(|| format!("failed to construct {endpoint} URL from {base_url}"))?;
     let client = Client::new();
 
     loop {
@@ -15,7 +19,7 @@ pub async fn wait_until_balancer_healthy(management_base_url: &Url) -> Result<()
             Ok(response) => match response.status() {
                 StatusCode::OK => return Ok(()),
                 StatusCode::SERVICE_UNAVAILABLE => {
-                    tokio::task::yield_now().await;
+                    tokio::time::sleep(HEALTHCHECK_PROBE_INTERVAL).await;
                 }
                 other => {
                     return Err(anyhow::anyhow!(
@@ -25,7 +29,7 @@ pub async fn wait_until_balancer_healthy(management_base_url: &Url) -> Result<()
             },
             Err(request_error) => {
                 if request_error.is_connect() {
-                    tokio::task::yield_now().await;
+                    tokio::time::sleep(HEALTHCHECK_PROBE_INTERVAL).await;
                 } else {
                     return Err(anyhow::Error::new(request_error)
                         .context(format!("failed to probe {health_url}")));

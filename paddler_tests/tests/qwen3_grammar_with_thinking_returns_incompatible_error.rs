@@ -12,6 +12,7 @@ use paddler_types::grammar_constraint::GrammarConstraint;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_grammar_with_thinking_returns_incompatible_error() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(1).await?;

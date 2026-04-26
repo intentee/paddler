@@ -14,6 +14,7 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> Result<()> {
     let ModelCard { reference, .. } = nomic_embed_text_v1_5();

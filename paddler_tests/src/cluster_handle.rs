@@ -7,7 +7,7 @@ use crate::balancer_addresses::BalancerAddresses;
 use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
 use crate::cluster_completion::ClusterCompletion;
 use crate::cluster_handle_params::ClusterHandleParams;
-use crate::send_sigterm_if_running::send_sigterm_if_running;
+use crate::terminate_child::terminate_child;
 
 pub struct ClusterHandle {
     pub addresses: BalancerAddresses,
@@ -67,11 +67,11 @@ impl ClusterHandle {
                 mut agents,
                 mut balancer,
             } => {
-                for child in &agents {
-                    send_sigterm_if_running(child)?;
+                for child in &mut agents {
+                    terminate_child(child)?;
                 }
 
-                send_sigterm_if_running(&balancer)?;
+                terminate_child(&mut balancer)?;
 
                 for agent in &mut agents {
                     agent.wait().await?;

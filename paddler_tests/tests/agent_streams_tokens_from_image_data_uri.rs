@@ -17,6 +17,7 @@ use paddler_types::image_url::ImageUrl;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_streams_tokens_from_image_data_uri() -> Result<()> {
     let cluster = start_subprocess_cluster_with_smolvlm2(4, 1).await?;

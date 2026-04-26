@@ -17,7 +17,7 @@ pub fn spawn_gui_subprocess(
         .env("DISPLAY", display_name)
         .env("RUST_LOG", "paddler_gui=info")
         .stdout(Stdio::null())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::null());
 
     for argument in args {
         command.arg(argument);

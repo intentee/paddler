@@ -8,6 +8,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stops_at_max_tokens_boundary() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(1).await?;
@@ -31,7 +32,10 @@ async fn continuous_batch_stops_at_max_tokens_boundary() -> Result<()> {
         .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
         .count();
 
-    assert_eq!(token_count, 5, "expected exactly 5 tokens with max_tokens=5");
+    assert_eq!(
+        token_count, 5,
+        "expected exactly 5 tokens with max_tokens=5"
+    );
     assert!(matches!(
         collected.token_results.last(),
         Some(GeneratedTokenResult::Done)

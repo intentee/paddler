@@ -15,6 +15,7 @@ use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3_5(4, true).await?;

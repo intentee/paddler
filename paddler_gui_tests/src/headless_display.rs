@@ -1,14 +1,15 @@
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
-use nix::sys::signal::Signal;
-use nix::sys::signal::kill;
-use nix::unistd::Pid;
+use paddler_tests::terminate_child::terminate_child;
 use tokio::process::Child;
 use tokio::process::Command;
+
+const XVFB_READINESS_PROBE_INTERVAL: Duration = Duration::from_millis(20);
 
 pub struct HeadlessDisplay {
     display_name: String,
@@ -48,7 +49,7 @@ impl HeadlessDisplay {
                 Err(error) => bail!("failed to check Xvfb status: {error}"),
             }
 
-            tokio::task::yield_now().await;
+            tokio::time::sleep(XVFB_READINESS_PROBE_INTERVAL).await;
         }
 
         Ok(Self { display_name, xvfb })
@@ -62,10 +63,6 @@ impl HeadlessDisplay {
 
 impl Drop for HeadlessDisplay {
     fn drop(&mut self) {
-        if let Some(raw_pid) = self.xvfb.id() {
-            #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
-            let pid = Pid::from_raw(raw_pid as i32);
-            let _ = kill(pid, Signal::SIGTERM);
-        }
+        let _ = terminate_child(&mut self.xvfb);
     }
 }

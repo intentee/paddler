@@ -16,6 +16,7 @@ use paddler_types::image_url::ImageUrl;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_returns_image_decoding_error_for_malformed_data_uri() -> Result<()> {
     let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;
@@ -50,9 +51,10 @@ async fn agent_returns_image_decoding_error_for_malformed_data_uri() -> Result<(
         let collected = collect_generated_tokens(stream).await;
 
         if let Ok(collected) = collected {
-            let saw_decoding_error = collected.token_results.iter().any(|result| {
-                matches!(result, GeneratedTokenResult::ImageDecodingFailed(_))
-            });
+            let saw_decoding_error = collected
+                .token_results
+                .iter()
+                .any(|result| matches!(result, GeneratedTokenResult::ImageDecodingFailed(_)));
 
             assert!(
                 saw_decoding_error,

@@ -12,6 +12,7 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_model_file_does_not_exist() -> Result<()> {
     let mut cluster = SubprocessCluster::start(SubprocessClusterParams {

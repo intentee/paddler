@@ -48,6 +48,7 @@ fn build_long_link_list() -> String {
     lines.join("\n")
 }
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_generates_tokens_for_long_system_and_user_prompt() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3_5(1, false).await?;

@@ -14,6 +14,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<()> {
     let cluster = start_subprocess_cluster_with_qwen3(1, 1).await?;
@@ -30,8 +31,7 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
                 root: "root".to_owned(),
             }),
             max_tokens: 200,
-            raw_prompt: "Say the following: the quick brown fox jumps over the lazy dog"
-                .to_owned(),
+            raw_prompt: "Say the following: the quick brown fox jumps over the lazy dog".to_owned(),
         })
         .await?;
 

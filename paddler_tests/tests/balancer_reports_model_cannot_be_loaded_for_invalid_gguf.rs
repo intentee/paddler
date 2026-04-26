@@ -12,6 +12,7 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() -> Result<()> {
     let invalid_gguf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf");

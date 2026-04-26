@@ -22,6 +22,7 @@ use paddler_types::inference_client::Message;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_resolves_buffered_requests_after_agent_killed() -> Result<()> {
     let device = current_test_device()?;

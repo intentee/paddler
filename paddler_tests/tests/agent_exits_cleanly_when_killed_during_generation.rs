@@ -15,12 +15,13 @@ use paddler_tests::spawn_agent_subprocess::spawn_agent_subprocess;
 use paddler_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
 use paddler_tests::subprocess_cluster::SubprocessCluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
-use paddler_tests::terminate_subprocess::terminate_subprocess;
+use paddler_tests::terminate_child::terminate_child;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
     let device = current_test_device()?;
@@ -46,7 +47,7 @@ async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
     })
     .await?;
 
-    let agent_child = spawn_agent_subprocess(SpawnAgentSubprocessParams {
+    let mut agent_child = spawn_agent_subprocess(SpawnAgentSubprocessParams {
         management_addr: cluster.addresses.management,
         name: Some("graceful-shutdown-agent".to_owned()),
         slots: 2,
@@ -55,8 +56,7 @@ async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
     let snapshot = cluster
         .agents
         .until(|snapshot| {
-            snapshot.agents.len() == 1
-                && snapshot.agents.iter().any(|agent| agent.slots_total >= 2)
+            snapshot.agents.len() == 1 && snapshot.agents.iter().any(|agent| agent.slots_total >= 2)
         })
         .await
         .context("agent must register with slots before generation starts")?;
@@ -89,7 +89,8 @@ async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
         .until(AgentsStatus::slots_processing_is(&agent_id, 1))
         .await?;
 
-    let exit_status = terminate_subprocess(agent_child).await?;
+    terminate_child(&mut agent_child)?;
+    let exit_status = agent_child.wait().await?;
 
     cluster
         .agents

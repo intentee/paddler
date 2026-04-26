@@ -8,6 +8,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_without_grammar_generates_unconstrained_output() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(1).await?;

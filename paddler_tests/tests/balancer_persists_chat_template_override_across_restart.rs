@@ -15,6 +15,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_chat_template_override_across_restart() -> Result<()> {
     let database = StateDatabaseFile::new()?;
