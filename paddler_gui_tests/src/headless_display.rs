@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -11,6 +13,8 @@ use tokio::process::Command;
 
 const XVFB_READINESS_PROBE_INTERVAL: Duration = Duration::from_millis(20);
 
+static NEXT_DISPLAY_OFFSET: AtomicU32 = AtomicU32::new(0);
+
 pub struct HeadlessDisplay {
     display_name: String,
     xvfb: Child,
@@ -18,7 +22,9 @@ pub struct HeadlessDisplay {
 
 impl HeadlessDisplay {
     pub async fn start() -> Result<Self> {
-        let display_number = std::process::id() % 1000 + 99;
+        let base = std::process::id() % 800 + 99;
+        let offset = NEXT_DISPLAY_OFFSET.fetch_add(1, Ordering::Relaxed);
+        let display_number = base + offset;
         let display_name = format!(":{display_number}");
 
         let mut xvfb = Command::new("Xvfb")
