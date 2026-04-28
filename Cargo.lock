@@ -4678,7 +4678,6 @@ dependencies = [
  "async-stream",
  "base64",
  "futures-util",
- "llama-cpp-bindings",
  "log",
  "nix",
  "paddler",

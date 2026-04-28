@@ -25,8 +25,7 @@ pub struct InProcessCluster;
 impl InProcessCluster {
     pub async fn start(
         InProcessClusterParams {
-            agent_count,
-            agent_name_prefix,
+            agent_name,
             buffered_request_timeout,
             desired_state,
             inference_cors_allowed_hosts,
@@ -34,6 +33,7 @@ impl InProcessCluster {
             management_cors_allowed_hosts,
             max_buffered_requests,
             slots_per_agent,
+            spawn_agent,
             wait_for_slots_ready,
         }: InProcessClusterParams,
     ) -> Result<ClusterHandle> {
@@ -85,11 +85,10 @@ impl InProcessCluster {
         let buffered_requests_watcher =
             BufferedRequestsStreamWatcher::connect(&paddler_client.management()).await?;
 
-        let mut agent_runners: Vec<AgentRunner> = Vec::with_capacity(agent_count);
+        let expected_agent_count: usize = usize::from(spawn_agent);
+        let mut agent_runners: Vec<AgentRunner> = Vec::with_capacity(expected_agent_count);
 
-        for agent_index in 0..agent_count {
-            let agent_name = format!("{agent_name_prefix}-{agent_index}");
-
+        if spawn_agent {
             let agent_runner = AgentRunner::start(AgentRunnerParams {
                 agent_name: Some(agent_name),
                 management_address: addresses.management.to_string(),
@@ -101,9 +100,9 @@ impl InProcessCluster {
         }
 
         let registered_snapshot = agents_watcher
-            .until(move |snapshot| snapshot.agents.len() >= agent_count)
+            .until(move |snapshot| snapshot.agents.len() >= expected_agent_count)
             .await
-            .context("not all requested agents registered")?;
+            .context("agent did not register")?;
 
         let agent_ids: Vec<String> = registered_snapshot
             .agents
@@ -111,17 +110,17 @@ impl InProcessCluster {
             .map(|agent| agent.id.clone())
             .collect();
 
-        if wait_for_slots_ready {
+        if wait_for_slots_ready && spawn_agent {
             agents_watcher
                 .until(move |snapshot| {
-                    snapshot.agents.len() >= agent_count
+                    snapshot.agents.len() >= expected_agent_count
                         && snapshot
                             .agents
                             .iter()
                             .all(|agent| agent.slots_total >= slots_per_agent)
                 })
                 .await
-                .context("agents did not reach the requested slot count")?;
+                .context("agent did not reach the requested slot count")?;
         }
 
         Ok(ClusterHandle::new(ClusterHandleParams {

@@ -38,7 +38,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     };
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 1,
         desired_state,
         wait_for_slots_ready: true,

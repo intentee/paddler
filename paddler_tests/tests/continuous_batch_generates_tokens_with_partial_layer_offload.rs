@@ -29,7 +29,7 @@ async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Resul
         device.inference_parameters_for_full_offload(PARTIAL_GPU_LAYER_COUNT);
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 1,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

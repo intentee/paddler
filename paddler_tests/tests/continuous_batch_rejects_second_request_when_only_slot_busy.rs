@@ -29,7 +29,7 @@ async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result
     } = qwen3_0_6b();
 
     let mut cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 1,
         max_buffered_requests: 0,
         desired_state: BalancerDesiredState {

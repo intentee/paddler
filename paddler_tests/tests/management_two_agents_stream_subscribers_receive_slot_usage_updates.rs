@@ -36,7 +36,7 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_updates() -
     };
 
     let mut cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 1,
         desired_state,
         wait_for_slots_ready: true,

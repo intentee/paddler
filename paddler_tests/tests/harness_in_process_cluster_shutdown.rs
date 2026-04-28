@@ -5,7 +5,7 @@ use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 #[tokio::test(flavor = "multi_thread")]
 async fn empty_cluster_starts_and_shuts_down_without_timeout() -> Result<()> {
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 0,
+        spawn_agent: false,
         wait_for_slots_ready: false,
         ..InProcessClusterParams::default()
     })
@@ -19,7 +19,7 @@ async fn empty_cluster_starts_and_shuts_down_without_timeout() -> Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn single_agent_registers_and_shuts_down_without_timeout() -> Result<()> {
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         wait_for_slots_ready: false,
         ..InProcessClusterParams::default()
     })

@@ -17,14 +17,16 @@ use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
+async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {
+    let agent_count: usize = 4;
+
     let mut cluster = start_subprocess_cluster_with_qwen3_embedding(
         InferenceParameters {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        4,
         2,
+        agent_count,
     )
     .await?;
 
@@ -32,7 +34,7 @@ async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
 
     let filler = "x".repeat(380);
-    let input_batch: Vec<EmbeddingInputDocument> = (0..12)
+    let input_batch: Vec<EmbeddingInputDocument> = (0..16)
         .map(|index| EmbeddingInputDocument {
             content: format!("Document number {index:02}: {filler}"),
             id: format!("doc-{index}"),
@@ -68,19 +70,20 @@ async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
             }
         }
 
-        seen_busy_agents.len() >= 2 || (have_seen_any_activity && !any_busy_now)
+        seen_busy_agents.len() >= agent_count || (have_seen_any_activity && !any_busy_now)
     });
 
     let (request_result, observation_result) = tokio::join!(request_future, observation_future);
     let collected = request_result?;
     observation_result?;
 
-    assert_eq!(collected.embeddings.len(), 12);
+    assert_eq!(collected.embeddings.len(), 16);
     assert!(collected.saw_done);
     assert!(collected.errors.is_empty());
-    assert!(
-        seen_busy_agents.len() >= 2,
-        "expected the embedding batch to be distributed across at least two agents, but only saw activity on: {seen_busy_agents:?}"
+    assert_eq!(
+        seen_busy_agents.len(),
+        agent_count,
+        "expected the embedding batch to fan out across every agent, but only saw activity on: {seen_busy_agents:?}"
     );
 
     cluster.shutdown().await?;

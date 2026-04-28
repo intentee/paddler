@@ -33,7 +33,7 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
     inference_parameters.temperature = 0.0;
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 2,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

@@ -41,10 +41,12 @@ where
     TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync,
 {
     async fn send_response(&mut self, message: OutgoingMessage) -> anyhow::Result<()> {
-        let transform_result = self.transformer.transform(message).await?;
-
-        self.chunk_tx.send(transform_result)?;
-
-        Ok(())
+        match self.transformer.transform(message).await? {
+            TransformResult::Discard => Ok(()),
+            forwarded @ (TransformResult::Chunk(_) | TransformResult::Error(_)) => {
+                self.chunk_tx.send(forwarded)?;
+                Ok(())
+            }
+        }
     }
 }

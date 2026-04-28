@@ -21,7 +21,7 @@ async fn agent_returns_error_when_embeddings_disabled_in_parameters() -> Result<
     let ModelCard { reference, .. } = qwen3_0_6b();
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 1,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

@@ -33,7 +33,7 @@ async fn continuous_batch_generates_tokens_with_distinct_k_and_v_cache_dtypes() 
     inference_parameters.v_cache_dtype = KvCacheDtype::Q4_0;
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 1,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

@@ -34,7 +34,7 @@ async fn two_concurrent_prompts_produce_distinct_outputs() -> Result<()> {
     };
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        spawn_agent: true,
         slots_per_agent: 2,
         desired_state,
         wait_for_slots_ready: true,

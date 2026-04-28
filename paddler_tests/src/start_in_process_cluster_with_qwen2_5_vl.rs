@@ -27,7 +27,6 @@ pub async fn start_in_process_cluster_with_qwen2_5_vl(
     } = qwen2_5_vl_3b_mmproj();
 
     InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
         slots_per_agent,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

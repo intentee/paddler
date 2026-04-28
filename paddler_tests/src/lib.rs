@@ -28,6 +28,7 @@ pub mod start_in_process_cluster_with_smolvlm2;
 pub mod start_in_process_embedding_cluster;
 pub mod start_subprocess_cluster_with_qwen2_5_vl;
 pub mod start_subprocess_cluster_with_qwen3;
+pub mod start_subprocess_cluster_with_qwen3_embedding;
 pub mod start_subprocess_cluster_with_smolvlm2;
 pub mod state_database_file;
 pub mod subprocess_cluster;

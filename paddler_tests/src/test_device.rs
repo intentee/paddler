@@ -2,11 +2,11 @@ use anyhow::Result;
 #[cfg(any(feature = "cuda", feature = "metal"))]
 use anyhow::bail;
 #[cfg(any(feature = "cuda", feature = "metal"))]
-use llama_cpp_bindings::llama_backend::LlamaBackend;
+use paddler::llama_cpp_bindings::llama_backend::LlamaBackend;
 #[cfg(any(feature = "cuda", feature = "metal"))]
-use llama_cpp_bindings::llama_backend_device::LlamaBackendDeviceType;
+use paddler::llama_cpp_bindings::llama_backend_device::LlamaBackendDeviceType;
 #[cfg(any(feature = "cuda", feature = "metal"))]
-use llama_cpp_bindings::llama_backend_device::list_llama_ggml_backend_devices;
+use paddler::llama_cpp_bindings::llama_backend_device::list_llama_ggml_backend_devices;
 use paddler_types::inference_parameters::InferenceParameters;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

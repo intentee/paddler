@@ -37,9 +37,16 @@ where
         params,
         transformer,
     )
-    .map(|transform_result| match transform_result {
-        TransformResult::Chunk(chunk) => Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))),
-        TransformResult::Error(error) => Ok::<_, Error>(Bytes::from(format!("{error}\n"))),
+    .filter_map(|transform_result| async move {
+        match transform_result {
+            TransformResult::Chunk(chunk) => {
+                Some(Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))))
+            }
+            TransformResult::Error(error) => {
+                Some(Ok::<_, Error>(Bytes::from(format!("{error}\n"))))
+            }
+            TransformResult::Discard => None,
+        }
     });
 
     HttpResponse::Ok()
