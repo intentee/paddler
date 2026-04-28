@@ -64,18 +64,18 @@ release.gui: jarmuz-static
 	cargo build --release -p paddler_gui --features web_admin_panel
 
 .PHONY: test
-test: test.unit test.harness test.gui
+test: test.unit test.integration test.gui
 
 .PHONY: test.unit
 test.unit: jarmuz-static
 	cargo test --features web_admin_panel
 
-.PHONY: test.harness
-test.harness: target/debug/paddler
+.PHONY: test.integration
+test.integration: target/debug/paddler
 	PADDLER_TEST_DEVICE=cpu cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
 
-.PHONY: test.harness.cuda
-test.harness.cuda: target/debug/paddler
+.PHONY: test.integration.cuda
+test.integration.cuda: target/debug/paddler
 	PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms,cuda -- --nocapture --test-threads=1
 
 .PHONY: test.gui
