@@ -30,6 +30,10 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
         };
 
         loop {
+            let next_update = app_data.buffered_request_manager.update_notifier.notified();
+            tokio::pin!(next_update);
+            next_update.as_mut().enable();
+
             match app_data.buffered_request_manager.make_snapshot() {
                 Ok(buffered_request_manager_snapshot) => {
                     if let Some(event) = send_event(buffered_request_manager_snapshot) {
@@ -40,7 +44,7 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
             }
 
             tokio::select! {
-                () = app_data.buffered_request_manager.update_notifier.notified() => {}
+                () = next_update => {}
                 () = shutdown.cancelled() => return,
             }
         }

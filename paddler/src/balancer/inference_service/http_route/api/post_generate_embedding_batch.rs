@@ -7,26 +7,53 @@ use actix_web::http::header;
 use actix_web::post;
 use actix_web::rt;
 use actix_web::web;
+use anyhow::Result;
+use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::StreamExt;
 use log::error;
 use nanoid::nanoid;
+use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::inference_client::Message as OutgoingMessage;
+use paddler_types::inference_client::Response as OutgoingResponse;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
+use paddler_types::jsonrpc::ResponseEnvelope;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
+use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
+use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::inference_service::app_data::AppData;
 use crate::balancer::request_from_agent::request_from_agent;
 use crate::controls_session::ControlsSession as _;
 
 const CHARACTERS_PER_TOKEN_APPROXIMATELY: usize = 3;
+
+#[derive(Clone)]
+struct EmbeddingChunkBodyTransformer;
+
+#[async_trait]
+impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
+    async fn transform(&self, message: OutgoingMessage) -> Result<TransformResult> {
+        if let OutgoingMessage::Response(ResponseEnvelope {
+            response: OutgoingResponse::Embedding(EmbeddingResult::Done),
+            ..
+        }) = &message
+        {
+            return Ok(TransformResult::Discard);
+        }
+
+        let serialized = serde_json::to_string(&message)?;
+
+        Ok(TransformResult::Chunk(serialized))
+    }
+}
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
@@ -54,7 +81,8 @@ async fn respond(
     let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
-    // Distribute the embeddings evenly across the available agents
+    let mut chunk_tasks: JoinSet<()> = JoinSet::new();
+
     for batch in params.chunk_by_input_size(
         agent_desired_state.inference_parameters.batch_n_tokens
             * CHARACTERS_PER_TOKEN_APPROXIMATELY,
@@ -65,10 +93,12 @@ async fn respond(
         let inference_service_configuration_clone =
             app_data.inference_service_configuration.clone();
 
-        rt::spawn(async move {
+        chunk_tasks.spawn(async move {
             let request_id: String = nanoid!();
-            let mut session_controller =
-                ChunkForwardingSessionController::new(chunk_tx_clone, IdentityTransformer::new());
+            let mut session_controller = ChunkForwardingSessionController::new(
+                chunk_tx_clone,
+                EmbeddingChunkBodyTransformer,
+            );
 
             if let Err(err) = request_from_agent(
                 buffered_request_manager_clone,
@@ -94,12 +124,32 @@ async fn respond(
         });
     }
 
-    let stream = UnboundedReceiverStream::new(chunk_rx).map(|transform_result| {
-        let content = match transform_result {
-            TransformResult::Chunk(content) | TransformResult::Error(content) => content,
-        };
+    let final_done_chunk_tx = chunk_tx.clone();
 
-        Ok::<_, Error>(Bytes::from(format!("{content}\n")))
+    rt::spawn(async move {
+        while chunk_tasks.join_next().await.is_some() {}
+
+        let final_request_id: String = nanoid!();
+        let mut final_session =
+            ChunkForwardingSessionController::new(final_done_chunk_tx, IdentityTransformer::new());
+
+        final_session
+            .send_response_safe(OutgoingMessage::Response(ResponseEnvelope {
+                request_id: final_request_id,
+                response: OutgoingResponse::Embedding(EmbeddingResult::Done),
+            }))
+            .await;
+    });
+
+    drop(chunk_tx);
+
+    let stream = UnboundedReceiverStream::new(chunk_rx).filter_map(|transform_result| async move {
+        match transform_result {
+            TransformResult::Chunk(content) | TransformResult::Error(content) => {
+                Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
+            }
+            TransformResult::Discard => None,
+        }
     });
 
     Ok(HttpResponse::Ok()
