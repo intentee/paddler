@@ -21,6 +21,7 @@ async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
             ..InferenceParameters::default()
         },
         4,
+        1,
     )
     .await?;
 

@@ -4671,15 +4671,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler_gui_tests"
-version = "3.1.2"
-dependencies = [
- "anyhow",
- "paddler_tests",
- "tokio",
-]
-
-[[package]]
 name = "paddler_tests"
 version = "3.1.2"
 dependencies = [

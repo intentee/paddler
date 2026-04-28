@@ -12,11 +12,12 @@ use crate::model_card::qwen3_embedding_0_6b::qwen3_embedding_0_6b;
 pub async fn start_in_process_embedding_cluster(
     inference_parameters: InferenceParameters,
     slots_per_agent: i32,
+    agent_count: usize,
 ) -> Result<ClusterHandle> {
     let ModelCard { reference, .. } = qwen3_embedding_0_6b();
 
     InProcessCluster::start(InProcessClusterParams {
-        agent_count: 1,
+        agent_count,
         slots_per_agent,
         desired_state: BalancerDesiredState {
             chat_template_override: None,
