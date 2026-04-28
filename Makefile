@@ -28,63 +28,51 @@ clean:
 	rm -rf target
 
 .PHONY: clippy
-clippy: jarmuz-static
+clippy: frontend
 	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
 
 .PHONY: fmt
 fmt: node_modules
 	./jarmuz-fmt.mjs
 
-.PHONY: jarmuz-static
-jarmuz-static: node_modules
+.PHONY: frontend
+frontend: node_modules
 	./jarmuz-static.mjs
 
 .PHONY: build
-build: jarmuz-static
+build: frontend
 	cargo build -p paddler_cli --features web_admin_panel
 
 .PHONY: build.cuda
-build.cuda: jarmuz-static
+build.cuda: frontend
 	cargo build -p paddler_cli --features cuda,web_admin_panel
 
 .PHONY: release
-release: jarmuz-static
+release: frontend
 	cargo build --release -p paddler_cli --features web_admin_panel
 
 .PHONY: release.cuda
-release.cuda: jarmuz-static
+release.cuda: frontend
 	cargo build --release -p paddler_cli --features web_admin_panel,cuda
 
 .PHONY: release.vulkan
-release.vulkan: jarmuz-static
+release.vulkan: frontend
 	cargo build --release -p paddler_cli --features web_admin_panel,vulkan
 
 .PHONY: release.gui
-release.gui: jarmuz-static
+release.gui: frontend
 	cargo build --release -p paddler_gui --features web_admin_panel
-
-ifneq (,$(filter test test.integration,$(MAKECMDGOALS)))
-ifeq ($(PADDLER_TEST_DEVICE),cpu)
-PADDLER_TEST_DEVICE_FEATURE :=
-PADDLER_TEST_DEVICE_BUILD_FLAGS :=
-else ifeq ($(PADDLER_TEST_DEVICE),cuda)
-PADDLER_TEST_DEVICE_FEATURE := ,cuda
-PADDLER_TEST_DEVICE_BUILD_FLAGS := --features cuda
-else ifeq ($(PADDLER_TEST_DEVICE),metal)
-PADDLER_TEST_DEVICE_FEATURE := ,metal
-PADDLER_TEST_DEVICE_BUILD_FLAGS := --features metal
-else
-$(error PADDLER_TEST_DEVICE must be set to cpu, cuda, or metal; got: '$(PADDLER_TEST_DEVICE)')
-endif
-endif
 
 .PHONY: test
 test: test.unit test.integration test.gui
 
 .PHONY: test.integration
 test.integration:
-	cargo build -p paddler_cli $(PADDLER_TEST_DEVICE_BUILD_FLAGS)
-	PADDLER_TEST_DEVICE=$(PADDLER_TEST_DEVICE) cargo test -p paddler_tests --no-fail-fast --features tests_that_use_compiled_paddler,tests_that_use_llms$(PADDLER_TEST_DEVICE_FEATURE) -- --nocapture
+	cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms
+
+.PHONY: test.integration.cuda
+test.integration.cuda:
+	PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_llms
 
 .PHONY: test.unit
 test.unit: jarmuz-static
@@ -92,7 +80,7 @@ test.unit: jarmuz-static
 
 .PHONY: test.gui
 test.gui: target/debug/paddler target/debug/paddler_gui
-	cargo test -p paddler_gui_tests --features tests_that_use_compiled_paddler -- --nocapture --test-threads=1
+	cargo test -p paddler_gui_tests --features tests_that_use_compiled_paddler -- --test-threads=1
 
 .PHONY: watch
 watch: node_modules
