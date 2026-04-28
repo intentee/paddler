@@ -63,17 +63,19 @@ release.vulkan: jarmuz-static
 release.gui: jarmuz-static
 	cargo build --release -p paddler_gui --features web_admin_panel
 
-PADDLER_TEST_DEVICE ?= cpu
-
-ifeq ($(PADDLER_TEST_DEVICE),cuda)
+ifneq (,$(filter test test.integration,$(MAKECMDGOALS)))
+ifeq ($(PADDLER_TEST_DEVICE),cpu)
+PADDLER_TEST_DEVICE_FEATURE :=
+PADDLER_TEST_DEVICE_BUILD_FLAGS :=
+else ifeq ($(PADDLER_TEST_DEVICE),cuda)
 PADDLER_TEST_DEVICE_FEATURE := ,cuda
 PADDLER_TEST_DEVICE_BUILD_FLAGS := --features cuda
 else ifeq ($(PADDLER_TEST_DEVICE),metal)
 PADDLER_TEST_DEVICE_FEATURE := ,metal
 PADDLER_TEST_DEVICE_BUILD_FLAGS := --features metal
 else
-PADDLER_TEST_DEVICE_FEATURE :=
-PADDLER_TEST_DEVICE_BUILD_FLAGS :=
+$(error PADDLER_TEST_DEVICE must be set to cpu, cuda, or metal; got: '$(PADDLER_TEST_DEVICE)')
+endif
 endif
 
 .PHONY: test
@@ -91,9 +93,6 @@ test.unit: jarmuz-static
 .PHONY: test.gui
 test.gui: target/debug/paddler target/debug/paddler_gui
 	cargo test -p paddler_gui_tests --features tests_that_use_compiled_paddler -- --nocapture --test-threads=1
-
-target/debug/paddler_gui: $(shell find paddler_gui/src -name '*.rs')
-	cargo build -p paddler_gui
 
 .PHONY: watch
 watch: node_modules
