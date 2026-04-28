@@ -106,7 +106,9 @@ And use a GUI to test the inference:
 
 ## Do you accept AI-Generated code?
 
-All code in the project is human-reviewed, and most is handcrafted. We have been experimenting with using AI to generate some code, and so far, we only had success with vibe-coding an HTTP client, that connects to the core library.
+All code in the project is human-reviewed, and most is handcrafted. We have been experimenting with using AI to generate some code, and so far, we had success with:
+- coding and maintaining the HTTP client that connects to the core library
+- [creating an integration test harness for Paddler, where we were able to consolidate all the existing tests to use the new, improved harness almost automatically](https://github.com/intentee/paddler/pull/220)
 
 If you successfully generate something, you can submit it. We will still need to review it, so make sure you understand what you are doing.
 

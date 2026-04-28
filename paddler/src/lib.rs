@@ -1,3 +1,5 @@
+pub use llama_cpp_bindings;
+
 pub mod agent;
 pub mod agent_applicable_state;
 pub mod agent_applicable_state_holder;
@@ -31,6 +33,8 @@ pub mod sets_desired_state;
 pub mod slot_aggregated_status;
 pub mod slot_aggregated_status_download_progress;
 pub mod slot_aggregated_status_manager;
+pub mod snapshots_stream;
 #[cfg(feature = "web_admin_panel")]
 pub mod static_files;
+pub mod subscribes_to_updates;
 pub mod websocket_session_controller;

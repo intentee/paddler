@@ -28,59 +28,55 @@ clean:
 	rm -rf target
 
 .PHONY: clippy
-clippy: jarmuz-static
+clippy: frontend
 	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
 
 .PHONY: fmt
 fmt: node_modules
 	./jarmuz-fmt.mjs
 
-.PHONY: jarmuz-static
-jarmuz-static: node_modules
+.PHONY: frontend
+frontend: node_modules
 	./jarmuz-static.mjs
 
 .PHONY: build
-build: jarmuz-static
+build: frontend
 	cargo build -p paddler_cli --features web_admin_panel
 
 .PHONY: build.cuda
-build.cuda: jarmuz-static
+build.cuda: frontend
 	cargo build -p paddler_cli --features cuda,web_admin_panel
 
 .PHONY: release
-release: jarmuz-static
+release: frontend
 	cargo build --release -p paddler_cli --features web_admin_panel
 
 .PHONY: release.cuda
-release.cuda: jarmuz-static
+release.cuda: frontend
 	cargo build --release -p paddler_cli --features web_admin_panel,cuda
 
 .PHONY: release.vulkan
-release.vulkan: jarmuz-static
+release.vulkan: frontend
 	cargo build --release -p paddler_cli --features web_admin_panel,vulkan
 
 .PHONY: release.gui
-release.gui: jarmuz-static
+release.gui: frontend
 	cargo build --release -p paddler_gui --features web_admin_panel
 
 .PHONY: test
-test: test.unit test.models test.integration
-
-.PHONY: test.models
-test.models:
-	cargo test -p paddler_model_tests --features tests_that_use_llms -- --nocapture --test-threads=1
-
-.PHONY: test.cuda
-test.cuda:
-	cargo test -p paddler_model_tests --features tests_that_use_llms,cuda -- --nocapture --test-threads=1
-
-.PHONY: test.unit
-test.unit: jarmuz-static
-	cargo test --features web_admin_panel
+test: test.unit test.integration
 
 .PHONY: test.integration
-test.integration: target/debug/paddler
-	cargo test -p paddler_integration_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
+test.integration:
+	cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms
+
+.PHONY: test.integration.cuda
+test.integration.cuda:
+	PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_llms
+
+.PHONY: test.unit
+test.unit: frontend
+	cargo test --features web_admin_panel
 
 .PHONY: watch
 watch: node_modules

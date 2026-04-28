@@ -1,13 +1,13 @@
-use std::sync::Arc;
 use std::sync::RwLock;
 
-use tokio::sync::Notify;
+use tokio::sync::watch;
 
 use crate::agent_desired_state::AgentDesiredState;
 use crate::balancer_applicable_state::BalancerApplicableState;
+use crate::subscribes_to_updates::SubscribesToUpdates;
 
 pub struct BalancerApplicableStateHolder {
-    pub update_notifier: Arc<Notify>,
+    update_tx: watch::Sender<()>,
     balancer_applicable_state: RwLock<Option<BalancerApplicableState>>,
 }
 
@@ -43,16 +43,24 @@ impl BalancerApplicableStateHolder {
             *lock = balancer_applicable_state;
         }
 
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 }
 
 impl Default for BalancerApplicableStateHolder {
     fn default() -> Self {
+        let (update_tx, _initial_rx) = watch::channel(());
+
         Self {
             balancer_applicable_state: RwLock::new(None),
-            update_notifier: Arc::new(Notify::new()),
+            update_tx,
         }
+    }
+}
+
+impl SubscribesToUpdates for BalancerApplicableStateHolder {
+    fn subscribe_to_updates(&self) -> watch::Receiver<()> {
+        self.update_tx.subscribe()
     }
 }
 
@@ -61,7 +69,6 @@ mod tests {
     use anyhow::Result;
     use paddler_types::agent_desired_model::AgentDesiredModel;
     use paddler_types::inference_parameters::InferenceParameters;
-    use tokio::sync::oneshot;
     use tokio::time::Duration;
     use tokio::time::timeout;
 
@@ -79,36 +86,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn set_balancer_applicable_state_wakes_waiters() -> Result<()> {
-        let holder = Arc::new(BalancerApplicableStateHolder::default());
-        let waiter_holder = holder.clone();
-        let (ready_tx, ready_rx) = oneshot::channel::<()>();
-        let (wake_tx, wake_rx) = oneshot::channel::<()>();
-
-        let waiter_task = tokio::spawn(async move {
-            let notified = waiter_holder.update_notifier.notified();
-            tokio::pin!(notified);
-
-            notified.as_mut().enable();
-            let _ = ready_tx.send(());
-            notified.await;
-            let _ = wake_tx.send(());
-        });
-
-        ready_rx
-            .await
-            .map_err(|error| anyhow::anyhow!("waiter failed to signal readiness: {error}"))?;
+    async fn set_balancer_applicable_state_wakes_subscribed_waiter() -> Result<()> {
+        let holder = BalancerApplicableStateHolder::default();
+        let mut update_rx = holder.subscribe_to_updates();
 
         holder.set_balancer_applicable_state(Some(make_applicable_state()));
 
-        timeout(Duration::from_secs(1), wake_rx)
+        timeout(Duration::from_secs(1), update_rx.changed())
             .await
             .map_err(|error| anyhow::anyhow!("waiter did not awaken: {error}"))?
-            .map_err(|error| anyhow::anyhow!("wake signal dropped: {error}"))?;
-
-        waiter_task
-            .await
-            .map_err(|error| anyhow::anyhow!("waiter task panicked: {error}"))?;
+            .map_err(|error| anyhow::anyhow!("watch sender dropped: {error}"))?;
 
         Ok(())
     }

@@ -288,7 +288,7 @@ async fn respond(
             .into_iter()
             .filter_map(|result| match result {
                 TransformResult::Chunk(content) => Some(content),
-                TransformResult::Error(_) => None,
+                TransformResult::Discard | TransformResult::Error(_) => None,
             })
             .collect();
 

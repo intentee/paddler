@@ -1,6 +1,3 @@
-use std::pin::Pin;
-
-use futures_util::Stream;
 use futures_util::StreamExt;
 use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_types::agent_desired_state::AgentDesiredState;
@@ -13,8 +10,10 @@ use serde_json::from_str;
 use url::Url;
 
 use crate::Result;
+use crate::agents_stream::AgentsStream;
+use crate::buffered_requests_stream::BufferedRequestsStream;
 use crate::format_api_url::format_api_url;
-use crate::stream_sse::StreamSse;
+use crate::stream::sse::Sse;
 
 pub struct ClientManagement<'client> {
     url: &'client Url,
@@ -96,9 +95,7 @@ impl<'client> ClientManagement<'client> {
         Ok(response.json().await?)
     }
 
-    pub async fn agents_stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>> {
+    pub async fn get_agents_stream(&self) -> Result<AgentsStream> {
         let response = self
             .http_client
             .get(format_api_url(self.url, "/api/v1/agents/stream")?)
@@ -106,15 +103,13 @@ impl<'client> ClientManagement<'client> {
             .await?
             .error_for_status()?;
 
-        let stream = StreamSse::from_response(response)
+        let stream = Sse::from_response(response)
             .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
 
         Ok(Box::pin(stream))
     }
 
-    pub async fn buffered_requests_stream(
-        &self,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>> {
+    pub async fn get_buffered_requests_stream(&self) -> Result<BufferedRequestsStream> {
         let response = self
             .http_client
             .get(format_api_url(
@@ -125,7 +120,7 @@ impl<'client> ClientManagement<'client> {
             .await?
             .error_for_status()?;
 
-        let stream = StreamSse::from_response(response)
+        let stream = Sse::from_response(response)
             .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
 
         Ok(Box::pin(stream))
