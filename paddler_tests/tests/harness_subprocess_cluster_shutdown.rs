@@ -1,3 +1,5 @@
+#![cfg(feature = "tests_that_use_compiled_paddler")]
+
 use anyhow::Result;
 use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
