@@ -1,6 +1,7 @@
 mod agent_running_data;
 mod agent_running_handler;
 mod app;
+mod available_model_presets;
 mod current_screen;
 mod detect_network_interfaces;
 mod home_data;
@@ -9,6 +10,8 @@ mod join_balancer_form_data;
 mod join_balancer_form_handler;
 mod message;
 mod model_preset;
+mod model_preset_qwen3_0_6b;
+mod model_preset_qwen3_5_0_8b;
 mod network_interface_address;
 mod running_balancer_data;
 mod running_balancer_handler;

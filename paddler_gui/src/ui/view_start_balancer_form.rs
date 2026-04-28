@@ -25,12 +25,12 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_form_field::view_form_field;
-use crate::model_preset::ModelPreset;
+use crate::available_model_presets::available_model_presets;
 use crate::start_balancer_form_data::StartBalancerFormData;
 use crate::start_balancer_form_handler::Message;
 
 pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Message> {
-    let available_models = ModelPreset::available_presets();
+    let available_models = available_model_presets();
 
     let confirm_button = if data.starting {
         button(text("Starting...").font(BOLD))

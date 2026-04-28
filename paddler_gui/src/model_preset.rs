@@ -14,35 +14,6 @@ pub struct ModelPreset {
 }
 
 impl ModelPreset {
-    pub fn available_presets() -> Vec<Self> {
-        vec![
-            Self {
-                display_name: "Qwen 3 0.6B".to_owned(),
-                model: HuggingFaceModelReference {
-                    repo_id: "unsloth/Qwen3-0.6B-GGUF".to_owned(),
-                    filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
-                    revision: "main".to_owned(),
-                },
-                multimodal_projection: None,
-                inference_parameters: InferenceParameters::default(),
-            },
-            Self {
-                display_name: "Qwen 3.5 0.8B".to_owned(),
-                model: HuggingFaceModelReference {
-                    repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
-                    filename: "Qwen3.5-0.8B-Q4_K_M.gguf".to_owned(),
-                    revision: "main".to_owned(),
-                },
-                multimodal_projection: Some(HuggingFaceModelReference {
-                    repo_id: "unsloth/Qwen3.5-0.8B-GGUF".to_owned(),
-                    filename: "mmproj-F16.gguf".to_owned(),
-                    revision: "main".to_owned(),
-                }),
-                inference_parameters: InferenceParameters::default(),
-            },
-        ]
-    }
-
     pub fn to_balancer_desired_state(&self) -> BalancerDesiredState {
         let multimodal_projection = self
             .multimodal_projection
