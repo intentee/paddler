@@ -74,6 +74,10 @@ test.integration:
 test.integration.cuda:
 	PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_llms
 
+.PHONY: test.integration.metal
+test.integration.metal:
+	PADDLER_TEST_DEVICE=metal cargo test -p paddler_tests --features metal,tests_that_use_compiled_paddler,tests_that_use_llms
+
 .PHONY: test.unit
 test.unit: frontend
 	cargo test --features web_admin_panel

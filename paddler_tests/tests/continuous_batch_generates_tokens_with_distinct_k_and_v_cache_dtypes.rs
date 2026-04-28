@@ -30,7 +30,7 @@ async fn continuous_batch_generates_tokens_with_distinct_k_and_v_cache_dtypes() 
     let mut inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
 
     inference_parameters.k_cache_dtype = KvCacheDtype::Q8_0;
-    inference_parameters.v_cache_dtype = KvCacheDtype::Q4_0;
+    inference_parameters.v_cache_dtype = KvCacheDtype::F16;
 
     let cluster = start_in_process_cluster(InProcessClusterParams {
         spawn_agent: true,

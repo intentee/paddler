@@ -43,7 +43,7 @@ impl TestDevice {
             #[cfg(feature = "cuda")]
             Self::Cuda => require_backend_device("CUDA"),
             #[cfg(feature = "metal")]
-            Self::Metal => require_backend_device("Metal"),
+            Self::Metal => require_backend_device("MTL"),
         }
     }
 
