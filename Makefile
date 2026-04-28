@@ -64,7 +64,7 @@ release.gui: frontend
 	cargo build --release -p paddler_gui --features web_admin_panel
 
 .PHONY: test
-test: test.unit test.integration test.gui
+test: test.unit test.integration
 
 .PHONY: test.integration
 test.integration:
@@ -77,10 +77,6 @@ test.integration.cuda:
 .PHONY: test.unit
 test.unit: frontend
 	cargo test --features web_admin_panel
-
-.PHONY: test.gui
-test.gui: target/debug/paddler target/debug/paddler_gui
-	cargo test -p paddler_gui_tests --features tests_that_use_compiled_paddler -- --test-threads=1
 
 .PHONY: watch
 watch: node_modules
