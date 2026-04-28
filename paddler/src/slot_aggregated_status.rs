@@ -8,12 +8,13 @@ use dashmap::DashSet;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-use tokio::sync::Notify;
+use tokio::sync::watch;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::atomic_value::AtomicValue;
 use crate::dispenses_slots::DispensesSlots;
 use crate::produces_snapshot::ProducesSnapshot;
+use crate::subscribes_to_updates::SubscribesToUpdates;
 
 pub struct SlotAggregatedStatus {
     desired_slots_total: i32,
@@ -25,7 +26,7 @@ pub struct SlotAggregatedStatus {
     slots_processing: AtomicValue<AtomicI32>,
     slots_total: AtomicValue<AtomicI32>,
     state_application_status_code: AtomicValue<AtomicI32>,
-    pub update_notifier: Notify,
+    update_tx: watch::Sender<()>,
     uses_chat_template_override: AtomicValue<AtomicBool>,
     version: AtomicValue<AtomicI32>,
 }
@@ -33,6 +34,8 @@ pub struct SlotAggregatedStatus {
 impl SlotAggregatedStatus {
     #[must_use]
     pub fn new(desired_slots_total: i32) -> Self {
+        let (update_tx, _initial_rx) = watch::channel(());
+
         Self {
             desired_slots_total,
             download_current: AtomicValue::<AtomicUsize>::new(0),
@@ -45,7 +48,7 @@ impl SlotAggregatedStatus {
             ),
             slots_processing: AtomicValue::<AtomicI32>::new(0),
             slots_total: AtomicValue::<AtomicI32>::new(0),
-            update_notifier: Notify::new(),
+            update_tx,
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
             version: AtomicValue::<AtomicI32>::new(0),
         }
@@ -54,7 +57,7 @@ impl SlotAggregatedStatus {
     pub fn decrement_total_slots(&self) {
         self.slots_total.decrement();
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn get_state_application_status(&self) -> Result<AgentStateApplicationStatus> {
@@ -77,18 +80,18 @@ impl SlotAggregatedStatus {
     pub fn increment_download_current(&self, size: usize) {
         self.download_current.increment_by(size);
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn increment_total_slots(&self) {
         self.slots_total.increment();
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn register_issue(&self, issue: AgentIssue) {
         if self.issues.insert(issue) {
-            self.update_notifier.notify_waiters();
+            self.update_tx.send_replace(());
         }
     }
 
@@ -98,7 +101,7 @@ impl SlotAggregatedStatus {
         self.issues.retain(|issue| !fix.can_fix(issue));
 
         if self.issues.len() < size_before {
-            self.update_notifier.notify_waiters();
+            self.update_tx.send_replace(());
         }
     }
 
@@ -108,7 +111,7 @@ impl SlotAggregatedStatus {
         self.slots_processing.reset();
         self.slots_total.reset();
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn reset_download(&self) {
@@ -116,7 +119,7 @@ impl SlotAggregatedStatus {
         self.download_total.set(0);
         self.set_download_filename(None);
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn set_download_status(&self, current: usize, total: usize, filename: Option<String>) {
@@ -137,7 +140,7 @@ impl SlotAggregatedStatus {
         }
 
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
@@ -152,19 +155,19 @@ impl SlotAggregatedStatus {
         }
 
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn set_state_application_status(&self, status: AgentStateApplicationStatus) {
         self.state_application_status_code.set(status as i32);
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn set_uses_chat_template_override(&self, uses: bool) {
         self.uses_chat_template_override.set(uses);
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn slots_processing_count(&self) -> i32 {
@@ -176,13 +179,19 @@ impl DispensesSlots for SlotAggregatedStatus {
     fn release_slot(&self) {
         self.slots_processing.decrement();
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     fn take_slot(&self) {
         self.slots_processing.increment();
         self.version.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
+    }
+}
+
+impl SubscribesToUpdates for SlotAggregatedStatus {
+    fn subscribe_to_updates(&self) -> watch::Receiver<()> {
+        self.update_tx.subscribe()
     }
 }
 
@@ -217,11 +226,29 @@ impl ProducesSnapshot for SlotAggregatedStatus {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use anyhow::Result;
     use paddler_types::agent_issue_params::ModelPath;
     use paddler_types::agent_issue_params::SlotCannotStartParams;
+    use tokio::time::timeout;
 
     use super::*;
+
+    #[tokio::test]
+    async fn take_slot_wakes_subscribed_waiter() -> Result<()> {
+        let status = SlotAggregatedStatus::new(2);
+        let mut update_rx = status.subscribe_to_updates();
+
+        status.take_slot();
+
+        timeout(Duration::from_secs(1), update_rx.changed())
+            .await
+            .map_err(|err| anyhow::anyhow!("subscriber did not observe within deadline: {err}"))?
+            .map_err(|err| anyhow::anyhow!("watch sender dropped: {err}"))?;
+
+        Ok(())
+    }
 
     fn model_path(path: &str) -> ModelPath {
         ModelPath {

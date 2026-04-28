@@ -44,6 +44,7 @@ use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonr
 use crate::produces_snapshot::ProducesSnapshot;
 use crate::service::Service;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
+use crate::subscribes_to_updates::SubscribesToUpdates as _;
 
 struct IncomingMessageContext {
     agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
@@ -411,6 +412,7 @@ impl ManagementSocketClientService {
         };
 
         let mut ticker = interval(Duration::from_secs(1));
+        let mut update_rx = self.slot_aggregated_status.subscribe_to_updates();
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
@@ -422,7 +424,12 @@ impl ManagementSocketClientService {
                     break;
                 }
                 () = shutdown.cancelled() => break,
-                () = self.slot_aggregated_status.update_notifier.notified() => do_send_status_update(),
+                changed = update_rx.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    do_send_status_update();
+                }
                 _ = ticker.tick() => do_send_status_update(),
                 msg = read.next() => {
                     let should_close = match msg {

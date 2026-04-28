@@ -48,7 +48,7 @@ pub struct LlamaCppArbiterService {
 impl LlamaCppArbiterService {
     async fn apply_state(&mut self, shutdown: &CancellationToken) -> Result<()> {
         if self.continuous_batch_arbiter_handle.is_some() {
-            drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await;
+            drain_in_flight_requests(&self.slot_aggregated_status_manager, shutdown).await?;
         }
 
         if let Some(arbiter_handle) = self.continuous_batch_arbiter_handle.take() {

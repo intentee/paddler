@@ -5,17 +5,18 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use tokio::sync::Notify;
+use tokio::sync::watch;
 
 use super::agent_controller::AgentController;
 use super::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::agent_desired_state::AgentDesiredState;
 use crate::produces_snapshot::ProducesSnapshot;
 use crate::sets_desired_state::SetsDesiredState;
+use crate::subscribes_to_updates::SubscribesToUpdates;
 
 pub struct AgentControllerPool {
     pub agents: DashMap<String, Arc<AgentController>>,
-    pub update_notifier: Arc<Notify>,
+    update_tx: watch::Sender<()>,
 }
 
 impl AgentControllerPool {
@@ -30,7 +31,7 @@ impl AgentControllerPool {
 
         if let Some(agent_controller) = agent_controller {
             agent_controller.slots_processing.increment();
-            self.update_notifier.notify_waiters();
+            self.update_tx.send_replace(());
 
             return Some(agent_controller);
         }
@@ -49,7 +50,7 @@ impl AgentControllerPool {
         agent: Arc<AgentController>,
     ) -> Result<()> {
         if self.agents.insert(agent_id, agent).is_none() {
-            self.update_notifier.notify_waiters();
+            self.update_tx.send_replace(());
 
             Ok(())
         } else {
@@ -59,12 +60,16 @@ impl AgentControllerPool {
 
     pub fn remove_agent_controller(&self, agent_id: &str) -> Result<bool> {
         if self.agents.remove(agent_id).is_some() {
-            self.update_notifier.notify_waiters();
+            self.update_tx.send_replace(());
 
             Ok(true)
         } else {
             Ok(false)
         }
+    }
+
+    pub fn signal_update(&self) {
+        self.update_tx.send_replace(());
     }
 
     #[must_use]
@@ -88,10 +93,18 @@ impl AgentControllerPool {
 
 impl Default for AgentControllerPool {
     fn default() -> Self {
+        let (update_tx, _initial_rx) = watch::channel(());
+
         Self {
             agents: DashMap::new(),
-            update_notifier: Arc::new(Notify::new()),
+            update_tx,
         }
+    }
+}
+
+impl SubscribesToUpdates for AgentControllerPool {
+    fn subscribe_to_updates(&self) -> watch::Receiver<()> {
+        self.update_tx.subscribe()
     }
 }
 
@@ -130,31 +143,20 @@ impl SetsDesiredState for AgentControllerPool {
 mod tests {
     use std::time::Duration;
 
-    use tokio::sync::Notify;
+    use tokio::sync::watch;
     use tokio::time::timeout;
 
-    /// Producer pattern used by the SSE routes for `update_notifier`: register the next-update
-    /// future via `enable()` before doing the snapshot work, then `.await` it. Any
-    /// `notify_waiters()` call that fires between `enable()` and the `.await` is captured by the
-    /// already-registered future — the await returns immediately.
-    ///
-    /// Without `enable()`, a `notified()` future is only constructed at the `.await` point;
-    /// `notify_waiters()` calls fired earlier in the loop iteration are dropped, and the SSE
-    /// producer would block until the *next* notification (if any). The bug manifests as missed
-    /// snapshot updates whenever a state change happens between yields.
     #[tokio::test]
-    async fn enabled_notified_future_observes_notification_fired_before_await() {
-        let notifier = Notify::new();
-        let next_update = notifier.notified();
+    async fn watch_receiver_observes_send_fired_before_changed_await() {
+        let (update_tx, mut update_rx) = watch::channel(());
 
-        tokio::pin!(next_update);
-        next_update.as_mut().enable();
-
-        notifier.notify_waiters();
+        update_tx.send_replace(());
 
         assert!(
-            timeout(Duration::from_secs(1), next_update).await.is_ok(),
-            "enabled Notified must observe notify_waiters fired before its .await"
+            timeout(Duration::from_secs(1), update_rx.changed())
+                .await
+                .is_ok(),
+            "watch::Receiver must observe a send fired before .changed() is awaited"
         );
     }
 }

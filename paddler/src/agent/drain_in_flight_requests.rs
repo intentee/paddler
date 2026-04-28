@@ -1,39 +1,39 @@
 use std::sync::Arc;
 
+use anyhow::Context as _;
+use anyhow::Result;
 use log::info;
 use tokio_util::sync::CancellationToken;
 
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+use crate::subscribes_to_updates::SubscribesToUpdates as _;
 
 pub async fn drain_in_flight_requests(
     slot_aggregated_status_manager: &Arc<SlotAggregatedStatusManager>,
     shutdown: &CancellationToken,
-) {
-    loop {
-        let next_update = slot_aggregated_status_manager
-            .slot_aggregated_status
-            .update_notifier
-            .notified();
-        tokio::pin!(next_update);
-        next_update.as_mut().enable();
+) -> Result<()> {
+    let mut update_rx = slot_aggregated_status_manager
+        .slot_aggregated_status
+        .subscribe_to_updates();
 
-        if slot_aggregated_status_manager
-            .slot_aggregated_status
-            .slots_processing_count()
-            == 0
-        {
-            break;
-        }
-
+    while slot_aggregated_status_manager
+        .slot_aggregated_status
+        .slots_processing_count()
+        > 0
+    {
         tokio::select! {
             () = shutdown.cancelled() => {
                 info!("Shutdown during drain, proceeding immediately");
 
-                break;
+                return Ok(());
             }
-            () = next_update => {}
+            changed = update_rx.changed() => {
+                changed.context("update channel closed while draining in-flight requests")?;
+            }
         }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -53,15 +53,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn returns_immediately_when_no_slots_processing() {
+    async fn returns_immediately_when_no_slots_processing() -> anyhow::Result<()> {
         let slot_aggregated_status_manager = create_status_manager(4);
         let shutdown = CancellationToken::new();
 
-        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await;
+        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await?;
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn waits_for_processing_slots_to_reach_zero() -> Result<(), tokio::task::JoinError> {
+    async fn waits_for_processing_slots_to_reach_zero() -> anyhow::Result<()> {
         let slot_aggregated_status_manager = create_status_manager(4);
         let shutdown = CancellationToken::new();
 
@@ -77,7 +79,7 @@ mod tests {
             status.release_slot();
         });
 
-        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await;
+        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await?;
 
         assert_eq!(
             slot_aggregated_status_manager
@@ -92,7 +94,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn aborts_on_shutdown_signal() -> Result<(), tokio::task::JoinError> {
+    async fn aborts_on_shutdown_signal() -> anyhow::Result<()> {
         let slot_aggregated_status_manager = create_status_manager(4);
         let shutdown = CancellationToken::new();
 
@@ -106,7 +108,7 @@ mod tests {
             shutdown_trigger.cancel();
         });
 
-        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await;
+        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await?;
 
         assert_eq!(
             slot_aggregated_status_manager

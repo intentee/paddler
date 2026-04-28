@@ -221,10 +221,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     ) {
                         AgentControllerUpdateResult::NoMeaningfulChanges => {}
                         AgentControllerUpdateResult::Updated => {
-                            context
-                                .agent_controller_pool
-                                .update_notifier
-                                .notify_waiters();
+                            context.agent_controller_pool.signal_update();
                         }
                     }
                 } else {

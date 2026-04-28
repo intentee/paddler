@@ -1,27 +1,27 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicI32;
 
-use tokio::sync::Notify;
+use tokio::sync::watch;
 
 use crate::atomic_value::AtomicValue;
 use crate::balancer::buffered_request_count_guard::BufferedRequestCountGuard;
 
 pub struct BufferedRequestCounter {
     count: Arc<AtomicValue<AtomicI32>>,
-    pub update_notifier: Arc<Notify>,
+    update_tx: watch::Sender<()>,
 }
 
 impl BufferedRequestCounter {
-    pub fn new(update_notifier: Arc<Notify>) -> Self {
+    pub fn new(update_tx: watch::Sender<()>) -> Self {
         Self {
             count: Arc::new(AtomicValue::<AtomicI32>::new(0)),
-            update_notifier,
+            update_tx,
         }
     }
 
     pub fn decrement(&self) {
         self.count.decrement();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn get(&self) -> i32 {
@@ -30,7 +30,7 @@ impl BufferedRequestCounter {
 
     pub fn increment(&self) {
         self.count.increment();
-        self.update_notifier.notify_waiters();
+        self.update_tx.send_replace(());
     }
 
     pub fn increment_with_guard(self: &Arc<Self>) -> BufferedRequestCountGuard {
@@ -45,7 +45,9 @@ mod tests {
     use super::*;
 
     fn make_counter() -> BufferedRequestCounter {
-        BufferedRequestCounter::new(Arc::new(Notify::new()))
+        let (update_tx, _initial_rx) = watch::channel(());
+
+        BufferedRequestCounter::new(update_tx)
     }
 
     #[test]

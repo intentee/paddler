@@ -29,6 +29,7 @@ use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::produces_snapshot::ProducesSnapshot;
 #[cfg(feature = "web_admin_panel")]
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -370,6 +371,7 @@ impl App {
             });
 
             let slot_aggregated_status = runner.slot_aggregated_status.clone();
+            let mut update_rx = slot_aggregated_status.subscribe_to_updates();
             let completion_future = runner.wait_for_completion();
             tokio::pin!(completion_future);
 
@@ -394,7 +396,11 @@ impl App {
                 }
 
                 tokio::select! {
-                    () = slot_aggregated_status.update_notifier.notified() => {}
+                    changed = update_rx.changed() => {
+                        if changed.is_err() {
+                            return;
+                        }
+                    }
                     result = &mut completion_future => {
                         let message = match result {
                             Ok(()) => Message::AgentStopped,
@@ -499,6 +505,10 @@ impl App {
 
             let mut desired_state_rx = runner.balancer_desired_state_tx.subscribe();
             let mut current_desired_state = runner.initial_desired_state.clone();
+            let mut pool_update_rx = runner.agent_controller_pool.subscribe_to_updates();
+            let mut holder_update_rx = runner
+                .balancer_applicable_state_holder
+                .subscribe_to_updates();
 
             loop {
                 match RunningBalancerSnapshot::build(
@@ -527,8 +537,16 @@ impl App {
                 }
 
                 tokio::select! {
-                    () = runner.agent_controller_pool.update_notifier.notified() => {}
-                    () = runner.balancer_applicable_state_holder.update_notifier.notified() => {}
+                    changed = pool_update_rx.changed() => {
+                        if changed.is_err() {
+                            return;
+                        }
+                    }
+                    changed = holder_update_rx.changed() => {
+                        if changed.is_err() {
+                            return;
+                        }
+                    }
                     desired_state_result = desired_state_rx.recv() => {
                         match desired_state_result {
                             Ok(new_desired_state) => {
