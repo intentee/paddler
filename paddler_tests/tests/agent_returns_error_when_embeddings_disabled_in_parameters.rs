@@ -2,11 +2,11 @@
 
 use anyhow::Result;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
-use paddler_tests::in_process_cluster::InProcessCluster;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_in_process_cluster::start_in_process_cluster;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
@@ -20,7 +20,7 @@ use reqwest::Client;
 async fn agent_returns_error_when_embeddings_disabled_in_parameters() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();
 
-    let cluster = InProcessCluster::start(InProcessClusterParams {
+    let cluster = start_in_process_cluster(InProcessClusterParams {
         spawn_agent: true,
         slots_per_agent: 1,
         desired_state: BalancerDesiredState {

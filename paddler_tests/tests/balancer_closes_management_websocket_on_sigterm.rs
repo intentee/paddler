@@ -4,14 +4,14 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
 use futures_util::StreamExt as _;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_closes_management_websocket_on_sigterm() -> Result<()> {
-    let cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         ..SubprocessClusterParams::default()

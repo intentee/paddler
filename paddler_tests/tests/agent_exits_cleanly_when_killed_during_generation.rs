@@ -6,14 +6,15 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agents_status::AgentsStatus;
+use paddler_tests::agents_status::assert_agent_count::assert_agent_count;
+use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::spawn_agent_subprocess::spawn_agent_subprocess;
 use paddler_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_tests::terminate_child::terminate_child;
 use paddler_types::agent_desired_model::AgentDesiredModel;
@@ -33,7 +34,7 @@ async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
         reference,
     } = qwen3_0_6b();
 
-    let mut cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
@@ -86,16 +87,13 @@ async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
 
     cluster
         .agents
-        .until(AgentsStatus::slots_processing_is(&agent_id, 1))
+        .until(assert_slots_processing(&agent_id, 1))
         .await?;
 
     terminate_child(&mut agent_child)?;
     let exit_status = agent_child.wait().await?;
 
-    cluster
-        .agents
-        .until(AgentsStatus::agent_count_is(0))
-        .await?;
+    cluster.agents.until(assert_agent_count(0)).await?;
 
     drop(stream);
 

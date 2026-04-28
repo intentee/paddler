@@ -7,7 +7,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
@@ -24,7 +24,7 @@ async fn balancer_reports_mmproj_cannot_be_loaded_for_invalid_file() -> Result<(
 
     let ModelCard { reference, .. } = qwen3_0_6b();
 
-    let mut cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 1,
         slots_per_agent: 1,
         wait_for_slots_ready: false,

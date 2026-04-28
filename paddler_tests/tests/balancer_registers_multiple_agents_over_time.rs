@@ -2,15 +2,15 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agents_status::AgentsStatus;
+use paddler_tests::agents_status::assert_agent_count::assert_agent_count;
 use paddler_tests::spawn_agent_subprocess::spawn_agent_subprocess;
 use paddler_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_registers_multiple_agents_over_time() -> Result<()> {
-    let mut cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         ..SubprocessClusterParams::default()
@@ -25,7 +25,7 @@ async fn balancer_registers_multiple_agents_over_time() -> Result<()> {
 
     cluster
         .agents
-        .until(AgentsStatus::agent_count_is(1))
+        .until(assert_agent_count(1))
         .await
         .context("first agent should register")?;
 
@@ -37,7 +37,7 @@ async fn balancer_registers_multiple_agents_over_time() -> Result<()> {
 
     cluster
         .agents
-        .until(AgentsStatus::agent_count_is(2))
+        .until(assert_agent_count(2))
         .await
         .context("second agent should register")?;
 

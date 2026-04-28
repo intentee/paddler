@@ -2,14 +2,14 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_management_service_replies_with_configured_cors_origin() -> Result<()> {
-    let cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         management_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
         wait_for_slots_ready: false,

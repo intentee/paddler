@@ -6,7 +6,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use crate::cluster_handle::ClusterHandle;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen3_embedding_0_6b::qwen3_embedding_0_6b;
-use crate::subprocess_cluster::SubprocessCluster;
+use crate::start_subprocess_cluster::start_subprocess_cluster;
 use crate::subprocess_cluster_params::SubprocessClusterParams;
 
 pub async fn start_subprocess_cluster_with_qwen3_embedding(
@@ -16,7 +16,7 @@ pub async fn start_subprocess_cluster_with_qwen3_embedding(
 ) -> Result<ClusterHandle> {
     let ModelCard { reference, .. } = qwen3_embedding_0_6b();
 
-    SubprocessCluster::start(SubprocessClusterParams {
+    start_subprocess_cluster(SubprocessClusterParams {
         agent_count,
         slots_per_agent,
         desired_state: Some(BalancerDesiredState {

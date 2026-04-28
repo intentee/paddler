@@ -7,7 +7,7 @@ use crate::current_test_device::current_test_device;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen2_5_vl_3b::qwen2_5_vl_3b;
 use crate::model_card::qwen2_5_vl_3b_mmproj::qwen2_5_vl_3b_mmproj;
-use crate::subprocess_cluster::SubprocessCluster;
+use crate::start_subprocess_cluster::start_subprocess_cluster;
 use crate::subprocess_cluster_params::SubprocessClusterParams;
 
 pub async fn start_subprocess_cluster_with_qwen2_5_vl(
@@ -27,7 +27,7 @@ pub async fn start_subprocess_cluster_with_qwen2_5_vl(
         ..
     } = qwen2_5_vl_3b_mmproj();
 
-    SubprocessCluster::start(SubprocessClusterParams {
+    start_subprocess_cluster(SubprocessClusterParams {
         agent_count,
         slots_per_agent,
         desired_state: Some(BalancerDesiredState {

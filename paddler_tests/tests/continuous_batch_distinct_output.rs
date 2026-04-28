@@ -3,11 +3,11 @@
 use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
-use paddler_tests::in_process_cluster::InProcessCluster;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_in_process_cluster::start_in_process_cluster;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -33,7 +33,7 @@ async fn two_concurrent_prompts_produce_distinct_outputs() -> Result<()> {
         use_chat_template_override: false,
     };
 
-    let cluster = InProcessCluster::start(InProcessClusterParams {
+    let cluster = start_in_process_cluster(InProcessClusterParams {
         spawn_agent: true,
         slots_per_agent: 2,
         desired_state,

@@ -8,14 +8,14 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::buffered_requests_status::BufferedRequestsStatus;
+use paddler_tests::buffered_requests_status::assert_count::assert_count;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::spawn_agent_subprocess::spawn_agent_subprocess;
 use paddler_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -35,7 +35,7 @@ async fn balancer_completes_buffered_request_after_agent_joins() -> Result<()> {
         reference,
     } = qwen3_0_6b();
 
-    let mut cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         buffered_request_timeout: Duration::from_secs(120),
@@ -64,7 +64,7 @@ async fn balancer_completes_buffered_request_after_agent_joins() -> Result<()> {
 
     cluster
         .buffered_requests
-        .until(BufferedRequestsStatus::count_is(1))
+        .until(assert_count(1))
         .await
         .context("balancer should buffer the request before any agent joins")?;
 

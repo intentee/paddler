@@ -4,11 +4,11 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 
 use crate::cluster_handle::ClusterHandle;
 use crate::current_test_device::current_test_device;
-use crate::in_process_cluster::InProcessCluster;
 use crate::in_process_cluster_params::InProcessClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen2_5_vl_3b::qwen2_5_vl_3b;
 use crate::model_card::qwen2_5_vl_3b_mmproj::qwen2_5_vl_3b_mmproj;
+use crate::start_in_process_cluster::start_in_process_cluster;
 
 pub async fn start_in_process_cluster_with_qwen2_5_vl(
     slots_per_agent: i32,
@@ -26,7 +26,7 @@ pub async fn start_in_process_cluster_with_qwen2_5_vl(
         ..
     } = qwen2_5_vl_3b_mmproj();
 
-    InProcessCluster::start(InProcessClusterParams {
+    start_in_process_cluster(InProcessClusterParams {
         slots_per_agent,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

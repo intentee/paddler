@@ -6,7 +6,7 @@ use crate::cluster_handle::ClusterHandle;
 use crate::current_test_device::current_test_device;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen3_0_6b::qwen3_0_6b;
-use crate::subprocess_cluster::SubprocessCluster;
+use crate::start_subprocess_cluster::start_subprocess_cluster;
 use crate::subprocess_cluster_params::SubprocessClusterParams;
 
 pub async fn start_subprocess_cluster_with_qwen3(
@@ -22,7 +22,7 @@ pub async fn start_subprocess_cluster_with_qwen3(
         reference,
     } = qwen3_0_6b();
 
-    SubprocessCluster::start(SubprocessClusterParams {
+    start_subprocess_cluster(SubprocessClusterParams {
         agent_count,
         slots_per_agent,
         desired_state: Some(BalancerDesiredState {

@@ -11,7 +11,7 @@ use futures_util::StreamExt as _;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::spawn_agent_subprocess::spawn_agent_subprocess;
 use paddler_tests::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::inference_client::Message;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -20,7 +20,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
-    let cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         buffered_request_timeout: Duration::from_millis(50),

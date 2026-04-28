@@ -2,14 +2,14 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agents_status::AgentsStatus;
+use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
-use paddler_tests::in_process_cluster::InProcessCluster;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_in_process_cluster::start_in_process_cluster;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -35,7 +35,7 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_updates() -
         use_chat_template_override: false,
     };
 
-    let mut cluster = InProcessCluster::start(InProcessClusterParams {
+    let mut cluster = start_in_process_cluster(InProcessClusterParams {
         spawn_agent: true,
         slots_per_agent: 1,
         desired_state,
@@ -63,7 +63,7 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_updates() -
 
     cluster
         .agents
-        .until(AgentsStatus::slots_processing_is(&agent_id, 1))
+        .until(assert_slots_processing(&agent_id, 1))
         .await
         .context("agents_stream must emit a snapshot showing slot usage")?;
 
@@ -71,7 +71,7 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_updates() -
 
     cluster
         .agents
-        .until(AgentsStatus::slots_processing_is(&agent_id, 0))
+        .until(assert_slots_processing(&agent_id, 0))
         .await
         .context("agents_stream must emit a snapshot showing the slot was released")?;
 

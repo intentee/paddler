@@ -7,8 +7,8 @@ use anyhow::Context as _;
 use anyhow::Result;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::state_database_file::StateDatabaseFile;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -29,7 +29,7 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
         use_chat_template_override: false,
     };
 
-    let first_cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let first_cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
@@ -40,7 +40,7 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
 
     first_cluster.shutdown().await?;
 
-    let second_cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let second_cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),

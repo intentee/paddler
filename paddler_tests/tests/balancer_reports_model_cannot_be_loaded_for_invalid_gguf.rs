@@ -5,7 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
@@ -17,7 +17,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() -> Result<()> {
     let invalid_gguf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf");
 
-    let mut cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 1,
         slots_per_agent: 1,
         wait_for_slots_ready: false,

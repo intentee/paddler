@@ -6,7 +6,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agents_status::AgentsStatus;
+use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -41,7 +41,7 @@ async fn agent_releases_slot_when_websocket_client_disconnects() -> Result<()> {
 
     cluster
         .agents
-        .until(AgentsStatus::slots_processing_is(&agent_id, 1))
+        .until(assert_slots_processing(&agent_id, 1))
         .await
         .context("agent should report slot in use")?;
 
@@ -49,7 +49,7 @@ async fn agent_releases_slot_when_websocket_client_disconnects() -> Result<()> {
 
     cluster
         .agents
-        .until(AgentsStatus::slots_processing_is(&agent_id, 0))
+        .until(assert_slots_processing(&agent_id, 0))
         .await
         .context("agent should release slot after the client disconnects")?;
 

@@ -8,7 +8,7 @@ use anyhow::Result;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_tests::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -26,7 +26,7 @@ async fn balancer_persists_huggingface_mmproj_in_desired_state() -> Result<()> {
         ..
     } = smolvlm2_256m_mmproj();
 
-    let cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {

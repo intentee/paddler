@@ -7,7 +7,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::agent_issue::AgentIssue;
@@ -19,7 +19,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> Result<()> {
     let ModelCard { reference, .. } = nomic_embed_text_v1_5();
 
-    let mut cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 1,
         slots_per_agent: 1,
         wait_for_slots_ready: false,

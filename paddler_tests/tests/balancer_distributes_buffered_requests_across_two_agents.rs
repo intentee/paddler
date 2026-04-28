@@ -11,7 +11,7 @@ use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
@@ -31,7 +31,7 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
         reference,
     } = qwen3_0_6b();
 
-    let cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 2,
         slots_per_agent: 2,
         wait_for_slots_ready: true,

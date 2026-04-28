@@ -7,7 +7,7 @@ use crate::current_test_device::current_test_device;
 use crate::model_card::ModelCard;
 use crate::model_card::smolvlm2_256m::smolvlm2_256m;
 use crate::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
-use crate::subprocess_cluster::SubprocessCluster;
+use crate::start_subprocess_cluster::start_subprocess_cluster;
 use crate::subprocess_cluster_params::SubprocessClusterParams;
 
 pub async fn start_subprocess_cluster_with_smolvlm2(
@@ -27,7 +27,7 @@ pub async fn start_subprocess_cluster_with_smolvlm2(
         ..
     } = smolvlm2_256m_mmproj();
 
-    SubprocessCluster::start(SubprocessClusterParams {
+    start_subprocess_cluster(SubprocessClusterParams {
         agent_count,
         slots_per_agent,
         desired_state: Some(BalancerDesiredState {

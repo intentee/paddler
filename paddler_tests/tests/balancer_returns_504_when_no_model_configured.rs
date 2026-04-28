@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::subprocess_cluster::SubprocessCluster;
+use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_types::inference_client::Message;
 use paddler_types::request_params::ContinueFromRawPromptParams;
@@ -12,7 +12,7 @@ use reqwest::Client;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_model_configured() -> Result<()> {
-    let cluster = SubprocessCluster::start(SubprocessClusterParams {
+    let cluster = start_subprocess_cluster(SubprocessClusterParams {
         agent_count: 0,
         wait_for_slots_ready: false,
         ..SubprocessClusterParams::default()
