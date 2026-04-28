@@ -40,11 +40,7 @@ impl BufferedRequestManager {
     }
 
     pub async fn wait_for_available_agent(&self) -> Result<BufferedRequestAgentWaitResult> {
-        if self.buffered_request_counter.get() >= self.max_buffered_requests {
-            return Ok(BufferedRequestAgentWaitResult::BufferOverflow);
-        }
-
-        // Do a quick check before getting into the coroutines
+        // Quick path: a slot is available right now, no buffering needed.
         if let Some(agent_controller) = self
             .agent_controller_pool
             .take_least_busy_agent_controller()
@@ -52,19 +48,30 @@ impl BufferedRequestManager {
             return Ok(BufferedRequestAgentWaitResult::Found(agent_controller));
         }
 
+        // Slot is busy — we would need to wait. Reject if the buffer is full
+        // (max_buffered_requests == 0 means buffering is disabled entirely).
+        if self.buffered_request_counter.get() >= self.max_buffered_requests {
+            return Ok(BufferedRequestAgentWaitResult::BufferOverflow);
+        }
+
         let _buffered_request_count_guard = self.buffered_request_counter.increment_with_guard();
         let agent_controller_pool = self.agent_controller_pool.clone();
 
         match timeout(self.buffered_request_timeout, async {
             loop {
-                match agent_controller_pool.take_least_busy_agent_controller() {
-                    Some(agent_controller) => {
-                        return Ok::<_, anyhow::Error>(BufferedRequestAgentWaitResult::Found(
-                            agent_controller,
-                        ));
-                    }
-                    None => agent_controller_pool.update_notifier.notified().await,
+                let next_update = agent_controller_pool.update_notifier.notified();
+                tokio::pin!(next_update);
+                next_update.as_mut().enable();
+
+                if let Some(agent_controller) =
+                    agent_controller_pool.take_least_busy_agent_controller()
+                {
+                    return Ok::<_, anyhow::Error>(BufferedRequestAgentWaitResult::Found(
+                        agent_controller,
+                    ));
                 }
+
+                next_update.await;
             }
         })
         .await

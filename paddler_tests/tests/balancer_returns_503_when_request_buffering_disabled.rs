@@ -17,6 +17,7 @@ use paddler_types::inference_client::Message;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
     let cluster = SubprocessCluster::start(SubprocessClusterParams {

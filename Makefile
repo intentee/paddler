@@ -63,20 +63,30 @@ release.vulkan: jarmuz-static
 release.gui: jarmuz-static
 	cargo build --release -p paddler_gui --features web_admin_panel
 
-.PHONY: test
-test: test.unit test.integration test.gui
+PADDLER_TEST_DEVICE ?= cpu
+
+ifeq ($(PADDLER_TEST_DEVICE),cuda)
+PADDLER_TEST_DEVICE_FEATURE := ,cuda
+PADDLER_TEST_DEVICE_BUILD_FLAGS := --features cuda
+else ifeq ($(PADDLER_TEST_DEVICE),metal)
+PADDLER_TEST_DEVICE_FEATURE := ,metal
+PADDLER_TEST_DEVICE_BUILD_FLAGS := --features metal
+else
+PADDLER_TEST_DEVICE_FEATURE :=
+PADDLER_TEST_DEVICE_BUILD_FLAGS :=
+endif
+
+.PHONY: test.all
+test.all: test.unit test.integration test.gui
+
+.PHONY: test.integration
+test.integration:
+	cargo build -p paddler_cli $(PADDLER_TEST_DEVICE_BUILD_FLAGS)
+	cargo test -p paddler_tests --no-fail-fast --features tests_that_use_compiled_paddler,tests_that_use_llms$(PADDLER_TEST_DEVICE_FEATURE) -- --nocapture
 
 .PHONY: test.unit
 test.unit: jarmuz-static
 	cargo test --features web_admin_panel
-
-.PHONY: test.integration
-test.integration: target/debug/paddler
-	PADDLER_TEST_DEVICE=cpu cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms -- --nocapture --test-threads=1
-
-.PHONY: test.integration.cuda
-test.integration.cuda: target/debug/paddler
-	PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms,cuda -- --nocapture --test-threads=1
 
 .PHONY: test.gui
 test.gui: target/debug/paddler target/debug/paddler_gui

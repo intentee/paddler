@@ -44,6 +44,7 @@ fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
     ])
 }
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3_5(4, true).await?;

@@ -20,6 +20,7 @@ use reqwest::Client;
 use serde_json::Map;
 use serde_json::Value;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
     let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;

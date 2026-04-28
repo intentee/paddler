@@ -30,6 +30,10 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
         };
 
         loop {
+            let next_update = app_data.agent_controller_pool.update_notifier.notified();
+            tokio::pin!(next_update);
+            next_update.as_mut().enable();
+
             match app_data.agent_controller_pool.make_snapshot() {
                 Ok(agent_controller_pool_snapshot) => {
                     if let Some(event) = send_event(agent_controller_pool_snapshot) {
@@ -40,7 +44,7 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
             }
 
             tokio::select! {
-                () = app_data.agent_controller_pool.update_notifier.notified() => {}
+                () = next_update => {}
                 () = shutdown.cancelled() => return,
             }
         }

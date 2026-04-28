@@ -11,6 +11,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_returns_identical_embeddings_for_identical_documents() -> Result<()> {
     let cluster = start_in_process_embedding_cluster(

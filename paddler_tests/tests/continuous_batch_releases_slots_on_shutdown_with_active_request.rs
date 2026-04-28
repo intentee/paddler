@@ -7,6 +7,7 @@ use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_releases_slots_on_shutdown_with_active_request() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(1).await?;

@@ -15,6 +15,7 @@ use paddler_types::kv_cache_dtype::KvCacheDtype;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_generates_tokens_with_distinct_k_and_v_cache_dtypes() -> Result<()> {
     let device = current_test_device()?;

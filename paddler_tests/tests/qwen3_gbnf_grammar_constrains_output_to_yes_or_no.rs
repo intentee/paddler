@@ -8,6 +8,7 @@ use paddler_types::grammar_constraint::GrammarConstraint;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_gbnf_grammar_constrains_output_to_yes_or_no() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(1).await?;

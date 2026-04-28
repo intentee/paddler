@@ -1,14 +1,19 @@
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
-use nix::sys::signal::Signal;
-use nix::sys::signal::kill;
-use nix::unistd::Pid;
+use paddler_tests::terminate_child::terminate_child;
 use tokio::process::Child;
 use tokio::process::Command;
+
+const XVFB_READINESS_PROBE_INTERVAL: Duration = Duration::from_millis(20);
+
+static NEXT_DISPLAY_OFFSET: AtomicU32 = AtomicU32::new(0);
 
 pub struct HeadlessDisplay {
     display_name: String,
@@ -17,7 +22,9 @@ pub struct HeadlessDisplay {
 
 impl HeadlessDisplay {
     pub async fn start() -> Result<Self> {
-        let display_number = std::process::id() % 1000 + 99;
+        let base = std::process::id() % 800 + 99;
+        let offset = NEXT_DISPLAY_OFFSET.fetch_add(1, Ordering::Relaxed);
+        let display_number = base + offset;
         let display_name = format!(":{display_number}");
 
         let mut xvfb = Command::new("Xvfb")
@@ -48,7 +55,7 @@ impl HeadlessDisplay {
                 Err(error) => bail!("failed to check Xvfb status: {error}"),
             }
 
-            tokio::task::yield_now().await;
+            tokio::time::sleep(XVFB_READINESS_PROBE_INTERVAL).await;
         }
 
         Ok(Self { display_name, xvfb })
@@ -62,10 +69,6 @@ impl HeadlessDisplay {
 
 impl Drop for HeadlessDisplay {
     fn drop(&mut self) {
-        if let Some(raw_pid) = self.xvfb.id() {
-            #[expect(clippy::cast_possible_wrap, reason = "PID values fit in i32")]
-            let pid = Pid::from_raw(raw_pid as i32);
-            let _ = kill(pid, Signal::SIGTERM);
-        }
+        let _ = terminate_child(&mut self.xvfb);
     }
 }

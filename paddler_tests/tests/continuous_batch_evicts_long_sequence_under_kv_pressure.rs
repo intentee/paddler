@@ -14,6 +14,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()> {
     let device = current_test_device()?;

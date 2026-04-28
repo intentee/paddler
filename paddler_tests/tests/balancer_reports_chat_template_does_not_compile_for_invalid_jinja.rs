@@ -15,6 +15,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_chat_template_does_not_compile_for_invalid_jinja() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();

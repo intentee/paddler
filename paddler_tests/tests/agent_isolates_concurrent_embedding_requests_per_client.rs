@@ -12,6 +12,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()> {
     let client_count: usize = 4;

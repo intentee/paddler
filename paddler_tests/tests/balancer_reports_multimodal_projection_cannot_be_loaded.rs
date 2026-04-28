@@ -14,6 +14,7 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_multimodal_projection_cannot_be_loaded() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();
@@ -46,14 +47,15 @@ async fn balancer_reports_multimodal_projection_cannot_be_loaded() -> Result<()>
         .until(move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == agent_id
-                    && agent
-                        .issues
-                        .iter()
-                        .any(|issue| matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_)))
+                    && agent.issues.iter().any(|issue| {
+                        matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(_))
+                    })
             })
         })
         .await
-        .context("balancer should report MultimodalProjectionCannotBeLoaded for nonexistent path")?;
+        .context(
+            "balancer should report MultimodalProjectionCannotBeLoaded for nonexistent path",
+        )?;
 
     cluster.shutdown().await?;
 

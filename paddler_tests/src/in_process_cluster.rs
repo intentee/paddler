@@ -18,7 +18,7 @@ use crate::cluster_completion::ClusterCompletion;
 use crate::cluster_handle::ClusterHandle;
 use crate::cluster_handle_params::ClusterHandleParams;
 use crate::in_process_cluster_params::InProcessClusterParams;
-use crate::wait_until_balancer_healthy::wait_until_balancer_healthy;
+use crate::wait_until_healthy::wait_until_healthy;
 
 pub struct InProcessCluster;
 
@@ -68,7 +68,7 @@ impl InProcessCluster {
         let management_base_url = addresses.management_base_url()?;
         let inference_base_url = addresses.inference_base_url()?;
 
-        wait_until_balancer_healthy(&management_base_url)
+        wait_until_healthy(&management_base_url, "health")
             .await
             .context("balancer did not become healthy")?;
 

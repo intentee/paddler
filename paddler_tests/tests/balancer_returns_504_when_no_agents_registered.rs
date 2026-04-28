@@ -20,6 +20,7 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_agents_registered() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();

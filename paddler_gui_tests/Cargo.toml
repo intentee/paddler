@@ -14,7 +14,6 @@ tests_that_use_compiled_paddler = []
 
 [dependencies]
 anyhow = { workspace = true }
-nix = { workspace = true }
 paddler_tests = { workspace = true }
 tokio = { workspace = true }
 

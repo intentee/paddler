@@ -125,3 +125,36 @@ impl SetsDesiredState for AgentControllerPool {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tokio::sync::Notify;
+    use tokio::time::timeout;
+
+    /// Producer pattern used by the SSE routes for `update_notifier`: register the next-update
+    /// future via `enable()` before doing the snapshot work, then `.await` it. Any
+    /// `notify_waiters()` call that fires between `enable()` and the `.await` is captured by the
+    /// already-registered future — the await returns immediately.
+    ///
+    /// Without `enable()`, a `notified()` future is only constructed at the `.await` point;
+    /// `notify_waiters()` calls fired earlier in the loop iteration are dropped, and the SSE
+    /// producer would block until the *next* notification (if any). The bug manifests as missed
+    /// snapshot updates whenever a state change happens between yields.
+    #[tokio::test]
+    async fn enabled_notified_future_observes_notification_fired_before_await() {
+        let notifier = Notify::new();
+        let next_update = notifier.notified();
+
+        tokio::pin!(next_update);
+        next_update.as_mut().enable();
+
+        notifier.notify_waiters();
+
+        assert!(
+            timeout(Duration::from_secs(1), next_update).await.is_ok(),
+            "enabled Notified must observe notify_waiters fired before its .await"
+        );
+    }
+}

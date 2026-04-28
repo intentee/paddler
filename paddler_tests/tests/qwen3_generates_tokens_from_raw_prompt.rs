@@ -8,6 +8,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(1).await?;
@@ -19,7 +20,9 @@ async fn qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
         .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 30,
-            raw_prompt: "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n".to_owned(),
+            raw_prompt:
+                "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n"
+                    .to_owned(),
         })
         .await?;
 

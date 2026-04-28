@@ -8,6 +8,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_long_and_short_prompts_complete_concurrently() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(2).await?;

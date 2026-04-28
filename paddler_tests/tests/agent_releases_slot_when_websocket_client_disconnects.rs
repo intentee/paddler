@@ -12,6 +12,7 @@ use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_releases_slot_when_websocket_client_disconnects() -> Result<()> {
     let mut cluster = start_subprocess_cluster_with_qwen3(1, 1).await?;

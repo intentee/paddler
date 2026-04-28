@@ -16,6 +16,7 @@ use reqwest::Client;
 
 const PARTIAL_GPU_LAYER_COUNT: u32 = 14;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Result<()> {
     let device = current_test_device()?;
@@ -24,7 +25,8 @@ async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Resul
 
     let ModelCard { reference, .. } = qwen3_0_6b();
 
-    let inference_parameters = device.inference_parameters_for_full_offload(PARTIAL_GPU_LAYER_COUNT);
+    let inference_parameters =
+        device.inference_parameters_for_full_offload(PARTIAL_GPU_LAYER_COUNT);
 
     let cluster = InProcessCluster::start(InProcessClusterParams {
         agent_count: 1,

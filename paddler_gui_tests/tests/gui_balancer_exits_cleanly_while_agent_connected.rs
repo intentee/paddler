@@ -1,4 +1,4 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
+#![cfg(all(target_os = "linux", feature = "tests_that_use_compiled_paddler"))]
 
 use std::net::TcpListener;
 

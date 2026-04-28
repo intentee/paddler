@@ -14,6 +14,7 @@ use paddler_types::image_url::ImageUrl;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_with_mmproj_generates_tokens_from_image() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3_5(1, true).await?;

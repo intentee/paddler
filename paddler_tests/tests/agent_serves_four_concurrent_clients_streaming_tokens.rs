@@ -11,6 +11,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_serves_four_concurrent_clients_streaming_tokens() -> Result<()> {
     let cluster = start_subprocess_cluster_with_qwen3(4, 1).await?;

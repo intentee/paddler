@@ -12,6 +12,7 @@ use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_rejects_embedding_during_active_generation() -> Result<()> {
     let cluster = start_in_process_cluster_with_qwen3(2).await?;

@@ -22,6 +22,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
+#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
     let device = current_test_device()?;
