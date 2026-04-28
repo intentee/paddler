@@ -76,8 +76,8 @@ PADDLER_TEST_DEVICE_FEATURE :=
 PADDLER_TEST_DEVICE_BUILD_FLAGS :=
 endif
 
-.PHONY: test.all
-test.all: test.unit test.integration test.gui
+.PHONY: test
+test: test.unit test.integration test.gui
 
 .PHONY: test.integration
 test.integration:
