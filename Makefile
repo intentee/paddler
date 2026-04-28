@@ -84,7 +84,7 @@ test: test.unit test.integration test.gui
 .PHONY: test.integration
 test.integration:
 	cargo build -p paddler_cli $(PADDLER_TEST_DEVICE_BUILD_FLAGS)
-	cargo test -p paddler_tests --no-fail-fast --features tests_that_use_compiled_paddler,tests_that_use_llms$(PADDLER_TEST_DEVICE_FEATURE) -- --nocapture
+	PADDLER_TEST_DEVICE=$(PADDLER_TEST_DEVICE) cargo test -p paddler_tests --no-fail-fast --features tests_that_use_compiled_paddler,tests_that_use_llms$(PADDLER_TEST_DEVICE_FEATURE) -- --nocapture
 
 .PHONY: test.unit
 test.unit: jarmuz-static
