@@ -77,6 +77,20 @@ impl AtomicValue<AtomicI32> {
             true
         }
     }
+
+    pub fn try_increment_below(&self, limit: i32) -> bool {
+        loop {
+            let current = self.get();
+
+            if current >= limit {
+                return false;
+            }
+
+            if self.compare_and_swap(current, current + 1) {
+                return true;
+            }
+        }
+    }
 }
 
 impl AtomicValue<AtomicUsize> {
@@ -107,5 +121,35 @@ impl AtomicValue<AtomicUsize> {
 
             true
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AtomicValue;
+    use std::sync::atomic::AtomicI32;
+
+    #[test]
+    fn try_increment_below_increments_when_below_limit() {
+        let value = AtomicValue::<AtomicI32>::new(0);
+
+        assert!(value.try_increment_below(1));
+        assert_eq!(value.get(), 1);
+    }
+
+    #[test]
+    fn try_increment_below_refuses_at_limit() {
+        let value = AtomicValue::<AtomicI32>::new(1);
+
+        assert!(!value.try_increment_below(1));
+        assert_eq!(value.get(), 1);
+    }
+
+    #[test]
+    fn try_increment_below_refuses_above_limit() {
+        let value = AtomicValue::<AtomicI32>::new(5);
+
+        assert!(!value.try_increment_below(3));
+        assert_eq!(value.get(), 5);
     }
 }

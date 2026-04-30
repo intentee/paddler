@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::agent_issue::AgentIssue;
 use crate::agent_state_application_status::AgentStateApplicationStatus;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SlotAggregatedStatusSnapshot {
     pub desired_slots_total: i32,

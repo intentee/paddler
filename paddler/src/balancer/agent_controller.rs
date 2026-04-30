@@ -148,11 +148,11 @@ impl AgentController {
             download_total,
             issues,
             model_path,
-            slots_processing,
             slots_total,
             state_application_status,
             uses_chat_template_override,
             version,
+            ..
         }: SlotAggregatedStatusSnapshot,
     ) -> AgentControllerUpdateResult {
         let newest_update_version = self.newest_update_version.get();
@@ -168,7 +168,6 @@ impl AgentController {
         changed = changed || self.desired_slots_total.set_check(desired_slots_total);
         changed = changed || self.download_current.set_check(download_current);
         changed = changed || self.download_total.set_check(download_total);
-        changed = changed || self.slots_processing.set_check(slots_processing);
         changed = changed || self.slots_total.set_check(slots_total);
         changed = changed
             || self
@@ -347,107 +346,5 @@ impl SetsDesiredState for AgentController {
             AgentJsonRpcNotification::SetState(Box::new(SetStateParams { desired_state })),
         ))
         .await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
-    use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-
-    use super::*;
-    use crate::balancer::agent_controller_update_result::AgentControllerUpdateResult;
-
-    fn make_agent_controller() -> AgentController {
-        let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
-
-        AgentController {
-            agent_message_tx,
-            chat_template_override_sender_collection: Arc::new(
-                ChatTemplateOverrideSenderCollection::default(),
-            ),
-            connection_close: CancellationToken::new(),
-            desired_slots_total: AtomicValue::<AtomicI32>::new(0),
-            download_current: AtomicValue::<AtomicUsize>::new(0),
-            download_filename: RwLock::new(None),
-            download_total: AtomicValue::<AtomicUsize>::new(0),
-            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
-            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
-            id: "test-agent".to_owned(),
-            issues: RwLock::new(BTreeSet::new()),
-            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
-            model_path: RwLock::new(None),
-            name: None,
-            newest_update_version: AtomicValue::<AtomicI32>::new(0),
-            slots_processing: AtomicValue::<AtomicI32>::new(0),
-            slots_total: AtomicValue::<AtomicI32>::new(0),
-            state_application_status_code: AtomicValue::<AtomicI32>::new(
-                AgentStateApplicationStatus::Fresh as i32,
-            ),
-            uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
-        }
-    }
-
-    fn make_snapshot_matching_initial(version: i32) -> SlotAggregatedStatusSnapshot {
-        SlotAggregatedStatusSnapshot {
-            desired_slots_total: 0,
-            download_current: 0,
-            download_filename: None,
-            download_total: 0,
-            issues: BTreeSet::new(),
-            model_path: None,
-            slots_processing: 0,
-            slots_total: 0,
-            state_application_status: AgentStateApplicationStatus::Fresh,
-            uses_chat_template_override: false,
-            version,
-        }
-    }
-
-    #[test]
-    fn discards_older_version() {
-        let controller = make_agent_controller();
-
-        let initial = make_snapshot_matching_initial(5);
-        controller.update_from_slot_aggregated_status_snapshot(initial);
-
-        let older = make_snapshot_matching_initial(3);
-        let result = controller.update_from_slot_aggregated_status_snapshot(older);
-
-        assert!(matches!(
-            result,
-            AgentControllerUpdateResult::NoMeaningfulChanges
-        ));
-    }
-
-    #[test]
-    fn applies_newer_version_with_model_path_change() {
-        let controller = make_agent_controller();
-
-        let mut snapshot = make_snapshot_matching_initial(1);
-        snapshot.model_path = Some("test_model".to_owned());
-
-        let result = controller.update_from_slot_aggregated_status_snapshot(snapshot);
-
-        assert!(matches!(result, AgentControllerUpdateResult::Updated));
-        assert_eq!(controller.get_model_path(), Some("test_model".to_owned()));
-    }
-
-    #[test]
-    fn same_values_report_no_meaningful_changes() {
-        let controller = make_agent_controller();
-
-        let snapshot = make_snapshot_matching_initial(1);
-        controller.update_from_slot_aggregated_status_snapshot(snapshot);
-
-        let same_snapshot = make_snapshot_matching_initial(1);
-        let result = controller.update_from_slot_aggregated_status_snapshot(same_snapshot);
-
-        assert!(matches!(
-            result,
-            AgentControllerUpdateResult::NoMeaningfulChanges
-        ));
     }
 }

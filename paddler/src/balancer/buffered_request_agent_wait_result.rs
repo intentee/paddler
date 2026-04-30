@@ -1,11 +1,9 @@
-use std::sync::Arc;
-
 use anyhow::Error;
 
-use crate::balancer::agent_controller::AgentController;
+use crate::balancer::dispatched_agent::DispatchedAgent;
 
 pub enum BufferedRequestAgentWaitResult {
     BufferOverflow,
-    Found(Arc<AgentController>),
+    Found(DispatchedAgent),
     Timeout(Error),
 }

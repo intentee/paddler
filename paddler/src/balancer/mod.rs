@@ -1,7 +1,8 @@
 pub mod agent_controller;
 pub mod agent_controller_pool;
 mod agent_controller_pool_total_slots;
-mod agent_controller_update_result;
+pub mod agent_controller_slot_guard;
+pub mod agent_controller_update_result;
 mod buffered_request_agent_wait_result;
 mod buffered_request_count_guard;
 mod buffered_request_counter;
@@ -10,6 +11,7 @@ pub mod chat_template_override_sender_collection;
 mod chunk_forwarding_session_controller;
 pub mod compatibility;
 mod controls_manages_senders_endpoint;
+pub mod dispatched_agent;
 pub mod embedding_sender_collection;
 pub mod generate_tokens_sender_collection;
 mod handles_agent_streaming_response;
