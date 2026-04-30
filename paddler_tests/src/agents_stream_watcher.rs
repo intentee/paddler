@@ -70,14 +70,18 @@ impl AgentsStreamWatcher {
             .await
             .context("agents did not reach the requested slot count")?;
 
-        let issues: Vec<_> = snapshot
+        let agents_with_issues: Vec<String> = snapshot
             .agents
             .iter()
-            .flat_map(|agent| agent.issues.iter().cloned())
+            .filter(|agent| !agent.issues.is_empty())
+            .map(|agent| format!("agent {}: {:?}", agent.id, agent.issues))
             .collect();
 
-        if !issues.is_empty() {
-            bail!("agents reported issues while waiting for slots: {issues:?}");
+        if !agents_with_issues.is_empty() {
+            bail!(
+                "agents reported issues while waiting for slots: {}",
+                agents_with_issues.join("; ")
+            );
         }
 
         Ok(())
