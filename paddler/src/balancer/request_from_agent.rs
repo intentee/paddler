@@ -18,6 +18,7 @@ use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;
 use crate::balancer::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
+use crate::balancer::dispatched_agent::DispatchedAgent;
 use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::balancer::manages_senders::ManagesSenders;
@@ -46,8 +47,9 @@ where
     )
     .await?
     {
-        Some(agent_controller) => {
-            let receive_response_controller = match agent_controller
+        Some(dispatched_agent) => {
+            let receive_response_controller = match dispatched_agent
+                .agent_controller
                 .handle_streaming_response(request_id.clone(), params)
                 .await
             {
@@ -70,7 +72,7 @@ where
             };
 
             forward_responses_stream(
-                agent_controller,
+                dispatched_agent.agent_controller.clone(),
                 connection_close,
                 inference_service_configuration,
                 receive_response_controller,
@@ -231,7 +233,7 @@ async fn wait_for_agent_controller<TControlsSession>(
     connection_close: CancellationToken,
     request_id: String,
     session_controller: &mut TControlsSession,
-) -> Result<Option<Arc<AgentController>>>
+) -> Result<Option<DispatchedAgent>>
 where
     TControlsSession: ControlsSession<OutgoingMessage>,
 {
@@ -245,7 +247,7 @@ where
         },
         buffered_request_agent_wait_result = buffered_request_manager.wait_for_available_agent() => {
             match buffered_request_agent_wait_result {
-                Ok(BufferedRequestAgentWaitResult::Found(agent_controller)) => Ok(Some(agent_controller)),
+                Ok(BufferedRequestAgentWaitResult::Found(dispatched_agent)) => Ok(Some(dispatched_agent)),
                 Ok(BufferedRequestAgentWaitResult::BufferOverflow) => {
                     warn!("Too many buffered requests, dropping request: {request_id:?}");
 

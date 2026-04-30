@@ -10,6 +10,8 @@ use tokio::sync::watch;
 use super::agent_controller::AgentController;
 use super::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::agent_desired_state::AgentDesiredState;
+use crate::balancer::agent_controller_slot_guard::AgentControllerSlotGuard;
+use crate::balancer::dispatched_agent::DispatchedAgent;
 use crate::produces_snapshot::ProducesSnapshot;
 use crate::sets_desired_state::SetsDesiredState;
 use crate::subscribes_to_updates::SubscribesToUpdates;
@@ -21,19 +23,25 @@ pub struct AgentControllerPool {
 
 impl AgentControllerPool {
     #[must_use]
-    pub fn take_least_busy_agent_controller(&self) -> Option<Arc<AgentController>> {
-        let agent_controller: Option<Arc<AgentController>> = self
+    pub fn take_least_busy_agent_controller(&self) -> Option<DispatchedAgent> {
+        let mut candidates: Vec<Arc<AgentController>> = self
             .agents
             .iter()
             .map(|entry| entry.value().clone())
-            .filter(|agent| agent.slots_processing.get() < agent.slots_total.get())
-            .min_by_key(|agent| agent.slots_processing.get());
+            .collect();
 
-        if let Some(agent_controller) = agent_controller {
-            agent_controller.slots_processing.increment();
-            self.update_tx.send_replace(());
+        candidates.sort_by_key(|agent| agent.slots_processing.get());
 
-            return Some(agent_controller);
+        for agent_controller in candidates {
+            let limit = agent_controller.slots_total.get();
+
+            if agent_controller.slots_processing.try_increment_below(limit) {
+                self.update_tx.send_replace(());
+
+                let slot_guard = AgentControllerSlotGuard::new(agent_controller.clone());
+
+                return Some(DispatchedAgent::new(agent_controller, slot_guard));
+            }
         }
 
         None

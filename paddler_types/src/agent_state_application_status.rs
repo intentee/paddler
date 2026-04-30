@@ -4,12 +4,13 @@ use anyhow::anyhow;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[repr(i32)]
 pub enum AgentStateApplicationStatus {
     Applied = 0,
     AttemptedAndNotAppliable = 1,
     AttemptedAndRetrying = 2,
+    #[default]
     Fresh = 3,
     Stuck = 4,
 }
