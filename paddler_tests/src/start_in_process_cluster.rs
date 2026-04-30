@@ -109,15 +109,8 @@ pub async fn start_in_process_cluster(
 
     if wait_for_slots_ready && spawn_agent {
         agents_watcher
-            .until(move |snapshot| {
-                snapshot.agents.len() >= expected_agent_count
-                    && snapshot
-                        .agents
-                        .iter()
-                        .all(|agent| agent.slots_total >= slots_per_agent)
-            })
-            .await
-            .context("agent did not reach the requested slot count")?;
+            .wait_for_slots_ready(expected_agent_count, slots_per_agent)
+            .await?;
     }
 
     Ok(ClusterHandle::new(ClusterHandleParams {

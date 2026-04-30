@@ -20,6 +20,7 @@ use log::info;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
 use paddler_types::agent_issue_params::ModelPath;
+use paddler_types::agent_issue_params::SlotCannotStartParams;
 use paddler_types::chat_template::ChatTemplate;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::model_metadata::ModelMetadata;
@@ -274,7 +275,28 @@ impl ContinuousBatchArbiter {
                 model: model.clone(),
             });
 
-            let llama_context = model.new_context(&llama_backend, context_params)?;
+            let llama_context = match model
+                .new_context(&llama_backend, context_params)
+                .context("Unable to create llama.cpp context")
+            {
+                Ok(context) => context,
+                Err(err) => {
+                    for slot_index in 0..desired_slots_total {
+                        #[expect(
+                            clippy::cast_sign_loss,
+                            reason = "slot_index is always non-negative"
+                        )]
+                        slot_aggregated_status_manager
+                            .slot_aggregated_status
+                            .register_issue(AgentIssue::SlotCannotStart(SlotCannotStartParams {
+                                error: format!("{err:#}"),
+                                slot_index: slot_index as u32,
+                            }));
+                    }
+
+                    return Err(err);
+                }
+            };
 
             for slot_index in 0..desired_slots_total {
                 slot_aggregated_status_manager

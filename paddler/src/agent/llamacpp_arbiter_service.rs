@@ -219,6 +219,7 @@ impl Service for LlamaCppArbiterService {
 
         let shutdown_outcome = loop {
             tokio::select! {
+                biased;
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
                     let current_status = self.slot_aggregated_status_manager.slot_aggregated_status.get_state_application_status()?;
@@ -245,41 +246,20 @@ impl Service for LlamaCppArbiterService {
 
                     self.try_to_apply_state(&shutdown).await;
                 }
-                continue_from_conversation_history_request = self.continue_from_conversation_history_request_rx.recv() => {
-                    match continue_from_conversation_history_request {
-                        Some(request) => {
-                            self.forward_command(
-                                ContinuousBatchSchedulerCommand::ContinueFromConversationHistory(request),
-                            );
-                        }
-                        None => {
-                            break Err(anyhow!("ContinueFromConversationHistoryRequest channel closed unexpectedly"));
-                        }
-                    }
+                Some(request) = self.continue_from_conversation_history_request_rx.recv() => {
+                    self.forward_command(
+                        ContinuousBatchSchedulerCommand::ContinueFromConversationHistory(request),
+                    );
                 }
-                continue_from_raw_prompt_request = self.continue_from_raw_prompt_request_rx.recv() => {
-                    match continue_from_raw_prompt_request {
-                        Some(request) => {
-                            self.forward_command(
-                                ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(request),
-                            );
-                        }
-                        None => {
-                            break Err(anyhow!("ContinueFromRawPromptRequest channel closed unexpectedly"));
-                        }
-                    }
+                Some(request) = self.continue_from_raw_prompt_request_rx.recv() => {
+                    self.forward_command(
+                        ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(request),
+                    );
                 }
-                generate_embedding_batch_request = self.generate_embedding_batch_request_rx.recv() => {
-                    match generate_embedding_batch_request {
-                        Some(request) => {
-                            self.forward_command(
-                                ContinuousBatchSchedulerCommand::GenerateEmbeddingBatch(request),
-                            );
-                        }
-                        None => {
-                            break Err(anyhow!("GenerateEmbeddingBatchRequest channel closed unexpectedly"));
-                        }
-                    }
+                Some(request) = self.generate_embedding_batch_request_rx.recv() => {
+                    self.forward_command(
+                        ContinuousBatchSchedulerCommand::GenerateEmbeddingBatch(request),
+                    );
                 }
             }
         };
@@ -289,5 +269,68 @@ impl Service for LlamaCppArbiterService {
         }
 
         shutdown_outcome
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::bail;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn does_not_exit_when_request_channels_close_without_shutdown() -> Result<()> {
+        let observation_window = Duration::from_millis(500);
+        let shutdown_grace = Duration::from_secs(5);
+
+        let (
+            continue_from_conversation_history_request_tx,
+            continue_from_conversation_history_request_rx,
+        ) = mpsc::unbounded_channel();
+        let (continue_from_raw_prompt_request_tx, continue_from_raw_prompt_request_rx) =
+            mpsc::unbounded_channel();
+        let (generate_embedding_batch_request_tx, generate_embedding_batch_request_rx) =
+            mpsc::unbounded_channel();
+
+        let mut service = LlamaCppArbiterService {
+            agent_applicable_state: None,
+            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
+            agent_name: None,
+            continue_from_conversation_history_request_rx,
+            continue_from_raw_prompt_request_rx,
+            desired_slots_total: 1,
+            generate_embedding_batch_request_rx,
+            continuous_batch_arbiter_handle: None,
+            model_metadata_holder: Arc::new(ModelMetadataHolder::default()),
+            slot_aggregated_status_manager: Arc::new(SlotAggregatedStatusManager::new(1)),
+        };
+
+        let shutdown = CancellationToken::new();
+        let task_token = shutdown.clone();
+
+        let mut join_handle = tokio::spawn(async move { service.run(task_token).await });
+
+        drop(continue_from_conversation_history_request_tx);
+        drop(continue_from_raw_prompt_request_tx);
+        drop(generate_embedding_batch_request_tx);
+
+        let exited_before_shutdown = tokio::select! {
+            join_result = &mut join_handle => Some(join_result),
+            () = tokio::time::sleep(observation_window) => None,
+        };
+
+        if let Some(join_result) = exited_before_shutdown {
+            let inner = join_result.context("service task panicked")?;
+            bail!("service exited on channel closure without shutdown: {inner:?}");
+        }
+
+        shutdown.cancel();
+
+        tokio::time::timeout(shutdown_grace, join_handle)
+            .await
+            .context("service did not exit after shutdown")?
+            .context("service task panicked")??;
+
+        Ok(())
     }
 }

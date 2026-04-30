@@ -7,6 +7,8 @@ use paddler_tests::agents_status::assert_slots_total_at_least::assert_slots_tota
 use paddler_tests::agents_stream_watcher::AgentsStreamWatcher;
 use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_types::agent_issue::AgentIssue;
+use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 
 fn make_snapshot(agent_id: &str, slots_total: i32) -> AgentControllerPoolSnapshot {
@@ -84,5 +86,35 @@ async fn until_errors_when_stream_closes_before_match() {
     assert!(
         outcome.is_err(),
         "expected error when stream closes without satisfying predicate"
+    );
+}
+
+#[tokio::test]
+async fn wait_for_slots_ready_includes_agent_id_in_error() {
+    let mut snapshot = make_snapshot("agent-x", 0);
+    let mut issues = BTreeSet::new();
+    issues.insert(AgentIssue::ModelFileDoesNotExist(ModelPath {
+        model_path: "/nonexistent".to_owned(),
+    }));
+    snapshot.agents[0].issues = issues;
+
+    let fixture = stream::iter(vec![Ok(snapshot)]);
+    let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
+
+    let outcome = watcher.wait_for_slots_ready(1, 1).await;
+
+    assert!(
+        outcome.is_err(),
+        "expected error when an agent reports issues"
+    );
+
+    let error_chain = format!(
+        "{:#}",
+        outcome.err().unwrap_or_else(|| anyhow!("unreachable"))
+    );
+
+    assert!(
+        error_chain.contains("agent-x"),
+        "expected agent id in error chain, got: {error_chain}"
     );
 }

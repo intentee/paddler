@@ -3,6 +3,7 @@ use std::pin::Pin;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use anyhow::bail;
 use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_client::ClientManagement;
@@ -52,5 +53,37 @@ impl AgentsStreamWatcher {
         Err(anyhow!(
             "agents stream closed before predicate was satisfied"
         ))
+    }
+
+    pub async fn wait_for_slots_ready(
+        &mut self,
+        expected_agent_count: usize,
+        slots_per_agent: i32,
+    ) -> Result<()> {
+        let snapshot = self
+            .until(move |snapshot| {
+                snapshot.agents.len() >= expected_agent_count
+                    && snapshot.agents.iter().all(|agent| {
+                        agent.slots_total >= slots_per_agent || !agent.issues.is_empty()
+                    })
+            })
+            .await
+            .context("agents did not reach the requested slot count")?;
+
+        let agents_with_issues: Vec<String> = snapshot
+            .agents
+            .iter()
+            .filter(|agent| !agent.issues.is_empty())
+            .map(|agent| format!("agent {}: {:?}", agent.id, agent.issues))
+            .collect();
+
+        if !agents_with_issues.is_empty() {
+            bail!(
+                "agents reported issues while waiting for slots: {}",
+                agents_with_issues.join("; ")
+            );
+        }
+
+        Ok(())
     }
 }
