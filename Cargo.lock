@@ -4543,7 +4543,7 @@ dependencies = [
 
 [[package]]
 name = "paddler"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "actix",
  "actix-cors",
@@ -4595,7 +4595,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_bootstrap"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -4610,7 +4610,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cli"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "actix-rt",
  "actix-web",
@@ -4630,7 +4630,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_client"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -4650,7 +4650,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_gui"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -4672,7 +4672,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_tests"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -4697,7 +4697,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_types"
-version = "3.1.2"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "jsonschema",
