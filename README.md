@@ -26,6 +26,11 @@ Paddler is an open-source LLM load balancer and serving platform. It allows you 
 * Organizations wanting to achieve predictable LLM costs instead of being exposed to per-token pricing
 * Product leaders who need reliable model performance to maintain a consistent user experience of their AI-based features
 
+## Community
+
+- Discord https://discord.gg/92x3Z8a4gj
+- Reddit (just started a subreddit, we will see how it goes :)) https://www.reddit.com/r/paddler/
+
 ## Installation and Quickstart
 
 Paddler is self-contained in a single binary file, so all you need to do to start using it is obtain the `paddler` binary and make it available in your system.
@@ -62,10 +67,6 @@ Read more about the [installation](https://paddler.intentee.com/docs/introductio
 - [API documentation](https://paddler.intentee.com/api/introduction/using-paddler-api/) is also available.
 - [Video overview](https://www.youtube.com/watch?v=aT6QCL8lk08)
 - [FOSEDM 2026 talk](https://fosdem.org/2026/schedule/event/PD8WGF-from_infrastructure_to_production_a_year_of_self-hosted_llms/) - From Infrastructure to Production: A Year of Self-Hosted LLMs.
-
-## Community and contributions
-
-For questions or community conversations, use GitHub issues with the `question` label or join our [Discord server](https://discord.gg/92x3Z8a4gj). All contributions are welcome.
 
 ## How does it work?
 
