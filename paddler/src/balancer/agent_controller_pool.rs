@@ -38,7 +38,10 @@ impl AgentControllerPool {
             if agent_controller.slots_processing.try_increment_below(limit) {
                 self.update_tx.send_replace(());
 
-                let slot_guard = AgentControllerSlotGuard::new(agent_controller.clone());
+                let slot_guard = AgentControllerSlotGuard::new(
+                    agent_controller.clone(),
+                    self.update_tx.clone(),
+                );
 
                 return Some(DispatchedAgent::new(agent_controller, slot_guard));
             }

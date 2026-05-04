@@ -11,6 +11,7 @@ pub mod balancer;
 pub mod balancer_applicable_state;
 pub mod balancer_applicable_state_holder;
 pub mod balancer_desired_state;
+pub mod cancellation_token_stream_guard;
 pub mod chat_template_renderer;
 pub mod continuation_decision;
 pub mod continuation_stop_parameters;

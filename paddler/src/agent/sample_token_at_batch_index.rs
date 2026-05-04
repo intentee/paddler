@@ -1,18 +1,19 @@
+use anyhow::Context;
 use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use llama_cpp_bindings::token::LlamaToken;
-use paddler_types::generated_token_result::GeneratedTokenResult;
+
+use crate::agent::sampling_outcome::SamplingOutcome;
 
 pub fn sample_token_at_batch_index(
     llama_context: &LlamaContext,
     batch_index: i32,
     chain: &mut LlamaSampler,
     grammar_sampler: &mut Option<LlamaSampler>,
-) -> Result<LlamaToken, GeneratedTokenResult> {
+) -> Result<SamplingOutcome> {
     let mut token_data_array = llama_context
         .token_data_array_ith(batch_index)
-        .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
+        .context("failed to read token data array for sampling")?;
 
     if let Some(grammar) = grammar_sampler.as_ref() {
         token_data_array.apply_sampler(grammar);
@@ -20,21 +21,19 @@ pub fn sample_token_at_batch_index(
 
     token_data_array.apply_sampler(chain);
 
-    let token = token_data_array.selected_token().ok_or_else(|| {
-        GeneratedTokenResult::SamplerError(
-            "all token candidates were eliminated during sampling".to_owned(),
-        )
-    })?;
+    let Some(llama_token) = token_data_array.selected_token() else {
+        return Ok(SamplingOutcome::AllCandidatesEliminated);
+    };
 
     chain
-        .accept(token)
-        .map_err(|err| GeneratedTokenResult::SamplerError(err.to_string()))?;
+        .accept(llama_token)
+        .context("sampler chain failed to accept the selected token")?;
 
-    if let Some(grammar) = grammar_sampler.as_mut() {
-        grammar
-            .accept(token)
-            .map_err(|err| GeneratedTokenResult::GrammarRejectedModelOutput(err.to_string()))?;
+    if let Some(grammar) = grammar_sampler.as_mut()
+        && let Err(err) = grammar.accept(llama_token)
+    {
+        return Ok(SamplingOutcome::GrammarRejectedModelOutput(err.to_string()));
     }
 
-    Ok(token)
+    Ok(SamplingOutcome::Token(llama_token))
 }

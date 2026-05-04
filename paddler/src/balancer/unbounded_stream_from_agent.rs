@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use actix_web::rt;
+use futures_util::Stream;
 use log::error;
 use nanoid::nanoid;
 use paddler_types::inference_client::Message as OutgoingMessage;
@@ -23,6 +24,7 @@ use crate::balancer::handles_agent_streaming_response::HandlesAgentStreamingResp
 use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::balancer::manages_senders::ManagesSenders;
 use crate::balancer::request_from_agent::request_from_agent;
+use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::controls_session::ControlsSession as _;
 
 pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
@@ -30,7 +32,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
     transformer: TTransformsOutgoingMessage,
-) -> UnboundedReceiverStream<TransformResult>
+) -> impl Stream<Item = TransformResult>
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
     AgentController: HandlesAgentStreamingResponse<TParams>,
@@ -41,32 +43,37 @@ where
     let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<TransformResult>();
 
-    rt::spawn(async move {
-        let mut session_controller = ChunkForwardingSessionController::new(chunk_tx, transformer);
+    rt::spawn({
+        let connection_close = connection_close.clone();
 
-        if let Err(err) = request_from_agent(
-            buffered_request_manager.clone(),
-            connection_close,
-            inference_service_configuration.clone(),
-            params,
-            request_id.clone(),
-            session_controller.clone(),
-        )
-        .await
-        {
-            error!("Failed to handle request: {err}");
+        async move {
+            let mut session_controller =
+                ChunkForwardingSessionController::new(chunk_tx, transformer);
 
-            session_controller
-                .send_response_safe(OutgoingMessage::Error(ErrorEnvelope {
-                    request_id: request_id.clone(),
-                    error: JsonRpcError {
-                        code: 500,
-                        description: format!("Request {request_id} failed: {err}"),
-                    },
-                }))
-                .await;
+            if let Err(err) = request_from_agent(
+                buffered_request_manager.clone(),
+                connection_close,
+                inference_service_configuration.clone(),
+                params,
+                request_id.clone(),
+                session_controller.clone(),
+            )
+            .await
+            {
+                error!("Failed to handle request: {err}");
+
+                session_controller
+                    .send_response_safe(OutgoingMessage::Error(ErrorEnvelope {
+                        request_id: request_id.clone(),
+                        error: JsonRpcError {
+                            code: 500,
+                            description: format!("Request {request_id} failed: {err}"),
+                        },
+                    }))
+                    .await;
+            }
         }
     });
 
-    UnboundedReceiverStream::new(chunk_rx)
+    CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
 }
