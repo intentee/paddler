@@ -107,8 +107,6 @@ See the [desktop app docs](https://paddler.intentee.com/docs/desktop-app/introdu
 
 <img width="100%" alt="Home screen of Paddler's destkop application" src="https://github.com/user-attachments/assets/1e70dc24-e831-4c9f-85a7-6638fe56dee4" />
 
-<img width="100%" alt="Start a cluster screen in Paddler's desktop application" src="https://github.com/user-attachments/assets/d65d1deb-fc61-481e-bcfd-b968120c07b1" />
-
 
 ## Starting out
 * [Setup a basic LLM cluster](https://paddler.intentee.com/docs/starting-out/set-up-a-basic-llm-cluster/)
