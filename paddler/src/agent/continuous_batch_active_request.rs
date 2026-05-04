@@ -1,5 +1,6 @@
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
+use log::warn;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -24,6 +25,22 @@ pub struct ContinuousBatchActiveRequest {
 }
 
 impl ContinuousBatchActiveRequest {
+    pub fn complete_with_outcome(
+        &mut self,
+        agent_name: &Option<String>,
+        outcome: GeneratedTokenResult,
+    ) {
+        if self.generated_tokens_tx.send(outcome).is_err() {
+            warn!(
+                "{agent_name:?}: sequence {} failed to send result to client (receiver dropped)",
+                self.sequence_id
+            );
+        }
+
+        self.i_batch = None;
+        self.phase = ContinuousBatchRequestPhase::Completed;
+    }
+
     pub fn is_stop_requested(&mut self) -> bool {
         match self.generate_tokens_stop_rx.try_recv() {
             Ok(()) | Err(TryRecvError::Disconnected) => true,

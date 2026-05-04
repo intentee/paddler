@@ -31,6 +31,7 @@ use crate::balancer::chunk_forwarding_session_controller::transform_result::Tran
 use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::balancer::inference_service::app_data::AppData;
 use crate::balancer::request_from_agent::request_from_agent;
+use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::controls_session::ControlsSession as _;
 
 const CHARACTERS_PER_TOKEN_APPROXIMATELY: usize = 3;
@@ -143,7 +144,11 @@ async fn respond(
 
     drop(chunk_tx);
 
-    let stream = UnboundedReceiverStream::new(chunk_rx).filter_map(|transform_result| async move {
+    let stream = CancellationTokenStreamGuard::new(
+        UnboundedReceiverStream::new(chunk_rx),
+        connection_close,
+    )
+    .filter_map(|transform_result| async move {
         match transform_result {
             TransformResult::Chunk(content) | TransformResult::Error(content) => {
                 Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))

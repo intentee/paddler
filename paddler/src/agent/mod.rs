@@ -26,4 +26,5 @@ pub mod resolve_grammar;
 pub mod resolve_grammar_to_gbnf;
 pub mod resolved_grammar;
 pub mod sample_token_at_batch_index;
+pub mod sampling_outcome;
 pub mod sequence_id_pool;

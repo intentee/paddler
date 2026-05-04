@@ -65,9 +65,9 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                     .model
                     .str_to_token(&input.content, AddBos::Always)
                 {
-                    Ok(llama_tokens) => Ok(EmbeddingInputTokenized {
+                    Ok(tokens) => Ok(EmbeddingInputTokenized {
                         id: input.id,
-                        llama_tokens,
+                        tokens,
                     }),
                     Err(err) => Err(anyhow!("Failed to tokenize input: {err:?}")),
                 }
@@ -79,7 +79,7 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
         let max_sequences_per_batch = self.scheduler_context.desired_slots_total;
         let token_counts: Vec<usize> = tokens_lines_list
             .iter()
-            .map(|input| input.llama_tokens.len())
+            .map(|input| input.tokens.len())
             .collect();
         let planned_batches =
             plan_embedding_batches(&token_counts, batch_n_tokens, max_sequences_per_batch);
@@ -99,7 +99,7 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                 tokens_lines_list[planned_batch].iter().collect();
 
             for (sequence_index, input) in batch_inputs.iter().enumerate() {
-                batch.add_sequence(&input.llama_tokens, sequence_index as i32, true)?;
+                batch.add_sequence(&input.tokens, sequence_index as i32, true)?;
             }
 
             self.embedding_batch_decode(

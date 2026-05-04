@@ -2,5 +2,5 @@ use llama_cpp_bindings::token::LlamaToken;
 
 pub struct EmbeddingInputTokenized {
     pub id: String,
-    pub llama_tokens: Vec<LlamaToken>,
+    pub tokens: Vec<LlamaToken>,
 }

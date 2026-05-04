@@ -38,6 +38,7 @@ use crate::agent::prepare_conversation_history_request::prepare_conversation_his
 use crate::agent::prepared_conversation_history_request::PreparedConversationHistoryRequest;
 use crate::agent::resolve_grammar::resolve_grammar;
 use crate::agent::sample_token_at_batch_index::sample_token_at_batch_index;
+use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
 use crate::decoded_image::DecodedImage;
 use crate::dispenses_slots::DispensesSlots;
@@ -116,7 +117,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
             } else {
-                match self.command_rx.recv_timeout(Duration::from_millis(100)) {
+                match self.command_rx.recv_timeout(Duration::from_millis(10)) {
                     Ok(command) => self.process_command(command),
                     Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
@@ -659,25 +660,41 @@ impl ContinuousBatchScheduler {
                 &mut active_request.chain,
                 &mut active_request.grammar_sampler,
             ) {
-                Ok(token) => {
-                    active_request.pending_sampled_token = Some(token);
+                Ok(SamplingOutcome::Token(sampled_token)) => {
+                    active_request.pending_sampled_token = Some(sampled_token);
                     active_request.i_batch = None;
                 }
-                Err(result) => {
+                Ok(SamplingOutcome::AllCandidatesEliminated) => {
                     error!(
-                        "{:?}: sequence {} sampling error during pre-eval harvest: {result:?}",
+                        "{:?}: sequence {} pre-eval harvest exhausted candidates",
                         self.scheduler_context.agent_name, active_request.sequence_id
                     );
-
-                    if active_request.generated_tokens_tx.send(result).is_err() {
-                        warn!(
-                            "{:?}: failed to send harvest result to client (receiver dropped)",
-                            self.scheduler_context.agent_name
-                        );
-                    }
-
-                    active_request.i_batch = None;
-                    active_request.phase = ContinuousBatchRequestPhase::Completed;
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::SamplerError(
+                            "all token candidates were eliminated during sampling".to_owned(),
+                        ),
+                    );
+                }
+                Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
+                    error!(
+                        "{:?}: sequence {} pre-eval harvest grammar rejected: {message}",
+                        self.scheduler_context.agent_name, active_request.sequence_id
+                    );
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::GrammarRejectedModelOutput(message),
+                    );
+                }
+                Err(err) => {
+                    error!(
+                        "{:?}: sequence {} pre-eval harvest sampling error: {err:#}",
+                        self.scheduler_context.agent_name, active_request.sequence_id
+                    );
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::SamplerError(err.to_string()),
+                    );
                 }
             }
         }
@@ -686,19 +703,10 @@ impl ContinuousBatchScheduler {
     fn check_stop_signals(&mut self) {
         for active_request in &mut self.active_requests {
             if active_request.is_stop_requested() {
-                if active_request
-                    .generated_tokens_tx
-                    .send(GeneratedTokenResult::Done)
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send stop Done to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-
-                active_request.i_batch = None;
-                active_request.phase = ContinuousBatchRequestPhase::Completed;
+                active_request.complete_with_outcome(
+                    &self.scheduler_context.agent_name,
+                    GeneratedTokenResult::Done,
+                );
             }
         }
     }
@@ -837,38 +845,83 @@ impl ContinuousBatchScheduler {
                 &mut active_request.chain,
                 &mut active_request.grammar_sampler,
             ) {
-                Ok(token) => token,
-                Err(result) => {
+                Ok(SamplingOutcome::Token(sampled_token)) => sampled_token,
+                Ok(SamplingOutcome::AllCandidatesEliminated) => {
                     error!(
-                        "{:?}: sequence {} sampling error: {result:?}",
+                        "{:?}: sequence {} sampling exhausted candidates",
                         self.scheduler_context.agent_name, active_request.sequence_id
                     );
-
-                    if active_request.generated_tokens_tx.send(result).is_err() {
-                        warn!(
-                            "{:?}: failed to send result to client (receiver dropped)",
-                            self.scheduler_context.agent_name
-                        );
-                    }
-
-                    active_request.i_batch = None;
-                    active_request.phase = ContinuousBatchRequestPhase::Completed;
-
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::SamplerError(
+                            "all token candidates were eliminated during sampling".to_owned(),
+                        ),
+                    );
+                    continue;
+                }
+                Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
+                    error!(
+                        "{:?}: sequence {} grammar rejected sampled token: {message}",
+                        self.scheduler_context.agent_name, active_request.sequence_id
+                    );
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::GrammarRejectedModelOutput(message),
+                    );
+                    continue;
+                }
+                Err(err) => {
+                    error!(
+                        "{:?}: sequence {} sampling error: {err:#}",
+                        self.scheduler_context.agent_name, active_request.sequence_id
+                    );
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::SamplerError(err.to_string()),
+                    );
                     continue;
                 }
             };
 
             if self.scheduler_context.model.is_eog_token(sampled_token) {
-                if active_request
-                    .generated_tokens_tx
-                    .send(GeneratedTokenResult::Done)
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
+                active_request.complete_with_outcome(
+                    &self.scheduler_context.agent_name,
+                    GeneratedTokenResult::Done,
+                );
+                continue;
+            }
+
+            let output_string = match self.scheduler_context.model.token_to_piece(
+                sampled_token,
+                &mut active_request.utf8_decoder,
+                true,
+                None,
+            ) {
+                Ok(output_string) => output_string,
+                Err(err) => {
+                    error!(
+                        "{:?}: sequence {} token_to_piece failed: {err}",
+                        self.scheduler_context.agent_name, active_request.sequence_id
                     );
+                    active_request.complete_with_outcome(
+                        &self.scheduler_context.agent_name,
+                        GeneratedTokenResult::SamplerError(format!(
+                            "Failed to convert token to string: {err}"
+                        )),
+                    );
+                    continue;
                 }
+            };
+
+            if active_request
+                .generated_tokens_tx
+                .send(GeneratedTokenResult::Token(output_string))
+                .is_err()
+            {
+                warn!(
+                    "{:?}: sequence {} client disconnected (receiver dropped)",
+                    self.scheduler_context.agent_name, active_request.sequence_id
+                );
 
                 active_request.i_batch = None;
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
@@ -876,72 +929,13 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            match self.scheduler_context.model.token_to_piece(
-                sampled_token,
-                &mut active_request.utf8_decoder,
-                true,
-                None,
-            ) {
-                Ok(output_string) => {
-                    if active_request
-                        .generated_tokens_tx
-                        .send(GeneratedTokenResult::Token(output_string))
-                        .is_err()
-                    {
-                        warn!(
-                            "{:?}: sequence {} client disconnected (receiver dropped)",
-                            self.scheduler_context.agent_name, active_request.sequence_id
-                        );
-
-                        active_request.i_batch = None;
-                        active_request.phase = ContinuousBatchRequestPhase::Completed;
-
-                        continue;
-                    }
-                }
-                Err(err) => {
-                    error!(
-                        "{:?}: sequence {} token_to_piece failed: {err}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-
-                    if active_request
-                        .generated_tokens_tx
-                        .send(GeneratedTokenResult::SamplerError(format!(
-                            "Failed to convert token to string: {err}"
-                        )))
-                        .is_err()
-                    {
-                        warn!(
-                            "{:?}: failed to send result to client (receiver dropped)",
-                            self.scheduler_context.agent_name
-                        );
-                    }
-
-                    active_request.i_batch = None;
-                    active_request.phase = ContinuousBatchRequestPhase::Completed;
-
-                    continue;
-                }
-            }
-
             active_request.generated_tokens_count += 1;
 
             if active_request.generated_tokens_count >= active_request.max_tokens {
-                if active_request
-                    .generated_tokens_tx
-                    .send(GeneratedTokenResult::Done)
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-
-                active_request.i_batch = None;
-                active_request.phase = ContinuousBatchRequestPhase::Completed;
-
+                active_request.complete_with_outcome(
+                    &self.scheduler_context.agent_name,
+                    GeneratedTokenResult::Done,
+                );
                 continue;
             }
 
