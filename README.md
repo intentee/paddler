@@ -87,13 +87,13 @@ Paddler uses a built-in llama.cpp engine for inference, but has its own implemen
 Paddler comes with a built-in web admin panel. 
 
 You can use it to monitor your Paddler fleet:
-<img width="3440" height="1226" alt="Dashboard section of the Web Admin Panel" src="https://github.com/user-attachments/assets/1f17e7ee-861a-4831-8018-3f75f6827d2b" />
+<img width="100%" alt="Dashboard section of the Web Admin Panel" src="https://github.com/user-attachments/assets/1f17e7ee-861a-4831-8018-3f75f6827d2b" />
 
 Add and update your model and customize the chat template and inference parameters:
-<img width="3456" height="3102" alt="Model section of the Web Admin Panel" src="https://github.com/user-attachments/assets/53247c83-3ead-4a8e-8f0e-c2db15ae41ba" />
+<img width="100%" alt="Model section of the Web Admin Panel" src="https://github.com/user-attachments/assets/53247c83-3ead-4a8e-8f0e-c2db15ae41ba" />
 
 And use a GUI to test the inference:
-<img width="1413" height="984" alt="Prompt section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
+<img width="100%" alt="Prompt section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
 
 ### Desktop application (beta)
 
@@ -103,7 +103,7 @@ You can also mix both; for example, you can set up a Paddler balancer on your se
 
 The world is your oyster with this one. :) 
 
-<img width="912" height="676" alt="Home screen of Paddler's destkop application" src="https://github.com/user-attachments/assets/1e70dc24-e831-4c9f-85a7-6638fe56dee4" />
+<img width="100%" alt="Home screen of Paddler's destkop application" src="https://github.com/user-attachments/assets/1e70dc24-e831-4c9f-85a7-6638fe56dee4" />
 
 ## Starting out
 * [Setup a basic LLM cluster](https://paddler.intentee.com/docs/starting-out/set-up-a-basic-llm-cluster/)
