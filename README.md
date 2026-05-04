@@ -87,20 +87,30 @@ Paddler uses a built-in llama.cpp engine for inference, but has its own implemen
 Paddler comes with a built-in web admin panel. 
 
 You can use it to monitor your Paddler fleet:
-<img width="1587" height="732" alt="Dashboard section of the Web Admin Panel" src="https://github.com/user-attachments/assets/de26312e-e83e-4def-8326-0aa5d559396c" />
+<img width="100%" alt="Dashboard section of the Web Admin Panel" src="https://github.com/user-attachments/assets/1f17e7ee-861a-4831-8018-3f75f6827d2b" />
 
 Add and update your model and customize the chat template and inference parameters:
-<img width="1422" height="1584" alt="Model section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c52c188a-c911-4c04-a4b3-d8f89b88786f" />
+<img width="100%" alt="Model section of the Web Admin Panel" src="https://github.com/user-attachments/assets/53247c83-3ead-4a8e-8f0e-c2db15ae41ba" />
 
 And use a GUI to test the inference:
-<img width="1413" height="984" alt="Prompt section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
+<img width="100%" alt="Prompt section of the Web Admin Panel" src="https://github.com/user-attachments/assets/c02fcfb8-53e0-45d4-97f4-5ff85d600bd7" />
 
+### Desktop application (beta)
+
+Paddler comes in two versions: a command-line interface for infrastructure use, and a desktop application for more casual use cases, like using multiple laptops and PCs in a local AI cluster or setting up an office-wide company second brain, without using a console. 
+
+You can also mix both; for example, you can set up a Paddler balancer on your server rack, and ask a colleague in the office with an RTX 5090 to plug in ad hoc as an agent if they do not need their entire compute.
+
+The world is your oyster with this one. :) 
+
+<img width="100%" alt="Home screen of Paddler's destkop application" src="https://github.com/user-attachments/assets/1e70dc24-e831-4c9f-85a7-6638fe56dee4" />
 
 ## Starting out
 * [Setup a basic LLM cluster](https://paddler.intentee.com/docs/starting-out/set-up-a-basic-llm-cluster/)
 * [Use Paddler's web admin panel](https://paddler.intentee.com/docs/starting-out/using-web-admin-panel/)
 * [Generate tokens and embeddings](https://paddler.intentee.com/docs/starting-out/generating-tokens-and-embeddings/)
 * [Use function calling](https://paddler.intentee.com/docs/starting-out/using-function-calling/)
+* [Use grammars](https://paddler.intentee.com/docs/starting-out/using-grammars/)
 * [Use multimodal models](https://paddler.intentee.com/docs/starting-out/using-multimodal-models/)
 * [Create a multi agent fleet](https://paddler.intentee.com/docs/starting-out/multi-agent-fleet/)
 * [Go beyond a single device](https://paddler.intentee.com/docs/starting-out/going-beyond-a-single-device/)
@@ -113,7 +123,7 @@ All code in the project is human-reviewed, and most is handcrafted. We have been
 
 If you successfully generate something, you can submit it. We will still need to review it, so make sure you understand what you are doing.
 
-You can try, though. :) We have even added [AGENTS.md](AGENTS.md) with some code style and other basic instructions.
+You can try, though. :) We have even added [CLAUDE.md](CLAUDE.md) with some code style and other basic instructions.
 
 ## Why the Name
 
