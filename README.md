@@ -97,7 +97,11 @@ And use a GUI to test the inference:
 
 ### Desktop application (beta)
 
-Paddler also comes with a desktop application that wraps its core features in a graphical interface. You can use it to run Paddler's balancer as a cluster, or connect to an existing cluster with your computer as an agent.
+Paddler comes in two versions: a command-line interface for infrastructure use, and a desktop application for more casual use cases, like using multiple laptops and PCs in a local AI cluster or setting up an office-wide company second brain, without using a console. 
+
+You can also mix both; for example, you can set up a Paddler balancer on your server rack, and ask a colleague in the office with an RTX 5090 to plug in ad hoc as an agent if they do not need their entire compute.
+
+The world is your oyster with this one. :) 
 
 <img width="912" height="676" alt="Home screen of Paddler's destkop application" src="https://github.com/user-attachments/assets/1e70dc24-e831-4c9f-85a7-6638fe56dee4" />
 
