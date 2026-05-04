@@ -103,7 +103,10 @@ You can also mix both; for example, you can set up a Paddler balancer on your se
 
 The world is your oyster with this one. :) 
 
+See the [desktop app docs](https://paddler.intentee.com/docs/desktop-app/introduction/) to get started.
+
 <img width="100%" alt="Home screen of Paddler's destkop application" src="https://github.com/user-attachments/assets/1e70dc24-e831-4c9f-85a7-6638fe56dee4" />
+
 
 ## Starting out
 * [Setup a basic LLM cluster](https://paddler.intentee.com/docs/starting-out/set-up-a-basic-llm-cluster/)
