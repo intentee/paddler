@@ -366,7 +366,7 @@ impl App {
             let mut runner = AgentRunner::start(AgentRunnerParams {
                 agent_name,
                 management_address,
-                parent_shutdown: Some(cancel),
+                cancellation_token: cancel,
                 slots,
             });
 
@@ -476,7 +476,7 @@ impl App {
             },
             max_buffered_requests,
             openai_service_configuration: None,
-            parent_shutdown: Some(cancel),
+            cancellation_token: cancel,
             state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
             statsd_prefix: statsd_prefix.to_owned(),
             statsd_service_configuration: None,

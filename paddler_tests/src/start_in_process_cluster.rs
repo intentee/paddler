@@ -52,7 +52,7 @@ pub async fn start_in_process_cluster(
         openai_service_configuration: Some(OpenAIServiceConfiguration {
             addr: addresses.compat_openai,
         }),
-        parent_shutdown: Some(cancel_token.clone()),
+        cancellation_token: cancel_token.clone(),
         state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
         statsd_prefix: "paddler_tests_".to_owned(),
         statsd_service_configuration: None,
@@ -89,7 +89,7 @@ pub async fn start_in_process_cluster(
         let agent_runner = AgentRunner::start(AgentRunnerParams {
             agent_name: Some(agent_name),
             management_address: addresses.management.to_string(),
-            parent_shutdown: Some(cancel_token.clone()),
+            cancellation_token: cancel_token.clone(),
             slots: slots_per_agent,
         });
 

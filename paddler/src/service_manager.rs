@@ -37,8 +37,7 @@ impl ServiceManager {
         self.services.push(Box::new(service));
     }
 
-    pub async fn run_forever(self, shutdown: CancellationToken) -> Result<()> {
-        let service_token = shutdown.child_token();
+    pub async fn run_forever(self, cancellation_token: CancellationToken) -> Result<()> {
         let mut service_handles = FuturesUnordered::new();
         let mut pending_service_names: BTreeSet<String> = BTreeSet::new();
 
@@ -47,7 +46,7 @@ impl ServiceManager {
 
             pending_service_names.insert(service_name.clone());
 
-            let task_token = service_token.clone();
+            let task_token = cancellation_token.clone();
             let event_name = service_name.clone();
 
             service_handles.push(async move {
@@ -75,7 +74,7 @@ impl ServiceManager {
         let mut first_error: Option<anyhow::Error> = None;
 
         tokio::select! {
-            () = shutdown.cancelled() => {}
+            () = cancellation_token.cancelled() => {}
             Some(event) = service_handles.next() => {
                 pending_service_names.remove(&event.name);
                 first_error = event.into_service_error();
@@ -88,7 +87,7 @@ impl ServiceManager {
             pending_service_names
         );
 
-        service_token.cancel();
+        cancellation_token.cancel();
 
         while let Some(event) = service_handles.next().await {
             pending_service_names.remove(&event.name);

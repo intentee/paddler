@@ -46,7 +46,7 @@ async fn wait_until_bound(addr: SocketAddr) -> Result<()> {
 fn make_balancer_runner_params(
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
-    parent_shutdown: Option<CancellationToken>,
+    cancellation_token: CancellationToken,
 ) -> BalancerRunnerParams {
     BalancerRunnerParams {
         buffered_request_timeout: Duration::from_secs(10),
@@ -61,7 +61,7 @@ fn make_balancer_runner_params(
         },
         max_buffered_requests: 30,
         openai_service_configuration: None,
-        parent_shutdown,
+        cancellation_token,
         state_database_type: StateDatabaseType::Memory(Box::default()),
         statsd_prefix: "paddler_bootstrap_test_".to_owned(),
         statsd_service_configuration: None,
@@ -72,12 +72,12 @@ fn make_balancer_runner_params(
 
 fn make_agent_runner_params(
     management_addr: SocketAddr,
-    parent_shutdown: Option<CancellationToken>,
+    cancellation_token: CancellationToken,
 ) -> AgentRunnerParams {
     AgentRunnerParams {
         agent_name: Some("test-agent".to_owned()),
         management_address: management_addr.to_string(),
-        parent_shutdown,
+        cancellation_token,
         slots: 1,
     }
 }
@@ -90,7 +90,7 @@ async fn balancer_runner_exits_when_dropped() -> Result<()> {
     let runner = BalancerRunner::start(make_balancer_runner_params(
         management_addr,
         inference_addr,
-        None,
+        CancellationToken::new(),
     ))
     .await?;
 
@@ -115,7 +115,7 @@ async fn balancer_runner_exits_on_explicit_cancel() -> Result<()> {
     let runner = BalancerRunner::start(make_balancer_runner_params(
         management_addr,
         inference_addr,
-        None,
+        CancellationToken::new(),
     ))
     .await?;
 
@@ -141,7 +141,7 @@ async fn balancer_runner_cancels_from_parent_token() -> Result<()> {
     let runner = BalancerRunner::start(make_balancer_runner_params(
         management_addr,
         inference_addr,
-        Some(parent.clone()),
+        parent.clone(),
     ))
     .await?;
 
@@ -184,7 +184,8 @@ async fn balancer_runner_preserves_persisted_desired_state() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
     let inference_addr = pick_free_loopback_addr()?;
 
-    let mut params = make_balancer_runner_params(management_addr, inference_addr, None);
+    let mut params =
+        make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
 
     params.state_database_type = StateDatabaseType::File(state_db_path.clone());
 
@@ -210,7 +211,10 @@ async fn balancer_runner_preserves_persisted_desired_state() -> Result<()> {
 async fn agent_runner_exits_when_dropped() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
 
-    let runner = AgentRunner::start(make_agent_runner_params(management_addr, None));
+    let runner = AgentRunner::start(make_agent_runner_params(
+        management_addr,
+        CancellationToken::new(),
+    ));
 
     drop(runner);
 
@@ -225,7 +229,7 @@ async fn agent_runner_cancels_from_parent_token() -> Result<()> {
 
     let runner = AgentRunner::start(make_agent_runner_params(
         management_addr,
-        Some(parent.clone()),
+        parent.clone(),
     ));
 
     parent.cancel();

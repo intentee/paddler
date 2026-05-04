@@ -27,7 +27,7 @@ pub struct BalancerRunnerParams {
     pub management_service_configuration: ManagementServiceConfiguration,
     pub max_buffered_requests: i32,
     pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
-    pub parent_shutdown: Option<CancellationToken>,
+    pub cancellation_token: CancellationToken,
     pub state_database_type: StateDatabaseType,
     pub statsd_prefix: String,
     pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
@@ -51,7 +51,7 @@ impl BalancerRunner {
             management_service_configuration,
             max_buffered_requests,
             openai_service_configuration,
-            parent_shutdown,
+            cancellation_token,
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
@@ -81,7 +81,7 @@ impl BalancerRunner {
 
         let initial_desired_state = state_database.read_balancer_desired_state().await?;
 
-        let thread = ServiceThread::spawn(parent_shutdown, move |task_shutdown| async move {
+        let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
             service_manager.run_forever(task_shutdown).await
         });
 

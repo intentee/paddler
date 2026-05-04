@@ -11,8 +11,8 @@ use crate::service_thread::ServiceThread;
 
 pub struct AgentRunnerParams {
     pub agent_name: Option<String>,
+    pub cancellation_token: CancellationToken,
     pub management_address: String,
-    pub parent_shutdown: Option<CancellationToken>,
     pub slots: i32,
 }
 
@@ -26,8 +26,8 @@ impl AgentRunner {
     pub fn start(
         AgentRunnerParams {
             agent_name,
+            cancellation_token,
             management_address,
-            parent_shutdown,
             slots,
         }: AgentRunnerParams,
     ) -> Self {
@@ -36,7 +36,7 @@ impl AgentRunner {
             slot_aggregated_status,
         } = bootstrap_agent(agent_name, &management_address, slots);
 
-        let thread = ServiceThread::spawn(parent_shutdown, move |task_shutdown| async move {
+        let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
             service_manager.run_forever(task_shutdown).await
         });
 

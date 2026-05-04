@@ -30,7 +30,7 @@ impl Handler for Agent {
         let mut runner = AgentRunner::start(AgentRunnerParams {
             agent_name: self.name.clone(),
             management_address: self.management_addr.socket_addr.to_string(),
-            parent_shutdown: Some(shutdown),
+            cancellation_token: shutdown,
             slots: self.slots,
         });
 

@@ -128,7 +128,7 @@ impl Handler for Balancer {
                     addr: compat_openai_addr.socket_addr,
                 },
             ),
-            parent_shutdown: Some(shutdown),
+            cancellation_token: shutdown,
             state_database_type: self.state_database.clone(),
             statsd_prefix: self.statsd_prefix.clone(),
             statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {

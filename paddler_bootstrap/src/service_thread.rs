@@ -8,30 +8,28 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 pub struct ServiceThread {
+    cancellation_token: CancellationToken,
     completion_rx: Option<oneshot::Receiver<Result<()>>>,
-    shutdown: CancellationToken,
     thread: Option<thread::JoinHandle<()>>,
 }
 
 impl ServiceThread {
-    pub fn spawn<TRun, TFuture>(parent_shutdown: Option<CancellationToken>, run: TRun) -> Self
+    pub fn spawn<TRun, TFuture>(cancellation_token: CancellationToken, run: TRun) -> Self
     where
         TRun: FnOnce(CancellationToken) -> TFuture + Send + 'static,
         TFuture: Future<Output = Result<()>>,
     {
-        let shutdown =
-            parent_shutdown.map_or_else(CancellationToken::new, |parent| parent.child_token());
-        let task_shutdown = shutdown.clone();
+        let task_token = cancellation_token.clone();
         let (completion_tx, completion_rx) = oneshot::channel::<Result<()>>();
 
         let thread = thread::spawn(move || {
-            let result = actix_web::rt::System::new().block_on(run(task_shutdown));
+            let result = actix_web::rt::System::new().block_on(run(task_token));
             let _ = completion_tx.send(result);
         });
 
         Self {
+            cancellation_token,
             completion_rx: Some(completion_rx),
-            shutdown,
             thread: Some(thread),
         }
     }
@@ -50,13 +48,13 @@ impl ServiceThread {
     }
 
     pub fn cancel(&self) {
-        self.shutdown.cancel();
+        self.cancellation_token.cancel();
     }
 }
 
 impl Drop for ServiceThread {
     fn drop(&mut self) {
-        self.shutdown.cancel();
+        self.cancellation_token.cancel();
 
         if let Some(thread) = self.thread.take()
             && let Err(panic_payload) = thread.join()
