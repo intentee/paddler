@@ -6,10 +6,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use llama_cpp_bindings::DecodeError;
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
@@ -44,24 +41,39 @@ use crate::agent::resolve_grammar::resolve_grammar;
 use crate::agent::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
+
+pub mod advance_generating_phase;
+pub mod advance_outcome;
+pub mod assemble_batch_phase;
+pub mod batch_pass;
+pub mod classified_token;
+pub mod classify_token_phase;
+pub mod commit_phase;
+pub mod completion_check_outcome;
+pub mod completion_check_phase;
+pub mod contributions;
+pub mod decode_batch_phase;
+pub mod decode_outcome;
+pub mod emit_token_outcome;
+pub mod emit_token_phase;
+pub mod generating_contribution;
+pub mod ingesting_contribution;
+pub mod sample_outcome;
+pub mod sample_token_phase;
+pub mod tool_call_phase;
+
+use self::advance_generating_phase::AdvanceGeneratingPhase;
+use self::assemble_batch_phase::AssembleBatchPhase;
+use self::batch_pass::BatchPass;
+use self::commit_phase::CommitPhase;
+use self::decode_batch_phase::DecodeBatchPhase;
+use self::decode_outcome::DecodeOutcome;
 use crate::decoded_image::DecodedImage;
 use crate::tool_call_parser::ToolCallParser;
 use crate::tool_call_pipeline::ToolCallPipeline;
 use crate::tool_call_validator::ToolCallValidator;
 use crate::dispenses_slots::DispensesSlots;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
-
-struct GeneratingContribution {
-    request_index: usize,
-    batch_position: i32,
-}
-
-struct IngestingContribution {
-    request_index: usize,
-    chunk_size: usize,
-    is_last_chunk: bool,
-    last_batch_position: i32,
-}
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
@@ -884,6 +896,7 @@ impl ContinuousBatchScheduler {
         self.advance_generating_requests();
 
         let batch_n_tokens = self.scheduler_context.inference_parameters.batch_n_tokens;
+        let assemble_phase = AssembleBatchPhase { batch_n_tokens };
 
         loop {
             let max_sequences = self.active_requests.len();
@@ -893,54 +906,38 @@ impl ContinuousBatchScheduler {
                 clippy::cast_possible_wrap,
                 reason = "token counts and positions fit in i32 for llama.cpp FFI"
             )]
-            let mut batch = LlamaBatch::new(batch_n_tokens, max_sequences.max(1) as i32)?;
+            let mut pass = BatchPass::new(batch_n_tokens, max_sequences.max(1) as i32)?;
 
-            let mut generating_contributions: Vec<GeneratingContribution> = Vec::new();
-            let mut ingesting_contributions: Vec<IngestingContribution> = Vec::new();
+            assemble_phase.run(&mut pass, &mut self.active_requests)?;
 
-            let mut current_batch_token_count: usize = 0;
-
-            current_batch_token_count += self.add_generating_pending_tokens_to_batch(
-                &mut batch,
-                batch_n_tokens,
-                &mut generating_contributions,
-            )?;
-
-            self.add_ingesting_prompt_chunks_to_batch(
-                &mut batch,
-                batch_n_tokens,
-                current_batch_token_count,
-                &mut ingesting_contributions,
-            )?;
-
-            if batch.n_tokens() == 0 {
+            if pass.is_empty() {
                 return Ok(());
             }
 
             debug!(
                 "{:?}: decoding batch with {} tokens for {} active requests",
                 self.scheduler_context.agent_name,
-                batch.n_tokens(),
+                pass.batch.n_tokens(),
                 self.active_requests.len()
             );
 
-            match self.llama_context.decode(&mut batch) {
-                Ok(()) => {
-                    self.commit_contributions(&generating_contributions, &ingesting_contributions);
+            match DecodeBatchPhase.run(&mut pass, &mut self.llama_context) {
+                DecodeOutcome::Decoded => {
+                    CommitPhase.run(pass, &mut self.active_requests);
 
                     return Ok(());
                 }
-                Err(DecodeError::NoKvCacheSlot) => {
+                DecodeOutcome::NeedsEviction => {
                     self.evict_largest_sequence();
 
                     if self.active_requests.is_empty() {
                         return Ok(());
                     }
                 }
-                Err(DecodeError::Aborted | DecodeError::NTokensZero) => {
+                DecodeOutcome::Aborted => {
                     return Ok(());
                 }
-                Err(DecodeError::Unknown(error_code)) => {
+                DecodeOutcome::Errored(error_code) => {
                     return Err(anyhow!(
                         "Decode failed with unknown error code: {error_code}"
                     ));
@@ -950,321 +947,11 @@ impl ContinuousBatchScheduler {
     }
 
     fn advance_generating_requests(&mut self) {
-        for active_request in &mut self.active_requests {
-            if !matches!(
-                active_request.phase,
-                ContinuousBatchRequestPhase::Generating
-            ) {
-                continue;
-            }
-
-            if active_request.pending_sampled_token.is_some() {
-                continue;
-            }
-
-            let Some(batch_index) = active_request.i_batch else {
-                continue;
-            };
-
-            let raw_token = match sample_token_at_batch_index(
-                &self.llama_context,
-                batch_index,
-                &mut active_request.chain,
-                &mut active_request.grammar_sampler,
-            ) {
-                Ok(SamplingOutcome::Token(raw_token)) => raw_token,
-                Ok(SamplingOutcome::AllCandidatesEliminated) => {
-                    error!(
-                        "{:?}: sequence {} sampling exhausted candidates",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-                    active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
-                        GeneratedTokenResult::SamplerError(
-                            "all token candidates were eliminated during sampling".to_owned(),
-                        ),
-                    );
-                    continue;
-                }
-                Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
-                    error!(
-                        "{:?}: sequence {} grammar rejected sampled token: {message}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-                    active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
-                        GeneratedTokenResult::GrammarRejectedModelOutput(message),
-                    );
-                    continue;
-                }
-                Err(err) => {
-                    error!(
-                        "{:?}: sequence {} sampling error: {err:#}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-                    active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
-                        GeneratedTokenResult::SamplerError(err.to_string()),
-                    );
-                    continue;
-                }
-            };
-
-            let was_in_tool_call = active_request.token_classifier.is_in_tool_call();
-            let sampled_token = active_request.token_classifier.ingest(raw_token);
-            let is_in_tool_call = active_request.token_classifier.is_in_tool_call();
-
-            if self.scheduler_context.model.is_eog_token(&sampled_token) {
-                let summary = GenerationSummary {
-                    usage: *active_request.token_classifier.usage(),
-                };
-
-                active_request.complete_with_outcome(
-                    &self.scheduler_context.agent_name,
-                    GeneratedTokenResult::Done(summary),
-                );
-                continue;
-            }
-
-            let output_string = match self.scheduler_context.model.token_to_piece(
-                &sampled_token,
-                &mut active_request.utf8_decoder,
-                true,
-                None,
-            ) {
-                Ok(output_string) => output_string,
-                Err(err) => {
-                    error!(
-                        "{:?}: sequence {} token_to_piece failed: {err}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-                    active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
-                        GeneratedTokenResult::SamplerError(format!(
-                            "Failed to convert token to string: {err}"
-                        )),
-                    );
-                    continue;
-                }
-            };
-
-            if matches!(sampled_token, SampledToken::ToolCall(_))
-                && let Some(pipeline) = active_request.tool_call_pipeline.as_mut()
-            {
-                pipeline.feed(&output_string);
-            }
-
-            let token_event = match sampled_token {
-                SampledToken::Content(_) => GeneratedTokenResult::ContentToken(output_string),
-                SampledToken::Reasoning(_) => GeneratedTokenResult::ReasoningToken(output_string),
-                SampledToken::ToolCall(_) => GeneratedTokenResult::ToolCallToken(output_string),
-                SampledToken::Undeterminable(_) => {
-                    GeneratedTokenResult::UndeterminableToken(output_string)
-                }
-            };
-
-            if active_request
-                .generated_tokens_tx
-                .send(token_event)
-                .is_err()
-            {
-                warn!(
-                    "{:?}: sequence {} client disconnected (receiver dropped)",
-                    self.scheduler_context.agent_name, active_request.sequence_id
-                );
-
-                active_request.i_batch = None;
-                active_request.phase = ContinuousBatchRequestPhase::Completed;
-
-                continue;
-            }
-
-            if was_in_tool_call
-                && !is_in_tool_call
-                && let Some(pipeline) = active_request.tool_call_pipeline.as_mut()
-            {
-                let tool_call_event_message = match pipeline.finalize() {
-                    crate::tool_call_event::ToolCallEvent::Resolved(parsed) => {
-                        Some(GeneratedTokenResult::ToolCallParsed(parsed))
-                    }
-                    crate::tool_call_event::ToolCallEvent::ParseFailed(err) => {
-                        Some(GeneratedTokenResult::ToolCallParseFailed(err.to_string()))
-                    }
-                    crate::tool_call_event::ToolCallEvent::ValidationFailed(errors) => {
-                        Some(GeneratedTokenResult::ToolCallValidationFailed(
-                            errors.into_iter().map(|err| err.to_string()).collect(),
-                        ))
-                    }
-                    crate::tool_call_event::ToolCallEvent::Pending => None,
-                };
-
-                if let Some(event) = tool_call_event_message
-                    && active_request.generated_tokens_tx.send(event).is_err()
-                {
-                    warn!(
-                        "{:?}: sequence {} client disconnected (receiver dropped)",
-                        self.scheduler_context.agent_name, active_request.sequence_id
-                    );
-                    active_request.i_batch = None;
-                    active_request.phase = ContinuousBatchRequestPhase::Completed;
-                    continue;
-                }
-            }
-
-            let usage = active_request.token_classifier.usage();
-            let completion_so_far = usage.content_tokens
-                + usage.reasoning_tokens
-                + usage.undeterminable_tokens;
-            #[expect(
-                clippy::cast_sign_loss,
-                reason = "max_tokens is non-negative by API contract"
-            )]
-            let max_tokens_u64 = active_request.max_tokens as u64;
-
-            if completion_so_far >= max_tokens_u64 {
-                let summary = GenerationSummary {
-                    usage: *active_request.token_classifier.usage(),
-                };
-
-                active_request.complete_with_outcome(
-                    &self.scheduler_context.agent_name,
-                    GeneratedTokenResult::Done(summary),
-                );
-                continue;
-            }
-
-            active_request.pending_sampled_token = Some(sampled_token);
+        AdvanceGeneratingPhase {
+            scheduler_context: &self.scheduler_context,
+            llama_context: &self.llama_context,
         }
-    }
-
-    fn add_generating_pending_tokens_to_batch(
-        &self,
-        batch: &mut LlamaBatch,
-        batch_n_tokens: usize,
-        contributions: &mut Vec<GeneratingContribution>,
-    ) -> Result<usize> {
-        let mut tokens_added: usize = 0;
-
-        for (request_index, active_request) in self.active_requests.iter().enumerate() {
-            if !matches!(
-                active_request.phase,
-                ContinuousBatchRequestPhase::Generating
-            ) {
-                continue;
-            }
-
-            let Some(pending_token) = active_request.pending_sampled_token else {
-                continue;
-            };
-
-            if tokens_added >= batch_n_tokens {
-                break;
-            }
-
-            let batch_position = batch.n_tokens();
-
-            batch.add(
-                &pending_token,
-                active_request.current_token_position,
-                &[active_request.sequence_id],
-                true,
-            )?;
-
-            contributions.push(GeneratingContribution {
-                request_index,
-                batch_position,
-            });
-
-            tokens_added += 1;
-        }
-
-        Ok(tokens_added)
-    }
-
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_possible_wrap,
-        reason = "token counts and positions fit in i32 for llama.cpp FFI"
-    )]
-    fn add_ingesting_prompt_chunks_to_batch(
-        &self,
-        batch: &mut LlamaBatch,
-        batch_n_tokens: usize,
-        mut current_batch_token_count: usize,
-        contributions: &mut Vec<IngestingContribution>,
-    ) -> Result<()> {
-        for (request_index, active_request) in self.active_requests.iter().enumerate() {
-            if !matches!(active_request.phase, ContinuousBatchRequestPhase::Ingesting) {
-                continue;
-            }
-
-            let remaining = active_request.remaining_prompt_tokens();
-            let available_space = batch_n_tokens.saturating_sub(current_batch_token_count);
-            let chunk_size = remaining.len().min(available_space);
-
-            if chunk_size == 0 {
-                continue;
-            }
-
-            let chunk = &active_request.prompt_tokens[active_request.prompt_tokens_ingested
-                ..active_request.prompt_tokens_ingested + chunk_size];
-            let is_last_chunk = active_request.prompt_tokens_ingested + chunk_size
-                >= active_request.prompt_tokens.len();
-
-            for (offset, token) in chunk.iter().enumerate() {
-                let position = active_request.current_token_position + offset as i32;
-                let is_last_token_of_prompt = is_last_chunk && offset == chunk_size - 1;
-
-                batch.add(
-                    &SampledToken::Content(*token),
-                    position,
-                    &[active_request.sequence_id],
-                    is_last_token_of_prompt,
-                )?;
-            }
-
-            contributions.push(IngestingContribution {
-                request_index,
-                chunk_size,
-                is_last_chunk,
-                last_batch_position: batch.n_tokens() - 1,
-            });
-
-            current_batch_token_count += chunk_size;
-        }
-
-        Ok(())
-    }
-
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_possible_wrap,
-        reason = "chunk sizes fit in i32 for llama.cpp position arithmetic"
-    )]
-    fn commit_contributions(
-        &mut self,
-        generating_contributions: &[GeneratingContribution],
-        ingesting_contributions: &[IngestingContribution],
-    ) {
-        for contribution in generating_contributions {
-            let request = &mut self.active_requests[contribution.request_index];
-
-            request.pending_sampled_token = None;
-            request.i_batch = Some(contribution.batch_position);
-            request.current_token_position += 1;
-        }
-
-        for contribution in ingesting_contributions {
-            let request = &mut self.active_requests[contribution.request_index];
-
-            request.prompt_tokens_ingested += contribution.chunk_size;
-            request.current_token_position += contribution.chunk_size as i32;
-
-            if contribution.is_last_chunk {
-                request.i_batch = Some(contribution.last_batch_position);
-                request.phase = ContinuousBatchRequestPhase::Generating;
-            }
-        }
+        .run(&mut self.active_requests);
     }
 
     fn evict_largest_sequence(&mut self) {
