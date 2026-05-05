@@ -316,8 +316,9 @@ struct ToolCallPayload {
 
 fn parse_tool_call_payload(buffer: &str) -> ToolCallPayload {
     let trimmed = buffer.trim();
+    let json_slice = locate_json_object(trimmed);
 
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) else {
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_slice) else {
         return ToolCallPayload {
             name: String::new(),
             arguments: trimmed.to_owned(),
@@ -336,6 +337,25 @@ fn parse_tool_call_payload(buffer: &str) -> ToolCallPayload {
     };
 
     ToolCallPayload { name, arguments }
+}
+
+/// Returns the substring from the first `{` to the last `}` (inclusive) when
+/// both are present. The model's tool-call output is a JSON object wrapped by
+/// special section tokens, so locating the object by its structural braces
+/// matches what llama.cpp's autoparser does and avoids relying on the exact
+/// marker text emitted alongside.
+fn locate_json_object(buffer: &str) -> &str {
+    let Some(start) = buffer.find('{') else {
+        return buffer;
+    };
+    let Some(end) = buffer.rfind('}') else {
+        return buffer;
+    };
+    if end < start {
+        return buffer;
+    }
+
+    &buffer[start..=end]
 }
 
 #[derive(Default)]
@@ -910,6 +930,16 @@ mod tests {
 
         assert_eq!(parsed.name, "x");
         assert_eq!(parsed.arguments, "");
+    }
+
+    #[test]
+    fn parse_tool_call_payload_strips_marker_tokens_around_json() {
+        let parsed = super::parse_tool_call_payload(
+            "<tool_call>\n{\"name\":\"get_weather\",\"arguments\":{\"location\":\"Paris\"}}\n</tool_call>",
+        );
+
+        assert_eq!(parsed.name, "get_weather");
+        assert_eq!(parsed.arguments, "{\"location\":\"Paris\"}");
     }
 
     #[actix_web::test]
