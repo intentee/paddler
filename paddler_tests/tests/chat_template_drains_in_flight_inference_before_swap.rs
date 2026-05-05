@@ -100,7 +100,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
         collected
             .token_results
             .iter()
-            .any(|result| result.is_token()),
+            .any(GeneratedTokenResult::is_token),
         "in-flight request must continue producing tokens during template swap"
     );
 

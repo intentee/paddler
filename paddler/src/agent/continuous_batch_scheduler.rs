@@ -1009,8 +1009,13 @@ impl ContinuousBatchScheduler {
             let completion_so_far = usage.content_tokens()
                 + usage.reasoning_tokens()
                 + usage.undeterminable_tokens();
+            #[expect(
+                clippy::cast_sign_loss,
+                reason = "max_tokens is non-negative by API contract"
+            )]
+            let max_tokens_u64 = active_request.max_tokens as u64;
 
-            if completion_so_far >= active_request.max_tokens as u64 {
+            if completion_so_far >= max_tokens_u64 {
                 let summary = GenerationSummary {
                     usage: token_usage_from_bindings(active_request.token_classifier.usage()),
                 };

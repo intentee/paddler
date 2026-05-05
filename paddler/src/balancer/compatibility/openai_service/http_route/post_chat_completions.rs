@@ -371,10 +371,11 @@ fn parse_tool_call_payload(buffer: &str) -> ToolCallPayload {
         .unwrap_or_default()
         .to_owned();
 
-    let arguments = match parsed.get("arguments") {
-        Some(value) => serde_json::to_string(value).unwrap_or_default(),
-        None => String::new(),
-    };
+    let arguments = parsed
+        .get("arguments")
+        .map_or_else(String::new, |value| {
+            serde_json::to_string(value).unwrap_or_default()
+        });
 
     ToolCallPayload { name, arguments }
 }
@@ -424,12 +425,13 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                     ),
                 ..
             }) => {
-                let mut state = self
-                    .state
-                    .lock()
-                    .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-
-                state.content.push_str(&text);
+                {
+                    let mut state = self
+                        .state
+                        .lock()
+                        .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
+                    state.content.push_str(&text);
+                }
 
                 Ok(vec![])
             }
@@ -437,12 +439,13 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
                 ..
             }) => {
-                let mut state = self
-                    .state
-                    .lock()
-                    .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-
-                state.reasoning.push_str(&text);
+                {
+                    let mut state = self
+                        .state
+                        .lock()
+                        .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
+                    state.reasoning.push_str(&text);
+                }
 
                 Ok(vec![])
             }
@@ -450,12 +453,13 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(text)),
                 ..
             }) => {
-                let mut state = self
-                    .state
-                    .lock()
-                    .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-
-                state.tool_call.push_str(&text);
+                {
+                    let mut state = self
+                        .state
+                        .lock()
+                        .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
+                    state.tool_call.push_str(&text);
+                }
 
                 Ok(vec![])
             }
@@ -662,16 +666,20 @@ async fn respond(
                 TransformResult::Discard | TransformResult::Error(_) => None,
             });
 
-        match body {
-            Some(json_body) => Ok(HttpResponse::Ok()
-                .content_type("application/json")
-                .body(json_body)),
-            None => Ok(HttpResponse::InternalServerError()
-                .content_type("application/json")
-                .body(
-                    openai_error_json("server_error", "no completion produced").to_string(),
-                )),
-        }
+        Ok(body.map_or_else(
+            || {
+                HttpResponse::InternalServerError()
+                    .content_type("application/json")
+                    .body(
+                        openai_error_json("server_error", "no completion produced").to_string(),
+                    )
+            },
+            |json_body| {
+                HttpResponse::Ok()
+                    .content_type("application/json")
+                    .body(json_body)
+            },
+        ))
     }
 }
 
@@ -1349,14 +1357,12 @@ mod tests {
     }
 
     #[test]
-    fn openai_error_json_has_correct_structure() -> Result<()> {
+    fn openai_error_json_has_correct_structure() {
         let error = super::openai_error_json("server_error", "something went wrong");
 
         assert_eq!(error["error"]["type"], "server_error");
         assert_eq!(error["error"]["message"], "something went wrong");
         assert!(error["error"]["param"].is_null());
         assert!(error["error"]["code"].is_null());
-
-        Ok(())
     }
 }

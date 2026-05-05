@@ -18,6 +18,7 @@ use paddler_types::chat_template::ChatTemplate;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
@@ -90,7 +91,7 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
     let received_tokens = collected
         .token_results
         .iter()
-        .any(|result| result.is_token());
+        .any(GeneratedTokenResult::is_token);
 
     assert!(
         received_tokens,

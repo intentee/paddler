@@ -2,7 +2,7 @@ use llama_cpp_bindings::TokenUsage as BindingsTokenUsage;
 use paddler_types::token_usage::TokenUsage;
 
 #[must_use]
-pub fn token_usage_from_bindings(usage: &BindingsTokenUsage) -> TokenUsage {
+pub const fn token_usage_from_bindings(usage: &BindingsTokenUsage) -> TokenUsage {
     TokenUsage {
         prompt_tokens: usage.prompt_tokens(),
         cached_prompt_tokens: usage.cached_prompt_tokens(),

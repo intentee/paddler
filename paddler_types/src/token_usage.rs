@@ -16,7 +16,7 @@ pub struct TokenUsage {
 
 impl TokenUsage {
     #[must_use]
-    pub fn completion_tokens(&self) -> u64 {
+    pub const fn completion_tokens(&self) -> u64 {
         self.content_tokens
             + self.reasoning_tokens
             + self.tool_call_tokens
@@ -24,7 +24,7 @@ impl TokenUsage {
     }
 
     #[must_use]
-    pub fn total_tokens(&self) -> u64 {
+    pub const fn total_tokens(&self) -> u64 {
         self.prompt_tokens + self.completion_tokens()
     }
 }
