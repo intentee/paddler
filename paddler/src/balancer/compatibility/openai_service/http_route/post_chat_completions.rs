@@ -111,10 +111,16 @@ struct OpenAICompletionRequestParams {
     tools: Vec<Tool<RawParametersSchema>>,
 }
 
+#[derive(Default)]
+struct OpenAIStreamingState {
+    saw_tool_call: bool,
+}
+
 #[derive(Clone)]
 struct OpenAIStreamingResponseTransformer {
     include_usage: bool,
     model: String,
+    state: Arc<Mutex<OpenAIStreamingState>>,
     system_fingerprint: String,
 }
 
@@ -190,7 +196,7 @@ impl OpenAIStreamingResponseTransformer {
         }))?)
     }
 
-    fn finish_chunk(&self, request_id: &str) -> Result<String> {
+    fn finish_chunk(&self, request_id: &str, finish_reason: &str) -> Result<String> {
         Ok(serde_json::to_string(&json!({
             "id": request_id,
             "object": "chat.completion.chunk",
@@ -202,7 +208,7 @@ impl OpenAIStreamingResponseTransformer {
                     "index": 0,
                     "delta": {},
                     "logprobs": null,
-                    "finish_reason": "stop"
+                    "finish_reason": finish_reason
                 }
             ]
         }))?)
@@ -244,14 +250,29 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(text)),
-            }) => Ok(vec![TransformResult::Chunk(
-                self.tool_call_arguments_chunk(&request_id, &text)?,
-            )]),
+            }) => {
+                self.state
+                    .lock()
+                    .map_err(|err| anyhow!("streaming state mutex poisoned: {err}"))?
+                    .saw_tool_call = true;
+
+                Ok(vec![TransformResult::Chunk(
+                    self.tool_call_arguments_chunk(&request_id, &text)?,
+                )])
+            }
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
             }) => {
-                let finish = TransformResult::Chunk(self.finish_chunk(&request_id)?);
+                let saw_tool_call = self
+                    .state
+                    .lock()
+                    .map_err(|err| anyhow!("streaming state mutex poisoned: {err}"))?
+                    .saw_tool_call;
+
+                let finish_reason = if saw_tool_call { "tool_calls" } else { "stop" };
+                let finish =
+                    TransformResult::Chunk(self.finish_chunk(&request_id, finish_reason)?);
 
                 if self.include_usage {
                     let usage = TransformResult::Chunk(
@@ -580,7 +601,7 @@ async fn respond(
         let include_usage = openai_params
             .stream_options
             .as_ref()
-            .map_or(false, |options| options.include_usage);
+            .is_some_and(|options| options.include_usage);
 
         Ok(http_stream_from_agent(
             app_data.buffered_request_manager.clone(),
@@ -589,6 +610,7 @@ async fn respond(
             OpenAIStreamingResponseTransformer {
                 include_usage,
                 model: openai_params.model.clone(),
+                state: Arc::new(Mutex::new(OpenAIStreamingState::default())),
                 system_fingerprint: nanoid!(),
             },
         ))
@@ -682,6 +704,7 @@ mod tests {
         OpenAIStreamingResponseTransformer {
             include_usage,
             model: "test-model".to_owned(),
+            state: Arc::new(Mutex::new(super::OpenAIStreamingState::default())),
             system_fingerprint: "test-fingerprint".to_owned(),
         }
     }

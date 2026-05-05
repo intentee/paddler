@@ -20,7 +20,7 @@ async fn qwen3_openai_non_streaming_returns_usage() -> Result<()> {
         .post_non_streaming(&json!({
             "model": "qwen3-test",
             "messages": [{"role": "user", "content": "Say hi briefly."}],
-            "max_completion_tokens": 60
+            "max_completion_tokens": 600
         }))
         .await?;
 
