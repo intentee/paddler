@@ -111,9 +111,18 @@ struct OpenAICompletionRequestParams {
     tools: Vec<Tool<RawParametersSchema>>,
 }
 
-#[derive(Default)]
 struct OpenAIStreamingState {
     saw_tool_call: bool,
+    tool_call_id: String,
+}
+
+impl OpenAIStreamingState {
+    fn new() -> Self {
+        Self {
+            saw_tool_call: false,
+            tool_call_id: format!("call_{}", nanoid!()),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -167,7 +176,12 @@ impl OpenAIStreamingResponseTransformer {
         }))?)
     }
 
-    fn tool_call_arguments_chunk(&self, request_id: &str, text: &str) -> Result<String> {
+    fn tool_call_arguments_chunk(
+        &self,
+        request_id: &str,
+        text: &str,
+        tool_call_id: &str,
+    ) -> Result<String> {
         Ok(serde_json::to_string(&json!({
             "id": request_id,
             "object": "chat.completion.chunk",
@@ -182,6 +196,7 @@ impl OpenAIStreamingResponseTransformer {
                         "tool_calls": [
                             {
                                 "index": 0,
+                                "id": tool_call_id,
                                 "type": "function",
                                 "function": {
                                     "arguments": text,
@@ -251,13 +266,17 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(text)),
             }) => {
-                self.state
-                    .lock()
-                    .map_err(|err| anyhow!("streaming state mutex poisoned: {err}"))?
-                    .saw_tool_call = true;
+                let tool_call_id = {
+                    let mut state = self
+                        .state
+                        .lock()
+                        .map_err(|err| anyhow!("streaming state mutex poisoned: {err}"))?;
+                    state.saw_tool_call = true;
+                    state.tool_call_id.clone()
+                };
 
                 Ok(vec![TransformResult::Chunk(
-                    self.tool_call_arguments_chunk(&request_id, &text)?,
+                    self.tool_call_arguments_chunk(&request_id, &text, &tool_call_id)?,
                 )])
             }
             OutgoingMessage::Response(ResponseEnvelope {
@@ -610,7 +629,7 @@ async fn respond(
             OpenAIStreamingResponseTransformer {
                 include_usage,
                 model: openai_params.model.clone(),
-                state: Arc::new(Mutex::new(OpenAIStreamingState::default())),
+                state: Arc::new(Mutex::new(OpenAIStreamingState::new())),
                 system_fingerprint: nanoid!(),
             },
         ))
@@ -704,7 +723,7 @@ mod tests {
         OpenAIStreamingResponseTransformer {
             include_usage,
             model: "test-model".to_owned(),
-            state: Arc::new(Mutex::new(super::OpenAIStreamingState::default())),
+            state: Arc::new(Mutex::new(super::OpenAIStreamingState::new())),
             system_fingerprint: "test-fingerprint".to_owned(),
         }
     }
