@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::generation_summary::GenerationSummary;
+use crate::parsed_tool_call::ParsedToolCall;
 use crate::streamable_result::StreamableResult;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -18,7 +19,10 @@ pub enum GeneratedTokenResult {
     MultimodalNotSupported(String),
     ReasoningToken(String),
     SamplerError(String),
+    ToolCallParseFailed(String),
+    ToolCallParsed(Vec<ParsedToolCall>),
     ToolCallToken(String),
+    ToolCallValidationFailed(Vec<String>),
     UndeterminableToken(String),
 }
 
@@ -43,6 +47,26 @@ impl GeneratedTokenResult {
             | Self::UndeterminableToken(text) => Some(text),
             _ => None,
         }
+    }
+
+    /// True iff the variant carries a structured tool-call event resolved by
+    /// the parser (not the raw streamed `ToolCallToken` text). The OpenAI
+    /// compat layer keys off this to decide between text-streaming and
+    /// `delta.tool_calls` emission.
+    #[must_use]
+    pub const fn is_tool_call_parsed(&self) -> bool {
+        matches!(self, Self::ToolCallParsed(_))
+    }
+
+    /// True iff the variant signals that tool-call parsing or validation
+    /// failed. These are informational events — they do **not** terminate
+    /// the request; the scheduler keeps streaming subsequent content.
+    #[must_use]
+    pub const fn is_tool_call_failure(&self) -> bool {
+        matches!(
+            self,
+            Self::ToolCallParseFailed(_) | Self::ToolCallValidationFailed(_)
+        )
     }
 }
 
@@ -125,5 +149,32 @@ mod tests {
     #[test]
     fn undeterminable_token_is_not_done() {
         assert!(!GeneratedTokenResult::UndeterminableToken("ambiguous".to_owned()).is_done());
+    }
+
+    #[test]
+    fn tool_call_parsed_is_not_done() {
+        let event = GeneratedTokenResult::ToolCallParsed(vec![]);
+
+        assert!(!event.is_done());
+        assert!(event.is_tool_call_parsed());
+        assert!(!event.is_tool_call_failure());
+    }
+
+    #[test]
+    fn tool_call_parse_failed_is_failure_but_not_done() {
+        let event = GeneratedTokenResult::ToolCallParseFailed("oops".to_owned());
+
+        assert!(!event.is_done());
+        assert!(!event.is_tool_call_parsed());
+        assert!(event.is_tool_call_failure());
+    }
+
+    #[test]
+    fn tool_call_validation_failed_is_failure_but_not_done() {
+        let event = GeneratedTokenResult::ToolCallValidationFailed(vec!["missing".to_owned()]);
+
+        assert!(!event.is_done());
+        assert!(!event.is_tool_call_parsed());
+        assert!(event.is_tool_call_failure());
     }
 }

@@ -33,6 +33,7 @@ pub mod kv_cache_dtype;
 pub mod media_marker;
 pub mod model_metadata;
 pub mod normalization;
+pub mod parsed_tool_call;
 pub mod pooling_type;
 pub mod request_params;
 pub mod rpc_message;

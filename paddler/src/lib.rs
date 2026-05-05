@@ -38,4 +38,11 @@ pub mod snapshots_stream;
 #[cfg(feature = "web_admin_panel")]
 pub mod static_files;
 pub mod subscribes_to_updates;
+pub mod tool_call_buffer;
+pub mod tool_call_event;
+pub mod tool_call_parse_error;
+pub mod tool_call_parser;
+pub mod tool_call_pipeline;
+pub mod tool_call_validation_error;
+pub mod tool_call_validator;
 pub mod websocket_session_controller;

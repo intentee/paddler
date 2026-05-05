@@ -129,6 +129,7 @@ pub fn prepare_conversation_history_request(
             images,
             max_tokens,
             grammar_sampler,
+            tools,
         });
     }
 
@@ -136,5 +137,6 @@ pub fn prepare_conversation_history_request(
         raw_prompt,
         max_tokens,
         grammar_sampler,
+        tools,
     })
 }

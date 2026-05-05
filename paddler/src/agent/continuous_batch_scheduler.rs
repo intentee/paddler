@@ -23,6 +23,8 @@ use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::generation_summary::GenerationSummary;
 use paddler_types::request_params::ContinueFromRawPromptParams;
+use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
+use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use rand::Rng as _;
 use rand::rngs::ThreadRng;
 use tokio::sync::mpsc;
@@ -44,6 +46,9 @@ use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
 use crate::agent::token_usage_from_bindings::token_usage_from_bindings;
 use crate::decoded_image::DecodedImage;
+use crate::tool_call_parser::ToolCallParser;
+use crate::tool_call_pipeline::ToolCallPipeline;
+use crate::tool_call_validator::ToolCallValidator;
 use crate::dispenses_slots::DispensesSlots;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
@@ -206,11 +211,13 @@ impl ContinuousBatchScheduler {
                 raw_prompt,
                 max_tokens,
                 grammar_sampler,
+                tools,
             } => {
                 self.accept_text_prompt(
                     &raw_prompt,
                     max_tokens,
                     grammar_sampler,
+                    tools,
                     generated_tokens_tx,
                     generate_tokens_stop_rx,
                 );
@@ -220,6 +227,7 @@ impl ContinuousBatchScheduler {
                 images,
                 max_tokens,
                 grammar_sampler,
+                tools,
             } => {
                 let multimodal_context = self.scheduler_context.multimodal_context.clone();
 
@@ -230,6 +238,7 @@ impl ContinuousBatchScheduler {
                         &images,
                         max_tokens,
                         grammar_sampler,
+                        tools,
                         generated_tokens_tx,
                         generate_tokens_stop_rx,
                     );
@@ -267,6 +276,7 @@ impl ContinuousBatchScheduler {
             &raw_prompt,
             max_tokens,
             grammar_sampler,
+            Vec::new(),
             generated_tokens_tx,
             generate_tokens_stop_rx,
         );
@@ -327,11 +337,65 @@ impl ContinuousBatchScheduler {
         )
     }
 
+    fn build_tool_call_pipeline(
+        &self,
+        tools: Vec<Tool<ValidatedParametersSchema>>,
+    ) -> Option<ToolCallPipeline> {
+        if tools.is_empty() {
+            return None;
+        }
+
+        let validator = match ToolCallValidator::from_tools(&tools) {
+            Ok(validator) => validator,
+            Err(err) => {
+                error!(
+                    "{:?}: failed to build tool-call validator (no schema validation): {err:#}",
+                    self.scheduler_context.agent_name
+                );
+                return None;
+            }
+        };
+
+        let tools_json: Vec<serde_json::Value> = match tools
+            .into_iter()
+            .map(|tool| serde_json::to_value(&tool))
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(values) => values,
+            Err(err) => {
+                error!(
+                    "{:?}: failed to serialize tools for tool-call parser: {err}",
+                    self.scheduler_context.agent_name
+                );
+                return None;
+            }
+        };
+
+        let parser = match ToolCallParser::new(self.scheduler_context.model.clone(), &tools_json)
+        {
+            Ok(parser) => parser,
+            Err(err) => {
+                error!(
+                    "{:?}: failed to construct tool-call parser: {err}",
+                    self.scheduler_context.agent_name
+                );
+                return None;
+            }
+        };
+
+        Some(ToolCallPipeline::new(parser, validator))
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "text-prompt acceptance ties together prompt, sampler, classifier, tool-call pipeline, and the two channels"
+    )]
     fn accept_text_prompt(
         &mut self,
         prompt: &str,
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
+        tools: Vec<Tool<ValidatedParametersSchema>>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     ) {
@@ -451,6 +515,8 @@ impl ContinuousBatchScheduler {
             prompt_tokens.len()
         );
 
+        let tool_call_pipeline = self.build_tool_call_pipeline(tools);
+
         self.active_requests.push(ContinuousBatchActiveRequest {
             chain,
             token_classifier,
@@ -465,6 +531,7 @@ impl ContinuousBatchScheduler {
             prompt_tokens,
             prompt_tokens_ingested: 0,
             sequence_id,
+            tool_call_pipeline,
             utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
     }
@@ -480,6 +547,7 @@ impl ContinuousBatchScheduler {
         images: &[DecodedImage],
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
+        tools: Vec<Tool<ValidatedParametersSchema>>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     ) {
@@ -675,6 +743,8 @@ impl ContinuousBatchScheduler {
             self.scheduler_context.agent_name
         );
 
+        let tool_call_pipeline = self.build_tool_call_pipeline(tools);
+
         self.active_requests.push(ContinuousBatchActiveRequest {
             chain,
             token_classifier,
@@ -689,6 +759,7 @@ impl ContinuousBatchScheduler {
             prompt_tokens: Vec::new(),
             prompt_tokens_ingested: 0,
             sequence_id,
+            tool_call_pipeline,
             utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
     }
@@ -944,7 +1015,9 @@ impl ContinuousBatchScheduler {
                 }
             };
 
+            let was_in_tool_call = active_request.token_classifier.is_in_tool_call();
             let sampled_token = active_request.token_classifier.ingest(raw_token);
+            let is_in_tool_call = active_request.token_classifier.is_in_tool_call();
 
             if self.scheduler_context.model.is_eog_token(&sampled_token) {
                 let summary = GenerationSummary {
@@ -980,6 +1053,12 @@ impl ContinuousBatchScheduler {
                 }
             };
 
+            if matches!(sampled_token, SampledToken::ToolCall(_))
+                && let Some(pipeline) = active_request.tool_call_pipeline.as_mut()
+            {
+                pipeline.feed(&output_string);
+            }
+
             let token_event = match sampled_token {
                 SampledToken::Content(_) => GeneratedTokenResult::ContentToken(output_string),
                 SampledToken::Reasoning(_) => GeneratedTokenResult::ReasoningToken(output_string),
@@ -1003,6 +1082,38 @@ impl ContinuousBatchScheduler {
                 active_request.phase = ContinuousBatchRequestPhase::Completed;
 
                 continue;
+            }
+
+            if was_in_tool_call
+                && !is_in_tool_call
+                && let Some(pipeline) = active_request.tool_call_pipeline.as_mut()
+            {
+                let tool_call_event_message = match pipeline.finalize() {
+                    crate::tool_call_event::ToolCallEvent::Resolved(parsed) => {
+                        Some(GeneratedTokenResult::ToolCallParsed(parsed))
+                    }
+                    crate::tool_call_event::ToolCallEvent::ParseFailed(err) => {
+                        Some(GeneratedTokenResult::ToolCallParseFailed(err.to_string()))
+                    }
+                    crate::tool_call_event::ToolCallEvent::ValidationFailed(errors) => {
+                        Some(GeneratedTokenResult::ToolCallValidationFailed(
+                            errors.into_iter().map(|err| err.to_string()).collect(),
+                        ))
+                    }
+                    crate::tool_call_event::ToolCallEvent::Pending => None,
+                };
+
+                if let Some(event) = tool_call_event_message
+                    && active_request.generated_tokens_tx.send(event).is_err()
+                {
+                    warn!(
+                        "{:?}: sequence {} client disconnected (receiver dropped)",
+                        self.scheduler_context.agent_name, active_request.sequence_id
+                    );
+                    active_request.i_batch = None;
+                    active_request.phase = ContinuousBatchRequestPhase::Completed;
+                    continue;
+                }
             }
 
             let usage = active_request.token_classifier.usage();
