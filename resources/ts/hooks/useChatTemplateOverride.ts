@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { ChatTemplateSchema } from "../schemas/ChatTemplate";
+import { ChatTemplateSchema } from "@intentee/paddler-client/schemas/ChatTemplate";
 import { useFetchJson } from "./useFetchJson";
 
 const responseSchema = ChatTemplateSchema.nullable();

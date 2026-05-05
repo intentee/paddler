@@ -4,7 +4,7 @@ import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationCon
 import { PromptContext } from "../contexts/PromptContext";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { matchWebSocketState } from "../matchWebSocketState";
-import { webSocketProtocol } from "../webSocketProtocol";
+import { webSocketProtocol } from "@intentee/paddler-client/webSocketProtocol";
 import { ConversationMessage } from "./ConversationMessage";
 import { ConversationMessagePromptGeneratedTokens } from "./ConversationMessagePromptGeneratedTokens";
 import { ConversationPromptInput } from "./ConversationPromptInput";

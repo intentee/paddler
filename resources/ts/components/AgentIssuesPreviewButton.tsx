@@ -1,6 +1,6 @@
 import React, { useCallback, useState, type MouseEvent } from "react";
 
-import { type AgentIssue } from "../schemas/AgentIssue";
+import { type AgentIssue } from "@intentee/paddler-client/schemas/AgentIssue";
 import { AgentIssues } from "./AgentIssues";
 import { agentIssuesPreviewButton } from "./AgentIssuesPreviewButton.module.css";
 import { ModalWindow } from "./ModalWindow";

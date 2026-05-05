@@ -1,14 +1,19 @@
-import { nanoid } from "nanoid";
 import { filter, fromEvent, map, takeWhile, type Observable } from "rxjs";
 
-import { type ConversationMessage } from "./ConversationMessage.type";
-import { type InferenceSocketClient } from "./InferenceSocketClient.interface";
 import {
   InferenceServiceGenerateTokensResponseSchema,
   type InferenceServiceGenerateTokensResponse,
 } from "./schemas/InferenceServiceGenerateTokensResponse";
+import type { ConversationMessage } from "./schemas/ConversationMessage";
 
-export function InferenceSocketClient({
+export interface InferenceSocketClient {
+  continueConversation(params: {
+    enableThinking: boolean;
+    messages: ConversationMessage[];
+  }): Observable<InferenceServiceGenerateTokensResponse>;
+}
+
+export function inferenceSocketClient({
   webSocket,
 }: {
   webSocket: WebSocket;
@@ -20,7 +25,7 @@ export function InferenceSocketClient({
     enableThinking: boolean;
     messages: ConversationMessage[];
   }): Observable<InferenceServiceGenerateTokensResponse> {
-    const requestId = nanoid();
+    const requestId = crypto.randomUUID();
     const tokenStream = fromEvent<MessageEvent>(webSocket, "message").pipe(
       map(function (event): unknown {
         return event.data;

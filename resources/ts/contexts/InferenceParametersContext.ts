@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import { type InferenceParameters } from "../schemas/InferenceParameters";
+import { type InferenceParameters } from "@intentee/paddler-client/schemas/InferenceParameters";
 
 export type InferenceParametersContextValue = {
   parameters: InferenceParameters;

@@ -8,7 +8,7 @@ import React, {
 } from "react";
 
 import { ChatTemplateContext } from "../contexts/ChatTemplateContext";
-import { type ChatTemplate } from "../schemas/ChatTemplate";
+import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
 import { CodeEditor } from "./CodeEditor";
 import { ModalWindow } from "./ModalWindow";
 

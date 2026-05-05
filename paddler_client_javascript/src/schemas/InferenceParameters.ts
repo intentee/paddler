@@ -43,14 +43,3 @@ export const InferenceParametersSchema = z
   .strict();
 
 export type InferenceParameters = z.infer<typeof InferenceParametersSchema>;
-
-export type BooleanKeys = {
-  [K in keyof InferenceParameters]: InferenceParameters[K] extends boolean
-    ? K
-    : never;
-}[keyof InferenceParameters];
-export type NumberKeys = {
-  [K in keyof InferenceParameters]: InferenceParameters[K] extends number
-    ? K
-    : never;
-}[keyof InferenceParameters];

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { BalancerDesiredStateSchema } from "../schemas/BalancerDesiredState";
+import { BalancerDesiredStateSchema } from "@intentee/paddler-client/schemas/BalancerDesiredState";
 import { useFetchJson } from "./useFetchJson";
 
 export function useBalancerDesiredState({

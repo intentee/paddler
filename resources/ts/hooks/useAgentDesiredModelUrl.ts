@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
-import { type AgentDesiredModel } from "../schemas/AgentDesiredModel";
-import { urlToAgentDesiredModel } from "../urlToAgentDesiredModel";
+import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
+import { urlToAgentDesiredModel } from "@intentee/paddler-client/urlToAgentDesiredModel";
 
 type EmptyState = {
   agentDesiredModel: "None";

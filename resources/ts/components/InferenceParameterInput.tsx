@@ -1,10 +1,8 @@
 import React, { useCallback, useContext, type FormEvent } from "react";
 
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
-import {
-  type InferenceParameters,
-  type NumberKeys,
-} from "../schemas/InferenceParameters";
+import { type InferenceParameters } from "@intentee/paddler-client/schemas/InferenceParameters";
+import { type InferenceParametersNumberKeys } from "../inferenceParametersFormKeys";
 import {
   inferenceParameterInput,
   inferenceParameterInput__input,
@@ -12,7 +10,7 @@ import {
 } from "./inferenceParameterInput.module.css";
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
-export function InferenceParameterInput<TKey extends NumberKeys>({
+export function InferenceParameterInput<TKey extends InferenceParametersNumberKeys>({
   description,
   name,
 }: {

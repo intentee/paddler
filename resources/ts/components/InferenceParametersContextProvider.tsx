@@ -4,7 +4,7 @@ import {
   InferenceParametersContext,
   type InferenceParametersContextValue,
 } from "../contexts/InferenceParametersContext";
-import { type InferenceParameters } from "../schemas/InferenceParameters";
+import { type InferenceParameters } from "@intentee/paddler-client/schemas/InferenceParameters";
 
 export function InferenceParametersContextProvider({
   children,

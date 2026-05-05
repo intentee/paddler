@@ -82,6 +82,14 @@ test.integration.metal: target/metal/debug/paddler
 test.unit: esbuild-meta.json
 	cargo test --features web_admin_panel
 
+.PHONY: build.client.js
+build.client.js:
+	npm --workspace @intentee/paddler-client run build
+
+.PHONY: test.client.js
+test.client.js:
+	npm --workspace @intentee/paddler-client test
+
 .PHONY: watch
 watch: node_modules
 	./jarmuz-watch.mjs

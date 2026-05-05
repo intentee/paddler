@@ -3,7 +3,7 @@ import React, { useContext } from "react";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useEventSourceUpdates } from "../hooks/useEventSourceUpdates";
 import { matchEventSourceUpdateState } from "../matchEventSourceUpdateState";
-import { BufferedRequestsResponseSchema } from "../schemas/BufferedRequestsResponse";
+import { BufferedRequestsResponseSchema } from "@intentee/paddler-client/schemas/BufferedRequestsResponse";
 import { BufferedRequests } from "./BufferedRequests";
 
 import { dashboardSectionStreamLoader } from "./dashboardSectionStreamLoader.module.css";

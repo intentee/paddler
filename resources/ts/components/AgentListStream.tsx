@@ -3,7 +3,7 @@ import React, { useContext } from "react";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useEventSourceUpdates } from "../hooks/useEventSourceUpdates";
 import { matchEventSourceUpdateState } from "../matchEventSourceUpdateState";
-import { AgentsResponseSchema } from "../schemas/AgentsResponse";
+import { AgentsResponseSchema } from "@intentee/paddler-client/schemas/AgentsResponse";
 import { AgentList } from "./AgentList";
 
 import { agentListStream__placeholder } from "./AgentListStream.module.css";

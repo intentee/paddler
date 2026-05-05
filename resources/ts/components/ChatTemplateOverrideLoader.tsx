@@ -2,7 +2,7 @@ import React from "react";
 
 import { useChatTemplateOverride } from "../hooks/useChatTemplateOverride";
 import { matchFetchJsonState } from "../matchFetchJsonState";
-import { type Agent } from "../schemas/Agent";
+import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { CodeEditor } from "./CodeEditor";
 import { ModalWindow } from "./ModalWindow";
 

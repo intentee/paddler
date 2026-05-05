@@ -4,7 +4,7 @@ import {
   ChatTemplateContext,
   type ChatTemplateContextValue,
 } from "../contexts/ChatTemplateContext";
-import { type ChatTemplate } from "../schemas/ChatTemplate";
+import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
 
 export function ChatTemplateContextProvider({
   children,

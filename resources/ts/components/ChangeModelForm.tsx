@@ -11,7 +11,7 @@ import { ChatTemplateContext } from "../contexts/ChatTemplateContext";
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
-import { type BalancerDesiredState } from "../schemas/BalancerDesiredState";
+import { type BalancerDesiredState } from "@intentee/paddler-client/schemas/BalancerDesiredState";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
 import { InferenceParameterCacheDtype } from "./InferenceParameterCacheDtype";
 import { InferenceParameterCheckbox } from "./InferenceParameterCheckbox";

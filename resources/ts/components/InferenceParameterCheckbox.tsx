@@ -1,7 +1,7 @@
 import React, { useCallback, useContext } from "react";
 
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
-import { type BooleanKeys } from "../schemas/InferenceParameters";
+import { type InferenceParametersBooleanKeys } from "../inferenceParametersFormKeys";
 import {
   inferenceParameterInput,
   inferenceParameterInput__checkbox,
@@ -9,7 +9,7 @@ import {
 } from "./inferenceParameterInput.module.css";
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
-export function InferenceParameterCheckbox<TKey extends BooleanKeys>({
+export function InferenceParameterCheckbox<TKey extends InferenceParametersBooleanKeys>({
   description,
   name,
 }: {

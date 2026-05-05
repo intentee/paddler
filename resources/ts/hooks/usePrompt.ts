@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { InferenceServiceGenerateTokensResponseSchema } from "../schemas/InferenceServiceGenerateTokensResponse";
+import { InferenceServiceGenerateTokensResponseSchema } from "@intentee/paddler-client/schemas/InferenceServiceGenerateTokensResponse";
+import { streamHttpNdjson } from "@intentee/paddler-client/streamHttpNdjson";
 
 export function usePrompt({
   inferenceAddr,
@@ -19,8 +20,9 @@ export function usePrompt({
 
       setMessage("");
 
-      fetch(`//${inferenceAddr}/api/v1/continue_from_conversation_history`, {
-        body: JSON.stringify({
+      const subscription = streamHttpNdjson({
+        url: `//${inferenceAddr}/api/v1/continue_from_conversation_history`,
+        body: {
           add_generation_prompt: true,
           conversation_history: [
             { role: "assistant", content: systemPrompt },
@@ -28,63 +30,34 @@ export function usePrompt({
           ],
           enable_thinking: false,
           max_tokens: 300,
-        }),
-        headers: {
-          "Content-Type": "application/json",
         },
-        method: "POST",
         signal: abortController.signal,
-      })
-        .then(function ({ body }) {
-          if (!body) {
-            throw new Error("No response body");
+        schema: InferenceServiceGenerateTokensResponseSchema,
+      }).subscribe({
+        next(validatedMessage) {
+          if (validatedMessage.done) {
+            return;
           }
 
-          return body.getReader();
-        })
-        .then(async function (reader) {
-          const decoder = new TextDecoder();
-
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-          while (true) {
-            const { done, value } = await reader.read();
-
-            if (done || abortController.signal.aborted) {
-              return;
-            }
-
-            const chunk = decoder.decode(value, {
-              stream: true,
-            });
-
-            const lines = chunk.split("\n").filter(function (line) {
-              return line.trim();
-            });
-
-            for (const line of lines) {
-              try {
-                const message = JSON.parse(line);
-                const validatedMessage =
-                  InferenceServiceGenerateTokensResponseSchema.parse(message);
-
-                if (validatedMessage.done) {
-                  return;
-                }
-
-                setMessage(function (prevMessage) {
-                  return `${prevMessage}${validatedMessage.token}`;
-                });
-              } catch (err) {
-                console.error("Error:", err);
-              }
-            }
+          if (null === validatedMessage.token) {
+            return;
           }
-        })
-        .catch(function (error: unknown) {
+
+          if ("content" !== validatedMessage.tokenKind) {
+            return;
+          }
+
+          setMessage(function (prevMessage) {
+            return `${prevMessage}${validatedMessage.token}`;
+          });
+        },
+        error(error: unknown) {
           console.error("Error during fetch:", error);
-        });
+        },
+      });
 
       return function () {
+        subscription.unsubscribe();
         abortController.abort();
       };
     },

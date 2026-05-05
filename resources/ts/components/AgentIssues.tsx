@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "wouter";
 
-import { type AgentIssue } from "../schemas/AgentIssue";
+import { type AgentIssue } from "@intentee/paddler-client/schemas/AgentIssue";
 
 import { agentIssues, agentIssues__issue } from "./AgentIssues.module.css";
 

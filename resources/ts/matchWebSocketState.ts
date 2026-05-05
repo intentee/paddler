@@ -1,21 +1,20 @@
 import { type ReactNode } from "react";
-import {
-  type ConnectingState,
-  type ConnectionClosedState,
-  type ConnectionErrorState,
-  type ConnectionOpenedState,
-  type SocketState,
-} from "./hooks/useWebSocket";
+
+import { type WebSocketConnectingState } from "@intentee/paddler-client/WebSocketConnectingState";
+import { type WebSocketConnectionClosedState } from "@intentee/paddler-client/WebSocketConnectionClosedState";
+import { type WebSocketConnectionErrorState } from "@intentee/paddler-client/WebSocketConnectionErrorState";
+import { type WebSocketConnectionOpenedState } from "@intentee/paddler-client/WebSocketConnectionOpenedState";
+import { type WebSocketState } from "@intentee/paddler-client/WebSocketState";
 
 interface Handlers {
-  connected(socketState: ConnectionOpenedState): ReactNode;
-  connecting(socketState: ConnectingState): ReactNode;
-  connectionClosed(socketState: ConnectionClosedState): ReactNode;
-  connectionError(socketState: ConnectionErrorState): ReactNode;
+  connected(state: WebSocketConnectionOpenedState): ReactNode;
+  connecting(state: WebSocketConnectingState): ReactNode;
+  connectionClosed(state: WebSocketConnectionClosedState): ReactNode;
+  connectionError(state: WebSocketConnectionErrorState): ReactNode;
 }
 
 export function matchWebSocketState(
-  socketState: SocketState,
+  socketState: WebSocketState,
   handlers: Handlers,
 ): ReactNode {
   if (socketState.isConnected) {

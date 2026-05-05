@@ -1,6 +1,6 @@
 import React, { useCallback, useState, type MouseEvent } from "react";
 
-import { type Agent } from "../schemas/Agent";
+import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { ChatTemplateOverrideLoader } from "./ChatTemplateOverrideLoader";
 
 import { modelChatTemplateOverridePreviewButton } from "./ModelChatTemplateOverridePreviewButton.module.css";
