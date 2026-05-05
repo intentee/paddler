@@ -29,6 +29,7 @@ async fn qwen35_thinking_mode_stops_cleanly_before_max_tokens() -> Result<()> {
             enable_thinking: true,
             grammar: None,
             max_tokens: 2000,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

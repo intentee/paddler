@@ -37,6 +37,7 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
                     enable_thinking: false,
                     grammar: None,
                     max_tokens: 30,
+            parse_tool_calls: false,
                     tools: vec![],
                 })
                 .await?;

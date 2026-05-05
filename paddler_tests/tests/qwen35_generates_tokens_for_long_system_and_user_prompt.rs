@@ -81,6 +81,7 @@ async fn qwen35_generates_tokens_for_long_system_and_user_prompt() -> Result<()>
             enable_thinking: false,
             grammar: None,
             max_tokens: 512,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

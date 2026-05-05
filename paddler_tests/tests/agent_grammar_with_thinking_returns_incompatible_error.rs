@@ -35,6 +35,7 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
                 schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
             }),
             max_tokens: 50,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await;

@@ -31,6 +31,7 @@ async fn agent_conversation_history_respects_max_tokens() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

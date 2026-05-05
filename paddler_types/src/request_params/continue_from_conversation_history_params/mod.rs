@@ -22,6 +22,8 @@ pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
     pub grammar: Option<GrammarConstraint>,
     pub max_tokens: i32,
     #[serde(default)]
+    pub parse_tool_calls: bool,
+    #[serde(default)]
     pub tools: Vec<Tool<TParametersSchema>>,
 }
 
@@ -35,6 +37,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
             enable_thinking: self.enable_thinking,
             grammar: self.grammar,
             max_tokens: self.max_tokens,
+            parse_tool_calls: self.parse_tool_calls,
             tools: self
                 .tools
                 .into_iter()

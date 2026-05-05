@@ -31,6 +31,7 @@ async fn agent_conversation_accepts_empty_tools_list() -> Result<()> {
             enable_thinking: true,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

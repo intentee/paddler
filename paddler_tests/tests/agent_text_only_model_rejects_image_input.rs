@@ -46,6 +46,7 @@ async fn agent_text_only_model_rejects_image_input() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await;

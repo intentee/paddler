@@ -29,6 +29,7 @@ async fn qwen3_generates_tokens_from_conversation_history() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 500,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

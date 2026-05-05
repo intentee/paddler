@@ -68,6 +68,7 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> 
             enable_thinking: false,
             grammar: None,
             max_tokens: 32,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

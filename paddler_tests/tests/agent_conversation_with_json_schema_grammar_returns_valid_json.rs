@@ -34,6 +34,7 @@ async fn agent_conversation_with_json_schema_grammar_returns_valid_json() -> Res
                 schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
             }),
             max_tokens: 50,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

@@ -104,6 +104,7 @@ async fn agent_exits_cleanly_on_sigterm_during_multimodal_inference() -> Result<
             enable_thinking: false,
             grammar: None,
             max_tokens: 200,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

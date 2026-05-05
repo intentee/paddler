@@ -45,6 +45,7 @@ async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() -> 
             enable_thinking: false,
             grammar: None,
             max_tokens: 100,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await;

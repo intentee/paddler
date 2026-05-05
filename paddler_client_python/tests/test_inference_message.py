@@ -315,6 +315,28 @@ def test_parse_grammar_syntax_error() -> None:
     assert message.is_terminal
 
 
+def test_parse_tool_call_validator_build_failed_response_carries_error() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "ToolCallValidatorBuildFailed": (
+                        "tool \"get_weather\" parameters are not a valid JSON Schema"
+                    ),
+                },
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED
+    assert message.error_message == (
+        "tool \"get_weather\" parameters are not a valid JSON Schema"
+    )
+    assert message.is_terminal
+
+
 def test_parse_image_decoding_failed() -> None:
     data = {
         "Response": {

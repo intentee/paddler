@@ -274,4 +274,39 @@ mod tests {
 
         Ok(())
     }
+
+    fn tool_with_invalid_property_schema() -> Tool<ValidatedParametersSchema> {
+        let mut properties = Map::new();
+        properties.insert("location".to_owned(), serde_json::json!({"type": 42}));
+
+        Tool::Function(FunctionCall {
+            function: Function {
+                name: "broken_tool".to_owned(),
+                description: "tool whose property schema is not valid JSON Schema".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: Some(properties),
+                    required: None,
+                    additional_properties: None,
+                }),
+            },
+        })
+    }
+
+    #[test]
+    fn invalid_property_schema_rejects_validator_build() -> Result<()> {
+        let error = ToolCallValidator::from_tools(&[tool_with_invalid_property_schema()])
+            .err()
+            .ok_or_else(|| anyhow::anyhow!("expected ValidatorBuildError, got Ok"))?;
+
+        match error {
+            super::ValidatorBuildError::InvalidSchema { tool_name, .. } => {
+                assert_eq!(tool_name, "broken_tool");
+                Ok(())
+            }
+            super::ValidatorBuildError::SerializationFailed { .. } => {
+                bail!("expected InvalidSchema, got SerializationFailed: {error:?}");
+            }
+        }
+    }
 }

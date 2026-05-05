@@ -31,6 +31,7 @@ async fn agent_streams_tokens_from_conversation_history_over_http() -> Result<()
             enable_thinking: true,
             grammar: None,
             max_tokens: 50,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

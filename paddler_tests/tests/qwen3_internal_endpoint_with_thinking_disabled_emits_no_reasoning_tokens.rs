@@ -29,6 +29,7 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
             enable_thinking: false,
             grammar: None,
             max_tokens: 100,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

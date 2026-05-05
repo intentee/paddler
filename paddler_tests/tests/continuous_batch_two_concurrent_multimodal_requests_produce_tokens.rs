@@ -61,6 +61,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 32,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -72,6 +73,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 32,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

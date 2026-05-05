@@ -40,6 +40,7 @@ async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()
             enable_thinking: true,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: true,
             tools: vec![Tool::Function(FunctionCall {
                 function: Function {
                     name: "test_fn".to_owned(),

@@ -14,7 +14,7 @@ use crate::agent::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutco
 use crate::agent::continuous_batch_scheduler::emit_token_phase::EmitTokenPhase;
 use crate::agent::continuous_batch_scheduler::sample_outcome::SampleOutcome;
 use crate::agent::continuous_batch_scheduler::sample_token_phase::SampleTokenPhase;
-use crate::agent::continuous_batch_scheduler::tool_call_phase::ToolCallPhase;
+use crate::agent::continuous_batch_scheduler::tool_call_pass::ToolCallPass;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 
 pub struct AdvanceGeneratingPhase<'context> {
@@ -117,7 +117,7 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        if let Some(event) = ToolCallPhase.run(request, &classified, &piece)
+        if let Some(event) = ToolCallPass.run(request.tool_call_pipeline.as_mut(), &classified, &piece)
             && request.generated_tokens_tx.send(event).is_err()
         {
             warn!(

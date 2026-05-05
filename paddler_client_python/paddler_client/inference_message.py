@@ -31,6 +31,7 @@ class InferenceMessageKind(StrEnum):
     TOOL_CALL_PARSE_FAILED = "tool_call_parse_failed"
     TOOL_CALL_TOKEN = "tool_call_token"
     TOOL_CALL_VALIDATION_FAILED = "tool_call_validation_failed"
+    TOOL_CALL_VALIDATOR_BUILD_FAILED = "tool_call_validator_build_failed"
     TOO_MANY_BUFFERED_REQUESTS = "too_many_buffered_requests"
     UNDETERMINABLE_TOKEN = "undeterminable_token"
 
@@ -201,6 +202,7 @@ _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
     "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
     "SamplerError": InferenceMessageKind.SAMPLER_ERROR,
+    "ToolCallValidatorBuildFailed": InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED,
 }
 
 

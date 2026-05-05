@@ -45,6 +45,7 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() -> Result<()> {
             enable_thinking: true,
             grammar: None,
             max_tokens: 1000,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

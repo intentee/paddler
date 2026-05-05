@@ -23,6 +23,7 @@ pub enum GeneratedTokenResult {
     ToolCallParsed(Vec<ParsedToolCall>),
     ToolCallToken(String),
     ToolCallValidationFailed(Vec<String>),
+    ToolCallValidatorBuildFailed(String),
     UndeterminableToken(String),
 }
 
@@ -76,6 +77,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::ImageDecodingFailed(_)
                 | Self::MultimodalNotSupported(_)
                 | Self::SamplerError(_)
+                | Self::ToolCallValidatorBuildFailed(_)
         )
     }
 }
@@ -127,6 +129,13 @@ mod tests {
     #[test]
     fn sampler_error_is_done() {
         assert!(GeneratedTokenResult::SamplerError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn tool_call_validator_build_failed_is_done() {
+        assert!(
+            GeneratedTokenResult::ToolCallValidatorBuildFailed("bad schema".to_owned()).is_done()
+        );
     }
 
     #[test]

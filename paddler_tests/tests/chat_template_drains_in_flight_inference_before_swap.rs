@@ -75,6 +75,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

@@ -33,6 +33,7 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -44,6 +45,7 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

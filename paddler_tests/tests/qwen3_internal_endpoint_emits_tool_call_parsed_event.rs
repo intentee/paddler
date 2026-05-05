@@ -45,6 +45,7 @@ async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 400,
+            parse_tool_calls: true,
             tools: vec![Tool::Function(FunctionCall {
                 function: Function {
                     name: "get_weather".to_owned(),

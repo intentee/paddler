@@ -33,6 +33,7 @@ async fn run_inference_after_template_swap(inference_client: &InferenceHttpClien
             enable_thinking: false,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

@@ -31,6 +31,7 @@ async fn qwen3_internal_endpoint_max_tokens_usage_matches_streamed_count() -> Re
             enable_thinking: false,
             grammar: None,
             max_tokens: MAX_TOKENS,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

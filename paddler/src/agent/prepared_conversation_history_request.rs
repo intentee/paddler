@@ -9,6 +9,7 @@ pub enum PreparedConversationHistoryRequest {
         raw_prompt: String,
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
+        parse_tool_calls: bool,
         tools: Vec<Tool<ValidatedParametersSchema>>,
     },
     MultimodalPrompt {
@@ -16,6 +17,7 @@ pub enum PreparedConversationHistoryRequest {
         images: Vec<DecodedImage>,
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
+        parse_tool_calls: bool,
         tools: Vec<Tool<ValidatedParametersSchema>>,
     },
 }

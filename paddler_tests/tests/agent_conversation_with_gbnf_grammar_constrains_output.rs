@@ -37,6 +37,7 @@ async fn agent_conversation_with_gbnf_grammar_constrains_output() -> Result<()> 
                 root: "root".to_owned(),
             }),
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

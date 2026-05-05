@@ -43,6 +43,7 @@ async fn agent_returns_image_decoding_error_for_invalid_base64() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await;

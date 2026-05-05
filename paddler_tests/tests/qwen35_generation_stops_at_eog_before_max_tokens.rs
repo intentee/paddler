@@ -29,6 +29,7 @@ async fn qwen35_generation_stops_at_eog_before_max_tokens() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 500,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

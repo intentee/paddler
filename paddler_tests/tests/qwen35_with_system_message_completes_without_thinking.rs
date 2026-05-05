@@ -41,6 +41,7 @@ async fn qwen35_with_system_message_completes_without_thinking() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 512,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

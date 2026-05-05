@@ -46,6 +46,7 @@ async fn agent_streams_tokens_from_image_data_uri() -> Result<()> {
             enable_thinking: true,
             grammar: None,
             max_tokens: 100,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

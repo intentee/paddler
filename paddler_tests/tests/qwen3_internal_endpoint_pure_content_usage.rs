@@ -29,6 +29,7 @@ async fn qwen3_internal_endpoint_pure_content_usage_breakdown() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 60,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

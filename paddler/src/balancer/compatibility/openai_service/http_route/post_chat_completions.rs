@@ -361,7 +361,8 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         | GeneratedTokenResult::ImageDecodingFailed(description)
                         | GeneratedTokenResult::MultimodalNotSupported(description)
                         | GeneratedTokenResult::SamplerError(description)
-                        | GeneratedTokenResult::ToolCallParseFailed(description),
+                        | GeneratedTokenResult::ToolCallParseFailed(description)
+                        | GeneratedTokenResult::ToolCallValidatorBuildFailed(description),
                     ),
                 ..
             })
@@ -568,7 +569,8 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                         | GeneratedTokenResult::ImageDecodingFailed(description)
                         | GeneratedTokenResult::MultimodalNotSupported(description)
                         | GeneratedTokenResult::SamplerError(description)
-                        | GeneratedTokenResult::ToolCallParseFailed(description),
+                        | GeneratedTokenResult::ToolCallParseFailed(description)
+                        | GeneratedTokenResult::ToolCallValidatorBuildFailed(description),
                     ),
                 ..
             })
@@ -625,6 +627,7 @@ async fn respond(
         }
     };
 
+    let parse_tool_calls = !validated_tools.is_empty();
     let paddler_params = ContinueFromConversationHistoryParams {
         add_generation_prompt: true,
         conversation_history: ConversationHistory::new(
@@ -637,6 +640,7 @@ async fn respond(
         enable_thinking: true,
         grammar: None,
         max_tokens: openai_params.max_completion_tokens.unwrap_or(2000),
+        parse_tool_calls,
         tools: validated_tools,
     };
 
