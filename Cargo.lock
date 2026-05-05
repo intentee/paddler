@@ -4672,6 +4672,8 @@ dependencies = [
  "async-stream",
  "base64",
  "futures-util",
+ "hf-hub",
+ "llama-cpp-bindings",
  "log",
  "nix",
  "paddler",

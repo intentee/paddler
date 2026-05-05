@@ -67,11 +67,11 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
         .iter()
         .filter(|result| matches!(result, GeneratedTokenResult::ToolCallToken(_)))
         .count();
-
-    assert!(
-        tool_call_count > 0,
-        "expected at least one ToolCallToken when prompted with a function tool (got {tool_call_count})"
-    );
+    let content_count = collected
+        .token_results
+        .iter()
+        .filter(|result| matches!(result, GeneratedTokenResult::ContentToken(_)))
+        .count();
 
     let last = collected
         .token_results
@@ -81,8 +81,14 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 
-    assert!(summary.usage.tool_call_tokens > 0);
     assert!(summary.usage.prompt_tokens > 0);
+    assert!(
+        tool_call_count > 0,
+        "expected ToolCallToken (got {tool_call_count}); content_count={content_count}; usage={:?}; generated text:\n{}",
+        summary.usage,
+        collected.text,
+    );
+    assert!(summary.usage.tool_call_tokens > 0);
 
     cluster.shutdown().await?;
 
