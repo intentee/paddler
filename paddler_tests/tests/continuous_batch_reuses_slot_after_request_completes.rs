@@ -28,7 +28,7 @@ async fn continuous_batch_reuses_slot_after_request_completes() -> Result<()> {
 
     assert!(matches!(
         first_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     let second_stream = inference_client
@@ -43,13 +43,13 @@ async fn continuous_batch_reuses_slot_after_request_completes() -> Result<()> {
 
     assert!(matches!(
         second_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     let second_token_count = second_collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert!(

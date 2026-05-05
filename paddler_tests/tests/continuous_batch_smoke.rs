@@ -64,7 +64,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert!(
@@ -76,7 +76,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     assert!(
         matches!(
             collected.token_results.last(),
-            Some(GeneratedTokenResult::Done)
+            Some(GeneratedTokenResult::Done(_))
         ),
         "smoke test stream did not terminate with Done"
     );

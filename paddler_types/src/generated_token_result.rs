@@ -1,21 +1,49 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::generation_summary::GenerationSummary;
 use crate::streamable_result::StreamableResult;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
-    Done,
+    ContentToken(String),
+    Done(GenerationSummary),
     GrammarIncompatibleWithThinking(String),
     GrammarInitializationFailed(String),
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
     MultimodalNotSupported(String),
+    ReasoningToken(String),
     SamplerError(String),
-    Token(String),
+    ToolCallToken(String),
+    UndeterminableToken(String),
+}
+
+impl GeneratedTokenResult {
+    #[must_use]
+    pub const fn is_token(&self) -> bool {
+        matches!(
+            self,
+            Self::ContentToken(_)
+                | Self::ReasoningToken(_)
+                | Self::ToolCallToken(_)
+                | Self::UndeterminableToken(_)
+        )
+    }
+
+    #[must_use]
+    pub fn token_text(&self) -> Option<&str> {
+        match self {
+            Self::ContentToken(text)
+            | Self::ReasoningToken(text)
+            | Self::ToolCallToken(text)
+            | Self::UndeterminableToken(text) => Some(text),
+            _ => None,
+        }
+    }
 }
 
 impl StreamableResult for GeneratedTokenResult {
@@ -23,7 +51,7 @@ impl StreamableResult for GeneratedTokenResult {
         matches!(
             self,
             Self::ChatTemplateError(_)
-                | Self::Done
+                | Self::Done(_)
                 | Self::GrammarIncompatibleWithThinking(_)
                 | Self::GrammarInitializationFailed(_)
                 | Self::GrammarRejectedModelOutput(_)
@@ -41,7 +69,7 @@ mod tests {
 
     #[test]
     fn done_is_done() {
-        assert!(GeneratedTokenResult::Done.is_done());
+        assert!(GeneratedTokenResult::Done(GenerationSummary::default()).is_done());
     }
 
     #[test]
@@ -85,7 +113,17 @@ mod tests {
     }
 
     #[test]
-    fn token_is_not_done() {
-        assert!(!GeneratedTokenResult::Token("hello".to_owned()).is_done());
+    fn content_token_is_not_done() {
+        assert!(!GeneratedTokenResult::ContentToken("hello".to_owned()).is_done());
+    }
+
+    #[test]
+    fn reasoning_token_is_not_done() {
+        assert!(!GeneratedTokenResult::ReasoningToken("thinking".to_owned()).is_done());
+    }
+
+    #[test]
+    fn undeterminable_token_is_not_done() {
+        assert!(!GeneratedTokenResult::UndeterminableToken("ambiguous".to_owned()).is_done());
     }
 }

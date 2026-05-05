@@ -7,6 +7,7 @@ use std::time::Duration;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::DecodeError;
+use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
@@ -20,6 +21,7 @@ use log::info;
 use log::warn;
 use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::generation_summary::GenerationSummary;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use rand::Rng as _;
 use rand::rngs::ThreadRng;
@@ -40,6 +42,7 @@ use crate::agent::resolve_grammar::resolve_grammar;
 use crate::agent::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
+use crate::agent::token_usage_from_bindings::token_usage_from_bindings;
 use crate::decoded_image::DecodedImage;
 use crate::dispenses_slots::DispensesSlots;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
@@ -399,6 +402,33 @@ impl ContinuousBatchScheduler {
 
         let chain = self.create_sampler_chain();
 
+        let mut token_classifier = match self.scheduler_context.model.sampled_token_classifier() {
+            Ok(token_classifier) => token_classifier,
+            Err(err) => {
+                let message = format!(
+                    "{:?}: failed to build reasoning token classifier: {err}",
+                    self.scheduler_context.agent_name
+                );
+
+                error!("{message}");
+                self.sequence_id_pool.release(sequence_id);
+
+                if generated_tokens_tx
+                    .send(GeneratedTokenResult::SamplerError(message))
+                    .is_err()
+                {
+                    warn!(
+                        "{:?}: failed to send result to client (receiver dropped)",
+                        self.scheduler_context.agent_name
+                    );
+                }
+
+                return;
+            }
+        };
+
+        token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
+
         #[expect(
             clippy::cast_sign_loss,
             reason = "sequence IDs are always non-negative"
@@ -423,9 +453,9 @@ impl ContinuousBatchScheduler {
 
         self.active_requests.push(ContinuousBatchActiveRequest {
             chain,
+            token_classifier,
             current_token_position: 0,
             grammar_sampler: llama_grammar_sampler,
-            generated_tokens_count: 0,
             generated_tokens_tx,
             generate_tokens_stop_rx,
             i_batch: None,
@@ -560,13 +590,39 @@ impl ContinuousBatchScheduler {
 
         self.harvest_pending_samples_before_external_decode();
 
+        let mut token_classifier = match self.scheduler_context.model.sampled_token_classifier() {
+            Ok(token_classifier) => token_classifier,
+            Err(err) => {
+                let message = format!(
+                    "{:?}: failed to build reasoning token classifier: {err}",
+                    self.scheduler_context.agent_name
+                );
+
+                error!("{message}");
+                self.sequence_id_pool.release(sequence_id);
+
+                if generated_tokens_tx
+                    .send(GeneratedTokenResult::SamplerError(message))
+                    .is_err()
+                {
+                    warn!(
+                        "{:?}: failed to send result to client (receiver dropped)",
+                        self.scheduler_context.agent_name
+                    );
+                }
+
+                return;
+            }
+        };
+
         #[expect(
             clippy::cast_possible_truncation,
             clippy::cast_possible_wrap,
             reason = "batch_size fits in i32 for llama.cpp FFI"
         )]
-        let tokens_ingested = match input_chunks
-            .eval_chunks(
+        let tokens_ingested = match token_classifier
+            .eval_multimodal_chunks(
+                &input_chunks,
                 multimodal_context,
                 &self.llama_context,
                 0,
@@ -621,9 +677,9 @@ impl ContinuousBatchScheduler {
 
         self.active_requests.push(ContinuousBatchActiveRequest {
             chain,
+            token_classifier,
             current_token_position: tokens_ingested,
             grammar_sampler: llama_grammar_sampler,
-            generated_tokens_count: 0,
             generated_tokens_tx,
             generate_tokens_stop_rx,
             i_batch: Some(-1),
@@ -660,8 +716,9 @@ impl ContinuousBatchScheduler {
                 &mut active_request.chain,
                 &mut active_request.grammar_sampler,
             ) {
-                Ok(SamplingOutcome::Token(sampled_token)) => {
-                    active_request.pending_sampled_token = Some(sampled_token);
+                Ok(SamplingOutcome::Token(raw_token)) => {
+                    active_request.pending_sampled_token =
+                        Some(active_request.token_classifier.ingest(raw_token));
                     active_request.i_batch = None;
                 }
                 Ok(SamplingOutcome::AllCandidatesEliminated) => {
@@ -703,9 +760,13 @@ impl ContinuousBatchScheduler {
     fn check_stop_signals(&mut self) {
         for active_request in &mut self.active_requests {
             if active_request.is_stop_requested() {
+                let summary = GenerationSummary {
+                    usage: token_usage_from_bindings(active_request.token_classifier.usage()),
+                };
+
                 active_request.complete_with_outcome(
                     &self.scheduler_context.agent_name,
-                    GeneratedTokenResult::Done,
+                    GeneratedTokenResult::Done(summary),
                 );
             }
         }
@@ -839,13 +900,13 @@ impl ContinuousBatchScheduler {
                 continue;
             };
 
-            let sampled_token = match sample_token_at_batch_index(
+            let raw_token = match sample_token_at_batch_index(
                 &self.llama_context,
                 batch_index,
                 &mut active_request.chain,
                 &mut active_request.grammar_sampler,
             ) {
-                Ok(SamplingOutcome::Token(sampled_token)) => sampled_token,
+                Ok(SamplingOutcome::Token(raw_token)) => raw_token,
                 Ok(SamplingOutcome::AllCandidatesEliminated) => {
                     error!(
                         "{:?}: sequence {} sampling exhausted candidates",
@@ -883,16 +944,22 @@ impl ContinuousBatchScheduler {
                 }
             };
 
-            if self.scheduler_context.model.is_eog_token(sampled_token) {
+            let sampled_token = active_request.token_classifier.ingest(raw_token);
+
+            if self.scheduler_context.model.is_eog_token(&sampled_token) {
+                let summary = GenerationSummary {
+                    usage: token_usage_from_bindings(active_request.token_classifier.usage()),
+                };
+
                 active_request.complete_with_outcome(
                     &self.scheduler_context.agent_name,
-                    GeneratedTokenResult::Done,
+                    GeneratedTokenResult::Done(summary),
                 );
                 continue;
             }
 
             let output_string = match self.scheduler_context.model.token_to_piece(
-                sampled_token,
+                &sampled_token,
                 &mut active_request.utf8_decoder,
                 true,
                 None,
@@ -913,9 +980,18 @@ impl ContinuousBatchScheduler {
                 }
             };
 
+            let token_event = match sampled_token {
+                SampledToken::Content(_) => GeneratedTokenResult::ContentToken(output_string),
+                SampledToken::Reasoning(_) => GeneratedTokenResult::ReasoningToken(output_string),
+                SampledToken::ToolCall(_) => GeneratedTokenResult::ToolCallToken(output_string),
+                SampledToken::Undeterminable(_) => {
+                    GeneratedTokenResult::UndeterminableToken(output_string)
+                }
+            };
+
             if active_request
                 .generated_tokens_tx
-                .send(GeneratedTokenResult::Token(output_string))
+                .send(token_event)
                 .is_err()
             {
                 warn!(
@@ -929,12 +1005,19 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            active_request.generated_tokens_count += 1;
+            let usage = active_request.token_classifier.usage();
+            let completion_so_far = usage.content_tokens()
+                + usage.reasoning_tokens()
+                + usage.undeterminable_tokens();
 
-            if active_request.generated_tokens_count >= active_request.max_tokens {
+            if completion_so_far >= active_request.max_tokens as u64 {
+                let summary = GenerationSummary {
+                    usage: token_usage_from_bindings(active_request.token_classifier.usage()),
+                };
+
                 active_request.complete_with_outcome(
                     &self.scheduler_context.agent_name,
-                    GeneratedTokenResult::Done,
+                    GeneratedTokenResult::Done(summary),
                 );
                 continue;
             }
@@ -970,7 +1053,7 @@ impl ContinuousBatchScheduler {
             let batch_position = batch.n_tokens();
 
             batch.add(
-                pending_token,
+                &pending_token,
                 active_request.current_token_position,
                 &[active_request.sequence_id],
                 true,
@@ -1022,7 +1105,7 @@ impl ContinuousBatchScheduler {
                 let is_last_token_of_prompt = is_last_chunk && offset == chunk_size - 1;
 
                 batch.add(
-                    *token,
+                    &SampledToken::Content(*token),
                     position,
                     &[active_request.sequence_id],
                     is_last_token_of_prompt,
@@ -1153,11 +1236,13 @@ impl ContinuousBatchScheduler {
         self.sequence_id_pool.release(removed_request.sequence_id);
         self.slot_aggregated_status.release_slot();
 
+        let usage = removed_request.token_classifier.usage();
+
         debug!(
-            "{:?}: cleaned up sequence {} ({} tokens generated)",
+            "{:?}: cleaned up sequence {} ({} completion tokens generated)",
             self.scheduler_context.agent_name,
             removed_request.sequence_id,
-            removed_request.generated_tokens_count,
+            usage.content_tokens() + usage.reasoning_tokens() + usage.undeterminable_tokens(),
         );
     }
 }

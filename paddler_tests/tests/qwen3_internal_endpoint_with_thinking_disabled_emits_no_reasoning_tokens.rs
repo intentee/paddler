@@ -3,7 +3,7 @@
 use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_cluster_with_qwen3_5::start_in_process_cluster_with_qwen3_5;
+use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -13,8 +13,8 @@ use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen35_thinking_mode_stops_cleanly_before_max_tokens() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3_5(1, false).await?;
+async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_tokens() -> Result<()> {
+    let cluster = start_in_process_cluster_with_qwen3(1).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
@@ -23,30 +23,46 @@ async fn qwen35_thinking_mode_stops_cleanly_before_max_tokens() -> Result<()> {
         .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
+                content: ConversationMessageContent::Text("Say hello.".to_owned()),
                 role: "user".to_owned(),
             }]),
-            enable_thinking: true,
+            enable_thinking: false,
             grammar: None,
-            max_tokens: 2000,
+            max_tokens: 100,
             tools: vec![],
         })
         .await?;
 
     let collected = collect_generated_tokens(stream).await?;
 
-    let token_count = collected
+    let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| matches!(result, GeneratedTokenResult::ReasoningToken(_)))
+        .count();
+    let content_count = collected
+        .token_results
+        .iter()
+        .filter(|result| matches!(result, GeneratedTokenResult::ContentToken(_)))
         .count();
 
-    assert!(token_count > 0);
-    assert!(token_count <= 2000);
-    assert!(matches!(
-        collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
-    ));
+    assert_eq!(
+        reasoning_count, 0,
+        "expected no reasoning tokens when thinking is disabled"
+    );
+    assert!(content_count > 0, "expected content tokens to be produced");
+
+    let last = collected
+        .token_results
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
+    let GeneratedTokenResult::Done(summary) = last else {
+        anyhow::bail!("last result was not Done: {last:?}");
+    };
+
+    assert!(summary.usage.prompt_tokens > 0);
+    assert_eq!(summary.usage.reasoning_tokens, 0);
+    assert!(summary.usage.content_tokens > 0);
 
     cluster.shutdown().await?;
 

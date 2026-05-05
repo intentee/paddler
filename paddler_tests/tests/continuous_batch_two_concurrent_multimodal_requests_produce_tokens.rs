@@ -88,7 +88,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
         let token_count = collected
             .token_results
             .iter()
-            .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+            .filter(|result| result.is_token())
             .count();
 
         assert!(
@@ -104,7 +104,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
         );
         assert!(matches!(
             collected.token_results.last(),
-            Some(GeneratedTokenResult::Done)
+            Some(GeneratedTokenResult::Done(_))
         ));
     }
 

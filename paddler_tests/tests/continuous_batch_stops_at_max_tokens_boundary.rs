@@ -29,7 +29,7 @@ async fn continuous_batch_stops_at_max_tokens_boundary() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert_eq!(
@@ -38,7 +38,7 @@ async fn continuous_batch_stops_at_max_tokens_boundary() -> Result<()> {
     );
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     cluster.shutdown().await?;

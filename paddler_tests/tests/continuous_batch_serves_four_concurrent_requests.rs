@@ -43,7 +43,7 @@ async fn continuous_batch_serves_four_concurrent_requests() -> Result<()> {
         let token_count = collected
             .token_results
             .iter()
-            .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+            .filter(|result| result.is_token())
             .count();
 
         assert!(
@@ -52,7 +52,7 @@ async fn continuous_batch_serves_four_concurrent_requests() -> Result<()> {
         );
         assert!(matches!(
             collected.token_results.last(),
-            Some(GeneratedTokenResult::Done)
+            Some(GeneratedTokenResult::Done(_))
         ));
     }
 

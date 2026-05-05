@@ -86,7 +86,7 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
     );
     assert!(matches!(
         short_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     cluster.shutdown().await?;

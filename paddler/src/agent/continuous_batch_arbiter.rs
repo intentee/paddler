@@ -8,6 +8,7 @@ use std::thread::available_parallelism;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
@@ -255,19 +256,19 @@ impl ContinuousBatchArbiter {
                 model_path: model_path.clone(),
                 multimodal_context,
                 token_bos_str: model.token_to_piece(
-                    model.token_bos(),
+                    &SampledToken::Content(model.token_bos()),
                     &mut special_token_decoder,
                     true,
                     None,
                 )?,
                 token_nl_str: model.token_to_piece(
-                    model.token_nl(),
+                    &SampledToken::Content(model.token_nl()),
                     &mut special_token_decoder,
                     true,
                     None,
                 )?,
                 token_eos_str: model.token_to_piece(
-                    model.token_eos(),
+                    &SampledToken::Content(model.token_eos()),
                     &mut special_token_decoder,
                     true,
                     None,

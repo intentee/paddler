@@ -22,7 +22,7 @@ pub async fn collect_generated_tokens(
         match message {
             InferenceMessage::Response(envelope) => match envelope.response {
                 InferenceResponse::GeneratedToken(token_result) => {
-                    if let GeneratedTokenResult::Token(token_text) = &token_result {
+                    if let Some(token_text) = token_result.token_text() {
                         text.push_str(token_text);
                     }
 

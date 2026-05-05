@@ -59,23 +59,23 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
     let tokens_a = collected_a
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
     let tokens_b = collected_b
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert!(tokens_a > 0);
     assert!(tokens_b > 0);
     assert!(matches!(
         collected_a.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
     assert!(matches!(
         collected_b.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     cluster.shutdown().await?;

@@ -31,13 +31,13 @@ async fn qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert!(token_count > 0);
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     cluster.shutdown().await?;

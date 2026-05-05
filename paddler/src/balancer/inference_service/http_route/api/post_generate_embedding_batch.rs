@@ -41,18 +41,18 @@ struct EmbeddingChunkBodyTransformer;
 
 #[async_trait]
 impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
-    async fn transform(&self, message: OutgoingMessage) -> Result<TransformResult> {
+    async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
         if let OutgoingMessage::Response(ResponseEnvelope {
             response: OutgoingResponse::Embedding(EmbeddingResult::Done),
             ..
         }) = &message
         {
-            return Ok(TransformResult::Discard);
+            return Ok(vec![TransformResult::Discard]);
         }
 
         let serialized = serde_json::to_string(&message)?;
 
-        Ok(TransformResult::Chunk(serialized))
+        Ok(vec![TransformResult::Chunk(serialized)])
     }
 }
 

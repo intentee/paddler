@@ -35,8 +35,8 @@ hf-hub = { version = "0.4", features = ["tokio"] }
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = { version = "0.4.2", features = ["mtmd"] }
-llama-cpp-bindings-sys = "0.4.2"
+llama-cpp-bindings = { path = "../llama-cpp-bindings/llama-cpp-bindings" }
+llama-cpp-bindings-sys = { path = "../llama-cpp-bindings/llama-cpp-bindings-sys" }
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"

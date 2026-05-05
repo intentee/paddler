@@ -100,7 +100,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
         collected
             .token_results
             .iter()
-            .any(|result| matches!(result, GeneratedTokenResult::Token(_))),
+            .any(|result| result.is_token()),
         "in-flight request must continue producing tokens during template swap"
     );
 
@@ -114,7 +114,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
 
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     let retrieved = cluster

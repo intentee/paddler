@@ -10,7 +10,6 @@ use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
@@ -41,7 +40,7 @@ async fn agent_conversation_history_respects_max_tokens() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert!(token_count > 0);

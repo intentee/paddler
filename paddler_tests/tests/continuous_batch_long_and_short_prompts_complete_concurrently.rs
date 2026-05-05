@@ -45,23 +45,23 @@ async fn continuous_batch_long_and_short_prompts_complete_concurrently() -> Resu
     let long_tokens = long_collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
     let short_tokens = short_collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.is_token())
         .count();
 
     assert!(long_tokens > 0);
     assert!(short_tokens > 0);
     assert!(matches!(
         long_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
     assert!(matches!(
         short_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(GeneratedTokenResult::Done(_))
     ));
 
     cluster.shutdown().await?;
