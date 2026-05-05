@@ -6,27 +6,86 @@ from paddler_client.inference_message import (
 )
 
 
-def test_parse_token_response() -> None:
+def test_parse_content_token_response() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {"GeneratedToken": {"Token": "hello"}},
+            "response": {"GeneratedToken": {"ContentToken": "hello"}},
         }
     }
     message = parse_inference_client_message(data)
 
     assert message.request_id == "req-1"
-    assert message.kind == InferenceMessageKind.TOKEN
+    assert message.kind == InferenceMessageKind.CONTENT_TOKEN
     assert message.token == "hello"
     assert message.is_token
     assert not message.is_terminal
 
 
-def test_parse_done_response() -> None:
+def test_parse_reasoning_token_response() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {"GeneratedToken": "Done"},
+            "response": {"GeneratedToken": {"ReasoningToken": "thinking"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.REASONING_TOKEN
+    assert message.token == "thinking"
+    assert message.is_token
+    assert not message.is_terminal
+
+
+def test_parse_tool_call_token_response() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"ToolCallToken": "{\"name\":"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.TOOL_CALL_TOKEN
+    assert message.token == "{\"name\":"
+    assert message.is_token
+    assert not message.is_terminal
+
+
+def test_parse_undeterminable_token_response() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"UndeterminableToken": "raw"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.UNDETERMINABLE_TOKEN
+    assert message.token == "raw"
+    assert message.is_token
+
+
+def test_parse_done_response_carries_summary() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "Done": {
+                        "usage": {
+                            "prompt_tokens": 4,
+                            "cached_prompt_tokens": 0,
+                            "input_image_tokens": 0,
+                            "input_audio_tokens": 0,
+                            "content_tokens": 6,
+                            "reasoning_tokens": 1,
+                            "tool_call_tokens": 0,
+                            "undeterminable_tokens": 0,
+                        }
+                    }
+                }
+            },
         }
     }
     message = parse_inference_client_message(data)
@@ -34,6 +93,12 @@ def test_parse_done_response() -> None:
     assert message.kind == InferenceMessageKind.DONE
     assert message.is_done
     assert message.is_terminal
+    assert message.summary is not None
+    assert message.summary.usage.prompt_tokens == 4
+    assert message.summary.usage.content_tokens == 6
+    assert message.summary.usage.reasoning_tokens == 1
+    assert message.summary.usage.completion_tokens == 7
+    assert message.summary.usage.total_tokens == 11
 
 
 def test_parse_timeout() -> None:
@@ -257,7 +322,10 @@ def test_parse_embedding_error() -> None:
 
 def test_parse_json_string() -> None:
     json_str = (
-        '{"Response": {"request_id": "req-1", "response": {"GeneratedToken": "Done"}}}'
+        '{"Response": {"request_id": "req-1", "response": {"GeneratedToken": '
+        '{"Done": {"usage": {"prompt_tokens": 0, "cached_prompt_tokens": 0, '
+        '"input_image_tokens": 0, "input_audio_tokens": 0, "content_tokens": 0, '
+        '"reasoning_tokens": 0, "tool_call_tokens": 0, "undeterminable_tokens": 0}}}}}}'
     )
     message = parse_inference_client_message(json_str)
 
@@ -303,6 +371,18 @@ def test_parse_unknown_generated_token_result_raises() -> None:
         "Response": {
             "request_id": "req-1",
             "response": {"GeneratedToken": {"UnknownVariant": "data"}},
+        }
+    }
+
+    with pytest.raises(ValueError, match="Unknown GeneratedTokenResult"):
+        parse_inference_client_message(data)
+
+
+def test_parse_string_generated_token_result_raises() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": "Done"},
         }
     }
 

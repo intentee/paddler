@@ -11,7 +11,7 @@ from paddler_client.inference_socket_connection import ResponseStream
 def token_message() -> InferenceMessage:
     return InferenceMessage(
         request_id="req-1",
-        kind=InferenceMessageKind.TOKEN,
+        kind=InferenceMessageKind.CONTENT_TOKEN,
         token="hello",
     )
 
