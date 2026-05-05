@@ -832,6 +832,48 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn streaming_done_after_tool_call_uses_tool_calls_finish_reason() -> Result<()> {
+        let transformer = streaming_transformer(false);
+
+        transformer
+            .transform(make_token_message(GeneratedTokenResult::ToolCallToken(
+                "{\"name\":\"x\"}".to_owned(),
+            )))
+            .await?;
+
+        let summary = summary_with_counts(2, 0, 0);
+        let chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::Done(summary)))
+            .await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"tool_calls\"")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn streaming_done_without_tool_call_uses_stop_finish_reason() -> Result<()> {
+        let transformer = streaming_transformer(false);
+
+        transformer
+            .transform(make_token_message(GeneratedTokenResult::ContentToken(
+                "hi".to_owned(),
+            )))
+            .await?;
+
+        let summary = summary_with_counts(2, 1, 0);
+        let chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::Done(summary)))
+            .await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
     async fn streaming_done_with_include_usage_emits_finish_then_usage_chunk() -> Result<()> {
         let transformer = streaming_transformer(true);
         let summary = summary_with_counts(7, 4, 1);
