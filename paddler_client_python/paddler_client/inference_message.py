@@ -4,8 +4,10 @@ import json
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from typing import cast
 
 from paddler_client.embedding import Embedding
+from paddler_client.parsed_tool_call import ParsedToolCall
 
 
 class InferenceMessageKind(StrEnum):
@@ -25,7 +27,10 @@ class InferenceMessageKind(StrEnum):
     SAMPLER_ERROR = "sampler_error"
     SERVER_ERROR = "server_error"
     TIMEOUT = "timeout"
+    TOOL_CALL_PARSED = "tool_call_parsed"
+    TOOL_CALL_PARSE_FAILED = "tool_call_parse_failed"
     TOOL_CALL_TOKEN = "tool_call_token"
+    TOOL_CALL_VALIDATION_FAILED = "tool_call_validation_failed"
     TOO_MANY_BUFFERED_REQUESTS = "too_many_buffered_requests"
     UNDETERMINABLE_TOKEN = "undeterminable_token"
 
@@ -96,6 +101,7 @@ class InferenceMessage:
     error_message: str | None = None
     error_code: int | None = None
     summary: GenerationSummary | None = None
+    parsed_tool_calls: list[ParsedToolCall] | None = None
 
     @property
     def is_token(self) -> bool:
@@ -219,6 +225,41 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.DONE,
             summary=GenerationSummary.from_dict(data["Done"]),
+        )
+
+    if "ToolCallParsed" in data:
+        raw_calls = data["ToolCallParsed"]
+        if not isinstance(raw_calls, list):
+            msg = f"ToolCallParsed payload is not a list: {raw_calls}"
+            raise ValueError(msg)
+        typed_calls = cast("list[dict[str, Any]]", raw_calls)
+        parsed_calls: list[ParsedToolCall] = [
+            ParsedToolCall.from_dict(call) for call in typed_calls
+        ]
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.TOOL_CALL_PARSED,
+            parsed_tool_calls=parsed_calls,
+        )
+
+    if "ToolCallParseFailed" in data:
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.TOOL_CALL_PARSE_FAILED,
+            error_message=str(data["ToolCallParseFailed"]),
+        )
+
+    if "ToolCallValidationFailed" in data:
+        errors = data["ToolCallValidationFailed"]
+        if not isinstance(errors, list):
+            msg = f"ToolCallValidationFailed payload is not a list: {errors}"
+            raise ValueError(msg)
+        typed_errors = cast("list[object]", errors)
+        joined_errors: str = "; ".join(str(error) for error in typed_errors)
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED,
+            error_message=joined_errors,
         )
 
     for key, kind in _GENERATED_TOKEN_KINDS.items():

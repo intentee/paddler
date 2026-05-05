@@ -47,23 +47,42 @@ async fn qwen3_openai_non_streaming_emits_tool_calls_for_function_tool() -> Resu
         .and_then(Value::as_array)
         .ok_or_else(|| anyhow::anyhow!("response missing message.tool_calls: {response}"))?;
 
-    assert!(
-        !tool_calls.is_empty(),
-        "expected at least one tool call in non-streaming response"
+    assert_eq!(
+        tool_calls.len(),
+        1,
+        "expected exactly one structured tool call in non-streaming response (got {})",
+        tool_calls.len()
     );
 
     let first_call = &tool_calls[0];
 
     assert_eq!(
         first_call.pointer("/type").and_then(Value::as_str),
-        Some("function")
+        Some("function"),
     );
+
+    let id = first_call
+        .pointer("/id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("tool call missing id"))?;
+    assert!(!id.is_empty(), "tool call id must not be empty");
+
+    let function_name = first_call
+        .pointer("/function/name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("tool call missing function.name"))?;
+
+    assert_eq!(function_name, "get_weather");
+
+    let function_arguments = first_call
+        .pointer("/function/arguments")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("tool call missing function.arguments"))?;
+
+    let parsed_arguments: Value = serde_json::from_str(function_arguments)?;
     assert!(
-        first_call
-            .pointer("/function/arguments")
-            .and_then(Value::as_str)
-            .is_some(),
-        "tool call missing function.arguments"
+        parsed_arguments.get("location").is_some(),
+        "tool-call arguments JSON missing 'location' field: {function_arguments}"
     );
 
     let finish_reason = response

@@ -33,11 +33,19 @@ pub mod kv_cache_dtype;
 pub mod media_marker;
 pub mod model_metadata;
 pub mod normalization;
-pub mod parsed_tool_call;
 pub mod pooling_type;
 pub mod request_params;
 pub mod rpc_message;
 pub mod slot_aggregated_status_snapshot;
 pub mod streamable_result;
-pub mod token_usage;
 pub mod validates;
+
+pub mod parsed_tool_call {
+    pub use llama_cpp_bindings_types::ParsedToolCall;
+    pub use llama_cpp_bindings_types::ToolCallArguments;
+}
+
+pub mod token_usage {
+    pub use llama_cpp_bindings_types::TokenUsage;
+    pub use llama_cpp_bindings_types::TokenUsageError;
+}

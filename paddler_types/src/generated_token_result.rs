@@ -49,18 +49,11 @@ impl GeneratedTokenResult {
         }
     }
 
-    /// True iff the variant carries a structured tool-call event resolved by
-    /// the parser (not the raw streamed `ToolCallToken` text). The OpenAI
-    /// compat layer keys off this to decide between text-streaming and
-    /// `delta.tool_calls` emission.
     #[must_use]
     pub const fn is_tool_call_parsed(&self) -> bool {
         matches!(self, Self::ToolCallParsed(_))
     }
 
-    /// True iff the variant signals that tool-call parsing or validation
-    /// failed. These are informational events — they do **not** terminate
-    /// the request; the scheduler keeps streaming subsequent content.
     #[must_use]
     pub const fn is_tool_call_failure(&self) -> bool {
         matches!(

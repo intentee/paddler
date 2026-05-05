@@ -28,4 +28,3 @@ pub mod resolved_grammar;
 pub mod sample_token_at_batch_index;
 pub mod sampling_outcome;
 pub mod sequence_id_pool;
-pub mod token_usage_from_bindings;

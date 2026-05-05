@@ -13,6 +13,7 @@ use url::Url;
 
 use crate::inference_message_stream::InferenceMessageStream;
 
+#[derive(Clone)]
 pub struct InferenceHttpClient {
     http_client: Client,
     inference_base_url: Url,

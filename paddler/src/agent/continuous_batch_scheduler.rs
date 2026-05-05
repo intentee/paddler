@@ -44,7 +44,6 @@ use crate::agent::resolve_grammar::resolve_grammar;
 use crate::agent::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
-use crate::agent::token_usage_from_bindings::token_usage_from_bindings;
 use crate::decoded_image::DecodedImage;
 use crate::tool_call_parser::ToolCallParser;
 use crate::tool_call_pipeline::ToolCallPipeline;
@@ -386,10 +385,6 @@ impl ContinuousBatchScheduler {
         Some(ToolCallPipeline::new(parser, validator))
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "text-prompt acceptance ties together prompt, sampler, classifier, tool-call pipeline, and the two channels"
-    )]
     fn accept_text_prompt(
         &mut self,
         prompt: &str,
@@ -832,7 +827,7 @@ impl ContinuousBatchScheduler {
         for active_request in &mut self.active_requests {
             if active_request.is_stop_requested() {
                 let summary = GenerationSummary {
-                    usage: token_usage_from_bindings(active_request.token_classifier.usage()),
+                    usage: *active_request.token_classifier.usage(),
                 };
 
                 active_request.complete_with_outcome(
@@ -1021,7 +1016,7 @@ impl ContinuousBatchScheduler {
 
             if self.scheduler_context.model.is_eog_token(&sampled_token) {
                 let summary = GenerationSummary {
-                    usage: token_usage_from_bindings(active_request.token_classifier.usage()),
+                    usage: *active_request.token_classifier.usage(),
                 };
 
                 active_request.complete_with_outcome(
@@ -1117,9 +1112,9 @@ impl ContinuousBatchScheduler {
             }
 
             let usage = active_request.token_classifier.usage();
-            let completion_so_far = usage.content_tokens()
-                + usage.reasoning_tokens()
-                + usage.undeterminable_tokens();
+            let completion_so_far = usage.content_tokens
+                + usage.reasoning_tokens
+                + usage.undeterminable_tokens;
             #[expect(
                 clippy::cast_sign_loss,
                 reason = "max_tokens is non-negative by API contract"
@@ -1128,7 +1123,7 @@ impl ContinuousBatchScheduler {
 
             if completion_so_far >= max_tokens_u64 {
                 let summary = GenerationSummary {
-                    usage: token_usage_from_bindings(active_request.token_classifier.usage()),
+                    usage: *active_request.token_classifier.usage(),
                 };
 
                 active_request.complete_with_outcome(
@@ -1358,7 +1353,7 @@ impl ContinuousBatchScheduler {
             "{:?}: cleaned up sequence {} ({} completion tokens generated)",
             self.scheduler_context.agent_name,
             removed_request.sequence_id,
-            usage.content_tokens() + usage.reasoning_tokens() + usage.undeterminable_tokens(),
+            usage.content_tokens + usage.reasoning_tokens + usage.undeterminable_tokens,
         );
     }
 }

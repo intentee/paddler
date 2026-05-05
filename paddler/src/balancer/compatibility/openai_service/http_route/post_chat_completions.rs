@@ -21,6 +21,7 @@ use paddler_types::inference_client::Response as OutgoingResponse;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::ResponseEnvelope;
 use paddler_types::parsed_tool_call::ParsedToolCall;
+use paddler_types::parsed_tool_call::ToolCallArguments;
 use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
@@ -83,6 +84,15 @@ fn validation_failure_message(errors: &[String]) -> String {
         .first()
         .cloned()
         .unwrap_or_else(|| "tool call failed validation".to_owned())
+}
+
+fn arguments_to_openai_string(arguments: &ToolCallArguments) -> String {
+    match arguments {
+        ToolCallArguments::ValidJson(value) => {
+            serde_json::to_string(value).unwrap_or_else(|_| String::new())
+        }
+        ToolCallArguments::InvalidJson(raw) => raw.clone(),
+    }
 }
 
 fn server_error_chunk(description: &str) -> TransformResult {
@@ -194,7 +204,7 @@ impl OpenAIStreamingResponseTransformer {
                     "type": "function",
                     "function": {
                         "name": call.name,
-                        "arguments": call.arguments_json,
+                        "arguments": arguments_to_openai_string(&call.arguments),
                     }
                 })
             })
@@ -331,13 +341,6 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             }) => self.handle_tool_call_parsed(&request_id, &parsed_calls),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParseFailed(
-                        description,
-                    )),
-                ..
-            }) => Ok(vec![server_error_chunk(&description)]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallValidationFailed(
                         errors,
                     )),
@@ -357,7 +360,8 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
                         | GeneratedTokenResult::MultimodalNotSupported(description)
-                        | GeneratedTokenResult::SamplerError(description),
+                        | GeneratedTokenResult::SamplerError(description)
+                        | GeneratedTokenResult::ToolCallParseFailed(description),
                     ),
                 ..
             })
@@ -391,7 +395,7 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct OpenAINonStreamingState {
     content: String,
     reasoning: String,
@@ -406,29 +410,29 @@ struct OpenAINonStreamingResponseTransformer {
 
 impl OpenAINonStreamingResponseTransformer {
     fn append_content(&self, text: &str) -> Result<()> {
-        let mut state = self
-            .state
+        self.state
             .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-        state.content.push_str(text);
+            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?
+            .content
+            .push_str(text);
         Ok(())
     }
 
     fn append_reasoning(&self, text: &str) -> Result<()> {
-        let mut state = self
-            .state
+        self.state
             .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-        state.reasoning.push_str(text);
+            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?
+            .reasoning
+            .push_str(text);
         Ok(())
     }
 
     fn append_tool_calls(&self, parsed_calls: Vec<ParsedToolCall>) -> Result<()> {
-        let mut state = self
-            .state
+        self.state
             .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-        state.tool_calls.extend(parsed_calls);
+            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?
+            .tool_calls
+            .extend(parsed_calls);
         Ok(())
     }
 
@@ -437,35 +441,32 @@ impl OpenAINonStreamingResponseTransformer {
         request_id: &str,
         summary: &GenerationSummary,
     ) -> Result<String> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
+        let snapshot = self.snapshot_state()?;
 
-        let has_tool_calls = !state.tool_calls.is_empty();
+        let has_tool_calls = !snapshot.tool_calls.is_empty();
         let finish_reason = if has_tool_calls { "tool_calls" } else { "stop" };
 
         let mut message_obj = json!({
             "role": "assistant",
-            "content": if state.content.is_empty() && has_tool_calls {
+            "content": if snapshot.content.is_empty() && has_tool_calls {
                 serde_json::Value::Null
             } else {
-                json!(state.content)
+                json!(snapshot.content)
             },
             "refusal": null,
             "annotations": []
         });
 
-        if !state.reasoning.is_empty()
+        if !snapshot.reasoning.is_empty()
             && let Some(map) = message_obj.as_object_mut()
         {
-            map.insert("reasoning_content".to_owned(), json!(state.reasoning));
+            map.insert("reasoning_content".to_owned(), json!(snapshot.reasoning));
         }
 
         if has_tool_calls
             && let Some(map) = message_obj.as_object_mut()
         {
-            let tool_calls_json: Vec<serde_json::Value> = state
+            let tool_calls_json: Vec<serde_json::Value> = snapshot
                 .tool_calls
                 .iter()
                 .map(|call| {
@@ -474,7 +475,7 @@ impl OpenAINonStreamingResponseTransformer {
                         "type": "function",
                         "function": {
                             "name": call.name,
-                            "arguments": call.arguments_json,
+                            "arguments": arguments_to_openai_string(&call.arguments),
                         }
                     })
                 })
@@ -498,6 +499,14 @@ impl OpenAINonStreamingResponseTransformer {
             "usage": openai_usage_json(&summary.usage),
             "service_tier": "default"
         }))?)
+    }
+
+    fn snapshot_state(&self) -> Result<OpenAINonStreamingState> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
+        Ok(state.clone())
     }
 }
 
@@ -537,13 +546,6 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
             }
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParseFailed(
-                        description,
-                    )),
-                ..
-            }) => Ok(vec![server_error_chunk(&description)]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallValidationFailed(
                         errors,
                     )),
@@ -565,7 +567,8 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                         | GeneratedTokenResult::GrammarSyntaxError(description)
                         | GeneratedTokenResult::ImageDecodingFailed(description)
                         | GeneratedTokenResult::MultimodalNotSupported(description)
-                        | GeneratedTokenResult::SamplerError(description),
+                        | GeneratedTokenResult::SamplerError(description)
+                        | GeneratedTokenResult::ToolCallParseFailed(description),
                     ),
                 ..
             })
@@ -713,6 +716,7 @@ mod tests {
     use paddler_types::jsonrpc::ErrorEnvelope;
     use paddler_types::jsonrpc::ResponseEnvelope;
     use paddler_types::parsed_tool_call::ParsedToolCall;
+    use paddler_types::parsed_tool_call::ToolCallArguments;
     use paddler_types::token_usage::TokenUsage;
 
     use super::OpenAINonStreamingResponseTransformer;
@@ -819,7 +823,7 @@ mod tests {
         ParsedToolCall::new(
             "call_x".to_owned(),
             "get_weather".to_owned(),
-            "{\"location\":\"Paris\"}".to_owned(),
+            ToolCallArguments::ValidJson(serde_json::json!({"location": "Paris"})),
         )
     }
 

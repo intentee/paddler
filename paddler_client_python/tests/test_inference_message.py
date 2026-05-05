@@ -52,6 +52,95 @@ def test_parse_tool_call_token_response() -> None:
     assert not message.is_terminal
 
 
+def test_parse_tool_call_parsed_response_carries_structured_calls() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "ToolCallParsed": [
+                        {
+                            "id": "call_42",
+                            "name": "get_weather",
+                            "arguments": {"ValidJson": {"location": "Paris"}},
+                        },
+                    ],
+                },
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.TOOL_CALL_PARSED
+    assert message.parsed_tool_calls is not None
+    assert len(message.parsed_tool_calls) == 1
+    assert message.parsed_tool_calls[0].id == "call_42"
+    assert message.parsed_tool_calls[0].name == "get_weather"
+    assert not message.is_token
+
+
+def test_parse_tool_call_parse_failed_response_carries_error() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {"ToolCallParseFailed": "syntax error at 12"},
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.TOOL_CALL_PARSE_FAILED
+    assert message.error_message == "syntax error at 12"
+
+
+def test_parse_tool_call_validation_failed_response_joins_errors() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "ToolCallValidationFailed": [
+                        "missing field 'location'",
+                        "extra field 'foo'",
+                    ],
+                },
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED
+    assert message.error_message == "missing field 'location'; extra field 'foo'"
+
+
+def test_parse_tool_call_parsed_with_non_list_payload_raises() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"ToolCallParsed": "not a list"}},
+        },
+    }
+
+    with pytest.raises(ValueError, match="ToolCallParsed payload is not a list"):
+        parse_inference_client_message(data)
+
+
+def test_parse_tool_call_validation_failed_with_non_list_payload_raises() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"ToolCallValidationFailed": "oops"}},
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="ToolCallValidationFailed payload is not a list",
+    ):
+        parse_inference_client_message(data)
+
+
 def test_parse_undeterminable_token_response() -> None:
     data = {
         "Response": {

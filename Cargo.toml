@@ -37,6 +37,7 @@ indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
 llama-cpp-bindings = { path = "../llama-cpp-bindings/llama-cpp-bindings" }
 llama-cpp-bindings-sys = { path = "../llama-cpp-bindings/llama-cpp-bindings-sys" }
+llama-cpp-bindings-types = { path = "../llama-cpp-bindings/llama-cpp-bindings-types" }
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"

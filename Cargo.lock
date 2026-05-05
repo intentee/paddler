@@ -3533,6 +3533,8 @@ dependencies = [
  "encoding_rs",
  "enumflags2",
  "llama-cpp-bindings-sys",
+ "llama-cpp-bindings-types",
+ "serde_json",
  "thiserror 2.0.18",
  "tracing",
  "tracing-core",
@@ -3555,6 +3557,15 @@ name = "llama-cpp-bindings-sys"
 version = "0.5.0"
 dependencies = [
  "llama-cpp-bindings-build",
+]
+
+[[package]]
+name = "llama-cpp-bindings-types"
+version = "0.5.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4697,6 +4708,7 @@ version = "3.1.2"
 dependencies = [
  "anyhow",
  "jsonschema",
+ "llama-cpp-bindings-types",
  "serde",
  "serde_json",
 ]

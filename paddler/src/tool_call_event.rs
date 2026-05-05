@@ -3,21 +3,11 @@ use paddler_types::parsed_tool_call::ParsedToolCall;
 use crate::tool_call_parse_error::ToolCallParseError;
 use crate::tool_call_validation_error::ToolCallValidationError;
 
-/// What the [`ToolCallPipeline`](crate::tool_call_pipeline::ToolCallPipeline)
-/// reports back when the scheduler asks it to flush a buffered tool-call
-/// payload. Variants are explicit per outcome rather than collapsing into a
-/// generic `Result`, so downstream consumers (the scheduler, the OpenAI
-/// transformer) can pattern-match by intent without parsing strings.
 #[derive(Debug)]
 pub enum ToolCallEvent {
-    /// The pipeline still has nothing to report — used for partial peeks.
     Pending,
-    /// One or more tool calls parsed and validated successfully.
     Resolved(Vec<ParsedToolCall>),
-    /// The bindings parser raised an error. The buffer has been cleared.
     ParseFailed(ToolCallParseError),
-    /// Validation rejected at least one parsed call. The accompanying
-    /// `Vec<ToolCallValidationError>` is non-empty by construction.
     ValidationFailed(Vec<ToolCallValidationError>),
 }
 

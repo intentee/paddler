@@ -23,8 +23,9 @@ async fn agent_openai_chat_completions_non_streaming_returns_text() -> Result<()
         .json(&json!({
             "model": "test",
             "messages": [{"role": "user", "content": "Say hello"}],
-            "max_completion_tokens": 10,
+            "max_completion_tokens": 200,
             "stream": false,
+            "chat_template_kwargs": {"enable_thinking": false},
         }))
         .send()
         .await

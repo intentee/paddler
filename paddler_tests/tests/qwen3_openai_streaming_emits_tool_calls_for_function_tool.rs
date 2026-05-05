@@ -43,19 +43,48 @@ async fn qwen3_openai_streaming_emits_tool_calls_for_function_tool() -> Result<(
         }))
         .await?;
 
-    let tool_call_argument_chunks = chunks
+    let chunks_with_tool_calls: Vec<&Value> = chunks
         .iter()
         .filter(|chunk| {
             chunk
-                .pointer("/choices/0/delta/tool_calls/0/function/arguments")
-                .and_then(Value::as_str)
-                .is_some()
+                .pointer("/choices/0/delta/tool_calls")
+                .and_then(Value::as_array)
+                .is_some_and(|calls| !calls.is_empty())
         })
-        .count();
+        .collect();
+
+    assert_eq!(
+        chunks_with_tool_calls.len(),
+        1,
+        "expected exactly one structured tool-call chunk per call (got {})",
+        chunks_with_tool_calls.len()
+    );
+
+    let structured_chunk = chunks_with_tool_calls[0];
+
+    let function_name = structured_chunk
+        .pointer("/choices/0/delta/tool_calls/0/function/name")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            anyhow::anyhow!("structured tool-call chunk missing function.name: {structured_chunk}")
+        })?;
+
+    assert_eq!(function_name, "get_weather");
+
+    let function_arguments = structured_chunk
+        .pointer("/choices/0/delta/tool_calls/0/function/arguments")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "structured tool-call chunk missing function.arguments: {structured_chunk}"
+            )
+        })?;
+
+    let parsed_arguments: Value = serde_json::from_str(function_arguments)?;
 
     assert!(
-        tool_call_argument_chunks > 0,
-        "expected at least one streaming chunk with delta.tool_calls function arguments (got {tool_call_argument_chunks})"
+        parsed_arguments.get("location").is_some(),
+        "tool-call arguments JSON missing 'location' field: {function_arguments}"
     );
 
     cluster.shutdown().await?;

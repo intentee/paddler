@@ -1,9 +1,3 @@
-/// Append-only string buffer for tool-call text fragments.
-///
-/// Single responsibility: accumulate fragments emitted by the scheduler and
-/// hand the whole buffer off when the classifier signals end-of-tool-call.
-/// Pure data — every method is deterministic and unit-testable without a
-/// model.
 #[derive(Debug, Default)]
 pub struct ToolCallBuffer {
     accumulated: String,
@@ -30,19 +24,18 @@ impl ToolCallBuffer {
         self.accumulated.clear();
     }
 
-    /// Consumes the buffer's contents, leaving it empty.
     #[must_use]
     pub fn take(&mut self) -> String {
         std::mem::take(&mut self.accumulated)
     }
 
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.accumulated.is_empty()
     }
 
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.accumulated.len()
     }
 }
