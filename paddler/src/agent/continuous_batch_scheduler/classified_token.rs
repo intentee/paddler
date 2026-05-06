@@ -8,4 +8,8 @@ pub struct ClassifiedToken {
     /// (e.g. `</think>` or `[/THINK]`) — emit phases must skip emission for
     /// empty pieces so marker text never reaches client streams.
     pub visible_piece: String,
+    /// Always the decoded UTF-8 piece, including marker bytes. Used by the
+    /// tool-call buffer so downstream parsers see the wrapped form
+    /// (`<tool_call>...</tool_call>` etc.) that llama.cpp's autoparser expects.
+    pub raw_piece: String,
 }

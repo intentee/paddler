@@ -26,6 +26,7 @@ impl ClassifyTokenPhase {
                     was_in_tool_call: previous_section == SampledTokenSection::ToolCall,
                     is_in_tool_call: section == SampledTokenSection::ToolCall,
                     visible_piece: outcome.visible_piece,
+                    raw_piece: outcome.raw_piece,
                 };
                 previous_section = section;
                 classified

@@ -13,30 +13,33 @@ impl ToolCallPass {
         self,
         pipeline: Option<&mut ToolCallPipeline>,
         classified: &ClassifiedToken,
-        piece: &str,
+        _piece: &str,
     ) -> Option<GeneratedTokenResult> {
         let pipeline = pipeline?;
 
         if matches!(classified.sampled_token, SampledToken::ToolCall(_)) {
-            pipeline.feed(piece);
+            pipeline.feed(&classified.raw_piece);
         }
 
         if !classified.was_in_tool_call || classified.is_in_tool_call {
             return None;
         }
 
-        match pipeline.finalize() {
-            ToolCallEvent::Resolved(parsed) => Some(GeneratedTokenResult::ToolCallParsed(parsed)),
-            ToolCallEvent::ParseFailed(err) => {
-                Some(GeneratedTokenResult::ToolCallParseFailed(err.to_string()))
-            }
-            ToolCallEvent::ValidationFailed(errors) => {
-                Some(GeneratedTokenResult::ToolCallValidationFailed(
-                    errors.into_iter().map(|err| err.to_string()).collect(),
-                ))
-            }
-            ToolCallEvent::Pending => None,
+        finalize_pipeline_to_event(pipeline)
+    }
+}
+
+#[must_use]
+pub fn finalize_pipeline_to_event(pipeline: &mut ToolCallPipeline) -> Option<GeneratedTokenResult> {
+    match pipeline.finalize() {
+        ToolCallEvent::Resolved(parsed) => Some(GeneratedTokenResult::ToolCallParsed(parsed)),
+        ToolCallEvent::ParseFailed(err) => {
+            Some(GeneratedTokenResult::ToolCallParseFailed(err.to_string()))
         }
+        ToolCallEvent::ValidationFailed(errors) => Some(GeneratedTokenResult::ToolCallValidationFailed(
+            errors.into_iter().map(|err| err.to_string()).collect(),
+        )),
+        ToolCallEvent::Pending => None,
     }
 }
 
@@ -54,6 +57,7 @@ mod tests {
             was_in_tool_call: was,
             is_in_tool_call: is,
             visible_piece: String::new(),
+            raw_piece: String::new(),
         }
     }
 
