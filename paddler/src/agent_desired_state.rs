@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-pub use paddler_types::agent_desired_state::AgentDesiredState;
+use paddler_types::agent_desired_state::AgentDesiredState;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::converts_to_applicable_state::ConvertsToApplicableState;

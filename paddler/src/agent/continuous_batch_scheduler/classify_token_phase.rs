@@ -1,3 +1,5 @@
+use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenSection;
 use llama_cpp_bindings::token::LlamaToken;
 
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
@@ -10,15 +12,33 @@ impl ClassifyTokenPhase {
         self,
         request: &mut ContinuousBatchActiveRequest,
         raw_token: LlamaToken,
-    ) -> ClassifiedToken {
-        let was_in_tool_call = request.token_classifier.is_in_tool_call();
-        let sampled_token = request.token_classifier.ingest(raw_token);
-        let is_in_tool_call = request.token_classifier.is_in_tool_call();
+    ) -> Vec<ClassifiedToken> {
+        let section_before_ingest = request.token_classifier.current_section();
+        let outcomes = request.token_classifier.ingest(raw_token);
 
-        ClassifiedToken {
-            sampled_token,
-            was_in_tool_call,
-            is_in_tool_call,
-        }
+        let mut previous_section = section_before_ingest;
+        outcomes
+            .into_iter()
+            .map(|outcome| {
+                let section = section_of(outcome.sampled_token);
+                let classified = ClassifiedToken {
+                    sampled_token: outcome.sampled_token,
+                    was_in_tool_call: previous_section == SampledTokenSection::ToolCall,
+                    is_in_tool_call: section == SampledTokenSection::ToolCall,
+                    visible_piece: outcome.visible_piece,
+                };
+                previous_section = section;
+                classified
+            })
+            .collect()
+    }
+}
+
+const fn section_of(token: SampledToken) -> SampledTokenSection {
+    match token {
+        SampledToken::Reasoning(_) => SampledTokenSection::Reasoning,
+        SampledToken::Content(_) => SampledTokenSection::Content,
+        SampledToken::ToolCall(_) => SampledTokenSection::ToolCall,
+        SampledToken::Undeterminable(_) => SampledTokenSection::Pending,
     }
 }

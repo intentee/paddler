@@ -53,7 +53,6 @@ mod tests {
     use std::sync::atomic::AtomicUsize;
 
     use anyhow::Result;
-    use paddler::agent_desired_state::AgentDesiredState;
     use paddler::atomic_value::AtomicValue;
     use paddler::balancer::agent_controller::AgentController;
     use paddler::balancer::agent_controller_pool::AgentControllerPool;
@@ -64,6 +63,7 @@ mod tests {
     use paddler::balancer_applicable_state::BalancerApplicableState;
     use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use paddler_types::agent_desired_model::AgentDesiredModel;
+    use paddler_types::agent_desired_state::AgentDesiredState;
     use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_types::inference_parameters::InferenceParameters;
     use tokio::sync::mpsc;

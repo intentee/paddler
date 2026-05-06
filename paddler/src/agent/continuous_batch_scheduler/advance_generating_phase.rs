@@ -1,3 +1,4 @@
+use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use log::error;
 use log::warn;
@@ -78,14 +79,15 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        let classified = ClassifyTokenPhase.run(request, raw_token);
+        let classified_outcomes = ClassifyTokenPhase.run(request, raw_token);
 
         let completion_phase = CompletionCheckPhase {
             model: &self.scheduler_context.model,
         };
 
+        let raw_as_sampled = SampledToken::Content(raw_token);
         if matches!(
-            completion_phase.run(request, &classified.sampled_token),
+            completion_phase.run(request, &raw_as_sampled),
             CompletionCheckOutcome::ReachedEog
         ) {
             return Some(AdvanceOutcome::Completed(GeneratedTokenResult::Done(
@@ -95,51 +97,50 @@ impl AdvanceGeneratingPhase<'_> {
             )));
         }
 
-        let piece = match (EmitTokenPhase {
-            model: &self.scheduler_context.model,
-        })
-        .run(request, &classified)
-        {
-            EmitTokenOutcome::Emitted(piece) => piece,
-            EmitTokenOutcome::PieceConversionFailed(message) => {
-                error!(
-                    "{:?}: sequence {} token_to_piece failed: {message}",
-                    self.scheduler_context.agent_name, request.sequence_id
-                );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::SamplerError(format!(
-                        "Failed to convert token to string: {message}"
-                    )),
-                ));
-            }
-            EmitTokenOutcome::ChannelDropped => {
+        let emit_phase = EmitTokenPhase;
+        for classified in &classified_outcomes {
+            let piece = match emit_phase.run(request, classified) {
+                EmitTokenOutcome::Emitted(piece) => piece,
+                EmitTokenOutcome::PieceConversionFailed(message) => {
+                    error!(
+                        "{:?}: sequence {} token_to_piece failed: {message}",
+                        self.scheduler_context.agent_name, request.sequence_id
+                    );
+                    return Some(AdvanceOutcome::Completed(
+                        GeneratedTokenResult::SamplerError(format!(
+                            "Failed to convert token to string: {message}"
+                        )),
+                    ));
+                }
+                EmitTokenOutcome::ChannelDropped => {
+                    warn!(
+                        "{:?}: sequence {} client disconnected (receiver dropped)",
+                        self.scheduler_context.agent_name, request.sequence_id
+                    );
+                    return Some(AdvanceOutcome::ChannelDropped);
+                }
+            };
+
+            if let Some(event) =
+                ToolCallPass.run(request.tool_call_pipeline.as_mut(), classified, &piece)
+                && request.generated_tokens_tx.send(event).is_err()
+            {
                 warn!(
                     "{:?}: sequence {} client disconnected (receiver dropped)",
                     self.scheduler_context.agent_name, request.sequence_id
                 );
                 return Some(AdvanceOutcome::ChannelDropped);
             }
-        };
-
-        if let Some(event) =
-            ToolCallPass.run(request.tool_call_pipeline.as_mut(), &classified, &piece)
-            && request.generated_tokens_tx.send(event).is_err()
-        {
-            warn!(
-                "{:?}: sequence {} client disconnected (receiver dropped)",
-                self.scheduler_context.agent_name, request.sequence_id
-            );
-            return Some(AdvanceOutcome::ChannelDropped);
         }
 
-        match completion_phase.run(request, &classified.sampled_token) {
+        match completion_phase.run(request, &raw_as_sampled) {
             CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => Some(
                 AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
                     usage: *request.token_classifier.usage(),
                 })),
             ),
             CompletionCheckOutcome::Continue => {
-                Some(AdvanceOutcome::SampledAndStored(classified.sampled_token))
+                Some(AdvanceOutcome::SampledAndStored(raw_as_sampled))
             }
         }
     }

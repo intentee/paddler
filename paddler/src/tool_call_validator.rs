@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use jsonschema::Validator;
-use paddler_types::parsed_tool_call::ParsedToolCall;
-use paddler_types::parsed_tool_call::ToolCallArguments;
+use llama_cpp_bindings::ParsedToolCall;
+use llama_cpp_bindings::ToolCallArguments;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -102,10 +102,10 @@ impl ToolCallValidator {
 mod tests {
     use anyhow::Result;
     use anyhow::bail;
-    use paddler_types::parsed_tool_call::ParsedToolCall;
-    use paddler_types::parsed_tool_call::ToolCallArguments;
+    use llama_cpp_bindings::ParsedToolCall;
+    use llama_cpp_bindings::ToolCallArguments;
     use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-    use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::FunctionCall;
+    use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
     use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
     use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
     use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;

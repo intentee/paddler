@@ -1,33 +1,23 @@
 use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::model::LlamaModel;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::agent::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
-pub struct EmitTokenPhase<'model> {
-    pub model: &'model LlamaModel,
-}
+pub struct EmitTokenPhase;
 
-impl EmitTokenPhase<'_> {
+impl EmitTokenPhase {
     pub fn run(
         &self,
         request: &mut ContinuousBatchActiveRequest,
         classified: &ClassifiedToken,
     ) -> EmitTokenOutcome {
-        let piece = match self.model.token_to_piece(
-            &classified.sampled_token,
-            &mut request.utf8_decoder,
-            true,
-            None,
-        ) {
-            Ok(piece) => piece,
-            Err(err) => {
-                return EmitTokenOutcome::PieceConversionFailed(err.to_string());
-            }
-        };
+        if classified.visible_piece.is_empty() {
+            return EmitTokenOutcome::Emitted(String::new());
+        }
 
+        let piece = classified.visible_piece.clone();
         let event = match classified.sampled_token {
             SampledToken::Content(_) => GeneratedTokenResult::ContentToken(piece.clone()),
             SampledToken::Reasoning(_) => GeneratedTokenResult::ReasoningToken(piece.clone()),

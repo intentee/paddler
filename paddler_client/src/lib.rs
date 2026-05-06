@@ -1,10 +1,10 @@
-pub mod agents_stream;
-pub mod buffered_requests_stream;
-pub mod client_inference;
-pub mod client_management;
-pub mod error;
+mod agents_stream;
+mod buffered_requests_stream;
+mod client_inference;
+mod client_management;
+mod error;
 mod format_api_url;
-pub mod inference_message_stream;
+mod inference_message_stream;
 mod inference_socket;
 mod stream;
 

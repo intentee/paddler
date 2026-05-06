@@ -53,6 +53,7 @@ mod tests {
             sampled_token: sampled,
             was_in_tool_call: was,
             is_in_tool_call: is,
+            visible_piece: String::new(),
         }
     }
 

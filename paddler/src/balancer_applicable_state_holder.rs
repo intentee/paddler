@@ -1,8 +1,8 @@
 use std::sync::RwLock;
 
+use paddler_types::agent_desired_state::AgentDesiredState;
 use tokio::sync::watch;
 
-use crate::agent_desired_state::AgentDesiredState;
 use crate::balancer_applicable_state::BalancerApplicableState;
 use crate::subscribes_to_updates::SubscribesToUpdates;
 

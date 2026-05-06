@@ -1,3 +1,24 @@
+pub mod advance_generating_phase;
+pub mod advance_outcome;
+pub mod assemble_batch_phase;
+pub mod batch_pass;
+pub mod classified_token;
+pub mod classify_token_phase;
+pub mod commit_phase;
+pub mod completion_check_outcome;
+pub mod completion_check_phase;
+pub mod contributions;
+pub mod decode_batch_phase;
+pub mod decode_outcome;
+pub mod emit_token_outcome;
+pub mod emit_token_phase;
+pub mod generating_contribution;
+pub mod ingesting_contribution;
+pub mod sample_outcome;
+pub mod sample_token_phase;
+pub mod tool_call_pass;
+pub mod tool_call_pipeline_build_outcome;
+
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
@@ -27,6 +48,13 @@ use rand::Rng as _;
 use rand::rngs::ThreadRng;
 use tokio::sync::mpsc;
 
+use self::advance_generating_phase::AdvanceGeneratingPhase;
+use self::assemble_batch_phase::AssembleBatchPhase;
+use self::batch_pass::BatchPass;
+use self::commit_phase::CommitPhase;
+use self::decode_batch_phase::DecodeBatchPhase;
+use self::decode_outcome::DecodeOutcome;
+use self::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
@@ -42,35 +70,6 @@ use crate::agent::resolve_grammar::resolve_grammar;
 use crate::agent::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
-
-pub mod advance_generating_phase;
-pub mod advance_outcome;
-pub mod assemble_batch_phase;
-pub mod batch_pass;
-pub mod classified_token;
-pub mod classify_token_phase;
-pub mod commit_phase;
-pub mod completion_check_outcome;
-pub mod completion_check_phase;
-pub mod contributions;
-pub mod decode_batch_phase;
-pub mod decode_outcome;
-pub mod emit_token_outcome;
-pub mod emit_token_phase;
-pub mod generating_contribution;
-pub mod ingesting_contribution;
-pub mod sample_outcome;
-pub mod sample_token_phase;
-pub mod tool_call_pass;
-pub mod tool_call_pipeline_build_outcome;
-
-use self::advance_generating_phase::AdvanceGeneratingPhase;
-use self::assemble_batch_phase::AssembleBatchPhase;
-use self::batch_pass::BatchPass;
-use self::commit_phase::CommitPhase;
-use self::decode_batch_phase::DecodeBatchPhase;
-use self::decode_outcome::DecodeOutcome;
-use crate::agent::continuous_batch_scheduler::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
 use crate::decoded_image::DecodedImage;
 use crate::dispenses_slots::DispensesSlots;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
@@ -372,6 +371,23 @@ impl ContinuousBatchScheduler {
         )
     }
 
+    #[expect(
+        unsafe_code,
+        reason = "the SchedulerContext owns the LlamaModel for the lifetime of the active_requests vec — same pattern as LlamaContext<'static> above"
+    )]
+    fn build_token_classifier_for_active_request(
+        &self,
+    ) -> llama_cpp_bindings::SampledTokenClassifier<'static> {
+        let classifier = self.scheduler_context.model.sampled_token_classifier();
+
+        unsafe {
+            std::mem::transmute::<
+                llama_cpp_bindings::SampledTokenClassifier<'_>,
+                llama_cpp_bindings::SampledTokenClassifier<'static>,
+            >(classifier)
+        }
+    }
+
     fn build_tool_call_pipeline(
         &self,
         tools: Vec<Tool<ValidatedParametersSchema>>,
@@ -515,32 +531,10 @@ impl ContinuousBatchScheduler {
 
         let chain = self.create_sampler_chain();
 
-        let mut token_classifier = match self.scheduler_context.model.sampled_token_classifier() {
-            Ok(token_classifier) => token_classifier,
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to build reasoning token classifier: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-                self.sequence_id_pool.release(sequence_id);
-
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::SamplerError(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-
-                return Ok(());
-            }
-        };
+        let mut token_classifier = self.build_token_classifier_for_active_request();
 
         token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
+        token_classifier.ingest_prompt_tokens(&prompt_tokens);
 
         #[expect(
             clippy::cast_sign_loss,
@@ -579,7 +573,6 @@ impl ContinuousBatchScheduler {
             prompt_tokens_ingested: 0,
             sequence_id,
             tool_call_pipeline,
-            utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
 
         Ok(())
@@ -734,30 +727,7 @@ impl ContinuousBatchScheduler {
 
         self.harvest_pending_samples_before_external_decode();
 
-        let mut token_classifier = match self.scheduler_context.model.sampled_token_classifier() {
-            Ok(token_classifier) => token_classifier,
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to build reasoning token classifier: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-                self.sequence_id_pool.release(sequence_id);
-
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::SamplerError(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-
-                return Ok(());
-            }
-        };
+        let mut token_classifier = self.build_token_classifier_for_active_request();
 
         #[expect(
             clippy::cast_possible_truncation,
@@ -834,7 +804,6 @@ impl ContinuousBatchScheduler {
             prompt_tokens_ingested: 0,
             sequence_id,
             tool_call_pipeline,
-            utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
 
         Ok(())
@@ -864,8 +833,14 @@ impl ContinuousBatchScheduler {
                 &mut active_request.grammar_sampler,
             ) {
                 Ok(SamplingOutcome::Token(raw_token)) => {
+                    // Update classifier state (section / usage counters) but drop the
+                    // outcomes — harvest-sampled tokens are funnelled into the next
+                    // batch via `pending_sampled_token`; their user-visible emission
+                    // happens in `advance_generating_phase` after the next decode,
+                    // not here.
+                    let _ = active_request.token_classifier.ingest(raw_token);
                     active_request.pending_sampled_token =
-                        Some(active_request.token_classifier.ingest(raw_token));
+                        Some(llama_cpp_bindings::SampledToken::Content(raw_token));
                     active_request.i_batch = None;
                 }
                 Ok(SamplingOutcome::AllCandidatesEliminated) => {

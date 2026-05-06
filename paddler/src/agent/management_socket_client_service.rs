@@ -19,6 +19,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 
+use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::RequestEnvelope;
@@ -36,7 +37,6 @@ use crate::agent::jsonrpc::notification_params::VersionParams;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::agent_desired_state::AgentDesiredState;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::Message as ManagementJsonRpcMessage;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::Notification as ManagementJsonRpcNotification;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::RegisterAgentParams;

@@ -5,11 +5,11 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use tokio::sync::watch;
 
 use super::agent_controller::AgentController;
 use super::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
-use crate::agent_desired_state::AgentDesiredState;
 use crate::balancer::agent_controller_slot_guard::AgentControllerSlotGuard;
 use crate::balancer::dispatched_agent::DispatchedAgent;
 use crate::produces_snapshot::ProducesSnapshot;

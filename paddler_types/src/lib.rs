@@ -39,13 +39,3 @@ pub mod rpc_message;
 pub mod slot_aggregated_status_snapshot;
 pub mod streamable_result;
 pub mod validates;
-
-pub mod parsed_tool_call {
-    pub use llama_cpp_bindings_types::ParsedToolCall;
-    pub use llama_cpp_bindings_types::ToolCallArguments;
-}
-
-pub mod token_usage {
-    pub use llama_cpp_bindings_types::TokenUsage;
-    pub use llama_cpp_bindings_types::TokenUsageError;
-}

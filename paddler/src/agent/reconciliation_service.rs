@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
@@ -10,7 +11,6 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::agent_desired_state::AgentDesiredState;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
 use crate::service::Service;

@@ -1,4 +1,4 @@
-use paddler_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings::ParsedToolCall;
 
 use crate::tool_call_parse_error::ToolCallParseError;
 use crate::tool_call_validation_error::ToolCallValidationError;
@@ -30,7 +30,7 @@ impl ToolCallEvent {
 
 #[cfg(test)]
 mod tests {
-    use paddler_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings::ParsedToolCall;
 
     use super::ToolCallEvent;
     use crate::tool_call_parse_error::ToolCallParseError;

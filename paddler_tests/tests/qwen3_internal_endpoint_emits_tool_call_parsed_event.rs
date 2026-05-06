@@ -10,7 +10,7 @@ use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::FunctionCall;
+use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -63,7 +63,7 @@ async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
 
     let collected = collect_generated_tokens(stream).await?;
 
-    let parsed_events: Vec<&Vec<paddler_types::parsed_tool_call::ParsedToolCall>> = collected
+    let parsed_events: Vec<&Vec<llama_cpp_bindings::ParsedToolCall>> = collected
         .token_results
         .iter()
         .filter_map(|event| match event {
@@ -86,10 +86,10 @@ async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
 
     assert_eq!(first_call.name, "get_weather");
     let location = match &first_call.arguments {
-        paddler_types::parsed_tool_call::ToolCallArguments::ValidJson(value) => {
+        llama_cpp_bindings::ToolCallArguments::ValidJson(value) => {
             value.get("location").cloned()
         }
-        paddler_types::parsed_tool_call::ToolCallArguments::InvalidJson(raw) => {
+        llama_cpp_bindings::ToolCallArguments::InvalidJson(raw) => {
             anyhow::bail!("expected valid JSON arguments, got InvalidJson: {raw}");
         }
     };

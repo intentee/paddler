@@ -1,4 +1,4 @@
-use paddler_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings::ParsedToolCall;
 
 use crate::tool_call_buffer::ToolCallBuffer;
 use crate::tool_call_event::ToolCallEvent;

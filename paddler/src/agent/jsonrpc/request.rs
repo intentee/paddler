@@ -1,9 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 #[derive(Deserialize, Serialize)]

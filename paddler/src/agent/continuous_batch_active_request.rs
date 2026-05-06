@@ -12,7 +12,7 @@ use crate::tool_call_pipeline::ToolCallPipeline;
 
 pub struct ContinuousBatchActiveRequest {
     pub chain: LlamaSampler,
-    pub token_classifier: SampledTokenClassifier,
+    pub token_classifier: SampledTokenClassifier<'static>,
     pub current_token_position: i32,
     pub grammar_sampler: Option<LlamaSampler>,
     pub generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
@@ -25,7 +25,6 @@ pub struct ContinuousBatchActiveRequest {
     pub prompt_tokens_ingested: usize,
     pub sequence_id: i32,
     pub tool_call_pipeline: Option<ToolCallPipeline>,
-    pub utf8_decoder: encoding_rs::Decoder,
 }
 
 impl ContinuousBatchActiveRequest {

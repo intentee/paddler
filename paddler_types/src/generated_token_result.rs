@@ -1,8 +1,9 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use llama_cpp_bindings_types::ParsedToolCall;
+
 use crate::generation_summary::GenerationSummary;
-use crate::parsed_tool_call::ParsedToolCall;
 use crate::streamable_result::StreamableResult;
 
 #[derive(Debug, Deserialize, Serialize)]

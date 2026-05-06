@@ -10,7 +10,7 @@ use paddler_types::conversation_message_content::ConversationMessageContent;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::FunctionCall;
+use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;

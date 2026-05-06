@@ -1,13 +1,13 @@
+mod cmd;
+
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
-#[cfg(feature = "web_admin_panel")]
-use esbuild_metafile::instance::initialize_instance;
-mod cmd;
-
 use cmd::agent::Agent;
 use cmd::balancer::Balancer;
 use cmd::handler::Handler as _;
+#[cfg(feature = "web_admin_panel")]
+use esbuild_metafile::instance::initialize_instance;
 use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
 use tokio_util::sync::CancellationToken;
 

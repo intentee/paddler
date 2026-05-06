@@ -1,5 +1,5 @@
 use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use tokio::sync::mpsc;
 

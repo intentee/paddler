@@ -1,15 +1,13 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
+use paddler_tests::start_in_process_cluster_with_qwen3_6::start_in_process_cluster_with_qwen3_6;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
@@ -22,14 +20,13 @@ use serde_json::Value;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;
+async fn qwen36_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
+    let cluster = start_in_process_cluster_with_qwen3_6(1).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
 
     let mut location_properties = Map::new();
-
     location_properties.insert(
         "location".to_owned(),
         serde_json::json!({"type": "string", "description": "The city name"}),
@@ -39,12 +36,15 @@ async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
         .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("Say hello".to_owned()),
+                content: ConversationMessageContent::Text(
+                    "What is the weather in Paris? Use the get_weather tool to find out."
+                        .to_owned(),
+                ),
                 role: "user".to_owned(),
             }]),
-            enable_thinking: true,
+            enable_thinking: false,
             grammar: None,
-            max_tokens: 50,
+            max_tokens: 400,
             parse_tool_calls: true,
             tools: vec![Tool::Function(FunctionCall {
                 function: Function {
@@ -63,9 +63,40 @@ async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
 
     let collected = collect_generated_tokens(stream).await?;
 
+    let parsed_events: Vec<&Vec<llama_cpp_bindings::ParsedToolCall>> = collected
+        .token_results
+        .iter()
+        .filter_map(|event| match event {
+            GeneratedTokenResult::ToolCallParsed(parsed) => Some(parsed),
+            _ => None,
+        })
+        .collect();
+
     assert!(
-        !collected.token_results.is_empty(),
-        "should receive a response when a function tool is provided"
+        !parsed_events.is_empty(),
+        "Qwen3.6: expected at least one ToolCallParsed event; got tokens:\n{}",
+        collected.text
+    );
+
+    let first_call = parsed_events
+        .iter()
+        .flat_map(|calls| calls.iter())
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("no parsed tool calls in any event"))?;
+
+    assert_eq!(first_call.name, "get_weather");
+    let location = match &first_call.arguments {
+        llama_cpp_bindings::ToolCallArguments::ValidJson(value) => {
+            value.get("location").cloned()
+        }
+        llama_cpp_bindings::ToolCallArguments::InvalidJson(raw) => {
+            anyhow::bail!("expected valid JSON arguments, got InvalidJson: {raw}");
+        }
+    };
+    assert!(
+        location.is_some(),
+        "Qwen3.6: arguments missing location: {:?}",
+        first_call.arguments
     );
 
     cluster.shutdown().await?;

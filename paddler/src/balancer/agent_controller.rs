@@ -13,11 +13,12 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::jsonrpc::RequestEnvelope;
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
@@ -25,7 +26,6 @@ use crate::agent::jsonrpc::Message as AgentJsonRpcMessage;
 use crate::agent::jsonrpc::Notification as AgentJsonRpcNotification;
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::agent::jsonrpc::notification_params::SetStateParams;
-use crate::agent_desired_state::AgentDesiredState;
 use crate::atomic_value::AtomicValue;
 use crate::balancer::agent_controller_update_result::AgentControllerUpdateResult;
 use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
