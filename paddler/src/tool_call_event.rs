@@ -65,9 +65,10 @@ mod tests {
 
     #[test]
     fn validation_failed_classifies_as_failure() {
-        let event = ToolCallEvent::ValidationFailed(vec![
-            ToolCallValidationError::UnknownToolName("x".to_owned()),
-        ]);
+        let event =
+            ToolCallEvent::ValidationFailed(vec![ToolCallValidationError::UnknownToolName(
+                "x".to_owned(),
+            )]);
 
         assert!(event.is_failure());
         assert!(!event.is_resolved());

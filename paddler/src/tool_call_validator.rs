@@ -62,9 +62,10 @@ impl ToolCallValidator {
     }
 
     pub fn validate(&self, parsed: &ParsedToolCall) -> Result<(), ToolCallValidationError> {
-        let strategy = self.strategies.get(&parsed.name).ok_or_else(|| {
-            ToolCallValidationError::UnknownToolName(parsed.name.clone())
-        })?;
+        let strategy = self
+            .strategies
+            .get(&parsed.name)
+            .ok_or_else(|| ToolCallValidationError::UnknownToolName(parsed.name.clone()))?;
 
         let arguments_value = match &parsed.arguments {
             ToolCallArguments::ValidJson(value) => value,
@@ -245,10 +246,8 @@ mod tests {
 
     #[test]
     fn known_tool_names_returns_all_registered_names() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[
-            weather_tool_with_schema(),
-            schemaless_tool(),
-        ])?;
+        let validator =
+            ToolCallValidator::from_tools(&[weather_tool_with_schema(), schemaless_tool()])?;
 
         let mut names = validator.known_tool_names();
         names.sort_unstable();
@@ -302,6 +301,39 @@ mod tests {
         match error {
             super::ValidatorBuildError::InvalidSchema { tool_name, .. } => {
                 assert_eq!(tool_name, "broken_tool");
+                Ok(())
+            }
+            super::ValidatorBuildError::SerializationFailed { .. } => {
+                bail!("expected InvalidSchema, got SerializationFailed: {error:?}");
+            }
+        }
+    }
+
+    fn tool_with_invalid_additional_properties_schema() -> Tool<ValidatedParametersSchema> {
+        Tool::Function(FunctionCall {
+            function: Function {
+                name: "broken_additional".to_owned(),
+                description: "tool whose additionalProperties schema is invalid".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: None,
+                    required: None,
+                    additional_properties: Some(json!({"type": "not_a_type"})),
+                }),
+            },
+        })
+    }
+
+    #[test]
+    fn invalid_additional_properties_schema_rejects_validator_build() -> Result<()> {
+        let error =
+            ToolCallValidator::from_tools(&[tool_with_invalid_additional_properties_schema()])
+                .err()
+                .ok_or_else(|| anyhow::anyhow!("expected ValidatorBuildError, got Ok"))?;
+
+        match error {
+            super::ValidatorBuildError::InvalidSchema { tool_name, .. } => {
+                assert_eq!(tool_name, "broken_additional");
                 Ok(())
             }
             super::ValidatorBuildError::SerializationFailed { .. } => {

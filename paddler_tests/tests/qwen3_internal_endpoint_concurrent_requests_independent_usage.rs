@@ -37,7 +37,7 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
                     enable_thinking: false,
                     grammar: None,
                     max_tokens: 30,
-            parse_tool_calls: false,
+                    parse_tool_calls: false,
                     tools: vec![],
                 })
                 .await?;
@@ -49,14 +49,15 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
                 .last()
                 .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
             match last {
-                GeneratedTokenResult::Done(summary) => Ok::<GenerationSummary, anyhow::Error>(*summary),
+                GeneratedTokenResult::Done(summary) => {
+                    Ok::<GenerationSummary, anyhow::Error>(*summary)
+                }
                 other => Err(anyhow::anyhow!("last result was not Done: {other:?}")),
             }
         }
     });
 
-    let summaries: Vec<GenerationSummary> =
-        future::try_join_all(futures).await?;
+    let summaries: Vec<GenerationSummary> = future::try_join_all(futures).await?;
 
     assert_eq!(summaries.len(), 2);
 

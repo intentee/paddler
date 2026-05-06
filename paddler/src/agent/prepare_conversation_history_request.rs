@@ -38,8 +38,7 @@ pub fn prepare_conversation_history_request(
         .iter()
         .map(|image_url| {
             DecodedImage::from_data_uri(image_url)
-                .and_then(|image| image.converted_to_png_if_necessary(image_resize_to_fit))
-                .and_then(|image| image.resized_to_fit(image_resize_to_fit))
+                .and_then(|image| image.prepared_for_inference(image_resize_to_fit))
         })
         .collect::<Result<Vec<DecodedImage>, DecodedImageError>>()
         .map_err(|err| {

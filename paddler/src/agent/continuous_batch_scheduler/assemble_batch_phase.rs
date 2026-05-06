@@ -90,8 +90,8 @@ impl AssembleBatchPhase {
                 continue;
             }
 
-            let chunk = &request.prompt_tokens[request.prompt_tokens_ingested
-                ..request.prompt_tokens_ingested + chunk_size];
+            let chunk = &request.prompt_tokens
+                [request.prompt_tokens_ingested..request.prompt_tokens_ingested + chunk_size];
             let is_last_chunk =
                 request.prompt_tokens_ingested + chunk_size >= request.prompt_tokens.len();
 

@@ -50,7 +50,10 @@ async fn qwen3_openai_non_streaming_returns_usage() -> Result<()> {
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow::anyhow!("non-streaming response missing message content"))?;
 
-    assert!(!content.is_empty(), "non-streaming content must not be empty");
+    assert!(
+        !content.is_empty(),
+        "non-streaming content must not be empty"
+    );
 
     cluster.shutdown().await?;
 

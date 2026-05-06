@@ -144,18 +144,16 @@ async fn respond(
 
     drop(chunk_tx);
 
-    let stream = CancellationTokenStreamGuard::new(
-        UnboundedReceiverStream::new(chunk_rx),
-        connection_close,
-    )
-    .filter_map(|transform_result| async move {
-        match transform_result {
-            TransformResult::Chunk(content) | TransformResult::Error(content) => {
-                Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
-            }
-            TransformResult::Discard => None,
-        }
-    });
+    let stream =
+        CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
+            .filter_map(|transform_result| async move {
+                match transform_result {
+                    TransformResult::Chunk(content) | TransformResult::Error(content) => {
+                        Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
+                    }
+                    TransformResult::Discard => None,
+                }
+            });
 
     Ok(HttpResponse::Ok()
         .insert_header(header::ContentType::json())

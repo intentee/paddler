@@ -67,10 +67,10 @@ async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens()
         match event {
             GeneratedTokenResult::ToolCallParsed(_)
             | GeneratedTokenResult::ToolCallParseFailed(_)
-            | GeneratedTokenResult::ToolCallValidationFailed(_)
-            | GeneratedTokenResult::ToolCallValidatorBuildFailed(_) => {
+            | GeneratedTokenResult::ToolSchemaInvalid(_)
+            | GeneratedTokenResult::ToolCallValidationFailed(_) => {
                 anyhow::bail!(
-                    "expected no parsed/parse-failed/validation-failed/validator-build-failed events when parse_tool_calls=false, got: {event:?}"
+                    "expected no parsed/parse-failed/schema-invalid/validation-failed events when parse_tool_calls=false, got: {event:?}"
                 );
             }
             _ => {}

@@ -328,7 +328,8 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             }) => self.handle_content(&request_id, &text),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
             }) => self.handle_reasoning(&request_id, &text),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
@@ -345,7 +346,9 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         errors,
                     )),
                 ..
-            }) => Ok(vec![server_error_chunk(&validation_failure_message(&errors))]),
+            }) => Ok(vec![server_error_chunk(&validation_failure_message(
+                &errors,
+            ))]),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
@@ -362,7 +365,7 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         | GeneratedTokenResult::MultimodalNotSupported(description)
                         | GeneratedTokenResult::SamplerError(description)
                         | GeneratedTokenResult::ToolCallParseFailed(description)
-                        | GeneratedTokenResult::ToolCallValidatorBuildFailed(description),
+                        | GeneratedTokenResult::ToolSchemaInvalid(description),
                     ),
                 ..
             })
@@ -437,11 +440,7 @@ impl OpenAINonStreamingResponseTransformer {
         Ok(())
     }
 
-    fn build_done_chunk(
-        &self,
-        request_id: &str,
-        summary: &GenerationSummary,
-    ) -> Result<String> {
+    fn build_done_chunk(&self, request_id: &str, summary: &GenerationSummary) -> Result<String> {
         let snapshot = self.snapshot_state()?;
 
         let has_tool_calls = !snapshot.tool_calls.is_empty();
@@ -464,9 +463,7 @@ impl OpenAINonStreamingResponseTransformer {
             map.insert("reasoning_content".to_owned(), json!(snapshot.reasoning));
         }
 
-        if has_tool_calls
-            && let Some(map) = message_obj.as_object_mut()
-        {
+        if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
             let tool_calls_json: Vec<serde_json::Value> = snapshot
                 .tool_calls
                 .iter()
@@ -527,7 +524,8 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                 Ok(vec![])
             }
             OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
                 ..
             }) => {
                 self.append_reasoning(&text)?;
@@ -551,7 +549,9 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                         errors,
                     )),
                 ..
-            }) => Ok(vec![server_error_chunk(&validation_failure_message(&errors))]),
+            }) => Ok(vec![server_error_chunk(&validation_failure_message(
+                &errors,
+            ))]),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
@@ -570,7 +570,7 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                         | GeneratedTokenResult::MultimodalNotSupported(description)
                         | GeneratedTokenResult::SamplerError(description)
                         | GeneratedTokenResult::ToolCallParseFailed(description)
-                        | GeneratedTokenResult::ToolCallValidatorBuildFailed(description),
+                        | GeneratedTokenResult::ToolSchemaInvalid(description),
                     ),
                 ..
             })
@@ -621,9 +621,7 @@ async fn respond(
         Err(err) => {
             return Ok(HttpResponse::BadRequest()
                 .content_type("application/json")
-                .body(
-                    openai_error_json("invalid_request_error", &err.to_string()).to_string(),
-                ));
+                .body(openai_error_json("invalid_request_error", &err.to_string()).to_string()));
         }
     };
 
@@ -683,20 +681,16 @@ async fn respond(
                 .body(error_json.clone()));
         }
 
-        let body = results
-            .into_iter()
-            .find_map(|result| match result {
-                TransformResult::Chunk(content) => Some(content),
-                TransformResult::Discard | TransformResult::Error(_) => None,
-            });
+        let body = results.into_iter().find_map(|result| match result {
+            TransformResult::Chunk(content) => Some(content),
+            TransformResult::Discard | TransformResult::Error(_) => None,
+        });
 
         Ok(body.map_or_else(
             || {
                 HttpResponse::InternalServerError()
                     .content_type("application/json")
-                    .body(
-                        openai_error_json("server_error", "no completion produced").to_string(),
-                    )
+                    .body(openai_error_json("server_error", "no completion produced").to_string())
             },
             |json_body| {
                 HttpResponse::Ok()
@@ -850,7 +844,8 @@ mod tests {
     async fn streaming_reasoning_token_emits_reasoning_content_delta() -> Result<()> {
         let transformer = streaming_transformer(false);
 
-        let message = make_token_message(GeneratedTokenResult::ReasoningToken("thought".to_owned()));
+        let message =
+            make_token_message(GeneratedTokenResult::ReasoningToken("thought".to_owned()));
         let chunks = transformer.transform(message).await?;
 
         assert_eq!(chunks.len(), 1);
@@ -865,8 +860,9 @@ mod tests {
     async fn streaming_undeterminable_token_emits_content_delta() -> Result<()> {
         let transformer = streaming_transformer(false);
 
-        let message =
-            make_token_message(GeneratedTokenResult::UndeterminableToken("ambig".to_owned()));
+        let message = make_token_message(GeneratedTokenResult::UndeterminableToken(
+            "ambig".to_owned(),
+        ));
         let chunks = transformer.transform(message).await?;
 
         assert_eq!(chunks.len(), 1);
@@ -896,9 +892,9 @@ mod tests {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
-            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(vec![
-                weather_call(),
-            ])))
+            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(
+                vec![weather_call()],
+            )))
             .await?;
 
         assert_eq!(chunks.len(), 1);
@@ -918,9 +914,9 @@ mod tests {
         let transformer = streaming_transformer(false);
 
         transformer
-            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(vec![
-                weather_call(),
-            ])))
+            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(
+                vec![weather_call()],
+            )))
             .await?;
 
         let summary = summary_with_counts(2, 0, 0);
@@ -996,9 +992,9 @@ mod tests {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
-            .transform(make_token_message(GeneratedTokenResult::ToolCallParseFailed(
-                "bad payload".to_owned(),
-            )))
+            .transform(make_token_message(
+                GeneratedTokenResult::ToolCallParseFailed("bad payload".to_owned()),
+            ))
             .await?;
 
         assert_eq!(chunks.len(), 1);
@@ -1176,9 +1172,9 @@ mod tests {
         let transformer = non_streaming_transformer();
 
         transformer
-            .transform(make_token_message(GeneratedTokenResult::UndeterminableToken(
-                "amb".to_owned(),
-            )))
+            .transform(make_token_message(
+                GeneratedTokenResult::UndeterminableToken("amb".to_owned()),
+            ))
             .await?;
 
         let summary = summary_with_counts(2, 0, 0);
@@ -1198,9 +1194,9 @@ mod tests {
         let transformer = non_streaming_transformer();
 
         transformer
-            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(vec![
-                weather_call(),
-            ])))
+            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(
+                vec![weather_call()],
+            )))
             .await?;
 
         let summary = summary_with_counts(4, 0, 0);
@@ -1225,9 +1221,9 @@ mod tests {
         let transformer = non_streaming_transformer();
 
         let chunks = transformer
-            .transform(make_token_message(GeneratedTokenResult::ToolCallParseFailed(
-                "bad payload".to_owned(),
-            )))
+            .transform(make_token_message(
+                GeneratedTokenResult::ToolCallParseFailed("bad payload".to_owned()),
+            ))
             .await?;
 
         assert_eq!(chunks.len(), 1);

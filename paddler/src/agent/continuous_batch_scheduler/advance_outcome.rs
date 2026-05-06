@@ -16,9 +16,8 @@ mod tests {
 
     #[test]
     fn completed_carries_event_through_into_inner() {
-        let outcome = AdvanceOutcome::Completed(GeneratedTokenResult::Done(
-            GenerationSummary::default(),
-        ));
+        let outcome =
+            AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary::default()));
 
         assert!(matches!(
             outcome,

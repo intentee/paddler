@@ -52,9 +52,11 @@ impl AdvanceGeneratingPhase<'_> {
                     "{:?}: sequence {} sampling exhausted candidates",
                     self.scheduler_context.agent_name, request.sequence_id
                 );
-                return Some(AdvanceOutcome::Completed(GeneratedTokenResult::SamplerError(
-                    "all token candidates were eliminated during sampling".to_owned(),
-                )));
+                return Some(AdvanceOutcome::Completed(
+                    GeneratedTokenResult::SamplerError(
+                        "all token candidates were eliminated during sampling".to_owned(),
+                    ),
+                ));
             }
             SampleOutcome::GrammarRejected(message) => {
                 error!(
@@ -70,9 +72,9 @@ impl AdvanceGeneratingPhase<'_> {
                     "{:?}: sequence {} sampling error: {message}",
                     self.scheduler_context.agent_name, request.sequence_id
                 );
-                return Some(AdvanceOutcome::Completed(GeneratedTokenResult::SamplerError(
-                    message,
-                )));
+                return Some(AdvanceOutcome::Completed(
+                    GeneratedTokenResult::SamplerError(message),
+                ));
             }
         };
 
@@ -104,9 +106,11 @@ impl AdvanceGeneratingPhase<'_> {
                     "{:?}: sequence {} token_to_piece failed: {message}",
                     self.scheduler_context.agent_name, request.sequence_id
                 );
-                return Some(AdvanceOutcome::Completed(GeneratedTokenResult::SamplerError(
-                    format!("Failed to convert token to string: {message}"),
-                )));
+                return Some(AdvanceOutcome::Completed(
+                    GeneratedTokenResult::SamplerError(format!(
+                        "Failed to convert token to string: {message}"
+                    )),
+                ));
             }
             EmitTokenOutcome::ChannelDropped => {
                 warn!(
@@ -117,7 +121,8 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        if let Some(event) = ToolCallPass.run(request.tool_call_pipeline.as_mut(), &classified, &piece)
+        if let Some(event) =
+            ToolCallPass.run(request.tool_call_pipeline.as_mut(), &classified, &piece)
             && request.generated_tokens_tx.send(event).is_err()
         {
             warn!(
@@ -128,13 +133,11 @@ impl AdvanceGeneratingPhase<'_> {
         }
 
         match completion_phase.run(request, &classified.sampled_token) {
-            CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => {
-                Some(AdvanceOutcome::Completed(GeneratedTokenResult::Done(
-                    GenerationSummary {
-                        usage: *request.token_classifier.usage(),
-                    },
-                )))
-            }
+            CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => Some(
+                AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
+                    usage: *request.token_classifier.usage(),
+                })),
+            ),
             CompletionCheckOutcome::Continue => {
                 Some(AdvanceOutcome::SampledAndStored(classified.sampled_token))
             }

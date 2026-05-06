@@ -30,18 +30,19 @@ impl ToolCallParser {
             return Err(ToolCallParseError::EmptyInput);
         }
 
-        Ok(self.model.parse_chat_message(&self.tools_json, input, false)?)
+        Ok(self
+            .model
+            .parse_chat_message(&self.tools_json, input, false)?)
     }
 
-    pub fn parse_partial(
-        &self,
-        input: &str,
-    ) -> Result<ParsedChatMessage, ToolCallParseError> {
+    pub fn parse_partial(&self, input: &str) -> Result<ParsedChatMessage, ToolCallParseError> {
         if input.is_empty() {
             return Err(ToolCallParseError::EmptyInput);
         }
 
-        Ok(self.model.parse_chat_message(&self.tools_json, input, true)?)
+        Ok(self
+            .model
+            .parse_chat_message(&self.tools_json, input, true)?)
     }
 
     #[must_use]

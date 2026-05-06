@@ -4,6 +4,7 @@ use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
 use std::time::Duration;
 
+use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::context::LlamaContext;
@@ -61,6 +62,7 @@ pub mod ingesting_contribution;
 pub mod sample_outcome;
 pub mod sample_token_phase;
 pub mod tool_call_pass;
+pub mod tool_call_pipeline_build_outcome;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
 use self::assemble_batch_phase::AssembleBatchPhase;
@@ -68,12 +70,14 @@ use self::batch_pass::BatchPass;
 use self::commit_phase::CommitPhase;
 use self::decode_batch_phase::DecodeBatchPhase;
 use self::decode_outcome::DecodeOutcome;
+use crate::agent::continuous_batch_scheduler::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
 use crate::decoded_image::DecodedImage;
+use crate::dispenses_slots::DispensesSlots;
+use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::tool_call_parser::ToolCallParser;
 use crate::tool_call_pipeline::ToolCallPipeline;
 use crate::tool_call_validator::ToolCallValidator;
-use crate::dispenses_slots::DispensesSlots;
-use crate::slot_aggregated_status::SlotAggregatedStatus;
+use crate::tool_call_validator::ValidatorBuildError;
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
@@ -225,7 +229,7 @@ impl ContinuousBatchScheduler {
                 parse_tool_calls,
                 tools,
             } => {
-                self.accept_text_prompt(
+                if let Err(err) = self.accept_text_prompt(
                     &raw_prompt,
                     max_tokens,
                     grammar_sampler,
@@ -233,7 +237,12 @@ impl ContinuousBatchScheduler {
                     tools,
                     generated_tokens_tx,
                     generate_tokens_stop_rx,
-                );
+                ) {
+                    error!(
+                        "{:?}: failed to accept text prompt: {err:#}",
+                        self.scheduler_context.agent_name
+                    );
+                }
             }
             PreparedConversationHistoryRequest::MultimodalPrompt {
                 raw_prompt,
@@ -245,8 +254,8 @@ impl ContinuousBatchScheduler {
             } => {
                 let multimodal_context = self.scheduler_context.multimodal_context.clone();
 
-                if let Some(multimodal_context) = multimodal_context.as_ref() {
-                    self.accept_multimodal_request(
+                if let Some(multimodal_context) = multimodal_context.as_ref()
+                    && let Err(err) = self.accept_multimodal_request(
                         multimodal_context,
                         raw_prompt,
                         &images,
@@ -256,6 +265,11 @@ impl ContinuousBatchScheduler {
                         tools,
                         generated_tokens_tx,
                         generate_tokens_stop_rx,
+                    )
+                {
+                    error!(
+                        "{:?}: failed to accept multimodal request: {err:#}",
+                        self.scheduler_context.agent_name
                     );
                 }
             }
@@ -287,7 +301,7 @@ impl ContinuousBatchScheduler {
             }
         };
 
-        self.accept_text_prompt(
+        if let Err(err) = self.accept_text_prompt(
             &raw_prompt,
             max_tokens,
             grammar_sampler,
@@ -295,7 +309,12 @@ impl ContinuousBatchScheduler {
             Vec::new(),
             generated_tokens_tx,
             generate_tokens_stop_rx,
-        );
+        ) {
+            error!(
+                "{:?}: failed to accept raw prompt: {err:#}",
+                self.scheduler_context.agent_name
+            );
+        }
     }
 
     fn create_sampler_chain(&mut self) -> LlamaSampler {
@@ -357,25 +376,36 @@ impl ContinuousBatchScheduler {
         &self,
         tools: Vec<Tool<ValidatedParametersSchema>>,
         parse_tool_calls: bool,
-    ) -> Result<Option<ToolCallPipeline>, GeneratedTokenResult> {
+    ) -> Result<ToolCallPipelineBuildOutcome> {
         if !parse_tool_calls || tools.is_empty() {
-            return Ok(None);
+            return Ok(ToolCallPipelineBuildOutcome::Disabled);
         }
 
-        let validator = ToolCallValidator::from_tools(&tools).map_err(|err| {
-            GeneratedTokenResult::ToolCallValidatorBuildFailed(err.to_string())
-        })?;
+        let validator = match ToolCallValidator::from_tools(&tools) {
+            Ok(validator) => validator,
+            Err(ValidatorBuildError::InvalidSchema { tool_name, message }) => {
+                return Ok(ToolCallPipelineBuildOutcome::SchemaInvalid(format!(
+                    "tool {tool_name:?} parameters are not a valid JSON Schema: {message}"
+                )));
+            }
+            Err(err @ ValidatorBuildError::SerializationFailed { .. }) => {
+                return Err(anyhow::Error::from(err))
+                    .context("failed to serialize tool parameters during validator build");
+            }
+        };
 
         let tools_json: Vec<serde_json::Value> = tools
             .into_iter()
             .map(|tool| serde_json::to_value(&tool))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| GeneratedTokenResult::ToolCallValidatorBuildFailed(err.to_string()))?;
+            .context("failed to serialize tools to JSON")?;
 
         let parser = ToolCallParser::new(self.scheduler_context.model.clone(), &tools_json)
-            .map_err(|err| GeneratedTokenResult::ToolCallValidatorBuildFailed(err.to_string()))?;
+            .context("failed to build tool-call parser")?;
 
-        Ok(Some(ToolCallPipeline::new(parser, validator)))
+        Ok(ToolCallPipelineBuildOutcome::Ready(ToolCallPipeline::new(
+            parser, validator,
+        )))
     }
 
     #[expect(
@@ -391,7 +421,33 @@ impl ContinuousBatchScheduler {
         tools: Vec<Tool<ValidatedParametersSchema>>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
-    ) {
+    ) -> Result<()> {
+        let tool_call_pipeline = match self
+            .build_tool_call_pipeline(tools, parse_tool_calls)
+            .context("failed to build tool-call pipeline for text prompt")?
+        {
+            ToolCallPipelineBuildOutcome::Disabled => None,
+            ToolCallPipelineBuildOutcome::Ready(pipeline) => Some(pipeline),
+            ToolCallPipelineBuildOutcome::SchemaInvalid(message) => {
+                error!(
+                    "{:?}: rejecting text prompt: {message}",
+                    self.scheduler_context.agent_name
+                );
+
+                if generated_tokens_tx
+                    .send(GeneratedTokenResult::ToolSchemaInvalid(message))
+                    .is_err()
+                {
+                    warn!(
+                        "{:?}: failed to send result to client (receiver dropped)",
+                        self.scheduler_context.agent_name
+                    );
+                }
+
+                return Ok(());
+            }
+        };
+
         let mut sequence_id_option = self.sequence_id_pool.acquire();
 
         if sequence_id_option.is_none() {
@@ -417,7 +473,7 @@ impl ContinuousBatchScheduler {
                 );
             }
 
-            return;
+            return Ok(());
         };
 
         let prompt_tokens = match self
@@ -445,7 +501,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                return;
+                return Ok(());
             }
         };
 
@@ -454,7 +510,7 @@ impl ContinuousBatchScheduler {
         else {
             self.sequence_id_pool.release(sequence_id);
 
-            return;
+            return Ok(());
         };
 
         let chain = self.create_sampler_chain();
@@ -480,7 +536,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                return;
+                return Ok(());
             }
         };
 
@@ -508,21 +564,6 @@ impl ContinuousBatchScheduler {
             prompt_tokens.len()
         );
 
-        let tool_call_pipeline = match self.build_tool_call_pipeline(tools, parse_tool_calls) {
-            Ok(pipeline) => pipeline,
-            Err(event) => {
-                if generated_tokens_tx.send(event).is_err() {
-                    warn!(
-                        "{:?}: failed to send tool-call validator-build error to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-                self.sequence_id_pool.release(sequence_id);
-                self.slot_aggregated_status.release_slot();
-                return;
-            }
-        };
-
         self.active_requests.push(ContinuousBatchActiveRequest {
             chain,
             token_classifier,
@@ -540,6 +581,8 @@ impl ContinuousBatchScheduler {
             tool_call_pipeline,
             utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
+
+        Ok(())
     }
 
     #[expect(
@@ -557,7 +600,33 @@ impl ContinuousBatchScheduler {
         tools: Vec<Tool<ValidatedParametersSchema>>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
-    ) {
+    ) -> Result<()> {
+        let tool_call_pipeline = match self
+            .build_tool_call_pipeline(tools, parse_tool_calls)
+            .context("failed to build tool-call pipeline for multimodal request")?
+        {
+            ToolCallPipelineBuildOutcome::Disabled => None,
+            ToolCallPipelineBuildOutcome::Ready(pipeline) => Some(pipeline),
+            ToolCallPipelineBuildOutcome::SchemaInvalid(message) => {
+                error!(
+                    "{:?}: rejecting multimodal request: {message}",
+                    self.scheduler_context.agent_name
+                );
+
+                if generated_tokens_tx
+                    .send(GeneratedTokenResult::ToolSchemaInvalid(message))
+                    .is_err()
+                {
+                    warn!(
+                        "{:?}: failed to send result to client (receiver dropped)",
+                        self.scheduler_context.agent_name
+                    );
+                }
+
+                return Ok(());
+            }
+        };
+
         let Some(sequence_id) = self.sequence_id_pool.acquire() else {
             let message = format!(
                 "{:?}: no available sequence slots for multimodal request",
@@ -576,7 +645,7 @@ impl ContinuousBatchScheduler {
                 );
             }
 
-            return;
+            return Ok(());
         };
 
         let bitmaps: Vec<MtmdBitmap> = match images
@@ -607,7 +676,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                return;
+                return Ok(());
             }
         };
 
@@ -643,7 +712,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                return;
+                return Ok(());
             }
         };
 
@@ -686,7 +755,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                return;
+                return Ok(());
             }
         };
 
@@ -727,7 +796,7 @@ impl ContinuousBatchScheduler {
                     );
                 }
 
-                return;
+                return Ok(());
             }
         };
 
@@ -738,7 +807,7 @@ impl ContinuousBatchScheduler {
         else {
             self.sequence_id_pool.release(sequence_id);
 
-            return;
+            return Ok(());
         };
 
         let chain = self.create_sampler_chain();
@@ -749,21 +818,6 @@ impl ContinuousBatchScheduler {
             "{:?}: accepted multimodal request on sequence {sequence_id} ({tokens_ingested} tokens ingested)",
             self.scheduler_context.agent_name
         );
-
-        let tool_call_pipeline = match self.build_tool_call_pipeline(tools, parse_tool_calls) {
-            Ok(pipeline) => pipeline,
-            Err(event) => {
-                if generated_tokens_tx.send(event).is_err() {
-                    warn!(
-                        "{:?}: failed to send tool-call validator-build error to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
-                self.sequence_id_pool.release(sequence_id);
-                self.slot_aggregated_status.release_slot();
-                return;
-            }
-        };
 
         self.active_requests.push(ContinuousBatchActiveRequest {
             chain,
@@ -782,6 +836,8 @@ impl ContinuousBatchScheduler {
             tool_call_pipeline,
             utf8_decoder: encoding_rs::UTF_8.new_decoder(),
         });
+
+        Ok(())
     }
 
     fn harvest_pending_samples_before_external_decode(&mut self) {
