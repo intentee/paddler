@@ -7,6 +7,7 @@ use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::post;
 use actix_web::web;
+use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -86,12 +87,11 @@ fn validation_failure_message(errors: &[String]) -> String {
         .unwrap_or_else(|| "tool call failed validation".to_owned())
 }
 
-fn arguments_to_openai_string(arguments: &ToolCallArguments) -> String {
+fn arguments_to_openai_string(arguments: &ToolCallArguments) -> Result<String> {
     match arguments {
-        ToolCallArguments::ValidJson(value) => {
-            serde_json::to_string(value).unwrap_or_else(|_| String::new())
-        }
-        ToolCallArguments::InvalidJson(raw) => raw.clone(),
+        ToolCallArguments::ValidJson(value) => serde_json::to_string(value)
+            .context("serializing tool-call arguments to OpenAI string"),
+        ToolCallArguments::InvalidJson(raw) => Ok(raw.clone()),
     }
 }
 
@@ -194,21 +194,22 @@ impl OpenAIStreamingResponseTransformer {
         request_id: &str,
         parsed_calls: &[ParsedToolCall],
     ) -> Result<String> {
-        let tool_calls: Vec<serde_json::Value> = parsed_calls
+        let tool_calls = parsed_calls
             .iter()
             .enumerate()
-            .map(|(index, call)| {
-                json!({
+            .map(|(index, call)| -> Result<serde_json::Value> {
+                let arguments = arguments_to_openai_string(&call.arguments)?;
+                Ok(json!({
                     "index": index,
                     "id": call.id,
                     "type": "function",
                     "function": {
                         "name": call.name,
-                        "arguments": arguments_to_openai_string(&call.arguments),
+                        "arguments": arguments,
                     }
-                })
+                }))
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(serde_json::to_string(&json!({
             "id": request_id,
@@ -464,20 +465,21 @@ impl OpenAINonStreamingResponseTransformer {
         }
 
         if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
-            let tool_calls_json: Vec<serde_json::Value> = snapshot
+            let tool_calls_json = snapshot
                 .tool_calls
                 .iter()
-                .map(|call| {
-                    json!({
+                .map(|call| -> Result<serde_json::Value> {
+                    let arguments = arguments_to_openai_string(&call.arguments)?;
+                    Ok(json!({
                         "id": call.id,
                         "type": "function",
                         "function": {
                             "name": call.name,
-                            "arguments": arguments_to_openai_string(&call.arguments),
+                            "arguments": arguments,
                         }
-                    })
+                    }))
                 })
-                .collect();
+                .collect::<Result<Vec<_>>>()?;
             map.insert("tool_calls".to_owned(), json!(tool_calls_json));
         }
 

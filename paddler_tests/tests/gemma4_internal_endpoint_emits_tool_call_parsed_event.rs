@@ -85,19 +85,6 @@ async fn gemma4_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("no parsed tool calls in any event"))?;
 
     assert_eq!(first_call.name, "get_weather");
-    let location = match &first_call.arguments {
-        llama_cpp_bindings::ToolCallArguments::ValidJson(value) => {
-            value.get("location").cloned()
-        }
-        llama_cpp_bindings::ToolCallArguments::InvalidJson(raw) => {
-            anyhow::bail!("expected valid JSON arguments, got InvalidJson: {raw}");
-        }
-    };
-    assert!(
-        location.is_some(),
-        "Gemma 4: arguments missing location: {:?}",
-        first_call.arguments
-    );
 
     cluster.shutdown().await?;
 

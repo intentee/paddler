@@ -1,4 +1,5 @@
 use llama_cpp_bindings::ParsedToolCall;
+use paddler_types::generated_token_result::GeneratedTokenResult;
 
 use crate::tool_call_buffer::ToolCallBuffer;
 use crate::tool_call_event::ToolCallEvent;
@@ -37,6 +38,10 @@ impl ToolCallPipeline {
         }
     }
 
+    pub fn finalize_to_generated_event(&mut self) -> Option<GeneratedTokenResult> {
+        self.finalize().into_generated_token_result()
+    }
+
     #[must_use]
     pub fn try_partial(&self) -> ToolCallEvent {
         let input = self.buffer.as_str();
@@ -61,16 +66,7 @@ impl ToolCallPipeline {
     }
 
     fn validate_resolved(&self, tool_calls: Vec<ParsedToolCall>) -> ToolCallEvent {
-        let parsed_with_ids: Vec<ParsedToolCall> = tool_calls
-            .into_iter()
-            .enumerate()
-            .map(|(index, mut call)| {
-                if call.id.is_empty() {
-                    call.id = format!("call_{index}");
-                }
-                call
-            })
-            .collect();
+        let parsed_with_ids = synthesize_missing_ids(tool_calls);
 
         let mut errors = Vec::new();
         for call in &parsed_with_ids {
@@ -84,5 +80,64 @@ impl ToolCallPipeline {
         } else {
             ToolCallEvent::ValidationFailed(errors)
         }
+    }
+}
+
+fn synthesize_missing_ids(tool_calls: Vec<ParsedToolCall>) -> Vec<ParsedToolCall> {
+    tool_calls
+        .into_iter()
+        .enumerate()
+        .map(|(index, mut call)| {
+            if call.id.is_empty() {
+                call.id = format!("call_{index}");
+            }
+            call
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use llama_cpp_bindings::ParsedToolCall;
+    use llama_cpp_bindings::ToolCallArguments;
+    use serde_json::json;
+
+    use super::synthesize_missing_ids;
+
+    fn call_with_id(id: &str) -> ParsedToolCall {
+        ParsedToolCall::new(
+            id.to_owned(),
+            "get_weather".to_owned(),
+            ToolCallArguments::ValidJson(json!({"location": "Paris"})),
+        )
+    }
+
+    #[test]
+    fn all_empty_ids_get_indexed_call_ids() {
+        let synthesised = synthesize_missing_ids(vec![call_with_id(""), call_with_id("")]);
+
+        assert_eq!(synthesised[0].id, "call_0");
+        assert_eq!(synthesised[1].id, "call_1");
+    }
+
+    #[test]
+    fn pre_set_ids_are_preserved() {
+        let synthesised = synthesize_missing_ids(vec![call_with_id("a"), call_with_id("b")]);
+
+        assert_eq!(synthesised[0].id, "a");
+        assert_eq!(synthesised[1].id, "b");
+    }
+
+    #[test]
+    fn mixed_ids_synthesise_only_for_empty_slots() {
+        let synthesised = synthesize_missing_ids(vec![
+            call_with_id(""),
+            call_with_id("user-id"),
+            call_with_id(""),
+        ]);
+
+        assert_eq!(synthesised[0].id, "call_0");
+        assert_eq!(synthesised[1].id, "user-id");
+        assert_eq!(synthesised[2].id, "call_2");
     }
 }

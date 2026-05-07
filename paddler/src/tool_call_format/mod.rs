@@ -27,6 +27,7 @@ mod tests {
     use llama_cpp_bindings::ToolCallArguments;
     use llama_cpp_bindings::ToolCallMarkers;
     use llama_cpp_bindings::ToolCallValueQuote;
+    use llama_cpp_bindings::XmlTagsShape;
     use serde_json::json;
 
     use super::try_parse;
@@ -55,6 +56,19 @@ mod tests {
         }
     }
 
+    fn qwen35_markers() -> ToolCallMarkers {
+        ToolCallMarkers {
+            open: "<tool_call>".to_owned(),
+            close: "</tool_call>".to_owned(),
+            args_shape: ToolCallArgsShape::XmlTags(XmlTagsShape {
+                function_open_prefix: "<function=".to_owned(),
+                function_close: "</function>".to_owned(),
+                parameter_open_prefix: "<parameter=".to_owned(),
+                parameter_close: "</parameter>".to_owned(),
+            }),
+        }
+    }
+
     #[test]
     fn dispatches_to_bracketed_args_for_mistral3_shape() -> Result<()> {
         let parsed = try_parse(
@@ -76,6 +90,22 @@ mod tests {
         let parsed = try_parse(
             "<|tool_call>call:get_weather{location:<|\"|>Paris<|\"|>}",
             &gemma4_markers(),
+        )?;
+
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].name, "get_weather");
+        assert_eq!(
+            parsed[0].arguments,
+            ToolCallArguments::ValidJson(json!({"location": "Paris"})),
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn dispatches_to_xml_function_tags_for_qwen35_shape() -> Result<()> {
+        let parsed = try_parse(
+            "<function=get_weather><parameter=location>Paris</parameter></function>",
+            &qwen35_markers(),
         )?;
 
         assert_eq!(parsed.len(), 1);

@@ -15,8 +15,7 @@ use crate::agent::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutco
 use crate::agent::continuous_batch_scheduler::emit_token_phase::EmitTokenPhase;
 use crate::agent::continuous_batch_scheduler::sample_outcome::SampleOutcome;
 use crate::agent::continuous_batch_scheduler::sample_token_phase::SampleTokenPhase;
-use crate::agent::continuous_batch_scheduler::tool_call_pass::ToolCallPass;
-use crate::agent::continuous_batch_scheduler::tool_call_pass::finalize_pipeline_to_event;
+use crate::agent::continuous_batch_scheduler::tool_call_pass;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 
 pub struct AdvanceGeneratingPhase<'context> {
@@ -93,7 +92,7 @@ impl AdvanceGeneratingPhase<'_> {
         ) {
             if let Some(pipeline) = request.tool_call_pipeline.as_mut()
                 && !pipeline.buffer_is_empty()
-                && let Some(event) = finalize_pipeline_to_event(pipeline)
+                && let Some(event) = pipeline.finalize_to_generated_event()
                 && request.generated_tokens_tx.send(event).is_err()
             {
                 warn!(
@@ -111,19 +110,8 @@ impl AdvanceGeneratingPhase<'_> {
 
         let emit_phase = EmitTokenPhase;
         for classified in &classified_outcomes {
-            let piece = match emit_phase.run(request, classified) {
-                EmitTokenOutcome::Emitted(piece) => piece,
-                EmitTokenOutcome::PieceConversionFailed(message) => {
-                    error!(
-                        "{:?}: sequence {} token_to_piece failed: {message}",
-                        self.scheduler_context.agent_name, request.sequence_id
-                    );
-                    return Some(AdvanceOutcome::Completed(
-                        GeneratedTokenResult::SamplerError(format!(
-                            "Failed to convert token to string: {message}"
-                        )),
-                    ));
-                }
+            match emit_phase.run(request, classified) {
+                EmitTokenOutcome::Emitted(_) => {}
                 EmitTokenOutcome::ChannelDropped => {
                     warn!(
                         "{:?}: sequence {} client disconnected (receiver dropped)",
@@ -131,10 +119,10 @@ impl AdvanceGeneratingPhase<'_> {
                     );
                     return Some(AdvanceOutcome::ChannelDropped);
                 }
-            };
+            }
 
             if let Some(event) =
-                ToolCallPass.run(request.tool_call_pipeline.as_mut(), classified, &piece)
+                tool_call_pass::run(request.tool_call_pipeline.as_mut(), classified)
                 && request.generated_tokens_tx.send(event).is_err()
             {
                 warn!(
@@ -149,7 +137,7 @@ impl AdvanceGeneratingPhase<'_> {
             CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => {
                 if let Some(pipeline) = request.tool_call_pipeline.as_mut()
                     && !pipeline.buffer_is_empty()
-                    && let Some(event) = finalize_pipeline_to_event(pipeline)
+                    && let Some(event) = pipeline.finalize_to_generated_event()
                     && request.generated_tokens_tx.send(event).is_err()
                 {
                     warn!(
