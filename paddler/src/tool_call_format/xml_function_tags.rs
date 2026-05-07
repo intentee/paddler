@@ -24,12 +24,8 @@ pub fn try_parse(
     let mut remaining = body;
 
     while let Some(function_start) = remaining.find(shape.function_open_prefix.as_str()) {
-        let after_function_prefix =
-            &remaining[function_start + shape.function_open_prefix.len()..];
-        let name_end = bounded_tag_name_end(
-            after_function_prefix,
-            &shape.function_open_prefix,
-        )?;
+        let after_function_prefix = &remaining[function_start + shape.function_open_prefix.len()..];
+        let name_end = bounded_tag_name_end(after_function_prefix, &shape.function_open_prefix)?;
         let function_name = after_function_prefix[..name_end].trim().to_owned();
         if function_name.is_empty() {
             return Err(anyhow!("tool call function tag has empty name"));
@@ -60,20 +56,14 @@ pub fn try_parse(
     Ok(parsed)
 }
 
-fn collect_parameters(
-    function_body: &str,
-    shape: &XmlTagsShape,
-) -> Result<Map<String, Value>> {
+fn collect_parameters(function_body: &str, shape: &XmlTagsShape) -> Result<Map<String, Value>> {
     let mut arguments = Map::new();
     let mut remaining = function_body;
 
     while let Some(parameter_start) = remaining.find(shape.parameter_open_prefix.as_str()) {
         let after_parameter_prefix =
             &remaining[parameter_start + shape.parameter_open_prefix.len()..];
-        let name_end = bounded_tag_name_end(
-            after_parameter_prefix,
-            &shape.parameter_open_prefix,
-        )?;
+        let name_end = bounded_tag_name_end(after_parameter_prefix, &shape.parameter_open_prefix)?;
         let parameter_name = after_parameter_prefix[..name_end].trim().to_owned();
         if parameter_name.is_empty() {
             return Err(anyhow!("tool call parameter tag has empty name"));
@@ -153,7 +143,8 @@ mod tests {
 
     #[test]
     fn parses_single_function_with_one_parameter() -> Result<()> {
-        let body = "\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n";
+        let body =
+            "\n<function=get_weather>\n<parameter=location>\nParis\n</parameter>\n</function>\n";
         let parsed = try_parse(body, &xml_markers(), &xml_shape())?;
 
         assert_eq!(parsed.len(), 1);

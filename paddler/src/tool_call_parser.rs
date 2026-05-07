@@ -38,9 +38,8 @@ impl ToolCallParser {
         if parsed.tool_calls.is_empty()
             && let Some(markers) = self.model.tool_call_markers()
         {
-            let fallback = tool_call_format::try_parse(input, &markers).map_err(|err| {
-                ToolCallParseError::TemplateOverride(err.to_string())
-            })?;
+            let fallback = tool_call_format::try_parse(input, &markers)
+                .map_err(|err| ToolCallParseError::TemplateOverride(err.to_string()))?;
             if !fallback.is_empty() {
                 parsed.tool_calls = fallback;
             }

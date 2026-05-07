@@ -6,18 +6,13 @@ use llama_cpp_bindings::token::LlamaToken;
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_scheduler::classified_token::ClassifiedToken;
 
-pub struct ClassifyTokenPhase;
-
-impl ClassifyTokenPhase {
-    pub fn run(
-        self,
-        request: &mut ContinuousBatchActiveRequest,
-        raw_token: LlamaToken,
-    ) -> Vec<ClassifiedToken> {
-        let section_before_ingest = request.token_classifier.current_section();
-        let outcomes = request.token_classifier.ingest(raw_token);
-        classify_ingest_outcomes(outcomes, section_before_ingest)
-    }
+pub fn run(
+    request: &mut ContinuousBatchActiveRequest,
+    raw_token: LlamaToken,
+) -> Vec<ClassifiedToken> {
+    let section_before_ingest = request.token_classifier.current_section();
+    let outcomes = request.token_classifier.ingest(raw_token);
+    classify_ingest_outcomes(outcomes, section_before_ingest)
 }
 
 fn classify_ingest_outcomes(
@@ -70,8 +65,10 @@ mod tests {
 
     #[test]
     fn content_after_content_stays_outside_tool_call() {
-        let classified =
-            classify_ingest_outcomes(vec![outcome(SampledToken::Content(LlamaToken::new(1)))], SampledTokenSection::Content);
+        let classified = classify_ingest_outcomes(
+            vec![outcome(SampledToken::Content(LlamaToken::new(1)))],
+            SampledTokenSection::Content,
+        );
 
         assert_eq!(classified.len(), 1);
         assert!(!classified[0].was_in_tool_call);

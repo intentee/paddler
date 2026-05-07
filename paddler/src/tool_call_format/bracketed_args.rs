@@ -139,9 +139,15 @@ mod tests {
 
         assert_eq!(parsed.len(), 2);
         assert_eq!(parsed[0].name, "a");
-        assert_eq!(parsed[0].arguments, ToolCallArguments::ValidJson(json!({"x": 1})));
+        assert_eq!(
+            parsed[0].arguments,
+            ToolCallArguments::ValidJson(json!({"x": 1}))
+        );
         assert_eq!(parsed[1].name, "b");
-        assert_eq!(parsed[1].arguments, ToolCallArguments::ValidJson(json!({"y": 2})));
+        assert_eq!(
+            parsed[1].arguments,
+            ToolCallArguments::ValidJson(json!({"y": 2}))
+        );
         Ok(())
     }
 
@@ -153,7 +159,10 @@ mod tests {
             &mistral3_shape(),
         );
 
-        assert!(result.is_err(), "malformed JSON must produce Err, got {result:?}");
+        assert!(
+            result.is_err(),
+            "malformed JSON must produce Err, got {result:?}"
+        );
     }
 
     #[test]

@@ -32,7 +32,9 @@ impl ToolCallEvent {
     pub fn into_generated_token_result(self) -> Option<GeneratedTokenResult> {
         match self {
             Self::Resolved(parsed) => Some(GeneratedTokenResult::ToolCallParsed(parsed)),
-            Self::ParseFailed(err) => Some(GeneratedTokenResult::ToolCallParseFailed(err.to_string())),
+            Self::ParseFailed(err) => {
+                Some(GeneratedTokenResult::ToolCallParseFailed(err.to_string()))
+            }
             Self::ValidationFailed(errors) => Some(GeneratedTokenResult::ToolCallValidationFailed(
                 errors.into_iter().map(|err| err.to_string()).collect(),
             )),
@@ -94,7 +96,11 @@ mod tests {
 
     #[test]
     fn pending_converts_to_none() {
-        assert!(ToolCallEvent::Pending.into_generated_token_result().is_none());
+        assert!(
+            ToolCallEvent::Pending
+                .into_generated_token_result()
+                .is_none()
+        );
     }
 
     #[test]
@@ -137,9 +143,7 @@ mod tests {
             {
                 Ok(())
             }
-            other => bail!(
-                "expected ToolCallValidationFailed mentioning 'missing', got {other:?}"
-            ),
+            other => bail!("expected ToolCallValidationFailed mentioning 'missing', got {other:?}"),
         }
     }
 }

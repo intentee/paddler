@@ -376,22 +376,15 @@ mod tests {
 
     #[test]
     fn returns_empty_vec_when_body_lacks_separator() -> Result<()> {
-        let parsed = try_parse(
-            "no separator anywhere",
-            &gemma4_markers(),
-            &gemma4_shape(),
-        )?;
+        let parsed = try_parse("no separator anywhere", &gemma4_markers(), &gemma4_shape())?;
         assert!(parsed.is_empty());
         Ok(())
     }
 
     #[test]
     fn state_before_key_consumes_whitespace_then_starts_key() -> Result<()> {
-        let (translated, _) = translate_paired_quote_args(
-            "  alpha:<|\"|>v<|\"|>}",
-            &gemma4_value_quote(),
-            "}",
-        )?;
+        let (translated, _) =
+            translate_paired_quote_args("  alpha:<|\"|>v<|\"|>}", &gemma4_value_quote(), "}")?;
 
         assert_eq!(translated, "{\"alpha\":\"v\"}");
         Ok(())
@@ -399,11 +392,8 @@ mod tests {
 
     #[test]
     fn state_inside_bare_value_terminated_by_close_marker() -> Result<()> {
-        let (translated, rest) = translate_paired_quote_args(
-            "n:1}leftover",
-            &gemma4_value_quote(),
-            "}",
-        )?;
+        let (translated, rest) =
+            translate_paired_quote_args("n:1}leftover", &gemma4_value_quote(), "}")?;
 
         assert_eq!(translated, "{\"n\":1}");
         assert_eq!(rest, "leftover");
@@ -424,22 +414,19 @@ mod tests {
 
     #[test]
     fn state_after_value_with_unexpected_char_returns_err() {
-        let result = translate_paired_quote_args(
-            "x:<|\"|>v<|\"|>$bad}",
-            &gemma4_value_quote(),
-            "}",
-        );
+        let result =
+            translate_paired_quote_args("x:<|\"|>v<|\"|>$bad}", &gemma4_value_quote(), "}");
 
-        assert!(result.is_err(), "garbage after value must fail; got {result:?}");
+        assert!(
+            result.is_err(),
+            "garbage after value must fail; got {result:?}"
+        );
     }
 
     #[test]
     fn translator_terminates_on_end_of_input_after_quoted_value() -> Result<()> {
-        let (translated, rest) = translate_paired_quote_args(
-            "x:<|\"|>v<|\"|>",
-            &gemma4_value_quote(),
-            "}",
-        )?;
+        let (translated, rest) =
+            translate_paired_quote_args("x:<|\"|>v<|\"|>", &gemma4_value_quote(), "}")?;
 
         assert_eq!(translated, "{\"x\":\"v\"}");
         assert_eq!(rest, "");
@@ -448,11 +435,7 @@ mod tests {
 
     #[test]
     fn translator_terminates_on_end_of_input_after_bare_value() -> Result<()> {
-        let (translated, rest) = translate_paired_quote_args(
-            "n:42",
-            &gemma4_value_quote(),
-            "}",
-        )?;
+        let (translated, rest) = translate_paired_quote_args("n:42", &gemma4_value_quote(), "}")?;
 
         assert_eq!(translated, "{\"n\":42}");
         assert_eq!(rest, "");

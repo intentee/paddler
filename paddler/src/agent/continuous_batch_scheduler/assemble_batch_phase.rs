@@ -81,10 +81,11 @@ impl AssembleBatchPhase {
             }
 
             let remaining = request.remaining_prompt_tokens();
-            let available_space = self
-                .batch_n_tokens
-                .saturating_sub(pass.contributions.current_batch_token_count);
-            let chunk_size = remaining.len().min(available_space);
+            let chunk_size = compute_ingesting_chunk_size(
+                remaining.len(),
+                self.batch_n_tokens,
+                pass.contributions.current_batch_token_count,
+            );
 
             if chunk_size == 0 {
                 continue;
@@ -118,5 +119,46 @@ impl AssembleBatchPhase {
         }
 
         Ok(())
+    }
+}
+
+fn compute_ingesting_chunk_size(
+    remaining_prompt_len: usize,
+    batch_n_tokens: usize,
+    current_batch_token_count: usize,
+) -> usize {
+    let available_space = batch_n_tokens.saturating_sub(current_batch_token_count);
+    remaining_prompt_len.min(available_space)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute_ingesting_chunk_size;
+
+    #[test]
+    fn chunk_size_is_min_of_remaining_and_available_space() {
+        assert_eq!(compute_ingesting_chunk_size(10, 32, 0), 10);
+        assert_eq!(compute_ingesting_chunk_size(100, 32, 0), 32);
+    }
+
+    #[test]
+    fn chunk_size_subtracts_already_used_space_from_batch_capacity() {
+        assert_eq!(compute_ingesting_chunk_size(20, 32, 12), 20);
+        assert_eq!(compute_ingesting_chunk_size(50, 32, 12), 20);
+    }
+
+    #[test]
+    fn chunk_size_is_zero_when_batch_already_full() {
+        assert_eq!(compute_ingesting_chunk_size(50, 32, 32), 0);
+    }
+
+    #[test]
+    fn chunk_size_is_zero_when_already_overfilled_via_saturating_sub() {
+        assert_eq!(compute_ingesting_chunk_size(50, 32, 40), 0);
+    }
+
+    #[test]
+    fn chunk_size_is_zero_when_remaining_prompt_is_empty() {
+        assert_eq!(compute_ingesting_chunk_size(0, 32, 0), 0);
     }
 }

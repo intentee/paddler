@@ -8,11 +8,11 @@ use paddler_types::generation_summary::GenerationSummary;
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::agent::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
-use crate::agent::continuous_batch_scheduler::classify_token_phase::ClassifyTokenPhase;
+use crate::agent::continuous_batch_scheduler::classify_token_phase;
 use crate::agent::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
 use crate::agent::continuous_batch_scheduler::completion_check_phase::CompletionCheckPhase;
 use crate::agent::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
-use crate::agent::continuous_batch_scheduler::emit_token_phase::EmitTokenPhase;
+use crate::agent::continuous_batch_scheduler::emit_token_phase;
 use crate::agent::continuous_batch_scheduler::sample_outcome::SampleOutcome;
 use crate::agent::continuous_batch_scheduler::sample_token_phase::SampleTokenPhase;
 use crate::agent::continuous_batch_scheduler::tool_call_pass;
@@ -79,7 +79,7 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        let classified_outcomes = ClassifyTokenPhase.run(request, raw_token);
+        let classified_outcomes = classify_token_phase::run(request, raw_token);
 
         let completion_phase = CompletionCheckPhase {
             model: &self.scheduler_context.model,
@@ -108,9 +108,8 @@ impl AdvanceGeneratingPhase<'_> {
             )));
         }
 
-        let emit_phase = EmitTokenPhase;
         for classified in &classified_outcomes {
-            match emit_phase.run(request, classified) {
+            match emit_token_phase::run(request, classified) {
                 EmitTokenOutcome::Emitted(_) => {}
                 EmitTokenOutcome::ChannelDropped => {
                     warn!(

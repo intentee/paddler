@@ -51,8 +51,6 @@ use tokio::sync::mpsc;
 use self::advance_generating_phase::AdvanceGeneratingPhase;
 use self::assemble_batch_phase::AssembleBatchPhase;
 use self::batch_pass::BatchPass;
-use self::commit_phase::CommitPhase;
-use self::decode_batch_phase::DecodeBatchPhase;
 use self::decode_outcome::DecodeOutcome;
 use self::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
@@ -965,9 +963,9 @@ impl ContinuousBatchScheduler {
                 self.active_requests.len()
             );
 
-            match DecodeBatchPhase.run(&mut pass, &mut self.llama_context) {
+            match decode_batch_phase::run(&mut pass, &mut self.llama_context) {
                 DecodeOutcome::Decoded => {
-                    CommitPhase.run(pass, &mut self.active_requests);
+                    commit_phase::run(pass, &mut self.active_requests);
 
                     return Ok(());
                 }

@@ -70,7 +70,9 @@ fn shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
             return;
         }
 
-        let _ = output.send(Message::Quit).await;
+        if let Err(err) = output.send(Message::Quit).await {
+            log::warn!("Failed to deliver Quit message to iced runtime (receiver dropped): {err}");
+        }
     })
 }
 
@@ -402,11 +404,26 @@ impl App {
                         }
                     }
                     result = &mut completion_future => {
-                        let message = match result {
-                            Ok(()) => Message::AgentStopped,
-                            Err(error) => Message::AgentFailed(error.to_string()),
-                        };
-                        let _ = output.send(message).await;
+                        match result {
+                            Ok(()) => {
+                                if let Err(err) = output.send(Message::AgentStopped).await {
+                                    log::warn!(
+                                        "Failed to deliver AgentStopped to UI (receiver dropped): {err}"
+                                    );
+                                }
+                            }
+                            Err(error) => {
+                                let detail = error.to_string();
+                                if let Err(err) = output
+                                    .send(Message::AgentFailed(detail.clone()))
+                                    .await
+                                {
+                                    log::error!(
+                                        "Failed to deliver AgentFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
+                                    );
+                                }
+                            }
+                        }
 
                         return;
                     }
@@ -488,9 +505,12 @@ impl App {
             let mut runner = match BalancerRunner::start(params).await {
                 Ok(runner) => runner,
                 Err(error) => {
-                    let _ = output
-                        .send(Message::BalancerFailed(error.to_string()))
-                        .await;
+                    let detail = error.to_string();
+                    if let Err(err) = output.send(Message::BalancerFailed(detail.clone())).await {
+                        log::error!(
+                            "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
+                        );
+                    }
 
                     return;
                 }
@@ -568,11 +588,26 @@ impl App {
                         }
                     }
                     result = &mut completion_future => {
-                        let message = match result {
-                            Ok(()) => Message::BalancerStopped,
-                            Err(error) => Message::BalancerFailed(error.to_string()),
-                        };
-                        let _ = output.send(message).await;
+                        match result {
+                            Ok(()) => {
+                                if let Err(err) = output.send(Message::BalancerStopped).await {
+                                    log::warn!(
+                                        "Failed to deliver BalancerStopped to UI (receiver dropped): {err}"
+                                    );
+                                }
+                            }
+                            Err(error) => {
+                                let detail = error.to_string();
+                                if let Err(err) = output
+                                    .send(Message::BalancerFailed(detail.clone()))
+                                    .await
+                                {
+                                    log::error!(
+                                        "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
+                                    );
+                                }
+                            }
+                        }
 
                         return;
                     }

@@ -6,16 +6,11 @@ use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::agent::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
-pub struct EmitTokenPhase;
-
-impl EmitTokenPhase {
-    pub fn run(
-        &self,
-        request: &mut ContinuousBatchActiveRequest,
-        classified: &ClassifiedToken,
-    ) -> EmitTokenOutcome {
-        emit_classified(classified, &request.generated_tokens_tx)
-    }
+pub fn run(
+    request: &mut ContinuousBatchActiveRequest,
+    classified: &ClassifiedToken,
+) -> EmitTokenOutcome {
+    emit_classified(classified, &request.generated_tokens_tx)
 }
 
 fn emit_classified(
@@ -146,9 +141,9 @@ mod tests {
 
         match emit_classified(&classified, &tx) {
             EmitTokenOutcome::ChannelDropped => Ok(()),
-            EmitTokenOutcome::Emitted(piece) => bail!(
-                "expected ChannelDropped on dropped receiver, got Emitted({piece:?})"
-            ),
+            EmitTokenOutcome::Emitted(piece) => {
+                bail!("expected ChannelDropped on dropped receiver, got Emitted({piece:?})")
+            }
         }
     }
 }

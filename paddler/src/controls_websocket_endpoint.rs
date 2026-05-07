@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use futures_util::StreamExt as _;
 use log::debug;
 use log::error;
+use log::warn;
 use paddler_types::rpc_message::RpcMessage;
 use serde::de::DeserializeOwned;
 use tokio::time::Duration;
@@ -231,14 +232,22 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                 Ok(ContinuationDecision::Stop(stop_parameters)) => {
                     close_reason = stop_parameters.close_reason;
 
-                    let _ = session.close(close_reason).await;
+                    if let Err(close_err) = session.close(close_reason).await {
+                        warn!(
+                            "WebSocket session close failed after Stop decision (peer likely already disconnected): {close_err:?}"
+                        );
+                    }
 
                     return;
                 }
                 Err(err) => {
                     error!("Error in connection start handler: {err:?}");
 
-                    let _ = session.close(close_reason).await;
+                    if let Err(close_err) = session.close(close_reason).await {
+                        warn!(
+                            "WebSocket session close failed after start-handler error (peer likely already disconnected): {close_err:?}"
+                        );
+                    }
 
                     return;
                 }
@@ -291,7 +300,11 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
 
             connection_close.cancel();
 
-            let _ = session.close(close_reason).await;
+            if let Err(close_err) = session.close(close_reason).await {
+                warn!(
+                    "WebSocket session close failed at end of message loop (peer likely already disconnected): {close_err:?}"
+                );
+            }
         });
 
         Ok(res)

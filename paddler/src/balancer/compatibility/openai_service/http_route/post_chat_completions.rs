@@ -89,14 +89,68 @@ fn validation_failure_message(errors: &[String]) -> String {
 
 fn arguments_to_openai_string(arguments: &ToolCallArguments) -> Result<String> {
     match arguments {
-        ToolCallArguments::ValidJson(value) => serde_json::to_string(value)
-            .context("serializing tool-call arguments to OpenAI string"),
+        ToolCallArguments::ValidJson(value) => {
+            serde_json::to_string(value).context("serializing tool-call arguments to OpenAI string")
+        }
         ToolCallArguments::InvalidJson(raw) => Ok(raw.clone()),
     }
 }
 
 fn server_error_chunk(description: &str) -> TransformResult {
     TransformResult::Error(openai_error_json("server_error", description).to_string())
+}
+
+fn timeout_response_chunk() -> TransformResult {
+    TransformResult::Error(openai_error_json("timeout", "request timed out").to_string())
+}
+
+fn rate_limit_response_chunk() -> TransformResult {
+    TransformResult::Error(
+        openai_error_json("rate_limit_error", "too many buffered requests").to_string(),
+    )
+}
+
+fn unexpected_embedding_response_chunk() -> TransformResult {
+    TransformResult::Error(
+        openai_error_json(
+            "invalid_request_error",
+            "unexpected embedding response in chat completions",
+        )
+        .to_string(),
+    )
+}
+
+fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
+    match token {
+        GeneratedTokenResult::ChatTemplateError(description)
+        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
+        | GeneratedTokenResult::GrammarInitializationFailed(description)
+        | GeneratedTokenResult::GrammarSyntaxError(description)
+        | GeneratedTokenResult::ImageDecodingFailed(description)
+        | GeneratedTokenResult::MultimodalNotSupported(description)
+        | GeneratedTokenResult::SamplerError(description)
+        | GeneratedTokenResult::ToolCallParseFailed(description)
+        | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(description),
+        _ => None,
+    }
+}
+
+fn try_universal_error_chunk(message: &OutgoingMessage) -> Option<TransformResult> {
+    match message {
+        OutgoingMessage::Error(ErrorEnvelope {
+            error: paddler_types::jsonrpc::Error { description, .. },
+            ..
+        }) => Some(server_error_chunk(description)),
+        OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
+            OutgoingResponse::GeneratedToken(token) => {
+                description_from_error_token(token).map(server_error_chunk)
+            }
+            OutgoingResponse::Timeout => Some(timeout_response_chunk()),
+            OutgoingResponse::TooManyBufferedRequests => Some(rate_limit_response_chunk()),
+            OutgoingResponse::Embedding(_) => Some(unexpected_embedding_response_chunk()),
+        },
+    }
 }
 
 #[derive(Deserialize)]
@@ -318,6 +372,10 @@ impl OpenAIStreamingResponseTransformer {
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
+        if let Some(error_chunk) = try_universal_error_chunk(&message) {
+            return Ok(vec![error_chunk]);
+        }
+
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
@@ -354,48 +412,9 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
             }) => self.handle_done(&request_id, &summary),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(
-                        GeneratedTokenResult::ChatTemplateError(description)
-                        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
-                        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
-                        | GeneratedTokenResult::GrammarInitializationFailed(description)
-                        | GeneratedTokenResult::GrammarSyntaxError(description)
-                        | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description)
-                        | GeneratedTokenResult::SamplerError(description)
-                        | GeneratedTokenResult::ToolCallParseFailed(description)
-                        | GeneratedTokenResult::ToolSchemaInvalid(description),
-                    ),
-                ..
-            })
-            | OutgoingMessage::Error(ErrorEnvelope {
-                error: paddler_types::jsonrpc::Error { description, .. },
-                ..
-            }) => Ok(vec![server_error_chunk(&description)]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::Timeout,
-                ..
-            }) => Ok(vec![TransformResult::Error(
-                openai_error_json("timeout", "request timed out").to_string(),
-            )]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::TooManyBufferedRequests,
-                ..
-            }) => Ok(vec![TransformResult::Error(
-                openai_error_json("rate_limit_error", "too many buffered requests").to_string(),
-            )]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::Embedding(_),
-                ..
-            }) => Ok(vec![TransformResult::Error(
-                openai_error_json(
-                    "invalid_request_error",
-                    "unexpected embedding response in chat completions",
-                )
-                .to_string(),
-            )]),
+            other => Err(anyhow!(
+                "OpenAIStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+            )),
         }
     }
 }
@@ -513,6 +532,10 @@ impl OpenAINonStreamingResponseTransformer {
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
+        if let Some(error_chunk) = try_universal_error_chunk(&message) {
+            return Ok(vec![error_chunk]);
+        }
+
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
@@ -560,48 +583,9 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
             }) => Ok(vec![TransformResult::Chunk(
                 self.build_done_chunk(&request_id, &summary)?,
             )]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(
-                        GeneratedTokenResult::ChatTemplateError(description)
-                        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
-                        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
-                        | GeneratedTokenResult::GrammarInitializationFailed(description)
-                        | GeneratedTokenResult::GrammarSyntaxError(description)
-                        | GeneratedTokenResult::ImageDecodingFailed(description)
-                        | GeneratedTokenResult::MultimodalNotSupported(description)
-                        | GeneratedTokenResult::SamplerError(description)
-                        | GeneratedTokenResult::ToolCallParseFailed(description)
-                        | GeneratedTokenResult::ToolSchemaInvalid(description),
-                    ),
-                ..
-            })
-            | OutgoingMessage::Error(ErrorEnvelope {
-                error: paddler_types::jsonrpc::Error { description, .. },
-                ..
-            }) => Ok(vec![server_error_chunk(&description)]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::Timeout,
-                ..
-            }) => Ok(vec![TransformResult::Error(
-                openai_error_json("timeout", "request timed out").to_string(),
-            )]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::TooManyBufferedRequests,
-                ..
-            }) => Ok(vec![TransformResult::Error(
-                openai_error_json("rate_limit_error", "too many buffered requests").to_string(),
-            )]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::Embedding(_),
-                ..
-            }) => Ok(vec![TransformResult::Error(
-                openai_error_json(
-                    "invalid_request_error",
-                    "unexpected embedding response in chat completions",
-                )
-                .to_string(),
-            )]),
+            other => Err(anyhow!(
+                "OpenAINonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+            )),
         }
     }
 }
@@ -709,12 +693,12 @@ mod tests {
     use std::sync::Mutex;
 
     use anyhow::Result;
-    use paddler_types::generated_token_result::GeneratedTokenResult;
-    use paddler_types::generation_summary::GenerationSummary;
-    use paddler_types::inference_client::Message as OutgoingMessage;
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::TokenUsage;
     use llama_cpp_bindings::ToolCallArguments;
+    use paddler_types::generated_token_result::GeneratedTokenResult;
+    use paddler_types::generation_summary::GenerationSummary;
+    use paddler_types::inference_client::Message as OutgoingMessage;
     use paddler_types::inference_client::Response as OutgoingResponse;
     use paddler_types::jsonrpc::ErrorEnvelope;
     use paddler_types::jsonrpc::ResponseEnvelope;
@@ -1261,6 +1245,82 @@ mod tests {
         assert_eq!(chunks.len(), 1);
         assert_error_contains(&chunks[0], "internal server error")?;
         assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_chat_template_error_returns_error_variant() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let message = make_token_message(GeneratedTokenResult::ChatTemplateError(
+            "bad template".to_owned(),
+        ));
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "bad template")?;
+        assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_image_decoding_failed_returns_error_variant() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let message = make_token_message(GeneratedTokenResult::ImageDecodingFailed(
+            "unsupported format".to_owned(),
+        ));
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "unsupported format")?;
+        assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_multimodal_not_supported_returns_error_variant() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let message = make_token_message(GeneratedTokenResult::MultimodalNotSupported(
+            "model does not support images".to_owned(),
+        ));
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "model does not support images")?;
+        assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_timeout_returns_error_variant() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let message = make_response_message(OutgoingResponse::Timeout);
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "request timed out")?;
+        assert_error_contains(&chunks[0], "timeout")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_too_many_buffered_requests_returns_error_variant() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let message = make_response_message(OutgoingResponse::TooManyBufferedRequests);
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "too many buffered requests")?;
+        assert_error_contains(&chunks[0], "rate_limit_error")?;
 
         Ok(())
     }
