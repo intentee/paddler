@@ -71,7 +71,6 @@ use crate::agent::sequence_id_pool::SequenceIdPool;
 use crate::decoded_image::DecodedImage;
 use crate::dispenses_slots::DispensesSlots;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
-use crate::tool_call_parser::ToolCallParser;
 use crate::tool_call_pipeline::ToolCallPipeline;
 use crate::tool_call_validator::ToolCallValidator;
 use crate::tool_call_validator::ValidatorBuildError;
@@ -414,12 +413,14 @@ impl ContinuousBatchScheduler {
             .collect::<Result<Vec<_>, _>>()
             .context("failed to serialize tools to JSON")?;
 
-        let parser = ToolCallParser::new(self.scheduler_context.model.clone(), &tools_json)
-            .context("failed to build tool-call parser")?;
+        let pipeline = ToolCallPipeline::new(
+            self.scheduler_context.model.clone(),
+            &tools_json,
+            validator,
+        )
+        .context("failed to serialize tools for tool-call pipeline")?;
 
-        Ok(ToolCallPipelineBuildOutcome::Ready(ToolCallPipeline::new(
-            parser, validator,
-        )))
+        Ok(ToolCallPipelineBuildOutcome::Ready(pipeline))
     }
 
     #[expect(

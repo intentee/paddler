@@ -3561,6 +3561,7 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "llguidance",
+ "nom 8.0.0",
  "serde_json",
  "thiserror 2.0.18",
  "toktrie",

@@ -1,14 +1,14 @@
 use llama_cpp_bindings::ParsedToolCall;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 
-use crate::tool_call_parse_error::ToolCallParseError;
+use crate::tool_call_pipeline_error::ToolCallPipelineError;
 use crate::tool_call_validation_error::ToolCallValidationError;
 
 #[derive(Debug)]
 pub enum ToolCallEvent {
     Pending,
     Resolved(Vec<ParsedToolCall>),
-    ParseFailed(ToolCallParseError),
+    ParseFailed(ToolCallPipelineError),
     ValidationFailed(Vec<ToolCallValidationError>),
 }
 
@@ -53,7 +53,7 @@ mod tests {
     use serde_json::json;
 
     use super::ToolCallEvent;
-    use crate::tool_call_parse_error::ToolCallParseError;
+    use crate::tool_call_pipeline_error::ToolCallPipelineError;
     use crate::tool_call_validation_error::ToolCallValidationError;
 
     #[test]
@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn parse_failed_classifies_as_failure() {
-        let event = ToolCallEvent::ParseFailed(ToolCallParseError::EmptyInput);
+        let event = ToolCallEvent::ParseFailed(ToolCallPipelineError::EmptyBuffer);
 
         assert!(event.is_failure());
         assert!(!event.is_resolved());
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn parse_failed_converts_to_tool_call_parse_failed_with_message() -> Result<()> {
-        let event = ToolCallEvent::ParseFailed(ToolCallParseError::EmptyInput);
+        let event = ToolCallEvent::ParseFailed(ToolCallPipelineError::EmptyBuffer);
 
         match event.into_generated_token_result() {
             Some(GeneratedTokenResult::ToolCallParseFailed(message)) if !message.is_empty() => {
