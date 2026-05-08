@@ -61,6 +61,7 @@ statum = "0.6"
 tempfile = "3.20.0"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
+tokio-test = "0.4.4"
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
 thiserror = "2"

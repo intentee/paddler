@@ -71,6 +71,7 @@ vulkan = ["llama-cpp-bindings/vulkan"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
+tokio-test = { workspace = true }
 
 [lints]
 workspace = true
