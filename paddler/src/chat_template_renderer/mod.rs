@@ -1,21 +1,16 @@
+pub mod pyjinja_tojson;
+pub mod raise_exception;
+
 use anyhow::Result;
 use minijinja::Environment;
-use minijinja::Error;
-use minijinja::ErrorKind;
 use minijinja_contrib::pycompat::unknown_method_callback;
 use paddler_types::chat_template::ChatTemplate;
 use serde::ser::Serialize;
 
-const CHAT_TEMPLATE_NAME: &str = "chat_template";
+use self::pyjinja_tojson::pyjinja_tojson;
+use self::raise_exception::raise_exception;
 
-// Known uses:
-// https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
-fn minijinja_raise_exception(message: &str) -> std::result::Result<String, Error> {
-    Err(Error::new::<String>(
-        ErrorKind::InvalidOperation,
-        format!("Model's chat template raised an exception: '{message}'"),
-    ))
-}
+const CHAT_TEMPLATE_NAME: &str = "chat_template";
 
 pub struct ChatTemplateRenderer {
     minijinja_env: Environment<'static>,
@@ -25,11 +20,12 @@ impl ChatTemplateRenderer {
     pub fn new(ChatTemplate { content }: ChatTemplate) -> Result<Self> {
         let mut minijinja_env = Environment::new();
 
-        minijinja_env.add_function("raise_exception", minijinja_raise_exception);
+        minijinja_env.add_function("raise_exception", raise_exception);
         minijinja_env.add_template_owned(CHAT_TEMPLATE_NAME, content)?;
         minijinja_env.set_unknown_method_callback(unknown_method_callback);
 
         minijinja_contrib::add_to_environment(&mut minijinja_env);
+        minijinja_env.add_filter("tojson", pyjinja_tojson);
 
         Ok(Self { minijinja_env })
     }
@@ -124,6 +120,42 @@ mod tests {
 
         assert_eq!(with_prompt, "AB");
         assert_eq!(without_prompt, "A");
+
+        Ok(())
+    }
+
+    #[test]
+    fn registers_pyjinja_tojson_filter() -> Result<()> {
+        let template = ChatTemplate {
+            content: "{{ value | tojson(ensure_ascii=False) }}".to_owned(),
+        };
+        let renderer = ChatTemplateRenderer::new(template)?;
+
+        let result = renderer.render(context! { value => "café" })?;
+
+        assert_eq!(result, "\"café\"");
+
+        Ok(())
+    }
+
+    #[test]
+    fn registers_raise_exception_function() -> Result<()> {
+        let template = ChatTemplate {
+            content: "{{ raise_exception('boom') }}".to_owned(),
+        };
+        let template_renderer = ChatTemplateRenderer::new(template)?;
+
+        let err = template_renderer
+            .render(context! {})
+            .err()
+            .ok_or_else(|| anyhow::anyhow!("expected Err, got Ok"))?;
+        let error_message = err.to_string();
+
+        if !error_message.contains("boom") {
+            return Err(anyhow::anyhow!(
+                "raise_exception must surface its message; got: {error_message}"
+            ));
+        }
 
         Ok(())
     }
