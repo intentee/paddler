@@ -1,0 +1,29 @@
+{
+    "type": "function",
+    "function": {
+        "name": "negotiate_with_cat",
+        "description": "Attempt to negotiate with a cat. Outcomes are not guaranteed and may include the silent treatment.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "topic": {
+                    "type": "string",
+                    "description": "What you are trying to negotiate, e.g. 'get off the keyboard' or 'stop knocking things off the table'"
+                },
+                "bribe": {
+                    "type": "string",
+                    "enum": ["tuna", "salmon", "treats", "ear_scritches", "cardboard_box", "none"],
+                    "description": "What you are offering in exchange"
+                },
+                "desperation_level": {
+                    "type": "integer",
+                    "description": "How desperate you are, on a scale from 1 (mildly annoyed human) to 10 (it is 3am)",
+                    "minimum": 1,
+                    "maximum": 10
+                }
+            },
+            "required": ["topic"],
+            "additionalProperties": false
+        }
+    }
+}

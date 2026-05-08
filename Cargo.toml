@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler", "paddler_bootstrap", "paddler_cli", "paddler_client", "paddler_gui", "paddler_tests", "paddler_types"]
+members = ["paddler", "paddler_bootstrap", "paddler_cli", "paddler_client", "paddler_client_cli", "paddler_gui", "paddler_tests", "paddler_types"]
 resolver = "2"
 
 [workspace.package]
@@ -25,6 +25,7 @@ async-trait = "0.1"
 bytes = "1.11"
 cadence = "1.6"
 clap = { version = "4.5", features = ["derive"] }
+crossterm = { version = "=0.29.0", features = ["event-stream"] }
 dashmap = "6.1"
 encoding_rs = { version = "0.8", features = ["serde"] }
 env_logger = "0.11"
@@ -48,6 +49,7 @@ nix = { version = "0.30", features = ["signal"] }
 open = "5.3.4"
 pastey = "0.2"
 rand = "0.9"
+ratatui = "=0.30.0"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 resvg = "0.46"
 rust-embed = { version = "8.9", features = ["interpolate-folder-path"] }
