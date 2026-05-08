@@ -1,4 +1,6 @@
+pub mod deepseek_r1_distill_llama_8b;
 pub mod gemma_4_e4b_it;
+pub mod glm_4_7_flash;
 pub mod ministral_3_14b_reasoning;
 pub mod nomic_embed_text_v1_5;
 pub mod qwen2_5_vl_3b;
