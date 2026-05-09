@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::agent::slot_guard::SlotGuard;
 use crate::tool_call_pipeline::ToolCallPipeline;
 
 pub struct ContinuousBatchActiveRequest {
@@ -24,6 +25,7 @@ pub struct ContinuousBatchActiveRequest {
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
     pub sequence_id: i32,
+    pub slot_guard: SlotGuard,
     pub tool_call_pipeline: Option<ToolCallPipeline>,
 }
 

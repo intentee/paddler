@@ -10,12 +10,9 @@ impl ConvertsToApplicableState for BalancerDesiredState {
     type ApplicableState = BalancerApplicableState;
     type Context = ();
 
-    async fn to_applicable_state(
-        &self,
-        _context: Self::Context,
-    ) -> Result<Option<Self::ApplicableState>> {
-        Ok(Some(BalancerApplicableState {
+    async fn to_applicable_state(&self, _context: Self::Context) -> Result<Self::ApplicableState> {
+        Ok(BalancerApplicableState {
             agent_desired_state: self.to_agent_desired_state(),
-        }))
+        })
     }
 }

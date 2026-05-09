@@ -26,15 +26,13 @@ pub struct ReconciliationService {
 
 impl ReconciliationService {
     pub async fn convert_to_applicable_state(&mut self) -> Result<()> {
-        if let Some(balancer_applicable_state) =
-            self.balancer_desired_state.to_applicable_state(()).await?
-        {
-            self.agent_controller_pool
-                .set_desired_state(balancer_applicable_state.agent_desired_state.clone())
-                .await?;
-            self.balancer_applicable_state_holder
-                .set_balancer_applicable_state(Some(balancer_applicable_state));
-        }
+        let balancer_applicable_state = self.balancer_desired_state.to_applicable_state(()).await?;
+
+        self.agent_controller_pool
+            .set_desired_state(balancer_applicable_state.agent_desired_state.clone())
+            .await?;
+        self.balancer_applicable_state_holder
+            .set_balancer_applicable_state(Some(balancer_applicable_state));
 
         self.is_converted_to_applicable_state = true;
 

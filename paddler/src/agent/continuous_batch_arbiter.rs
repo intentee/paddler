@@ -27,10 +27,12 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
+use crate::agent::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::agent::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::agent::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
+use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
@@ -50,6 +52,33 @@ pub struct ContinuousBatchArbiter {
 }
 
 impl ContinuousBatchArbiter {
+    #[must_use]
+    pub fn build_from_applicable_state(
+        applicable_state: AgentApplicableState,
+        agent_name: Option<String>,
+        desired_slots_total: i32,
+        model_metadata_holder: Arc<ModelMetadataHolder>,
+        slot_aggregated_status_manager: Arc<SlotAggregatedStatusManager>,
+    ) -> ContinuousBatchArbiterBuildOutcome {
+        let Some(model_path) = applicable_state.model_path else {
+            return ContinuousBatchArbiterBuildOutcome::NoModelConfigured;
+        };
+
+        let model_path_string = model_path.display().to_string();
+
+        ContinuousBatchArbiterBuildOutcome::ReadyToSpawn(Self {
+            agent_name,
+            chat_template_override: applicable_state.chat_template_override,
+            desired_slots_total,
+            inference_parameters: applicable_state.inference_parameters,
+            multimodal_projection_path: applicable_state.multimodal_projection_path,
+            model_metadata_holder,
+            model_path,
+            model_path_string,
+            slot_aggregated_status_manager,
+        })
+    }
+
     pub async fn spawn(&self) -> Result<ContinuousBatchArbiterHandle> {
         let (chat_template_loaded_tx, chat_template_loaded_rx) = oneshot::channel::<()>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
@@ -315,9 +344,6 @@ impl ContinuousBatchArbiter {
                 scheduler_context,
                 llama_context,
                 desired_slots_total,
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .clone(),
             );
 
             scheduler.run();

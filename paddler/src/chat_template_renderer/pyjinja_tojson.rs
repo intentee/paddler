@@ -4,20 +4,6 @@ use minijinja::Value;
 use minijinja::filters::tojson;
 use minijinja::value::Kwargs;
 
-// Python-style `tojson` filter compatible with HuggingFace transformers chat
-// templates that pass Jinja2 kwargs (`ensure_ascii`, `sort_keys`, `separators`,
-// `indent`). minijinja's built-in `tojson` only accepts `indent`, so any of the
-// others crashes rendering with "too many arguments". This wrapper:
-//
-// 1. Recognises every Python `tojson` kwarg explicitly (whitelist).
-// 2. Accepts only values whose semantics match minijinja's defaults
-//    (`ensure_ascii=False`, `sort_keys=False`); rejects anything else with a
-//    clear error so the template author knows to remove it.
-// 3. Forwards `indent` plus an empty kwargs map to minijinja's built-in
-//    `tojson` for the actual JSON serialisation, so behaviour and output
-//    formatting stay identical.
-// 4. Calls `Kwargs::assert_all_used` so unknown kwargs (anything not in our
-//    whitelist) hard-error rather than getting silently dropped.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "minijinja's Filter trait requires Kwargs by value; taking &Kwargs makes the \
@@ -200,10 +186,8 @@ mod tests {
 
     #[test]
     fn unknown_kwarg_returns_error() -> Result<()> {
-        let err = render_expecting_error(
-            "{{ value | tojson(bogus=42) }}",
-            context! { value => "x" },
-        )?;
+        let err =
+            render_expecting_error("{{ value | tojson(bogus=42) }}", context! { value => "x" })?;
         let rendered = err.to_string();
 
         if !rendered.contains("bogus") {

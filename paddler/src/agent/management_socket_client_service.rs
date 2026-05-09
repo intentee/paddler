@@ -57,6 +57,7 @@ struct IncomingMessageContext {
     model_metadata_holder: Arc<ModelMetadataHolder>,
     receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
     message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
+    slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
 pub struct ManagementSocketClientService {
@@ -81,6 +82,7 @@ impl ManagementSocketClientService {
         request_params: TRequest::RequestParams,
         receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
         request_tx: mpsc::UnboundedSender<TRequest>,
+        slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<()> {
         let (response_tx, mut response_rx) = mpsc::unbounded_channel::<TRequest::Response>();
         let (stop_tx, stop_rx) = mpsc::unbounded_channel::<()>();
@@ -93,6 +95,7 @@ impl ManagementSocketClientService {
             request_params,
             response_tx,
             stop_rx,
+            slot_aggregated_status,
         ))?;
 
         loop {
@@ -130,6 +133,7 @@ impl ManagementSocketClientService {
             message_tx,
             model_metadata_holder,
             receive_stream_stopper_collection,
+            slot_aggregated_status,
         }: IncomingMessageContext,
         deserialized_message: JsonRpcMessage,
     ) -> Result<()> {
@@ -185,6 +189,7 @@ impl ManagementSocketClientService {
                     continue_from_conversation_history_params,
                     receive_stream_stopper_collection,
                     continue_from_conversation_history_request_tx,
+                    slot_aggregated_status,
                 )
                 .await
             }
@@ -199,6 +204,7 @@ impl ManagementSocketClientService {
                     generate_tokens_params,
                     receive_stream_stopper_collection,
                     continue_from_raw_prompt_request_tx,
+                    slot_aggregated_status,
                 )
                 .await
             }
@@ -213,6 +219,7 @@ impl ManagementSocketClientService {
                     generate_embedding_batch_params,
                     receive_stream_stopper_collection,
                     generate_embedding_batch_request_tx,
+                    slot_aggregated_status,
                 )
                 .await
             }
@@ -445,6 +452,7 @@ impl ManagementSocketClientService {
                                         model_metadata_holder: self.model_metadata_holder.clone(),
                                         receive_stream_stopper_collection: self.receive_stream_stopper_collection.clone(),
                                         message_tx: message_tx.clone(),
+                                        slot_aggregated_status: self.slot_aggregated_status.clone(),
                                     },
                                     msg,
                                     &pong_tx,

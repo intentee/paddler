@@ -28,11 +28,11 @@ impl ReconciliationService {
     pub async fn convert_to_applicable_state(&mut self) -> Result<()> {
         let applicable_state = match &self.agent_desired_state {
             None => None,
-            Some(agent_desired_state) => {
+            Some(agent_desired_state) => Some(
                 agent_desired_state
                     .to_applicable_state(self.slot_aggregated_status.clone())
-                    .await?
-            }
+                    .await?,
+            ),
         };
 
         self.is_converted_to_applicable_state = true;

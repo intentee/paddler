@@ -42,7 +42,10 @@ impl ToolCallPipeline {
             return ToolCallEvent::Resolved(Vec::new());
         }
 
-        match self.model.parse_chat_message(&self.tools_json, &input, false) {
+        match self
+            .model
+            .parse_chat_message(&self.tools_json, &input, false)
+        {
             Ok(parsed) => self.validate_resolved(parsed.tool_calls),
             Err(err) => ToolCallEvent::ParseFailed(ToolCallPipelineError::Bindings(err)),
         }

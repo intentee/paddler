@@ -68,9 +68,8 @@ use crate::agent::resolve_grammar::resolve_grammar;
 use crate::agent::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::agent::sampling_outcome::SamplingOutcome;
 use crate::agent::sequence_id_pool::SequenceIdPool;
+use crate::agent::slot_guard::SlotGuard;
 use crate::decoded_image::DecodedImage;
-use crate::dispenses_slots::DispensesSlots;
-use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::tool_call_pipeline::ToolCallPipeline;
 use crate::tool_call_validator::ToolCallValidator;
 use crate::tool_call_validator::ValidatorBuildError;
@@ -84,10 +83,10 @@ pub struct ContinuousBatchScheduler {
     running: bool,
     scheduler_context: Arc<ContinuousBatchSchedulerContext>,
     sequence_id_pool: SequenceIdPool,
-    slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
 impl ContinuousBatchScheduler {
+    #[must_use]
     #[expect(
         unsafe_code,
         reason = "required for FFI lifetime extension with llama.cpp"
@@ -97,7 +96,6 @@ impl ContinuousBatchScheduler {
         scheduler_context: Arc<ContinuousBatchSchedulerContext>,
         llama_context: LlamaContext,
         max_concurrent_sequences: i32,
-        slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Self {
         let llama_context = unsafe {
             std::mem::transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context)
@@ -112,7 +110,6 @@ impl ContinuousBatchScheduler {
             running: true,
             scheduler_context,
             sequence_id_pool: SequenceIdPool::new(max_concurrent_sequences),
-            slot_aggregated_status,
         }
     }
 
@@ -196,13 +193,15 @@ impl ContinuousBatchScheduler {
 
     fn accept_conversation_history_request(
         &mut self,
-        request: ContinueFromConversationHistoryRequest,
+        ContinueFromConversationHistoryRequest {
+            generate_tokens_stop_rx,
+            generated_tokens_tx,
+            params,
+            slot_guard,
+        }: ContinueFromConversationHistoryRequest,
     ) {
-        let generated_tokens_tx = request.generated_tokens_tx;
-        let generate_tokens_stop_rx = request.generate_tokens_stop_rx;
-
         let prepared = match prepare_conversation_history_request(
-            request.params,
+            params,
             &generated_tokens_tx,
             &self.scheduler_context,
         ) {
@@ -233,6 +232,7 @@ impl ContinuousBatchScheduler {
                     tools,
                     generated_tokens_tx,
                     generate_tokens_stop_rx,
+                    slot_guard,
                 ) {
                     error!(
                         "{:?}: failed to accept text prompt: {err:#}",
@@ -261,6 +261,7 @@ impl ContinuousBatchScheduler {
                         tools,
                         generated_tokens_tx,
                         generate_tokens_stop_rx,
+                        slot_guard,
                     )
                 {
                     error!(
@@ -283,6 +284,7 @@ impl ContinuousBatchScheduler {
                     max_tokens,
                     raw_prompt,
                 },
+            slot_guard,
         }: ContinueFromRawPromptRequest,
     ) {
         let grammar_sampler = match resolve_grammar(grammar.as_ref(), false, &generated_tokens_tx) {
@@ -305,6 +307,7 @@ impl ContinuousBatchScheduler {
             Vec::new(),
             generated_tokens_tx,
             generate_tokens_stop_rx,
+            slot_guard,
         ) {
             error!(
                 "{:?}: failed to accept raw prompt: {err:#}",
@@ -413,12 +416,9 @@ impl ContinuousBatchScheduler {
             .collect::<Result<Vec<_>, _>>()
             .context("failed to serialize tools to JSON")?;
 
-        let pipeline = ToolCallPipeline::new(
-            self.scheduler_context.model.clone(),
-            &tools_json,
-            validator,
-        )
-        .context("failed to serialize tools for tool-call pipeline")?;
+        let pipeline =
+            ToolCallPipeline::new(self.scheduler_context.model.clone(), &tools_json, validator)
+                .context("failed to serialize tools for tool-call pipeline")?;
 
         Ok(ToolCallPipelineBuildOutcome::Ready(pipeline))
     }
@@ -436,6 +436,7 @@ impl ContinuousBatchScheduler {
         tools: Vec<Tool<ValidatedParametersSchema>>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
+        slot_guard: SlotGuard,
     ) -> Result<()> {
         let tool_call_pipeline = match self
             .build_tool_call_pipeline(tools, parse_tool_calls)
@@ -549,8 +550,6 @@ impl ContinuousBatchScheduler {
             );
         }
 
-        self.slot_aggregated_status.take_slot();
-
         debug!(
             "{:?}: accepted text prompt request on sequence {sequence_id} ({} tokens)",
             self.scheduler_context.agent_name,
@@ -571,6 +570,7 @@ impl ContinuousBatchScheduler {
             prompt_tokens,
             prompt_tokens_ingested: 0,
             sequence_id,
+            slot_guard,
             tool_call_pipeline,
         });
 
@@ -592,6 +592,7 @@ impl ContinuousBatchScheduler {
         tools: Vec<Tool<ValidatedParametersSchema>>,
         generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
         generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
+        slot_guard: SlotGuard,
     ) -> Result<()> {
         let tool_call_pipeline = match self
             .build_tool_call_pipeline(tools, parse_tool_calls)
@@ -781,8 +782,6 @@ impl ContinuousBatchScheduler {
 
         let chain = self.create_sampler_chain();
 
-        self.slot_aggregated_status.take_slot();
-
         debug!(
             "{:?}: accepted multimodal request on sequence {sequence_id} ({tokens_ingested} tokens ingested)",
             self.scheduler_context.agent_name
@@ -802,6 +801,7 @@ impl ContinuousBatchScheduler {
             prompt_tokens: Vec::new(),
             prompt_tokens_ingested: 0,
             sequence_id,
+            slot_guard,
             tool_call_pipeline,
         });
 
@@ -1075,7 +1075,6 @@ impl ContinuousBatchScheduler {
         }
 
         self.sequence_id_pool.release(removed_request.sequence_id);
-        self.slot_aggregated_status.release_slot();
 
         let usage = removed_request.token_classifier.usage();
 

@@ -43,8 +43,15 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                     input_batch,
                     normalization_method,
                 },
+            slot_guard,
         }: GenerateEmbeddingBatchRequest,
     ) -> Result<()> {
+        #[expect(
+            unused_variables,
+            reason = "slot_guard is held until function returns to release the slot via Drop"
+        )]
+        let slot_guard = slot_guard;
+
         if !self
             .scheduler_context
             .inference_parameters

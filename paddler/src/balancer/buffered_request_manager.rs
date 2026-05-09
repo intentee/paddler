@@ -138,8 +138,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn waiter_returns_found_after_agent_registration_with_no_initial_agents() -> Result<()>
-    {
+    async fn waiter_returns_found_after_agent_registration_with_no_initial_agents() -> Result<()> {
         let pool = Arc::new(AgentControllerPool::default());
         let manager = Arc::new(BufferedRequestManager::new(
             pool.clone(),
