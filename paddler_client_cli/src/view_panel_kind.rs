@@ -1,13 +1,13 @@
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PanelKind {
+pub enum ViewPanelKind {
     Thinking = 0,
     Response = 1,
     ToolCalls = 2,
     Undetermined = 3,
 }
 
-impl PanelKind {
+impl ViewPanelKind {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Thinking => "Thinking",

@@ -13,14 +13,14 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use super::handler::Handler;
-use super::load_tool::load_tool;
-use super::thinking_mode::ThinkingMode;
-use super::value_parser::parse_inference_url::parse_inference_url;
 use crate::chat_session::ChatSession;
+use crate::prompt_load_tool::prompt_load_tool;
+use crate::prompt_parse_inference_url::prompt_parse_inference_url;
+use crate::prompt_thinking_mode::PromptThinkingMode;
 
 #[derive(Parser)]
 pub struct Prompt {
-    #[arg(long, value_parser = parse_inference_url)]
+    #[arg(long, value_parser = prompt_parse_inference_url)]
     /// Address of the inference server (e.g. 127.0.0.1:8061)
     inference_addr: Url,
 
@@ -30,7 +30,7 @@ pub struct Prompt {
 
     #[arg(long, value_enum)]
     /// Whether chain-of-thought thinking is on or off
-    thinking: ThinkingMode,
+    thinking: PromptThinkingMode,
 
     #[arg(long, action = clap::ArgAction::Append)]
     /// Path to a JSON file describing one tool (repeatable)
@@ -46,7 +46,7 @@ impl Handler for Prompt {
         let tools = self
             .tool
             .iter()
-            .map(|path| load_tool(path))
+            .map(|path| prompt_load_tool(path))
             .collect::<Result<Vec<_>>>()?;
 
         let request = ContinueFromConversationHistoryParams {

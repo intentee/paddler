@@ -8,11 +8,11 @@ use crate::stop_reason::StopReason;
 
 #[derive(Debug, Default)]
 pub struct StreamingResponse {
-    pub thinking: String,
-    pub response: String,
+    pub thinking: Vec<String>,
+    pub response: Vec<String>,
+    pub tool_call_tokens: Vec<String>,
     pub tool_calls: Vec<ParsedToolCall>,
-    pub pending_tool_call_buffer: String,
-    pub undetermined: String,
+    pub undetermined: Vec<String>,
     pub summary: Option<GenerationSummary>,
     pub stop_reason: Option<StopReason>,
 }
@@ -55,14 +55,11 @@ impl StreamingResponse {
 
     fn apply_token_result(&mut self, token_result: GeneratedTokenResult) {
         match token_result {
-            GeneratedTokenResult::ContentToken(piece) => self.response.push_str(&piece),
-            GeneratedTokenResult::ReasoningToken(piece) => self.thinking.push_str(&piece),
-            GeneratedTokenResult::UndeterminableToken(piece) => self.undetermined.push_str(&piece),
-            GeneratedTokenResult::ToolCallToken(piece) => {
-                self.pending_tool_call_buffer.push_str(&piece);
-            }
+            GeneratedTokenResult::ContentToken(piece) => self.response.push(piece),
+            GeneratedTokenResult::ReasoningToken(piece) => self.thinking.push(piece),
+            GeneratedTokenResult::UndeterminableToken(piece) => self.undetermined.push(piece),
+            GeneratedTokenResult::ToolCallToken(piece) => self.tool_call_tokens.push(piece),
             GeneratedTokenResult::ToolCallParsed(calls) => {
-                self.pending_tool_call_buffer.clear();
                 self.tool_calls.extend(calls);
             }
             GeneratedTokenResult::Done(summary) => {
@@ -123,7 +120,7 @@ mod tests {
     }
 
     #[test]
-    fn content_token_appends_to_response_buffer() {
+    fn content_token_appended_to_response_stream() {
         let mut state = StreamingResponse::default();
 
         state.apply_message(token_message(GeneratedTokenResult::ContentToken(
@@ -133,14 +130,17 @@ mod tests {
             "world".to_owned(),
         )));
 
-        assert_eq!(state.response, "hello world");
+        assert_eq!(
+            state.response,
+            vec!["hello ".to_owned(), "world".to_owned()]
+        );
         assert!(state.thinking.is_empty());
         assert!(state.undetermined.is_empty());
         assert!(!state.is_finished());
     }
 
     #[test]
-    fn raw_tool_call_token_appends_to_pending_buffer() {
+    fn raw_tool_call_token_appended_to_token_stream() {
         let mut state = StreamingResponse::default();
 
         state.apply_message(token_message(GeneratedTokenResult::ToolCallToken(
@@ -150,12 +150,15 @@ mod tests {
             "\"calc\"}".to_owned(),
         )));
 
-        assert_eq!(state.pending_tool_call_buffer, "{\"name\":\"calc\"}");
+        assert_eq!(
+            state.tool_call_tokens,
+            vec!["{\"name\":".to_owned(), "\"calc\"}".to_owned()]
+        );
         assert!(state.tool_calls.is_empty());
     }
 
     #[test]
-    fn tool_call_parsed_replaces_pending_buffer_with_structured_calls() {
+    fn tool_call_parsed_extends_calls_without_dropping_token_stream() {
         let mut state = StreamingResponse::default();
         state.apply_message(token_message(GeneratedTokenResult::ToolCallToken(
             "{\"name\":\"calc\"}".to_owned(),
@@ -167,7 +170,10 @@ mod tests {
         )));
 
         assert_eq!(state.tool_calls, parsed);
-        assert!(state.pending_tool_call_buffer.is_empty());
+        assert_eq!(
+            state.tool_call_tokens,
+            vec!["{\"name\":\"calc\"}".to_owned()]
+        );
     }
 
     #[test]

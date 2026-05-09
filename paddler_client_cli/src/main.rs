@@ -1,13 +1,16 @@
-mod chat_panel_layout;
 mod chat_session;
 mod chat_session_event;
 mod cmd;
-mod panel_kind;
-mod panel_navigation;
-mod raw_terminal_guard;
-mod render_chat_panels;
+mod prompt_load_tool;
+mod prompt_parse_inference_url;
+mod prompt_thinking_mode;
 mod stop_reason;
 mod streaming_response;
+mod view_chat_panels;
+mod view_panel_kind;
+mod view_panel_layout;
+mod view_panel_navigation;
+mod view_terminal_guard;
 
 use anyhow::Result;
 use clap::Parser;

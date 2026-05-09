@@ -10,9 +10,9 @@ use crossterm::terminal::LeaveAlternateScreen;
 use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
 
-pub struct RawTerminalGuard;
+pub struct ViewTerminalGuard;
 
-impl RawTerminalGuard {
+impl ViewTerminalGuard {
     pub fn enter() -> Result<Self> {
         enable_raw_mode().context("enabling raw mode")?;
         if let Err(enter_alt_screen_error) = io::stdout().execute(EnterAlternateScreen) {
@@ -42,7 +42,7 @@ impl RawTerminalGuard {
     }
 }
 
-impl Drop for RawTerminalGuard {
+impl Drop for ViewTerminalGuard {
     fn drop(&mut self) {
         if let Err(disable_mouse_error) = io::stdout().execute(DisableMouseCapture) {
             log::error!("failed to disable mouse capture: {disable_mouse_error}");

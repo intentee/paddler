@@ -3,11 +3,11 @@ use ratatui::layout::Layout;
 use ratatui::layout::Position;
 use ratatui::layout::Rect;
 
-use crate::panel_kind::PanelKind;
+use crate::view_panel_kind::ViewPanelKind;
 
 const STATUS_BAR_HEIGHT: u16 = 1;
 
-pub struct ChatPanelLayout {
+pub struct ViewPanelLayout {
     pub thinking: Rect,
     pub response: Rect,
     pub tool_calls: Rect,
@@ -15,7 +15,7 @@ pub struct ChatPanelLayout {
     pub status_bar: Rect,
 }
 
-impl ChatPanelLayout {
+impl ViewPanelLayout {
     pub fn compute(area: Rect) -> Self {
         let outer = Layout::vertical([Constraint::Min(0), Constraint::Length(STATUS_BAR_HEIGHT)])
             .split(area);
@@ -34,26 +34,26 @@ impl ChatPanelLayout {
         }
     }
 
-    pub const fn rect_for(&self, panel: PanelKind) -> Rect {
+    pub const fn rect_for(&self, panel: ViewPanelKind) -> Rect {
         match panel {
-            PanelKind::Thinking => self.thinking,
-            PanelKind::Response => self.response,
-            PanelKind::ToolCalls => self.tool_calls,
-            PanelKind::Undetermined => self.undetermined,
+            ViewPanelKind::Thinking => self.thinking,
+            ViewPanelKind::Response => self.response,
+            ViewPanelKind::ToolCalls => self.tool_calls,
+            ViewPanelKind::Undetermined => self.undetermined,
         }
     }
 
-    pub const fn viewport_rows(&self, panel: PanelKind) -> u16 {
+    pub const fn viewport_rows(&self, panel: ViewPanelKind) -> u16 {
         self.rect_for(panel).height.saturating_sub(2)
     }
 
-    pub fn panel_at(&self, column: u16, row: u16) -> Option<PanelKind> {
+    pub fn panel_at(&self, column: u16, row: u16) -> Option<ViewPanelKind> {
         let position = Position { x: column, y: row };
         [
-            PanelKind::Thinking,
-            PanelKind::Response,
-            PanelKind::ToolCalls,
-            PanelKind::Undetermined,
+            ViewPanelKind::Thinking,
+            ViewPanelKind::Response,
+            ViewPanelKind::ToolCalls,
+            ViewPanelKind::Undetermined,
         ]
         .into_iter()
         .find(|panel| self.rect_for(*panel).contains(position))

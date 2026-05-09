@@ -17,12 +17,12 @@ use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use tokio_util::sync::CancellationToken;
 
-use crate::chat_panel_layout::ChatPanelLayout;
 use crate::chat_session_event::ChatSessionEvent;
-use crate::panel_navigation::PanelNavigation;
-use crate::raw_terminal_guard::RawTerminalGuard;
-use crate::render_chat_panels::render_chat_panels;
 use crate::streaming_response::StreamingResponse;
+use crate::view_chat_panels::view_chat_panels;
+use crate::view_panel_layout::ViewPanelLayout;
+use crate::view_panel_navigation::ViewPanelNavigation;
+use crate::view_terminal_guard::ViewTerminalGuard;
 
 const MOUSE_WHEEL_LINES: u16 = 3;
 const ARROW_KEY_LINES: u16 = 1;
@@ -30,7 +30,7 @@ const ARROW_KEY_LINES: u16 = 1;
 pub struct ChatSession {
     inference_stream: InferenceMessageStream,
     state: StreamingResponse,
-    navigation: PanelNavigation,
+    navigation: ViewPanelNavigation,
     shutdown: CancellationToken,
 }
 
@@ -39,19 +39,19 @@ impl ChatSession {
         Self {
             inference_stream,
             state: StreamingResponse::default(),
-            navigation: PanelNavigation::default(),
+            navigation: ViewPanelNavigation::default(),
             shutdown,
         }
     }
 
     pub async fn run(mut self) -> Result<()> {
-        let _terminal_guard = RawTerminalGuard::enter()?;
+        let _terminal_guard = ViewTerminalGuard::enter()?;
         let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
         let mut events = EventStream::new();
 
         let mut layout = compute_layout(&terminal)?;
         terminal.draw(|frame| {
-            render_chat_panels(&self.state, &mut self.navigation, &layout, frame);
+            view_chat_panels(&self.state, &mut self.navigation, &layout, frame);
         })?;
 
         loop {
@@ -83,7 +83,7 @@ impl ChatSession {
             }
             layout = compute_layout(&terminal)?;
             terminal.draw(|frame| {
-                render_chat_panels(&self.state, &mut self.navigation, &layout, frame);
+                view_chat_panels(&self.state, &mut self.navigation, &layout, frame);
             })?;
         }
     }
@@ -114,7 +114,7 @@ impl ChatSession {
         }
     }
 
-    fn handle_navigation_key(&mut self, key_event: KeyEvent, layout: &ChatPanelLayout) {
+    fn handle_navigation_key(&mut self, key_event: KeyEvent, layout: &ViewPanelLayout) {
         let focused = self.navigation.focused();
         let viewport_rows = layout.viewport_rows(focused);
         let page_lines = viewport_rows.saturating_sub(1).max(1);
@@ -131,7 +131,7 @@ impl ChatSession {
         }
     }
 
-    fn handle_mouse(&mut self, mouse_event: MouseEvent, layout: &ChatPanelLayout) {
+    fn handle_mouse(&mut self, mouse_event: MouseEvent, layout: &ViewPanelLayout) {
         let Some(panel) = layout.panel_at(mouse_event.column, mouse_event.row) else {
             return;
         };
@@ -152,9 +152,9 @@ impl ChatSession {
     }
 }
 
-fn compute_layout(terminal: &Terminal<CrosstermBackend<io::Stdout>>) -> Result<ChatPanelLayout> {
+fn compute_layout(terminal: &Terminal<CrosstermBackend<io::Stdout>>) -> Result<ViewPanelLayout> {
     let size = terminal.size()?;
-    Ok(ChatPanelLayout::compute(Rect::new(
+    Ok(ViewPanelLayout::compute(Rect::new(
         0,
         0,
         size.width,
