@@ -41,7 +41,7 @@ async fn glm_4_7_flash_internal_endpoint_emits_reasoning_tokens() -> Result<()> 
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
         .count();
 
     assert!(
@@ -53,7 +53,7 @@ async fn glm_4_7_flash_internal_endpoint_emits_reasoning_tokens() -> Result<()> 
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 
@@ -69,7 +69,7 @@ async fn glm_4_7_flash_internal_endpoint_emits_reasoning_tokens() -> Result<()> 
     let reasoning_stream: String = collected
         .token_results
         .iter()
-        .filter_map(|result| match result {
+        .filter_map(|result| match &result.token_result {
             GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
             _ => None,
         })
@@ -77,7 +77,7 @@ async fn glm_4_7_flash_internal_endpoint_emits_reasoning_tokens() -> Result<()> 
     let content_stream: String = collected
         .token_results
         .iter()
-        .filter_map(|result| match result {
+        .filter_map(|result| match &result.token_result {
             GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
             _ => None,
         })

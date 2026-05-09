@@ -64,7 +64,7 @@ async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens()
     let collected = collect_generated_tokens(stream).await?;
 
     for event in &collected.token_results {
-        match event {
+        match &event.token_result {
             GeneratedTokenResult::ToolCallParsed(_)
             | GeneratedTokenResult::ToolCallParseFailed(_)
             | GeneratedTokenResult::ToolSchemaInvalid(_)
@@ -81,7 +81,7 @@ async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens()
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(_) = last else {
+    let GeneratedTokenResult::Done(_) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 

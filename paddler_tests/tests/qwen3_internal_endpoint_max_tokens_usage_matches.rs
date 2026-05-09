@@ -41,14 +41,14 @@ async fn qwen3_internal_endpoint_max_tokens_usage_matches_streamed_count() -> Re
     let streamed_token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count() as u64;
 
     let last = collected
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 

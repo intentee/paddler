@@ -41,7 +41,7 @@ async fn agent_conversation_accepts_empty_tools_list() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(token_count > 0);

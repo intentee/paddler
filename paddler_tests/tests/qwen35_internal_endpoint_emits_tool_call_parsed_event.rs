@@ -66,7 +66,7 @@ async fn qwen35_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
     let parsed_events: Vec<&Vec<llama_cpp_bindings::ParsedToolCall>> = collected
         .token_results
         .iter()
-        .filter_map(|event| match event {
+        .filter_map(|event| match &event.token_result {
             GeneratedTokenResult::ToolCallParsed(parsed) => Some(parsed),
             _ => None,
         })

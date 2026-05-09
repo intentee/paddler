@@ -40,7 +40,7 @@ async fn qwen3_internal_endpoint_pure_content_usage_breakdown() -> Result<()> {
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 

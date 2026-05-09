@@ -41,7 +41,7 @@ async fn qwen3_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens() 
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
         .count();
 
     assert!(
@@ -53,7 +53,7 @@ async fn qwen3_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens() 
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 

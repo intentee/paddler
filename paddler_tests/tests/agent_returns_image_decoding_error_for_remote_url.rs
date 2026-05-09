@@ -52,10 +52,12 @@ async fn agent_returns_image_decoding_error_for_remote_url() -> Result<()> {
         let collected = collect_generated_tokens(stream).await;
 
         if let Ok(collected) = collected {
-            let saw_decoding_error = collected
-                .token_results
-                .iter()
-                .any(|result| matches!(result, GeneratedTokenResult::ImageDecodingFailed(_)));
+            let saw_decoding_error = collected.token_results.iter().any(|result| {
+                matches!(
+                    result.token_result,
+                    GeneratedTokenResult::ImageDecodingFailed(_)
+                )
+            });
 
             assert!(
                 saw_decoding_error,

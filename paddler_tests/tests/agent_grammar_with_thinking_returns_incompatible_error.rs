@@ -46,7 +46,7 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
         if let Ok(collected) = collected {
             assert!(
                 collected.token_results.iter().any(|result| matches!(
-                    result,
+                    result.token_result,
                     GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
                 )),
                 "expected GrammarIncompatibleWithThinking error"

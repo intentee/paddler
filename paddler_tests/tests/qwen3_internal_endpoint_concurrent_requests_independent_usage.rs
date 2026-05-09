@@ -48,7 +48,7 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
                 .token_results
                 .last()
                 .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-            match last {
+            match &last.token_result {
                 GeneratedTokenResult::Done(summary) => {
                     Ok::<GenerationSummary, anyhow::Error>(*summary)
                 }

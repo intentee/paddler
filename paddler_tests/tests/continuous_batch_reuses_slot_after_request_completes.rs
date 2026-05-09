@@ -4,6 +4,7 @@ use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
@@ -28,7 +29,10 @@ async fn continuous_batch_reuses_slot_after_request_completes() -> Result<()> {
 
     assert!(matches!(
         first_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     let second_stream = inference_client
@@ -43,13 +47,16 @@ async fn continuous_batch_reuses_slot_after_request_completes() -> Result<()> {
 
     assert!(matches!(
         second_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     let second_token_count = second_collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(

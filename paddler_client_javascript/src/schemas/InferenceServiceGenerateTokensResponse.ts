@@ -47,6 +47,7 @@ type Normalised =
   | {
       done: true;
       error: null;
+      generated_by: string | null;
       ok: true;
       request_id: string;
       summary: z.infer<typeof GenerationSummarySchema>;
@@ -57,6 +58,7 @@ type Normalised =
   | {
       done: false;
       error: null;
+      generated_by: string | null;
       ok: true;
       request_id: string;
       summary: null;
@@ -67,6 +69,7 @@ type Normalised =
   | {
       done: false;
       error: null;
+      generated_by: string | null;
       ok: true;
       request_id: string;
       summary: null;
@@ -77,6 +80,7 @@ type Normalised =
   | {
       done: true;
       error: { code: number; description: string };
+      generated_by: string | null;
       ok: false;
       request_id: string;
       summary: null;
@@ -87,6 +91,7 @@ type Normalised =
   | {
       done: false;
       error: { code: number; description: string };
+      generated_by: string | null;
       ok: false;
       request_id: string;
       summary: null;
@@ -97,12 +102,14 @@ type Normalised =
 
 function terminalError(
   request_id: string,
+  generated_by: string | null,
   code: number,
   description: string,
 ): Normalised {
   return Object.freeze({
     done: true,
     error: Object.freeze({ code, description }),
+    generated_by,
     ok: false,
     request_id,
     summary: null,
@@ -114,12 +121,14 @@ function terminalError(
 
 function nonTerminalError(
   request_id: string,
+  generated_by: string | null,
   code: number,
   description: string,
 ): Normalised {
   return Object.freeze({
     done: false,
     error: Object.freeze({ code, description }),
+    generated_by,
     ok: false,
     request_id,
     summary: null,
@@ -131,12 +140,14 @@ function nonTerminalError(
 
 function streamingToken(
   request_id: string,
+  generated_by: string | null,
   token: string,
   tokenKind: GeneratedTokenKind,
 ): Normalised {
   return Object.freeze({
     done: false,
     error: null,
+    generated_by,
     ok: true,
     request_id,
     summary: null,
@@ -159,6 +170,7 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }),
     z.object({
       Response: z.object({
+        generated_by: z.string().nullable(),
         request_id: z.string(),
         response: z.object({
           GeneratedToken: GeneratedTokenResultSchema,
@@ -170,29 +182,32 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     if ("Error" in data) {
       return terminalError(
         data.Error.request_id,
+        null,
         data.Error.error.code,
         data.Error.error.description,
       );
     }
 
     const request_id = data.Response.request_id;
+    const generated_by = data.Response.generated_by;
     const variant = data.Response.response.GeneratedToken;
 
     if ("ContentToken" in variant) {
-      return streamingToken(request_id, variant.ContentToken, "content");
+      return streamingToken(request_id, generated_by, variant.ContentToken, "content");
     }
 
     if ("ReasoningToken" in variant) {
-      return streamingToken(request_id, variant.ReasoningToken, "reasoning");
+      return streamingToken(request_id, generated_by, variant.ReasoningToken, "reasoning");
     }
 
     if ("ToolCallToken" in variant) {
-      return streamingToken(request_id, variant.ToolCallToken, "tool_call");
+      return streamingToken(request_id, generated_by, variant.ToolCallToken, "tool_call");
     }
 
     if ("UndeterminableToken" in variant) {
       return streamingToken(
         request_id,
+        generated_by,
         variant.UndeterminableToken,
         "undeterminable",
       );
@@ -202,6 +217,7 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       return Object.freeze({
         done: true,
         error: null,
+        generated_by,
         ok: true,
         request_id,
         summary: variant.Done,
@@ -215,6 +231,7 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       return Object.freeze({
         done: false,
         error: null,
+        generated_by,
         ok: true,
         request_id,
         summary: null,
@@ -225,12 +242,13 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }
 
     if ("ToolCallParseFailed" in variant) {
-      return nonTerminalError(request_id, 422, variant.ToolCallParseFailed);
+      return nonTerminalError(request_id, generated_by, 422, variant.ToolCallParseFailed);
     }
 
     if ("ToolCallValidationFailed" in variant) {
       return nonTerminalError(
         request_id,
+        generated_by,
         422,
         variant.ToolCallValidationFailed.join("; "),
       );
@@ -239,44 +257,46 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     if ("ToolCallValidatorBuildFailed" in variant) {
       return terminalError(
         request_id,
+        generated_by,
         400,
         variant.ToolCallValidatorBuildFailed,
       );
     }
 
     if ("ChatTemplateError" in variant) {
-      return terminalError(request_id, 500, variant.ChatTemplateError);
+      return terminalError(request_id, generated_by, 500, variant.ChatTemplateError);
     }
 
     if ("GrammarIncompatibleWithThinking" in variant) {
       return terminalError(
         request_id,
+        generated_by,
         400,
         variant.GrammarIncompatibleWithThinking,
       );
     }
 
     if ("GrammarInitializationFailed" in variant) {
-      return terminalError(request_id, 500, variant.GrammarInitializationFailed);
+      return terminalError(request_id, generated_by, 500, variant.GrammarInitializationFailed);
     }
 
     if ("GrammarRejectedModelOutput" in variant) {
-      return terminalError(request_id, 500, variant.GrammarRejectedModelOutput);
+      return terminalError(request_id, generated_by, 500, variant.GrammarRejectedModelOutput);
     }
 
     if ("GrammarSyntaxError" in variant) {
-      return terminalError(request_id, 400, variant.GrammarSyntaxError);
+      return terminalError(request_id, generated_by, 400, variant.GrammarSyntaxError);
     }
 
     if ("ImageDecodingFailed" in variant) {
-      return terminalError(request_id, 400, variant.ImageDecodingFailed);
+      return terminalError(request_id, generated_by, 400, variant.ImageDecodingFailed);
     }
 
     if ("MultimodalNotSupported" in variant) {
-      return terminalError(request_id, 400, variant.MultimodalNotSupported);
+      return terminalError(request_id, generated_by, 400, variant.MultimodalNotSupported);
     }
 
-    return terminalError(request_id, 500, variant.SamplerError);
+    return terminalError(request_id, generated_by, 500, variant.SamplerError);
   });
 
 export type InferenceServiceGenerateTokensResponse = z.infer<

@@ -8,6 +8,7 @@ use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_in_process_cluster::start_in_process_cluster;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -59,13 +60,16 @@ async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Resul
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(token_count > 0);
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     cluster.shutdown().await?;

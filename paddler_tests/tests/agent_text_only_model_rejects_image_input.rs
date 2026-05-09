@@ -57,7 +57,7 @@ async fn agent_text_only_model_rejects_image_input() -> Result<()> {
         if let Ok(collected) = collected {
             let saw_rejection = collected.token_results.iter().any(|result| {
                 matches!(
-                    result,
+                    result.token_result,
                     GeneratedTokenResult::ChatTemplateError(_)
                         | GeneratedTokenResult::MultimodalNotSupported(_)
                 )

@@ -55,7 +55,7 @@ async fn gemma4_internal_endpoint_emits_reasoning_tokens_for_image_request() -> 
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
         .count();
 
     assert!(
@@ -67,7 +67,7 @@ async fn gemma4_internal_endpoint_emits_reasoning_tokens_for_image_request() -> 
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 

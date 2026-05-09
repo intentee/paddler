@@ -50,16 +50,16 @@ async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
     let returned_ids: BTreeSet<String> = collected
         .embeddings
         .iter()
-        .map(|embedding| embedding.source_document_id.clone())
+        .map(|produced| produced.embedding.source_document_id.clone())
         .collect();
     let expected_ids: BTreeSet<String> = (0..12).map(|index| format!("doc-{index}")).collect();
 
     assert_eq!(returned_ids, expected_ids);
 
-    let first_dimension = collected.embeddings[0].embedding.len();
+    let first_dimension = collected.embeddings[0].embedding.embedding.len();
 
-    for embedding in &collected.embeddings {
-        assert_eq!(embedding.embedding.len(), first_dimension);
+    for produced in &collected.embeddings {
+        assert_eq!(produced.embedding.embedding.len(), first_dimension);
     }
 
     cluster.shutdown().await?;

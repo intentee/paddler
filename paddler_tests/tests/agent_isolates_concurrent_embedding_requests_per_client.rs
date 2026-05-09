@@ -71,7 +71,7 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()>
         let returned_ids: BTreeSet<String> = collected
             .embeddings
             .iter()
-            .map(|embedding| embedding.source_document_id.clone())
+            .map(|produced| produced.embedding.source_document_id.clone())
             .collect();
         let expected_ids: BTreeSet<String> = (0..docs_per_client)
             .map(|document_index| format!("client-{client_index}-doc-{document_index}"))

@@ -41,7 +41,7 @@ async fn agent_streams_tokens_from_conversation_history_over_http() -> Result<()
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(token_count > 0);

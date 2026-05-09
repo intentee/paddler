@@ -5,6 +5,7 @@ use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_in_process_cluster_with_qwen2_5_vl::start_in_process_cluster_with_qwen2_5_vl;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -55,13 +56,16 @@ async fn qwen25vl_generates_tokens_from_image_input() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(token_count > 0);
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     cluster.shutdown().await?;

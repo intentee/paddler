@@ -8,6 +8,7 @@ use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_in_process_cluster::start_in_process_cluster;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -77,7 +78,7 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
     let short_collected = short_collected?;
 
     let long_was_evicted = long_collected.token_results.iter().any(|result| {
-        matches!(result, GeneratedTokenResult::SamplerError(message) if message.contains("evicted"))
+        matches!(&result.token_result, GeneratedTokenResult::SamplerError(message) if message.contains("evicted"))
     });
 
     assert!(
@@ -86,7 +87,10 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
     );
     assert!(matches!(
         short_collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     cluster.shutdown().await?;

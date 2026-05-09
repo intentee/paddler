@@ -12,6 +12,7 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
@@ -101,21 +102,24 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
         collected
             .token_results
             .iter()
-            .any(GeneratedTokenResult::is_token),
+            .any(|result| result.token_result.is_token()),
         "in-flight request must continue producing tokens during template swap"
     );
 
     assert!(
-        !collected
-            .token_results
-            .iter()
-            .any(|result| matches!(result, GeneratedTokenResult::ChatTemplateError(_))),
+        !collected.token_results.iter().any(|result| matches!(
+            result.token_result,
+            GeneratedTokenResult::ChatTemplateError(_)
+        )),
         "in-flight request must not see ChatTemplateError during swap"
     );
 
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     let retrieved = cluster

@@ -18,7 +18,6 @@ use paddler_types::chat_template::ChatTemplate;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
@@ -43,7 +42,7 @@ async fn run_inference_after_template_swap(inference_client: &InferenceHttpClien
     Ok(collected
         .token_results
         .iter()
-        .any(GeneratedTokenResult::is_token))
+        .any(|result| result.token_result.is_token()))
 }
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

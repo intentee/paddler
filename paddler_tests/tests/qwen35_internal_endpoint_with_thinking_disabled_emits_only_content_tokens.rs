@@ -39,17 +39,22 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
     let reasoning_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ReasoningToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ReasoningToken(_)))
         .count();
     let content_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ContentToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ContentToken(_)))
         .count();
     let undeterminable_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::UndeterminableToken(_)))
+        .filter(|result| {
+            matches!(
+                result.token_result,
+                GeneratedTokenResult::UndeterminableToken(_)
+            )
+        })
         .count();
 
     assert_eq!(
@@ -74,7 +79,7 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 
@@ -99,7 +104,7 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
     let reasoning_stream: String = collected
         .token_results
         .iter()
-        .filter_map(|result| match result {
+        .filter_map(|result| match &result.token_result {
             GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
             _ => None,
         })
@@ -107,7 +112,7 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
     let content_stream: String = collected
         .token_results
         .iter()
-        .filter_map(|result| match result {
+        .filter_map(|result| match &result.token_result {
             GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
             _ => None,
         })

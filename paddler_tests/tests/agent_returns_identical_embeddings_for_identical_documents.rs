@@ -52,17 +52,17 @@ async fn agent_returns_identical_embeddings_for_identical_documents() -> Result<
     let first = collected
         .embeddings
         .iter()
-        .find(|embedding| embedding.source_document_id == "doc-first")
+        .find(|produced| produced.embedding.source_document_id == "doc-first")
         .context("first embedding missing")?;
 
     let second = collected
         .embeddings
         .iter()
-        .find(|embedding| embedding.source_document_id == "doc-second")
+        .find(|produced| produced.embedding.source_document_id == "doc-second")
         .context("second embedding missing")?;
 
     assert_eq!(
-        first.embedding, second.embedding,
+        first.embedding.embedding, second.embedding.embedding,
         "identical documents must produce identical embedding vectors"
     );
 

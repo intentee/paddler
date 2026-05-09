@@ -114,6 +114,7 @@ mod tests {
 
     fn token_message(token_result: GeneratedTokenResult) -> Message {
         Message::Response(ResponseEnvelope {
+            generated_by: None,
             request_id: "test-request".to_owned(),
             response: Response::GeneratedToken(token_result),
         })

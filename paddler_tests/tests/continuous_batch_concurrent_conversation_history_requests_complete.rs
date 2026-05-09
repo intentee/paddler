@@ -4,6 +4,7 @@ use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -61,23 +62,29 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
     let tokens_a = collected_a
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
     let tokens_b = collected_b
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(tokens_a > 0);
     assert!(tokens_b > 0);
     assert!(matches!(
         collected_a.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
     assert!(matches!(
         collected_b.token_results.last(),
-        Some(GeneratedTokenResult::Done(_))
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     cluster.shutdown().await?;

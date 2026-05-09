@@ -40,7 +40,7 @@ async fn agent_returns_rms_normalized_embeddings_when_requested() -> Result<()> 
     assert_eq!(collected.embeddings.len(), 1);
     assert!(collected.saw_done);
     assert!(matches!(
-        collected.embeddings[0].normalization_method,
+        collected.embeddings[0].embedding.normalization_method,
         EmbeddingNormalizationMethod::RmsNorm { .. }
     ));
 

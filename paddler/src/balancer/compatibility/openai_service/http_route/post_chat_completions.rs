@@ -384,11 +384,13 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         GeneratedTokenResult::ContentToken(text)
                         | GeneratedTokenResult::UndeterminableToken(text),
                     ),
+                ..
             }) => self.handle_content(&request_id, &text),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response:
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                ..
             }) => self.handle_reasoning(&request_id, &text),
             OutgoingMessage::Response(ResponseEnvelope {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
@@ -398,6 +400,7 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 request_id,
                 response:
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
+                ..
             }) => self.handle_tool_call_parsed(&request_id, &parsed_calls),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
@@ -411,6 +414,7 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
+                ..
             }) => self.handle_done(&request_id, &summary),
             other => Err(anyhow!(
                 "OpenAIStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
@@ -580,6 +584,7 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
+                ..
             }) => Ok(vec![TransformResult::Chunk(
                 self.build_done_chunk(&request_id, &summary)?,
             )]),
@@ -711,6 +716,7 @@ mod tests {
 
     fn make_token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
         OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
             request_id: "test-request".to_owned(),
             response: OutgoingResponse::GeneratedToken(token_result),
         })
@@ -728,6 +734,7 @@ mod tests {
 
     fn make_response_message(response: OutgoingResponse) -> OutgoingMessage {
         OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
             request_id: "test-request".to_owned(),
             response,
         })

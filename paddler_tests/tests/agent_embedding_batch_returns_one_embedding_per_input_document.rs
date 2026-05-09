@@ -52,7 +52,7 @@ async fn agent_embedding_batch_returns_one_embedding_per_input_document() -> Res
     let returned_ids: BTreeSet<String> = collected
         .embeddings
         .iter()
-        .map(|embedding| embedding.source_document_id.clone())
+        .map(|produced| produced.embedding.source_document_id.clone())
         .collect();
 
     let expected_ids: BTreeSet<String> =

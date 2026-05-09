@@ -208,6 +208,7 @@ where
 {
     if let Err(err) = session_controller
         .send_response(OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: agent_controller.name.clone(),
             request_id: request_id.clone(),
             response: response.into(),
         }))

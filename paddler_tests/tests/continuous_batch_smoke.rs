@@ -9,6 +9,7 @@ use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_in_process_cluster::start_in_process_cluster;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -64,7 +65,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| result.is_token())
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(
@@ -76,7 +77,10 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     assert!(
         matches!(
             collected.token_results.last(),
-            Some(GeneratedTokenResult::Done(_))
+            Some(TokenResultWithProducer {
+                token_result: GeneratedTokenResult::Done(_),
+                ..
+            })
         ),
         "smoke test stream did not terminate with Done"
     );

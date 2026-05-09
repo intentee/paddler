@@ -107,6 +107,7 @@ impl ManagementSocketClientService {
                             message_tx.send(
                                 ManagementJsonRpcMessage::Response(
                                     ResponseEnvelope {
+                                        generated_by: None,
                                         request_id: id.clone(),
                                         response: response.into(),
                                     }
@@ -228,6 +229,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GetChatTemplateOverride,
             }) => Ok(
                 message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                    generated_by: None,
                     request_id: id,
                     response: JsonRpcResponse::ChatTemplateOverride(
                         if let Some(agent_applicable_state) =
@@ -245,6 +247,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GetModelMetadata,
             }) => Ok(
                 message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                    generated_by: None,
                     request_id: id,
                     response: JsonRpcResponse::ModelMetadata(
                         model_metadata_holder.get_model_metadata(),

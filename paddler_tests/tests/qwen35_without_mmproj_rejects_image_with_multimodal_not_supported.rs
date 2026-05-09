@@ -56,7 +56,7 @@ async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() -> 
         if let Ok(collected) = collected {
             assert!(
                 collected.token_results.iter().any(|result| matches!(
-                    result,
+                    result.token_result,
                     GeneratedTokenResult::MultimodalNotSupported(_)
                 )),
                 "expected MultimodalNotSupported, got: {:?}",

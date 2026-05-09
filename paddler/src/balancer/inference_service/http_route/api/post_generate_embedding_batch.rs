@@ -136,6 +136,7 @@ async fn respond(
 
         final_session
             .send_response_safe(OutgoingMessage::Response(ResponseEnvelope {
+                generated_by: None,
                 request_id: final_request_id,
                 response: OutgoingResponse::Embedding(EmbeddingResult::Done),
             }))

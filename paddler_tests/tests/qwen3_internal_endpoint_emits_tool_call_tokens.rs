@@ -66,19 +66,19 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
     let tool_call_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ToolCallToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ToolCallToken(_)))
         .count();
     let content_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::ContentToken(_)))
+        .filter(|result| matches!(result.token_result, GeneratedTokenResult::ContentToken(_)))
         .count();
 
     let last = collected
         .token_results
         .last()
         .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
-    let GeneratedTokenResult::Done(summary) = last else {
+    let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };
 

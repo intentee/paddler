@@ -1,7 +1,7 @@
-use paddler_types::embedding::Embedding;
+use crate::embedding_with_producer::EmbeddingWithProducer;
 
 pub struct CollectedEmbeddingResults {
-    pub embeddings: Vec<Embedding>,
+    pub embeddings: Vec<EmbeddingWithProducer>,
     pub errors: Vec<String>,
     pub saw_done: bool,
 }

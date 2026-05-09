@@ -20,7 +20,7 @@ use reqwest::Client;
 async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {
     let agent_count: usize = 4;
 
-    let mut cluster = start_subprocess_cluster_with_qwen3_embedding(
+    let cluster = start_subprocess_cluster_with_qwen3_embedding(
         InferenceParameters {
             enable_embeddings: true,
             ..InferenceParameters::default()
@@ -45,45 +45,25 @@ async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {
         normalization_method: EmbeddingNormalizationMethod::None,
     };
 
-    let mut seen_busy_agents: BTreeSet<String> = BTreeSet::new();
-    let mut have_seen_any_activity = false;
-
-    let request_future = async {
-        let stream = inference_client
-            .post_generate_embedding_batch(&params)
-            .await?;
-        collect_embedding_results(stream).await
-    };
-
-    let observation_future = cluster.agents.until(|snapshot| {
-        let any_busy_now = snapshot
-            .agents
-            .iter()
-            .any(|agent| agent.slots_processing > 0);
-
-        if any_busy_now {
-            have_seen_any_activity = true;
-            for agent in &snapshot.agents {
-                if agent.slots_processing > 0 {
-                    seen_busy_agents.insert(agent.id.clone());
-                }
-            }
-        }
-
-        seen_busy_agents.len() >= agent_count || (have_seen_any_activity && !any_busy_now)
-    });
-
-    let (request_result, observation_result) = tokio::join!(request_future, observation_future);
-    let collected = request_result?;
-    observation_result?;
+    let stream = inference_client
+        .post_generate_embedding_batch(&params)
+        .await?;
+    let collected = collect_embedding_results(stream).await?;
 
     assert_eq!(collected.embeddings.len(), 16);
     assert!(collected.saw_done);
     assert!(collected.errors.is_empty());
+
+    let producers: BTreeSet<&str> = collected
+        .embeddings
+        .iter()
+        .filter_map(|produced| produced.generated_by.as_deref())
+        .collect();
+
     assert_eq!(
-        seen_busy_agents.len(),
+        producers.len(),
         agent_count,
-        "expected the embedding batch to fan out across every agent, but only saw activity on: {seen_busy_agents:?}"
+        "expected the embedding batch to fan out across every agent, but only saw producers: {producers:?}"
     );
 
     cluster.shutdown().await?;

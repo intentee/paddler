@@ -103,6 +103,7 @@ class InferenceMessage:
     error_code: int | None = None
     summary: GenerationSummary | None = None
     parsed_tool_calls: list[ParsedToolCall] | None = None
+    generated_by: str | None = None
 
     @property
     def is_token(self) -> bool:
@@ -136,6 +137,7 @@ def parse_inference_client_message(
         return _parse_response(
             response_envelope["request_id"],
             response_envelope["response"],
+            response_envelope.get("generated_by"),
         )
 
     msg = f"Unknown inference client message format: {data}"
@@ -158,18 +160,21 @@ def _parse_error_envelope(
 def _parse_response(
     request_id: str,
     response: str | dict[str, Any],
+    generated_by: str | None,
 ) -> InferenceMessage:
     if isinstance(response, str):
         if response == "Timeout":
             return InferenceMessage(
                 request_id=request_id,
                 kind=InferenceMessageKind.TIMEOUT,
+                generated_by=generated_by,
             )
 
         if response == "TooManyBufferedRequests":
             return InferenceMessage(
                 request_id=request_id,
                 kind=InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS,
+                generated_by=generated_by,
             )
 
         msg = f"Unknown response variant: {response}"
@@ -179,12 +184,14 @@ def _parse_response(
         return _parse_generated_token_result(
             request_id,
             response["GeneratedToken"],
+            generated_by,
         )
 
     if "Embedding" in response:
         return _parse_embedding_result(
             request_id,
             response["Embedding"],
+            generated_by,
         )
 
     msg = f"Unknown response: {response}"
@@ -217,6 +224,7 @@ _GENERATED_TOKEN_KINDS: dict[str, InferenceMessageKind] = {
 def _parse_generated_token_result(
     request_id: str,
     data: str | dict[str, Any],
+    generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(data, dict):
         msg = f"Unknown GeneratedTokenResult: {data}"
@@ -227,6 +235,7 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.DONE,
             summary=GenerationSummary.from_dict(data["Done"]),
+            generated_by=generated_by,
         )
 
     if "ToolCallParsed" in data:
@@ -242,6 +251,7 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.TOOL_CALL_PARSED,
             parsed_tool_calls=parsed_calls,
+            generated_by=generated_by,
         )
 
     if "ToolCallParseFailed" in data:
@@ -249,6 +259,7 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.TOOL_CALL_PARSE_FAILED,
             error_message=str(data["ToolCallParseFailed"]),
+            generated_by=generated_by,
         )
 
     if "ToolCallValidationFailed" in data:
@@ -262,6 +273,7 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED,
             error_message=joined_errors,
+            generated_by=generated_by,
         )
 
     for key, kind in _GENERATED_TOKEN_KINDS.items():
@@ -270,6 +282,7 @@ def _parse_generated_token_result(
                 request_id=request_id,
                 kind=kind,
                 token=data[key],
+                generated_by=generated_by,
             )
 
     for key, kind in _GENERATED_TOKEN_ERROR_KINDS.items():
@@ -278,6 +291,7 @@ def _parse_generated_token_result(
                 request_id=request_id,
                 kind=kind,
                 error_message=data[key],
+                generated_by=generated_by,
             )
 
     msg = f"Unknown GeneratedTokenResult: {data}"
@@ -287,11 +301,13 @@ def _parse_generated_token_result(
 def _parse_embedding_result(
     request_id: str,
     data: str | dict[str, Any],
+    generated_by: str | None,
 ) -> InferenceMessage:
     if data == "Done":
         return InferenceMessage(
             request_id=request_id,
             kind=InferenceMessageKind.EMBEDDING_DONE,
+            generated_by=generated_by,
         )
 
     if isinstance(data, dict):
@@ -302,6 +318,7 @@ def _parse_embedding_result(
                 request_id=request_id,
                 kind=InferenceMessageKind.EMBEDDING,
                 embedding_data=embedding,
+                generated_by=generated_by,
             )
 
         if "Error" in data:
@@ -309,6 +326,7 @@ def _parse_embedding_result(
                 request_id=request_id,
                 kind=InferenceMessageKind.EMBEDDING_ERROR,
                 error_message=data["Error"],
+                generated_by=generated_by,
             )
 
     msg = f"Unknown EmbeddingResult: {data}"
