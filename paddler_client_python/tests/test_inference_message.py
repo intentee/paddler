@@ -141,6 +141,51 @@ def test_parse_tool_call_validation_failed_with_non_list_payload_raises() -> Non
         parse_inference_client_message(data)
 
 
+def test_parse_unrecognized_tool_call_format_response_carries_text_and_ffi_error() -> (
+    None
+):
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "UnrecognizedToolCallFormat": {
+                        "text": "<unknown_marker>blah</unknown_marker>",
+                        "ffi_error_message": "common_chat_parse failed: no parser",
+                    },
+                },
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.UNRECOGNIZED_TOOL_CALL_FORMAT
+    assert message.raw_tool_call_tokens is not None
+    assert message.raw_tool_call_tokens.text == "<unknown_marker>blah</unknown_marker>"
+    assert (
+        message.raw_tool_call_tokens.ffi_error_message
+        == "common_chat_parse failed: no parser"
+    )
+    assert not message.is_token
+
+
+def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {"UnrecognizedToolCallFormat": "raw text only"},
+            },
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="UnrecognizedToolCallFormat payload is not a dict",
+    ):
+        parse_inference_client_message(data)
+
+
 def test_parse_undeterminable_token_response() -> None:
     data = {
         "Response": {

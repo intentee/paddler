@@ -1,5 +1,6 @@
 use llama_cpp_bindings::ParsedToolCall;
 use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::tool_call_pipeline_error::ToolCallPipelineError;
 use crate::tool_call_validation_error::ToolCallValidationError;
@@ -10,6 +11,7 @@ pub enum ToolCallEvent {
     Resolved(Vec<ParsedToolCall>),
     ParseFailed(ToolCallPipelineError),
     ValidationFailed(Vec<ToolCallValidationError>),
+    UnrecognizedFormat(RawToolCallTokens),
 }
 
 impl ToolCallEvent {
@@ -38,6 +40,9 @@ impl ToolCallEvent {
             Self::ValidationFailed(errors) => Some(GeneratedTokenResult::ToolCallValidationFailed(
                 errors.into_iter().map(|err| err.to_string()).collect(),
             )),
+            Self::UnrecognizedFormat(raw) => {
+                Some(GeneratedTokenResult::UnrecognizedToolCallFormat(raw))
+            }
             Self::Pending => None,
         }
     }
@@ -50,6 +55,7 @@ mod tests {
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::ToolCallArguments;
     use paddler_types::generated_token_result::GeneratedTokenResult;
+    use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
     use serde_json::json;
 
     use super::ToolCallEvent;
@@ -144,6 +150,36 @@ mod tests {
                 Ok(())
             }
             other => bail!("expected ToolCallValidationFailed mentioning 'missing', got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn unrecognized_format_classifies_as_neither_resolved_nor_failure_nor_pending() {
+        let event = ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
+            text: "raw".to_owned(),
+            ffi_error_message: "bailed".to_owned(),
+        });
+
+        assert!(!event.is_pending());
+        assert!(!event.is_resolved());
+        assert!(!event.is_failure());
+    }
+
+    #[test]
+    fn unrecognized_format_converts_to_unrecognized_tool_call_format_preserving_payload()
+    -> Result<()> {
+        let event = ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
+            text: "raw output".to_owned(),
+            ffi_error_message: "parser bailed".to_owned(),
+        });
+
+        match event.into_generated_token_result() {
+            Some(GeneratedTokenResult::UnrecognizedToolCallFormat(raw)) => {
+                assert_eq!(raw.text, "raw output");
+                assert_eq!(raw.ffi_error_message, "parser bailed");
+                Ok(())
+            }
+            other => bail!("expected UnrecognizedToolCallFormat preserving payload, got {other:?}"),
         }
     }
 }

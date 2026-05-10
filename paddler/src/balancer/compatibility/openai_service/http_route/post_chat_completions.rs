@@ -24,6 +24,7 @@ use paddler_types::jsonrpc::ResponseEnvelope;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::ToolCallArguments;
+use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
@@ -85,6 +86,14 @@ fn validation_failure_message(errors: &[String]) -> String {
         .first()
         .cloned()
         .unwrap_or_else(|| "tool call failed validation".to_owned())
+}
+
+fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
+    format!(
+        "model produced output the parser did not recognise as any registered tool-call format; \
+         FFI error: {}; raw text: {}",
+        raw.ffi_error_message, raw.text,
+    )
 }
 
 fn arguments_to_openai_string(arguments: &ToolCallArguments) -> Result<String> {
@@ -412,6 +421,15 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 &errors,
             ))]),
             OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::UnrecognizedToolCallFormat(
+                        raw,
+                    )),
+                ..
+            }) => Ok(vec![server_error_chunk(
+                &unrecognized_tool_call_format_message(&raw),
+            )]),
+            OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
                 ..
@@ -581,6 +599,15 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
             }) => Ok(vec![server_error_chunk(&validation_failure_message(
                 &errors,
             ))]),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::UnrecognizedToolCallFormat(
+                        raw,
+                    )),
+                ..
+            }) => Ok(vec![server_error_chunk(
+                &unrecognized_tool_call_format_message(&raw),
+            )]),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
@@ -1014,6 +1041,29 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn streaming_unrecognized_tool_call_format_emits_server_error() -> Result<()> {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(
+                GeneratedTokenResult::UnrecognizedToolCallFormat(
+                    paddler_types::raw_tool_call_tokens::RawToolCallTokens {
+                        text: "<unknown_marker>blah</unknown_marker>".to_owned(),
+                        ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
+                    },
+                ),
+            ))
+            .await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "common_chat_parse failed: no parser")?;
+        assert_error_contains(&chunks[0], "<unknown_marker>blah</unknown_marker>")?;
+        assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
     async fn streaming_error_message_returns_error_variant() -> Result<()> {
         let transformer = streaming_transformer(false);
 
@@ -1237,6 +1287,29 @@ mod tests {
 
         assert_eq!(chunks.len(), 1);
         assert_error_contains(&chunks[0], "bad shape")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_unrecognized_tool_call_format_emits_server_error() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let chunks = transformer
+            .transform(make_token_message(
+                GeneratedTokenResult::UnrecognizedToolCallFormat(
+                    paddler_types::raw_tool_call_tokens::RawToolCallTokens {
+                        text: "<unknown_marker>blah</unknown_marker>".to_owned(),
+                        ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
+                    },
+                ),
+            ))
+            .await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "common_chat_parse failed: no parser")?;
+        assert_error_contains(&chunks[0], "<unknown_marker>blah</unknown_marker>")?;
+        assert_error_contains(&chunks[0], "server_error")?;
 
         Ok(())
     }

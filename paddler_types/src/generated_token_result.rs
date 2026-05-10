@@ -4,6 +4,7 @@ use serde::Serialize;
 use llama_cpp_bindings_types::ParsedToolCall;
 
 use crate::generation_summary::GenerationSummary;
+use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::streamable_result::StreamableResult;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -26,6 +27,7 @@ pub enum GeneratedTokenResult {
     ToolCallValidationFailed(Vec<String>),
     ToolSchemaInvalid(String),
     UndeterminableToken(String),
+    UnrecognizedToolCallFormat(RawToolCallTokens),
 }
 
 impl GeneratedTokenResult {
@@ -177,5 +179,19 @@ mod tests {
         assert!(!event.is_done());
         assert!(!event.is_tool_call_parsed());
         assert!(event.is_tool_call_failure());
+    }
+
+    #[test]
+    fn unrecognized_tool_call_format_is_not_done_and_not_classified_as_token() {
+        let event = GeneratedTokenResult::UnrecognizedToolCallFormat(RawToolCallTokens {
+            text: "raw output".to_owned(),
+            ffi_error_message: "parser bailed".to_owned(),
+        });
+
+        assert!(!event.is_done());
+        assert!(!event.is_token());
+        assert!(event.token_text().is_none());
+        assert!(!event.is_tool_call_parsed());
+        assert!(!event.is_tool_call_failure());
     }
 }

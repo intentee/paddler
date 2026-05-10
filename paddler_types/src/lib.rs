@@ -34,6 +34,7 @@ pub mod media_marker;
 pub mod model_metadata;
 pub mod normalization;
 pub mod pooling_type;
+pub mod raw_tool_call_tokens;
 pub mod request_params;
 pub mod rpc_message;
 pub mod slot_aggregated_status_snapshot;

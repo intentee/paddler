@@ -11,6 +11,7 @@ pub mod chat_template_override_sender_collection;
 mod chunk_forwarding_session_controller;
 pub mod compatibility;
 mod controls_manages_senders_endpoint;
+pub mod dispatch_candidate;
 pub mod dispatched_agent;
 pub mod embedding_sender_collection;
 pub mod generate_tokens_sender_collection;

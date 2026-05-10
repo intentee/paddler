@@ -8,6 +8,7 @@ from typing import cast
 
 from paddler_client.embedding import Embedding
 from paddler_client.parsed_tool_call import ParsedToolCall
+from paddler_client.raw_tool_call_tokens import RawToolCallTokens
 
 
 class InferenceMessageKind(StrEnum):
@@ -34,6 +35,7 @@ class InferenceMessageKind(StrEnum):
     TOOL_CALL_VALIDATOR_BUILD_FAILED = "tool_call_validator_build_failed"
     TOO_MANY_BUFFERED_REQUESTS = "too_many_buffered_requests"
     UNDETERMINABLE_TOKEN = "undeterminable_token"
+    UNRECOGNIZED_TOOL_CALL_FORMAT = "unrecognized_tool_call_format"
 
 
 _TOKEN_KINDS: frozenset[InferenceMessageKind] = frozenset(
@@ -103,6 +105,7 @@ class InferenceMessage:
     error_code: int | None = None
     summary: GenerationSummary | None = None
     parsed_tool_calls: list[ParsedToolCall] | None = None
+    raw_tool_call_tokens: RawToolCallTokens | None = None
     generated_by: str | None = None
 
     @property
@@ -273,6 +276,19 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED,
             error_message=joined_errors,
+            generated_by=generated_by,
+        )
+
+    if "UnrecognizedToolCallFormat" in data:
+        raw_payload = data["UnrecognizedToolCallFormat"]
+        if not isinstance(raw_payload, dict):
+            msg = f"UnrecognizedToolCallFormat payload is not a dict: {raw_payload!r}"
+            raise ValueError(msg)
+        typed_raw = cast("dict[str, Any]", raw_payload)
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.UNRECOGNIZED_TOOL_CALL_FORMAT,
+            raw_tool_call_tokens=RawToolCallTokens.from_dict(typed_raw),
             generated_by=generated_by,
         )
 

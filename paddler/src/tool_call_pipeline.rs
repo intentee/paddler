@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
+use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ParsedToolCall;
+use llama_cpp_bindings::RawChatMessage;
 use llama_cpp_bindings::model::LlamaModel;
 use paddler_types::generated_token_result::GeneratedTokenResult;
+use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::tool_call_buffer::ToolCallBuffer;
 use crate::tool_call_event::ToolCallEvent;
@@ -46,7 +49,17 @@ impl ToolCallPipeline {
             .model
             .parse_chat_message(&self.tools_json, &input, false)
         {
-            Ok(parsed) => self.validate_resolved(parsed.tool_calls),
+            Ok(ChatMessageParseOutcome::Recognized(parsed)) => {
+                self.validate_resolved(parsed.tool_calls)
+            }
+            Ok(ChatMessageParseOutcome::Unrecognized(RawChatMessage {
+                text,
+                ffi_error_message,
+                ..
+            })) => ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
+                text,
+                ffi_error_message,
+            }),
             Err(err) => ToolCallEvent::ParseFailed(ToolCallPipelineError::Bindings(err)),
         }
     }
@@ -63,8 +76,20 @@ impl ToolCallPipeline {
         }
 
         match self.model.parse_chat_message(&self.tools_json, input, true) {
-            Ok(parsed) if parsed.tool_calls.is_empty() => ToolCallEvent::Pending,
-            Ok(parsed) => self.validate_resolved(parsed.tool_calls),
+            Ok(ChatMessageParseOutcome::Recognized(parsed)) if parsed.tool_calls.is_empty() => {
+                ToolCallEvent::Pending
+            }
+            Ok(ChatMessageParseOutcome::Recognized(parsed)) => {
+                self.validate_resolved(parsed.tool_calls)
+            }
+            Ok(ChatMessageParseOutcome::Unrecognized(RawChatMessage {
+                text,
+                ffi_error_message,
+                ..
+            })) => ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
+                text,
+                ffi_error_message,
+            }),
             Err(err) => ToolCallEvent::ParseFailed(ToolCallPipelineError::Bindings(err)),
         }
     }

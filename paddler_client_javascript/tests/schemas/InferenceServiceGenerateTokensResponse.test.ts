@@ -5,6 +5,7 @@ import { InferenceServiceGenerateTokensResponseSchema } from "../../src/schemas/
 test("ContentToken normalises into a streaming token with content kind", function (t) {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
+      generated_by: null,
       request_id: "req-1",
       response: { GeneratedToken: { ContentToken: "Hello" } },
     },
@@ -20,6 +21,7 @@ test("ContentToken normalises into a streaming token with content kind", functio
 test("ReasoningToken maps to reasoning kind", function (t) {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
+      generated_by: null,
       request_id: "req-2",
       response: { GeneratedToken: { ReasoningToken: "thinking..." } },
     },
@@ -32,6 +34,7 @@ test("ReasoningToken maps to reasoning kind", function (t) {
 test("Done normalises with the full usage summary", function (t) {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
+      generated_by: null,
       request_id: "req-3",
       response: {
         GeneratedToken: {
@@ -60,6 +63,7 @@ test("Done normalises with the full usage summary", function (t) {
 test("ToolCallValidatorBuildFailed normalises to a terminal error", function (t) {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
+      generated_by: null,
       request_id: "req-4",
       response: {
         GeneratedToken: {
@@ -83,4 +87,32 @@ test("Top-level Error envelope normalises to terminal error", function (t) {
 
   t.is(parsed.done, true);
   t.deepEqual(parsed.error, { code: 500, description: "boom" });
+});
+
+test("UnrecognizedToolCallFormat preserves text and FFI error message", function (t) {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
+    Response: {
+      generated_by: null,
+      request_id: "req-6",
+      response: {
+        GeneratedToken: {
+          UnrecognizedToolCallFormat: {
+            text: "<unknown>raw</unknown>",
+            ffi_error_message: "common_chat_parse failed: no parser",
+          },
+        },
+      },
+    },
+  });
+
+  t.is(parsed.done, false);
+  t.is(parsed.error, null);
+  t.is(parsed.ok, true);
+  t.is(parsed.token, null);
+  t.is(parsed.tokenKind, null);
+  t.is(parsed.toolCalls, null);
+  t.deepEqual(parsed.rawToolCallTokens, {
+    text: "<unknown>raw</unknown>",
+    ffi_error_message: "common_chat_parse failed: no parser",
+  });
 });

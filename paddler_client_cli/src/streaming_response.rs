@@ -3,6 +3,7 @@ use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::generation_summary::GenerationSummary;
 use paddler_types::inference_client::Message;
 use paddler_types::inference_client::Response;
+use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::stop_reason::StopReason;
 
@@ -13,6 +14,7 @@ pub struct StreamingResponse {
     pub tool_call_tokens: Vec<String>,
     pub tool_calls: Vec<ParsedToolCall>,
     pub undetermined: Vec<String>,
+    pub unrecognized_tool_call_format: Vec<RawToolCallTokens>,
     pub summary: Option<GenerationSummary>,
     pub stop_reason: Option<StopReason>,
 }
@@ -98,6 +100,9 @@ impl StreamingResponse {
             }
             GeneratedTokenResult::ToolSchemaInvalid(detail) => {
                 self.stop_reason = Some(StopReason::ToolSchemaInvalid(detail));
+            }
+            GeneratedTokenResult::UnrecognizedToolCallFormat(raw) => {
+                self.unrecognized_tool_call_format.push(raw);
             }
         }
     }

@@ -23,6 +23,11 @@ const GenerationSummarySchema = z.object({
   usage: TokenUsageSchema,
 });
 
+const RawToolCallTokensSchema = z.object({
+  text: z.string(),
+  ffi_error_message: z.string(),
+});
+
 const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
   z.object({ ReasoningToken: z.string() }),
@@ -41,6 +46,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
   z.object({ ToolCallValidatorBuildFailed: z.string() }),
+  z.object({ UnrecognizedToolCallFormat: RawToolCallTokensSchema }),
 ]);
 
 type Normalised =
@@ -49,6 +55,7 @@ type Normalised =
       error: null;
       generated_by: string | null;
       ok: true;
+      rawToolCallTokens: null;
       request_id: string;
       summary: z.infer<typeof GenerationSummarySchema>;
       token: null;
@@ -60,6 +67,7 @@ type Normalised =
       error: null;
       generated_by: string | null;
       ok: true;
+      rawToolCallTokens: null;
       request_id: string;
       summary: null;
       token: string;
@@ -71,6 +79,7 @@ type Normalised =
       error: null;
       generated_by: string | null;
       ok: true;
+      rawToolCallTokens: null;
       request_id: string;
       summary: null;
       token: null;
@@ -78,10 +87,23 @@ type Normalised =
       toolCalls: ReadonlyArray<z.infer<typeof ParsedToolCallSchema>>;
     }
   | {
+      done: false;
+      error: null;
+      generated_by: string | null;
+      ok: true;
+      rawToolCallTokens: z.infer<typeof RawToolCallTokensSchema>;
+      request_id: string;
+      summary: null;
+      token: null;
+      tokenKind: null;
+      toolCalls: null;
+    }
+  | {
       done: true;
       error: { code: number; description: string };
       generated_by: string | null;
       ok: false;
+      rawToolCallTokens: null;
       request_id: string;
       summary: null;
       token: null;
@@ -93,6 +115,7 @@ type Normalised =
       error: { code: number; description: string };
       generated_by: string | null;
       ok: false;
+      rawToolCallTokens: null;
       request_id: string;
       summary: null;
       token: null;
@@ -111,6 +134,7 @@ function terminalError(
     error: Object.freeze({ code, description }),
     generated_by,
     ok: false,
+    rawToolCallTokens: null,
     request_id,
     summary: null,
     token: null,
@@ -130,6 +154,7 @@ function nonTerminalError(
     error: Object.freeze({ code, description }),
     generated_by,
     ok: false,
+    rawToolCallTokens: null,
     request_id,
     summary: null,
     token: null,
@@ -149,10 +174,30 @@ function streamingToken(
     error: null,
     generated_by,
     ok: true,
+    rawToolCallTokens: null,
     request_id,
     summary: null,
     token,
     tokenKind,
+    toolCalls: null,
+  });
+}
+
+function unrecognizedToolCallFormat(
+  request_id: string,
+  generated_by: string | null,
+  raw: z.infer<typeof RawToolCallTokensSchema>,
+): Normalised {
+  return Object.freeze({
+    done: false,
+    error: null,
+    generated_by,
+    ok: true,
+    rawToolCallTokens: Object.freeze(raw),
+    request_id,
+    summary: null,
+    token: null,
+    tokenKind: null,
     toolCalls: null,
   });
 }
@@ -219,6 +264,7 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: null,
         generated_by,
         ok: true,
+        rawToolCallTokens: null,
         request_id,
         summary: variant.Done,
         token: null,
@@ -233,12 +279,21 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         error: null,
         generated_by,
         ok: true,
+        rawToolCallTokens: null,
         request_id,
         summary: null,
         token: null,
         tokenKind: null,
         toolCalls: Object.freeze(variant.ToolCallParsed),
       });
+    }
+
+    if ("UnrecognizedToolCallFormat" in variant) {
+      return unrecognizedToolCallFormat(
+        request_id,
+        generated_by,
+        variant.UnrecognizedToolCallFormat,
+      );
     }
 
     if ("ToolCallParseFailed" in variant) {

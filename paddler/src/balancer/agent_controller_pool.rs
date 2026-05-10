@@ -11,6 +11,7 @@ use tokio::sync::watch;
 use super::agent_controller::AgentController;
 use super::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::balancer::agent_controller_slot_guard::AgentControllerSlotGuard;
+use crate::balancer::dispatch_candidate::DispatchCandidate;
 use crate::balancer::dispatched_agent::DispatchedAgent;
 use crate::produces_snapshot::ProducesSnapshot;
 use crate::sets_desired_state::SetsDesiredState;
@@ -23,29 +24,60 @@ pub struct AgentControllerPool {
 
 impl AgentControllerPool {
     #[must_use]
-    pub fn take_least_busy_agent_controller(&self) -> Option<DispatchedAgent> {
-        let mut candidates: Vec<Arc<AgentController>> = self
-            .agents
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect();
+    pub fn select_least_busy_with_capacity(&self) -> Option<DispatchCandidate> {
+        let mut best: Option<DispatchCandidate> = None;
 
-        candidates.sort_by_key(|agent| agent.slots_processing.get());
+        for entry in &self.agents {
+            let agent_controller = entry.value().clone();
+            let snapshot = agent_controller.slots_processing.get();
 
-        for agent_controller in candidates {
-            let limit = agent_controller.slots_total.get();
-
-            if agent_controller.slots_processing.try_increment_below(limit) {
-                self.update_tx.send_replace(());
-
-                let slot_guard =
-                    AgentControllerSlotGuard::new(agent_controller.clone(), self.update_tx.clone());
-
-                return Some(DispatchedAgent::new(agent_controller, slot_guard));
+            if snapshot >= agent_controller.slots_total.get() {
+                continue;
             }
+
+            best = Some(match best {
+                Some(current) if current.snapshot <= snapshot => current,
+                _ => DispatchCandidate {
+                    agent_controller,
+                    snapshot,
+                },
+            });
         }
 
-        None
+        best
+    }
+
+    pub fn try_claim(
+        &self,
+        candidate: DispatchCandidate,
+    ) -> Result<DispatchedAgent, DispatchCandidate> {
+        if candidate
+            .agent_controller
+            .slots_processing
+            .compare_and_swap(candidate.snapshot, candidate.snapshot + 1)
+        {
+            self.update_tx.send_replace(());
+
+            let slot_guard = AgentControllerSlotGuard::new(
+                candidate.agent_controller.clone(),
+                self.update_tx.clone(),
+            );
+
+            Ok(DispatchedAgent::new(candidate.agent_controller, slot_guard))
+        } else {
+            Err(candidate)
+        }
+    }
+
+    #[must_use]
+    pub fn take_least_busy_agent_controller(&self) -> Option<DispatchedAgent> {
+        loop {
+            let candidate = self.select_least_busy_with_capacity()?;
+
+            if let Ok(dispatched) = self.try_claim(candidate) {
+                return Some(dispatched);
+            }
+        }
     }
 
     #[must_use]
