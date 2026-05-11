@@ -23,7 +23,7 @@ export const poolingTypes = [
 
 export const InferenceParametersSchema = z
   .object({
-    batch_n_tokens: z.number(),
+    n_batch: z.number(),
     context_size: z.number(),
     enable_embeddings: z.boolean(),
     image_resize_to_fit: z.number().int().min(1),

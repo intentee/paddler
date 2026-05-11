@@ -116,3 +116,24 @@ test("UnrecognizedToolCallFormat preserves text and FFI error message", function
     ffi_error_message: "common_chat_parse failed: no parser",
   });
 });
+
+test("ImageExceedsBatchSize is terminal and describes token counts", function (t) {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
+    Response: {
+      generated_by: null,
+      request_id: "req-7",
+      response: {
+        GeneratedToken: {
+          ImageExceedsBatchSize: { image_tokens: 368, n_batch: 100 },
+        },
+      },
+    },
+  });
+
+  t.is(parsed.done, true);
+  t.is(parsed.ok, false);
+  t.not(parsed.error, null);
+  t.is(parsed.error?.code, 400);
+  t.true(parsed.error?.description.includes("368"));
+  t.true(parsed.error?.description.includes("100"));
+});

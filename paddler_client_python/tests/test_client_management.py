@@ -90,7 +90,7 @@ async def test_get_balancer_desired_state_deserializes() -> None:
     response_data = {
         "chat_template_override": None,
         "inference_parameters": {
-            "batch_n_tokens": 512,
+            "n_batch": 512,
             "context_size": 8192,
             "enable_embeddings": False,
             "image_resize_to_fit": 1024,

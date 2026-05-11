@@ -7,6 +7,7 @@ from typing import Any
 from typing import cast
 
 from paddler_client.embedding import Embedding
+from paddler_client.oversized_image_details import OversizedImageDetails
 from paddler_client.parsed_tool_call import ParsedToolCall
 from paddler_client.raw_tool_call_tokens import RawToolCallTokens
 
@@ -23,6 +24,7 @@ class InferenceMessageKind(StrEnum):
     GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
     GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
     IMAGE_DECODING_FAILED = "image_decoding_failed"
+    IMAGE_EXCEEDS_BATCH_SIZE = "image_exceeds_batch_size"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
     REASONING_TOKEN = "reasoning_token"
     SAMPLER_ERROR = "sampler_error"
@@ -106,6 +108,7 @@ class InferenceMessage:
     summary: GenerationSummary | None = None
     parsed_tool_calls: list[ParsedToolCall] | None = None
     raw_tool_call_tokens: RawToolCallTokens | None = None
+    oversized_image_details: OversizedImageDetails | None = None
     generated_by: str | None = None
 
     @property
@@ -289,6 +292,19 @@ def _parse_generated_token_result(
             request_id=request_id,
             kind=InferenceMessageKind.UNRECOGNIZED_TOOL_CALL_FORMAT,
             raw_tool_call_tokens=RawToolCallTokens.from_dict(typed_raw),
+            generated_by=generated_by,
+        )
+
+    if "ImageExceedsBatchSize" in data:
+        details_payload = data["ImageExceedsBatchSize"]
+        if not isinstance(details_payload, dict):
+            msg = f"ImageExceedsBatchSize payload is not a dict: {details_payload!r}"
+            raise ValueError(msg)
+        typed_details = cast("dict[str, Any]", details_payload)
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.IMAGE_EXCEEDS_BATCH_SIZE,
+            oversized_image_details=OversizedImageDetails.from_dict(typed_details),
             generated_by=generated_by,
         )
 

@@ -24,6 +24,7 @@ use paddler_types::jsonrpc::ResponseEnvelope;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::ToolCallArguments;
+use paddler_types::oversized_image_details::OversizedImageDetails;
 use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -96,6 +97,13 @@ fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
     )
 }
 
+fn image_exceeds_batch_size_message(details: &OversizedImageDetails) -> String {
+    format!(
+        "image required {} tokens but agent n_batch is {}; rerun with a larger n_batch",
+        details.image_tokens, details.n_batch,
+    )
+}
+
 fn arguments_to_openai_string(arguments: &ToolCallArguments) -> Result<String> {
     match arguments {
         ToolCallArguments::ValidJson(value) => {
@@ -152,6 +160,11 @@ fn try_universal_error_chunk(message: &OutgoingMessage) -> Option<TransformResul
             ..
         }) => Some(server_error_chunk(description)),
         OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
+            OutgoingResponse::GeneratedToken(GeneratedTokenResult::ImageExceedsBatchSize(
+                details,
+            )) => Some(server_error_chunk(&image_exceeds_batch_size_message(
+                details,
+            ))),
             OutgoingResponse::GeneratedToken(token) => {
                 description_from_error_token(token).map(server_error_chunk)
             }
@@ -1154,6 +1167,26 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn streaming_image_exceeds_batch_size_returns_error_variant() -> Result<()> {
+        let transformer = streaming_transformer(false);
+
+        let message = make_token_message(GeneratedTokenResult::ImageExceedsBatchSize(
+            paddler_types::oversized_image_details::OversizedImageDetails {
+                image_tokens: 368,
+                n_batch: 100,
+            },
+        ));
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "368")?;
+        assert_error_contains(&chunks[0], "100")?;
+        assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
     async fn non_streaming_aggregates_content_only_when_no_reasoning() -> Result<()> {
         let transformer = non_streaming_transformer();
 
@@ -1372,6 +1405,26 @@ mod tests {
 
         assert_eq!(chunks.len(), 1);
         assert_error_contains(&chunks[0], "model does not support images")?;
+        assert_error_contains(&chunks[0], "server_error")?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_image_exceeds_batch_size_returns_error_variant() -> Result<()> {
+        let transformer = non_streaming_transformer();
+
+        let message = make_token_message(GeneratedTokenResult::ImageExceedsBatchSize(
+            paddler_types::oversized_image_details::OversizedImageDetails {
+                image_tokens: 368,
+                n_batch: 100,
+            },
+        ));
+        let chunks = transformer.transform(message).await?;
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_contains(&chunks[0], "368")?;
+        assert_error_contains(&chunks[0], "100")?;
         assert_error_contains(&chunks[0], "server_error")?;
 
         Ok(())

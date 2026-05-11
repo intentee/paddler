@@ -4,6 +4,7 @@ use serde::Serialize;
 use llama_cpp_bindings_types::ParsedToolCall;
 
 use crate::generation_summary::GenerationSummary;
+use crate::oversized_image_details::OversizedImageDetails;
 use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::streamable_result::StreamableResult;
 
@@ -18,6 +19,7 @@ pub enum GeneratedTokenResult {
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
+    ImageExceedsBatchSize(OversizedImageDetails),
     MultimodalNotSupported(String),
     ReasoningToken(String),
     SamplerError(String),
@@ -78,6 +80,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::GrammarRejectedModelOutput(_)
                 | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
+                | Self::ImageExceedsBatchSize(_)
                 | Self::MultimodalNotSupported(_)
                 | Self::SamplerError(_)
                 | Self::ToolSchemaInvalid(_)
@@ -122,6 +125,18 @@ mod tests {
     #[test]
     fn image_decoding_failed_is_done() {
         assert!(GeneratedTokenResult::ImageDecodingFailed("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn image_exceeds_batch_size_is_done_and_not_classified_as_token() {
+        let event = GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
+            image_tokens: 368,
+            n_batch: 100,
+        });
+
+        assert!(event.is_done());
+        assert!(!event.is_token());
+        assert!(event.token_text().is_none());
     }
 
     #[test]

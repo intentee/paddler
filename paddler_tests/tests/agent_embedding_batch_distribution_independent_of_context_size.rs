@@ -17,7 +17,7 @@ use reqwest::Client;
 async fn agent_embedding_batch_distribution_independent_of_context_size() -> Result<()> {
     let cluster = start_in_process_embedding_cluster(
         InferenceParameters {
-            batch_n_tokens: 64,
+            n_batch: 64,
             context_size: 512,
             enable_embeddings: true,
             ..InferenceParameters::default()

@@ -85,7 +85,7 @@ async fn respond(
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
     for batch in params.chunk_by_input_size(
-        agent_desired_state.inference_parameters.batch_n_tokens
+        agent_desired_state.inference_parameters.n_batch
             * CHARACTERS_PER_TOKEN_APPROXIMATELY,
     ) {
         let buffered_request_manager_clone = app_data.buffered_request_manager.clone();

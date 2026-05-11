@@ -1,5 +1,7 @@
 use std::fmt;
 
+use paddler_types::oversized_image_details::OversizedImageDetails;
+
 #[derive(Debug)]
 pub enum StopReason {
     Completed,
@@ -9,6 +11,7 @@ pub enum StopReason {
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
+    ImageExceedsBatchSize(OversizedImageDetails),
     InferenceError { code: i32, description: String },
     MultimodalNotSupported(String),
     SamplerError(String),
@@ -41,6 +44,13 @@ impl fmt::Display for StopReason {
             }
             Self::ImageDecodingFailed(detail) => {
                 write!(formatter, "image decoding failed: {detail}")
+            }
+            Self::ImageExceedsBatchSize(details) => {
+                write!(
+                    formatter,
+                    "image required {} tokens but agent n_batch is {}",
+                    details.image_tokens, details.n_batch,
+                )
             }
             Self::InferenceError { code, description } => {
                 write!(formatter, "inference error {code}: {description}")

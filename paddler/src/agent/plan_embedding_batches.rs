@@ -3,7 +3,7 @@ use std::ops::Range;
 #[must_use]
 pub fn plan_embedding_batches(
     token_counts: &[usize],
-    batch_n_tokens: usize,
+    n_batch: usize,
     max_sequences_per_batch: i32,
 ) -> Vec<Range<usize>> {
     let mut batches = Vec::new();
@@ -12,7 +12,7 @@ pub fn plan_embedding_batches(
     let mut current_sequences: i32 = 0;
 
     for (index, &token_count) in token_counts.iter().enumerate() {
-        let would_exceed_tokens = current_tokens + token_count > batch_n_tokens;
+        let would_exceed_tokens = current_tokens + token_count > n_batch;
         let would_exceed_sequences = current_sequences >= max_sequences_per_batch;
 
         if (would_exceed_tokens || would_exceed_sequences) && current_sequences > 0 {

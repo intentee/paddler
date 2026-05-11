@@ -29,7 +29,7 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
 
     let mut inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
 
-    inference_parameters.batch_n_tokens = 256;
+    inference_parameters.n_batch = 256;
     inference_parameters.context_size = 256;
     inference_parameters.temperature = 0.0;
 

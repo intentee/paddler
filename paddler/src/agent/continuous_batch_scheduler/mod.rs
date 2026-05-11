@@ -29,9 +29,11 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
+use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use log::debug;
@@ -41,6 +43,7 @@ use log::warn;
 use paddler_types::embedding_result::EmbeddingResult;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::generation_summary::GenerationSummary;
+use paddler_types::oversized_image_details::OversizedImageDetails;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -709,7 +712,7 @@ impl ContinuousBatchScheduler {
             }
         };
 
-        let batch_size = self.scheduler_context.inference_parameters.batch_n_tokens;
+        let batch_size = self.scheduler_context.inference_parameters.n_batch;
 
         #[expect(
             clippy::cast_sign_loss,
@@ -734,19 +737,47 @@ impl ContinuousBatchScheduler {
             clippy::cast_possible_wrap,
             reason = "batch_size fits in i32 for llama.cpp FFI"
         )]
-        let tokens_ingested = match token_classifier
-            .eval_multimodal_chunks(
-                &input_chunks,
-                multimodal_context,
-                &self.llama_context,
-                0,
-                sequence_id,
-                batch_size as i32,
-                true,
-            )
-            .map_err(|err| anyhow!("Failed to evaluate multimodal chunks: {err}"))
-        {
+        let eval_outcome = token_classifier.eval_multimodal_chunks(
+            &input_chunks,
+            multimodal_context,
+            &self.llama_context,
+            0,
+            sequence_id,
+            batch_size as i32,
+            true,
+        );
+
+        let tokens_ingested = match eval_outcome {
             Ok(tokens_ingested) => tokens_ingested,
+            Err(EvalMultimodalChunksError::EvalFailed(
+                MtmdEvalError::ImageChunkExceedsBatchSize(mismatch),
+            )) => {
+                warn!(
+                    "{:?}: refused multimodal request: image chunk has {} tokens but n_batch is {}",
+                    self.scheduler_context.agent_name,
+                    mismatch.image_tokens,
+                    mismatch.n_batch,
+                );
+
+                self.sequence_id_pool.release(sequence_id);
+
+                if generated_tokens_tx
+                    .send(GeneratedTokenResult::ImageExceedsBatchSize(
+                        OversizedImageDetails {
+                            image_tokens: mismatch.image_tokens,
+                            n_batch: mismatch.n_batch,
+                        },
+                    ))
+                    .is_err()
+                {
+                    warn!(
+                        "{:?}: failed to send result to client (receiver dropped)",
+                        self.scheduler_context.agent_name
+                    );
+                }
+
+                return Ok(());
+            }
             Err(err) => {
                 let message = format!(
                     "{:?}: failed to ingest multimodal prompt: {err}",
@@ -938,8 +969,8 @@ impl ContinuousBatchScheduler {
     fn execute_one_iteration(&mut self) -> Result<()> {
         self.advance_generating_requests();
 
-        let batch_n_tokens = self.scheduler_context.inference_parameters.batch_n_tokens;
-        let assemble_phase = AssembleBatchPhase { batch_n_tokens };
+        let n_batch = self.scheduler_context.inference_parameters.n_batch;
+        let assemble_phase = AssembleBatchPhase { n_batch };
 
         loop {
             let max_sequences = self.active_requests.len();
@@ -949,7 +980,7 @@ impl ContinuousBatchScheduler {
                 clippy::cast_possible_wrap,
                 reason = "token counts and positions fit in i32 for llama.cpp FFI"
             )]
-            let mut pass = BatchPass::new(batch_n_tokens, max_sequences.max(1) as i32)?;
+            let mut pass = BatchPass::new(n_batch, max_sequences.max(1) as i32)?;
 
             assemble_phase.run(&mut pass, &mut self.active_requests)?;
 

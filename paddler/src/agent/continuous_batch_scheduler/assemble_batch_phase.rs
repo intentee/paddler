@@ -8,7 +8,7 @@ use crate::agent::continuous_batch_scheduler::generating_contribution::Generatin
 use crate::agent::continuous_batch_scheduler::ingesting_contribution::IngestingContribution;
 
 pub struct AssembleBatchPhase {
-    pub batch_n_tokens: usize,
+    pub n_batch: usize,
 }
 
 impl AssembleBatchPhase {
@@ -41,7 +41,7 @@ impl AssembleBatchPhase {
                 continue;
             };
 
-            if tokens_added >= self.batch_n_tokens {
+            if tokens_added >= self.n_batch {
                 break;
             }
 
@@ -83,7 +83,7 @@ impl AssembleBatchPhase {
             let remaining = request.remaining_prompt_tokens();
             let chunk_size = compute_ingesting_chunk_size(
                 remaining.len(),
-                self.batch_n_tokens,
+                self.n_batch,
                 pass.contributions.current_batch_token_count,
             );
 
@@ -124,10 +124,10 @@ impl AssembleBatchPhase {
 
 fn compute_ingesting_chunk_size(
     remaining_prompt_len: usize,
-    batch_n_tokens: usize,
+    n_batch: usize,
     current_batch_token_count: usize,
 ) -> usize {
-    let available_space = batch_n_tokens.saturating_sub(current_batch_token_count);
+    let available_space = n_batch.saturating_sub(current_batch_token_count);
     remaining_prompt_len.min(available_space)
 }
 

@@ -36,6 +36,7 @@ pub mod start_in_process_cluster_with_qwen3_5;
 pub mod start_in_process_cluster_with_qwen3_6;
 pub mod start_in_process_cluster_with_qwen3_6_and_mmproj;
 pub mod start_in_process_cluster_with_smolvlm2;
+pub mod start_in_process_cluster_with_smolvlm2_and_n_batch;
 pub mod start_in_process_embedding_cluster;
 pub mod start_subprocess_cluster;
 pub mod start_subprocess_cluster_with_qwen2_5_vl;

@@ -28,6 +28,11 @@ const RawToolCallTokensSchema = z.object({
   ffi_error_message: z.string(),
 });
 
+const OversizedImageDetailsSchema = z.object({
+  image_tokens: z.number(),
+  n_batch: z.number(),
+});
+
 const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
   z.object({ ReasoningToken: z.string() }),
@@ -40,6 +45,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ GrammarRejectedModelOutput: z.string() }),
   z.object({ GrammarSyntaxError: z.string() }),
   z.object({ ImageDecodingFailed: z.string() }),
+  z.object({ ImageExceedsBatchSize: OversizedImageDetailsSchema }),
   z.object({ MultimodalNotSupported: z.string() }),
   z.object({ SamplerError: z.string() }),
   z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
@@ -345,6 +351,16 @@ export const InferenceServiceGenerateTokensResponseSchema = z
 
     if ("ImageDecodingFailed" in variant) {
       return terminalError(request_id, generated_by, 400, variant.ImageDecodingFailed);
+    }
+
+    if ("ImageExceedsBatchSize" in variant) {
+      const details = variant.ImageExceedsBatchSize;
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        `image required ${details.image_tokens} tokens but n_batch is ${details.n_batch}`,
+      );
     }
 
     if ("MultimodalNotSupported" in variant) {

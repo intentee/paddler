@@ -86,6 +86,9 @@ impl StreamingResponse {
             GeneratedTokenResult::ImageDecodingFailed(detail) => {
                 self.stop_reason = Some(StopReason::ImageDecodingFailed(detail));
             }
+            GeneratedTokenResult::ImageExceedsBatchSize(details) => {
+                self.stop_reason = Some(StopReason::ImageExceedsBatchSize(details));
+            }
             GeneratedTokenResult::MultimodalNotSupported(detail) => {
                 self.stop_reason = Some(StopReason::MultimodalNotSupported(detail));
             }

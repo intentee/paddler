@@ -11,9 +11,9 @@ pub struct BatchPass<'tokens> {
 impl BatchPass<'_> {
     /// # Errors
     /// Forwards [`LlamaBatch::new`] failures verbatim.
-    pub fn new(batch_n_tokens: usize, max_sequences: i32) -> Result<Self> {
+    pub fn new(n_batch: usize, max_sequences: i32) -> Result<Self> {
         Ok(Self {
-            batch: LlamaBatch::new(batch_n_tokens, max_sequences)?,
+            batch: LlamaBatch::new(n_batch, max_sequences)?,
             contributions: Contributions::default(),
         })
     }

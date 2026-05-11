@@ -41,13 +41,13 @@ def test_parse_tool_call_token_response() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {"GeneratedToken": {"ToolCallToken": "{\"name\":"}},
+            "response": {"GeneratedToken": {"ToolCallToken": '{"name":'}},
         }
     }
     message = parse_inference_client_message(data)
 
     assert message.kind == InferenceMessageKind.TOOL_CALL_TOKEN
-    assert message.token == "{\"name\":"
+    assert message.token == '{"name":'
     assert message.is_token
     assert not message.is_terminal
 
@@ -186,6 +186,46 @@ def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> N
         parse_inference_client_message(data)
 
 
+def test_parse_image_exceeds_batch_size_response_carries_token_counts() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "ImageExceedsBatchSize": {
+                        "image_tokens": 368,
+                        "n_batch": 100,
+                    },
+                },
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.IMAGE_EXCEEDS_BATCH_SIZE
+    assert message.oversized_image_details is not None
+    assert message.oversized_image_details.image_tokens == 368
+    assert message.oversized_image_details.n_batch == 100
+    assert not message.is_token
+
+
+def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {"ImageExceedsBatchSize": "scalar payload"},
+            },
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="ImageExceedsBatchSize payload is not a dict",
+    ):
+        parse_inference_client_message(data)
+
+
 def test_parse_undeterminable_token_response() -> None:
     data = {
         "Response": {
@@ -294,11 +334,7 @@ def test_parse_grammar_incompatible_with_thinking() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {
-                "GeneratedToken": {
-                    "GrammarIncompatibleWithThinking": "err"
-                }
-            },
+            "response": {"GeneratedToken": {"GrammarIncompatibleWithThinking": "err"}},
         }
     }
     message = parse_inference_client_message(data)
@@ -313,9 +349,7 @@ def test_parse_grammar_initialization_failed() -> None:
         "Response": {
             "request_id": "req-1",
             "response": {
-                "GeneratedToken": {
-                    "GrammarInitializationFailed": "null grammar"
-                }
+                "GeneratedToken": {"GrammarInitializationFailed": "null grammar"}
             },
         }
     }
@@ -331,9 +365,7 @@ def test_parse_grammar_rejected_model_output() -> None:
         "Response": {
             "request_id": "req-1",
             "response": {
-                "GeneratedToken": {
-                    "GrammarRejectedModelOutput": "token rejected"
-                }
+                "GeneratedToken": {"GrammarRejectedModelOutput": "token rejected"}
             },
         }
     }
@@ -348,9 +380,7 @@ def test_parse_grammar_syntax_error() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {
-                "GeneratedToken": {"GrammarSyntaxError": "invalid schema"}
-            },
+            "response": {"GeneratedToken": {"GrammarSyntaxError": "invalid schema"}},
         }
     }
     message = parse_inference_client_message(data)
@@ -367,7 +397,7 @@ def test_parse_tool_call_validator_build_failed_response_carries_error() -> None
             "response": {
                 "GeneratedToken": {
                     "ToolCallValidatorBuildFailed": (
-                        "tool \"get_weather\" parameters are not a valid JSON Schema"
+                        'tool "get_weather" parameters are not a valid JSON Schema'
                     ),
                 },
             },
@@ -377,7 +407,7 @@ def test_parse_tool_call_validator_build_failed_response_carries_error() -> None
 
     assert message.kind == InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED
     assert message.error_message == (
-        "tool \"get_weather\" parameters are not a valid JSON Schema"
+        'tool "get_weather" parameters are not a valid JSON Schema'
     )
     assert message.is_terminal
 

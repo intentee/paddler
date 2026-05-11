@@ -234,7 +234,7 @@ export function ChangeModelForm({
             </details>
             <InferenceParameterInput
               description="Batch Size (higher = more memory usage, lower = less inference speed)"
-              name="batch_n_tokens"
+              name="n_batch"
             />
             <InferenceParameterInput
               description="Context Size (higher = longer chat history, lower = less memory usage)"

@@ -82,15 +82,15 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             .collect::<Result<Vec<EmbeddingInputTokenized>, _>>()
             .context("failed to tokenize embedding input batch")?;
 
-        let batch_n_tokens = self.scheduler_context.inference_parameters.batch_n_tokens;
+        let n_batch = self.scheduler_context.inference_parameters.n_batch;
         let max_sequences_per_batch = self.scheduler_context.desired_slots_total;
         let token_counts: Vec<usize> = tokens_lines_list
             .iter()
             .map(|input| input.tokens.len())
             .collect();
         let planned_batches =
-            plan_embedding_batches(&token_counts, batch_n_tokens, max_sequences_per_batch);
-        let mut batch = LlamaBatch::new(batch_n_tokens, max_sequences_per_batch)?;
+            plan_embedding_batches(&token_counts, n_batch, max_sequences_per_batch);
+        let mut batch = LlamaBatch::new(n_batch, max_sequences_per_batch)?;
 
         #[expect(
             clippy::cast_possible_truncation,

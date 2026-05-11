@@ -112,9 +112,16 @@ impl ContinuousBatchArbiter {
             )]
             let n_seq_max = desired_slots_total as u32;
 
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "n_batch fits in u32 for llama.cpp FFI; usize is the internal type"
+            )]
+            let inference_parameters_n_batch_u32 = inference_parameters.n_batch as u32;
+
             let context_params = LlamaContextParams::default()
                 .with_embeddings(inference_parameters.enable_embeddings)
                 .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
+                .with_n_batch(inference_parameters_n_batch_u32)
                 .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_AUTO)
                 .with_n_seq_max(n_seq_max)
                 .with_n_threads(n_threads)

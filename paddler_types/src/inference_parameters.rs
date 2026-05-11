@@ -10,7 +10,7 @@ use crate::validates::Validates;
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InferenceParameters {
-    pub batch_n_tokens: usize,
+    pub n_batch: usize,
     pub context_size: u32,
     pub enable_embeddings: bool,
     pub image_resize_to_fit: u32,
@@ -49,7 +49,7 @@ impl Validates<Self> for InferenceParameters {
 impl Default for InferenceParameters {
     fn default() -> Self {
         Self {
-            batch_n_tokens: 512,
+            n_batch: 2048,
             context_size: 8192,
             enable_embeddings: false,
             image_resize_to_fit: 1024,

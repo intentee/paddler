@@ -27,11 +27,13 @@ def test_tool_with_parameters_serialization() -> None:
         function=Function(
             name="get_weather",
             description="Get weather",
-            parameters=ValidatedParametersSchema.model_validate({
-                "type": "object",
-                "properties": {"location": {"type": "string"}},
-                "required": ["location"],
-            }),
+            parameters=ValidatedParametersSchema.model_validate(
+                {
+                    "type": "object",
+                    "properties": {"location": {"type": "string"}},
+                    "required": ["location"],
+                }
+            ),
         )
     )
     dumped = tool.model_dump(
