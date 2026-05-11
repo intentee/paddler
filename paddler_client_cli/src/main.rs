@@ -17,7 +17,7 @@ use clap::Parser;
 use clap::Subcommand;
 use cmd::handler::Handler as _;
 use cmd::prompt::Prompt;
-use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
+use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Parser)]
@@ -36,11 +36,12 @@ enum Commands {
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    let shutdown_signals = register_shutdown_signals()?;
     let shutdown = CancellationToken::new();
     let signal_shutdown = shutdown.clone();
 
     tokio::spawn(async move {
-        if let Err(error) = wait_for_shutdown_signal().await {
+        if let Err(error) = shutdown_signals.wait().await {
             log::error!("shutdown signal listener failed: {error}");
             return;
         }

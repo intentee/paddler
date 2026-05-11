@@ -34,7 +34,7 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
+use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -64,7 +64,16 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
 
 fn shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
     iced::stream::channel(1, async move |mut output| {
-        if let Err(error) = wait_for_shutdown_signal().await {
+        let shutdown_signals = match register_shutdown_signals() {
+            Ok(shutdown_signals) => shutdown_signals,
+            Err(error) => {
+                log::error!("failed to register shutdown signal handlers: {error}");
+
+                return;
+            }
+        };
+
+        if let Err(error) = shutdown_signals.wait().await {
             log::error!("shutdown signal listener failed: {error}");
 
             return;
