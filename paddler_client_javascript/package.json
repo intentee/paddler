@@ -20,7 +20,7 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p .",
-    "test": "ava",
+    "test": "tsc -p tsconfig.test.json && tsx --test",
     "prepack": "tsc -p ."
   },
   "peerDependencies": {
@@ -32,18 +32,10 @@
   },
   "devDependencies": {
     "@types/node": "^22",
-    "ava": "^6.4.1",
-    "tsimp": "^2.0.12",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.2"
   },
   "engines": {
     "node": ">=22"
-  },
-  "ava": {
-    "extensions": {
-      "ts": "module"
-    },
-    "nodeArguments": ["--import=tsimp"],
-    "files": ["tests/**/*.test.ts"]
   }
 }

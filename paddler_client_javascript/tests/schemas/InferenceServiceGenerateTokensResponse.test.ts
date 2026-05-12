@@ -1,8 +1,14 @@
-import test from "ava";
+import {
+  deepStrictEqual,
+  notStrictEqual,
+  ok,
+  strictEqual,
+} from "node:assert/strict";
+import { test } from "node:test";
 
 import { InferenceServiceGenerateTokensResponseSchema } from "../../src/schemas/InferenceServiceGenerateTokensResponse";
 
-test("ContentToken normalises into a streaming token with content kind", function (t) {
+test("ContentToken normalises into a streaming token with content kind", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -11,14 +17,14 @@ test("ContentToken normalises into a streaming token with content kind", functio
     },
   });
 
-  t.is(parsed.done, false);
-  t.is(parsed.error, null);
-  t.is(parsed.token, "Hello");
-  t.is(parsed.tokenKind, "content");
-  t.is(parsed.toolCalls, null);
+  strictEqual(parsed.done, false);
+  strictEqual(parsed.error, null);
+  strictEqual(parsed.token, "Hello");
+  strictEqual(parsed.tokenKind, "content");
+  strictEqual(parsed.toolCalls, null);
 });
 
-test("ReasoningToken maps to reasoning kind", function (t) {
+test("ReasoningToken maps to reasoning kind", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -27,11 +33,11 @@ test("ReasoningToken maps to reasoning kind", function (t) {
     },
   });
 
-  t.is(parsed.token, "thinking...");
-  t.is(parsed.tokenKind, "reasoning");
+  strictEqual(parsed.token, "thinking...");
+  strictEqual(parsed.tokenKind, "reasoning");
 });
 
-test("Done normalises with the full usage summary", function (t) {
+test("Done normalises with the full usage summary", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -55,12 +61,12 @@ test("Done normalises with the full usage summary", function (t) {
     },
   });
 
-  t.is(parsed.done, true);
-  t.is(parsed.error, null);
-  t.deepEqual(parsed.summary?.usage.prompt_tokens, 10);
+  strictEqual(parsed.done, true);
+  strictEqual(parsed.error, null);
+  deepStrictEqual(parsed.summary?.usage.prompt_tokens, 10);
 });
 
-test("ToolCallValidatorBuildFailed normalises to a terminal error", function (t) {
+test("ToolCallValidatorBuildFailed normalises to a terminal error", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -73,11 +79,11 @@ test("ToolCallValidatorBuildFailed normalises to a terminal error", function (t)
     },
   });
 
-  t.is(parsed.done, true);
-  t.deepEqual(parsed.error, { code: 400, description: "schema invalid" });
+  strictEqual(parsed.done, true);
+  deepStrictEqual(parsed.error, { code: 400, description: "schema invalid" });
 });
 
-test("Top-level Error envelope normalises to terminal error", function (t) {
+test("Top-level Error envelope normalises to terminal error", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Error: {
       request_id: "req-5",
@@ -85,11 +91,11 @@ test("Top-level Error envelope normalises to terminal error", function (t) {
     },
   });
 
-  t.is(parsed.done, true);
-  t.deepEqual(parsed.error, { code: 500, description: "boom" });
+  strictEqual(parsed.done, true);
+  deepStrictEqual(parsed.error, { code: 500, description: "boom" });
 });
 
-test("UnrecognizedToolCallFormat preserves text and FFI error message", function (t) {
+test("UnrecognizedToolCallFormat preserves text and FFI error message", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -105,19 +111,19 @@ test("UnrecognizedToolCallFormat preserves text and FFI error message", function
     },
   });
 
-  t.is(parsed.done, false);
-  t.is(parsed.error, null);
-  t.is(parsed.ok, true);
-  t.is(parsed.token, null);
-  t.is(parsed.tokenKind, null);
-  t.is(parsed.toolCalls, null);
-  t.deepEqual(parsed.rawToolCallTokens, {
+  strictEqual(parsed.done, false);
+  strictEqual(parsed.error, null);
+  strictEqual(parsed.ok, true);
+  strictEqual(parsed.token, null);
+  strictEqual(parsed.tokenKind, null);
+  strictEqual(parsed.toolCalls, null);
+  deepStrictEqual(parsed.rawToolCallTokens, {
     text: "<unknown>raw</unknown>",
     ffi_error_message: "common_chat_parse failed: no parser",
   });
 });
 
-test("ImageExceedsBatchSize is terminal and describes token counts", function (t) {
+test("ImageExceedsBatchSize is terminal and describes token counts", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -130,10 +136,10 @@ test("ImageExceedsBatchSize is terminal and describes token counts", function (t
     },
   });
 
-  t.is(parsed.done, true);
-  t.is(parsed.ok, false);
-  t.not(parsed.error, null);
-  t.is(parsed.error?.code, 400);
-  t.true(parsed.error?.description.includes("368"));
-  t.true(parsed.error?.description.includes("100"));
+  strictEqual(parsed.done, true);
+  strictEqual(parsed.ok, false);
+  notStrictEqual(parsed.error, null);
+  strictEqual(parsed.error?.code, 400);
+  ok(parsed.error?.description.includes("368"));
+  ok(parsed.error?.description.includes("100"));
 });

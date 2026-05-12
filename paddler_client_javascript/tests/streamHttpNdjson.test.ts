@@ -1,5 +1,6 @@
-import test from "ava";
+import { deepStrictEqual, rejects } from "node:assert/strict";
 import { createServer, type RequestListener, type Server } from "node:http";
+import { test } from "node:test";
 import { firstValueFrom, lastValueFrom, toArray } from "rxjs";
 import { z } from "zod";
 
@@ -30,7 +31,7 @@ function listenOnce(handler: RequestListener): Promise<{
   });
 }
 
-test("yields parsed messages from an NDJSON stream", async function (t) {
+test("yields parsed messages from an NDJSON stream", async function () {
   const { server, url } = await listenOnce(function (_req, res) {
     res.writeHead(200, { "Content-Type": "application/x-ndjson" });
     res.write(`${JSON.stringify({ index: 0 })}\n`);
@@ -49,7 +50,7 @@ test("yields parsed messages from an NDJSON stream", async function (t) {
       }).pipe(toArray()),
     );
 
-    t.deepEqual(messages, [
+    deepStrictEqual(messages, [
       { index: 0 },
       { index: 1 },
       { index: 2 },
@@ -59,14 +60,14 @@ test("yields parsed messages from an NDJSON stream", async function (t) {
   }
 });
 
-test("non-2xx response throws HttpError", async function (t) {
+test("non-2xx response throws HttpError", async function () {
   const { server, url } = await listenOnce(function (_req, res) {
     res.writeHead(503);
     res.end();
   });
 
   try {
-    await t.throwsAsync(
+    await rejects(
       async function () {
         await firstValueFrom(
           streamHttpNdjson({
@@ -77,7 +78,7 @@ test("non-2xx response throws HttpError", async function (t) {
           }),
         );
       },
-      { instanceOf: HttpError },
+      HttpError,
     );
   } finally {
     server.close();

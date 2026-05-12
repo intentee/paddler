@@ -1,8 +1,9 @@
-import test from "ava";
+import { strictEqual, throws } from "node:assert/strict";
+import { test } from "node:test";
 
 import { AgentSchema } from "../../src/schemas/Agent";
 
-test("parses a fully populated agent payload", function (t) {
+test("parses a fully populated agent payload", function () {
   const parsed = AgentSchema.parse({
     desired_slots_total: 4,
     download_current: 0,
@@ -18,12 +19,12 @@ test("parses a fully populated agent payload", function (t) {
     uses_chat_template_override: false,
   });
 
-  t.is(parsed.id, "agent-0");
-  t.is(parsed.state_application_status, "Applied");
+  strictEqual(parsed.id, "agent-0");
+  strictEqual(parsed.state_application_status, "Applied");
 });
 
-test("rejects an unknown state_application_status", function (t) {
-  t.throws(function () {
+test("rejects an unknown state_application_status", function () {
+  throws(function () {
     AgentSchema.parse({
       desired_slots_total: 1,
       download_current: 0,

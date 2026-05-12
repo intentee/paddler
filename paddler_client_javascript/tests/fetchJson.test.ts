@@ -1,5 +1,6 @@
-import test from "ava";
+import { deepStrictEqual, rejects } from "node:assert/strict";
 import { createServer, type RequestListener, type Server } from "node:http";
+import { test } from "node:test";
 import { z } from "zod";
 
 import { fetchJson } from "../src/fetchJson";
@@ -29,7 +30,7 @@ function listenOnce(handler: RequestListener): Promise<{
   });
 }
 
-test("parses JSON body against the schema", async function (t) {
+test("parses JSON body against the schema", async function () {
   const { server, url } = await listenOnce(function (_req, res) {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: true, count: 7 }));
@@ -42,20 +43,20 @@ test("parses JSON body against the schema", async function (t) {
       schema: Schema,
     });
 
-    t.deepEqual(result, { ok: true, count: 7 });
+    deepStrictEqual(result, { ok: true, count: 7 });
   } finally {
     server.close();
   }
 });
 
-test("non-2xx status throws HttpError", async function (t) {
+test("non-2xx status throws HttpError", async function () {
   const { server, url } = await listenOnce(function (_req, res) {
     res.writeHead(404);
     res.end();
   });
 
   try {
-    await t.throwsAsync(
+    await rejects(
       async function () {
         return fetchJson({
           url,
@@ -63,7 +64,7 @@ test("non-2xx status throws HttpError", async function (t) {
           schema: Schema,
         });
       },
-      { instanceOf: HttpError },
+      HttpError,
     );
   } finally {
     server.close();
