@@ -6,6 +6,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
@@ -15,7 +16,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_releases_slot_when_websocket_client_disconnects() -> Result<()> {
-    let mut cluster = start_subprocess_cluster_with_qwen3(1, 1).await?;
+    let mut cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
 
     let agent_id = cluster
         .agent_ids

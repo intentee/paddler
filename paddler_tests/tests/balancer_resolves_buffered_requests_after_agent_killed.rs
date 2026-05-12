@@ -8,6 +8,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
@@ -35,12 +36,13 @@ async fn balancer_resolves_buffered_requests_after_agent_killed() -> Result<()> 
     } = qwen3_0_6b();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 2,
+        agents: vec![AgentConfig {
+            name: "removal-agent-primary".to_owned(),
+            slot_count: 2,
+        }],
         wait_for_slots_ready: true,
         buffered_request_timeout: Duration::from_secs(120),
         max_buffered_requests: 10,
-        agent_name_prefix: "removal-agent-primary".to_owned(),
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
             inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),

@@ -14,8 +14,11 @@ pub async fn collect_embedding_results(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedEmbeddingResults> {
     let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
+    let mut embeddings_disabled = false;
     let mut errors: Vec<String> = Vec::new();
+    let mut oversized_documents = Vec::new();
     let mut saw_done = false;
+    let mut wire_errors = Vec::new();
 
     while let Some(item) = stream.next().await {
         let message = item.context("embedding stream yielded an error")?;
@@ -36,6 +39,14 @@ pub async fn collect_embedding_results(
                             generated_by,
                         });
                     }
+                    InferenceResponse::Embedding(EmbeddingResult::DocumentExceedsBatchSize(
+                        details,
+                    )) => {
+                        oversized_documents.push(details);
+                    }
+                    InferenceResponse::Embedding(EmbeddingResult::EmbeddingsDisabled) => {
+                        embeddings_disabled = true;
+                    }
                     InferenceResponse::Embedding(EmbeddingResult::Error(message)) => {
                         errors.push(message);
                     }
@@ -55,18 +66,17 @@ pub async fn collect_embedding_results(
                 }
             }
             InferenceMessage::Error(error_envelope) => {
-                return Err(anyhow!(
-                    "embedding stream returned JSON-RPC error code {} ({})",
-                    error_envelope.error.code,
-                    error_envelope.error.description
-                ));
+                wire_errors.push(error_envelope.error);
             }
         }
     }
 
     Ok(CollectedEmbeddingResults {
         embeddings,
+        embeddings_disabled,
         errors,
+        oversized_documents,
         saw_done,
+        wire_errors,
     })
 }

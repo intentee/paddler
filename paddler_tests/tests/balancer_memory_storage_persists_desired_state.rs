@@ -27,7 +27,7 @@ async fn balancer_memory_storage_persists_desired_state() -> Result<()> {
     };
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: "memory://".to_owned(),
         desired_state: Some(desired_state.clone()),

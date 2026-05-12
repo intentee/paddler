@@ -25,6 +25,7 @@ export const InferenceParametersSchema = z
   .object({
     n_batch: z.number(),
     context_size: z.number(),
+    embedding_batch_size: z.number().int().min(1),
     enable_embeddings: z.boolean(),
     image_resize_to_fit: z.number().int().min(1),
     k_cache_dtype: z.enum(cacheDtypes),

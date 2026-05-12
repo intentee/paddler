@@ -12,9 +12,14 @@ function incrementVersion(version: number): number {
   return version + 1;
 }
 
-export function useWebSocket({ endpoint }: { endpoint: string }): WebSocketState {
-  const [socketState, setSocketState] =
-    useState<WebSocketState>(webSocketConnectingState);
+export function useWebSocket({
+  endpoint,
+}: {
+  endpoint: string;
+}): WebSocketState {
+  const [socketState, setSocketState] = useState<WebSocketState>(
+    webSocketConnectingState,
+  );
   const [version, setVersion] = useState(0);
   const [webSocket, setWebSocket] = useState<null | WebSocket>(null);
   const reconnectAttempts = useRef(0);

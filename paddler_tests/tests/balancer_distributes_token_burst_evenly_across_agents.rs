@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::future;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
@@ -20,7 +21,9 @@ async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
     const AGENT_COUNT: usize = 4;
     const SLOTS_PER_AGENT: i32 = 1;
 
-    let cluster = start_subprocess_cluster_with_qwen3(SLOTS_PER_AGENT, AGENT_COUNT).await?;
+    let cluster =
+        start_subprocess_cluster_with_qwen3(AgentConfig::uniform(AGENT_COUNT, SLOTS_PER_AGENT))
+            .await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

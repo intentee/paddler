@@ -6,8 +6,10 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
+use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_subprocess_cluster_with_qwen3_embedding::start_subprocess_cluster_with_qwen3_embedding;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -20,14 +22,14 @@ use reqwest::Client;
 async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {
     let agent_count: usize = 4;
 
-    let cluster = start_subprocess_cluster_with_qwen3_embedding(
-        InferenceParameters {
+    let cluster = start_subprocess_cluster_with_qwen3_embedding(Qwen3EmbeddingClusterParams {
+        agents: AgentConfig::uniform(agent_count, 2),
+        inference_parameters: InferenceParameters {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        2,
-        agent_count,
-    )
+        ..Qwen3EmbeddingClusterParams::default()
+    })
     .await?;
 
     let inference_client =

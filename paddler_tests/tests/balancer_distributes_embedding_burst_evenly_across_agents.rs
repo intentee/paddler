@@ -5,10 +5,14 @@
 
 use std::collections::BTreeSet;
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures_util::future;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
+use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_subprocess_cluster_with_qwen3_embedding::start_subprocess_cluster_with_qwen3_embedding;
 use paddler_types::embedding_input_document::EmbeddingInputDocument;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -23,14 +27,15 @@ async fn balancer_distributes_embedding_burst_evenly_across_agents() -> Result<(
     const SLOTS_PER_AGENT: i32 = 2;
     const CONCURRENT_REQUESTS: usize = 8;
 
-    let cluster = start_subprocess_cluster_with_qwen3_embedding(
-        InferenceParameters {
+    let cluster = start_subprocess_cluster_with_qwen3_embedding(Qwen3EmbeddingClusterParams {
+        agents: AgentConfig::uniform(AGENT_COUNT, SLOTS_PER_AGENT),
+        buffered_request_timeout: Duration::from_secs(60),
+        inference_parameters: InferenceParameters {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        SLOTS_PER_AGENT,
-        AGENT_COUNT,
-    )
+        max_buffered_requests: 32,
+    })
     .await?;
 
     let inference_client =

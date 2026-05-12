@@ -1,8 +1,8 @@
 import React from "react";
 
+import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { useModelMetadata } from "../hooks/useModelMetadata";
 import { matchFetchJsonState } from "../matchFetchJsonState";
-import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { ModalWindow } from "./ModalWindow";
 import { ModelMetadata } from "./ModelMetadata";
 import { ModelMetadataContextProvider } from "./ModelMetadataContextProvider";

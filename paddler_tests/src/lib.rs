@@ -1,3 +1,4 @@
+pub mod agent_config;
 pub mod agents_status;
 pub mod agents_stream_watcher;
 pub mod balancer_addresses;
@@ -21,6 +22,7 @@ pub mod model_card;
 pub mod openai_chat_completions_client;
 pub mod paddler_command;
 pub mod parse_test_device_value;
+pub mod qwen3_embedding_cluster_params;
 pub mod spawn_agent_subprocess;
 pub mod spawn_agent_subprocess_params;
 pub mod start_in_process_cluster;

@@ -4,6 +4,7 @@
 ))]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
@@ -20,7 +21,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_text_only_model_rejects_image_input() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;
+    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

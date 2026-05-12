@@ -11,7 +11,7 @@ use tokio::time::timeout;
 async fn balancer_in_process_shutdown_with_open_sse_subscriber_completes_within_one_second()
 -> Result<()> {
     let cluster = start_in_process_cluster(InProcessClusterParams {
-        spawn_agent: false,
+        agent: None,
         wait_for_slots_ready: false,
         ..InProcessClusterParams::default()
     })

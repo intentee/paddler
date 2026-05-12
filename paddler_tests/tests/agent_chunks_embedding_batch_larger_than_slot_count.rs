@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
@@ -20,7 +21,7 @@ async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        4,
+        AgentConfig::single(4),
     )
     .await?;
 

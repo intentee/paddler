@@ -4,6 +4,7 @@
 ))]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
 use paddler_types::conversation_history::ConversationHistory;
@@ -21,7 +22,7 @@ use serde_json::Map;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;
+    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

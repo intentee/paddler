@@ -34,8 +34,6 @@ use crate::balancer::request_from_agent::request_from_agent;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::controls_session::ControlsSession as _;
 
-const CHARACTERS_PER_TOKEN_APPROXIMATELY: usize = 3;
-
 #[derive(Clone)]
 struct EmbeddingChunkBodyTransformer;
 
@@ -79,15 +77,20 @@ async fn respond(
         ));
     }
 
+    let agent_count = app_data.agent_controller_pool.agents.len();
+    let embedding_batch_size = agent_desired_state
+        .inference_parameters
+        .embedding_batch_size;
+
     let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
-    for batch in params.chunk_by_input_size(
-        agent_desired_state.inference_parameters.n_batch
-            * CHARACTERS_PER_TOKEN_APPROXIMATELY,
-    ) {
+    for batch in params
+        .into_inner()
+        .chunk_evenly_with_cap(agent_count, embedding_batch_size)
+    {
         let buffered_request_manager_clone = app_data.buffered_request_manager.clone();
         let chunk_tx_clone = chunk_tx.clone();
         let connection_close_clone = connection_close.clone();

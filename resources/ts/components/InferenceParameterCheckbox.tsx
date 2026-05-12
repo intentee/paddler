@@ -8,13 +8,12 @@ import {
   inferenceParameterInput__label,
 } from "./inferenceParameterInput.module.css";
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
-export function InferenceParameterCheckbox<TKey extends InferenceParametersBooleanKeys>({
+export function InferenceParameterCheckbox({
   description,
   name,
 }: {
   description: string;
-  name: TKey;
+  name: InferenceParametersBooleanKeys;
 }) {
   const { parameters, setParameter } = useContext(InferenceParametersContext);
 

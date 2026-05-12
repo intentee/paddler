@@ -18,15 +18,13 @@ use crate::wait_until_healthy::wait_until_healthy;
 
 pub async fn start_subprocess_cluster(
     SubprocessClusterParams {
-        agent_count,
-        agent_name_prefix,
+        agents,
         buffered_request_timeout,
         desired_state,
         inference_cors_allowed_hosts,
         inference_item_timeout,
         management_cors_allowed_hosts,
         max_buffered_requests,
-        slots_per_agent,
         state_database_url,
         wait_for_slots_ready,
     }: SubprocessClusterParams,
@@ -92,19 +90,18 @@ pub async fn start_subprocess_cluster(
     let buffered_requests_watcher =
         BufferedRequestsStreamWatcher::connect(&paddler_client.management()).await?;
 
-    let mut agent_children: Vec<Child> = Vec::with_capacity(agent_count);
+    let expected_agent_count = agents.len();
+    let mut agent_children: Vec<Child> = Vec::with_capacity(expected_agent_count);
 
-    for agent_index in 0..agent_count {
-        let agent_name = format!("{agent_name_prefix}-{agent_index}");
-
+    for agent in &agents {
         let agent_child = paddler_command()
             .arg("agent")
             .arg("--management-addr")
             .arg(addresses.management.to_string())
             .arg("--name")
-            .arg(agent_name)
+            .arg(&agent.name)
             .arg("--slots")
-            .arg(slots_per_agent.to_string())
+            .arg(agent.slot_count.to_string())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -114,19 +111,21 @@ pub async fn start_subprocess_cluster(
     }
 
     let registered_snapshot = agents_watcher
-        .until(move |snapshot| snapshot.agents.len() >= agent_count)
+        .until(move |snapshot| snapshot.agents.len() >= expected_agent_count)
         .await
         .context("not all subprocess agents registered")?;
 
     let agent_ids: Vec<String> = registered_snapshot
         .agents
         .iter()
-        .map(|agent| agent.id.clone())
+        .map(|registered_agent| registered_agent.id.clone())
         .collect();
 
     if wait_for_slots_ready {
+        let expected_slot_counts: Vec<i32> = agents.iter().map(|agent| agent.slot_count).collect();
+
         agents_watcher
-            .wait_for_slots_ready(agent_count, slots_per_agent)
+            .wait_for_slots_ready(&expected_slot_counts)
             .await?;
     }
 

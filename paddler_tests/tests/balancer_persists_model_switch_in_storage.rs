@@ -30,7 +30,7 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
     };
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
         desired_state: Some(initial_state.clone()),

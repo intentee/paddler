@@ -6,12 +6,13 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn management_agents_stream_yields_initial_snapshot() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;
+    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let mut stream = cluster
         .paddler_client

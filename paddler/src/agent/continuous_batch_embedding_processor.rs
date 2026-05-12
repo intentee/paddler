@@ -6,9 +6,11 @@ use anyhow::anyhow;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
+use log::warn;
 use paddler_types::embedding::Embedding;
 use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_types::embedding_result::EmbeddingResult;
+use paddler_types::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
@@ -57,9 +59,7 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             .inference_parameters
             .enable_embeddings
         {
-            generated_embedding_tx.send(EmbeddingResult::Error(
-                "Embeddings are not enabled for this agent".to_owned(),
-            ))?;
+            generated_embedding_tx.send(EmbeddingResult::EmbeddingsDisabled)?;
 
             return Err(anyhow!("Embeddings are not enabled"));
         }
@@ -84,7 +84,35 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
 
         let n_batch = self.scheduler_context.inference_parameters.n_batch;
         let max_sequences_per_batch = self.scheduler_context.desired_slots_total;
-        let token_counts: Vec<usize> = tokens_lines_list
+
+        let mut tokens_lines_list_within_batch: Vec<EmbeddingInputTokenized> = Vec::new();
+        for input in tokens_lines_list {
+            if input.tokens.len() > n_batch {
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    reason = "document token counts and n_batch are model-bounded and fit in u32"
+                )]
+                let details = OversizedEmbeddingDocumentDetails {
+                    document_tokens: input.tokens.len() as u32,
+                    n_batch: n_batch as u32,
+                    source_document_id: input.id.clone(),
+                };
+
+                warn!(
+                    "{:?}: skipped embedding document {:?}: {} tokens exceeds n_batch {}",
+                    self.scheduler_context.agent_name,
+                    input.id,
+                    details.document_tokens,
+                    details.n_batch,
+                );
+
+                generated_embedding_tx.send(EmbeddingResult::DocumentExceedsBatchSize(details))?;
+            } else {
+                tokens_lines_list_within_batch.push(input);
+            }
+        }
+
+        let token_counts: Vec<usize> = tokens_lines_list_within_batch
             .iter()
             .map(|input| input.tokens.len())
             .collect();
@@ -102,8 +130,10 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                 break;
             }
 
-            let batch_inputs: Vec<&EmbeddingInputTokenized> =
-                tokens_lines_list[planned_batch].iter().collect();
+            let batch_inputs: Vec<&EmbeddingInputTokenized> = tokens_lines_list_within_batch
+                [planned_batch]
+                .iter()
+                .collect();
 
             for (sequence_index, input) in batch_inputs.iter().enumerate() {
                 batch.add_sequence(&input.tokens, sequence_index as i32, true)?;

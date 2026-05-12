@@ -754,9 +754,7 @@ impl ContinuousBatchScheduler {
             )) => {
                 warn!(
                     "{:?}: refused multimodal request: image chunk has {} tokens but n_batch is {}",
-                    self.scheduler_context.agent_name,
-                    mismatch.image_tokens,
-                    mismatch.n_batch,
+                    self.scheduler_context.agent_name, mismatch.image_tokens, mismatch.n_batch,
                 );
 
                 self.sequence_id_pool.release(sequence_id);

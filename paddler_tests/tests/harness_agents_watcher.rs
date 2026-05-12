@@ -101,7 +101,7 @@ async fn wait_for_slots_ready_includes_agent_id_in_error() {
     let fixture = stream::iter(vec![Ok(snapshot)]);
     let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
 
-    let outcome = watcher.wait_for_slots_ready(1, 1).await;
+    let outcome = watcher.wait_for_slots_ready(&[1]).await;
 
     assert!(
         outcome.is_err(),

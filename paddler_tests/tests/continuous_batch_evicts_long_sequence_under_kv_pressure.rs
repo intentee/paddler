@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
@@ -34,8 +35,10 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
     inference_parameters.temperature = 0.0;
 
     let cluster = start_in_process_cluster(InProcessClusterParams {
-        spawn_agent: true,
-        slots_per_agent: 2,
+        agent: Some(AgentConfig {
+            name: "test-agent".to_owned(),
+            slot_count: 2,
+        }),
         desired_state: BalancerDesiredState {
             chat_template_override: None,
             inference_parameters,

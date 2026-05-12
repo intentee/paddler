@@ -12,8 +12,9 @@ export function useEventSourceUpdates<TSchema extends z.ZodType>({
   endpoint: string;
   schema: TSchema;
 }): EventSourceState<TSchema> {
-  const [streamState, setEventSourceState] =
-    useState<EventSourceState<TSchema>>(eventSourceInitialState);
+  const [streamState, setEventSourceState] = useState<
+    EventSourceState<TSchema>
+  >(eventSourceInitialState);
 
   useEffect(
     function () {

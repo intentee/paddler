@@ -1,10 +1,10 @@
 import React, { useCallback, useMemo, useState, type ReactNode } from "react";
 
+import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
 import {
   ChatTemplateContext,
   type ChatTemplateContextValue,
 } from "../contexts/ChatTemplateContext";
-import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
 
 export function ChatTemplateContextProvider({
   children,

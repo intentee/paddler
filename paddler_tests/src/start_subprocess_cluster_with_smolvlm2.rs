@@ -2,6 +2,7 @@ use anyhow::Result;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 
+use crate::agent_config::AgentConfig;
 use crate::cluster_handle::ClusterHandle;
 use crate::current_test_device::current_test_device;
 use crate::model_card::ModelCard;
@@ -11,8 +12,7 @@ use crate::start_subprocess_cluster::start_subprocess_cluster;
 use crate::subprocess_cluster_params::SubprocessClusterParams;
 
 pub async fn start_subprocess_cluster_with_smolvlm2(
-    slots_per_agent: i32,
-    agent_count: usize,
+    agents: Vec<AgentConfig>,
 ) -> Result<ClusterHandle> {
     let device = current_test_device()?;
 
@@ -28,8 +28,7 @@ pub async fn start_subprocess_cluster_with_smolvlm2(
     } = smolvlm2_256m_mmproj();
 
     start_subprocess_cluster(SubprocessClusterParams {
-        agent_count,
-        slots_per_agent,
+        agents,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
             inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),

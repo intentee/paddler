@@ -6,6 +6,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
@@ -21,7 +22,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(1, 1).await?;
+    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

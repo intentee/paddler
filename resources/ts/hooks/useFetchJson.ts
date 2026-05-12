@@ -15,8 +15,9 @@ export function useFetchJson<TResponseSchema extends z.ZodType>({
   ): null | Promise<Response>;
   responseSchema: TResponseSchema;
 }): FetchJsonState<z.infer<TResponseSchema>> {
-  const [fetchState, setFetchState] =
-    useState<FetchJsonState<z.infer<TResponseSchema>>>(fetchJsonLoadingState);
+  const [fetchState, setFetchState] = useState<
+    FetchJsonState<z.infer<TResponseSchema>>
+  >(fetchJsonLoadingState);
 
   useEffect(
     function () {

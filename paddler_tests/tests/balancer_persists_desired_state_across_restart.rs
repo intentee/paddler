@@ -30,7 +30,7 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
     };
 
     let first_cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
         desired_state: Some(desired_state.clone()),
@@ -41,7 +41,7 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
     first_cluster.shutdown().await?;
 
     let second_cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
         desired_state: None,

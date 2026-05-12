@@ -5,6 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
@@ -21,8 +22,7 @@ async fn balancer_reports_chat_template_does_not_compile_for_invalid_jinja() -> 
     let ModelCard { reference, .. } = qwen3_0_6b();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 1,
+        agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(ChatTemplate {

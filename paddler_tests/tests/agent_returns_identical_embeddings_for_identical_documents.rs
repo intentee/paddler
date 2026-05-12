@@ -2,6 +2,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
@@ -19,7 +20,7 @@ async fn agent_returns_identical_embeddings_for_identical_documents() -> Result<
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        1,
+        AgentConfig::single(1),
     )
     .await?;
 

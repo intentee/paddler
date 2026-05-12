@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
@@ -18,7 +19,7 @@ async fn agent_embeddings_share_dimension_across_inputs_of_varying_length() -> R
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        1,
+        AgentConfig::single(1),
     )
     .await?;
 

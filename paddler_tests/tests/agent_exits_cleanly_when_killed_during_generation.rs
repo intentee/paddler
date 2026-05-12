@@ -35,7 +35,7 @@ async fn agent_exits_cleanly_when_killed_during_generation() -> Result<()> {
     } = qwen3_0_6b();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,

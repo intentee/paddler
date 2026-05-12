@@ -8,7 +8,7 @@ use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_openai_compat_health_returns_ok() -> Result<()> {
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         ..SubprocessClusterParams::default()
     })

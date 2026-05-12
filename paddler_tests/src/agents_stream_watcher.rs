@@ -55,20 +55,34 @@ impl AgentsStreamWatcher {
         ))
     }
 
-    pub async fn wait_for_slots_ready(
-        &mut self,
-        expected_agent_count: usize,
-        slots_per_agent: i32,
-    ) -> Result<()> {
+    pub async fn wait_for_slots_ready(&mut self, expected_slot_counts: &[i32]) -> Result<()> {
+        let mut expected_sorted: Vec<i32> = expected_slot_counts.to_vec();
+        expected_sorted.sort_unstable();
+        let expected_agent_count = expected_sorted.len();
+
         let snapshot = self
             .until(move |snapshot| {
-                snapshot.agents.len() >= expected_agent_count
-                    && snapshot.agents.iter().all(|agent| {
-                        agent.slots_total >= slots_per_agent || !agent.issues.is_empty()
-                    })
+                if snapshot.agents.len() < expected_agent_count {
+                    return false;
+                }
+
+                let any_with_issues = snapshot.agents.iter().any(|agent| !agent.issues.is_empty());
+
+                if any_with_issues {
+                    return true;
+                }
+
+                let mut observed_slot_counts: Vec<i32> = snapshot
+                    .agents
+                    .iter()
+                    .map(|agent| agent.slots_total)
+                    .collect();
+                observed_slot_counts.sort_unstable();
+
+                observed_slot_counts == expected_sorted
             })
             .await
-            .context("agents did not reach the requested slot count")?;
+            .context("agents did not reach the requested slot counts")?;
 
         let agents_with_issues: Vec<String> = snapshot
             .agents

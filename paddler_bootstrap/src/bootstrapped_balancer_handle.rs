@@ -90,6 +90,7 @@ pub async fn bootstrap_balancer(
     };
 
     service_manager.add_service(InferenceService {
+        agent_controller_pool: agent_controller_pool.clone(),
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
         buffered_request_manager: buffered_request_manager.clone(),
         configuration: inference_service_configuration.clone(),

@@ -6,6 +6,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_cluster_with_smolvlm2::start_in_process_cluster_with_smolvlm2;
@@ -18,10 +19,7 @@ use paddler_types::request_params::continue_from_conversation_history_params::Co
 use reqwest::Client;
 
 fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {
-    let fixture_path = format!(
-        "{}/../fixtures/{fixture_name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
+    let fixture_path = format!("{}/../fixtures/{fixture_name}", env!("CARGO_MANIFEST_DIR"));
     let bytes = fs::read(&fixture_path)
         .with_context(|| format!("failed to read test fixture {fixture_path}"))?;
     let encoded = BASE64_STANDARD.encode(&bytes);
@@ -83,7 +81,7 @@ async fn drive_normal_image_fixture(
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_completes_generation_with_adequate_n_batch() -> Result<()> {
-    let cluster = start_in_process_cluster_with_smolvlm2(1).await?;
+    let cluster = start_in_process_cluster_with_smolvlm2(AgentConfig::single(1)).await?;
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
 

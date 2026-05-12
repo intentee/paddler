@@ -26,7 +26,7 @@ async fn balancer_returns_504_when_no_agents_registered() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         buffered_request_timeout: Duration::from_millis(50),
         max_buffered_requests: 1,

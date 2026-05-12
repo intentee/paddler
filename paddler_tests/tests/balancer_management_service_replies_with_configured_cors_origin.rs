@@ -10,7 +10,7 @@ const ALLOWED_ORIGIN: &str = "http://example.com";
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_management_service_replies_with_configured_cors_origin() -> Result<()> {
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         management_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
         wait_for_slots_ready: false,
         ..SubprocessClusterParams::default()

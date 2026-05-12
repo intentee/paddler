@@ -1,12 +1,12 @@
 import React, { memo, useContext, useEffect, useMemo, useState } from "react";
 import { scan } from "rxjs";
 
-import { PromptContext } from "../contexts/PromptContext";
-import { PromptImageContext } from "../contexts/PromptImageContext";
-import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
 import { inferenceSocketClient } from "@intentee/paddler-client/inferenceSocketClient";
 import { type ConversationMessage as ConversationMessageType } from "@intentee/paddler-client/schemas/ConversationMessage";
 import { type InferenceServiceGenerateTokensResponse } from "@intentee/paddler-client/schemas/InferenceServiceGenerateTokensResponse";
+import { PromptContext } from "../contexts/PromptContext";
+import { PromptImageContext } from "../contexts/PromptImageContext";
+import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
 import { ConversationMessage } from "./ConversationMessage";
 
 interface Message {

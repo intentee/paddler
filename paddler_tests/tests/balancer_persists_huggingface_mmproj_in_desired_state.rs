@@ -27,7 +27,7 @@ async fn balancer_persists_huggingface_mmproj_in_desired_state() -> Result<()> {
     } = smolvlm2_256m_mmproj();
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,

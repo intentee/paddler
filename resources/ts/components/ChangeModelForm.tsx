@@ -7,11 +7,11 @@ import React, {
 } from "react";
 import { useLocation } from "wouter";
 
+import { type BalancerDesiredState } from "@intentee/paddler-client/schemas/BalancerDesiredState";
 import { ChatTemplateContext } from "../contexts/ChatTemplateContext";
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
-import { type BalancerDesiredState } from "@intentee/paddler-client/schemas/BalancerDesiredState";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
 import { InferenceParameterCacheDtype } from "./InferenceParameterCacheDtype";
 import { InferenceParameterCheckbox } from "./InferenceParameterCheckbox";
@@ -283,6 +283,10 @@ export function ChangeModelForm({
             <InferenceParameterCheckbox
               description="You need embeddings for stuff like semantic search, RAG, and more"
               name="enable_embeddings"
+            />
+            <InferenceParameterInput
+              description="Max documents per embedding sub-batch (cap; balancer fans out larger requests across agents and chunks beyond this size)"
+              name="embedding_batch_size"
             />
             <InferenceParameterPoolingType
               description="How to combine token embeddings"

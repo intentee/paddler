@@ -35,7 +35,7 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
     } = qwen3_0_6b();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         buffered_request_timeout: Duration::from_millis(50),
         max_buffered_requests: 10,
