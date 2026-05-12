@@ -8,6 +8,7 @@ build/
 *.egg
 .eggs/
 *.whl
+.venv
 .venv/
 venv/
 .mypy_cache/
