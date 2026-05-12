@@ -1,11 +1,3 @@
----
-paths:
-  - "**/*.mjs"
-  - "**/*.py"
-  - "**/*.rs"
-  - "**/*.ts"
----
-
 # Teamwork and Project Organization
 
 Team members own one module each. The project needs to be organized around small self-contained modules.

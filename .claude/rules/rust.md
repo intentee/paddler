@@ -17,3 +17,5 @@ paths:
 - In Rust, when implementing a `new` method in a struct, prefer to use a struct with a parameter list instead of multiple function arguments. It should be easier to maintain.
 - Always check the project with Clippy.
 - Always format the code with `cargo fmt`.
+- Each file must contain at most a single struct, or single enum. For readability split those into multiple modules. You can still keep multiple private function helpers.
+- Never use Result<> as a function argument.

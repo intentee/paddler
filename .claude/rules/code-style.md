@@ -1,11 +1,3 @@
----
-paths:
-  - "**/*.mjs"
-  - "**/*.py"
-  - "**/*.rs"
-  - "**/*.ts"
----
-
 # Coding Standards
 
 - Keep at most a single public struct per module.
