@@ -1,3 +1,11 @@
+---
+paths:
+  - "**/*.mjs"
+  - "**/*.py"
+  - "**/*.rs"
+  - "**/*.ts"
+---
+
 # Unit Tests and Quality Control
 
 - Always check that the unit tests pass.
