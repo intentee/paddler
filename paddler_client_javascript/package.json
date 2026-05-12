@@ -27,6 +27,9 @@
     "rxjs": "^7.8",
     "zod": "^4"
   },
+  "dependencies": {
+    "nanoid": "^5.1.11"
+  },
   "devDependencies": {
     "@types/node": "^22",
     "ava": "^6.4.1",

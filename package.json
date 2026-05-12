@@ -35,7 +35,7 @@
     "@codemirror/lang-jinja": "^6.0.0",
     "@uiw/react-codemirror": "^4.24.2",
     "clsx": "^2.1.1",
-    "nanoid": "^5.1.5",
+    "nanoid": "^5.1.11",
     "path-to-regexp": "^8.4.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
