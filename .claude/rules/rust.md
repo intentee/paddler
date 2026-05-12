@@ -19,3 +19,5 @@ paths:
 - Always format the code with `cargo fmt`.
 - Each file must contain at most a single struct, or single enum. For readability split those into multiple modules. You can still keep multiple private function helpers.
 - Never use Result<> as a function argument.
+- Never forward Result in enums if you can instead create a targeted error enum. It is always better to signal the specific issue, so it can be handled downstream.
+- Always destructure structs in arguments if possible.
