@@ -41,6 +41,10 @@ fn validate_required_address(raw: &str) -> Result<SocketAddr, String> {
     validate_optional_address(raw)?.ok_or_else(|| "Address is required.".to_owned())
 }
 
+#[expect(
+    clippy::large_enum_variant,
+    reason = "ephemeral value, immediately consumed"
+)]
 #[derive(Debug, Clone)]
 pub enum Message {
     SetBalancerAddress(String),

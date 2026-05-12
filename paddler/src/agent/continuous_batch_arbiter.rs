@@ -66,7 +66,7 @@ impl ContinuousBatchArbiter {
 
         let model_path_string = model_path.display().to_string();
 
-        ContinuousBatchArbiterBuildOutcome::ReadyToSpawn(Self {
+        ContinuousBatchArbiterBuildOutcome::ReadyToSpawn(Box::new(Self {
             agent_name,
             chat_template_override: applicable_state.chat_template_override,
             desired_slots_total,
@@ -76,7 +76,7 @@ impl ContinuousBatchArbiter {
             model_path,
             model_path_string,
             slot_aggregated_status_manager,
-        })
+        }))
     }
 
     pub async fn spawn(&self) -> Result<ContinuousBatchArbiterHandle> {

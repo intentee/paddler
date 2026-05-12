@@ -105,12 +105,10 @@ pub async fn start_in_process_cluster(
         .map(|registered_agent| registered_agent.id.clone())
         .collect();
 
-    if wait_for_slots_ready {
-        if let Some(agent_config) = agent.as_ref() {
-            agents_watcher
-                .wait_for_slots_ready(&[agent_config.slot_count])
-                .await?;
-        }
+    if wait_for_slots_ready && let Some(agent_config) = agent.as_ref() {
+        agents_watcher
+            .wait_for_slots_ready(&[agent_config.slot_count])
+            .await?;
     }
 
     Ok(ClusterHandle::new(ClusterHandleParams {
