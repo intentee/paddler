@@ -3,4 +3,5 @@ mod continue_from_raw_prompt_params;
 mod generate_embedding_batch_params;
 
 pub use continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+pub use generate_embedding_batch_params::ChunkEvenlyWithCapError;
 pub use generate_embedding_batch_params::GenerateEmbeddingBatchParams;

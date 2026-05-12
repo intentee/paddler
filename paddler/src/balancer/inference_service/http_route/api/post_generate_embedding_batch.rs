@@ -1,6 +1,7 @@
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
+use actix_web::error::ErrorInternalServerError;
 use actix_web::error::ErrorNotImplemented;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
@@ -19,6 +20,7 @@ use paddler_types::inference_client::Response as OutgoingResponse;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::ResponseEnvelope;
+use paddler_types::request_params::ChunkEvenlyWithCapError;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
@@ -87,10 +89,22 @@ async fn respond(
 
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
-    for batch in params
+    let batches = match params
         .into_inner()
         .chunk_evenly_with_cap(agent_count, embedding_batch_size)
     {
+        Ok(batches) => batches,
+        Err(ChunkEvenlyWithCapError::ZeroAgentCount) => {
+            return Err(ErrorServiceUnavailable("No agents are currently connected"));
+        }
+        Err(ChunkEvenlyWithCapError::ZeroMaxDocumentsPerChunk) => {
+            return Err(ErrorInternalServerError(
+                "embedding_batch_size is zero despite validation",
+            ));
+        }
+    };
+
+    for batch in batches {
         let buffered_request_manager_clone = app_data.buffered_request_manager.clone();
         let chunk_tx_clone = chunk_tx.clone();
         let connection_close_clone = connection_close.clone();
