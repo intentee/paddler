@@ -9,6 +9,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
@@ -312,8 +313,7 @@ impl ContinuousBatchArbiter {
                 model: model.clone(),
             });
 
-            let llama_context = match model
-                .new_context(&llama_backend, context_params)
+            let llama_context = match LlamaContext::from_model(&model, &llama_backend, context_params)
                 .context("Unable to create llama.cpp context")
             {
                 Ok(context) => context,
