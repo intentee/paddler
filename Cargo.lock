@@ -3757,7 +3757,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -3774,7 +3774,7 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bindgen",
  "cc",
@@ -3787,14 +3787,14 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde",
  "serde_json",
