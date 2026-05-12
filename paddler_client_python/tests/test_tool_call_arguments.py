@@ -1,8 +1,10 @@
 import pytest
 
-from paddler_client.tool_call_arguments import InvalidJson
-from paddler_client.tool_call_arguments import ValidJson
-from paddler_client.tool_call_arguments import parse_tool_call_arguments
+from paddler_client.tool_call_arguments import (
+    InvalidJson,
+    ValidJson,
+    parse_tool_call_arguments,
+)
 
 
 def test_parse_valid_json_with_object() -> None:

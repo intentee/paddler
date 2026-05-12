@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
-from typing import cast
+from typing import Any, cast
 
 from paddler_client.embedding import Embedding
 from paddler_client.oversized_image_details import OversizedImageDetails
@@ -215,7 +215,9 @@ _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
     "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
     "SamplerError": InferenceMessageKind.SAMPLER_ERROR,
-    "ToolCallValidatorBuildFailed": InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED,
+    "ToolCallValidatorBuildFailed": (
+        InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED
+    ),
 }
 
 
@@ -227,6 +229,144 @@ _GENERATED_TOKEN_KINDS: dict[str, InferenceMessageKind] = {
 }
 
 
+def _build_done_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.DONE,
+        summary=GenerationSummary.from_dict(payload),
+        generated_by=generated_by,
+    )
+
+
+def _build_tool_call_parsed_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    if not isinstance(payload, list):
+        msg = f"ToolCallParsed payload is not a list: {payload}"
+        raise TypeError(msg)
+    typed_calls = cast("list[dict[str, Any]]", payload)
+    parsed_calls: list[ParsedToolCall] = [
+        ParsedToolCall.from_dict(call) for call in typed_calls
+    ]
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.TOOL_CALL_PARSED,
+        parsed_tool_calls=parsed_calls,
+        generated_by=generated_by,
+    )
+
+
+def _build_tool_call_parse_failed_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.TOOL_CALL_PARSE_FAILED,
+        error_message=str(payload),
+        generated_by=generated_by,
+    )
+
+
+def _build_tool_call_validation_failed_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    if not isinstance(payload, list):
+        msg = f"ToolCallValidationFailed payload is not a list: {payload}"
+        raise TypeError(msg)
+    typed_errors = cast("list[object]", payload)
+    joined_errors: str = "; ".join(str(error) for error in typed_errors)
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED,
+        error_message=joined_errors,
+        generated_by=generated_by,
+    )
+
+
+def _build_unrecognized_tool_call_format_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    if not isinstance(payload, dict):
+        msg = f"UnrecognizedToolCallFormat payload is not a dict: {payload!r}"
+        raise TypeError(msg)
+    typed_raw = cast("dict[str, Any]", payload)
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.UNRECOGNIZED_TOOL_CALL_FORMAT,
+        raw_tool_call_tokens=RawToolCallTokens.from_dict(typed_raw),
+        generated_by=generated_by,
+    )
+
+
+def _build_image_exceeds_batch_size_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    if not isinstance(payload, dict):
+        msg = f"ImageExceedsBatchSize payload is not a dict: {payload!r}"
+        raise TypeError(msg)
+    typed_details = cast("dict[str, Any]", payload)
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.IMAGE_EXCEEDS_BATCH_SIZE,
+        oversized_image_details=OversizedImageDetails.from_dict(typed_details),
+        generated_by=generated_by,
+    )
+
+
+def _build_token_kind_message(
+    request_id: str,
+    kind: InferenceMessageKind,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=kind,
+        token=payload,
+        generated_by=generated_by,
+    )
+
+
+def _build_error_kind_message(
+    request_id: str,
+    kind: InferenceMessageKind,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=kind,
+        error_message=payload,
+        generated_by=generated_by,
+    )
+
+
+_StructuredHandler = Callable[[str, Any, str | None], InferenceMessage]
+
+_STRUCTURED_HANDLERS: dict[str, _StructuredHandler] = {
+    "Done": _build_done_message,
+    "ToolCallParsed": _build_tool_call_parsed_message,
+    "ToolCallParseFailed": _build_tool_call_parse_failed_message,
+    "ToolCallValidationFailed": _build_tool_call_validation_failed_message,
+    "UnrecognizedToolCallFormat": _build_unrecognized_tool_call_format_message,
+    "ImageExceedsBatchSize": _build_image_exceeds_batch_size_message,
+}
+
+
 def _parse_generated_token_result(
     request_id: str,
     data: str | dict[str, Any],
@@ -234,98 +374,26 @@ def _parse_generated_token_result(
 ) -> InferenceMessage:
     if not isinstance(data, dict):
         msg = f"Unknown GeneratedTokenResult: {data}"
-        raise ValueError(msg)
-
-    if "Done" in data:
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.DONE,
-            summary=GenerationSummary.from_dict(data["Done"]),
-            generated_by=generated_by,
-        )
-
-    if "ToolCallParsed" in data:
-        raw_calls = data["ToolCallParsed"]
-        if not isinstance(raw_calls, list):
-            msg = f"ToolCallParsed payload is not a list: {raw_calls}"
-            raise ValueError(msg)
-        typed_calls = cast("list[dict[str, Any]]", raw_calls)
-        parsed_calls: list[ParsedToolCall] = [
-            ParsedToolCall.from_dict(call) for call in typed_calls
-        ]
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.TOOL_CALL_PARSED,
-            parsed_tool_calls=parsed_calls,
-            generated_by=generated_by,
-        )
-
-    if "ToolCallParseFailed" in data:
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.TOOL_CALL_PARSE_FAILED,
-            error_message=str(data["ToolCallParseFailed"]),
-            generated_by=generated_by,
-        )
-
-    if "ToolCallValidationFailed" in data:
-        errors = data["ToolCallValidationFailed"]
-        if not isinstance(errors, list):
-            msg = f"ToolCallValidationFailed payload is not a list: {errors}"
-            raise ValueError(msg)
-        typed_errors = cast("list[object]", errors)
-        joined_errors: str = "; ".join(str(error) for error in typed_errors)
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED,
-            error_message=joined_errors,
-            generated_by=generated_by,
-        )
-
-    if "UnrecognizedToolCallFormat" in data:
-        raw_payload = data["UnrecognizedToolCallFormat"]
-        if not isinstance(raw_payload, dict):
-            msg = f"UnrecognizedToolCallFormat payload is not a dict: {raw_payload!r}"
-            raise ValueError(msg)
-        typed_raw = cast("dict[str, Any]", raw_payload)
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.UNRECOGNIZED_TOOL_CALL_FORMAT,
-            raw_tool_call_tokens=RawToolCallTokens.from_dict(typed_raw),
-            generated_by=generated_by,
-        )
-
-    if "ImageExceedsBatchSize" in data:
-        details_payload = data["ImageExceedsBatchSize"]
-        if not isinstance(details_payload, dict):
-            msg = f"ImageExceedsBatchSize payload is not a dict: {details_payload!r}"
-            raise ValueError(msg)
-        typed_details = cast("dict[str, Any]", details_payload)
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.IMAGE_EXCEEDS_BATCH_SIZE,
-            oversized_image_details=OversizedImageDetails.from_dict(typed_details),
-            generated_by=generated_by,
-        )
-
-    for key, kind in _GENERATED_TOKEN_KINDS.items():
-        if key in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=kind,
-                token=data[key],
-                generated_by=generated_by,
+        raise TypeError(msg)
+    for structured_key, handler in _STRUCTURED_HANDLERS.items():
+        if structured_key in data:
+            return handler(request_id, data[structured_key], generated_by)
+    for token_key, token_kind in _GENERATED_TOKEN_KINDS.items():
+        if token_key in data:
+            return _build_token_kind_message(
+                request_id,
+                token_kind,
+                data[token_key],
+                generated_by,
             )
-
-    for key, kind in _GENERATED_TOKEN_ERROR_KINDS.items():
-        if key in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=kind,
-                error_message=data[key],
-                generated_by=generated_by,
+    for error_key, error_kind in _GENERATED_TOKEN_ERROR_KINDS.items():
+        if error_key in data:
+            return _build_error_kind_message(
+                request_id,
+                error_kind,
+                data[error_key],
+                generated_by,
             )
-
     msg = f"Unknown GeneratedTokenResult: {data}"
     raise ValueError(msg)
 

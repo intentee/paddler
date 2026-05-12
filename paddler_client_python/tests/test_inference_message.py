@@ -122,7 +122,7 @@ def test_parse_tool_call_parsed_with_non_list_payload_raises() -> None:
         },
     }
 
-    with pytest.raises(ValueError, match="ToolCallParsed payload is not a list"):
+    with pytest.raises(TypeError, match="ToolCallParsed payload is not a list"):
         parse_inference_client_message(data)
 
 
@@ -135,7 +135,7 @@ def test_parse_tool_call_validation_failed_with_non_list_payload_raises() -> Non
     }
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="ToolCallValidationFailed payload is not a list",
     ):
         parse_inference_client_message(data)
@@ -180,7 +180,7 @@ def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> N
     }
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="UnrecognizedToolCallFormat payload is not a dict",
     ):
         parse_inference_client_message(data)
@@ -220,7 +220,7 @@ def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
     }
 
     with pytest.raises(
-        ValueError,
+        TypeError,
         match="ImageExceedsBatchSize payload is not a dict",
     ):
         parse_inference_client_message(data)
@@ -572,7 +572,7 @@ def test_parse_string_generated_token_result_raises() -> None:
         }
     }
 
-    with pytest.raises(ValueError, match="Unknown GeneratedTokenResult"):
+    with pytest.raises(TypeError, match="Unknown GeneratedTokenResult"):
         parse_inference_client_message(data)
 
 
