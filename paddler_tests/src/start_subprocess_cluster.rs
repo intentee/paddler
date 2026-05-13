@@ -3,6 +3,7 @@ use std::process::Stdio;
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_client::PaddlerClient;
+use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use tokio::process::Child;
 use tokio_util::sync::CancellationToken;
 
@@ -92,6 +93,7 @@ pub async fn start_subprocess_cluster(
 
     let expected_agent_count = agents.len();
     let mut agent_children: Vec<Child> = Vec::with_capacity(expected_agent_count);
+    let mut last_ready_snapshot: Option<AgentControllerPoolSnapshot> = None;
 
     for agent in &agents {
         let agent_child = paddler_command()
@@ -108,26 +110,29 @@ pub async fn start_subprocess_cluster(
             .context("failed to spawn paddler agent subprocess")?;
 
         agent_children.push(agent_child);
+
+        if wait_for_slots_ready {
+            last_ready_snapshot = Some(
+                agents_watcher
+                    .wait_for_agent_ready(&agent.name, agent.slot_count)
+                    .await?,
+            );
+        }
     }
 
-    let registered_snapshot = agents_watcher
-        .until(move |snapshot| snapshot.agents.len() >= expected_agent_count)
-        .await
-        .context("not all subprocess agents registered")?;
+    let registered_snapshot = match last_ready_snapshot {
+        Some(snapshot) => snapshot,
+        None => agents_watcher
+            .until(move |snapshot| snapshot.agents.len() >= expected_agent_count)
+            .await
+            .context("not all subprocess agents registered")?,
+    };
 
     let agent_ids: Vec<String> = registered_snapshot
         .agents
         .iter()
         .map(|registered_agent| registered_agent.id.clone())
         .collect();
-
-    if wait_for_slots_ready {
-        let expected_slot_counts: Vec<i32> = agents.iter().map(|agent| agent.slot_count).collect();
-
-        agents_watcher
-            .wait_for_slots_ready(&expected_slot_counts)
-            .await?;
-    }
 
     Ok(ClusterHandle::new(ClusterHandleParams {
         addresses,

@@ -87,6 +87,38 @@ impl AgentsStreamWatcher {
         ))
     }
 
+    pub async fn wait_for_agent_ready(
+        &mut self,
+        agent_name: &str,
+        expected_slot_count: i32,
+    ) -> Result<AgentControllerPoolSnapshot> {
+        let predicate_name = agent_name.to_owned();
+        let snapshot = self
+            .until(move |snapshot| {
+                snapshot.agents.iter().any(|registered_agent| {
+                    registered_agent.name.as_deref() == Some(predicate_name.as_str())
+                        && (registered_agent.slots_total == expected_slot_count
+                            || !registered_agent.issues.is_empty())
+                })
+            })
+            .await
+            .with_context(|| format!("agent {agent_name:?} did not reach slot readiness"))?;
+
+        let agent_with_issues = snapshot.agents.iter().find(|registered_agent| {
+            registered_agent.name.as_deref() == Some(agent_name)
+                && !registered_agent.issues.is_empty()
+        });
+
+        if let Some(failing_agent) = agent_with_issues {
+            bail!(
+                "agent {agent_name:?} reported issues during startup: {issues:?}",
+                issues = failing_agent.issues,
+            );
+        }
+
+        Ok(snapshot)
+    }
+
     pub async fn wait_for_slots_ready(&mut self, expected_slot_counts: &[i32]) -> Result<()> {
         let mut expected_sorted: Vec<i32> = expected_slot_counts.to_vec();
         expected_sorted.sort_unstable();
@@ -150,6 +182,14 @@ mod tests {
         agent_id: &str,
         issues: BTreeSet<AgentIssue>,
     ) -> AgentControllerSnapshot {
+        snapshot_with_agent_and_slots(agent_id, issues, 0)
+    }
+
+    fn snapshot_with_agent_and_slots(
+        agent_id: &str,
+        issues: BTreeSet<AgentIssue>,
+        slots_total: i32,
+    ) -> AgentControllerSnapshot {
         AgentControllerSnapshot {
             desired_slots_total: 1,
             download_current: 0,
@@ -160,7 +200,7 @@ mod tests {
             model_path: None,
             name: Some(agent_id.to_owned()),
             slots_processing: 0,
-            slots_total: 0,
+            slots_total,
             state_application_status: AgentStateApplicationStatus::Fresh,
             uses_chat_template_override: false,
         }
@@ -266,6 +306,90 @@ mod tests {
         assert!(
             rendered.contains("stream closed"),
             "error must surface the stream-closed condition, got: {rendered}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn wait_for_agent_ready_returns_snapshot_when_named_agent_reaches_slot_count()
+    -> Result<()> {
+        let agent_id = "agent-warm-0";
+        let snapshots = vec![
+            AgentControllerPoolSnapshot {
+                agents: vec![snapshot_with_agent_and_slots(agent_id, BTreeSet::new(), 0)],
+            },
+            AgentControllerPoolSnapshot {
+                agents: vec![snapshot_with_agent_and_slots(agent_id, BTreeSet::new(), 2)],
+            },
+        ];
+
+        let mut watcher = make_watcher(snapshots);
+
+        let snapshot = watcher.wait_for_agent_ready(agent_id, 2).await?;
+
+        assert!(
+            snapshot
+                .agents
+                .iter()
+                .any(|agent| { agent.name.as_deref() == Some(agent_id) && agent.slots_total == 2 }),
+            "returned snapshot must contain the named agent at its target slot count"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn wait_for_agent_ready_errors_when_named_agent_reports_issues() -> Result<()> {
+        let agent_id = "agent-warm-1";
+        let snapshots = vec![AgentControllerPoolSnapshot {
+            agents: vec![snapshot_with_agent_and_slots(
+                agent_id,
+                unable_to_find_chat_template_issue(),
+                0,
+            )],
+        }];
+
+        let mut watcher = make_watcher(snapshots);
+
+        let error = watcher
+            .wait_for_agent_ready(agent_id, 2)
+            .await
+            .err()
+            .context("wait_for_agent_ready must surface agent-side issues as an error")?;
+        let rendered = format!("{error:#}");
+
+        assert!(
+            rendered.contains(agent_id),
+            "error must name the failing agent, got: {rendered}"
+        );
+        assert!(
+            rendered.contains("issues"),
+            "error must mention that issues were registered, got: {rendered}"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn wait_for_agent_ready_errors_when_stream_closes_before_match() -> Result<()> {
+        let agent_id = "agent-warm-2";
+        let snapshots = vec![AgentControllerPoolSnapshot {
+            agents: vec![snapshot_with_agent_and_slots(agent_id, BTreeSet::new(), 0)],
+        }];
+
+        let mut watcher = make_watcher(snapshots);
+
+        let error = watcher
+            .wait_for_agent_ready(agent_id, 2)
+            .await
+            .err()
+            .context("wait_for_agent_ready must error when the stream ends without a match")?;
+        let rendered = format!("{error:#}");
+
+        assert!(
+            rendered.contains("slot readiness"),
+            "error must mention that slot readiness was not reached, got: {rendered}"
         );
 
         Ok(())

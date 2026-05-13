@@ -23,7 +23,7 @@ impl Default for SubprocessClusterParams {
             buffered_request_timeout: Duration::from_secs(10),
             desired_state: Some(BalancerDesiredState::default()),
             inference_cors_allowed_hosts: Vec::new(),
-            inference_item_timeout: Duration::from_secs(30),
+            inference_item_timeout: Duration::from_secs(60),
             management_cors_allowed_hosts: Vec::new(),
             max_buffered_requests: 10,
             state_database_url: "memory://".to_owned(),
