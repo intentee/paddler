@@ -8,12 +8,6 @@ use tokio::time::timeout;
 
 const SHUTDOWN_BUDGET: Duration = Duration::from_secs(5);
 
-/// Mirrors the exact scenario that hangs during the full integration suite:
-/// `single_agent_registers_and_shuts_down_without_timeout` in
-/// `harness_in_process_cluster_shutdown.rs` runs in ~0.9 s in isolation but
-/// blocks past 60 s under sustained suite load. If `cluster.shutdown()` for
-/// this configuration ever fails to land inside `SHUTDOWN_BUDGET`, this test
-/// fails inside the test process before cargo's heartbeat fires.
 #[tokio::test(flavor = "multi_thread")]
 async fn single_agent_in_process_cluster_shutdown_completes_within_five_seconds() -> Result<()> {
     let cluster = start_in_process_cluster(InProcessClusterParams {

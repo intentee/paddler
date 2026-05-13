@@ -6,13 +6,6 @@ use paddler_tests::subprocess_cluster_lifecycle_in_dedicated_runtime::subprocess
 
 #[test]
 fn subprocess_cluster_shutdown_returns_fd_count_to_baseline() -> Result<()> {
-    // Amortize per-process one-time init triggered by exercising the
-    // subprocess-cluster machinery — `LazyLock` for the paddler binary path,
-    // the logger, root cert stores, and any OS-level resources kqueue/signalfd
-    // opens lazily — so the measured snapshot bracket observes steady state.
-    // Each lifecycle owns its tokio runtime end-to-end; dropping the runtime
-    // synchronously closes its I/O driver and worker threads, so a leftover fd
-    // after the drop is a genuine cluster-side leak.
     subprocess_cluster_lifecycle_in_dedicated_runtime()?;
 
     let before = ResourceSnapshot::try_from_self()?;

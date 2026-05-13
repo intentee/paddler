@@ -11,15 +11,8 @@ use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
 
 const LIFECYCLE_COUNT: usize = 20;
 
-/// Same justification as the in-process 100-iteration test: small bounded growth
-/// for process-level init (`LazyLock` for `PADDLER_BINARY_PATH`, logger).
-/// Subprocess clusters do not open additional long-lived parent-side fds beyond
-/// what is required to wait on each `Child`, and those must close on `wait()`.
 const ALLOWED_GROWTH_FOR_PROCESS_LEVEL_INIT: usize = 4;
 
-/// In isolation a subprocess cluster lifecycle measures around 1 s; under
-/// contention it can be slower but a single lifecycle exceeding 10 s is a clear
-/// stall signal (port-bind contention or stuck child wait).
 const PER_LIFECYCLE_BUDGET: Duration = Duration::from_secs(10);
 
 #[tokio::test(flavor = "multi_thread")]

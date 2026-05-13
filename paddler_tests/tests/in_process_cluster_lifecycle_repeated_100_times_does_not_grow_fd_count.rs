@@ -8,16 +8,8 @@ use paddler_tests::start_in_process_cluster::start_in_process_cluster;
 
 const LIFECYCLE_COUNT: usize = 100;
 
-/// `LazyLock` and logger initialization at the cargo-test process level open a
-/// small, bounded set of files exactly once during the first lifecycle. Anything
-/// over this tolerance after `LIFECYCLE_COUNT` iterations is a real per-lifecycle
-/// leak, because a real leak compounds with iteration count and this tolerance
-/// does not.
 const ALLOWED_GROWTH_FOR_PROCESS_LEVEL_INIT: usize = 4;
 
-/// A single in-process cluster lifecycle measured at ~0.9 s in isolation
-/// (`in_process_cluster_shutdown_completes_within_five_seconds`). Any lifecycle
-/// that exceeds 3 s is either resource-contended or stuck on shutdown.
 const PER_LIFECYCLE_BUDGET: Duration = Duration::from_secs(3);
 
 #[tokio::test(flavor = "multi_thread")]

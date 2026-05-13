@@ -11,12 +11,6 @@ use tokio::time::timeout;
 const CONCURRENT_LIFECYCLES: usize = 8;
 const LIFECYCLES_PER_TASK: usize = 5;
 
-/// Eight concurrent tokio tasks × five lifecycles each = forty total lifecycles
-/// overlapping in time, approximating the contention pattern of the full
-/// integration suite where multiple test binaries spawn clusters in parallel.
-/// Total budget is generous enough to absorb scheduling jitter but tight enough
-/// to catch a stuck shutdown — a single hung lifecycle of 60 s+ would blow
-/// past this bound.
 const TOTAL_BUDGET: Duration = Duration::from_secs(60);
 
 #[tokio::test(flavor = "multi_thread")]
