@@ -18,7 +18,7 @@
             "esnext.disposable"
         ],
         "module": "esnext",
-        "moduleResolution": "node",
+        "moduleResolution": "bundler",
         "noEmit": true,
         "noFallthroughCasesInSwitch": true,
         "noImplicitAny": true,

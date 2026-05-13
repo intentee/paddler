@@ -1,10 +1,10 @@
 import React, { useContext } from "react";
 
+import { webSocketProtocol } from "@intentee/paddler-client/webSocketProtocol";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { PromptContext } from "../contexts/PromptContext";
 import { useWebSocket } from "../hooks/useWebSocket";
 import { matchWebSocketState } from "../matchWebSocketState";
-import { webSocketProtocol } from "../webSocketProtocol";
 import { ConversationMessage } from "./ConversationMessage";
 import { ConversationMessagePromptGeneratedTokens } from "./ConversationMessagePromptGeneratedTokens";
 import { ConversationPromptInput } from "./ConversationPromptInput";

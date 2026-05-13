@@ -19,6 +19,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 
+use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::RequestEnvelope;
@@ -36,7 +37,6 @@ use crate::agent::jsonrpc::notification_params::VersionParams;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::agent_desired_state::AgentDesiredState;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::Message as ManagementJsonRpcMessage;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::Notification as ManagementJsonRpcNotification;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::RegisterAgentParams;
@@ -57,6 +57,7 @@ struct IncomingMessageContext {
     model_metadata_holder: Arc<ModelMetadataHolder>,
     receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
     message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
+    slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
 pub struct ManagementSocketClientService {
@@ -81,6 +82,7 @@ impl ManagementSocketClientService {
         request_params: TRequest::RequestParams,
         receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
         request_tx: mpsc::UnboundedSender<TRequest>,
+        slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<()> {
         let (response_tx, mut response_rx) = mpsc::unbounded_channel::<TRequest::Response>();
         let (stop_tx, stop_rx) = mpsc::unbounded_channel::<()>();
@@ -93,6 +95,7 @@ impl ManagementSocketClientService {
             request_params,
             response_tx,
             stop_rx,
+            slot_aggregated_status,
         ))?;
 
         loop {
@@ -104,6 +107,7 @@ impl ManagementSocketClientService {
                             message_tx.send(
                                 ManagementJsonRpcMessage::Response(
                                     ResponseEnvelope {
+                                        generated_by: None,
                                         request_id: id.clone(),
                                         response: response.into(),
                                     }
@@ -130,6 +134,7 @@ impl ManagementSocketClientService {
             message_tx,
             model_metadata_holder,
             receive_stream_stopper_collection,
+            slot_aggregated_status,
         }: IncomingMessageContext,
         deserialized_message: JsonRpcMessage,
     ) -> Result<()> {
@@ -185,6 +190,7 @@ impl ManagementSocketClientService {
                     continue_from_conversation_history_params,
                     receive_stream_stopper_collection,
                     continue_from_conversation_history_request_tx,
+                    slot_aggregated_status,
                 )
                 .await
             }
@@ -199,6 +205,7 @@ impl ManagementSocketClientService {
                     generate_tokens_params,
                     receive_stream_stopper_collection,
                     continue_from_raw_prompt_request_tx,
+                    slot_aggregated_status,
                 )
                 .await
             }
@@ -213,6 +220,7 @@ impl ManagementSocketClientService {
                     generate_embedding_batch_params,
                     receive_stream_stopper_collection,
                     generate_embedding_batch_request_tx,
+                    slot_aggregated_status,
                 )
                 .await
             }
@@ -221,6 +229,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GetChatTemplateOverride,
             }) => Ok(
                 message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                    generated_by: None,
                     request_id: id,
                     response: JsonRpcResponse::ChatTemplateOverride(
                         if let Some(agent_applicable_state) =
@@ -238,6 +247,7 @@ impl ManagementSocketClientService {
                 request: JsonRpcRequest::GetModelMetadata,
             }) => Ok(
                 message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                    generated_by: None,
                     request_id: id,
                     response: JsonRpcResponse::ModelMetadata(
                         model_metadata_holder.get_model_metadata(),
@@ -445,6 +455,7 @@ impl ManagementSocketClientService {
                                         model_metadata_holder: self.model_metadata_holder.clone(),
                                         receive_stream_stopper_collection: self.receive_stream_stopper_collection.clone(),
                                         message_tx: message_tx.clone(),
+                                        slot_aggregated_status: self.slot_aggregated_status.clone(),
                                     },
                                     msg,
                                     &pong_tx,

@@ -5,6 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
@@ -12,6 +13,7 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::chat_template::ChatTemplate;
@@ -42,8 +44,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
     };
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 1,
+        agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(template_a.clone()),
@@ -75,6 +76,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -100,21 +102,24 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
         collected
             .token_results
             .iter()
-            .any(|result| matches!(result, GeneratedTokenResult::Token(_))),
+            .any(|result| result.token_result.is_token()),
         "in-flight request must continue producing tokens during template swap"
     );
 
     assert!(
-        !collected
-            .token_results
-            .iter()
-            .any(|result| matches!(result, GeneratedTokenResult::ChatTemplateError(_))),
+        !collected.token_results.iter().any(|result| matches!(
+            result.token_result,
+            GeneratedTokenResult::ChatTemplateError(_)
+        )),
         "in-flight request must not see ChatTemplateError during swap"
     );
 
     assert!(matches!(
         collected.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     let retrieved = cluster

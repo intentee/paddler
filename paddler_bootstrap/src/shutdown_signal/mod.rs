@@ -4,6 +4,10 @@ mod unix;
 mod windows;
 
 #[cfg(unix)]
-pub use unix::wait_for_shutdown_signal;
+pub use unix::ShutdownSignals;
+#[cfg(unix)]
+pub use unix::register_shutdown_signals;
 #[cfg(windows)]
-pub use windows::wait_for_shutdown_signal;
+pub use windows::ShutdownSignals;
+#[cfg(windows)]
+pub use windows::register_shutdown_signals;

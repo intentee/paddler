@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
@@ -18,7 +19,7 @@ async fn agent_returns_unnormalized_embeddings_when_requested() -> Result<()> {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        1,
+        AgentConfig::single(1),
     )
     .await?;
 
@@ -40,7 +41,7 @@ async fn agent_returns_unnormalized_embeddings_when_requested() -> Result<()> {
     assert_eq!(collected.embeddings.len(), 1);
     assert!(collected.saw_done);
     assert!(matches!(
-        collected.embeddings[0].normalization_method,
+        collected.embeddings[0].embedding.normalization_method,
         EmbeddingNormalizationMethod::None
     ));
 

@@ -3,6 +3,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
@@ -29,8 +30,10 @@ async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result
     } = qwen3_0_6b();
 
     let mut cluster = start_in_process_cluster(InProcessClusterParams {
-        spawn_agent: true,
-        slots_per_agent: 1,
+        agent: Some(AgentConfig {
+            name: "test-agent".to_owned(),
+            slot_count: 1,
+        }),
         max_buffered_requests: 0,
         desired_state: BalancerDesiredState {
             chat_template_override: None,

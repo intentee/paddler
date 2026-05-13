@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import React from "react";
 
-import { type Agent } from "../schemas/Agent";
+import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { AgentIssuesPreviewButton } from "./AgentIssuesPreviewButton";
 import { AgentListAgentStatus } from "./AgentListAgentStatus";
 import { ModelChatTemplateOverridePreviewButton } from "./ModelChatTemplateOverridePreviewButton";

@@ -8,8 +8,11 @@ use std::thread::available_parallelism;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
+use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
@@ -17,6 +20,7 @@ use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::error;
 use log::info;
+use log::warn;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
 use paddler_types::agent_issue_params::ModelPath;
@@ -26,10 +30,12 @@ use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
+use crate::agent::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::agent::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::agent::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
+use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
@@ -49,9 +55,38 @@ pub struct ContinuousBatchArbiter {
 }
 
 impl ContinuousBatchArbiter {
+    #[must_use]
+    pub fn build_from_applicable_state(
+        applicable_state: AgentApplicableState,
+        agent_name: Option<String>,
+        desired_slots_total: i32,
+        model_metadata_holder: Arc<ModelMetadataHolder>,
+        slot_aggregated_status_manager: Arc<SlotAggregatedStatusManager>,
+    ) -> ContinuousBatchArbiterBuildOutcome {
+        let Some(model_path) = applicable_state.model_path else {
+            return ContinuousBatchArbiterBuildOutcome::NoModelConfigured;
+        };
+
+        let model_path_string = model_path.display().to_string();
+
+        ContinuousBatchArbiterBuildOutcome::ReadyToSpawn(Box::new(Self {
+            agent_name,
+            chat_template_override: applicable_state.chat_template_override,
+            desired_slots_total,
+            inference_parameters: applicable_state.inference_parameters,
+            multimodal_projection_path: applicable_state.multimodal_projection_path,
+            model_metadata_holder,
+            model_path,
+            model_path_string,
+            slot_aggregated_status_manager,
+        }))
+    }
+
     pub async fn spawn(&self) -> Result<ContinuousBatchArbiterHandle> {
         let (chat_template_loaded_tx, chat_template_loaded_rx) = oneshot::channel::<()>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
+        let (agent_warm_and_scheduler_running_tx, agent_warm_and_scheduler_running_rx) =
+            oneshot::channel::<()>();
 
         let available_parallelism_value: i32 = available_parallelism()?.get().try_into()?;
         let n_threads = max(2, available_parallelism_value / 2);
@@ -82,9 +117,16 @@ impl ContinuousBatchArbiter {
             )]
             let n_seq_max = desired_slots_total as u32;
 
+            #[expect(
+                clippy::cast_possible_truncation,
+                reason = "n_batch fits in u32 for llama.cpp FFI; usize is the internal type"
+            )]
+            let inference_parameters_n_batch_u32 = inference_parameters.n_batch as u32;
+
             let context_params = LlamaContextParams::default()
                 .with_embeddings(inference_parameters.enable_embeddings)
                 .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
+                .with_n_batch(inference_parameters_n_batch_u32)
                 .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_AUTO)
                 .with_n_seq_max(n_seq_max)
                 .with_n_threads(n_threads)
@@ -255,19 +297,19 @@ impl ContinuousBatchArbiter {
                 model_path: model_path.clone(),
                 multimodal_context,
                 token_bos_str: model.token_to_piece(
-                    model.token_bos(),
+                    &SampledToken::Content(model.token_bos()),
                     &mut special_token_decoder,
                     true,
                     None,
                 )?,
                 token_nl_str: model.token_to_piece(
-                    model.token_nl(),
+                    &SampledToken::Content(model.token_nl()),
                     &mut special_token_decoder,
                     true,
                     None,
                 )?,
                 token_eos_str: model.token_to_piece(
-                    model.token_eos(),
+                    &SampledToken::Content(model.token_eos()),
                     &mut special_token_decoder,
                     true,
                     None,
@@ -275,49 +317,52 @@ impl ContinuousBatchArbiter {
                 model: model.clone(),
             });
 
-            let llama_context = match model
-                .new_context(&llama_backend, context_params)
-                .context("Unable to create llama.cpp context")
-            {
-                Ok(context) => context,
-                Err(err) => {
-                    for slot_index in 0..desired_slots_total {
-                        #[expect(
-                            clippy::cast_sign_loss,
-                            reason = "slot_index is always non-negative"
-                        )]
-                        slot_aggregated_status_manager
-                            .slot_aggregated_status
-                            .register_issue(AgentIssue::SlotCannotStart(SlotCannotStartParams {
-                                error: format!("{err:#}"),
-                                slot_index: slot_index as u32,
-                            }));
+            let mut llama_context =
+                match LlamaContext::from_model(&model, &llama_backend, context_params)
+                    .context("Unable to create llama.cpp context")
+                {
+                    Ok(context) => context,
+                    Err(err) => {
+                        for slot_index in 0..desired_slots_total {
+                            #[expect(
+                                clippy::cast_sign_loss,
+                                reason = "slot_index is always non-negative"
+                            )]
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_issue(AgentIssue::SlotCannotStart(
+                                    SlotCannotStartParams {
+                                        error: format!("{err:#}"),
+                                        slot_index: slot_index as u32,
+                                    },
+                                ));
+                        }
+
+                        return Err(err);
                     }
+                };
 
-                    return Err(err);
-                }
-            };
-
-            for slot_index in 0..desired_slots_total {
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .increment_total_slots();
-
-                #[expect(clippy::cast_sign_loss, reason = "slot_index is always non-negative")]
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .register_fix(&AgentIssueFix::SlotStarted(slot_index as u32));
-            }
+            Self::run_warmup_decode(
+                &model,
+                &mut llama_context,
+                scheduler_context.inference_parameters.n_batch,
+                desired_slots_total,
+            );
 
             let mut scheduler = ContinuousBatchScheduler::new(
                 command_rx,
                 scheduler_context,
                 llama_context,
                 desired_slots_total,
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .clone(),
             );
+
+            if agent_warm_and_scheduler_running_tx.send(()).is_err() {
+                let message = "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start";
+
+                error!("{message}");
+
+                return Err(anyhow!(message));
+            }
 
             scheduler.run();
 
@@ -376,9 +421,54 @@ impl ContinuousBatchArbiter {
             }
         }
 
+        agent_warm_and_scheduler_running_rx.await.context(
+            "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
+        )?;
+
+        for slot_index in 0..self.desired_slots_total {
+            self.slot_aggregated_status_manager
+                .slot_aggregated_status
+                .increment_total_slots();
+
+            #[expect(clippy::cast_sign_loss, reason = "slot_index is always non-negative")]
+            self.slot_aggregated_status_manager
+                .slot_aggregated_status
+                .register_fix(&AgentIssueFix::SlotStarted(slot_index as u32));
+        }
+
         Ok(ContinuousBatchArbiterHandle {
             command_tx,
             scheduler_thread_handle,
         })
+    }
+
+    fn run_warmup_decode(
+        model: &LlamaModel,
+        llama_context: &mut LlamaContext<'_>,
+        n_batch: usize,
+        desired_slots_total: i32,
+    ) {
+        let warmup_tokens = vec![model.token_bos(); 4];
+        let mut warmup_batch = match LlamaBatch::new(n_batch, desired_slots_total) {
+            Ok(warmup_batch) => warmup_batch,
+            Err(err) => {
+                warn!("Warmup batch allocation failed: {err:#}");
+                return;
+            }
+        };
+
+        for sequence_index in 0..desired_slots_total {
+            if let Err(err) = warmup_batch.add_sequence(&warmup_tokens, sequence_index, true) {
+                warn!("Warmup batch add_sequence failed: {err:#}");
+                return;
+            }
+        }
+
+        llama_context.clear_kv_cache();
+        if let Err(err) = llama_context.decode(&mut warmup_batch) {
+            warn!("Warmup decode failed: {err:#}");
+        }
+        llama_context.synchronize();
+        llama_context.clear_kv_cache();
     }
 }

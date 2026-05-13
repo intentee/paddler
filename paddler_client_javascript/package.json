@@ -1,0 +1,41 @@
+{
+  "name": "@intentee/paddler-client",
+  "version": "3.1.2",
+  "description": "JavaScript/TypeScript client for the Paddler LLM load balancer",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/intentee/paddler",
+  "repository": "https://github.com/intentee/paddler",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "publishConfig": {
+    "exports": {
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "default": "./dist/*.js"
+      }
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p .",
+    "test": "tsc -p tsconfig.test.json && tsx --test",
+    "prepack": "tsc -p ."
+  },
+  "peerDependencies": {
+    "rxjs": "^7.8",
+    "zod": "^4"
+  },
+  "dependencies": {
+    "nanoid": "^5.1.11"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

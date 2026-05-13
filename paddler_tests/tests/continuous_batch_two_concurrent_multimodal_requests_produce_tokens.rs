@@ -1,10 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_in_process_cluster_with_qwen3_5::start_in_process_cluster_with_qwen3_5;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -47,7 +49,7 @@ fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3_5(4, true).await?;
+    let cluster = start_in_process_cluster_with_qwen3_5(AgentConfig::single(4), true).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
@@ -61,6 +63,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 32,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -72,6 +75,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 32,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -88,7 +92,7 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
         let token_count = collected
             .token_results
             .iter()
-            .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+            .filter(|result| result.token_result.is_token())
             .count();
 
         assert!(
@@ -99,12 +103,15 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
             !collected
                 .token_results
                 .iter()
-                .any(|result| matches!(result, GeneratedTokenResult::SamplerError(_))),
+                .any(|result| matches!(result.token_result, GeneratedTokenResult::SamplerError(_))),
             "concurrent multimodal request must not surface a SamplerError"
         );
         assert!(matches!(
             collected.token_results.last(),
-            Some(GeneratedTokenResult::Done)
+            Some(TokenResultWithProducer {
+                token_result: GeneratedTokenResult::Done(_),
+                ..
+            })
         ));
     }
 

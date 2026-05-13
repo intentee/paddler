@@ -5,6 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
@@ -20,8 +21,7 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> 
     let ModelCard { reference, .. } = nomic_embed_text_v1_5();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 1,
+        agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
@@ -40,11 +40,12 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> 
         .context("cluster must have one registered agent")?
         .clone();
 
+    let predicate_agent_id = agent_id.clone();
     cluster
         .agents
-        .until(move |snapshot| {
+        .until_agent(&agent_id, move |snapshot| {
             snapshot.agents.iter().any(|agent| {
-                agent.id == agent_id
+                agent.id == predicate_agent_id
                     && agent
                         .issues
                         .iter()

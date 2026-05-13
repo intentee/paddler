@@ -22,15 +22,13 @@ use crate::wait_until_healthy::wait_until_healthy;
 
 pub async fn start_in_process_cluster(
     InProcessClusterParams {
-        agent_name,
+        agent,
         buffered_request_timeout,
         desired_state,
         inference_cors_allowed_hosts,
         inference_item_timeout,
         management_cors_allowed_hosts,
         max_buffered_requests,
-        slots_per_agent,
-        spawn_agent,
         wait_for_slots_ready,
     }: InProcessClusterParams,
 ) -> Result<ClusterHandle> {
@@ -82,15 +80,15 @@ pub async fn start_in_process_cluster(
     let buffered_requests_watcher =
         BufferedRequestsStreamWatcher::connect(&paddler_client.management()).await?;
 
-    let expected_agent_count: usize = usize::from(spawn_agent);
+    let expected_agent_count: usize = usize::from(agent.is_some());
     let mut agent_runners: Vec<AgentRunner> = Vec::with_capacity(expected_agent_count);
 
-    if spawn_agent {
+    if let Some(agent_config) = agent.as_ref() {
         let agent_runner = AgentRunner::start(AgentRunnerParams {
-            agent_name: Some(agent_name),
+            agent_name: Some(agent_config.name.clone()),
             management_address: addresses.management.to_string(),
             cancellation_token: cancel_token.clone(),
-            slots: slots_per_agent,
+            slots: agent_config.slot_count,
         });
 
         agent_runners.push(agent_runner);
@@ -104,12 +102,12 @@ pub async fn start_in_process_cluster(
     let agent_ids: Vec<String> = registered_snapshot
         .agents
         .iter()
-        .map(|agent| agent.id.clone())
+        .map(|registered_agent| registered_agent.id.clone())
         .collect();
 
-    if wait_for_slots_ready && spawn_agent {
+    if wait_for_slots_ready && let Some(agent_config) = agent.as_ref() {
         agents_watcher
-            .wait_for_slots_ready(expected_agent_count, slots_per_agent)
+            .wait_for_slots_ready(&[agent_config.slot_count])
             .await?;
     }
 

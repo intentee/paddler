@@ -4,17 +4,17 @@
 ))]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_serves_four_concurrent_clients_streaming_tokens() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(4, 1).await?;
+    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 4)).await?;
 
     let inference_base_url = cluster.addresses.inference_base_url()?;
 
@@ -46,7 +46,7 @@ async fn agent_serves_four_concurrent_clients_streaming_tokens() -> Result<()> {
         let token_count = collected
             .token_results
             .iter()
-            .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+            .filter(|result| result.token_result.is_token())
             .count();
 
         assert!(token_count > 0);

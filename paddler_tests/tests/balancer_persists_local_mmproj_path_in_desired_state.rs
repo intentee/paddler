@@ -21,7 +21,7 @@ async fn balancer_persists_local_mmproj_path_in_desired_state() -> Result<()> {
     let local_mmproj_path = "/tmp/test-mmproj.gguf".to_owned();
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,

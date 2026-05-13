@@ -6,8 +6,5 @@ pub trait ConvertsToApplicableState {
     type ApplicableState;
     type Context;
 
-    async fn to_applicable_state(
-        &self,
-        context: Self::Context,
-    ) -> Result<Option<Self::ApplicableState>>;
+    async fn to_applicable_state(&self, context: Self::Context) -> Result<Self::ApplicableState>;
 }

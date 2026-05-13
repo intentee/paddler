@@ -1,6 +1,7 @@
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
+use actix_web::error::ErrorInternalServerError;
 use actix_web::error::ErrorNotImplemented;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
@@ -19,6 +20,7 @@ use paddler_types::inference_client::Response as OutgoingResponse;
 use paddler_types::jsonrpc::Error as JsonRpcError;
 use paddler_types::jsonrpc::ErrorEnvelope;
 use paddler_types::jsonrpc::ResponseEnvelope;
+use paddler_types::request_params::ChunkEvenlyWithCapError;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
@@ -34,25 +36,23 @@ use crate::balancer::request_from_agent::request_from_agent;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::controls_session::ControlsSession as _;
 
-const CHARACTERS_PER_TOKEN_APPROXIMATELY: usize = 3;
-
 #[derive(Clone)]
 struct EmbeddingChunkBodyTransformer;
 
 #[async_trait]
 impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
-    async fn transform(&self, message: OutgoingMessage) -> Result<TransformResult> {
+    async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
         if let OutgoingMessage::Response(ResponseEnvelope {
             response: OutgoingResponse::Embedding(EmbeddingResult::Done),
             ..
         }) = &message
         {
-            return Ok(TransformResult::Discard);
+            return Ok(vec![TransformResult::Discard]);
         }
 
         let serialized = serde_json::to_string(&message)?;
 
-        Ok(TransformResult::Chunk(serialized))
+        Ok(vec![TransformResult::Chunk(serialized)])
     }
 }
 
@@ -79,15 +79,32 @@ async fn respond(
         ));
     }
 
+    let agent_count = app_data.agent_controller_pool.agents.len();
+    let embedding_batch_size = agent_desired_state
+        .inference_parameters
+        .embedding_batch_size;
+
     let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
-    for batch in params.chunk_by_input_size(
-        agent_desired_state.inference_parameters.batch_n_tokens
-            * CHARACTERS_PER_TOKEN_APPROXIMATELY,
-    ) {
+    let batches = match params
+        .into_inner()
+        .chunk_evenly_with_cap(agent_count, embedding_batch_size)
+    {
+        Ok(batches) => batches,
+        Err(ChunkEvenlyWithCapError::ZeroAgentCount) => {
+            return Err(ErrorServiceUnavailable("No agents are currently connected"));
+        }
+        Err(ChunkEvenlyWithCapError::ZeroMaxDocumentsPerChunk) => {
+            return Err(ErrorInternalServerError(
+                "embedding_batch_size is zero despite validation",
+            ));
+        }
+    };
+
+    for batch in batches {
         let buffered_request_manager_clone = app_data.buffered_request_manager.clone();
         let chunk_tx_clone = chunk_tx.clone();
         let connection_close_clone = connection_close.clone();
@@ -136,6 +153,7 @@ async fn respond(
 
         final_session
             .send_response_safe(OutgoingMessage::Response(ResponseEnvelope {
+                generated_by: None,
                 request_id: final_request_id,
                 response: OutgoingResponse::Embedding(EmbeddingResult::Done),
             }))
@@ -144,18 +162,16 @@ async fn respond(
 
     drop(chunk_tx);
 
-    let stream = CancellationTokenStreamGuard::new(
-        UnboundedReceiverStream::new(chunk_rx),
-        connection_close,
-    )
-    .filter_map(|transform_result| async move {
-        match transform_result {
-            TransformResult::Chunk(content) | TransformResult::Error(content) => {
-                Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
-            }
-            TransformResult::Discard => None,
-        }
-    });
+    let stream =
+        CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
+            .filter_map(|transform_result| async move {
+                match transform_result {
+                    TransformResult::Chunk(content) | TransformResult::Error(content) => {
+                        Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
+                    }
+                    TransformResult::Discard => None,
+                }
+            });
 
     Ok(HttpResponse::Ok()
         .insert_header(header::ContentType::json())

@@ -1,3 +1,5 @@
+use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use log::warn;
@@ -6,22 +8,25 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::agent::slot_guard::SlotGuard;
+use crate::tool_call_pipeline::ToolCallPipeline;
 
 pub struct ContinuousBatchActiveRequest {
     pub chain: LlamaSampler,
+    pub token_classifier: SampledTokenClassifier<'static>,
     pub current_token_position: i32,
     pub grammar_sampler: Option<LlamaSampler>,
-    pub generated_tokens_count: i32,
     pub generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
     pub generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     pub i_batch: Option<i32>,
     pub max_tokens: i32,
-    pub pending_sampled_token: Option<LlamaToken>,
+    pub pending_sampled_token: Option<SampledToken>,
     pub phase: ContinuousBatchRequestPhase,
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
     pub sequence_id: i32,
-    pub utf8_decoder: encoding_rs::Decoder,
+    pub slot_guard: SlotGuard,
+    pub tool_call_pipeline: Option<ToolCallPipeline>,
 }
 
 impl ContinuousBatchActiveRequest {

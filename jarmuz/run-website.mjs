@@ -6,7 +6,13 @@ export function run({ development, once = false, rustJobs }) {
   jarmuz({
     once,
     pipeline: ["stylelint", "tcm", "tsc", "eslint", esbuildJob, ...rustJobs],
-    watch: ["paddler", "paddler_client", "paddler_types", "resources"],
+    watch: [
+      "paddler",
+      "paddler_client",
+      "paddler_client_javascript",
+      "paddler_types",
+      "resources",
+    ],
   }).decide(function ({ matches, schedule }) {
     if (matches("resources/**/*.css")) {
       schedule("stylelint");
@@ -14,6 +20,7 @@ export function run({ development, once = false, rustJobs }) {
 
     switch (true) {
       case matches("resources/**/*.{ts,tsx}"):
+      case matches("paddler_client_javascript/src/**/*.ts"):
         schedule("tsc");
         schedule("eslint");
         break;

@@ -21,6 +21,8 @@ anyhow = { workspace = true }
 async-stream = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
+hf-hub = { workspace = true }
+llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
 paddler = { workspace = true }

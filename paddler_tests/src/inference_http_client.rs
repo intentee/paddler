@@ -4,15 +4,16 @@ use async_stream::try_stream;
 use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_types::inference_client::Message as InferenceMessage;
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use reqwest::Client;
 use url::Url;
 
 use crate::inference_message_stream::InferenceMessageStream;
 
+#[derive(Clone)]
 pub struct InferenceHttpClient {
     http_client: Client,
     inference_base_url: Url,

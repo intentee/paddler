@@ -27,7 +27,7 @@ def _make_ndjson_token_response(
         {
             "Response": {
                 "request_id": request_id,
-                "response": {"GeneratedToken": {"Token": token}},
+                "response": {"GeneratedToken": {"ContentToken": token}},
             }
         }
     )
@@ -38,7 +38,22 @@ def _make_ndjson_done_response(request_id: str) -> str:
         {
             "Response": {
                 "request_id": request_id,
-                "response": {"GeneratedToken": "Done"},
+                "response": {
+                    "GeneratedToken": {
+                        "Done": {
+                            "usage": {
+                                "prompt_tokens": 0,
+                                "cached_prompt_tokens": 0,
+                                "input_image_tokens": 0,
+                                "input_audio_tokens": 0,
+                                "content_tokens": 0,
+                                "reasoning_tokens": 0,
+                                "tool_call_tokens": 0,
+                                "undeterminable_tokens": 0,
+                            }
+                        }
+                    }
+                },
             }
         }
     )
@@ -119,7 +134,7 @@ async def test_post_continue_from_conversation_history() -> None:
             messages.append(message)
 
         assert len(messages) == 2
-        assert messages[0].kind == InferenceMessageKind.TOKEN
+        assert messages[0].kind == InferenceMessageKind.CONTENT_TOKEN
         assert messages[0].token == "hi"
         assert messages[1].kind == InferenceMessageKind.DONE
 

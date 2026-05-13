@@ -21,7 +21,7 @@ use reqwest::Client;
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         buffered_request_timeout: Duration::from_millis(50),
         max_buffered_requests: 0,

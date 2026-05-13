@@ -1,12 +1,12 @@
 import React, { memo, useContext, useEffect, useMemo, useState } from "react";
 import { scan } from "rxjs";
 
+import { inferenceSocketClient } from "@intentee/paddler-client/inferenceSocketClient";
+import { type ConversationMessage as ConversationMessageType } from "@intentee/paddler-client/schemas/ConversationMessage";
+import { type InferenceServiceGenerateTokensResponse } from "@intentee/paddler-client/schemas/InferenceServiceGenerateTokensResponse";
 import { PromptContext } from "../contexts/PromptContext";
 import { PromptImageContext } from "../contexts/PromptImageContext";
 import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
-import { type ConversationMessage as ConversationMessageType } from "../ConversationMessage.type";
-import { InferenceSocketClient } from "../InferenceSocketClient";
-import { type InferenceServiceGenerateTokensResponse } from "../schemas/InferenceServiceGenerateTokensResponse";
 import { ConversationMessage } from "./ConversationMessage";
 
 interface Message {
@@ -65,9 +65,9 @@ export const ConversationMessagePromptGeneratedTokens = memo(
     const { submittedIsThinkingEnabled } = useContext(PromptThinkingContext);
     const [message, setMessage] = useState<Message>(defaultMessage);
 
-    const inferenceSocketClient = useMemo(
+    const socketClient = useMemo(
       function () {
-        return InferenceSocketClient({ webSocket });
+        return inferenceSocketClient({ webSocket });
       },
       [webSocket],
     );
@@ -78,7 +78,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
           return;
         }
 
-        const subscription = inferenceSocketClient
+        const subscription = socketClient
           .continueConversation({
             enableThinking: submittedIsThinkingEnabled,
             messages: [
@@ -97,17 +97,17 @@ export const ConversationMessagePromptGeneratedTokens = memo(
           .pipe(
             scan(function (
               message: Message,
-              { done, error, token }: InferenceServiceGenerateTokensResponse,
+              chunk: InferenceServiceGenerateTokensResponse,
             ) {
-              if (error) {
+              if (chunk.error) {
                 return Object.freeze({
                   ...message,
-                  errors: [...message.errors, error],
+                  errors: [...message.errors, chunk.error],
                   isEmpty: false,
                 });
               }
 
-              if (done) {
+              if (chunk.done) {
                 return Object.freeze({
                   errors: message.errors,
                   isEmpty: false,
@@ -117,33 +117,25 @@ export const ConversationMessagePromptGeneratedTokens = memo(
                 });
               }
 
-              if ("<think>" === token) {
+              if (null === chunk.token) {
+                return message;
+              }
+
+              if ("reasoning" === chunk.tokenKind) {
                 return Object.freeze({
                   errors: message.errors,
                   isEmpty: false,
                   isThinking: true,
                   response: message.response,
-                  thoughts: message.thoughts,
+                  thoughts: `${message.thoughts}${chunk.token}`,
                 });
               }
 
-              if ("</think>" === token) {
+              if ("tool_call" === chunk.tokenKind) {
                 return Object.freeze({
-                  errors: message.errors,
+                  ...message,
                   isEmpty: false,
                   isThinking: false,
-                  response: message.response,
-                  thoughts: message.thoughts,
-                });
-              }
-
-              if (message.isThinking) {
-                return Object.freeze({
-                  errors: message.errors,
-                  isEmpty: false,
-                  isThinking: true,
-                  response: message.response,
-                  thoughts: `${message.thoughts}${token}`,
                 });
               }
 
@@ -151,7 +143,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
                 errors: message.errors,
                 isEmpty: false,
                 isThinking: false,
-                response: `${message.response}${token}`,
+                response: `${message.response}${chunk.token}`,
                 thoughts: message.thoughts,
               });
             }, defaultMessage),
@@ -163,7 +155,7 @@ export const ConversationMessagePromptGeneratedTokens = memo(
         };
       },
       [
-        inferenceSocketClient,
+        socketClient,
         setMessage,
         submittedImageDataUri,
         submittedIsThinkingEnabled,

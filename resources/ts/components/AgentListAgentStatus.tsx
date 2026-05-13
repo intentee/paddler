@@ -1,6 +1,6 @@
 import React, { CSSProperties } from "react";
 
-import { type Agent } from "../schemas/Agent";
+import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 
 import { agentListAgentStatus__progress } from "./AgentListAgentStatus.module.css";
 

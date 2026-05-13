@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-import { type ChatTemplate } from "../schemas/ChatTemplate";
+import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
 
 export type ChatTemplateContextValue = {
   chatTemplateOverride: null | ChatTemplate;

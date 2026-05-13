@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
@@ -18,7 +19,7 @@ async fn agent_embeddings_share_dimension_across_inputs_of_varying_length() -> R
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        1,
+        AgentConfig::single(1),
     )
     .await?;
 
@@ -50,17 +51,17 @@ async fn agent_embeddings_share_dimension_across_inputs_of_varying_length() -> R
     assert_eq!(collected.embeddings.len(), 3);
     assert!(collected.saw_done);
 
-    let first_dimension = collected.embeddings[0].embedding.len();
+    let first_dimension = collected.embeddings[0].embedding.embedding.len();
 
     assert!(first_dimension > 0, "embedding dimension must be positive");
 
-    for embedding in &collected.embeddings {
+    for produced in &collected.embeddings {
         assert_eq!(
-            embedding.embedding.len(),
+            produced.embedding.embedding.len(),
             first_dimension,
             "all embeddings must share dimension; {} has {} instead of {}",
-            embedding.source_document_id,
-            embedding.embedding.len(),
+            produced.embedding.source_document_id,
+            produced.embedding.embedding.len(),
             first_dimension
         );
     }

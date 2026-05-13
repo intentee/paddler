@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::warn;
 use paddler_client::PaddlerClient;
 use tokio_util::sync::CancellationToken;
 
@@ -43,37 +44,25 @@ impl ClusterHandle {
         }
     }
 
-    pub async fn shutdown(self) -> Result<()> {
-        let Self {
-            cancel_token,
-            completion,
-            ..
-        } = self;
+    pub async fn shutdown(mut self) -> Result<()> {
+        self.cancel_token.cancel();
 
-        cancel_token.cancel();
-
-        match completion {
-            ClusterCompletion::InProcess {
-                mut agents,
-                mut balancer,
-            } => {
-                for agent_runner in &mut agents {
+        match &mut self.completion {
+            ClusterCompletion::InProcess { agents, balancer } => {
+                for agent_runner in agents.iter_mut() {
                     agent_runner.wait_for_completion().await?;
                 }
 
                 balancer.wait_for_completion().await?;
             }
-            ClusterCompletion::Subprocess {
-                mut agents,
-                mut balancer,
-            } => {
-                for child in &mut agents {
+            ClusterCompletion::Subprocess { agents, balancer } => {
+                for child in agents.iter_mut() {
                     terminate_child(child)?;
                 }
 
-                terminate_child(&mut balancer)?;
+                terminate_child(balancer)?;
 
-                for agent in &mut agents {
+                for agent in agents.iter_mut() {
                     agent.wait().await?;
                 }
 
@@ -82,5 +71,22 @@ impl ClusterHandle {
         }
 
         Ok(())
+    }
+}
+
+impl Drop for ClusterHandle {
+    fn drop(&mut self) {
+        self.cancel_token.cancel();
+
+        if let ClusterCompletion::Subprocess { agents, balancer } = &mut self.completion {
+            for child in agents.iter_mut() {
+                if let Err(error) = terminate_child(child) {
+                    warn!("ClusterHandle drop: failed to terminate agent subprocess: {error:#}");
+                }
+            }
+            if let Err(error) = terminate_child(balancer) {
+                warn!("ClusterHandle drop: failed to terminate balancer subprocess: {error:#}");
+            }
+        }
     }
 }

@@ -13,7 +13,7 @@ def _make_token_line(request_id: str, token: str) -> str:
         {
             "Response": {
                 "request_id": request_id,
-                "response": {"GeneratedToken": {"Token": token}},
+                "response": {"GeneratedToken": {"ContentToken": token}},
             }
         }
     )
@@ -24,7 +24,22 @@ def _make_done_line(request_id: str) -> str:
         {
             "Response": {
                 "request_id": request_id,
-                "response": {"GeneratedToken": "Done"},
+                "response": {
+                    "GeneratedToken": {
+                        "Done": {
+                            "usage": {
+                                "prompt_tokens": 0,
+                                "cached_prompt_tokens": 0,
+                                "input_image_tokens": 0,
+                                "input_audio_tokens": 0,
+                                "content_tokens": 0,
+                                "reasoning_tokens": 0,
+                                "tool_call_tokens": 0,
+                                "undeterminable_tokens": 0,
+                            }
+                        }
+                    }
+                },
             }
         }
     )
@@ -48,7 +63,7 @@ async def test_parses_multiple_ndjson_lines() -> None:
                 messages.append(message)
 
     assert len(messages) == 2
-    assert messages[0].kind == InferenceMessageKind.TOKEN
+    assert messages[0].kind == InferenceMessageKind.CONTENT_TOKEN
     assert messages[0].token == "hello"
     assert messages[1].kind == InferenceMessageKind.DONE
 

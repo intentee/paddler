@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 
+use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::http_route as common_http_route;
 use crate::balancer::inference_service::app_data::AppData;
@@ -22,6 +23,7 @@ use crate::create_cors_middleware::create_cors_middleware;
 use crate::service::Service;
 
 pub struct InferenceService {
+    pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
@@ -47,6 +49,7 @@ impl Service for InferenceService {
         let cors_allowed_hosts_arc = Arc::new(cors_allowed_hosts);
 
         let app_data = Data::new(AppData {
+            agent_controller_pool: self.agent_controller_pool.clone(),
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.configuration.clone(),

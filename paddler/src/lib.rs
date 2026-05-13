@@ -1,9 +1,6 @@
-pub use llama_cpp_bindings;
-
 pub mod agent;
 pub mod agent_applicable_state;
 pub mod agent_applicable_state_holder;
-pub mod agent_desired_model;
 pub mod agent_desired_state;
 pub mod agent_issue_fix;
 pub mod atomic_value;
@@ -23,9 +20,12 @@ pub mod converts_to_llama_pooling_type;
 pub mod create_cors_middleware;
 pub mod decoded_image;
 pub mod decoded_image_error;
+pub mod desired_model_resolution;
 pub mod dispenses_slots;
+pub mod download_huggingface_model;
 pub mod embedding_input_tokenized;
 pub mod produces_snapshot;
+pub mod resolve_desired_model;
 pub mod resolved_socket_addr;
 pub mod sends_rpc_message;
 pub mod service;
@@ -38,4 +38,10 @@ pub mod snapshots_stream;
 #[cfg(feature = "web_admin_panel")]
 pub mod static_files;
 pub mod subscribes_to_updates;
+pub mod tool_call_buffer;
+pub mod tool_call_event;
+pub mod tool_call_pipeline;
+pub mod tool_call_pipeline_error;
+pub mod tool_call_validation_error;
+pub mod tool_call_validator;
 pub mod websocket_session_controller;

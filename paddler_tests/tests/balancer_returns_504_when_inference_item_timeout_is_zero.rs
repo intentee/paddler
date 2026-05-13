@@ -8,6 +8,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
@@ -33,8 +34,7 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() -> Result<()
     } = qwen3_0_6b();
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 2,
+        agents: AgentConfig::uniform(1, 2),
         inference_item_timeout: Duration::ZERO,
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {

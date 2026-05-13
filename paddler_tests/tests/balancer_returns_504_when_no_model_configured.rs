@@ -13,7 +13,7 @@ use reqwest::Client;
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_model_configured() -> Result<()> {
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         ..SubprocessClusterParams::default()
     })

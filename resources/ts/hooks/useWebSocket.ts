@@ -1,59 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-export type ConnectingState = {
-  isConnected: false;
-  isConnectionClosed: false;
-  isConnectionError: false;
-  webSocket: null;
-};
-
-export type ConnectionClosedState = {
-  isConnected: false;
-  isConnectionClosed: true;
-  isConnectionError: false;
-  webSocket: null;
-};
-
-export type ConnectionErrorState = {
-  isConnected: false;
-  isConnectionClosed: false;
-  isConnectionError: true;
-  webSocket: null;
-};
-
-export type ConnectionOpenedState = {
-  isConnected: true;
-  isConnectionClosed: false;
-  isConnectionError: false;
-  webSocket: WebSocket;
-};
-
-export type SocketState =
-  | ConnectingState
-  | ConnectionClosedState
-  | ConnectionErrorState
-  | ConnectionOpenedState;
-
-const connectionClosedState: ConnectionClosedState = Object.freeze({
-  isConnected: false,
-  isConnectionClosed: true,
-  isConnectionError: false,
-  webSocket: null,
-});
-
-const connectionErrorState: ConnectionErrorState = Object.freeze({
-  isConnected: false,
-  isConnectionClosed: false,
-  isConnectionError: true,
-  webSocket: null,
-});
-
-const defaultSocketState: ConnectingState = Object.freeze({
-  isConnected: false,
-  isConnectionClosed: false,
-  isConnectionError: false,
-  webSocket: null,
-});
+import { webSocketConnectingState } from "@intentee/paddler-client/WebSocketConnectingState";
+import { webSocketConnectionClosedState } from "@intentee/paddler-client/WebSocketConnectionClosedState";
+import { webSocketConnectionErrorState } from "@intentee/paddler-client/WebSocketConnectionErrorState";
+import { type WebSocketState } from "@intentee/paddler-client/WebSocketState";
 
 const MAX_RECONNECT_DEBOUNCE_TIME_INCREASE = 3;
 const RECONNECT_DELAY = 600;
@@ -62,9 +12,14 @@ function incrementVersion(version: number): number {
   return version + 1;
 }
 
-export function useWebSocket({ endpoint }: { endpoint: string }): SocketState {
-  const [socketState, setSocketState] =
-    useState<SocketState>(defaultSocketState);
+export function useWebSocket({
+  endpoint,
+}: {
+  endpoint: string;
+}): WebSocketState {
+  const [socketState, setSocketState] = useState<WebSocketState>(
+    webSocketConnectingState,
+  );
   const [version, setVersion] = useState(0);
   const [webSocket, setWebSocket] = useState<null | WebSocket>(null);
   const reconnectAttempts = useRef(0);
@@ -120,13 +75,13 @@ export function useWebSocket({ endpoint }: { endpoint: string }): SocketState {
       }
 
       webSocket.addEventListener("close", function () {
-        setSocketState(connectionClosedState);
+        setSocketState(webSocketConnectionClosedState);
         setVersion(incrementVersion);
       });
 
       webSocket.addEventListener("error", function (event) {
         console.error("WebSocket error:", event);
-        setSocketState(connectionErrorState);
+        setSocketState(webSocketConnectionErrorState);
         setVersion(incrementVersion);
       });
 

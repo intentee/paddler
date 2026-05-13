@@ -4,10 +4,10 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
-use self::tool_params::FunctionCall;
-use crate::validates::Validates;
+use self::tool_params::function_call::FunctionCall;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::validates::Validates;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

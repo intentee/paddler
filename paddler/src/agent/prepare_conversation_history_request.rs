@@ -6,7 +6,7 @@ use log::warn;
 use minijinja::context;
 use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::media_marker::MediaMarker;
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use tokio::sync::mpsc;
 
@@ -23,6 +23,7 @@ pub fn prepare_conversation_history_request(
         grammar,
         conversation_history,
         max_tokens,
+        parse_tool_calls,
         tools,
     }: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
@@ -37,8 +38,7 @@ pub fn prepare_conversation_history_request(
         .iter()
         .map(|image_url| {
             DecodedImage::from_data_uri(image_url)
-                .and_then(|image| image.converted_to_png_if_necessary(image_resize_to_fit))
-                .and_then(|image| image.resized_to_fit(image_resize_to_fit))
+                .and_then(|image| image.prepared_for_inference(image_resize_to_fit))
         })
         .collect::<Result<Vec<DecodedImage>, DecodedImageError>>()
         .map_err(|err| {
@@ -129,6 +129,8 @@ pub fn prepare_conversation_history_request(
             images,
             max_tokens,
             grammar_sampler,
+            parse_tool_calls,
+            tools,
         });
     }
 
@@ -136,5 +138,7 @@ pub fn prepare_conversation_history_request(
         raw_prompt,
         max_tokens,
         grammar_sampler,
+        parse_tool_calls,
+        tools,
     })
 }

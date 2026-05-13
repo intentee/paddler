@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+coverage/
+.nyc_output/

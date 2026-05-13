@@ -9,10 +9,10 @@ use paddler::agent::management_socket_client_service::ManagementSocketClientServ
 use paddler::agent::model_metadata_holder::ModelMetadataHolder;
 use paddler::agent::reconciliation_service::ReconciliationService;
 use paddler::agent_applicable_state_holder::AgentApplicableStateHolder;
-use paddler::agent_desired_state::AgentDesiredState;
 use paddler::service_manager::ServiceManager;
 use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
 
 pub struct BootstrappedAgentHandle {

@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 
+import { type Agent } from "@intentee/paddler-client/schemas/Agent";
 import { ModelMetadataContext } from "../contexts/ModelMetadataContext";
-import { type Agent } from "../schemas/Agent";
 import { ModalWindow } from "./ModalWindow";
 import { ModelChatTemplatePreviewButton } from "./ModelChatTemplatePreviewButton";
 import { ModelMetadataFocusedParameter } from "./ModelMetadataFocusedParameter";

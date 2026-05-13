@@ -72,15 +72,23 @@ test.integration: target/debug/paddler
 
 .PHONY: test.integration.cuda
 test.integration.cuda: target/cuda/debug/paddler
-	PADDLER_BINARY_PATH=../target/cuda/debug/paddler PADDLER_TEST_DEVICE=cuda cargo test -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_llms
+	PADDLER_BINARY_PATH=../target/cuda/debug/paddler PADDLER_TEST_DEVICE=cuda cargo test --target-dir target/cuda -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_llms
 
 .PHONY: test.integration.metal
 test.integration.metal: target/metal/debug/paddler
-	PADDLER_BINARY_PATH=../target/metal/debug/paddler PADDLER_TEST_DEVICE=metal cargo test -p paddler_tests --features metal,tests_that_use_compiled_paddler,tests_that_use_llms
+	PADDLER_BINARY_PATH=../target/metal/debug/paddler PADDLER_TEST_DEVICE=metal cargo test --target-dir target/metal -p paddler_tests --features metal,tests_that_use_compiled_paddler,tests_that_use_llms
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
 	cargo test --features web_admin_panel
+
+.PHONY: build.client.js
+build.client.js:
+	npm --workspace @intentee/paddler-client run build
+
+.PHONY: test.client.js
+test.client.js:
+	npm --workspace @intentee/paddler-client test
 
 .PHONY: watch
 watch: node_modules

@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 use paddler_tests::model_card::ModelCard;
@@ -42,8 +43,10 @@ async fn agent_reports_slot_cannot_start_for_metal_quantized_distinct_kv_in_proc
     inference_parameters.v_cache_dtype = KvCacheDtype::Q4_0;
 
     let mut cluster = start_in_process_cluster(InProcessClusterParams {
-        spawn_agent: true,
-        slots_per_agent: 1,
+        agent: Some(AgentConfig {
+            name: "test-agent".to_owned(),
+            slot_count: 1,
+        }),
         desired_state: BalancerDesiredState {
             chat_template_override: None,
             inference_parameters,

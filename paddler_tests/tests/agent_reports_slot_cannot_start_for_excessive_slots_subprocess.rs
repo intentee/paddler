@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -31,8 +32,7 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots_subprocess() -> Res
     let inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 257,
+        agents: AgentConfig::uniform(1, 257),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,

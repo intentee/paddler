@@ -1,6 +1,5 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use jsonschema::validator_for;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
@@ -8,12 +7,6 @@ use serde_json::Value;
 
 use super::validated_parameters_schema::ValidatedParametersSchema;
 use crate::validates::Validates;
-
-fn validate_schema(schema: &Value) -> Result<()> {
-    validator_for(schema).map_err(|err| anyhow!("{err}"))?;
-
-    Ok(())
-}
 
 #[derive(Default, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -34,20 +27,6 @@ impl Validates<ValidatedParametersSchema> for RawParametersSchema {
                     return Err(anyhow!("Required field '{field}' not found in properties"));
                 }
             }
-        }
-
-        if let Some(ref properties) = self.properties {
-            for (key, schema) in properties {
-                validate_schema(schema)
-                    .map_err(|err| anyhow!("Invalid schema for property '{key}': {err}"))?;
-            }
-        }
-
-        if let Some(ref additional) = self.additional_properties
-            && !additional.is_boolean()
-        {
-            validate_schema(additional)
-                .map_err(|err| anyhow!("Invalid additionalProperties schema: {err}"))?;
         }
 
         Ok(ValidatedParametersSchema {
@@ -97,31 +76,6 @@ mod tests {
     }
 
     #[test]
-    fn test_deserialize_with_invalid_property_schema() -> Result<()> {
-        let input = json!({
-            "type": "object",
-            "properties": {
-                "name": {"type": "invalid_type"}
-            }
-        });
-
-        let raw_schema: RawParametersSchema = from_value(input)?;
-        let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
-
-        assert!(result.is_err());
-
-        if let Err(error) = &result {
-            assert!(
-                error
-                    .to_string()
-                    .contains("Invalid schema for property 'name'")
-            );
-        }
-
-        Ok(())
-    }
-
-    #[test]
     fn test_deserialize_required_field_not_in_properties() -> Result<()> {
         let input = json!({
             "type": "object",
@@ -141,29 +95,6 @@ mod tests {
                 error
                     .to_string()
                     .contains("Required field 'missing_field' not found in properties")
-            );
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_deserialize_invalid_additional_properties_schema() -> Result<()> {
-        let input = json!({
-            "type": "object",
-            "additionalProperties": {"type": "not_a_type"}
-        });
-
-        let raw_schema: RawParametersSchema = from_value(input)?;
-        let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
-
-        assert!(result.is_err());
-
-        if let Err(error) = &result {
-            assert!(
-                error
-                    .to_string()
-                    .contains("Invalid additionalProperties schema")
             );
         }
 

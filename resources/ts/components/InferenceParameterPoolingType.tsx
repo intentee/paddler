@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, type ChangeEvent } from "react";
 
+import { poolingTypes } from "@intentee/paddler-client/schemas/InferenceParameters";
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
-import { poolingTypes } from "../schemas/InferenceParameters";
 import {
   inferenceParameterInput,
   inferenceParameterInput__disabledHint,

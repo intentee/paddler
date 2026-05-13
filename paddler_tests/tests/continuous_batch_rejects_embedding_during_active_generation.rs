@@ -2,6 +2,7 @@
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
@@ -15,7 +16,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_rejects_embedding_during_active_generation() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3(2).await?;
+    let cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(2)).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

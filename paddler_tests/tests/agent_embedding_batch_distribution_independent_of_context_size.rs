@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_embedding_results::collect_embedding_results;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
@@ -17,12 +18,12 @@ use reqwest::Client;
 async fn agent_embedding_batch_distribution_independent_of_context_size() -> Result<()> {
     let cluster = start_in_process_embedding_cluster(
         InferenceParameters {
-            batch_n_tokens: 64,
+            n_batch: 64,
             context_size: 512,
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        4,
+        AgentConfig::single(4),
     )
     .await?;
 
@@ -62,7 +63,7 @@ async fn agent_embedding_batch_distribution_independent_of_context_size() -> Res
     let returned_ids: BTreeSet<String> = collected
         .embeddings
         .iter()
-        .map(|embedding| embedding.source_document_id.clone())
+        .map(|produced| produced.embedding.source_document_id.clone())
         .collect();
 
     let expected_ids: BTreeSet<String> = BTreeSet::from([

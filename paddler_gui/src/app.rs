@@ -34,7 +34,7 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
+use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -64,13 +64,24 @@ static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
 
 fn shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
     iced::stream::channel(1, async move |mut output| {
-        if let Err(error) = wait_for_shutdown_signal().await {
+        let shutdown_signals = match register_shutdown_signals() {
+            Ok(shutdown_signals) => shutdown_signals,
+            Err(error) => {
+                log::error!("failed to register shutdown signal handlers: {error}");
+
+                return;
+            }
+        };
+
+        if let Err(error) = shutdown_signals.wait().await {
             log::error!("shutdown signal listener failed: {error}");
 
             return;
         }
 
-        let _ = output.send(Message::Quit).await;
+        if let Err(err) = output.send(Message::Quit).await {
+            log::warn!("Failed to deliver Quit message to iced runtime (receiver dropped): {err}");
+        }
     })
 }
 
@@ -402,11 +413,26 @@ impl App {
                         }
                     }
                     result = &mut completion_future => {
-                        let message = match result {
-                            Ok(()) => Message::AgentStopped,
-                            Err(error) => Message::AgentFailed(error.to_string()),
-                        };
-                        let _ = output.send(message).await;
+                        match result {
+                            Ok(()) => {
+                                if let Err(err) = output.send(Message::AgentStopped).await {
+                                    log::warn!(
+                                        "Failed to deliver AgentStopped to UI (receiver dropped): {err}"
+                                    );
+                                }
+                            }
+                            Err(error) => {
+                                let detail = error.to_string();
+                                if let Err(err) = output
+                                    .send(Message::AgentFailed(detail.clone()))
+                                    .await
+                                {
+                                    log::error!(
+                                        "Failed to deliver AgentFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
+                                    );
+                                }
+                            }
+                        }
 
                         return;
                     }
@@ -488,9 +514,12 @@ impl App {
             let mut runner = match BalancerRunner::start(params).await {
                 Ok(runner) => runner,
                 Err(error) => {
-                    let _ = output
-                        .send(Message::BalancerFailed(error.to_string()))
-                        .await;
+                    let detail = error.to_string();
+                    if let Err(err) = output.send(Message::BalancerFailed(detail.clone())).await {
+                        log::error!(
+                            "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
+                        );
+                    }
 
                     return;
                 }
@@ -568,11 +597,26 @@ impl App {
                         }
                     }
                     result = &mut completion_future => {
-                        let message = match result {
-                            Ok(()) => Message::BalancerStopped,
-                            Err(error) => Message::BalancerFailed(error.to_string()),
-                        };
-                        let _ = output.send(message).await;
+                        match result {
+                            Ok(()) => {
+                                if let Err(err) = output.send(Message::BalancerStopped).await {
+                                    log::warn!(
+                                        "Failed to deliver BalancerStopped to UI (receiver dropped): {err}"
+                                    );
+                                }
+                            }
+                            Err(error) => {
+                                let detail = error.to_string();
+                                if let Err(err) = output
+                                    .send(Message::BalancerFailed(detail.clone()))
+                                    .await
+                                {
+                                    log::error!(
+                                        "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
+                                    );
+                                }
+                            }
+                        }
 
                         return;
                     }

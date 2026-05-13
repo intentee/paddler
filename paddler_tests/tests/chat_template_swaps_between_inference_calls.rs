@@ -5,6 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
@@ -18,7 +19,6 @@ use paddler_types::chat_template::ChatTemplate;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
@@ -33,6 +33,7 @@ async fn run_inference_after_template_swap(inference_client: &InferenceHttpClien
             enable_thinking: false,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -42,7 +43,7 @@ async fn run_inference_after_template_swap(inference_client: &InferenceHttpClien
     Ok(collected
         .token_results
         .iter()
-        .any(|result| matches!(result, GeneratedTokenResult::Token(_))))
+        .any(|result| result.token_result.is_token()))
 }
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
@@ -65,8 +66,7 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
     };
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 1,
+        agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(template_a.clone()),

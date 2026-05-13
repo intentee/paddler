@@ -13,11 +13,12 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::jsonrpc::RequestEnvelope;
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::ContinueFromRawPromptParams;
 use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
@@ -25,7 +26,6 @@ use crate::agent::jsonrpc::Message as AgentJsonRpcMessage;
 use crate::agent::jsonrpc::Notification as AgentJsonRpcNotification;
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::agent::jsonrpc::notification_params::SetStateParams;
-use crate::agent_desired_state::AgentDesiredState;
 use crate::atomic_value::AtomicValue;
 use crate::balancer::agent_controller_update_result::AgentControllerUpdateResult;
 use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -165,18 +165,16 @@ impl AgentController {
 
         let mut changed = false;
 
-        changed = changed || self.desired_slots_total.set_check(desired_slots_total);
-        changed = changed || self.download_current.set_check(download_current);
-        changed = changed || self.download_total.set_check(download_total);
-        changed = changed || self.slots_total.set_check(slots_total);
-        changed = changed
-            || self
-                .state_application_status_code
-                .set_check(state_application_status as i32);
-        changed = changed
-            || self
-                .uses_chat_template_override
-                .set_check(uses_chat_template_override);
+        changed |= self.desired_slots_total.set_check(desired_slots_total);
+        changed |= self.download_current.set_check(download_current);
+        changed |= self.download_total.set_check(download_total);
+        changed |= self.slots_total.set_check(slots_total);
+        changed |= self
+            .state_application_status_code
+            .set_check(state_application_status as i32);
+        changed |= self
+            .uses_chat_template_override
+            .set_check(uses_chat_template_override);
 
         self.newest_update_version
             .compare_and_swap(newest_update_version, version);
@@ -346,5 +344,97 @@ impl SetsDesiredState for AgentController {
             AgentJsonRpcNotification::SetState(Box::new(SetStateParams { desired_state })),
         ))
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+
+    use super::*;
+
+    fn fresh_agent_controller() -> AgentController {
+        let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
+
+        AgentController {
+            agent_message_tx,
+            chat_template_override_sender_collection: Arc::new(
+                ChatTemplateOverrideSenderCollection::default(),
+            ),
+            connection_close: CancellationToken::new(),
+            desired_slots_total: AtomicValue::<AtomicI32>::new(0),
+            download_current: AtomicValue::<AtomicUsize>::new(0),
+            download_filename: RwLock::new(None),
+            download_total: AtomicValue::<AtomicUsize>::new(0),
+            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
+            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
+            id: "agent-test".to_owned(),
+            issues: RwLock::new(BTreeSet::new()),
+            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            model_path: RwLock::new(None),
+            name: None,
+            newest_update_version: AtomicValue::<AtomicI32>::new(0),
+            slots_processing: AtomicValue::<AtomicI32>::new(0),
+            slots_total: AtomicValue::<AtomicI32>::new(0),
+            state_application_status_code: AtomicValue::<AtomicI32>::new(
+                AgentStateApplicationStatus::Fresh as i32,
+            ),
+            uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
+        }
+    }
+
+    #[test]
+    fn multi_field_update_stores_all_changed_atomic_fields() -> Result<()> {
+        let agent_controller = fresh_agent_controller();
+
+        let snapshot = SlotAggregatedStatusSnapshot {
+            desired_slots_total: 4,
+            download_current: 10,
+            download_filename: None,
+            download_total: 100,
+            issues: BTreeSet::new(),
+            model_path: None,
+            slots_processing: 0,
+            slots_total: 4,
+            state_application_status: AgentStateApplicationStatus::Fresh,
+            uses_chat_template_override: true,
+            version: 1,
+        };
+
+        let result = agent_controller.update_from_slot_aggregated_status_snapshot(snapshot);
+
+        if !matches!(result, AgentControllerUpdateResult::Updated) {
+            anyhow::bail!("update with multiple changed fields must return Updated");
+        }
+
+        if agent_controller.desired_slots_total.get() != 4 {
+            anyhow::bail!(
+                "desired_slots_total must be stored: expected 4, got {}",
+                agent_controller.desired_slots_total.get()
+            );
+        }
+        if agent_controller.download_current.get() != 10 {
+            anyhow::bail!(
+                "download_current must be stored: expected 10, got {}",
+                agent_controller.download_current.get()
+            );
+        }
+        if agent_controller.download_total.get() != 100 {
+            anyhow::bail!(
+                "download_total must be stored: expected 100, got {}",
+                agent_controller.download_total.get()
+            );
+        }
+        if agent_controller.slots_total.get() != 4 {
+            anyhow::bail!(
+                "slots_total must be stored: expected 4, got {}",
+                agent_controller.slots_total.get()
+            );
+        }
+        if !agent_controller.uses_chat_template_override.get() {
+            anyhow::bail!("uses_chat_template_override must be stored: expected true, got false");
+        }
+
+        Ok(())
     }
 }

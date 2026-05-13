@@ -1,9 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
@@ -21,7 +23,7 @@ fn user_message(text: &str) -> ConversationMessage {
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_concurrent_conversation_history_requests_complete() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3(2).await?;
+    let cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(2)).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
@@ -33,6 +35,7 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -44,6 +47,7 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
             enable_thinking: false,
             grammar: None,
             max_tokens: 20,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -59,23 +63,29 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
     let tokens_a = collected_a
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.token_result.is_token())
         .count();
     let tokens_b = collected_b
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(tokens_a > 0);
     assert!(tokens_b > 0);
     assert!(matches!(
         collected_a.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
     assert!(matches!(
         collected_b.token_results.last(),
-        Some(GeneratedTokenResult::Done)
+        Some(TokenResultWithProducer {
+            token_result: GeneratedTokenResult::Done(_),
+            ..
+        })
     ));
 
     cluster.shutdown().await?;

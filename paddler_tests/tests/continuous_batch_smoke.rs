@@ -2,6 +2,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
@@ -9,6 +10,7 @@ use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_in_process_cluster::start_in_process_cluster;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::generated_token_result::GeneratedTokenResult;
@@ -38,8 +40,10 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     };
 
     let cluster = start_in_process_cluster(InProcessClusterParams {
-        spawn_agent: true,
-        slots_per_agent: 1,
+        agent: Some(AgentConfig {
+            name: "test-agent".to_owned(),
+            slot_count: 1,
+        }),
         desired_state,
         wait_for_slots_ready: true,
         ..InProcessClusterParams::default()
@@ -64,7 +68,7 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     let token_count = collected
         .token_results
         .iter()
-        .filter(|result| matches!(result, GeneratedTokenResult::Token(_)))
+        .filter(|result| result.token_result.is_token())
         .count();
 
     assert!(
@@ -76,7 +80,10 @@ async fn continuous_batch_smoke_generates_tokens() -> Result<()> {
     assert!(
         matches!(
             collected.token_results.last(),
-            Some(GeneratedTokenResult::Done)
+            Some(TokenResultWithProducer {
+                token_result: GeneratedTokenResult::Done(_),
+                ..
+            })
         ),
         "smoke test stream did not terminate with Done"
     );

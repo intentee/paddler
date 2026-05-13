@@ -233,6 +233,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
                 response: AgentJsonRpcResponse::ChatTemplateOverride(chat_template_override),
+                ..
             }) => {
                 context
                     .chat_template_override_sender_collection
@@ -244,6 +245,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
                 response: AgentJsonRpcResponse::Embedding(embedding_result),
+                ..
             }) => {
                 context
                     .embedding_sender_collection
@@ -255,6 +257,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
                 response: AgentJsonRpcResponse::GeneratedToken(generated_token_envelope),
+                ..
             }) => {
                 context
                     .generate_tokens_sender_collection
@@ -266,6 +269,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
                 response: AgentJsonRpcResponse::ModelMetadata(model_metadata),
+                ..
             }) => {
                 context
                     .model_metadata_sender_collection

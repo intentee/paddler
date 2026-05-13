@@ -46,7 +46,7 @@ async fn agent_exits_cleanly_on_sigterm_during_multimodal_inference() -> Result<
     } = qwen2_5_vl_3b_mmproj();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 0,
+        agents: Vec::new(),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
@@ -104,6 +104,7 @@ async fn agent_exits_cleanly_on_sigterm_during_multimodal_inference() -> Result<
             enable_thinking: false,
             grammar: None,
             max_tokens: 200,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;

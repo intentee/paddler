@@ -4,6 +4,7 @@
 ))]
 
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
@@ -18,7 +19,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(2, 1).await?;
+    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
@@ -35,6 +36,7 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
                 schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
             }),
             max_tokens: 50,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await;
@@ -45,7 +47,7 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
         if let Ok(collected) = collected {
             assert!(
                 collected.token_results.iter().any(|result| matches!(
-                    result,
+                    result.token_result,
                     GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
                 )),
                 "expected GrammarIncompatibleWithThinking error"

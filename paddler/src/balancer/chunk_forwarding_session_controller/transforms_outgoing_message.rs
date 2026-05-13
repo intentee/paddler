@@ -6,5 +6,5 @@ use super::transform_result::TransformResult;
 
 #[async_trait]
 pub trait TransformsOutgoingMessage {
-    async fn transform(&self, message: OutgoingMessage) -> Result<TransformResult>;
+    async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>>;
 }

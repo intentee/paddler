@@ -5,6 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
@@ -24,8 +25,7 @@ async fn chat_template_override_applied_to_embedding_model() -> Result<()> {
     };
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 1,
+        agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(chat_template.clone()),

@@ -1,9 +1,9 @@
 import React, { useContext } from "react";
 
+import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useBalancerDesiredState } from "../hooks/useBalancerDesiredState";
 import { matchFetchJsonState } from "../matchFetchJsonState";
-import { type AgentDesiredModel } from "../schemas/AgentDesiredModel";
 import { ChangeModelForm } from "./ChangeModelForm";
 import { ChatTemplateContextProvider } from "./ChatTemplateContextProvider";
 import { FloatingStatus } from "./FloatingStatus";

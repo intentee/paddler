@@ -4,6 +4,7 @@ use std::thread;
 use anyhow::Result;
 use anyhow::anyhow;
 use log::error;
+use log::warn;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -24,7 +25,16 @@ impl ServiceThread {
 
         let thread = thread::spawn(move || {
             let result = actix_web::rt::System::new().block_on(run(task_token));
-            let _ = completion_tx.send(result);
+            if let Err(unsent) = completion_tx.send(result) {
+                match unsent {
+                    Ok(()) => warn!(
+                        "service thread completion receiver dropped before delivery; run() succeeded but result was not observed by the caller"
+                    ),
+                    Err(run_err) => error!(
+                        "service thread completion receiver dropped before delivery; lost run() error: {run_err:?}"
+                    ),
+                }
+            }
         });
 
         Self {

@@ -5,6 +5,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
@@ -18,7 +19,6 @@ use paddler_types::chat_template::ChatTemplate;
 use paddler_types::conversation_history::ConversationHistory;
 use paddler_types::conversation_message::ConversationMessage;
 use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::generated_token_result::GeneratedTokenResult;
 use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
@@ -39,8 +39,7 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
     };
 
     let cluster = start_subprocess_cluster(SubprocessClusterParams {
-        agent_count: 1,
-        slots_per_agent: 1,
+        agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(chat_template.clone()),
@@ -82,6 +81,7 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
             enable_thinking: false,
             grammar: None,
             max_tokens: 10,
+            parse_tool_calls: false,
             tools: vec![],
         })
         .await?;
@@ -91,7 +91,7 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
     let received_tokens = collected
         .token_results
         .iter()
-        .any(|result| matches!(result, GeneratedTokenResult::Token(_)));
+        .any(|result| result.token_result.is_token());
 
     assert!(
         received_tokens,

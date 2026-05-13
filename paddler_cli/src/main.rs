@@ -1,14 +1,14 @@
+mod cmd;
+
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
-#[cfg(feature = "web_admin_panel")]
-use esbuild_metafile::instance::initialize_instance;
-mod cmd;
-
 use cmd::agent::Agent;
 use cmd::balancer::Balancer;
 use cmd::handler::Handler as _;
-use paddler_bootstrap::shutdown_signal::wait_for_shutdown_signal;
+#[cfg(feature = "web_admin_panel")]
+use esbuild_metafile::instance::initialize_instance;
+use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "web_admin_panel")]
@@ -42,11 +42,12 @@ enum Commands {
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    let shutdown_signals = register_shutdown_signals()?;
     let shutdown = CancellationToken::new();
     let signal_shutdown = shutdown.clone();
 
     tokio::spawn(async move {
-        if let Err(error) = wait_for_shutdown_signal().await {
+        if let Err(error) = shutdown_signals.wait().await {
             log::error!("shutdown signal listener failed: {error}");
             return;
         }

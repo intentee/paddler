@@ -4,7 +4,7 @@ use actix_web::error::ErrorBadRequest;
 use actix_web::post;
 use actix_web::web;
 
-use paddler_types::request_params::ContinueFromConversationHistoryParams;
+use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_types::validates::Validates as _;
 

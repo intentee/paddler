@@ -2,6 +2,7 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
@@ -36,8 +37,10 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_updates() -
     };
 
     let mut cluster = start_in_process_cluster(InProcessClusterParams {
-        spawn_agent: true,
-        slots_per_agent: 1,
+        agent: Some(AgentConfig {
+            name: "test-agent".to_owned(),
+            slot_count: 1,
+        }),
         desired_state,
         wait_for_slots_ready: true,
         ..InProcessClusterParams::default()

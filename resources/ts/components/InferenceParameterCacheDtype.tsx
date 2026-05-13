@@ -1,7 +1,7 @@
 import React, { useCallback, useContext, type ChangeEvent } from "react";
 
+import { cacheDtypes } from "@intentee/paddler-client/schemas/InferenceParameters";
 import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
-import { cacheDtypes } from "../schemas/InferenceParameters";
 import {
   inferenceParameterInput,
   inferenceParameterInput__label,

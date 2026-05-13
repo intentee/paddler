@@ -17,3 +17,20 @@ paths:
 - In Rust, when implementing a `new` method in a struct, prefer to use a struct with a parameter list instead of multiple function arguments. It should be easier to maintain.
 - Always check the project with Clippy.
 - Always format the code with `cargo fmt`.
+- Each file must contain at most a single struct, or single enum. For readability split those into multiple modules. You can still keep multiple private function helpers.
+- Never use Result<> as a function argument.
+- Never forward Result in enums if you can instead create a targeted error enum. It is always better to signal the specific issue, so it can be handled downstream.
+- Always destructure structs in arguments if possible.
+
+# Code Style
+
+Imports/uses must not be mixed with other kinds of rust syntax. 
+
+Each file needs to follow this order: 
+1. `pub mod`/`mod` exports 
+2. vendor crate `use` 
+2. project crate `use` 
+3. local crate `use` 
+4. private function helpers
+5. private struct helpers
+6. single public export

@@ -1,10 +1,10 @@
 import React, { useMemo, useState, type ReactNode } from "react";
 
+import { type InferenceParameters } from "@intentee/paddler-client/schemas/InferenceParameters";
 import {
   InferenceParametersContext,
   type InferenceParametersContextValue,
 } from "../contexts/InferenceParametersContext";
-import { type InferenceParameters } from "../schemas/InferenceParameters";
 
 export function InferenceParametersContextProvider({
   children,

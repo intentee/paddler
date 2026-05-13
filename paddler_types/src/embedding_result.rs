@@ -2,19 +2,31 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::embedding::Embedding;
+use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use crate::streamable_result::StreamableResult;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum EmbeddingResult {
+    DocumentExceedsBatchSize(OversizedEmbeddingDocumentDetails),
     Done,
     Embedding(Embedding),
+    EmbeddingsDisabled,
     Error(String),
+    EmbeddingRejectedDueToActiveTokenGeneration,
+    NoEmbeddingsProduced,
 }
 
 impl StreamableResult for EmbeddingResult {
     fn is_done(&self) -> bool {
-        matches!(self, Self::Done | Self::Error(_))
+        matches!(
+            self,
+            Self::Done
+                | Self::EmbeddingsDisabled
+                | Self::Error(_)
+                | Self::EmbeddingRejectedDueToActiveTokenGeneration
+                | Self::NoEmbeddingsProduced,
+        )
     }
 }
 
@@ -32,6 +44,32 @@ mod tests {
     #[test]
     fn error_is_done() {
         assert!(EmbeddingResult::Error("fail".to_owned()).is_done());
+    }
+
+    #[test]
+    fn embeddings_disabled_is_done() {
+        assert!(EmbeddingResult::EmbeddingsDisabled.is_done());
+    }
+
+    #[test]
+    fn embedding_rejected_due_to_active_token_generation_is_done() {
+        assert!(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration.is_done());
+    }
+
+    #[test]
+    fn no_embeddings_produced_is_done() {
+        assert!(EmbeddingResult::NoEmbeddingsProduced.is_done());
+    }
+
+    #[test]
+    fn document_exceeds_batch_size_is_not_done() {
+        let result = EmbeddingResult::DocumentExceedsBatchSize(OversizedEmbeddingDocumentDetails {
+            document_tokens: 4096,
+            n_batch: 2048,
+            source_document_id: "huge".to_owned(),
+        });
+
+        assert!(!result.is_done());
     }
 
     #[test]

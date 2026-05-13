@@ -227,10 +227,7 @@ async fn agent_runner_cancels_from_parent_token() -> Result<()> {
 
     let parent = CancellationToken::new();
 
-    let runner = AgentRunner::start(make_agent_runner_params(
-        management_addr,
-        parent.clone(),
-    ));
+    let runner = AgentRunner::start(make_agent_runner_params(management_addr, parent.clone()));
 
     parent.cancel();
     drop(runner);
