@@ -2,16 +2,20 @@ use anyhow::Result;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 
-use crate::agent_config::AgentConfig;
 use crate::cluster_handle::ClusterHandle;
 use crate::current_test_device::current_test_device;
 use crate::in_process_cluster_params::InProcessClusterParams;
+use crate::make_inference_parameters_deterministic::make_inference_parameters_deterministic;
+use crate::ministral_3_in_process_cluster_params::Ministral3InProcessClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::ministral_3_14b_reasoning::ministral_3_14b_reasoning;
 use crate::start_in_process_cluster::start_in_process_cluster;
 
 pub async fn start_in_process_cluster_with_ministral_3(
-    agent: AgentConfig,
+    Ministral3InProcessClusterParams {
+        agent,
+        deterministic_sampling,
+    }: Ministral3InProcessClusterParams,
 ) -> Result<ClusterHandle> {
     let device = current_test_device()?;
 
@@ -22,11 +26,18 @@ pub async fn start_in_process_cluster_with_ministral_3(
         reference,
     } = ministral_3_14b_reasoning();
 
+    let base_inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
+    let inference_parameters = if deterministic_sampling {
+        make_inference_parameters_deterministic(base_inference_parameters)
+    } else {
+        base_inference_parameters
+    };
+
     start_in_process_cluster(InProcessClusterParams {
         agent: Some(agent),
         desired_state: BalancerDesiredState {
             chat_template_override: None,
-            inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
+            inference_parameters,
             model: AgentDesiredModel::HuggingFace(reference),
             multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: false,
