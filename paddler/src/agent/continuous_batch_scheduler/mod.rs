@@ -930,10 +930,7 @@ impl ContinuousBatchScheduler {
         if self.has_active_requests() {
             if request
                 .generated_embedding_tx
-                .send(EmbeddingResult::Error(
-                    "Embedding requests cannot be processed while generation requests are active"
-                        .to_owned(),
-                ))
+                .send(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration)
                 .is_err()
             {
                 warn!(

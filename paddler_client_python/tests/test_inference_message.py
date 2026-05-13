@@ -506,6 +506,35 @@ def test_parse_embedding_error() -> None:
     assert message.is_terminal
 
 
+def test_parse_embedding_no_embeddings_produced() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"Embedding": "NoEmbeddingsProduced"},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.EMBEDDING_NO_EMBEDDINGS_PRODUCED
+    assert message.is_terminal
+
+
+def test_parse_embedding_rejected_due_to_active_token_generation() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {"Embedding": "EmbeddingRejectedDueToActiveTokenGeneration"},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert (
+        message.kind
+        == InferenceMessageKind.EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION
+    )
+    assert message.is_terminal
+
+
 def test_parse_json_string() -> None:
     json_str = (
         '{"Response": {"request_id": "req-1", "response": {"GeneratedToken": '

@@ -16,6 +16,8 @@ pub async fn collect_embedding_results(
     let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
     let mut embeddings_disabled = false;
     let mut errors: Vec<String> = Vec::new();
+    let mut embedding_rejected_due_to_active_token_generation_count: usize = 0;
+    let mut no_embeddings_produced_count: usize = 0;
     let mut oversized_documents = Vec::new();
     let mut saw_done = false;
     let mut wire_errors = Vec::new();
@@ -50,6 +52,14 @@ pub async fn collect_embedding_results(
                     InferenceResponse::Embedding(EmbeddingResult::Error(message)) => {
                         errors.push(message);
                     }
+                    InferenceResponse::Embedding(
+                        EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration,
+                    ) => {
+                        embedding_rejected_due_to_active_token_generation_count += 1;
+                    }
+                    InferenceResponse::Embedding(EmbeddingResult::NoEmbeddingsProduced) => {
+                        no_embeddings_produced_count += 1;
+                    }
                     InferenceResponse::GeneratedToken(_) => {
                         return Err(anyhow!(
                             "unexpected generated-token response on an embedding stream"
@@ -75,6 +85,8 @@ pub async fn collect_embedding_results(
         embeddings,
         embeddings_disabled,
         errors,
+        embedding_rejected_due_to_active_token_generation_count,
+        no_embeddings_produced_count,
         oversized_documents,
         saw_done,
         wire_errors,

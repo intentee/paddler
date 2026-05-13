@@ -120,6 +120,8 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             plan_embedding_batches(&token_counts, n_batch, max_sequences_per_batch);
         let mut batch = LlamaBatch::new(n_batch, max_sequences_per_batch)?;
 
+        let mut embeddings_emitted: usize = 0;
+
         #[expect(
             clippy::cast_possible_truncation,
             clippy::cast_possible_wrap,
@@ -145,9 +147,15 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                 &generated_embedding_tx,
                 &normalization_method,
             )?;
+
+            embeddings_emitted += batch_inputs.len();
         }
 
-        generated_embedding_tx.send(EmbeddingResult::Done)?;
+        if embeddings_emitted == 0 {
+            generated_embedding_tx.send(EmbeddingResult::NoEmbeddingsProduced)?;
+        } else {
+            generated_embedding_tx.send(EmbeddingResult::Done)?;
+        }
 
         Ok(())
     }

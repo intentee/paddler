@@ -19,6 +19,10 @@ class InferenceMessageKind(StrEnum):
     EMBEDDING = "embedding"
     EMBEDDING_DONE = "embedding_done"
     EMBEDDING_ERROR = "embedding_error"
+    EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION = (
+        "embedding_rejected_due_to_active_token_generation"
+    )
+    EMBEDDING_NO_EMBEDDINGS_PRODUCED = "embedding_no_embeddings_produced"
     GRAMMAR_INCOMPATIBLE_WITH_THINKING = "grammar_incompatible_with_thinking"
     GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
     GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
@@ -407,6 +411,20 @@ def _parse_embedding_result(
         return InferenceMessage(
             request_id=request_id,
             kind=InferenceMessageKind.EMBEDDING_DONE,
+            generated_by=generated_by,
+        )
+
+    if data == "EmbeddingRejectedDueToActiveTokenGeneration":
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION,
+            generated_by=generated_by,
+        )
+
+    if data == "NoEmbeddingsProduced":
+        return InferenceMessage(
+            request_id=request_id,
+            kind=InferenceMessageKind.EMBEDDING_NO_EMBEDDINGS_PRODUCED,
             generated_by=generated_by,
         )
 

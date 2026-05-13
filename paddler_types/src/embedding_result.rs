@@ -13,11 +13,20 @@ pub enum EmbeddingResult {
     Embedding(Embedding),
     EmbeddingsDisabled,
     Error(String),
+    EmbeddingRejectedDueToActiveTokenGeneration,
+    NoEmbeddingsProduced,
 }
 
 impl StreamableResult for EmbeddingResult {
     fn is_done(&self) -> bool {
-        matches!(self, Self::Done | Self::EmbeddingsDisabled | Self::Error(_),)
+        matches!(
+            self,
+            Self::Done
+                | Self::EmbeddingsDisabled
+                | Self::Error(_)
+                | Self::EmbeddingRejectedDueToActiveTokenGeneration
+                | Self::NoEmbeddingsProduced,
+        )
     }
 }
 
@@ -40,6 +49,16 @@ mod tests {
     #[test]
     fn embeddings_disabled_is_done() {
         assert!(EmbeddingResult::EmbeddingsDisabled.is_done());
+    }
+
+    #[test]
+    fn embedding_rejected_due_to_active_token_generation_is_done() {
+        assert!(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration.is_done());
+    }
+
+    #[test]
+    fn no_embeddings_produced_is_done() {
+        assert!(EmbeddingResult::NoEmbeddingsProduced.is_done());
     }
 
     #[test]
