@@ -40,11 +40,12 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> 
         .context("cluster must have one registered agent")?
         .clone();
 
+    let predicate_agent_id = agent_id.clone();
     cluster
         .agents
-        .until(move |snapshot| {
+        .until_agent(&agent_id, move |snapshot| {
             snapshot.agents.iter().any(|agent| {
-                agent.id == agent_id
+                agent.id == predicate_agent_id
                     && agent
                         .issues
                         .iter()
