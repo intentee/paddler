@@ -87,7 +87,7 @@ where
     }
 }
 
-async fn forward_responses_stream<TControlsSession, TManagesSenders>(
+pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
     agent_controller: Arc<AgentController>,
     connection_close: CancellationToken,
     inference_service_configuration: InferenceServiceConfiguration,
@@ -154,22 +154,35 @@ where
                 break;
             }
             response = receive_response_controller.response_rx.recv() => {
-                match response {
-                    Some(response) => {
-                        let is_done = response.is_done();
+                if let Some(response) = response {
+                    let is_done = response.is_done();
 
-                        let send_succeeded = send_response_to_client(
-                            agent_controller.clone(),
-                            response,
-                            request_id.clone(),
-                            &mut session_controller,
-                        ).await;
+                    let send_succeeded = send_response_to_client(
+                        agent_controller.clone(),
+                        response,
+                        request_id.clone(),
+                        &mut session_controller,
+                    ).await;
 
-                        if is_done || !send_succeeded {
-                            break;
-                        }
+                    if is_done || !send_succeeded {
+                        break;
                     }
-                    None => break,
+                } else {
+                    error!(
+                        "Response channel closed before terminator for request {request_id:?}"
+                    );
+
+                    respond_with_error(
+                        JsonRpcError {
+                            code: 502,
+                            description:
+                                "Response channel closed before terminator".to_owned(),
+                        },
+                        request_id,
+                        &mut session_controller,
+                    ).await;
+
+                    break;
                 }
             }
         }
@@ -178,7 +191,7 @@ where
     Ok(())
 }
 
-async fn respond_with_error<TControlsSession>(
+pub async fn respond_with_error<TControlsSession>(
     error: JsonRpcError,
     request_id: String,
     session_controller: &mut TControlsSession,

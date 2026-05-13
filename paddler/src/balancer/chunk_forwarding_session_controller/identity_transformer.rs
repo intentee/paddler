@@ -5,10 +5,11 @@ use paddler_types::inference_client::Message as OutgoingMessage;
 use super::transform_result::TransformResult;
 use super::transforms_outgoing_message::TransformsOutgoingMessage;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct IdentityTransformer;
 
 impl IdentityTransformer {
+    #[must_use]
     pub const fn new() -> Self {
         Self {}
     }
