@@ -3758,6 +3758,8 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 [[package]]
 name = "llama-cpp-bindings"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c12d8de3511f1c3e3025e811ad2644d22d5b6657f18e9496ea3977c456eed8a"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -3775,6 +3777,8 @@ dependencies = [
 [[package]]
 name = "llama-cpp-bindings-build"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "352fc011d0d723af3864d500d3a78b2d5ee0a5200993229f93421984d9abbfe3"
 dependencies = [
  "bindgen",
  "cc",
@@ -3788,6 +3792,8 @@ dependencies = [
 [[package]]
 name = "llama-cpp-bindings-sys"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac6ce8ade04ae8cacd4ce4e627786c0a449c54d87b5e7287e936ab13fd8ceca8"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
@@ -3795,6 +3801,8 @@ dependencies = [
 [[package]]
 name = "llama-cpp-bindings-types"
 version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a76906d544513079d6dbd299d9f0469f618077153aba8eeaf950727a06b45aac"
 dependencies = [
  "serde",
  "serde_json",
@@ -4848,7 +4856,7 @@ dependencies = [
 
 [[package]]
 name = "paddler"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "actix",
  "actix-cors",
@@ -4901,7 +4909,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_bootstrap"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -4916,7 +4924,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cli"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "actix-rt",
  "actix-web",
@@ -4936,7 +4944,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_client"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -4956,7 +4964,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_client_cli"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4979,7 +4987,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_gui"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -5001,7 +5009,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_tests"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5028,7 +5036,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_types"
-version = "3.1.2"
+version = "4.0.0"
 dependencies = [
  "anyhow",
  "jsonschema",

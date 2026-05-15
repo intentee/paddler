@@ -1,5 +1,5 @@
 x-paddler-common: &paddler-common
-  image: paddler:v2.0.0
+  image: paddler:v4.0.0
   build: ..
 
 services:
