@@ -20,29 +20,44 @@ node_modules: package-lock.json
 esbuild-meta.json: $(FRONTEND_SOURCES) jarmuz-static.mjs tsconfig.json package.json node_modules
 	./jarmuz-static.mjs
 
-target/debug/paddler: $(PADDLER_CLI_SOURCES)
-	cargo build -p paddler_cli
-
-target/release/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_cli --features web_admin_panel
-
 target/cuda/debug/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
+
+target/cuda/debug/paddler_gui: $(PADDLER_GUI_SOURCES) esbuild-meta.json
+	cargo build -p paddler_gui --features cuda,web_admin_panel --target-dir target/cuda
 
 target/cuda/release/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
 
+target/cuda/release/paddler_gui: $(PADDLER_GUI_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_gui --features cuda,web_admin_panel --target-dir target/cuda
+
+target/debug/paddler: $(PADDLER_CLI_SOURCES)
+	cargo build -p paddler_cli
+
+target/debug/paddler_gui: $(PADDLER_GUI_SOURCES) esbuild-meta.json
+	cargo build -p paddler_gui --features web_admin_panel
+
 target/metal/debug/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
+
+target/metal/debug/paddler_gui: $(PADDLER_GUI_SOURCES) esbuild-meta.json
+	cargo build -p paddler_gui --features metal,web_admin_panel --target-dir target/metal
 
 target/metal/release/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
 
-target/vulkan/release/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_cli --features vulkan,web_admin_panel --target-dir target/vulkan
+target/metal/release/paddler_gui: $(PADDLER_GUI_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_gui --features metal,web_admin_panel --target-dir target/metal
+
+target/release/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_cli --features web_admin_panel
 
 target/release/paddler_gui: $(PADDLER_GUI_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_gui --features web_admin_panel
+
+target/vulkan/release/paddler: $(PADDLER_CLI_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_cli --features vulkan,web_admin_panel --target-dir target/vulkan
 
 # -----------------------------------------------------------------------------
 # Phony targets
