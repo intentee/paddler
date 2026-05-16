@@ -3005,6 +3005,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_selector"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1442ccc30959cc48b3a624233521ef7f3bc3e06528b6fe306c3a775fbddc4fe"
+dependencies = [
+ "iced_core",
+]
+
+[[package]]
+name = "iced_test"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b56c26cc6e63958ce6be06a68fa3136fd5f646da6302ee12abf1a0f311dd0166"
+dependencies = [
+ "iced_futures",
+ "iced_program",
+ "iced_renderer",
+ "iced_runtime",
+ "iced_selector",
+ "nom 8.0.0",
+ "png 0.18.1",
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "iced_tiny_skia"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5008,6 +5034,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_gui_tests"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "iced",
+ "iced_test",
+ "log",
+ "nix 0.30.1",
+ "paddler",
+ "paddler_bootstrap",
+ "paddler_gui",
+ "paddler_types",
+ "serial_test",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "paddler_ports"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "paddler_tests"
 version = "4.0.0"
 dependencies = [
@@ -5022,6 +5074,7 @@ dependencies = [
  "paddler",
  "paddler_bootstrap",
  "paddler_client",
+ "paddler_ports",
  "paddler_types",
  "reqwest",
  "serde",

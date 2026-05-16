@@ -23,8 +23,17 @@ statum = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "paddler_gui"
+path = "src/main.rs"
+
 [dev-dependencies]
+anyhow = { workspace = true }
 dashmap = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true

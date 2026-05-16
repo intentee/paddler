@@ -19,3 +19,31 @@ pub fn style_agent_container(theme: &Theme) -> container::Style {
         ..base
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+    use iced::Background;
+    use iced::Theme;
+
+    use super::COLOR_AGENT_BACKGROUND;
+    use super::COLOR_BORDER;
+    use super::style_agent_container;
+
+    #[test]
+    fn agent_container_paints_orange_background_with_black_border() -> Result<()> {
+        let style = style_agent_container(&Theme::Light);
+
+        match style.background {
+            Some(Background::Color(color)) if color == COLOR_AGENT_BACKGROUND => {}
+            other => bail!("expected COLOR_AGENT_BACKGROUND, got {other:?}"),
+        }
+
+        if style.border.color != COLOR_BORDER {
+            bail!("expected COLOR_BORDER border, got {:?}", style.border.color);
+        }
+
+        Ok(())
+    }
+}

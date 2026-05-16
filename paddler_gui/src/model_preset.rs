@@ -66,3 +66,67 @@ impl fmt::Display for ModelPreset {
         write!(formatter, "{}", self.display_name)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+    use paddler_types::agent_desired_model::AgentDesiredModel;
+
+    use super::ModelPreset;
+
+    #[test]
+    fn available_presets_returns_at_least_one_preset_per_supported_model() -> Result<()> {
+        let presets = ModelPreset::available_presets();
+
+        if presets.len() < 2 {
+            bail!("expected at least two presets, got {}", presets.len());
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn preset_without_multimodal_projection_serializes_projection_as_none() -> Result<()> {
+        let preset = ModelPreset::available_presets()
+            .into_iter()
+            .find(|preset| preset.multimodal_projection.is_none())
+            .ok_or_else(|| anyhow::anyhow!("expected a preset without multimodal_projection"))?;
+
+        let desired = preset.to_balancer_desired_state();
+
+        match desired.multimodal_projection {
+            AgentDesiredModel::None => Ok(()),
+            other => bail!("expected AgentDesiredModel::None, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn preset_with_multimodal_projection_serializes_projection_as_huggingface() -> Result<()> {
+        let preset = ModelPreset::available_presets()
+            .into_iter()
+            .find(|preset| preset.multimodal_projection.is_some())
+            .ok_or_else(|| anyhow::anyhow!("expected a preset with multimodal_projection"))?;
+
+        let desired = preset.to_balancer_desired_state();
+
+        match desired.multimodal_projection {
+            AgentDesiredModel::HuggingFace(_) => Ok(()),
+            other => bail!("expected AgentDesiredModel::HuggingFace, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn display_impl_returns_the_preset_display_name() -> Result<()> {
+        let preset = ModelPreset::available_presets()
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("expected at least one preset"))?;
+
+        if format!("{preset}") != preset.display_name {
+            bail!("Display impl did not match display_name");
+        }
+
+        Ok(())
+    }
+}

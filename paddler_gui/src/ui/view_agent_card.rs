@@ -6,21 +6,15 @@ use iced::widget::progress_bar;
 use iced::widget::row;
 use iced::widget::text;
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 
+use super::agent_status_label::agent_status_label;
+use super::display_last_path_part::display_last_path_part;
 use super::font::BOLD;
 use super::font::REGULAR;
 use super::style_agent_container::style_agent_container;
 use super::style_download_progress_bar::style_download_progress_bar;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
-fn display_last_path_part(path: &str) -> String {
-    std::path::Path::new(path)
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or(path)
-        .to_owned()
-}
 
 pub fn view_agent_card<TMessage: 'static>(
     snapshot: &AgentControllerSnapshot,
@@ -61,26 +55,7 @@ pub fn view_agent_card<TMessage: 'static>(
         name_row = name_row.push(text(model_label).font(REGULAR));
     }
 
-    let status_label = if is_downloading {
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "download sizes fit in f32 mantissa"
-        )]
-        let percentage =
-            (snapshot.download_current as f32 / snapshot.download_total as f32) * 100.0;
-
-        format!("Downloading ({percentage:.0}%)")
-    } else if snapshot.model_path.is_none() {
-        "Waiting for model...".to_owned()
-    } else {
-        match &snapshot.state_application_status {
-            AgentStateApplicationStatus::Applied => "OK".to_owned(),
-            AgentStateApplicationStatus::Fresh => "Pending".to_owned(),
-            AgentStateApplicationStatus::AttemptedAndRetrying => "Retrying".to_owned(),
-            AgentStateApplicationStatus::Stuck => "Retrying, but seems stuck?".to_owned(),
-            AgentStateApplicationStatus::AttemptedAndNotAppliable => "Needs your help".to_owned(),
-        }
-    };
+    let status_label = agent_status_label(snapshot);
 
     let mut status_row_left = column![].spacing(SPACING_HALF);
 

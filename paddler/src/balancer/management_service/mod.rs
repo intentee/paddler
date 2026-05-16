@@ -2,6 +2,7 @@ pub mod app_data;
 pub mod configuration;
 pub mod http_route;
 
+use std::net::TcpListener;
 use std::sync::Arc;
 
 use actix_web::App;
@@ -35,6 +36,7 @@ pub struct ManagementService {
     pub configuration: ManagementServiceConfiguration,
     pub embedding_sender_collection: Arc<EmbeddingSenderCollection>,
     pub generate_tokens_sender_collection: Arc<GenerateTokensSenderCollection>,
+    pub listener: Option<TcpListener>,
     pub model_metadata_sender_collection: Arc<ModelMetadataSenderCollection>,
     pub state_database: Arc<dyn StateDatabase>,
     pub statsd_prefix: String,
@@ -74,8 +76,10 @@ impl Service for ManagementService {
             statsd_prefix: self.statsd_prefix.clone(),
         });
 
-        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
-        HttpServer::new(move || {
+        let taken_listener = self.listener.take();
+        let configured_addr = self.configuration.addr;
+
+        let bound = HttpServer::new(move || {
             App::new()
                 .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                 .app_data(app_data.clone())
@@ -95,11 +99,16 @@ impl Service for ManagementService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .disable_signals()
-        .bind(self.configuration.addr)
-        .expect("Unable to bind server to address")
-        .run()
-        .await?;
+        .disable_signals();
+
+        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
+        let bound = match taken_listener {
+            Some(listener) => bound.listen(listener),
+            None => bound.bind(configured_addr),
+        }
+        .expect("Unable to bind/listen server on address");
+
+        bound.run().await?;
 
         Ok(())
     }

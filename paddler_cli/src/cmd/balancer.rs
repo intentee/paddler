@@ -113,16 +113,19 @@ impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
         let mut runner = BalancerRunner::start(BalancerRunnerParams {
             buffered_request_timeout: self.buffered_request_timeout,
+            inference_listener: None,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: self.inference_addr.socket_addr,
                 cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
                 inference_item_timeout: self.inference_item_timeout,
             },
+            management_listener: None,
             management_service_configuration: ManagementServiceConfiguration {
                 addr: self.management_addr.socket_addr,
                 cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
             },
             max_buffered_requests: self.max_buffered_requests,
+            openai_listener: None,
             openai_service_configuration: self.compat_openai_addr.clone().map(
                 |compat_openai_addr| OpenAIServiceConfiguration {
                     addr: compat_openai_addr.socket_addr,
@@ -138,6 +141,8 @@ impl Handler for Balancer {
                     statsd_reporting_interval: self.statsd_reporting_interval,
                 }
             }),
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_listener: None,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
         })

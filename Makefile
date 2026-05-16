@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := target/release/paddler
 
-COVERAGE_PACKAGES := -p paddler_gui
+COVERAGE_PACKAGES := -p paddler_gui -p paddler_gui_tests
 RUST_LOG ?= debug
 
 PADDLER_CLI_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_cli/src paddler_client/src paddler_types/src -name '*.rs')

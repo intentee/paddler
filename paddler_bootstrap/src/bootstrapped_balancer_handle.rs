@@ -1,3 +1,4 @@
+use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,13 +32,18 @@ use tokio::sync::broadcast;
 
 pub struct BalancerBootstrapConfig {
     pub buffered_request_timeout: Duration,
+    pub inference_listener: Option<TcpListener>,
     pub inference_service_configuration: InferenceServiceConfiguration,
+    pub management_listener: Option<TcpListener>,
     pub management_service_configuration: ManagementServiceConfiguration,
     pub max_buffered_requests: i32,
+    pub openai_listener: Option<TcpListener>,
     pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
     pub state_database_type: StateDatabaseType,
     pub statsd_prefix: String,
     pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
+    #[cfg(feature = "web_admin_panel")]
+    pub web_admin_panel_listener: Option<TcpListener>,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
@@ -53,13 +59,18 @@ pub struct BootstrappedBalancerHandle {
 pub async fn bootstrap_balancer(
     BalancerBootstrapConfig {
         buffered_request_timeout,
+        inference_listener,
         inference_service_configuration,
+        management_listener,
         management_service_configuration,
         max_buffered_requests,
+        openai_listener,
         openai_service_configuration,
         state_database_type,
         statsd_prefix,
         statsd_service_configuration,
+        #[cfg(feature = "web_admin_panel")]
+        web_admin_panel_listener,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration,
     }: BalancerBootstrapConfig,
@@ -94,6 +105,7 @@ pub async fn bootstrap_balancer(
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
         buffered_request_manager: buffered_request_manager.clone(),
         configuration: inference_service_configuration.clone(),
+        listener: inference_listener,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration: web_admin_panel_service_configuration.clone(),
     });
@@ -106,6 +118,7 @@ pub async fn bootstrap_balancer(
         configuration: management_service_configuration,
         embedding_sender_collection,
         generate_tokens_sender_collection,
+        listener: management_listener,
         model_metadata_sender_collection,
         state_database: state_database.clone(),
         statsd_prefix,
@@ -125,6 +138,7 @@ pub async fn bootstrap_balancer(
         service_manager.add_service(OpenAIService {
             buffered_request_manager: buffered_request_manager.clone(),
             inference_service_configuration,
+            listener: openai_listener,
             openai_service_configuration: openai_configuration,
         });
     }
@@ -141,6 +155,7 @@ pub async fn bootstrap_balancer(
     if let Some(web_admin_panel_configuration) = web_admin_panel_service_configuration {
         service_manager.add_service(WebAdminPanelService {
             configuration: web_admin_panel_configuration,
+            listener: web_admin_panel_listener,
         });
     }
 

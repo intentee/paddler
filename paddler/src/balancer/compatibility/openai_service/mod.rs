@@ -2,6 +2,7 @@ pub mod app_data;
 pub mod configuration;
 pub mod http_route;
 
+use std::net::TcpListener;
 use std::sync::Arc;
 
 use actix_web::App;
@@ -22,6 +23,7 @@ use crate::service::Service;
 pub struct OpenAIService {
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub inference_service_configuration: InferenceServiceConfiguration,
+    pub listener: Option<TcpListener>,
     pub openai_service_configuration: OpenAIServiceConfiguration,
 }
 
@@ -43,8 +45,10 @@ impl Service for OpenAIService {
             inference_service_configuration: self.inference_service_configuration.clone(),
         });
 
-        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
-        HttpServer::new(move || {
+        let taken_listener = self.listener.take();
+        let configured_addr = self.openai_service_configuration.addr;
+
+        let bound = HttpServer::new(move || {
             App::new()
                 .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                 .app_data(app_data.clone())
@@ -54,11 +58,16 @@ impl Service for OpenAIService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .disable_signals()
-        .bind(self.openai_service_configuration.addr)
-        .expect("Unable to bind server to address")
-        .run()
-        .await?;
+        .disable_signals();
+
+        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
+        let bound = match taken_listener {
+            Some(listener) => bound.listen(listener),
+            None => bound.bind(configured_addr),
+        }
+        .expect("Unable to bind/listen server on address");
+
+        bound.run().await?;
 
         Ok(())
     }

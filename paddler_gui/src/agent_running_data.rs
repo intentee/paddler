@@ -26,3 +26,85 @@ impl AgentRunningData {
         };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use anyhow::Result;
+    use anyhow::bail;
+    use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+    use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+    use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+
+    use super::AgentRunningData;
+
+    #[test]
+    fn apply_status_marks_connected_preserves_existing_name_and_copies_snapshot_fields()
+    -> Result<()> {
+        let mut data = AgentRunningData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            connected: false,
+            snapshot: AgentControllerSnapshot {
+                desired_slots_total: 0,
+                download_current: 0,
+                download_filename: None,
+                download_total: 0,
+                id: "stale-id-should-be-cleared".to_owned(),
+                issues: BTreeSet::new(),
+                model_path: None,
+                name: Some("agent-fixture".to_owned()),
+                slots_processing: 0,
+                slots_total: 0,
+                state_application_status: AgentStateApplicationStatus::Fresh,
+                uses_chat_template_override: false,
+            },
+        };
+
+        let status = SlotAggregatedStatusSnapshot {
+            desired_slots_total: 6,
+            download_current: 100,
+            download_filename: Some("model.gguf".to_owned()),
+            download_total: 200,
+            issues: BTreeSet::new(),
+            model_path: Some("/models/model.gguf".to_owned()),
+            slots_processing: 2,
+            slots_total: 6,
+            state_application_status: AgentStateApplicationStatus::Applied,
+            uses_chat_template_override: true,
+            version: 7,
+        };
+
+        data.apply_status(status);
+
+        if !data.connected {
+            bail!("expected connected to flip to true");
+        }
+
+        if data.snapshot.name.as_deref() != Some("agent-fixture") {
+            bail!("expected existing name to be preserved");
+        }
+
+        if !data.snapshot.id.is_empty() {
+            bail!("expected id to be cleared by apply_status");
+        }
+
+        if data.snapshot.desired_slots_total != 6 {
+            bail!("expected desired_slots_total to be copied from status");
+        }
+
+        if data.snapshot.slots_processing != 2 {
+            bail!("expected slots_processing to be copied from status");
+        }
+
+        if data.snapshot.model_path.as_deref() != Some("/models/model.gguf") {
+            bail!("expected model_path to be copied from status");
+        }
+
+        if !data.snapshot.uses_chat_template_override {
+            bail!("expected uses_chat_template_override to be copied from status");
+        }
+
+        Ok(())
+    }
+}

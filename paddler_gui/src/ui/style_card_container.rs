@@ -19,3 +19,23 @@ pub fn style_card_container(theme: &Theme) -> container::Style {
         ..base
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+    use iced::Theme;
+
+    use super::COLOR_BORDER;
+    use super::style_card_container;
+
+    #[test]
+    fn card_container_has_border_in_outline_color() -> Result<()> {
+        let style = style_card_container(&Theme::Light);
+
+        if style.border.color != COLOR_BORDER {
+            bail!("expected COLOR_BORDER border, got {:?}", style.border.color);
+        }
+        Ok(())
+    }
+}

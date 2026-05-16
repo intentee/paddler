@@ -132,3 +132,258 @@ impl Screen<RunningBalancer> {
         self.transition_with(HomeData { error: Some(error) })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+
+    use super::AgentRunning;
+    use super::HomeData;
+    use super::JoinBalancerForm;
+    use super::JoinBalancerFormData;
+    use super::RunningBalancer;
+    use super::RunningBalancerData;
+    use super::RunningBalancerSnapshot;
+    use super::Screen;
+    use super::StartBalancerForm;
+    use super::StartBalancerFormData;
+
+    fn home() -> Screen<super::Home> {
+        Screen::<super::Home>::builder()
+            .state_data(HomeData { error: None })
+            .build()
+    }
+
+    fn join_form(prefilled: JoinBalancerFormData) -> Screen<JoinBalancerForm> {
+        Screen::<JoinBalancerForm>::builder()
+            .state_data(prefilled)
+            .build()
+    }
+
+    fn start_form(prefilled: StartBalancerFormData) -> Screen<StartBalancerForm> {
+        Screen::<StartBalancerForm>::builder()
+            .state_data(prefilled)
+            .build()
+    }
+
+    fn agent_running(prefilled: super::AgentRunningData) -> Screen<AgentRunning> {
+        Screen::<AgentRunning>::builder()
+            .state_data(prefilled)
+            .build()
+    }
+
+    fn running(prefilled: RunningBalancerData) -> Screen<RunningBalancer> {
+        Screen::<RunningBalancer>::builder()
+            .state_data(prefilled)
+            .build()
+    }
+
+    fn fresh_start_form_data() -> StartBalancerFormData {
+        StartBalancerFormData {
+            add_model_later: false,
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            balancer_address_error: None,
+            inference_address: "127.0.0.1:8061".to_owned(),
+            inference_address_error: None,
+            model_error: None,
+            selected_model: None,
+            starting: true,
+            web_admin_panel_address: String::new(),
+            web_admin_panel_address_error: None,
+            web_admin_panel_address_placeholder: String::new(),
+        }
+    }
+
+    fn fresh_running_data() -> RunningBalancerData {
+        RunningBalancerData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            snapshot: RunningBalancerSnapshot::default(),
+            stopping: false,
+            web_admin_panel_address: None,
+        }
+    }
+
+    fn fresh_agent_running_data() -> super::AgentRunningData {
+        use std::collections::BTreeSet;
+
+        use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+
+        super::AgentRunningData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            connected: false,
+            snapshot: AgentControllerSnapshot {
+                desired_slots_total: 0,
+                download_current: 0,
+                download_filename: None,
+                download_total: 0,
+                id: String::new(),
+                issues: BTreeSet::new(),
+                model_path: None,
+                name: None,
+                slots_processing: 0,
+                slots_total: 0,
+                state_application_status: AgentStateApplicationStatus::Fresh,
+                uses_chat_template_override: false,
+            },
+        }
+    }
+
+    #[test]
+    fn home_to_join_balancer_form_starts_with_empty_form_state() -> Result<()> {
+        let _moved = home().join_balancer();
+        Ok(())
+    }
+
+    #[test]
+    fn home_to_start_balancer_form_seeds_addresses_from_detected_interfaces() -> Result<()> {
+        let next = home().start_balancer();
+
+        if next.state_data.balancer_address.is_empty() {
+            bail!("expected start form to be seeded with a balancer_address");
+        }
+
+        if !next.state_data.balancer_address.ends_with(":8060") {
+            bail!(
+                "expected default balancer port suffix :8060, got {}",
+                next.state_data.balancer_address
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn join_balancer_form_cancel_returns_home_without_error() -> Result<()> {
+        let next = join_form(JoinBalancerFormData::default()).cancel();
+
+        if next.state_data.error.is_some() {
+            bail!("cancel should not surface an error on home");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn join_balancer_form_connect_with_empty_agent_name_sets_name_none_on_agent_screen()
+    -> Result<()> {
+        let form = join_form(JoinBalancerFormData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            ..JoinBalancerFormData::default()
+        });
+
+        let next = form.connect();
+
+        if next.state_data.snapshot.name.is_some() {
+            bail!("expected agent name None when form field empty");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn join_balancer_form_connect_with_filled_agent_name_sets_some_name_on_agent_screen()
+    -> Result<()> {
+        let form = join_form(JoinBalancerFormData {
+            agent_name: "primary".to_owned(),
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            ..JoinBalancerFormData::default()
+        });
+
+        let next = form.connect();
+
+        if next.state_data.snapshot.name.as_deref() != Some("primary") {
+            bail!("expected agent name Some(\"primary\")");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn agent_running_disconnect_returns_home_without_error() -> Result<()> {
+        let next = agent_running(fresh_agent_running_data()).disconnect();
+        if next.state_data.error.is_some() {
+            bail!("disconnect should not surface an error on home");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn agent_running_agent_failed_returns_home_with_error_message() -> Result<()> {
+        let next = agent_running(fresh_agent_running_data()).agent_failed("oops".to_owned());
+
+        match next.state_data.error.as_deref() {
+            Some("oops") => Ok(()),
+            other => bail!("expected error Some(\"oops\"), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn start_balancer_form_cancel_returns_home_without_error() -> Result<()> {
+        let next = start_form(fresh_start_form_data()).cancel();
+        if next.state_data.error.is_some() {
+            bail!("cancel should not surface an error on home");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn start_balancer_form_balancer_started_with_web_admin_address_carries_it_forward()
+    -> Result<()> {
+        let form = start_form(StartBalancerFormData {
+            web_admin_panel_address: "127.0.0.1:8062".to_owned(),
+            ..fresh_start_form_data()
+        });
+
+        let next = form.balancer_started();
+
+        match next.state_data.web_admin_panel_address.as_deref() {
+            Some("127.0.0.1:8062") => Ok(()),
+            other => bail!("expected web_admin_panel_address forwarded, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn start_balancer_form_balancer_started_with_empty_web_admin_address_resolves_to_none()
+    -> Result<()> {
+        let form = start_form(StartBalancerFormData {
+            web_admin_panel_address: String::new(),
+            ..fresh_start_form_data()
+        });
+
+        let next = form.balancer_started();
+
+        if next.state_data.web_admin_panel_address.is_some() {
+            bail!("expected empty web_admin_panel_address to become None");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn start_balancer_form_balancer_failed_returns_home_with_error_message() -> Result<()> {
+        let next = start_form(fresh_start_form_data()).balancer_failed("nope".to_owned());
+
+        match next.state_data.error.as_deref() {
+            Some("nope") => Ok(()),
+            other => bail!("expected error Some(\"nope\"), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn running_balancer_balancer_stopped_returns_home_without_error() -> Result<()> {
+        let next = running(fresh_running_data()).balancer_stopped();
+        if next.state_data.error.is_some() {
+            bail!("balancer_stopped should not surface an error on home");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn running_balancer_balancer_failed_returns_home_with_error_message() -> Result<()> {
+        let next = running(fresh_running_data()).balancer_failed("kaboom".to_owned());
+
+        match next.state_data.error.as_deref() {
+            Some("kaboom") => Ok(()),
+            other => bail!("expected error Some(\"kaboom\"), got {other:?}"),
+        }
+    }
+
+    use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+}

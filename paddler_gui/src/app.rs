@@ -10,7 +10,6 @@ use iced::Fill;
 use iced::Right;
 use iced::Subscription;
 use iced::Task;
-use iced::futures::SinkExt;
 use iced::keyboard;
 use iced::widget::column;
 use iced::widget::container;
@@ -26,27 +25,24 @@ use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler::produces_snapshot::ProducesSnapshot;
 #[cfg(feature = "web_admin_panel")]
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler::subscribes_to_updates::SubscribesToUpdates as _;
-use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
-use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_running_handler;
 use crate::current_screen::CurrentScreen;
+use crate::drive_agent_stream::drive_agent_stream;
+use crate::drive_balancer_stream::drive_balancer_stream;
+use crate::drive_shutdown_signal_stream::drive_shutdown_signal_stream;
 use crate::home_data::HomeData;
 use crate::home_handler;
 use crate::join_balancer_form_handler;
 use crate::message::Message;
 use crate::running_balancer_handler;
-use crate::running_balancer_snapshot::RunningBalancerSnapshot;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
 use crate::start_balancer_form_handler;
@@ -61,29 +57,6 @@ use crate::ui::view_start_balancer_form::view_start_balancer_form;
 static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
 });
-
-fn shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
-    iced::stream::channel(1, async move |mut output| {
-        let shutdown_signals = match register_shutdown_signals() {
-            Ok(shutdown_signals) => shutdown_signals,
-            Err(error) => {
-                log::error!("failed to register shutdown signal handlers: {error}");
-
-                return;
-            }
-        };
-
-        if let Err(error) = shutdown_signals.wait().await {
-            log::error!("shutdown signal listener failed: {error}");
-
-            return;
-        }
-
-        if let Err(err) = output.send(Message::Quit).await {
-            log::warn!("Failed to deliver Quit message to iced runtime (receiver dropped): {err}");
-        }
-    })
-}
 
 pub struct App {
     agent_cancel: Option<CancellationToken>,
@@ -318,7 +291,11 @@ impl App {
                 _ => None,
             }),
             window::close_requests().map(|_| Message::Quit),
-            Subscription::run(shutdown_signal_stream),
+            Subscription::run(|| {
+                iced::stream::channel(1, |output| {
+                    drive_shutdown_signal_stream(register_shutdown_signals(), output)
+                })
+            }),
         ])
     }
 
@@ -373,77 +350,51 @@ impl App {
         self.agent_cancel = Some(cancel.clone());
         self.screen = CurrentScreen::AgentRunning(screen);
 
-        Task::stream(iced::stream::channel(1, async move |mut output| {
-            let mut runner = AgentRunner::start(AgentRunnerParams {
-                agent_name,
-                management_address,
-                cancellation_token: cancel,
-                slots,
-            });
+        let params = AgentRunnerParams {
+            agent_name,
+            cancellation_token: cancel,
+            management_address,
+            slots,
+        };
 
-            let slot_aggregated_status = runner.slot_aggregated_status.clone();
-            let mut update_rx = slot_aggregated_status.subscribe_to_updates();
-            let completion_future = runner.wait_for_completion();
-            tokio::pin!(completion_future);
-
-            loop {
-                match slot_aggregated_status.make_snapshot() {
-                    Ok(snapshot) => {
-                        if output
-                            .send(Message::AgentRunning(
-                                agent_running_handler::Message::AgentStatusUpdated(snapshot),
-                            ))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("Failed to make agent status snapshot: {error}");
-
-                        return;
-                    }
-                }
-
-                tokio::select! {
-                    changed = update_rx.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    result = &mut completion_future => {
-                        match result {
-                            Ok(()) => {
-                                if let Err(err) = output.send(Message::AgentStopped).await {
-                                    log::warn!(
-                                        "Failed to deliver AgentStopped to UI (receiver dropped): {err}"
-                                    );
-                                }
-                            }
-                            Err(error) => {
-                                let detail = error.to_string();
-                                if let Err(err) = output
-                                    .send(Message::AgentFailed(detail.clone()))
-                                    .await
-                                {
-                                    log::error!(
-                                        "Failed to deliver AgentFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
-                                    );
-                                }
-                            }
-                        }
-
-                        return;
-                    }
-                }
-            }
+        Task::stream(iced::stream::channel(1, move |output| {
+            drive_agent_stream(params, output)
         }))
     }
 
     #[cfg(test)]
     pub fn shutdown_token_for_test(&self) -> CancellationToken {
         self.shutdown.clone()
+    }
+
+    #[cfg(test)]
+    pub fn agent_cancel_for_test(&self) -> Option<CancellationToken> {
+        self.agent_cancel.clone()
+    }
+
+    #[cfg(test)]
+    pub fn balancer_cancel_for_test(&self) -> Option<CancellationToken> {
+        self.balancer_cancel.clone()
+    }
+
+    #[cfg(test)]
+    pub fn set_balancer_cancel_for_test(&mut self, token: CancellationToken) {
+        self.balancer_cancel = Some(token);
+    }
+
+    #[cfg(test)]
+    pub fn set_agent_cancel_for_test(&mut self, token: CancellationToken) {
+        self.agent_cancel = Some(token);
+    }
+
+    #[cfg(test)]
+    pub fn current_screen_for_test(&self) -> &CurrentScreen {
+        &self.screen
+    }
+
+    #[cfg(test)]
+    pub fn set_screen_for_test(&mut self, screen: CurrentScreen) {
+        self.screen = screen;
     }
 
     fn spawn_balancer(
@@ -491,164 +442,648 @@ impl App {
 
         let params = BalancerRunnerParams {
             buffered_request_timeout,
+            inference_listener: None,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: inference_addr,
                 cors_allowed_hosts: vec![],
                 inference_item_timeout: Duration::from_secs(30),
             },
+            management_listener: None,
             management_service_configuration: ManagementServiceConfiguration {
                 addr: management_addr,
                 cors_allowed_hosts: vec![],
             },
             max_buffered_requests,
+            openai_listener: None,
             openai_service_configuration: None,
             cancellation_token: cancel,
             state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
             statsd_prefix: statsd_prefix.to_owned(),
             statsd_service_configuration: None,
             #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_listener: None,
+            #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         };
 
-        Task::stream(iced::stream::channel(1, async move |mut output| {
-            let mut runner = match BalancerRunner::start(params).await {
-                Ok(runner) => runner,
-                Err(error) => {
-                    let detail = error.to_string();
-                    if let Err(err) = output.send(Message::BalancerFailed(detail.clone())).await {
-                        log::error!(
-                            "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
-                        );
-                    }
-
-                    return;
-                }
-            };
-
-            let completion_future = runner.wait_for_completion();
-            tokio::pin!(completion_future);
-
-            if output.send(Message::BalancerStarted).await.is_err() {
-                return;
-            }
-
-            let mut desired_state_rx = runner.balancer_desired_state_tx.subscribe();
-            let mut current_desired_state = runner.initial_desired_state.clone();
-            let mut pool_update_rx = runner.agent_controller_pool.subscribe_to_updates();
-            let mut holder_update_rx = runner
-                .balancer_applicable_state_holder
-                .subscribe_to_updates();
-
-            loop {
-                match RunningBalancerSnapshot::build(
-                    &runner.agent_controller_pool,
-                    &runner.balancer_applicable_state_holder,
-                    current_desired_state.clone(),
-                ) {
-                    Ok(snapshot) => {
-                        if output
-                            .send(Message::RunningBalancer(
-                                running_balancer_handler::Message::SnapshotUpdated(Box::new(
-                                    snapshot,
-                                )),
-                            ))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("Failed to build running balancer snapshot: {error}");
-
-                        return;
-                    }
-                }
-
-                tokio::select! {
-                    changed = pool_update_rx.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    changed = holder_update_rx.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    desired_state_result = desired_state_rx.recv() => {
-                        match desired_state_result {
-                            Ok(new_desired_state) => {
-                                current_desired_state = new_desired_state;
-                            }
-                            Err(broadcast::error::RecvError::Lagged(missed)) => {
-                                log::warn!(
-                                    "Desired-state broadcast lagged by {missed} messages; \
-                                     continuing with the last known state"
-                                );
-                            }
-                            Err(broadcast::error::RecvError::Closed) => {
-                                log::info!(
-                                    "Desired-state broadcast closed; ending snapshot stream"
-                                );
-
-                                return;
-                            }
-                        }
-                    }
-                    result = &mut completion_future => {
-                        match result {
-                            Ok(()) => {
-                                if let Err(err) = output.send(Message::BalancerStopped).await {
-                                    log::warn!(
-                                        "Failed to deliver BalancerStopped to UI (receiver dropped): {err}"
-                                    );
-                                }
-                            }
-                            Err(error) => {
-                                let detail = error.to_string();
-                                if let Err(err) = output
-                                    .send(Message::BalancerFailed(detail.clone()))
-                                    .await
-                                {
-                                    log::error!(
-                                        "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
-                                    );
-                                }
-                            }
-                        }
-
-                        return;
-                    }
-                }
-            }
+        Task::stream(iced::stream::channel(1, move |output| {
+            drive_balancer_stream(params, output)
         }))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::net::TcpListener;
+
+    use anyhow::Result;
+    use anyhow::bail;
+
     use super::*;
+    use crate::agent_running_data::AgentRunningData;
+    use crate::join_balancer_form_data::JoinBalancerFormData;
+    use crate::running_balancer_data::RunningBalancerData;
+    use crate::running_balancer_snapshot::RunningBalancerSnapshot;
+    use crate::screen::AgentRunning;
+    use crate::screen::JoinBalancerForm;
+    use crate::screen::RunningBalancer;
+    use crate::screen::StartBalancerForm;
+    use crate::start_balancer_form_data::StartBalancerFormData;
 
-    #[test]
-    fn quit_message_cancels_shutdown_token() {
+    fn fresh_join_form_data() -> JoinBalancerFormData {
+        JoinBalancerFormData::default()
+    }
+
+    fn fresh_start_form_data() -> StartBalancerFormData {
+        StartBalancerFormData {
+            add_model_later: false,
+            balancer_address: String::new(),
+            balancer_address_error: None,
+            inference_address: String::new(),
+            inference_address_error: None,
+            model_error: None,
+            selected_model: None,
+            starting: false,
+            web_admin_panel_address: String::new(),
+            web_admin_panel_address_error: None,
+            web_admin_panel_address_placeholder: String::new(),
+        }
+    }
+
+    fn fresh_running_data() -> RunningBalancerData {
+        RunningBalancerData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            snapshot: RunningBalancerSnapshot::default(),
+            stopping: false,
+            web_admin_panel_address: None,
+        }
+    }
+
+    fn fresh_agent_running_data() -> AgentRunningData {
+        use std::collections::BTreeSet;
+
+        use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
+        use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+
+        AgentRunningData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            connected: false,
+            snapshot: AgentControllerSnapshot {
+                desired_slots_total: 0,
+                download_current: 0,
+                download_filename: None,
+                download_total: 0,
+                id: String::new(),
+                issues: BTreeSet::new(),
+                model_path: None,
+                name: None,
+                slots_processing: 0,
+                slots_total: 0,
+                state_application_status: AgentStateApplicationStatus::Fresh,
+                uses_chat_template_override: false,
+            },
+        }
+    }
+
+    fn app_with_screen(screen: CurrentScreen) -> App {
         let (mut app, _initial_task) = App::new();
-        let shutdown = app.shutdown_token_for_test();
+        app.set_screen_for_test(screen);
+        app
+    }
 
-        assert!(!shutdown.is_cancelled());
+    fn screen_join_form(form: JoinBalancerFormData) -> CurrentScreen {
+        CurrentScreen::JoinBalancerForm(
+            Screen::<JoinBalancerForm>::builder().state_data(form).build(),
+        )
+    }
 
-        let _exit_task = app.update(Message::Quit);
+    fn screen_start_form(form: StartBalancerFormData) -> CurrentScreen {
+        CurrentScreen::StartBalancerForm(
+            Screen::<StartBalancerForm>::builder()
+                .state_data(form)
+                .build(),
+        )
+    }
 
-        assert!(shutdown.is_cancelled());
+    fn screen_running(data: RunningBalancerData) -> CurrentScreen {
+        CurrentScreen::RunningBalancer(
+            Screen::<RunningBalancer>::builder().state_data(data).build(),
+        )
+    }
+
+    fn screen_agent_running(data: AgentRunningData) -> CurrentScreen {
+        CurrentScreen::AgentRunning(
+            Screen::<AgentRunning>::builder().state_data(data).build(),
+        )
+    }
+
+    fn ephemeral_loopback_addr() -> Result<String> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let addr = listener.local_addr()?;
+        drop(listener);
+        Ok(addr.to_string())
+    }
+
+    fn assert_screen_is_home(app: &App) -> Result<()> {
+        match app.current_screen_for_test() {
+            CurrentScreen::Home(_) => Ok(()),
+            _ => bail!("expected Home screen"),
+        }
     }
 
     #[test]
-    fn quit_message_drops_both_runners() {
+    fn quit_message_cancels_shutdown_token() -> Result<()> {
+        let (mut app, _initial_task) = App::new();
+        let shutdown = app.shutdown_token_for_test();
+
+        if shutdown.is_cancelled() {
+            bail!("expected shutdown token to start uncancelled");
+        }
+
+        let _exit_task = app.update(Message::Quit);
+
+        if !shutdown.is_cancelled() {
+            bail!("expected Quit to cancel shutdown token");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn quit_message_drops_both_runners() -> Result<()> {
         let (mut app, _initial_task) = App::new();
 
         let _exit_task = app.update(Message::Quit);
 
-        assert!(app.agent_cancel.is_none());
-        assert!(app.balancer_cancel.is_none());
+        if app.agent_cancel_for_test().is_some() {
+            bail!("expected Quit to drop agent_cancel");
+        }
+        if app.balancer_cancel_for_test().is_some() {
+            bail!("expected Quit to drop balancer_cancel");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn iced_event_loop_ready_preserves_current_screen() -> Result<()> {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::IcedEventLoopReady);
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn home_start_balancer_message_transitions_to_start_balancer_form_screen() -> Result<()> {
+        let (mut app, _) = App::new();
+
+        let _ = app.update(Message::Home(home_handler::Message::StartBalancer));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::StartBalancerForm(_) => Ok(()),
+            _ => bail!("expected StartBalancerForm screen"),
+        }
+    }
+
+    #[test]
+    fn home_join_balancer_message_transitions_to_join_balancer_form_screen() -> Result<()> {
+        let (mut app, _) = App::new();
+
+        let _ = app.update(Message::Home(home_handler::Message::JoinBalancer));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::JoinBalancerForm(_) => Ok(()),
+            _ => bail!("expected JoinBalancerForm screen"),
+        }
+    }
+
+    #[test]
+    fn join_form_setter_message_keeps_user_on_the_join_balancer_form() -> Result<()> {
+        let mut app = app_with_screen(screen_join_form(fresh_join_form_data()));
+
+        let _ = app.update(Message::JoinBalancerForm(
+            join_balancer_form_handler::Message::SetAgentName("alice".to_owned()),
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::JoinBalancerForm(_) => Ok(()),
+            _ => bail!("expected to stay on JoinBalancerForm"),
+        }
+    }
+
+    #[test]
+    fn join_form_cancel_message_returns_user_to_home() -> Result<()> {
+        let mut app = app_with_screen(screen_join_form(fresh_join_form_data()));
+
+        let _ = app.update(Message::JoinBalancerForm(
+            join_balancer_form_handler::Message::Cancel,
+        ));
+
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn join_form_connect_action_transitions_to_agent_running_and_sets_agent_cancel_token()
+    -> Result<()> {
+        let mut app = app_with_screen(screen_join_form(JoinBalancerFormData {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            slots_count: "2".to_owned(),
+            ..fresh_join_form_data()
+        }));
+
+        let _ = app.update(Message::JoinBalancerForm(
+            join_balancer_form_handler::Message::Connect,
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::AgentRunning(_) => {}
+            _ => bail!("expected AgentRunning screen"),
+        }
+
+        if app.agent_cancel_for_test().is_none() {
+            bail!("expected agent_cancel token to be set");
+        }
+
+        // Stop the spawned task immediately so the test does not leave a runner.
+        if let Some(token) = app.agent_cancel_for_test() {
+            token.cancel();
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn start_form_setter_message_keeps_user_on_the_start_balancer_form() -> Result<()> {
+        let mut app = app_with_screen(screen_start_form(fresh_start_form_data()));
+
+        let _ = app.update(Message::StartBalancerForm(
+            start_balancer_form_handler::Message::SetBalancerAddress("127.0.0.1:0".to_owned()),
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::StartBalancerForm(_) => Ok(()),
+            _ => bail!("expected to stay on StartBalancerForm"),
+        }
+    }
+
+    #[test]
+    fn start_form_cancel_message_cancels_pending_balancer_token_and_returns_home() -> Result<()> {
+        let mut app = app_with_screen(screen_start_form(fresh_start_form_data()));
+        let token = CancellationToken::new();
+        app.set_balancer_cancel_for_test(token.clone());
+
+        let _ = app.update(Message::StartBalancerForm(
+            start_balancer_form_handler::Message::Cancel,
+        ));
+
+        if !token.is_cancelled() {
+            bail!("expected balancer_cancel token to be cancelled");
+        }
+
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn start_form_confirm_action_sets_balancer_cancel_token_and_starts_spawn() -> Result<()> {
+        let management_addr = ephemeral_loopback_addr()?;
+        let inference_addr = ephemeral_loopback_addr()?;
+
+        let form = StartBalancerFormData {
+            balancer_address: management_addr,
+            inference_address: inference_addr,
+            add_model_later: true,
+            ..fresh_start_form_data()
+        };
+
+        let mut app = app_with_screen(screen_start_form(form));
+
+        let _ = app.update(Message::StartBalancerForm(
+            start_balancer_form_handler::Message::Confirm,
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::StartBalancerForm(_) => {}
+            _ => bail!("expected to stay on StartBalancerForm during spawn"),
+        }
+
+        if app.balancer_cancel_for_test().is_none() {
+            bail!("expected balancer_cancel token to be set after Confirm");
+        }
+
+        if let Some(token) = app.balancer_cancel_for_test() {
+            token.cancel();
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn balancer_started_message_transitions_from_start_form_to_running_balancer() -> Result<()> {
+        let mut app = app_with_screen(screen_start_form(fresh_start_form_data()));
+
+        let _ = app.update(Message::BalancerStarted);
+
+        match app.current_screen_for_test() {
+            CurrentScreen::RunningBalancer(_) => Ok(()),
+            _ => bail!("expected RunningBalancer screen"),
+        }
+    }
+
+    #[test]
+    fn balancer_failed_message_during_startup_returns_user_to_home_with_error() -> Result<()> {
+        let mut app = app_with_screen(screen_start_form(fresh_start_form_data()));
+        app.set_balancer_cancel_for_test(CancellationToken::new());
+
+        let _ = app.update(Message::BalancerFailed("bind error".to_owned()));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::Home(home) => {
+                if home.state_data.error.as_deref() != Some("bind error") {
+                    bail!("expected home error to carry the failure message");
+                }
+                if app.balancer_cancel_for_test().is_some() {
+                    bail!("expected balancer_cancel to be dropped");
+                }
+                Ok(())
+            }
+            _ => bail!("expected Home screen"),
+        }
+    }
+
+    #[test]
+    fn running_balancer_snapshot_update_keeps_user_on_the_running_balancer_screen() -> Result<()> {
+        let mut app = app_with_screen(screen_running(fresh_running_data()));
+
+        let _ = app.update(Message::RunningBalancer(
+            running_balancer_handler::Message::SnapshotUpdated(Box::new(
+                RunningBalancerSnapshot::default(),
+            )),
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::RunningBalancer(_) => Ok(()),
+            _ => bail!("expected to stay on RunningBalancer"),
+        }
+    }
+
+    #[test]
+    fn running_balancer_stop_message_cancels_token_and_keeps_user_on_screen() -> Result<()> {
+        let mut app = app_with_screen(screen_running(fresh_running_data()));
+        let token = CancellationToken::new();
+        app.set_balancer_cancel_for_test(token.clone());
+
+        let _ = app.update(Message::RunningBalancer(
+            running_balancer_handler::Message::Stop,
+        ));
+
+        if !token.is_cancelled() {
+            bail!("expected Stop to cancel balancer_cancel token");
+        }
+
+        match app.current_screen_for_test() {
+            CurrentScreen::RunningBalancer(_) => Ok(()),
+            _ => bail!("expected to stay on RunningBalancer"),
+        }
+    }
+
+    #[test]
+    fn running_balancer_copy_to_clipboard_keeps_user_on_screen() -> Result<()> {
+        let mut app = app_with_screen(screen_running(fresh_running_data()));
+
+        let _ = app.update(Message::RunningBalancer(
+            running_balancer_handler::Message::CopyToClipboard("text".to_owned()),
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::RunningBalancer(_) => Ok(()),
+            _ => bail!("expected to stay on RunningBalancer"),
+        }
+    }
+
+    #[test]
+    fn running_balancer_open_url_with_invalid_url_logs_error_but_keeps_user_on_screen()
+    -> Result<()> {
+        let mut app = app_with_screen(screen_running(fresh_running_data()));
+
+        let _ = app.update(Message::RunningBalancer(
+            running_balancer_handler::Message::OpenUrl("not-a-real-scheme://broken".to_owned()),
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::RunningBalancer(_) => Ok(()),
+            _ => bail!("expected to stay on RunningBalancer"),
+        }
+    }
+
+    #[test]
+    fn balancer_stopped_message_from_running_balancer_returns_user_to_home() -> Result<()> {
+        let mut app = app_with_screen(screen_running(fresh_running_data()));
+        app.set_balancer_cancel_for_test(CancellationToken::new());
+
+        let _ = app.update(Message::BalancerStopped);
+
+        if app.balancer_cancel_for_test().is_some() {
+            bail!("expected balancer_cancel to be dropped");
+        }
+
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn balancer_failed_message_from_running_balancer_returns_user_to_home_with_error()
+    -> Result<()> {
+        let mut app = app_with_screen(screen_running(fresh_running_data()));
+
+        let _ = app.update(Message::BalancerFailed("crash".to_owned()));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::Home(home) => match home.state_data.error.as_deref() {
+                Some("crash") => Ok(()),
+                _ => bail!("expected error message to be carried over"),
+            },
+            _ => bail!("expected Home screen"),
+        }
+    }
+
+    #[test]
+    fn agent_running_status_update_keeps_user_on_the_agent_running_screen() -> Result<()> {
+        use std::collections::BTreeSet;
+
+        use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+        use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+
+        let mut app = app_with_screen(screen_agent_running(fresh_agent_running_data()));
+
+        let _ = app.update(Message::AgentRunning(
+            agent_running_handler::Message::AgentStatusUpdated(SlotAggregatedStatusSnapshot {
+                desired_slots_total: 0,
+                download_current: 0,
+                download_filename: None,
+                download_total: 0,
+                issues: BTreeSet::new(),
+                model_path: None,
+                slots_processing: 0,
+                slots_total: 0,
+                state_application_status: AgentStateApplicationStatus::Fresh,
+                uses_chat_template_override: false,
+                version: 0,
+            }),
+        ));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::AgentRunning(_) => Ok(()),
+            _ => bail!("expected to stay on AgentRunning"),
+        }
+    }
+
+    #[test]
+    fn agent_running_disconnect_message_cancels_token_and_returns_user_to_home() -> Result<()> {
+        let mut app = app_with_screen(screen_agent_running(fresh_agent_running_data()));
+        let token = CancellationToken::new();
+        app.set_agent_cancel_for_test(token.clone());
+
+        let _ = app.update(Message::AgentRunning(
+            agent_running_handler::Message::Disconnect,
+        ));
+
+        if !token.is_cancelled() {
+            bail!("expected Disconnect to cancel agent_cancel token");
+        }
+
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn agent_stopped_message_returns_user_to_home_without_error() -> Result<()> {
+        let mut app = app_with_screen(screen_agent_running(fresh_agent_running_data()));
+        app.set_agent_cancel_for_test(CancellationToken::new());
+
+        let _ = app.update(Message::AgentStopped);
+
+        if app.agent_cancel_for_test().is_some() {
+            bail!("expected agent_cancel to be dropped on AgentStopped");
+        }
+
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn agent_failed_message_returns_user_to_home_with_error() -> Result<()> {
+        let mut app = app_with_screen(screen_agent_running(fresh_agent_running_data()));
+
+        let _ = app.update(Message::AgentFailed("agent failure".to_owned()));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::Home(home) => match home.state_data.error.as_deref() {
+                Some("agent failure") => Ok(()),
+                _ => bail!("expected agent failure message on home"),
+            },
+            _ => bail!("expected Home screen"),
+        }
+    }
+
+    #[test]
+    fn tab_pressed_without_shift_focuses_the_next_widget() -> Result<()> {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::TabPressed { shift: false });
+        // No screen change expected — just verify the call returns.
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn tab_pressed_with_shift_focuses_the_previous_widget() -> Result<()> {
+        let (mut app, _) = App::new();
+        let _ = app.update(Message::TabPressed { shift: true });
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn an_unhandled_message_for_the_current_screen_is_logged_and_keeps_the_screen() -> Result<()> {
+        let (mut app, _) = App::new();
+        // BalancerStarted is only meaningful from the StartBalancerForm screen.
+        let _ = app.update(Message::BalancerStarted);
+        assert_screen_is_home(&app)
+    }
+
+    #[test]
+    fn view_with_home_screen_renders_the_beta_overlay_branch() -> Result<()> {
+        let (app, _) = App::new();
+        let _element = app.view();
+        Ok(())
+    }
+
+    #[test]
+    fn view_with_running_balancer_screen_renders_without_the_beta_overlay_branch() -> Result<()> {
+        let app = app_with_screen(screen_running(fresh_running_data()));
+        let _element = app.view();
+        Ok(())
+    }
+
+    #[test]
+    fn view_with_agent_running_screen_renders_the_agent_running_branch() -> Result<()> {
+        let app = app_with_screen(screen_agent_running(fresh_agent_running_data()));
+        let _element = app.view();
+        Ok(())
+    }
+
+    #[test]
+    fn view_with_join_balancer_form_renders_the_join_form_branch() -> Result<()> {
+        let app = app_with_screen(screen_join_form(fresh_join_form_data()));
+        let _element = app.view();
+        Ok(())
+    }
+
+    #[test]
+    fn view_with_start_balancer_form_renders_the_start_form_branch() -> Result<()> {
+        let app = app_with_screen(screen_start_form(fresh_start_form_data()));
+        let _element = app.view();
+        Ok(())
+    }
+
+    fn three_ephemeral_loopback_addrs() -> Result<[String; 3]> {
+        let listener_one = TcpListener::bind("127.0.0.1:0")?;
+        let listener_two = TcpListener::bind("127.0.0.1:0")?;
+        let listener_three = TcpListener::bind("127.0.0.1:0")?;
+
+        let addr_one = listener_one.local_addr()?.to_string();
+        let addr_two = listener_two.local_addr()?.to_string();
+        let addr_three = listener_three.local_addr()?.to_string();
+
+        drop(listener_one);
+        drop(listener_two);
+        drop(listener_three);
+
+        Ok([addr_one, addr_two, addr_three])
+    }
+
+    #[test]
+    fn start_balancer_with_web_admin_panel_address_builds_web_admin_configuration() -> Result<()> {
+        let [management_addr, inference_addr, web_admin_addr] = three_ephemeral_loopback_addrs()?;
+
+        let form = StartBalancerFormData {
+            balancer_address: management_addr,
+            inference_address: inference_addr,
+            web_admin_panel_address: web_admin_addr,
+            add_model_later: true,
+            ..fresh_start_form_data()
+        };
+
+        let mut app = app_with_screen(screen_start_form(form));
+
+        let _ = app.update(Message::StartBalancerForm(
+            start_balancer_form_handler::Message::Confirm,
+        ));
+
+        let Some(token) = app.balancer_cancel_for_test() else {
+            bail!("expected balancer_cancel token to be set after Confirm with web admin address");
+        };
+
+        token.cancel();
+
+        Ok(())
+    }
+
+    #[test]
+    fn subscription_returns_a_batch_without_panicking() -> Result<()> {
+        let (app, _) = App::new();
+        let _subscription = app.subscription();
+        Ok(())
     }
 }

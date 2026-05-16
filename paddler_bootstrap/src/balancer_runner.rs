@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,14 +24,19 @@ use crate::service_thread::ServiceThread;
 
 pub struct BalancerRunnerParams {
     pub buffered_request_timeout: Duration,
+    pub inference_listener: Option<TcpListener>,
     pub inference_service_configuration: InferenceServiceConfiguration,
+    pub management_listener: Option<TcpListener>,
     pub management_service_configuration: ManagementServiceConfiguration,
     pub max_buffered_requests: i32,
+    pub openai_listener: Option<TcpListener>,
     pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
     pub cancellation_token: CancellationToken,
     pub state_database_type: StateDatabaseType,
     pub statsd_prefix: String,
     pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
+    #[cfg(feature = "web_admin_panel")]
+    pub web_admin_panel_listener: Option<TcpListener>,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
@@ -47,14 +53,19 @@ impl BalancerRunner {
     pub async fn start(
         BalancerRunnerParams {
             buffered_request_timeout,
+            inference_listener,
             inference_service_configuration,
+            management_listener,
             management_service_configuration,
             max_buffered_requests,
+            openai_listener,
             openai_service_configuration,
             cancellation_token,
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_listener,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         }: BalancerRunnerParams,
@@ -67,13 +78,18 @@ impl BalancerRunner {
             state_database,
         } = bootstrap_balancer(BalancerBootstrapConfig {
             buffered_request_timeout,
+            inference_listener,
             inference_service_configuration,
+            management_listener,
             management_service_configuration,
             max_buffered_requests,
+            openai_listener,
             openai_service_configuration,
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_listener,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         })

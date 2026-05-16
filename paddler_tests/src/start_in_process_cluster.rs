@@ -32,21 +32,28 @@ pub async fn start_in_process_cluster(
         wait_for_slots_ready,
     }: InProcessClusterParams,
 ) -> Result<ClusterHandle> {
-    let addresses = BalancerAddresses::pick()?;
+    let mut addresses = BalancerAddresses::pick()?;
     let cancel_token = CancellationToken::new();
+
+    let inference_listener = addresses.inference_listener.take();
+    let management_listener = addresses.management_listener.take();
+    let openai_listener = addresses.compat_openai_listener.take();
 
     let balancer = BalancerRunner::start(BalancerRunnerParams {
         buffered_request_timeout,
+        inference_listener,
         inference_service_configuration: InferenceServiceConfiguration {
             addr: addresses.inference,
             cors_allowed_hosts: inference_cors_allowed_hosts,
             inference_item_timeout,
         },
+        management_listener,
         management_service_configuration: ManagementServiceConfiguration {
             addr: addresses.management,
             cors_allowed_hosts: management_cors_allowed_hosts,
         },
         max_buffered_requests,
+        openai_listener,
         openai_service_configuration: Some(OpenAIServiceConfiguration {
             addr: addresses.compat_openai,
         }),
@@ -54,6 +61,8 @@ pub async fn start_in_process_cluster(
         state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
         statsd_prefix: "paddler_tests_".to_owned(),
         statsd_service_configuration: None,
+        #[cfg(feature = "web_admin_panel")]
+        web_admin_panel_listener: None,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration: None,
     })

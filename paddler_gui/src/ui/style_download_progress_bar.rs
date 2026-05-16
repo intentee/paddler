@@ -17,3 +17,24 @@ pub fn style_download_progress_bar(_theme: &Theme) -> progress_bar::Style {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+    use iced::Background;
+    use iced::Theme;
+
+    use super::COLOR_BORDER;
+    use super::style_download_progress_bar;
+
+    #[test]
+    fn download_progress_bar_fills_with_border_color() -> Result<()> {
+        let style = style_download_progress_bar(&Theme::Light);
+
+        match style.bar {
+            Background::Color(color) if color == COLOR_BORDER => Ok(()),
+            other => bail!("expected COLOR_BORDER bar, got {other:?}"),
+        }
+    }
+}

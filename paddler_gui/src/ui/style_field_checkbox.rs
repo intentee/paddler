@@ -32,3 +32,40 @@ pub fn style_field_checkbox(_theme: &Theme, status: checkbox::Status) -> checkbo
         text_color: Some(COLOR_BODY_FONT),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+    use iced::Background;
+    use iced::Theme;
+    use iced::widget::checkbox;
+
+    use super::COLOR_BODY_BACKGROUND;
+    use super::COLOR_BORDER;
+    use super::style_field_checkbox;
+
+    #[test]
+    fn checkbox_in_checked_state_paints_background_with_border_color() -> Result<()> {
+        let style =
+            style_field_checkbox(&Theme::Light, checkbox::Status::Active { is_checked: true });
+
+        match style.background {
+            Background::Color(color) if color == COLOR_BORDER => Ok(()),
+            other => bail!("expected COLOR_BORDER background when checked, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn checkbox_in_unchecked_state_paints_background_with_body_background_color() -> Result<()> {
+        let style = style_field_checkbox(
+            &Theme::Light,
+            checkbox::Status::Active { is_checked: false },
+        );
+
+        match style.background {
+            Background::Color(color) if color == COLOR_BODY_BACKGROUND => Ok(()),
+            other => bail!("expected COLOR_BODY_BACKGROUND when unchecked, got {other:?}"),
+        }
+    }
+}

@@ -8,10 +8,10 @@ use iced::widget::row;
 use iced::widget::svg;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::text;
-use paddler_types::agent_desired_model::AgentDesiredModel;
 
 use super::font::BOLD;
 use super::font::REGULAR;
+use super::format_desired_model::format_desired_model;
 use super::style_button_disconnect::style_button_disconnect;
 use super::style_card_container::style_card_container;
 use super::style_status_indicator::style_status_indicator;
@@ -22,19 +22,6 @@ use super::variables::SPACING_HALF;
 use super::view_agent_card::view_agent_card;
 use crate::running_balancer_data::RunningBalancerData;
 use crate::running_balancer_handler::Message;
-
-fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
-    match desired_model {
-        AgentDesiredModel::HuggingFace(reference) => {
-            format!(
-                "HuggingFace {}/{} ({})",
-                reference.repo_id, reference.filename, reference.revision,
-            )
-        }
-        AgentDesiredModel::LocalToAgent(path) => format!("Local: {path}"),
-        AgentDesiredModel::None => "(not set)".to_owned(),
-    }
-}
 
 pub fn view_running_balancer(data: &RunningBalancerData) -> Element<'_, Message> {
     let copy_icon = svg(SvgHandle::from_memory(

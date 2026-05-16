@@ -28,6 +28,7 @@ nix = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
+paddler_ports = { workspace = true }
 paddler_types = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }

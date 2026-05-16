@@ -1,0 +1,16 @@
+[package]
+name = "paddler_ports"
+authors.workspace = true
+description = "Shared port reservation and validation utilities"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

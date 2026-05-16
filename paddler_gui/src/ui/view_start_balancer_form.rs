@@ -37,7 +37,7 @@ pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Mes
             .padding([SPACING_HALF, SPACING_BASE])
             .style(style_button_primary)
     } else {
-        button(text("Start a cluster").font(BOLD))
+        button(text("Start cluster").font(BOLD))
             .padding([SPACING_HALF, SPACING_BASE])
             .style(style_button_primary)
             .on_press(Message::Confirm)

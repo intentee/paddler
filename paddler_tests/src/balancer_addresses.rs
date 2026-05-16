@@ -3,43 +3,34 @@ use std::net::TcpListener;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_ports::bind_ephemeral_port::bind_ephemeral_port;
 use url::Url;
 
 pub struct BalancerAddresses {
     pub compat_openai: SocketAddr,
+    pub compat_openai_listener: Option<TcpListener>,
     pub inference: SocketAddr,
+    pub inference_listener: Option<TcpListener>,
     pub management: SocketAddr,
+    pub management_listener: Option<TcpListener>,
 }
 
 impl BalancerAddresses {
     pub fn pick() -> Result<Self> {
-        let inference_listener =
-            TcpListener::bind("127.0.0.1:0").context("failed to reserve inference service port")?;
-        let management_listener = TcpListener::bind("127.0.0.1:0")
-            .context("failed to reserve management service port")?;
-        let compat_openai_listener = TcpListener::bind("127.0.0.1:0")
-            .context("failed to reserve OpenAI-compat service port")?;
-
-        let inference = inference_listener
-            .local_addr()
-            .context("failed to read inference listener local address")?;
-        let management = management_listener
-            .local_addr()
-            .context("failed to read management listener local address")?;
-        let compat_openai = compat_openai_listener
-            .local_addr()
-            .context("failed to read OpenAI-compat listener local address")?;
-
-        drop((
-            inference_listener,
-            management_listener,
-            compat_openai_listener,
-        ));
+        let inference_bound =
+            bind_ephemeral_port().context("failed to reserve inference service port")?;
+        let management_bound =
+            bind_ephemeral_port().context("failed to reserve management service port")?;
+        let compat_openai_bound =
+            bind_ephemeral_port().context("failed to reserve OpenAI-compat service port")?;
 
         Ok(Self {
-            compat_openai,
-            inference,
-            management,
+            compat_openai: compat_openai_bound.socket_addr,
+            compat_openai_listener: Some(compat_openai_bound.listener),
+            inference: inference_bound.socket_addr,
+            inference_listener: Some(inference_bound.listener),
+            management: management_bound.socket_addr,
+            management_listener: Some(management_bound.listener),
         })
     }
 

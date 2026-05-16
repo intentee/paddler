@@ -19,3 +19,29 @@ impl HomeData {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+
+    use super::Action;
+    use super::HomeData;
+    use super::Message;
+
+    #[test]
+    fn start_balancer_message_dispatches_to_start_balancer_action() -> Result<()> {
+        match HomeData::update(Message::StartBalancer) {
+            Action::StartBalancer => Ok(()),
+            Action::JoinBalancer => bail!("expected StartBalancer action"),
+        }
+    }
+
+    #[test]
+    fn join_balancer_message_dispatches_to_join_balancer_action() -> Result<()> {
+        match HomeData::update(Message::JoinBalancer) {
+            Action::JoinBalancer => Ok(()),
+            Action::StartBalancer => bail!("expected JoinBalancer action"),
+        }
+    }
+}

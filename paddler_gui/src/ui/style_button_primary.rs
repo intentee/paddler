@@ -20,3 +20,32 @@ pub fn style_button_primary(theme: &Theme, status: button::Status) -> button::St
         ..base
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use anyhow::bail;
+    use iced::Background;
+    use iced::Theme;
+    use iced::widget::button;
+
+    use super::COLOR_BODY_BACKGROUND;
+    use super::COLOR_BORDER;
+    use super::style_button_primary;
+
+    #[test]
+    fn primary_button_paints_border_color_background_with_body_background_text() -> Result<()> {
+        let style = style_button_primary(&Theme::Light, button::Status::Active);
+
+        match style.background {
+            Some(Background::Color(color)) if color == COLOR_BORDER => {}
+            other => bail!("expected COLOR_BORDER background, got {other:?}"),
+        }
+
+        if style.text_color != COLOR_BODY_BACKGROUND {
+            bail!("expected text_color == COLOR_BODY_BACKGROUND");
+        }
+
+        Ok(())
+    }
+}

@@ -2,6 +2,7 @@ pub mod app_data;
 pub mod configuration;
 pub mod http_route;
 
+use std::net::TcpListener;
 use std::sync::Arc;
 
 use actix_web::App;
@@ -27,6 +28,7 @@ pub struct InferenceService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
+    pub listener: Option<TcpListener>,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
@@ -56,8 +58,11 @@ impl Service for InferenceService {
             shutdown: shutdown.clone(),
         });
 
+        let taken_listener = self.listener.take();
+        let configured_addr = self.configuration.addr;
+
         #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
-        HttpServer::new(move || {
+        let bound = HttpServer::new(move || {
             App::new()
                 .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                 .app_data(app_data.clone())
@@ -70,11 +75,15 @@ impl Service for InferenceService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .disable_signals()
-        .bind(self.configuration.addr)
-        .expect("Unable to bind server to address")
-        .run()
-        .await?;
+        .disable_signals();
+
+        let bound = match taken_listener {
+            Some(listener) => bound.listen(listener),
+            None => bound.bind(configured_addr),
+        }
+        .expect("Unable to bind/listen server on address");
+
+        bound.run().await?;
 
         Ok(())
     }

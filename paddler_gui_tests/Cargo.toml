@@ -1,0 +1,32 @@
+[package]
+name = "paddler_gui_tests"
+authors.workspace = true
+description = "Integration tests for paddler_gui"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[features]
+default = []
+web_admin_panel = ["paddler_gui/web_admin_panel"]
+
+[dependencies]
+anyhow = { workspace = true }
+iced = { workspace = true }
+iced_test = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true }
+paddler = { workspace = true }
+paddler_bootstrap = { workspace = true }
+paddler_gui = { workspace = true }
+paddler_types = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
+
+[lints]
+workspace = true
