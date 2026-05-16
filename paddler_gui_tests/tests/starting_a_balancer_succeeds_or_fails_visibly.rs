@@ -130,3 +130,25 @@ async fn when_the_ui_goes_away_the_balancer_stream_exits_without_panicking() -> 
 
     Ok(())
 }
+
+#[tokio::test]
+async fn a_failed_start_with_a_disconnected_ui_logs_the_error_and_exits_cleanly() -> Result<()> {
+    let invalid: SocketAddr = INVALID_BIND_ADDR.parse()?;
+    let cancellation_token = CancellationToken::new();
+    let params = make_balancer_runner_params(
+        BindAddresses {
+            inference_addr: invalid,
+            management_addr: invalid,
+        },
+        cancellation_token,
+    );
+
+    let (output, receiver) = mpsc::channel::<Message>(1);
+    drop(receiver);
+
+    let driver = tokio::spawn(drive_balancer_stream(params, output));
+
+    tokio::time::timeout(BALANCER_STREAM_TIMEOUT, driver).await??;
+
+    Ok(())
+}
