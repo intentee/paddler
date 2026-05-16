@@ -118,7 +118,7 @@ test.integration.metal: target/metal/debug/paddler
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
-	cargo test --features web_admin_panel
+	cargo test --workspace --features web_admin_panel
 
 .PHONY: build.client.js
 build.client.js:

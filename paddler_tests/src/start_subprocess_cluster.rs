@@ -30,7 +30,7 @@ pub async fn start_subprocess_cluster(
         wait_for_slots_ready,
     }: SubprocessClusterParams,
 ) -> Result<ClusterHandle> {
-    let addresses = BalancerAddresses::pick()?;
+    let mut addresses = BalancerAddresses::pick()?;
 
     let mut balancer_command = paddler_command();
 
@@ -64,6 +64,13 @@ pub async fn start_subprocess_cluster(
             .arg("--management-cors-allowed-host")
             .arg(allowed_host);
     }
+
+    // Release the reserved listeners so the subprocess can bind to the same addresses.
+    // The reservation prevented another concurrent test from claiming the same port; once
+    // the subprocess is spawned with those addresses on its CLI, it does its own bind.
+    addresses.inference_listener = None;
+    addresses.management_listener = None;
+    addresses.compat_openai_listener = None;
 
     let balancer = balancer_command
         .spawn()
