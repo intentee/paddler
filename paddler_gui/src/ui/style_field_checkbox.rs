@@ -7,6 +7,7 @@ use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BODY_FONT;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_field_checkbox(_theme: &Theme, status: checkbox::Status) -> checkbox::Style {
     let is_checked = matches!(
         status,
@@ -35,6 +36,11 @@ pub fn style_field_checkbox(_theme: &Theme, status: checkbox::Status) -> checkbo
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Background;
     use iced::Theme;

@@ -28,6 +28,11 @@ impl AgentRunningData {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use std::collections::BTreeSet;
 
     use anyhow::Result;

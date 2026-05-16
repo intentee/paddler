@@ -22,6 +22,10 @@ pub enum Message {
     Cancel,
 }
 
+#[expect(
+    clippy::large_enum_variant,
+    reason = "ephemeral value, immediately consumed"
+)]
 pub enum Action {
     None,
     Cancel,
@@ -154,6 +158,11 @@ impl StartBalancerFormData {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use paddler_ports::bind_ephemeral_port::bind_ephemeral_port;
     use paddler_ports::bound_port::BoundPort;

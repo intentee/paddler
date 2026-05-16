@@ -274,10 +274,6 @@ impl App {
         }
     }
 
-    #[expect(
-        clippy::unused_self,
-        reason = "signature required by iced application API"
-    )]
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch([
             keyboard::listen().filter_map(|event| match event {
@@ -363,16 +359,19 @@ impl App {
     }
 
     #[cfg(test)]
+    #[must_use]
     pub fn shutdown_token_for_test(&self) -> CancellationToken {
         self.shutdown.clone()
     }
 
     #[cfg(test)]
+    #[must_use]
     pub fn agent_cancel_for_test(&self) -> Option<CancellationToken> {
         self.agent_cancel.clone()
     }
 
     #[cfg(test)]
+    #[must_use]
     pub fn balancer_cancel_for_test(&self) -> Option<CancellationToken> {
         self.balancer_cancel.clone()
     }
@@ -388,7 +387,8 @@ impl App {
     }
 
     #[cfg(test)]
-    pub fn current_screen_for_test(&self) -> &CurrentScreen {
+    #[must_use]
+    pub const fn current_screen_for_test(&self) -> &CurrentScreen {
         &self.screen
     }
 
@@ -484,6 +484,11 @@ impl App {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
 
     use super::*;
@@ -827,6 +832,10 @@ mod tests {
     }
 
     #[test]
+    #[expect(
+        clippy::box_default,
+        reason = "explicit Box::new construction reads more clearly than Box::default in this test"
+    )]
     fn running_balancer_snapshot_update_keeps_user_on_the_running_balancer_screen() -> Result<()> {
         let mut app = app_with_screen(screen_running(fresh_running_data()));
 

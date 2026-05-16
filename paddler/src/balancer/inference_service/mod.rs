@@ -61,7 +61,6 @@ impl Service for InferenceService {
         let taken_listener = self.listener.take();
         let configured_addr = self.configuration.addr;
 
-        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
         let bound = HttpServer::new(move || {
             App::new()
                 .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
@@ -77,6 +76,7 @@ impl Service for InferenceService {
         })
         .disable_signals();
 
+        #[expect(clippy::expect_used, reason = "server bind failure is unrecoverable")]
         let bound = match taken_listener {
             Some(listener) => bound.listen(listener),
             None => bound.bind(configured_addr),

@@ -101,6 +101,11 @@ impl JoinBalancerFormData {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
 
     use super::Action;

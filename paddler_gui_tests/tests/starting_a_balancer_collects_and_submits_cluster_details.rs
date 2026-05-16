@@ -6,6 +6,10 @@ use paddler_gui::start_balancer_form_data::StartBalancerFormData;
 use paddler_gui::start_balancer_form_handler::Message;
 use paddler_gui::ui::view_start_balancer_form::view_start_balancer_form;
 
+#[expect(
+    clippy::missing_const_for_fn,
+    reason = "non-const helper keeps the surface uniform with other fixture helpers"
+)]
 fn empty_form() -> StartBalancerFormData {
     StartBalancerFormData {
         add_model_later: false,

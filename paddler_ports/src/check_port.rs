@@ -72,12 +72,7 @@ mod tests {
         let address = listener.local_addr()?;
         drop(listener);
 
-        let result = check_port(&address.to_string());
-
-        let bound = match result {
-            Ok(bound) => bound,
-            Err(error) => return Err(error.into()),
-        };
+        let bound = check_port(&address.to_string())?;
 
         if bound.socket_addr.port() != address.port() {
             anyhow::bail!("expected port {} to be preserved", address.port());

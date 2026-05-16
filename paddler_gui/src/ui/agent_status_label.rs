@@ -1,6 +1,7 @@
 use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 
+#[must_use]
 pub fn agent_status_label(snapshot: &AgentControllerSnapshot) -> String {
     let is_downloading =
         snapshot.download_total > 0 && snapshot.download_current < snapshot.download_total;
@@ -31,6 +32,11 @@ pub fn agent_status_label(snapshot: &AgentControllerSnapshot) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use std::collections::BTreeSet;
 
     use anyhow::Result;

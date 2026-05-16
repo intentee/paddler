@@ -6,6 +6,7 @@ use iced::widget::container;
 use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_card_container(theme: &Theme) -> container::Style {
     let base = container::transparent(theme);
 
@@ -22,6 +23,11 @@ pub fn style_card_container(theme: &Theme) -> container::Style {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Theme;
 

@@ -6,6 +6,7 @@ use iced::widget::progress_bar;
 use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_download_progress_bar(_theme: &Theme) -> progress_bar::Style {
     progress_bar::Style {
         background: Background::Color(COLOR_BODY_BACKGROUND),
@@ -20,6 +21,11 @@ pub fn style_download_progress_bar(_theme: &Theme) -> progress_bar::Style {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Background;
     use iced::Theme;

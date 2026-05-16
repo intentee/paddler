@@ -7,6 +7,7 @@ use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BODY_FONT;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_field_text_input(theme: &Theme, status: text_input::Status) -> text_input::Style {
     let base = text_input::default(theme, status);
 
@@ -26,6 +27,11 @@ pub fn style_field_text_input(theme: &Theme, status: text_input::Status) -> text
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Theme;
     use iced::widget::text_input;

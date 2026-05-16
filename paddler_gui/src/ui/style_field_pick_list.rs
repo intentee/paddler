@@ -7,6 +7,7 @@ use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BODY_FONT;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_field_pick_list(theme: &Theme, status: pick_list::Status) -> pick_list::Style {
     let base = pick_list::default(theme, status);
 
@@ -25,6 +26,11 @@ pub fn style_field_pick_list(theme: &Theme, status: pick_list::Status) -> pick_l
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Theme;
     use iced::widget::pick_list;

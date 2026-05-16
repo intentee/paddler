@@ -4,11 +4,11 @@ use paddler::balancer::inference_service::configuration::Configuration as Infere
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio_util::sync::CancellationToken;
 
 use crate::bind_addresses::BindAddresses;
 
+#[must_use]
 pub fn make_balancer_runner_params(
     addrs: BindAddresses,
     cancellation_token: CancellationToken,
@@ -30,7 +30,7 @@ pub fn make_balancer_runner_params(
         openai_listener: None,
         openai_service_configuration: None,
         cancellation_token,
-        state_database_type: StateDatabaseType::Memory(Box::new(BalancerDesiredState::default())),
+        state_database_type: StateDatabaseType::Memory(Box::default()),
         statsd_prefix: "paddler_test_".to_owned(),
         statsd_service_configuration: None,
         #[cfg(feature = "web_admin_panel")]

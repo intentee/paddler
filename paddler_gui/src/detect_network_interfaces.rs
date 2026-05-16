@@ -1,5 +1,6 @@
 use crate::network_interface_address::NetworkInterfaceAddress;
 
+#[must_use]
 pub fn detect_network_interfaces() -> Vec<NetworkInterfaceAddress> {
     let interfaces = match if_addrs::get_if_addrs() {
         Ok(interfaces) => interfaces,
@@ -27,6 +28,11 @@ pub fn detect_network_interfaces() -> Vec<NetworkInterfaceAddress> {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
 
     use super::detect_network_interfaces;

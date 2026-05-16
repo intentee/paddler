@@ -1,5 +1,6 @@
 use std::path::Path;
 
+#[must_use]
 pub fn display_last_path_part(path: &str) -> String {
     Path::new(path)
         .file_name()
@@ -10,6 +11,11 @@ pub fn display_last_path_part(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
 
     use super::display_last_path_part;

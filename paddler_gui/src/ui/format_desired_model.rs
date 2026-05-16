@@ -1,5 +1,6 @@
 use paddler_types::agent_desired_model::AgentDesiredModel;
 
+#[must_use]
 pub fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
     match desired_model {
         AgentDesiredModel::HuggingFace(reference) => {
@@ -15,6 +16,11 @@ pub fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use paddler_types::agent_desired_model::AgentDesiredModel;
     use paddler_types::huggingface_model_reference::HuggingFaceModelReference;

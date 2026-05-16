@@ -1,12 +1,15 @@
 use std::num::IntErrorKind;
 
+#[derive(Default)]
 pub enum SlotCountField {
+    #[default]
     Empty,
     Valid { raw: String, value: i32 },
     Invalid { raw: String, error: String },
 }
 
 impl SlotCountField {
+    #[must_use]
     pub fn from_user_input(raw: String) -> Self {
         if raw.is_empty() {
             return Self::Empty;
@@ -39,6 +42,7 @@ impl SlotCountField {
         }
     }
 
+    #[must_use]
     pub fn raw_text(&self) -> &str {
         match self {
             Self::Empty => "",
@@ -46,16 +50,11 @@ impl SlotCountField {
         }
     }
 
+    #[must_use]
     pub fn error_text(&self) -> Option<&str> {
         match self {
             Self::Invalid { error, .. } => Some(error),
             _ => None,
         }
-    }
-}
-
-impl Default for SlotCountField {
-    fn default() -> Self {
-        Self::Empty
     }
 }

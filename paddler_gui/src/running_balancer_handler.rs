@@ -37,6 +37,11 @@ impl RunningBalancerData {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use paddler_types::agent_desired_model::AgentDesiredModel;
     use paddler_types::balancer_desired_state::BalancerDesiredState;

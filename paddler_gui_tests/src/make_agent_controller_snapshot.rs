@@ -33,6 +33,7 @@ impl Default for AgentSnapshotFixture {
     }
 }
 
+#[must_use]
 pub fn make_agent_controller_snapshot(fixture: AgentSnapshotFixture) -> AgentControllerSnapshot {
     AgentControllerSnapshot {
         desired_slots_total: fixture.desired_slots_total,

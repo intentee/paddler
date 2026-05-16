@@ -14,6 +14,7 @@ pub struct ModelPreset {
 }
 
 impl ModelPreset {
+    #[must_use]
     pub fn available_presets() -> Vec<Self> {
         vec![
             Self {
@@ -43,6 +44,7 @@ impl ModelPreset {
         ]
     }
 
+    #[must_use]
     pub fn to_balancer_desired_state(&self) -> BalancerDesiredState {
         let multimodal_projection = self
             .multimodal_projection
@@ -75,6 +77,10 @@ mod tests {
     use super::ModelPreset;
 
     #[test]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
     fn available_presets_returns_at_least_one_preset_per_supported_model() -> Result<()> {
         let presets = ModelPreset::available_presets();
 

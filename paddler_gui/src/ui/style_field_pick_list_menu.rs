@@ -8,6 +8,7 @@ use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BODY_FONT;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_field_pick_list_menu(theme: &Theme) -> menu::Style {
     let base = menu::default(theme);
 
@@ -27,6 +28,11 @@ pub fn style_field_pick_list_menu(theme: &Theme) -> menu::Style {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Theme;
 

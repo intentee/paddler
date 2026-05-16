@@ -12,6 +12,7 @@ pub enum Action {
 }
 
 impl HomeData {
+    #[must_use]
     pub const fn update(message: Message) -> Action {
         match message {
             Message::StartBalancer => Action::StartBalancer,

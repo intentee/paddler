@@ -17,6 +17,10 @@ fn ephemeral_management_address() -> Result<String> {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::needless_continue,
+    reason = "explicit continue documents the no-op branch for readability"
+)]
 async fn cancellation_token_makes_the_agent_send_a_stopped_message_and_finish() -> Result<()> {
     let cancellation_token = CancellationToken::new();
     let params = AgentRunnerParams {

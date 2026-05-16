@@ -54,6 +54,10 @@ async fn an_invalid_bind_address_tells_the_user_the_balancer_failed_to_start() -
 }
 
 #[tokio::test]
+#[expect(
+    clippy::needless_continue,
+    reason = "explicit continue documents the no-op branch for readability"
+)]
 async fn a_running_balancer_reports_started_and_then_stopped_when_the_user_cancels() -> Result<()> {
     let cancellation_token = CancellationToken::new();
     let params = make_balancer_runner_params(

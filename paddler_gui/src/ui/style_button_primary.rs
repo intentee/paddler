@@ -6,6 +6,7 @@ use iced::widget::button;
 use super::variables::COLOR_BODY_BACKGROUND;
 use super::variables::COLOR_BORDER;
 
+#[must_use]
 pub fn style_button_primary(theme: &Theme, status: button::Status) -> button::Style {
     let base = button::primary(theme, status);
 
@@ -23,6 +24,11 @@ pub fn style_button_primary(theme: &Theme, status: button::Status) -> button::St
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Background;
     use iced::Theme;

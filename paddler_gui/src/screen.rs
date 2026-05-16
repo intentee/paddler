@@ -29,10 +29,12 @@ pub struct Screen<ScreenState> {}
 
 #[transition]
 impl Screen<Home> {
+    #[must_use]
     pub fn join_balancer(self) -> Screen<JoinBalancerForm> {
         self.transition_with(JoinBalancerFormData::default())
     }
 
+    #[must_use]
     pub fn start_balancer(self) -> Screen<StartBalancerForm> {
         let suggested_address = detect_network_interfaces()
             .first()
@@ -58,10 +60,12 @@ impl Screen<Home> {
 
 #[transition]
 impl Screen<JoinBalancerForm> {
+    #[must_use]
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
+    #[must_use]
     pub fn connect(self) -> Screen<AgentRunning> {
         self.transition_map(|form_data: JoinBalancerFormData| {
             let name = if form_data.agent_name.is_empty() {
@@ -94,10 +98,12 @@ impl Screen<JoinBalancerForm> {
 
 #[transition]
 impl Screen<AgentRunning> {
+    #[must_use]
     pub fn disconnect(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
+    #[must_use]
     pub fn agent_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
@@ -105,10 +111,12 @@ impl Screen<AgentRunning> {
 
 #[transition]
 impl Screen<StartBalancerForm> {
+    #[must_use]
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
+    #[must_use]
     pub fn balancer_started(self) -> Screen<RunningBalancer> {
         self.transition_map(|form_data: StartBalancerFormData| {
             let balancer_address = form_data.balancer_address.raw_text().to_owned();
@@ -125,6 +133,7 @@ impl Screen<StartBalancerForm> {
         })
     }
 
+    #[must_use]
     pub fn balancer_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
@@ -132,10 +141,12 @@ impl Screen<StartBalancerForm> {
 
 #[transition]
 impl Screen<RunningBalancer> {
+    #[must_use]
     pub fn balancer_stopped(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
+    #[must_use]
     pub fn balancer_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
@@ -143,6 +154,11 @@ impl Screen<RunningBalancer> {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
 
     use super::AddressField;

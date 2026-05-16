@@ -4,6 +4,7 @@ use iced::Color;
 use iced::Theme;
 use iced::widget::container;
 
+#[must_use]
 pub fn style_status_indicator(theme: &Theme) -> container::Style {
     let base = container::transparent(theme);
 
@@ -20,6 +21,11 @@ pub fn style_status_indicator(theme: &Theme) -> container::Style {
 
 #[cfg(test)]
 mod tests {
+    #![expect(
+        clippy::unnecessary_wraps,
+        reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
+    )]
+
     use anyhow::Result;
     use iced::Background;
     use iced::Color;

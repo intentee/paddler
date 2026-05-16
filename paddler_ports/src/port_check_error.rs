@@ -23,6 +23,7 @@ pub enum PortCheckError {
 }
 
 impl PortCheckError {
+    #[must_use]
     pub fn user_facing_message(&self) -> String {
         self.to_string()
     }
