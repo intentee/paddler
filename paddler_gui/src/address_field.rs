@@ -56,3 +56,93 @@ impl AddressField {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::TcpListener;
+
+    use super::AddressField;
+
+    #[test]
+    fn required_with_empty_input_resolves_to_empty() {
+        assert!(matches!(
+            AddressField::required_from_user_input(String::new()),
+            AddressField::Empty
+        ));
+    }
+
+    #[test]
+    fn required_with_unparseable_input_resolves_to_invalid() {
+        assert!(matches!(
+            AddressField::required_from_user_input("not-a-socket".to_owned()),
+            AddressField::Invalid { .. }
+        ));
+    }
+
+    #[test]
+    fn required_with_in_use_port_resolves_to_invalid() -> anyhow::Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let addr = listener.local_addr()?;
+
+        assert!(matches!(
+            AddressField::required_from_user_input(addr.to_string()),
+            AddressField::Invalid { .. }
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn optional_with_empty_input_resolves_to_empty() {
+        assert!(matches!(
+            AddressField::optional_from_user_input(String::new()),
+            AddressField::Empty
+        ));
+    }
+
+    #[test]
+    fn optional_with_unparseable_input_resolves_to_invalid() {
+        assert!(matches!(
+            AddressField::optional_from_user_input("not-a-socket".to_owned()),
+            AddressField::Invalid { .. }
+        ));
+    }
+
+    #[test]
+    fn optional_with_bindable_input_resolves_to_bound() -> anyhow::Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let address = listener.local_addr()?;
+        drop(listener);
+
+        assert!(matches!(
+            AddressField::optional_from_user_input(address.to_string()),
+            AddressField::Bound { .. }
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn raw_text_returns_inner_raw_for_bound_and_invalid_variants() {
+        assert_eq!(AddressField::Empty.raw_text(), "");
+        assert_eq!(
+            AddressField::Invalid {
+                raw: "raw-text".to_owned(),
+                error: "ignored".to_owned()
+            }
+            .raw_text(),
+            "raw-text"
+        );
+    }
+
+    #[test]
+    fn error_text_returns_error_only_for_invalid_variant() {
+        assert!(AddressField::Empty.error_text().is_none());
+        assert_eq!(
+            AddressField::Invalid {
+                raw: String::new(),
+                error: "the error".to_owned()
+            }
+            .error_text(),
+            Some("the error")
+        );
+    }
+}
