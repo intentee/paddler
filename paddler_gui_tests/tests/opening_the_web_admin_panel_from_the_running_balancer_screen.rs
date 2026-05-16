@@ -16,8 +16,7 @@ fn data_with_panel(address: Option<&str>) -> RunningBalancerData {
 }
 
 #[test]
-fn clicking_open_in_browser_sends_the_open_url_message_when_a_panel_address_is_set() -> Result<()>
-{
+fn clicking_open_in_browser_sends_the_open_url_message_when_a_panel_address_is_set() -> Result<()> {
     let data = data_with_panel(Some("127.0.0.1:8062"));
     let mut simulator = simulator(view_running_balancer(&data));
 

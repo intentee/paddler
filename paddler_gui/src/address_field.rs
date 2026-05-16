@@ -6,8 +6,14 @@ use paddler_ports::check_port::check_port;
 pub enum AddressField {
     #[default]
     Empty,
-    Bound { raw: String, port: BoundPort },
-    Invalid { raw: String, error: String },
+    Bound {
+        raw: String,
+        port: BoundPort,
+    },
+    Invalid {
+        raw: String,
+        error: String,
+    },
 }
 
 impl AddressField {

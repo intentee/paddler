@@ -29,8 +29,7 @@ fn clicking_stop_cluster_sends_the_stop_message_when_the_balancer_is_running() -
 }
 
 #[test]
-fn the_stop_button_does_not_react_to_clicks_while_the_balancer_is_already_stopping() -> Result<()>
-{
+fn the_stop_button_does_not_react_to_clicks_while_the_balancer_is_already_stopping() -> Result<()> {
     let data = data_with_stopping(true);
     let mut simulator = simulator(view_running_balancer(&data));
 

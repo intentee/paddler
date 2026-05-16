@@ -4,8 +4,14 @@ use std::num::IntErrorKind;
 pub enum SlotCountField {
     #[default]
     Empty,
-    Valid { raw: String, value: i32 },
-    Invalid { raw: String, error: String },
+    Valid {
+        raw: String,
+        value: i32,
+    },
+    Invalid {
+        raw: String,
+        error: String,
+    },
 }
 
 impl SlotCountField {
@@ -144,5 +150,4 @@ mod tests {
             Some("Invalid number of slots.")
         );
     }
-
 }

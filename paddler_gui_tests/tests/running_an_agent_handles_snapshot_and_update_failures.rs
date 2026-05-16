@@ -67,8 +67,8 @@ async fn snapshot_failure_exits_the_agent_stream_before_emitting_any_message() -
 }
 
 #[tokio::test]
-async fn update_channel_disconnection_exits_the_agent_stream_after_the_first_snapshot()
--> Result<()> {
+async fn update_channel_disconnection_exits_the_agent_stream_after_the_first_snapshot() -> Result<()>
+{
     let (output, mut receiver) = mpsc::channel::<Message>(8);
 
     let driver = tokio::spawn(drive_agent_stream_inner(
@@ -77,13 +77,9 @@ async fn update_channel_disconnection_exits_the_agent_stream_after_the_first_sna
         output,
     ));
 
-    let first_message =
-        tokio::time::timeout(AGENT_STREAM_TIMEOUT, receiver.next()).await?;
+    let first_message = tokio::time::timeout(AGENT_STREAM_TIMEOUT, receiver.next()).await?;
 
-    assert!(matches!(
-        first_message,
-        Some(Message::AgentRunning(_))
-    ));
+    assert!(matches!(first_message, Some(Message::AgentRunning(_))));
 
     tokio::time::timeout(AGENT_STREAM_TIMEOUT, driver).await??;
 

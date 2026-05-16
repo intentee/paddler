@@ -16,12 +16,15 @@ const SIGNAL_DELIVERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[tokio::test]
 #[serial]
-async fn if_signal_registration_fails_the_app_logs_and_keeps_running_without_quitting()
--> Result<()> {
+async fn if_signal_registration_fails_the_app_logs_and_keeps_running_without_quitting() -> Result<()>
+{
     let (output, mut receiver) = mpsc::channel::<Message>(1);
 
-    drive_shutdown_signal_stream(Err(anyhow::anyhow!("simulated registration failure")), output)
-        .await;
+    drive_shutdown_signal_stream(
+        Err(anyhow::anyhow!("simulated registration failure")),
+        output,
+    )
+    .await;
 
     match receiver.next().await {
         None => Ok(()),
@@ -41,8 +44,7 @@ async fn sigterm_delivered_to_the_process_makes_the_app_quit() -> Result<()> {
     tokio::task::yield_now().await;
     kill(Pid::this(), Signal::SIGTERM)?;
 
-    let received =
-        tokio::time::timeout(SIGNAL_DELIVERY_TIMEOUT, receiver.next()).await?;
+    let received = tokio::time::timeout(SIGNAL_DELIVERY_TIMEOUT, receiver.next()).await?;
 
     match received {
         Some(Message::Quit) => {}
