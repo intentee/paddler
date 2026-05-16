@@ -1,6 +1,7 @@
 use anyhow::Result;
 use anyhow::bail;
 use iced_test::simulator;
+use paddler_gui::address_field::AddressField;
 use paddler_gui::start_balancer_form_data::StartBalancerFormData;
 use paddler_gui::start_balancer_form_handler::Message;
 use paddler_gui::ui::view_start_balancer_form::view_start_balancer_form;
@@ -8,15 +9,12 @@ use paddler_gui::ui::view_start_balancer_form::view_start_balancer_form;
 fn empty_form() -> StartBalancerFormData {
     StartBalancerFormData {
         add_model_later: false,
-        balancer_address: String::new(),
-        balancer_address_error: None,
-        inference_address: String::new(),
-        inference_address_error: None,
+        balancer_address: AddressField::Empty,
+        inference_address: AddressField::Empty,
         model_error: None,
         selected_model: None,
         starting: false,
-        web_admin_panel_address: String::new(),
-        web_admin_panel_address_error: None,
+        web_admin_panel_address: AddressField::Empty,
         web_admin_panel_address_placeholder: String::new(),
     }
 }

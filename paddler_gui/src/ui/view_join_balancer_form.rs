@@ -30,7 +30,7 @@ pub fn view_join_balancer_form(data: &JoinBalancerFormData) -> Element<'_, Messa
         .style(button::text)
         .on_press(Message::Cancel);
 
-    let balancer_address_input = text_input("IP:port", &data.balancer_address)
+    let balancer_address_input = text_input("IP:port", data.balancer_address.raw_text())
         .on_input(Message::SetBalancerAddress)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
@@ -42,11 +42,14 @@ pub fn view_join_balancer_form(data: &JoinBalancerFormData) -> Element<'_, Messa
         .style(style_field_text_input)
         .into();
 
-    let slots_input = text_input("e.g. 1", &data.slots_count)
+    let slots_input = text_input("e.g. 1", data.slots_count.raw_text())
         .on_input(Message::SetSlotsCount)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
         .into();
+
+    let balancer_address_error = data.balancer_address.error_text().map(str::to_owned);
+    let slots_error = data.slots_count.error_text().map(str::to_owned);
 
     column![
         container(text("Join a cluster").size(FONT_SIZE_L2).font(BOLD))
@@ -56,10 +59,10 @@ pub fn view_join_balancer_form(data: &JoinBalancerFormData) -> Element<'_, Messa
                 view_form_field(
                     "Cluster address",
                     balancer_address_input,
-                    data.balancer_address_error.as_ref()
+                    balancer_address_error.as_ref()
                 ),
                 view_form_field("Agent name (optional)", agent_name_input, None),
-                view_form_field("Slots", slots_input, data.slots_error.as_ref()),
+                view_form_field("Slots", slots_input, slots_error.as_ref()),
                 container(
                     row![cancel_button, confirm_button]
                         .align_y(Center)

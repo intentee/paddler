@@ -1,45 +1,11 @@
-use std::io;
-use std::net::SocketAddr;
-use std::net::TcpListener;
+use std::mem;
 
+use paddler_ports::bound_port::BoundPort;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 
+use crate::address_field::AddressField;
 use crate::model_preset::ModelPreset;
 use crate::start_balancer_form_data::StartBalancerFormData;
-
-enum PortCheck {
-    Available,
-    InUse,
-    BindFailed(io::Error),
-}
-
-fn check_port(address: &SocketAddr) -> PortCheck {
-    match TcpListener::bind(address) {
-        Ok(_) => PortCheck::Available,
-        Err(error) if error.kind() == io::ErrorKind::AddrInUse => PortCheck::InUse,
-        Err(error) => PortCheck::BindFailed(error),
-    }
-}
-
-fn validate_optional_address(raw: &str) -> Result<Option<SocketAddr>, String> {
-    if raw.is_empty() {
-        return Ok(None);
-    }
-
-    let addr = raw
-        .parse::<SocketAddr>()
-        .map_err(|error| format!("Invalid address ({error}), expected format: IP:port"))?;
-
-    match check_port(&addr) {
-        PortCheck::Available => Ok(Some(addr)),
-        PortCheck::InUse => Err(format!("Port {} is already in use", addr.port())),
-        PortCheck::BindFailed(error) => Err(format!("Cannot bind to {addr}: {error}")),
-    }
-}
-
-fn validate_required_address(raw: &str) -> Result<SocketAddr, String> {
-    validate_optional_address(raw)?.ok_or_else(|| "Address is required.".to_owned())
-}
 
 #[expect(
     clippy::large_enum_variant,
@@ -56,17 +22,13 @@ pub enum Message {
     Cancel,
 }
 
-#[expect(
-    clippy::large_enum_variant,
-    reason = "ephemeral value, immediately consumed"
-)]
 pub enum Action {
     None,
     Cancel,
     StartBalancer {
-        management_addr: SocketAddr,
-        inference_addr: SocketAddr,
-        web_admin_panel_addr: Option<SocketAddr>,
+        management_port: BoundPort,
+        inference_port: BoundPort,
+        web_admin_panel_port: Option<BoundPort>,
         desired_state: BalancerDesiredState,
     },
 }
@@ -81,20 +43,17 @@ impl StartBalancerFormData {
                 Action::None
             }
             Message::SetBalancerAddress(address) => {
-                self.balancer_address = address;
-                self.balancer_address_error = None;
+                self.balancer_address = AddressField::required_from_user_input(address);
 
                 Action::None
             }
             Message::SetInferenceAddress(address) => {
-                self.inference_address = address;
-                self.inference_address_error = None;
+                self.inference_address = AddressField::required_from_user_input(address);
 
                 Action::None
             }
             Message::SetWebAdminPanelAddress(address) => {
-                self.web_admin_panel_address = address;
-                self.web_admin_panel_address_error = None;
+                self.web_admin_panel_address = AddressField::optional_from_user_input(address);
 
                 Action::None
             }
@@ -113,50 +72,63 @@ impl StartBalancerFormData {
     }
 
     fn validate_and_confirm(&mut self) -> Action {
-        self.balancer_address_error = None;
-        self.inference_address_error = None;
-        self.web_admin_panel_address_error = None;
         self.model_error = None;
 
         if !self.add_model_later && self.selected_model.is_none() {
             self.model_error = Some("Please select a model.".to_owned());
         }
 
-        let management_addr = match validate_required_address(&self.balancer_address) {
-            Ok(addr) => Some(addr),
-            Err(message) => {
-                self.balancer_address_error = Some(message);
-                None
-            }
-        };
+        let balancer_address = mem::take(&mut self.balancer_address);
+        let inference_address = mem::take(&mut self.inference_address);
+        let web_admin_panel_address = mem::take(&mut self.web_admin_panel_address);
 
-        let inference_addr = match validate_required_address(&self.inference_address) {
-            Ok(addr) => Some(addr),
-            Err(message) => {
-                self.inference_address_error = Some(message);
-                None
-            }
-        };
+        let model_error_present = self.model_error.is_some();
+        let any_required_address_invalid = matches!(
+            balancer_address,
+            AddressField::Empty | AddressField::Invalid { .. }
+        ) || matches!(
+            inference_address,
+            AddressField::Empty | AddressField::Invalid { .. }
+        );
+        let web_admin_panel_invalid = matches!(web_admin_panel_address, AddressField::Invalid { .. });
 
-        let web_admin_panel_addr = match validate_optional_address(&self.web_admin_panel_address) {
-            Ok(addr) => addr,
-            Err(message) => {
-                self.web_admin_panel_address_error = Some(message);
-                None
-            }
-        };
-
-        if self.model_error.is_some()
-            || self.balancer_address_error.is_some()
-            || self.inference_address_error.is_some()
-            || self.web_admin_panel_address_error.is_some()
-        {
+        if model_error_present || any_required_address_invalid || web_admin_panel_invalid {
+            self.balancer_address = match balancer_address {
+                AddressField::Empty => AddressField::Invalid {
+                    raw: String::new(),
+                    error: "Address is required.".to_owned(),
+                },
+                other => other,
+            };
+            self.inference_address = match inference_address {
+                AddressField::Empty => AddressField::Invalid {
+                    raw: String::new(),
+                    error: "Address is required.".to_owned(),
+                },
+                other => other,
+            };
+            self.web_admin_panel_address = web_admin_panel_address;
             return Action::None;
         }
 
-        let (Some(management_addr), Some(inference_addr)) = (management_addr, inference_addr)
+        let AddressField::Bound {
+            port: management_port,
+            ..
+        } = balancer_address
         else {
             return Action::None;
+        };
+        let AddressField::Bound {
+            port: inference_port,
+            ..
+        } = inference_address
+        else {
+            return Action::None;
+        };
+        let web_admin_panel_port = match web_admin_panel_address {
+            AddressField::Bound { port, .. } => Some(port),
+            AddressField::Empty => None,
+            AddressField::Invalid { .. } => return Action::None,
         };
 
         let desired_state = if self.add_model_later {
@@ -171,9 +143,9 @@ impl StartBalancerFormData {
         self.starting = true;
 
         Action::StartBalancer {
-            management_addr,
-            inference_addr,
-            web_admin_panel_addr,
+            management_port,
+            inference_port,
+            web_admin_panel_port,
             desired_state,
         }
     }
@@ -181,85 +153,14 @@ impl StartBalancerFormData {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
-    use std::net::TcpListener;
-
     use anyhow::Result;
     use anyhow::bail;
-
-    use super::PortCheck;
-    use super::check_port;
-    use super::validate_optional_address;
-    use super::validate_required_address;
-
-    const LOOPBACK_ANY_PORT: &str = "127.0.0.1:0";
-    const UNASSIGNED_TEST_NET_ADDRESS: &str = "192.0.2.1:0";
-
-    #[test]
-    fn reports_in_use_when_port_is_bound() -> Result<()> {
-        let listener = TcpListener::bind(LOOPBACK_ANY_PORT)?;
-        let bound_address = listener.local_addr()?;
-
-        match check_port(&bound_address) {
-            PortCheck::InUse => Ok(()),
-            PortCheck::Available => bail!("bound port reported as Available"),
-            PortCheck::BindFailed(error) => {
-                bail!("bound port reported as BindFailed: {error}")
-            }
-        }
-    }
-
-    #[test]
-    fn reports_available_when_port_is_free() -> Result<()> {
-        let listener = TcpListener::bind(LOOPBACK_ANY_PORT)?;
-        let bound_address = listener.local_addr()?;
-
-        drop(listener);
-
-        match check_port(&bound_address) {
-            PortCheck::Available => Ok(()),
-            PortCheck::InUse => bail!("free port reported as InUse"),
-            PortCheck::BindFailed(error) => {
-                bail!("free port reported as BindFailed: {error}")
-            }
-        }
-    }
-
-    #[test]
-    fn reports_bind_failed_for_non_addr_in_use_error() -> Result<()> {
-        let unassigned_address: SocketAddr = UNASSIGNED_TEST_NET_ADDRESS.parse()?;
-
-        match check_port(&unassigned_address) {
-            PortCheck::BindFailed(_) => Ok(()),
-            PortCheck::InUse => {
-                bail!("non-AddrInUse bind failure reported as InUse")
-            }
-            PortCheck::Available => {
-                bail!("bind should fail against an unassigned address")
-            }
-        }
-    }
-
-    #[test]
-    fn required_address_rejects_empty_input() -> Result<()> {
-        match validate_required_address("") {
-            Err(_) => Ok(()),
-            Ok(address) => bail!("empty required input should not parse, got {address}"),
-        }
-    }
-
-    #[test]
-    fn optional_address_treats_empty_as_none() -> Result<()> {
-        match validate_optional_address("") {
-            Ok(None) => Ok(()),
-            Ok(Some(address)) => bail!("empty optional input should not parse to {address}"),
-            Err(error) => bail!("empty optional input should not error: {error}"),
-        }
-    }
-
+    use paddler_ports::bind_ephemeral_port::bind_ephemeral_port;
+    use paddler_ports::bound_port::BoundPort;
     use paddler_types::agent_desired_model::AgentDesiredModel;
 
     use super::Action;
+    use super::AddressField;
     use super::Message;
     use super::StartBalancerFormData;
     use crate::model_preset::ModelPreset;
@@ -267,15 +168,12 @@ mod tests {
     fn empty_form() -> StartBalancerFormData {
         StartBalancerFormData {
             add_model_later: false,
-            balancer_address: String::new(),
-            balancer_address_error: None,
-            inference_address: String::new(),
-            inference_address_error: None,
+            balancer_address: AddressField::Empty,
+            inference_address: AddressField::Empty,
             model_error: None,
             selected_model: None,
             starting: false,
-            web_admin_panel_address: String::new(),
-            web_admin_panel_address_error: None,
+            web_admin_panel_address: AddressField::Empty,
             web_admin_panel_address_placeholder: String::new(),
         }
     }
@@ -287,11 +185,69 @@ mod tests {
             .ok_or_else(|| anyhow::anyhow!("at least one preset must exist"))
     }
 
-    fn loopback_socket_with_free_port() -> Result<SocketAddr> {
-        let listener = TcpListener::bind(LOOPBACK_ANY_PORT)?;
-        let addr = listener.local_addr()?;
-        drop(listener);
-        Ok(addr)
+    fn bound_address_field() -> Result<AddressField> {
+        let bound: BoundPort = bind_ephemeral_port()?;
+        Ok(AddressField::Bound {
+            raw: bound.socket_addr.to_string(),
+            port: bound,
+        })
+    }
+
+    #[test]
+    fn set_balancer_address_with_unparseable_input_records_invalid_address() -> Result<()> {
+        let mut data = empty_form();
+
+        let _action = data.update(Message::SetBalancerAddress("not-a-socket-addr".to_owned()));
+
+        assert!(matches!(
+            data.balancer_address,
+            AddressField::Invalid { .. }
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn set_balancer_address_with_bindable_input_records_bound_listener() -> Result<()> {
+        let bound = bind_ephemeral_port()?;
+        let raw = bound.socket_addr.to_string();
+        drop(bound);
+
+        let mut data = empty_form();
+
+        let _action = data.update(Message::SetBalancerAddress(raw));
+
+        assert!(matches!(data.balancer_address, AddressField::Bound { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn set_balancer_address_with_empty_input_records_empty_state() -> Result<()> {
+        let mut data = empty_form();
+        data.balancer_address = AddressField::Invalid {
+            raw: "stale".to_owned(),
+            error: "stale".to_owned(),
+        };
+
+        let _action = data.update(Message::SetBalancerAddress(String::new()));
+
+        assert!(matches!(data.balancer_address, AddressField::Empty));
+        Ok(())
+    }
+
+    #[test]
+    fn set_inference_address_with_empty_input_records_empty_state() -> Result<()> {
+        let mut data = empty_form();
+        let _action = data.update(Message::SetInferenceAddress(String::new()));
+        assert!(matches!(data.inference_address, AddressField::Empty));
+        Ok(())
+    }
+
+    #[test]
+    fn set_web_admin_panel_address_with_empty_input_records_empty_state() -> Result<()> {
+        let mut data = empty_form();
+        let _action = data.update(Message::SetWebAdminPanelAddress(String::new()));
+        assert!(matches!(data.web_admin_panel_address, AddressField::Empty));
+        Ok(())
     }
 
     #[test]
@@ -309,61 +265,14 @@ mod tests {
     }
 
     #[test]
-    fn setting_balancer_address_clears_a_previously_set_balancer_address_error() -> Result<()> {
-        let mut data = empty_form();
-        data.balancer_address_error = Some("stale".to_owned());
-
-        let _ = data.update(Message::SetBalancerAddress("127.0.0.1:8060".to_owned()));
-
-        if data.balancer_address_error.is_some() {
-            bail!("expected balancer_address_error to be cleared");
-        }
-        if data.balancer_address != "127.0.0.1:8060" {
-            bail!("expected balancer_address to be updated");
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn setting_inference_address_clears_a_previously_set_inference_address_error() -> Result<()> {
-        let mut data = empty_form();
-        data.inference_address_error = Some("stale".to_owned());
-
-        let _ = data.update(Message::SetInferenceAddress("127.0.0.1:8061".to_owned()));
-
-        if data.inference_address_error.is_some() {
-            bail!("expected inference_address_error to be cleared");
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn setting_web_admin_panel_address_clears_a_previously_set_web_admin_panel_address_error()
-    -> Result<()> {
-        let mut data = empty_form();
-        data.web_admin_panel_address_error = Some("stale".to_owned());
-
-        let _ = data.update(Message::SetWebAdminPanelAddress("127.0.0.1:8062".to_owned()));
-
-        if data.web_admin_panel_address_error.is_some() {
-            bail!("expected web_admin_panel_address_error to be cleared");
-        }
-        Ok(())
-    }
-
-    #[test]
     fn toggling_add_model_later_on_clears_a_previously_set_model_error() -> Result<()> {
         let mut data = empty_form();
         data.model_error = Some("stale".to_owned());
 
         let _ = data.update(Message::ToggleAddModelLater(true));
 
-        if !data.add_model_later {
-            bail!("expected add_model_later to flip to true");
-        }
-        if data.model_error.is_some() {
-            bail!("expected model_error to be cleared when toggling on");
-        }
+        assert!(data.add_model_later);
+        assert!(data.model_error.is_none());
         Ok(())
     }
 
@@ -375,12 +284,8 @@ mod tests {
 
         let _ = data.update(Message::ToggleAddModelLater(false));
 
-        if data.add_model_later {
-            bail!("expected add_model_later to flip to false");
-        }
-        if data.model_error.as_deref() != Some("preserved") {
-            bail!("expected model_error to be preserved when toggling off");
-        }
+        assert!(!data.add_model_later);
+        assert_eq!(data.model_error.as_deref(), Some("preserved"));
         Ok(())
     }
 
@@ -388,81 +293,77 @@ mod tests {
     fn cancel_message_returns_cancel_action() -> Result<()> {
         let mut data = empty_form();
 
-        match data.update(Message::Cancel) {
-            Action::Cancel => Ok(()),
-            _ => bail!("expected Action::Cancel"),
-        }
+        assert!(matches!(data.update(Message::Cancel), Action::Cancel));
+        Ok(())
     }
 
     #[test]
     fn confirming_without_a_selected_model_records_a_model_required_error() -> Result<()> {
         let mut data = empty_form();
-        let management_addr = loopback_socket_with_free_port()?;
-        let inference_addr = loopback_socket_with_free_port()?;
-        data.balancer_address = management_addr.to_string();
-        data.inference_address = inference_addr.to_string();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = bound_address_field()?;
 
-        match data.update(Message::Confirm) {
-            Action::None => {}
-            _ => bail!("expected Action::None when validation fails"),
-        }
+        let action = data.update(Message::Confirm);
 
-        if data.model_error.is_none() {
-            bail!("expected model_error to be set when no model is selected");
-        }
-
+        assert!(matches!(action, Action::None));
+        assert!(data.model_error.is_some());
         Ok(())
     }
 
     #[test]
-    fn confirming_with_an_in_use_balancer_port_records_an_address_error() -> Result<()> {
-        let bound_listener = TcpListener::bind(LOOPBACK_ANY_PORT)?;
-        let bound_address = bound_listener.local_addr()?;
-
+    fn confirming_with_empty_balancer_address_records_a_required_error() -> Result<()> {
         let mut data = empty_form();
-        data.balancer_address = bound_address.to_string();
-        data.inference_address = loopback_socket_with_free_port()?.to_string();
+        data.inference_address = bound_address_field()?;
         data.selected_model = Some(first_preset()?);
 
-        let _ = data.update(Message::Confirm);
+        let action = data.update(Message::Confirm);
 
-        match data.balancer_address_error.as_deref() {
-            Some(message) if message.contains("already in use") => Ok(()),
-            other => bail!("expected in-use error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn confirming_with_an_unparseable_inference_address_records_an_inference_error() -> Result<()> {
-        let mut data = empty_form();
-        data.balancer_address = loopback_socket_with_free_port()?.to_string();
-        data.inference_address = "not-a-socket-addr".to_owned();
-        data.selected_model = Some(first_preset()?);
-
-        let _ = data.update(Message::Confirm);
-
-        if data.inference_address_error.is_none() {
-            bail!("expected inference_address_error to be set for unparseable input");
-        }
-
+        assert!(matches!(action, Action::None));
+        assert!(matches!(
+            data.balancer_address,
+            AddressField::Invalid { .. }
+        ));
         Ok(())
     }
 
     #[test]
-    fn confirming_with_an_unparseable_web_admin_panel_address_records_a_web_admin_error()
-    -> Result<()> {
+    fn confirming_with_invalid_inference_address_keeps_the_invalid_state() -> Result<()> {
         let mut data = empty_form();
-        data.balancer_address = loopback_socket_with_free_port()?.to_string();
-        data.inference_address = loopback_socket_with_free_port()?.to_string();
-        data.web_admin_panel_address = "not-a-socket-addr".to_owned();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = AddressField::Invalid {
+            raw: "not-a-socket".to_owned(),
+            error: "Invalid address".to_owned(),
+        };
         data.selected_model = Some(first_preset()?);
 
-        let _ = data.update(Message::Confirm);
+        let action = data.update(Message::Confirm);
 
-        if data.web_admin_panel_address_error.is_none() {
-            bail!("expected web_admin_panel_address_error to be set for unparseable input");
-        }
+        assert!(matches!(action, Action::None));
+        assert!(matches!(
+            data.inference_address,
+            AddressField::Invalid { .. }
+        ));
+        Ok(())
+    }
 
+    #[test]
+    fn confirming_with_invalid_web_admin_panel_address_keeps_the_invalid_state() -> Result<()> {
+        let mut data = empty_form();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = bound_address_field()?;
+        data.web_admin_panel_address = AddressField::Invalid {
+            raw: "not-a-socket".to_owned(),
+            error: "Invalid address".to_owned(),
+        };
+        data.selected_model = Some(first_preset()?);
+
+        let action = data.update(Message::Confirm);
+
+        assert!(matches!(action, Action::None));
+        assert!(matches!(
+            data.web_admin_panel_address,
+            AddressField::Invalid { .. }
+        ));
         Ok(())
     }
 
@@ -470,19 +371,17 @@ mod tests {
     fn confirming_with_valid_input_and_selected_model_returns_start_balancer_action() -> Result<()>
     {
         let mut data = empty_form();
-        data.balancer_address = loopback_socket_with_free_port()?.to_string();
-        data.inference_address = loopback_socket_with_free_port()?.to_string();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = bound_address_field()?;
         data.selected_model = Some(first_preset()?);
 
-        match data.update(Message::Confirm) {
+        let action = data.update(Message::Confirm);
+
+        match action {
             Action::StartBalancer { desired_state, .. } => {
-                if !data.starting {
-                    bail!("expected starting flag to be set after StartBalancer action");
-                }
-                match desired_state.model {
-                    AgentDesiredModel::HuggingFace(_) => Ok(()),
-                    other => bail!("expected HuggingFace model from preset, got {other:?}"),
-                }
+                assert!(data.starting);
+                assert!(matches!(desired_state.model, AgentDesiredModel::HuggingFace(_)));
+                Ok(())
             }
             _ => bail!("expected Action::StartBalancer for valid input with preset"),
         }
@@ -492,18 +391,40 @@ mod tests {
     fn confirming_with_add_model_later_returns_start_balancer_with_default_desired_state()
     -> Result<()> {
         let mut data = empty_form();
-        data.balancer_address = loopback_socket_with_free_port()?.to_string();
-        data.inference_address = loopback_socket_with_free_port()?.to_string();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = bound_address_field()?;
         data.add_model_later = true;
 
-        match data.update(Message::Confirm) {
+        let action = data.update(Message::Confirm);
+
+        match action {
             Action::StartBalancer { desired_state, .. } => {
-                match desired_state.model {
-                    AgentDesiredModel::None => Ok(()),
-                    other => bail!("expected default (None) model, got {other:?}"),
-                }
+                assert!(matches!(desired_state.model, AgentDesiredModel::None));
+                Ok(())
             }
             _ => bail!("expected Action::StartBalancer for valid input with add_model_later"),
+        }
+    }
+
+    #[test]
+    fn confirming_with_valid_web_admin_panel_address_carries_a_bound_port() -> Result<()> {
+        let mut data = empty_form();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = bound_address_field()?;
+        data.web_admin_panel_address = bound_address_field()?;
+        data.selected_model = Some(first_preset()?);
+
+        let action = data.update(Message::Confirm);
+
+        match action {
+            Action::StartBalancer {
+                web_admin_panel_port,
+                ..
+            } => {
+                assert!(web_admin_panel_port.is_some());
+                Ok(())
+            }
+            _ => bail!("expected Action::StartBalancer"),
         }
     }
 }

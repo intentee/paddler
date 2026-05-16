@@ -48,13 +48,13 @@ pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Mes
         .style(button::text)
         .on_press(Message::Cancel);
 
-    let balancer_address_input = text_input("IP:port", &data.balancer_address)
+    let balancer_address_input = text_input("IP:port", data.balancer_address.raw_text())
         .on_input(Message::SetBalancerAddress)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
         .into();
 
-    let inference_address_input = text_input("IP:port", &data.inference_address)
+    let inference_address_input = text_input("IP:port", data.inference_address.raw_text())
         .on_input(Message::SetInferenceAddress)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
@@ -62,12 +62,16 @@ pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Mes
 
     let web_admin_panel_address_input = text_input(
         &data.web_admin_panel_address_placeholder,
-        &data.web_admin_panel_address,
+        data.web_admin_panel_address.raw_text(),
     )
     .on_input(Message::SetWebAdminPanelAddress)
     .padding(SPACING_BASE)
     .style(style_field_text_input)
     .into();
+
+    let balancer_address_error = data.balancer_address.error_text().map(str::to_owned);
+    let inference_address_error = data.inference_address.error_text().map(str::to_owned);
+    let web_admin_panel_address_error = data.web_admin_panel_address.error_text().map(str::to_owned);
 
     let model_input: Element<'_, Message> = if data.add_model_later {
         text_input("Model will be added later", "")
@@ -119,17 +123,17 @@ pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Mes
                 view_form_field(
                     "Cluster address",
                     balancer_address_input,
-                    data.balancer_address_error.as_ref()
+                    balancer_address_error.as_ref()
                 ),
                 view_form_field(
                     "Inference address",
                     inference_address_input,
-                    data.inference_address_error.as_ref()
+                    inference_address_error.as_ref()
                 ),
                 view_form_field(
                     "Web admin panel (optional)",
                     web_admin_panel_address_input,
-                    data.web_admin_panel_address_error.as_ref()
+                    web_admin_panel_address_error.as_ref()
                 ),
                 model_field,
                 row![cancel_button, confirm_button]

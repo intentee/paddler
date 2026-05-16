@@ -5027,6 +5027,7 @@ dependencies = [
  "open",
  "paddler",
  "paddler_bootstrap",
+ "paddler_ports",
  "paddler_types",
  "statum",
  "tokio",

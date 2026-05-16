@@ -1,3 +1,4 @@
+pub mod address_field;
 pub mod agent_running_data;
 pub mod agent_running_handler;
 pub mod app;
@@ -18,6 +19,7 @@ pub mod running_balancer_handler;
 pub mod running_balancer_snapshot;
 #[expect(unsafe_code, reason = "statum macros generate link_section statics")]
 pub mod screen;
+pub mod slot_count_field;
 pub mod start_balancer_form_data;
 pub mod start_balancer_form_handler;
 pub mod ui;

@@ -1,6 +1,8 @@
-use std::net::SocketAddr;
+use std::mem;
 
+use crate::address_field::AddressField;
 use crate::join_balancer_form_data::JoinBalancerFormData;
+use crate::slot_count_field::SlotCountField;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -30,16 +32,12 @@ impl JoinBalancerFormData {
                 Action::None
             }
             Message::SetBalancerAddress(address) => {
-                self.balancer_address = address;
-                self.balancer_address_error = None;
+                self.balancer_address = AddressField::required_from_user_input(address);
 
                 Action::None
             }
             Message::SetSlotsCount(slots) => {
-                if slots.is_empty() || slots.chars().all(|character| character.is_ascii_digit()) {
-                    self.slots_count = slots;
-                    self.slots_error = None;
-                }
+                self.slots_count = SlotCountField::from_user_input(slots);
 
                 Action::None
             }
@@ -49,49 +47,37 @@ impl JoinBalancerFormData {
     }
 
     fn validate_and_connect(&mut self) -> Action {
-        self.balancer_address_error = None;
-        self.slots_error = None;
+        let balancer_address = mem::take(&mut self.balancer_address);
+        let slots_count = mem::take(&mut self.slots_count);
 
-        if self.balancer_address.is_empty() {
-            self.balancer_address_error = Some("Cluster address is required.".to_owned());
-        } else if self.balancer_address.parse::<SocketAddr>().is_err() {
-            self.balancer_address_error =
-                Some("Invalid address, expected format: IP:port".to_owned());
-        }
-
-        let slots = if self.slots_count.is_empty() {
-            self.slots_error = Some("Number of slots is required.".to_owned());
-            None
-        } else {
-            match self.slots_count.parse::<i32>() {
-                Ok(slots) if slots > 0 => Some(slots),
-                Ok(non_positive_slots) => {
-                    log::debug!("User entered non-positive slot count: {non_positive_slots}");
-                    self.slots_error = Some(
-                        "Invalid number of slots (the number should be greater than zero)."
-                            .to_owned(),
-                    );
-                    None
-                }
-                Err(error) => {
-                    let message = match error.kind() {
-                        std::num::IntErrorKind::PosOverflow => "Number of slots is too large.",
-                        unexpected_kind => {
-                            log::error!("Unexpected slots parse error: {unexpected_kind:?}");
-                            "Invalid number of slots."
-                        }
-                    };
-                    self.slots_error = Some(message.to_owned());
-                    None
-                }
-            }
+        let required_balancer_address = match balancer_address {
+            AddressField::Empty => AddressField::Invalid {
+                raw: String::new(),
+                error: "Cluster address is required.".to_owned(),
+            },
+            other => other,
+        };
+        let required_slots_count = match slots_count {
+            SlotCountField::Empty => SlotCountField::Invalid {
+                raw: String::new(),
+                error: "Number of slots is required.".to_owned(),
+            },
+            other => other,
         };
 
-        if self.balancer_address_error.is_some() || self.slots_error.is_some() {
+        let address_bound = matches!(required_balancer_address, AddressField::Bound { .. });
+        let slots_valid = matches!(required_slots_count, SlotCountField::Valid { .. });
+
+        if !address_bound || !slots_valid {
+            self.balancer_address = required_balancer_address;
+            self.slots_count = required_slots_count;
             return Action::None;
         }
 
-        let Some(slots) = slots else {
+        let AddressField::Bound { raw: address_raw, port: _ } = required_balancer_address else {
+            return Action::None;
+        };
+        let SlotCountField::Valid { value: slots, .. } = required_slots_count else {
             return Action::None;
         };
 
@@ -103,7 +89,7 @@ impl JoinBalancerFormData {
 
         Action::ConnectAgent {
             agent_name,
-            management_address: self.balancer_address.clone(),
+            management_address: address_raw,
             slots,
         }
     }
@@ -112,76 +98,94 @@ impl JoinBalancerFormData {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
 
     use super::Action;
+    use super::AddressField;
     use super::JoinBalancerFormData;
     use super::Message;
+    use super::SlotCountField;
 
     #[test]
     fn set_agent_name_records_typed_value_into_form_state() -> Result<()> {
         let mut data = JoinBalancerFormData::default();
 
-        match data.update(Message::SetAgentName("alice".to_owned())) {
-            Action::None => {}
-            _ => bail!("expected Action::None"),
-        }
-
-        if data.agent_name != "alice" {
-            bail!("expected agent_name to record typed value");
-        }
+        assert!(matches!(
+            data.update(Message::SetAgentName("alice".to_owned())),
+            Action::None
+        ));
+        assert_eq!(data.agent_name, "alice");
 
         Ok(())
     }
 
     #[test]
-    fn set_balancer_address_clears_previously_set_address_error() -> Result<()> {
-        let mut data = JoinBalancerFormData {
-            balancer_address_error: Some("stale".to_owned()),
-            ..JoinBalancerFormData::default()
-        };
-
-        match data.update(Message::SetBalancerAddress("127.0.0.1:8080".to_owned())) {
-            Action::None => {}
-            _ => bail!("expected Action::None"),
-        }
-
-        if data.balancer_address_error.is_some() {
-            bail!("expected balancer_address_error to be cleared");
-        }
-
-        if data.balancer_address != "127.0.0.1:8080" {
-            bail!("expected new balancer_address to be stored");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn set_slots_count_accepts_digit_only_input() -> Result<()> {
+    fn set_balancer_address_with_unparseable_input_records_invalid_state() -> Result<()> {
         let mut data = JoinBalancerFormData::default();
 
-        let _action = data.update(Message::SetSlotsCount("42".to_owned()));
+        let _ = data.update(Message::SetBalancerAddress(
+            "not-a-socket-addr".to_owned(),
+        ));
 
-        if data.slots_count != "42" {
-            bail!("expected slots_count to be updated to digit string");
-        }
+        assert!(matches!(
+            data.balancer_address,
+            AddressField::Invalid { .. }
+        ));
 
         Ok(())
     }
 
     #[test]
-    fn set_slots_count_silently_ignores_non_digit_input() -> Result<()> {
+    fn set_balancer_address_with_empty_input_records_empty_state() -> Result<()> {
         let mut data = JoinBalancerFormData {
-            slots_count: "10".to_owned(),
+            balancer_address: AddressField::Invalid {
+                raw: "stale".to_owned(),
+                error: "stale".to_owned(),
+            },
             ..JoinBalancerFormData::default()
         };
 
-        let _action = data.update(Message::SetSlotsCount("abc".to_owned()));
+        let _ = data.update(Message::SetBalancerAddress(String::new()));
 
-        if data.slots_count != "10" {
-            bail!("expected slots_count to be unchanged after non-digit input");
-        }
+        assert!(matches!(data.balancer_address, AddressField::Empty));
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_slots_count_accepts_digit_input() -> Result<()> {
+        let mut data = JoinBalancerFormData::default();
+
+        let _ = data.update(Message::SetSlotsCount("42".to_owned()));
+
+        assert!(matches!(data.slots_count, SlotCountField::Valid { .. }));
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_slots_count_with_non_digit_input_records_invalid_state() -> Result<()> {
+        let mut data = JoinBalancerFormData::default();
+
+        let _ = data.update(Message::SetSlotsCount("abc".to_owned()));
+
+        assert!(matches!(data.slots_count, SlotCountField::Invalid { .. }));
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_slots_count_with_empty_input_records_empty_state() -> Result<()> {
+        let mut data = JoinBalancerFormData {
+            slots_count: SlotCountField::Valid {
+                raw: "10".to_owned(),
+                value: 10,
+            },
+            ..JoinBalancerFormData::default()
+        };
+
+        let _ = data.update(Message::SetSlotsCount(String::new()));
+
+        assert!(matches!(data.slots_count, SlotCountField::Empty));
 
         Ok(())
     }
@@ -190,155 +194,143 @@ mod tests {
     fn cancel_message_returns_cancel_action() -> Result<()> {
         let mut data = JoinBalancerFormData::default();
 
-        match data.update(Message::Cancel) {
-            Action::Cancel => Ok(()),
-            _ => bail!("expected Action::Cancel"),
-        }
+        assert!(matches!(data.update(Message::Cancel), Action::Cancel));
+
+        Ok(())
     }
 
     #[test]
     fn connecting_without_a_cluster_address_records_required_error() -> Result<()> {
         let mut data = JoinBalancerFormData {
-            slots_count: "1".to_owned(),
+            slots_count: SlotCountField::Valid {
+                raw: "1".to_owned(),
+                value: 1,
+            },
             ..JoinBalancerFormData::default()
         };
 
-        match data.update(Message::Connect) {
-            Action::None => {}
-            _ => bail!("expected Action::None when validation fails"),
+        let action = data.update(Message::Connect);
+
+        assert!(matches!(action, Action::None));
+        match &data.balancer_address {
+            AddressField::Invalid { error, .. } => assert!(error.contains("required")),
+            other => panic!("expected required-error invalid state, got {other:?}", other = match other {
+                AddressField::Empty => "Empty",
+                AddressField::Bound { .. } => "Bound",
+                AddressField::Invalid { .. } => "Invalid",
+            }),
         }
 
-        match data.balancer_address_error.as_deref() {
-            Some(message) if message.contains("required") => Ok(()),
-            other => bail!("expected required-message error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn connecting_with_an_unparseable_cluster_address_records_invalid_format_error() -> Result<()> {
-        let mut data = JoinBalancerFormData {
-            balancer_address: "not-a-socket-addr".to_owned(),
-            slots_count: "1".to_owned(),
-            ..JoinBalancerFormData::default()
-        };
-
-        let _ = data.update(Message::Connect);
-
-        match data.balancer_address_error.as_deref() {
-            Some(message) if message.contains("IP:port") => Ok(()),
-            other => bail!("expected IP:port-format error, got {other:?}"),
-        }
+        Ok(())
     }
 
     #[test]
     fn connecting_without_a_slot_count_records_required_error() -> Result<()> {
+        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
         let mut data = JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
+            balancer_address: AddressField::Bound {
+                raw: bound.socket_addr.to_string(),
+                port: bound,
+            },
             ..JoinBalancerFormData::default()
         };
 
-        let _ = data.update(Message::Connect);
+        let action = data.update(Message::Connect);
 
-        match data.slots_error.as_deref() {
-            Some(message) if message.contains("required") => Ok(()),
-            other => bail!("expected required-slots error, got {other:?}"),
+        assert!(matches!(action, Action::None));
+        match &data.slots_count {
+            SlotCountField::Invalid { error, .. } => assert!(error.contains("required")),
+            _ => anyhow::bail!("expected required-error invalid state"),
         }
+
+        Ok(())
     }
 
     #[test]
-    fn connecting_with_zero_slots_records_must_be_greater_than_zero_error() -> Result<()> {
+    fn connecting_with_a_zero_slot_count_records_must_be_greater_than_zero_error() -> Result<()> {
+        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
         let mut data = JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            slots_count: "0".to_owned(),
+            balancer_address: AddressField::Bound {
+                raw: bound.socket_addr.to_string(),
+                port: bound,
+            },
+            slots_count: SlotCountField::from_user_input("0".to_owned()),
             ..JoinBalancerFormData::default()
         };
 
-        let _ = data.update(Message::Connect);
+        let action = data.update(Message::Connect);
 
-        match data.slots_error.as_deref() {
-            Some(message) if message.contains("greater than zero") => Ok(()),
-            other => bail!("expected greater-than-zero error, got {other:?}"),
+        assert!(matches!(action, Action::None));
+        match &data.slots_count {
+            SlotCountField::Invalid { error, .. } => {
+                assert!(error.contains("greater than zero"));
+            }
+            _ => anyhow::bail!("expected zero-slot error"),
         }
-    }
 
-    #[test]
-    fn connecting_with_an_overflowing_slot_count_records_too_large_error() -> Result<()> {
-        let mut data = JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            slots_count: "9999999999".to_owned(),
-            ..JoinBalancerFormData::default()
-        };
-
-        let _ = data.update(Message::Connect);
-
-        match data.slots_error.as_deref() {
-            Some(message) if message.contains("too large") => Ok(()),
-            other => bail!("expected too-large error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn connecting_with_a_malformed_slot_count_falls_back_to_generic_invalid_error() -> Result<()> {
-        let mut data = JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            slots_count: "abc".to_owned(),
-            ..JoinBalancerFormData::default()
-        };
-
-        let _ = data.update(Message::Connect);
-
-        match data.slots_error.as_deref() {
-            Some(message) if message.contains("Invalid number of slots") => Ok(()),
-            other => bail!("expected generic invalid-slots error, got {other:?}"),
-        }
+        Ok(())
     }
 
     #[test]
     fn connecting_with_valid_input_and_no_agent_name_yields_connect_agent_with_name_none()
     -> Result<()> {
+        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
+        let raw_address = bound.socket_addr.to_string();
         let mut data = JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            slots_count: "4".to_owned(),
+            balancer_address: AddressField::Bound {
+                raw: raw_address.clone(),
+                port: bound,
+            },
+            slots_count: SlotCountField::Valid {
+                raw: "4".to_owned(),
+                value: 4,
+            },
             ..JoinBalancerFormData::default()
         };
 
-        match data.update(Message::Connect) {
+        let action = data.update(Message::Connect);
+
+        match action {
             Action::ConnectAgent {
                 agent_name,
                 management_address,
                 slots,
             } => {
-                if agent_name.is_some() {
-                    bail!("expected agent_name to be None when field is empty");
-                }
-                if management_address != "127.0.0.1:8060" {
-                    bail!("expected management_address to be forwarded verbatim");
-                }
-                if slots != 4 {
-                    bail!("expected slots=4 to be forwarded");
-                }
-                Ok(())
+                assert!(agent_name.is_none());
+                assert_eq!(management_address, raw_address);
+                assert_eq!(slots, 4);
             }
-            _ => bail!("expected Action::ConnectAgent"),
+            _ => anyhow::bail!("expected Action::ConnectAgent"),
         }
+
+        Ok(())
     }
 
     #[test]
     fn connecting_with_valid_input_and_a_filled_agent_name_yields_connect_agent_with_some_name()
     -> Result<()> {
+        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
         let mut data = JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            agent_name: "primary-agent".to_owned(),
-            slots_count: "2".to_owned(),
-            ..JoinBalancerFormData::default()
+            agent_name: "primary".to_owned(),
+            balancer_address: AddressField::Bound {
+                raw: bound.socket_addr.to_string(),
+                port: bound,
+            },
+            slots_count: SlotCountField::Valid {
+                raw: "2".to_owned(),
+                value: 2,
+            },
         };
 
-        match data.update(Message::Connect) {
-            Action::ConnectAgent { agent_name, .. } => match agent_name.as_deref() {
-                Some("primary-agent") => Ok(()),
-                other => bail!("expected agent_name=Some(\"primary-agent\"), got {other:?}"),
-            },
-            _ => bail!("expected Action::ConnectAgent"),
+        let action = data.update(Message::Connect);
+
+        match action {
+            Action::ConnectAgent { agent_name, .. } => {
+                assert_eq!(agent_name.as_deref(), Some("primary"));
+            }
+            _ => anyhow::bail!("expected Action::ConnectAgent"),
         }
+
+        Ok(())
     }
 }

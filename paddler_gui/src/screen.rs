@@ -6,6 +6,7 @@ use statum::machine;
 use statum::state;
 use statum::transition;
 
+use crate::address_field::AddressField;
 use crate::agent_running_data::AgentRunningData;
 use crate::detect_network_interfaces::detect_network_interfaces;
 use crate::home_data::HomeData;
@@ -40,15 +41,16 @@ impl Screen<Home> {
 
         self.transition_with(StartBalancerFormData {
             add_model_later: false,
-            balancer_address: format!("{suggested_address}:8060"),
-            balancer_address_error: None,
-            inference_address: format!("{suggested_address}:8061"),
-            inference_address_error: None,
+            balancer_address: AddressField::required_from_user_input(format!(
+                "{suggested_address}:8060"
+            )),
+            inference_address: AddressField::required_from_user_input(format!(
+                "{suggested_address}:8061"
+            )),
             model_error: None,
             selected_model: None,
             starting: false,
-            web_admin_panel_address: String::new(),
-            web_admin_panel_address_error: None,
+            web_admin_panel_address: AddressField::Empty,
             web_admin_panel_address_placeholder: format!("{suggested_address}:8062"),
         })
     }
@@ -69,7 +71,7 @@ impl Screen<JoinBalancerForm> {
             };
 
             AgentRunningData {
-                balancer_address: form_data.balancer_address,
+                balancer_address: form_data.balancer_address.raw_text().to_owned(),
                 connected: false,
                 snapshot: AgentControllerSnapshot {
                     desired_slots_total: 0,
@@ -108,12 +110,18 @@ impl Screen<StartBalancerForm> {
     }
 
     pub fn balancer_started(self) -> Screen<RunningBalancer> {
-        self.transition_map(|form_data: StartBalancerFormData| RunningBalancerData {
-            balancer_address: form_data.balancer_address,
-            snapshot: RunningBalancerSnapshot::default(),
-            stopping: false,
-            web_admin_panel_address: Some(form_data.web_admin_panel_address)
-                .filter(|address| !address.is_empty()),
+        self.transition_map(|form_data: StartBalancerFormData| {
+            let balancer_address = form_data.balancer_address.raw_text().to_owned();
+            let web_admin_panel_address = match form_data.web_admin_panel_address {
+                AddressField::Empty => None,
+                AddressField::Bound { raw, .. } | AddressField::Invalid { raw, .. } => Some(raw),
+            };
+            RunningBalancerData {
+                balancer_address,
+                snapshot: RunningBalancerSnapshot::default(),
+                stopping: false,
+                web_admin_panel_address,
+            }
         })
     }
 
@@ -138,6 +146,7 @@ mod tests {
     use anyhow::Result;
     use anyhow::bail;
 
+    use super::AddressField;
     use super::AgentRunning;
     use super::HomeData;
     use super::JoinBalancerForm;
@@ -182,15 +191,18 @@ mod tests {
     fn fresh_start_form_data() -> StartBalancerFormData {
         StartBalancerFormData {
             add_model_later: false,
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            balancer_address_error: None,
-            inference_address: "127.0.0.1:8061".to_owned(),
-            inference_address_error: None,
+            balancer_address: AddressField::Invalid {
+                raw: "127.0.0.1:8060".to_owned(),
+                error: "placeholder".to_owned(),
+            },
+            inference_address: AddressField::Invalid {
+                raw: "127.0.0.1:8061".to_owned(),
+                error: "placeholder".to_owned(),
+            },
             model_error: None,
             selected_model: None,
             starting: true,
-            web_admin_panel_address: String::new(),
-            web_admin_panel_address_error: None,
+            web_admin_panel_address: AddressField::Empty,
             web_admin_panel_address_placeholder: String::new(),
         }
     }
@@ -239,14 +251,14 @@ mod tests {
     fn home_to_start_balancer_form_seeds_addresses_from_detected_interfaces() -> Result<()> {
         let next = home().start_balancer();
 
-        if next.state_data.balancer_address.is_empty() {
+        if next.state_data.balancer_address.raw_text().is_empty() {
             bail!("expected start form to be seeded with a balancer_address");
         }
 
-        if !next.state_data.balancer_address.ends_with(":8060") {
+        if !next.state_data.balancer_address.raw_text().ends_with(":8060") {
             bail!(
                 "expected default balancer port suffix :8060, got {}",
-                next.state_data.balancer_address
+                next.state_data.balancer_address.raw_text()
             );
         }
 
@@ -267,7 +279,10 @@ mod tests {
     fn join_balancer_form_connect_with_empty_agent_name_sets_name_none_on_agent_screen()
     -> Result<()> {
         let form = join_form(JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
+            balancer_address: AddressField::Invalid {
+                raw: "127.0.0.1:8060".to_owned(),
+                error: "placeholder".to_owned(),
+            },
             ..JoinBalancerFormData::default()
         });
 
@@ -284,7 +299,10 @@ mod tests {
     -> Result<()> {
         let form = join_form(JoinBalancerFormData {
             agent_name: "primary".to_owned(),
-            balancer_address: "127.0.0.1:8060".to_owned(),
+            balancer_address: AddressField::Invalid {
+                raw: "127.0.0.1:8060".to_owned(),
+                error: "placeholder".to_owned(),
+            },
             ..JoinBalancerFormData::default()
         });
 
@@ -328,7 +346,10 @@ mod tests {
     fn start_balancer_form_balancer_started_with_web_admin_address_carries_it_forward()
     -> Result<()> {
         let form = start_form(StartBalancerFormData {
-            web_admin_panel_address: "127.0.0.1:8062".to_owned(),
+            web_admin_panel_address: AddressField::Invalid {
+                raw: "127.0.0.1:8062".to_owned(),
+                error: "placeholder".to_owned(),
+            },
             ..fresh_start_form_data()
         });
 
@@ -344,7 +365,7 @@ mod tests {
     fn start_balancer_form_balancer_started_with_empty_web_admin_address_resolves_to_none()
     -> Result<()> {
         let form = start_form(StartBalancerFormData {
-            web_admin_panel_address: String::new(),
+            web_admin_panel_address: AddressField::Empty,
             ..fresh_start_form_data()
         });
 

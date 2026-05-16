@@ -1,5 +1,4 @@
 use std::mem;
-use std::net::SocketAddr;
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -30,6 +29,7 @@ use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
+use paddler_ports::bound_port::BoundPort;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio_util::sync::CancellationToken;
 
@@ -149,17 +149,17 @@ impl App {
                         Task::none()
                     }
                     start_balancer_form_handler::Action::StartBalancer {
-                        management_addr,
-                        inference_addr,
-                        web_admin_panel_addr,
+                        management_port,
+                        inference_port,
+                        web_admin_panel_port,
                         desired_state,
                     } => {
                         self.screen = CurrentScreen::StartBalancerForm(form);
 
                         self.spawn_balancer(
-                            management_addr,
-                            inference_addr,
-                            web_admin_panel_addr,
+                            management_port,
+                            inference_port,
+                            web_admin_panel_port,
                             &desired_state,
                         )
                     }
@@ -399,8 +399,8 @@ impl App {
 
     fn spawn_balancer(
         &mut self,
-        management_addr: SocketAddr,
-        inference_addr: SocketAddr,
+        management_port: BoundPort,
+        inference_port: BoundPort,
         #[cfg_attr(
             not(feature = "web_admin_panel"),
             expect(
@@ -408,7 +408,7 @@ impl App {
                 reason = "web admin panel configuration is only built when the feature is enabled"
             )
         )]
-        web_admin_panel_addr: Option<SocketAddr>,
+        web_admin_panel_port: Option<BoundPort>,
         desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
         let cancel = self.shutdown.child_token();
@@ -418,37 +418,47 @@ impl App {
         let max_buffered_requests = 30;
         let statsd_prefix = "paddler_";
 
+        let management_addr = management_port.socket_addr;
+        let inference_addr = inference_port.socket_addr;
+
         #[cfg(feature = "web_admin_panel")]
-        let web_admin_panel_service_configuration =
-            web_admin_panel_addr.map(|addr| WebAdminPanelServiceConfiguration {
-                addr,
-                template_data: TemplateData {
-                    buffered_request_timeout,
-                    compat_openai_addr: None,
-                    inference_addr: ResolvedSocketAddr {
-                        input_addr: inference_addr.to_string(),
-                        socket_addr: inference_addr,
-                    },
-                    management_addr: ResolvedSocketAddr {
-                        input_addr: management_addr.to_string(),
-                        socket_addr: management_addr,
-                    },
-                    max_buffered_requests,
-                    statsd_addr: None,
-                    statsd_prefix: statsd_prefix.to_owned(),
-                    statsd_reporting_interval: Duration::from_secs(10),
-                },
-            });
+        let (web_admin_panel_service_configuration, web_admin_panel_listener) =
+            match web_admin_panel_port {
+                Some(bound) => {
+                    let admin_addr = bound.socket_addr;
+                    let configuration = WebAdminPanelServiceConfiguration {
+                        addr: admin_addr,
+                        template_data: TemplateData {
+                            buffered_request_timeout,
+                            compat_openai_addr: None,
+                            inference_addr: ResolvedSocketAddr {
+                                input_addr: inference_addr.to_string(),
+                                socket_addr: inference_addr,
+                            },
+                            management_addr: ResolvedSocketAddr {
+                                input_addr: management_addr.to_string(),
+                                socket_addr: management_addr,
+                            },
+                            max_buffered_requests,
+                            statsd_addr: None,
+                            statsd_prefix: statsd_prefix.to_owned(),
+                            statsd_reporting_interval: Duration::from_secs(10),
+                        },
+                    };
+                    (Some(configuration), Some(bound.listener))
+                }
+                None => (None, None),
+            };
 
         let params = BalancerRunnerParams {
             buffered_request_timeout,
-            inference_listener: None,
+            inference_listener: Some(inference_port.listener),
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: inference_addr,
                 cors_allowed_hosts: vec![],
                 inference_item_timeout: Duration::from_secs(30),
             },
-            management_listener: None,
+            management_listener: Some(management_port.listener),
             management_service_configuration: ManagementServiceConfiguration {
                 addr: management_addr,
                 cors_allowed_hosts: vec![],
@@ -461,7 +471,7 @@ impl App {
             statsd_prefix: statsd_prefix.to_owned(),
             statsd_service_configuration: None,
             #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_listener: None,
+            web_admin_panel_listener,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         };
@@ -474,8 +484,6 @@ impl App {
 
 #[cfg(test)]
 mod tests {
-    use std::net::TcpListener;
-
     use anyhow::Result;
     use anyhow::bail;
 
@@ -497,15 +505,12 @@ mod tests {
     fn fresh_start_form_data() -> StartBalancerFormData {
         StartBalancerFormData {
             add_model_later: false,
-            balancer_address: String::new(),
-            balancer_address_error: None,
-            inference_address: String::new(),
-            inference_address_error: None,
+            balancer_address: crate::address_field::AddressField::Empty,
+            inference_address: crate::address_field::AddressField::Empty,
             model_error: None,
             selected_model: None,
             starting: false,
-            web_admin_panel_address: String::new(),
-            web_admin_panel_address_error: None,
+            web_admin_panel_address: crate::address_field::AddressField::Empty,
             web_admin_panel_address_placeholder: String::new(),
         }
     }
@@ -577,11 +582,23 @@ mod tests {
         )
     }
 
-    fn ephemeral_loopback_addr() -> Result<String> {
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let addr = listener.local_addr()?;
-        drop(listener);
-        Ok(addr.to_string())
+    fn bound_address_field() -> Result<crate::address_field::AddressField> {
+        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
+        Ok(crate::address_field::AddressField::Bound {
+            raw: bound.socket_addr.to_string(),
+            port: bound,
+        })
+    }
+
+    fn bound_join_form_data() -> Result<JoinBalancerFormData> {
+        Ok(JoinBalancerFormData {
+            agent_name: String::new(),
+            balancer_address: bound_address_field()?,
+            slots_count: crate::slot_count_field::SlotCountField::Valid {
+                raw: "2".to_owned(),
+                value: 2,
+            },
+        })
     }
 
     fn assert_screen_is_home(app: &App) -> Result<()> {
@@ -682,11 +699,7 @@ mod tests {
     #[test]
     fn join_form_connect_action_transitions_to_agent_running_and_sets_agent_cancel_token()
     -> Result<()> {
-        let mut app = app_with_screen(screen_join_form(JoinBalancerFormData {
-            balancer_address: "127.0.0.1:8060".to_owned(),
-            slots_count: "2".to_owned(),
-            ..fresh_join_form_data()
-        }));
+        let mut app = app_with_screen(screen_join_form(bound_join_form_data()?));
 
         let _ = app.update(Message::JoinBalancerForm(
             join_balancer_form_handler::Message::Connect,
@@ -742,12 +755,9 @@ mod tests {
 
     #[test]
     fn start_form_confirm_action_sets_balancer_cancel_token_and_starts_spawn() -> Result<()> {
-        let management_addr = ephemeral_loopback_addr()?;
-        let inference_addr = ephemeral_loopback_addr()?;
-
         let form = StartBalancerFormData {
-            balancer_address: management_addr,
-            inference_address: inference_addr,
+            balancer_address: bound_address_field()?,
+            inference_address: bound_address_field()?,
             add_model_later: true,
             ..fresh_start_form_data()
         };
@@ -1037,30 +1047,12 @@ mod tests {
         Ok(())
     }
 
-    fn three_ephemeral_loopback_addrs() -> Result<[String; 3]> {
-        let listener_one = TcpListener::bind("127.0.0.1:0")?;
-        let listener_two = TcpListener::bind("127.0.0.1:0")?;
-        let listener_three = TcpListener::bind("127.0.0.1:0")?;
-
-        let addr_one = listener_one.local_addr()?.to_string();
-        let addr_two = listener_two.local_addr()?.to_string();
-        let addr_three = listener_three.local_addr()?.to_string();
-
-        drop(listener_one);
-        drop(listener_two);
-        drop(listener_three);
-
-        Ok([addr_one, addr_two, addr_three])
-    }
-
     #[test]
     fn start_balancer_with_web_admin_panel_address_builds_web_admin_configuration() -> Result<()> {
-        let [management_addr, inference_addr, web_admin_addr] = three_ephemeral_loopback_addrs()?;
-
         let form = StartBalancerFormData {
-            balancer_address: management_addr,
-            inference_address: inference_addr,
-            web_admin_panel_address: web_admin_addr,
+            balancer_address: bound_address_field()?,
+            inference_address: bound_address_field()?,
+            web_admin_panel_address: bound_address_field()?,
             add_model_later: true,
             ..fresh_start_form_data()
         };
