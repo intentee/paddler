@@ -90,26 +90,25 @@ async fn update_channel_disconnection_exits_the_agent_stream_after_the_first_sna
     Ok(())
 }
 
+struct StaticUpdateSource(watch::Receiver<()>);
+
+impl ProducesSnapshot for StaticUpdateSource {
+    type Snapshot = SlotAggregatedStatusSnapshot;
+
+    fn make_snapshot(&self) -> anyhow::Result<Self::Snapshot> {
+        Ok(SlotAggregatedStatusSnapshot::default())
+    }
+}
+
+impl SubscribesToUpdates for StaticUpdateSource {
+    fn subscribe_to_updates(&self) -> watch::Receiver<()> {
+        self.0.clone()
+    }
+}
+
 #[tokio::test]
 async fn agent_runner_completion_with_error_emits_agent_failed_message() -> Result<()> {
     let (update_tx, update_rx) = watch::channel(());
-
-    struct StaticUpdateSource(watch::Receiver<()>);
-
-    impl ProducesSnapshot for StaticUpdateSource {
-        type Snapshot = SlotAggregatedStatusSnapshot;
-
-        fn make_snapshot(&self) -> anyhow::Result<Self::Snapshot> {
-            Ok(SlotAggregatedStatusSnapshot::default())
-        }
-    }
-
-    impl SubscribesToUpdates for StaticUpdateSource {
-        fn subscribe_to_updates(&self) -> watch::Receiver<()> {
-            self.0.clone()
-        }
-    }
-
     let source = Arc::new(StaticUpdateSource(update_rx));
     let (output, mut receiver) = mpsc::channel::<Message>(8);
 
@@ -138,25 +137,25 @@ async fn agent_runner_completion_with_error_emits_agent_failed_message() -> Resu
     Ok(())
 }
 
+struct StaticSource;
+
+impl ProducesSnapshot for StaticSource {
+    type Snapshot = SlotAggregatedStatusSnapshot;
+
+    fn make_snapshot(&self) -> anyhow::Result<Self::Snapshot> {
+        Ok(SlotAggregatedStatusSnapshot::default())
+    }
+}
+
+impl SubscribesToUpdates for StaticSource {
+    fn subscribe_to_updates(&self) -> watch::Receiver<()> {
+        let (_, rx) = watch::channel(());
+        rx
+    }
+}
+
 #[tokio::test]
 async fn snapshot_send_failure_after_first_iteration_exits_the_agent_stream() -> Result<()> {
-    struct StaticSource;
-
-    impl ProducesSnapshot for StaticSource {
-        type Snapshot = SlotAggregatedStatusSnapshot;
-
-        fn make_snapshot(&self) -> anyhow::Result<Self::Snapshot> {
-            Ok(SlotAggregatedStatusSnapshot::default())
-        }
-    }
-
-    impl SubscribesToUpdates for StaticSource {
-        fn subscribe_to_updates(&self) -> watch::Receiver<()> {
-            let (_, rx) = watch::channel(());
-            rx
-        }
-    }
-
     let (output, receiver) = mpsc::channel::<Message>(8);
     drop(receiver);
 

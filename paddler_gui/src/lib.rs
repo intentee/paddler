@@ -6,6 +6,7 @@ pub mod current_screen;
 pub mod detect_network_interfaces;
 pub mod drive_agent_stream;
 pub mod drive_agent_stream_inner;
+pub mod drive_balancer_loop_inner;
 pub mod drive_balancer_stream;
 pub mod drive_shutdown_signal_stream;
 pub mod home_data;
