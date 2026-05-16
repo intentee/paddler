@@ -28,7 +28,6 @@ impl Default for CurrentScreen {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
 
     use super::CurrentScreen;
 
@@ -36,14 +35,11 @@ mod tests {
     fn default_current_screen_is_home_with_no_error() -> Result<()> {
         let screen = CurrentScreen::default();
 
-        match screen {
-            CurrentScreen::Home(home) => {
-                if home.state_data.error.is_some() {
-                    bail!("expected default home to carry no error");
-                }
-                Ok(())
-            }
-            _ => bail!("expected default to be Home"),
-        }
+        assert!(matches!(
+            screen,
+            CurrentScreen::Home(home) if home.state_data.error.is_none()
+        ));
+
+        Ok(())
     }
 }

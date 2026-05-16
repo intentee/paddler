@@ -16,7 +16,6 @@ pub fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_types::agent_desired_model::AgentDesiredModel;
     use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
 
@@ -30,9 +29,10 @@ mod tests {
             revision: "main".to_owned(),
         });
 
-        if format_desired_model(&model) != "HuggingFace org/repo/model.gguf (main)" {
-            bail!("HuggingFace formatting does not match the expected layout");
-        }
+        assert_eq!(
+            format_desired_model(&model),
+            "HuggingFace org/repo/model.gguf (main)"
+        );
 
         Ok(())
     }
@@ -41,18 +41,17 @@ mod tests {
     fn formats_local_to_agent_with_path_prefix() -> Result<()> {
         let model = AgentDesiredModel::LocalToAgent("/var/models/model.gguf".to_owned());
 
-        if format_desired_model(&model) != "Local: /var/models/model.gguf" {
-            bail!("LocalToAgent formatting does not match the expected layout");
-        }
+        assert_eq!(
+            format_desired_model(&model),
+            "Local: /var/models/model.gguf"
+        );
 
         Ok(())
     }
 
     #[test]
     fn formats_none_as_not_set_placeholder() -> Result<()> {
-        if format_desired_model(&AgentDesiredModel::None) != "(not set)" {
-            bail!("None formatting does not match the expected placeholder");
-        }
+        assert_eq!(format_desired_model(&AgentDesiredModel::None), "(not set)");
 
         Ok(())
     }

@@ -38,7 +38,6 @@ impl RunningBalancerData {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_types::agent_desired_model::AgentDesiredModel;
     use paddler_types::balancer_desired_state::BalancerDesiredState;
 
@@ -67,29 +66,28 @@ mod tests {
             ..RunningBalancerSnapshot::default()
         };
 
-        match data.update(Message::SnapshotUpdated(Box::new(new_snapshot))) {
-            Action::None => {}
-            _ => bail!("expected Action::None for SnapshotUpdated"),
-        }
+        let action = data.update(Message::SnapshotUpdated(Box::new(new_snapshot)));
 
-        match &data.snapshot.balancer_desired_state.model {
-            AgentDesiredModel::LocalToAgent(path) if path == "/some/model.gguf" => Ok(()),
-            other => bail!("expected snapshot's model to be replaced, got {other:?}"),
-        }
+        assert!(matches!(action, Action::None));
+        assert!(matches!(
+            &data.snapshot.balancer_desired_state.model,
+            AgentDesiredModel::LocalToAgent(path) if path == "/some/model.gguf"
+        ));
+
+        Ok(())
     }
 
     #[test]
     fn stop_message_sets_stopping_flag_and_returns_stop_action() -> Result<()> {
         let mut data = fresh_data();
 
-        match data.update(Message::Stop) {
-            Action::Stop => {}
-            _ => bail!("expected Action::Stop"),
-        }
+        let action = data.update(Message::Stop);
 
-        if !data.stopping {
-            bail!("expected stopping flag to flip to true after Stop");
-        }
+        assert!(matches!(action, Action::Stop));
+        assert!(
+            data.stopping,
+            "expected stopping flag to flip to true after Stop"
+        );
 
         Ok(())
     }
@@ -98,19 +96,27 @@ mod tests {
     fn copy_to_clipboard_message_forwards_content_as_action() -> Result<()> {
         let mut data = fresh_data();
 
-        match data.update(Message::CopyToClipboard("address-value".to_owned())) {
-            Action::CopyToClipboard(content) if content == "address-value" => Ok(()),
-            _ => bail!("expected Action::CopyToClipboard with the forwarded content"),
-        }
+        let action = data.update(Message::CopyToClipboard("address-value".to_owned()));
+
+        assert!(matches!(
+            action,
+            Action::CopyToClipboard(content) if content == "address-value"
+        ));
+
+        Ok(())
     }
 
     #[test]
     fn open_url_message_forwards_url_as_action() -> Result<()> {
         let mut data = fresh_data();
 
-        match data.update(Message::OpenUrl("http://example.test".to_owned())) {
-            Action::OpenUrl(url) if url == "http://example.test" => Ok(()),
-            _ => bail!("expected Action::OpenUrl with the forwarded url"),
-        }
+        let action = data.update(Message::OpenUrl("http://example.test".to_owned()));
+
+        assert!(matches!(
+            action,
+            Action::OpenUrl(url) if url == "http://example.test"
+        ));
+
+        Ok(())
     }
 }

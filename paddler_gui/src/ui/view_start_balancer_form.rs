@@ -71,7 +71,8 @@ pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Mes
 
     let balancer_address_error = data.balancer_address.error_text().map(str::to_owned);
     let inference_address_error = data.inference_address.error_text().map(str::to_owned);
-    let web_admin_panel_address_error = data.web_admin_panel_address.error_text().map(str::to_owned);
+    let web_admin_panel_address_error =
+        data.web_admin_panel_address.error_text().map(str::to_owned);
 
     let model_input: Element<'_, Message> = if data.add_model_later {
         text_input("Model will be added later", "")

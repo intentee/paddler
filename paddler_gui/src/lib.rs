@@ -82,7 +82,6 @@ pub fn run() -> iced::Result {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use clap::Parser as _;
 
     use super::Cli;
@@ -100,9 +99,10 @@ mod tests {
     fn cli_without_subcommand_parses_as_default_launch_intent() -> Result<()> {
         let cli = Cli::try_parse_from(["paddler_gui"])?;
 
-        if cli.command.is_some() {
-            bail!("expected no subcommand to leave Cli.command as None");
-        }
+        assert!(
+            cli.command.is_none(),
+            "expected no subcommand to leave Cli.command as None"
+        );
 
         Ok(())
     }
@@ -111,17 +111,17 @@ mod tests {
     fn cli_with_launch_subcommand_parses_into_launch_variant() -> Result<()> {
         let cli = Cli::try_parse_from(["paddler_gui", "launch"])?;
 
-        match cli.command {
-            Some(Commands::Launch) => Ok(()),
-            other => bail!("expected Some(Commands::Launch), got {other:?}"),
-        }
+        assert!(matches!(cli.command, Some(Commands::Launch)));
+
+        Ok(())
     }
 
     #[test]
     fn cli_rejects_unknown_subcommands() -> Result<()> {
-        match Cli::try_parse_from(["paddler_gui", "bogus"]) {
-            Err(_) => Ok(()),
-            Ok(cli) => bail!("expected error for unknown subcommand, got {cli:?}"),
-        }
+        let parse_result = Cli::try_parse_from(["paddler_gui", "bogus"]);
+
+        assert!(parse_result.is_err());
+
+        Ok(())
     }
 }

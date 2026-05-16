@@ -74,7 +74,11 @@ impl JoinBalancerFormData {
             return Action::None;
         }
 
-        let AddressField::Bound { raw: address_raw, port: _ } = required_balancer_address else {
+        let AddressField::Bound {
+            raw: address_raw,
+            port: _,
+        } = required_balancer_address
+        else {
             return Action::None;
         };
         let SlotCountField::Valid { value: slots, .. } = required_slots_count else {
@@ -122,9 +126,7 @@ mod tests {
     fn set_balancer_address_with_unparseable_input_records_invalid_state() -> Result<()> {
         let mut data = JoinBalancerFormData::default();
 
-        let _ = data.update(Message::SetBalancerAddress(
-            "not-a-socket-addr".to_owned(),
-        ));
+        let _ = data.update(Message::SetBalancerAddress("not-a-socket-addr".to_owned()));
 
         assert!(matches!(
             data.balancer_address,
@@ -212,14 +214,10 @@ mod tests {
         let action = data.update(Message::Connect);
 
         assert!(matches!(action, Action::None));
-        match &data.balancer_address {
-            AddressField::Invalid { error, .. } => assert!(error.contains("required")),
-            other => panic!("expected required-error invalid state, got {other:?}", other = match other {
-                AddressField::Empty => "Empty",
-                AddressField::Bound { .. } => "Bound",
-                AddressField::Invalid { .. } => "Invalid",
-            }),
-        }
+        assert!(matches!(
+            &data.balancer_address,
+            AddressField::Invalid { error, .. } if error.contains("required")
+        ));
 
         Ok(())
     }
@@ -238,10 +236,10 @@ mod tests {
         let action = data.update(Message::Connect);
 
         assert!(matches!(action, Action::None));
-        match &data.slots_count {
-            SlotCountField::Invalid { error, .. } => assert!(error.contains("required")),
-            _ => anyhow::bail!("expected required-error invalid state"),
-        }
+        assert!(matches!(
+            &data.slots_count,
+            SlotCountField::Invalid { error, .. } if error.contains("required")
+        ));
 
         Ok(())
     }
@@ -261,12 +259,10 @@ mod tests {
         let action = data.update(Message::Connect);
 
         assert!(matches!(action, Action::None));
-        match &data.slots_count {
-            SlotCountField::Invalid { error, .. } => {
-                assert!(error.contains("greater than zero"));
-            }
-            _ => anyhow::bail!("expected zero-slot error"),
-        }
+        assert!(matches!(
+            &data.slots_count,
+            SlotCountField::Invalid { error, .. } if error.contains("greater than zero")
+        ));
 
         Ok(())
     }
@@ -290,18 +286,14 @@ mod tests {
 
         let action = data.update(Message::Connect);
 
-        match action {
+        assert!(matches!(
+            action,
             Action::ConnectAgent {
-                agent_name,
-                management_address,
-                slots,
-            } => {
-                assert!(agent_name.is_none());
-                assert_eq!(management_address, raw_address);
-                assert_eq!(slots, 4);
-            }
-            _ => anyhow::bail!("expected Action::ConnectAgent"),
-        }
+                agent_name: None,
+                ref management_address,
+                slots: 4,
+            } if management_address == &raw_address
+        ));
 
         Ok(())
     }
@@ -324,12 +316,10 @@ mod tests {
 
         let action = data.update(Message::Connect);
 
-        match action {
-            Action::ConnectAgent { agent_name, .. } => {
-                assert_eq!(agent_name.as_deref(), Some("primary"));
-            }
-            _ => anyhow::bail!("expected Action::ConnectAgent"),
-        }
+        assert!(matches!(
+            action,
+            Action::ConnectAgent { ref agent_name, .. } if agent_name.as_deref() == Some("primary")
+        ));
 
         Ok(())
     }

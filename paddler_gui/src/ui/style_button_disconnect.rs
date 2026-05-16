@@ -24,7 +24,6 @@ pub fn style_button_disconnect(theme: &Theme, status: button::Status) -> button:
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Background;
     use iced::Theme;
     use iced::widget::button;
@@ -36,9 +35,11 @@ mod tests {
     fn disconnect_button_paints_error_red_background() -> Result<()> {
         let style = style_button_disconnect(&Theme::Light, button::Status::Active);
 
-        match style.background {
-            Some(Background::Color(color)) if color == COLOR_ERROR => Ok(()),
-            other => bail!("expected COLOR_ERROR background, got {other:?}"),
-        }
+        assert!(matches!(
+            style.background,
+            Some(Background::Color(color)) if color == COLOR_ERROR
+        ));
+
+        Ok(())
     }
 }

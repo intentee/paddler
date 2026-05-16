@@ -34,7 +34,6 @@ mod tests {
     use std::collections::BTreeSet;
 
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
     use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
 
@@ -66,20 +65,16 @@ mod tests {
     fn label_reports_download_progress_percentage_when_a_download_is_in_progress() -> Result<()> {
         let snapshot = snapshot_with(25, 100, None, AgentStateApplicationStatus::Fresh);
 
-        if agent_status_label(&snapshot) != "Downloading (25%)" {
-            bail!("expected Downloading (25%)");
-        }
+        assert_eq!(agent_status_label(&snapshot), "Downloading (25%)");
         Ok(())
     }
 
     #[test]
-    fn label_says_waiting_for_model_when_no_model_is_loaded_and_no_download_is_active()
-    -> Result<()> {
+    fn label_says_waiting_for_model_when_no_model_is_loaded_and_no_download_is_active() -> Result<()>
+    {
         let snapshot = snapshot_with(0, 0, None, AgentStateApplicationStatus::Fresh);
 
-        if agent_status_label(&snapshot) != "Waiting for model..." {
-            bail!("expected the waiting-for-model copy");
-        }
+        assert_eq!(agent_status_label(&snapshot), "Waiting for model...");
         Ok(())
     }
 
@@ -92,9 +87,7 @@ mod tests {
             AgentStateApplicationStatus::Applied,
         );
 
-        if agent_status_label(&snapshot) != "OK" {
-            bail!("expected OK for Applied");
-        }
+        assert_eq!(agent_status_label(&snapshot), "OK");
         Ok(())
     }
 
@@ -107,9 +100,7 @@ mod tests {
             AgentStateApplicationStatus::Fresh,
         );
 
-        if agent_status_label(&snapshot) != "Pending" {
-            bail!("expected Pending for Fresh");
-        }
+        assert_eq!(agent_status_label(&snapshot), "Pending");
         Ok(())
     }
 
@@ -122,9 +113,7 @@ mod tests {
             AgentStateApplicationStatus::AttemptedAndRetrying,
         );
 
-        if agent_status_label(&snapshot) != "Retrying" {
-            bail!("expected Retrying");
-        }
+        assert_eq!(agent_status_label(&snapshot), "Retrying");
         Ok(())
     }
 
@@ -137,9 +126,7 @@ mod tests {
             AgentStateApplicationStatus::Stuck,
         );
 
-        if agent_status_label(&snapshot) != "Retrying, but seems stuck?" {
-            bail!("expected stuck copy");
-        }
+        assert_eq!(agent_status_label(&snapshot), "Retrying, but seems stuck?");
         Ok(())
     }
 
@@ -152,9 +139,7 @@ mod tests {
             AgentStateApplicationStatus::AttemptedAndNotAppliable,
         );
 
-        if agent_status_label(&snapshot) != "Needs your help" {
-            bail!("expected needs-help copy");
-        }
+        assert_eq!(agent_status_label(&snapshot), "Needs your help");
         Ok(())
     }
 }

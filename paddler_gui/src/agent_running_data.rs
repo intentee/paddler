@@ -32,7 +32,6 @@ mod tests {
     use std::collections::BTreeSet;
 
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
     use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
@@ -77,33 +76,33 @@ mod tests {
 
         data.apply_status(status);
 
-        if !data.connected {
-            bail!("expected connected to flip to true");
-        }
-
-        if data.snapshot.name.as_deref() != Some("agent-fixture") {
-            bail!("expected existing name to be preserved");
-        }
-
-        if !data.snapshot.id.is_empty() {
-            bail!("expected id to be cleared by apply_status");
-        }
-
-        if data.snapshot.desired_slots_total != 6 {
-            bail!("expected desired_slots_total to be copied from status");
-        }
-
-        if data.snapshot.slots_processing != 2 {
-            bail!("expected slots_processing to be copied from status");
-        }
-
-        if data.snapshot.model_path.as_deref() != Some("/models/model.gguf") {
-            bail!("expected model_path to be copied from status");
-        }
-
-        if !data.snapshot.uses_chat_template_override {
-            bail!("expected uses_chat_template_override to be copied from status");
-        }
+        assert!(data.connected, "expected connected to flip to true");
+        assert_eq!(
+            data.snapshot.name.as_deref(),
+            Some("agent-fixture"),
+            "expected existing name to be preserved"
+        );
+        assert!(
+            data.snapshot.id.is_empty(),
+            "expected id to be cleared by apply_status"
+        );
+        assert_eq!(
+            data.snapshot.desired_slots_total, 6,
+            "expected desired_slots_total to be copied from status"
+        );
+        assert_eq!(
+            data.snapshot.slots_processing, 2,
+            "expected slots_processing to be copied from status"
+        );
+        assert_eq!(
+            data.snapshot.model_path.as_deref(),
+            Some("/models/model.gguf"),
+            "expected model_path to be copied from status"
+        );
+        assert!(
+            data.snapshot.uses_chat_template_override,
+            "expected uses_chat_template_override to be copied from status"
+        );
 
         Ok(())
     }

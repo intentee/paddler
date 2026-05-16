@@ -27,7 +27,6 @@ pub fn style_field_text_input(theme: &Theme, status: text_input::Status) -> text
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Theme;
     use iced::widget::text_input;
 
@@ -38,13 +37,14 @@ mod tests {
     fn text_input_outlines_with_border_color_at_two_pixels() -> Result<()> {
         let style = style_field_text_input(&Theme::Light, text_input::Status::Active);
 
-        if style.border.color != COLOR_BORDER {
-            bail!("expected border in COLOR_BORDER");
-        }
-
-        if (style.border.width - 2.0).abs() > f32::EPSILON {
-            bail!("expected border width of 2.0");
-        }
+        assert_eq!(
+            style.border.color, COLOR_BORDER,
+            "expected border in COLOR_BORDER"
+        );
+        assert!(
+            (style.border.width - 2.0).abs() <= f32::EPSILON,
+            "expected border width of 2.0"
+        );
 
         Ok(())
     }

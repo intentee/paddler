@@ -28,20 +28,22 @@ pub fn detect_network_interfaces() -> Vec<NetworkInterfaceAddress> {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
 
     use super::detect_network_interfaces;
 
     #[test]
     fn detected_addresses_are_ipv4_and_not_loopback() -> Result<()> {
         for address in detect_network_interfaces() {
-            if !address.ip_address.is_ipv4() {
-                bail!("expected only ipv4 addresses, got {}", address.ip_address);
-            }
-
-            if address.ip_address.is_loopback() {
-                bail!("expected loopback to be filtered, got {}", address.ip_address);
-            }
+            assert!(
+                address.ip_address.is_ipv4(),
+                "expected only ipv4 addresses, got {}",
+                address.ip_address
+            );
+            assert!(
+                !address.ip_address.is_loopback(),
+                "expected loopback to be filtered, got {}",
+                address.ip_address
+            );
         }
 
         Ok(())

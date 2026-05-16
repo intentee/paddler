@@ -36,7 +36,6 @@ pub fn style_field_checkbox(_theme: &Theme, status: checkbox::Status) -> checkbo
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Background;
     use iced::Theme;
     use iced::widget::checkbox;
@@ -50,10 +49,12 @@ mod tests {
         let style =
             style_field_checkbox(&Theme::Light, checkbox::Status::Active { is_checked: true });
 
-        match style.background {
-            Background::Color(color) if color == COLOR_BORDER => Ok(()),
-            other => bail!("expected COLOR_BORDER background when checked, got {other:?}"),
-        }
+        assert!(matches!(
+            style.background,
+            Background::Color(color) if color == COLOR_BORDER
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -63,9 +64,11 @@ mod tests {
             checkbox::Status::Active { is_checked: false },
         );
 
-        match style.background {
-            Background::Color(color) if color == COLOR_BODY_BACKGROUND => Ok(()),
-            other => bail!("expected COLOR_BODY_BACKGROUND when unchecked, got {other:?}"),
-        }
+        assert!(matches!(
+            style.background,
+            Background::Color(color) if color == COLOR_BODY_BACKGROUND
+        ));
+
+        Ok(())
     }
 }

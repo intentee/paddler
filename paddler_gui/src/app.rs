@@ -485,7 +485,6 @@ impl App {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
 
     use super::*;
     use crate::agent_running_data::AgentRunningData;
@@ -558,7 +557,9 @@ mod tests {
 
     fn screen_join_form(form: JoinBalancerFormData) -> CurrentScreen {
         CurrentScreen::JoinBalancerForm(
-            Screen::<JoinBalancerForm>::builder().state_data(form).build(),
+            Screen::<JoinBalancerForm>::builder()
+                .state_data(form)
+                .build(),
         )
     }
 
@@ -572,14 +573,14 @@ mod tests {
 
     fn screen_running(data: RunningBalancerData) -> CurrentScreen {
         CurrentScreen::RunningBalancer(
-            Screen::<RunningBalancer>::builder().state_data(data).build(),
+            Screen::<RunningBalancer>::builder()
+                .state_data(data)
+                .build(),
         )
     }
 
     fn screen_agent_running(data: AgentRunningData) -> CurrentScreen {
-        CurrentScreen::AgentRunning(
-            Screen::<AgentRunning>::builder().state_data(data).build(),
-        )
+        CurrentScreen::AgentRunning(Screen::<AgentRunning>::builder().state_data(data).build())
     }
 
     fn bound_address_field() -> Result<crate::address_field::AddressField> {
@@ -602,10 +603,11 @@ mod tests {
     }
 
     fn assert_screen_is_home(app: &App) -> Result<()> {
-        match app.current_screen_for_test() {
-            CurrentScreen::Home(_) => Ok(()),
-            _ => bail!("expected Home screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::Home(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -613,15 +615,17 @@ mod tests {
         let (mut app, _initial_task) = App::new();
         let shutdown = app.shutdown_token_for_test();
 
-        if shutdown.is_cancelled() {
-            bail!("expected shutdown token to start uncancelled");
-        }
+        assert!(
+            !shutdown.is_cancelled(),
+            "expected shutdown token to start uncancelled"
+        );
 
         let _exit_task = app.update(Message::Quit);
 
-        if !shutdown.is_cancelled() {
-            bail!("expected Quit to cancel shutdown token");
-        }
+        assert!(
+            shutdown.is_cancelled(),
+            "expected Quit to cancel shutdown token"
+        );
         Ok(())
     }
 
@@ -631,12 +635,14 @@ mod tests {
 
         let _exit_task = app.update(Message::Quit);
 
-        if app.agent_cancel_for_test().is_some() {
-            bail!("expected Quit to drop agent_cancel");
-        }
-        if app.balancer_cancel_for_test().is_some() {
-            bail!("expected Quit to drop balancer_cancel");
-        }
+        assert!(
+            app.agent_cancel_for_test().is_none(),
+            "expected Quit to drop agent_cancel"
+        );
+        assert!(
+            app.balancer_cancel_for_test().is_none(),
+            "expected Quit to drop balancer_cancel"
+        );
         Ok(())
     }
 
@@ -653,10 +659,11 @@ mod tests {
 
         let _ = app.update(Message::Home(home_handler::Message::StartBalancer));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::StartBalancerForm(_) => Ok(()),
-            _ => bail!("expected StartBalancerForm screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::StartBalancerForm(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -665,10 +672,11 @@ mod tests {
 
         let _ = app.update(Message::Home(home_handler::Message::JoinBalancer));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::JoinBalancerForm(_) => Ok(()),
-            _ => bail!("expected JoinBalancerForm screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::JoinBalancerForm(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -679,10 +687,11 @@ mod tests {
             join_balancer_form_handler::Message::SetAgentName("alice".to_owned()),
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::JoinBalancerForm(_) => Ok(()),
-            _ => bail!("expected to stay on JoinBalancerForm"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::JoinBalancerForm(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -705,14 +714,14 @@ mod tests {
             join_balancer_form_handler::Message::Connect,
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::AgentRunning(_) => {}
-            _ => bail!("expected AgentRunning screen"),
-        }
-
-        if app.agent_cancel_for_test().is_none() {
-            bail!("expected agent_cancel token to be set");
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::AgentRunning(_)
+        ));
+        assert!(
+            app.agent_cancel_for_test().is_some(),
+            "expected agent_cancel token to be set"
+        );
 
         // Stop the spawned task immediately so the test does not leave a runner.
         if let Some(token) = app.agent_cancel_for_test() {
@@ -730,10 +739,11 @@ mod tests {
             start_balancer_form_handler::Message::SetBalancerAddress("127.0.0.1:0".to_owned()),
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::StartBalancerForm(_) => Ok(()),
-            _ => bail!("expected to stay on StartBalancerForm"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::StartBalancerForm(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -746,9 +756,10 @@ mod tests {
             start_balancer_form_handler::Message::Cancel,
         ));
 
-        if !token.is_cancelled() {
-            bail!("expected balancer_cancel token to be cancelled");
-        }
+        assert!(
+            token.is_cancelled(),
+            "expected balancer_cancel token to be cancelled"
+        );
 
         assert_screen_is_home(&app)
     }
@@ -768,14 +779,14 @@ mod tests {
             start_balancer_form_handler::Message::Confirm,
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::StartBalancerForm(_) => {}
-            _ => bail!("expected to stay on StartBalancerForm during spawn"),
-        }
-
-        if app.balancer_cancel_for_test().is_none() {
-            bail!("expected balancer_cancel token to be set after Confirm");
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::StartBalancerForm(_)
+        ));
+        assert!(
+            app.balancer_cancel_for_test().is_some(),
+            "expected balancer_cancel token to be set after Confirm"
+        );
 
         if let Some(token) = app.balancer_cancel_for_test() {
             token.cancel();
@@ -790,10 +801,11 @@ mod tests {
 
         let _ = app.update(Message::BalancerStarted);
 
-        match app.current_screen_for_test() {
-            CurrentScreen::RunningBalancer(_) => Ok(()),
-            _ => bail!("expected RunningBalancer screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::RunningBalancer(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -803,18 +815,15 @@ mod tests {
 
         let _ = app.update(Message::BalancerFailed("bind error".to_owned()));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::Home(home) => {
-                if home.state_data.error.as_deref() != Some("bind error") {
-                    bail!("expected home error to carry the failure message");
-                }
-                if app.balancer_cancel_for_test().is_some() {
-                    bail!("expected balancer_cancel to be dropped");
-                }
-                Ok(())
-            }
-            _ => bail!("expected Home screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::Home(home) if home.state_data.error.as_deref() == Some("bind error")
+        ));
+        assert!(
+            app.balancer_cancel_for_test().is_none(),
+            "expected balancer_cancel to be dropped"
+        );
+        Ok(())
     }
 
     #[test]
@@ -827,10 +836,11 @@ mod tests {
             )),
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::RunningBalancer(_) => Ok(()),
-            _ => bail!("expected to stay on RunningBalancer"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::RunningBalancer(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -843,14 +853,15 @@ mod tests {
             running_balancer_handler::Message::Stop,
         ));
 
-        if !token.is_cancelled() {
-            bail!("expected Stop to cancel balancer_cancel token");
-        }
-
-        match app.current_screen_for_test() {
-            CurrentScreen::RunningBalancer(_) => Ok(()),
-            _ => bail!("expected to stay on RunningBalancer"),
-        }
+        assert!(
+            token.is_cancelled(),
+            "expected Stop to cancel balancer_cancel token"
+        );
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::RunningBalancer(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -861,25 +872,27 @@ mod tests {
             running_balancer_handler::Message::CopyToClipboard("text".to_owned()),
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::RunningBalancer(_) => Ok(()),
-            _ => bail!("expected to stay on RunningBalancer"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::RunningBalancer(_)
+        ));
+        Ok(())
     }
 
     #[test]
-    fn running_balancer_open_url_with_invalid_url_logs_error_but_keeps_user_on_screen()
-    -> Result<()> {
+    fn running_balancer_open_url_with_invalid_url_logs_error_but_keeps_user_on_screen() -> Result<()>
+    {
         let mut app = app_with_screen(screen_running(fresh_running_data()));
 
         let _ = app.update(Message::RunningBalancer(
             running_balancer_handler::Message::OpenUrl("not-a-real-scheme://broken".to_owned()),
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::RunningBalancer(_) => Ok(()),
-            _ => bail!("expected to stay on RunningBalancer"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::RunningBalancer(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -889,27 +902,26 @@ mod tests {
 
         let _ = app.update(Message::BalancerStopped);
 
-        if app.balancer_cancel_for_test().is_some() {
-            bail!("expected balancer_cancel to be dropped");
-        }
+        assert!(
+            app.balancer_cancel_for_test().is_none(),
+            "expected balancer_cancel to be dropped"
+        );
 
         assert_screen_is_home(&app)
     }
 
     #[test]
-    fn balancer_failed_message_from_running_balancer_returns_user_to_home_with_error()
-    -> Result<()> {
+    fn balancer_failed_message_from_running_balancer_returns_user_to_home_with_error() -> Result<()>
+    {
         let mut app = app_with_screen(screen_running(fresh_running_data()));
 
         let _ = app.update(Message::BalancerFailed("crash".to_owned()));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::Home(home) => match home.state_data.error.as_deref() {
-                Some("crash") => Ok(()),
-                _ => bail!("expected error message to be carried over"),
-            },
-            _ => bail!("expected Home screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::Home(home) if home.state_data.error.as_deref() == Some("crash")
+        ));
+        Ok(())
     }
 
     #[test]
@@ -937,10 +949,11 @@ mod tests {
             }),
         ));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::AgentRunning(_) => Ok(()),
-            _ => bail!("expected to stay on AgentRunning"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::AgentRunning(_)
+        ));
+        Ok(())
     }
 
     #[test]
@@ -953,9 +966,10 @@ mod tests {
             agent_running_handler::Message::Disconnect,
         ));
 
-        if !token.is_cancelled() {
-            bail!("expected Disconnect to cancel agent_cancel token");
-        }
+        assert!(
+            token.is_cancelled(),
+            "expected Disconnect to cancel agent_cancel token"
+        );
 
         assert_screen_is_home(&app)
     }
@@ -967,9 +981,10 @@ mod tests {
 
         let _ = app.update(Message::AgentStopped);
 
-        if app.agent_cancel_for_test().is_some() {
-            bail!("expected agent_cancel to be dropped on AgentStopped");
-        }
+        assert!(
+            app.agent_cancel_for_test().is_none(),
+            "expected agent_cancel to be dropped on AgentStopped"
+        );
 
         assert_screen_is_home(&app)
     }
@@ -980,13 +995,11 @@ mod tests {
 
         let _ = app.update(Message::AgentFailed("agent failure".to_owned()));
 
-        match app.current_screen_for_test() {
-            CurrentScreen::Home(home) => match home.state_data.error.as_deref() {
-                Some("agent failure") => Ok(()),
-                _ => bail!("expected agent failure message on home"),
-            },
-            _ => bail!("expected Home screen"),
-        }
+        assert!(matches!(
+            app.current_screen_for_test(),
+            CurrentScreen::Home(home) if home.state_data.error.as_deref() == Some("agent failure")
+        ));
+        Ok(())
     }
 
     #[test]
@@ -1063,11 +1076,15 @@ mod tests {
             start_balancer_form_handler::Message::Confirm,
         ));
 
-        let Some(token) = app.balancer_cancel_for_test() else {
-            bail!("expected balancer_cancel token to be set after Confirm with web admin address");
-        };
+        let token = app.balancer_cancel_for_test();
+        assert!(
+            token.is_some(),
+            "expected balancer_cancel token to be set after Confirm with web admin address"
+        );
 
-        token.cancel();
+        if let Some(token) = token {
+            token.cancel();
+        }
 
         Ok(())
     }

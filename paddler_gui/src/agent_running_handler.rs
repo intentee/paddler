@@ -31,7 +31,6 @@ mod tests {
     use std::collections::BTreeSet;
 
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
     use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
@@ -83,14 +82,11 @@ mod tests {
 
         let action = data.update(Message::AgentStatusUpdated(applied_status()));
 
-        match action {
-            Action::None => {}
-            Action::Disconnect => bail!("expected Action::None"),
-        }
-
-        if !data.connected {
-            bail!("expected connected flag to flip to true after status update");
-        }
+        assert!(matches!(action, Action::None));
+        assert!(
+            data.connected,
+            "expected connected flag to flip to true after status update"
+        );
 
         Ok(())
     }
@@ -99,9 +95,11 @@ mod tests {
     fn disconnect_message_returns_disconnect_action() -> Result<()> {
         let mut data = fresh_running_data();
 
-        match data.update(Message::Disconnect) {
-            Action::Disconnect => Ok(()),
-            Action::None => bail!("expected Action::Disconnect"),
-        }
+        assert!(matches!(
+            data.update(Message::Disconnect),
+            Action::Disconnect
+        ));
+
+        Ok(())
     }
 }

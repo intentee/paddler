@@ -70,7 +70,6 @@ impl fmt::Display for ModelPreset {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_types::agent_desired_model::AgentDesiredModel;
 
     use super::ModelPreset;
@@ -79,9 +78,11 @@ mod tests {
     fn available_presets_returns_at_least_one_preset_per_supported_model() -> Result<()> {
         let presets = ModelPreset::available_presets();
 
-        if presets.len() < 2 {
-            bail!("expected at least two presets, got {}", presets.len());
-        }
+        assert!(
+            presets.len() >= 2,
+            "expected at least two presets, got {}",
+            presets.len()
+        );
 
         Ok(())
     }
@@ -95,10 +96,12 @@ mod tests {
 
         let desired = preset.to_balancer_desired_state();
 
-        match desired.multimodal_projection {
-            AgentDesiredModel::None => Ok(()),
-            other => bail!("expected AgentDesiredModel::None, got {other:?}"),
-        }
+        assert!(matches!(
+            desired.multimodal_projection,
+            AgentDesiredModel::None
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -110,10 +113,12 @@ mod tests {
 
         let desired = preset.to_balancer_desired_state();
 
-        match desired.multimodal_projection {
-            AgentDesiredModel::HuggingFace(_) => Ok(()),
-            other => bail!("expected AgentDesiredModel::HuggingFace, got {other:?}"),
-        }
+        assert!(matches!(
+            desired.multimodal_projection,
+            AgentDesiredModel::HuggingFace(_)
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -123,9 +128,11 @@ mod tests {
             .next()
             .ok_or_else(|| anyhow::anyhow!("expected at least one preset"))?;
 
-        if format!("{preset}") != preset.display_name {
-            bail!("Display impl did not match display_name");
-        }
+        assert_eq!(
+            format!("{preset}"),
+            preset.display_name,
+            "Display impl did not match display_name"
+        );
 
         Ok(())
     }

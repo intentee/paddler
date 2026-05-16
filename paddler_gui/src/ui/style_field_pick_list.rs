@@ -26,7 +26,6 @@ pub fn style_field_pick_list(theme: &Theme, status: pick_list::Status) -> pick_l
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Theme;
     use iced::widget::pick_list;
 
@@ -37,9 +36,10 @@ mod tests {
     fn pick_list_displays_outlined_border_in_body_font_color() -> Result<()> {
         let style = style_field_pick_list(&Theme::Light, pick_list::Status::Active);
 
-        if style.border.color != COLOR_BORDER {
-            bail!("expected border in COLOR_BORDER");
-        }
+        assert_eq!(
+            style.border.color, COLOR_BORDER,
+            "expected border in COLOR_BORDER"
+        );
 
         Ok(())
     }

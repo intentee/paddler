@@ -144,7 +144,6 @@ impl Screen<RunningBalancer> {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
 
     use super::AddressField;
     use super::AgentRunning;
@@ -251,16 +250,18 @@ mod tests {
     fn home_to_start_balancer_form_seeds_addresses_from_detected_interfaces() -> Result<()> {
         let next = home().start_balancer();
 
-        if next.state_data.balancer_address.raw_text().is_empty() {
-            bail!("expected start form to be seeded with a balancer_address");
-        }
-
-        if !next.state_data.balancer_address.raw_text().ends_with(":8060") {
-            bail!(
-                "expected default balancer port suffix :8060, got {}",
-                next.state_data.balancer_address.raw_text()
-            );
-        }
+        assert!(
+            !next.state_data.balancer_address.raw_text().is_empty(),
+            "expected start form to be seeded with a balancer_address"
+        );
+        assert!(
+            next.state_data
+                .balancer_address
+                .raw_text()
+                .ends_with(":8060"),
+            "expected default balancer port suffix :8060, got {}",
+            next.state_data.balancer_address.raw_text()
+        );
 
         Ok(())
     }
@@ -269,9 +270,10 @@ mod tests {
     fn join_balancer_form_cancel_returns_home_without_error() -> Result<()> {
         let next = join_form(JoinBalancerFormData::default()).cancel();
 
-        if next.state_data.error.is_some() {
-            bail!("cancel should not surface an error on home");
-        }
+        assert!(
+            next.state_data.error.is_none(),
+            "cancel should not surface an error on home"
+        );
         Ok(())
     }
 
@@ -288,9 +290,10 @@ mod tests {
 
         let next = form.connect();
 
-        if next.state_data.snapshot.name.is_some() {
-            bail!("expected agent name None when form field empty");
-        }
+        assert!(
+            next.state_data.snapshot.name.is_none(),
+            "expected agent name None when form field empty"
+        );
         Ok(())
     }
 
@@ -308,18 +311,21 @@ mod tests {
 
         let next = form.connect();
 
-        if next.state_data.snapshot.name.as_deref() != Some("primary") {
-            bail!("expected agent name Some(\"primary\")");
-        }
+        assert_eq!(
+            next.state_data.snapshot.name.as_deref(),
+            Some("primary"),
+            "expected agent name Some(\"primary\")"
+        );
         Ok(())
     }
 
     #[test]
     fn agent_running_disconnect_returns_home_without_error() -> Result<()> {
         let next = agent_running(fresh_agent_running_data()).disconnect();
-        if next.state_data.error.is_some() {
-            bail!("disconnect should not surface an error on home");
-        }
+        assert!(
+            next.state_data.error.is_none(),
+            "disconnect should not surface an error on home"
+        );
         Ok(())
     }
 
@@ -327,24 +333,24 @@ mod tests {
     fn agent_running_agent_failed_returns_home_with_error_message() -> Result<()> {
         let next = agent_running(fresh_agent_running_data()).agent_failed("oops".to_owned());
 
-        match next.state_data.error.as_deref() {
-            Some("oops") => Ok(()),
-            other => bail!("expected error Some(\"oops\"), got {other:?}"),
-        }
+        assert_eq!(next.state_data.error.as_deref(), Some("oops"));
+
+        Ok(())
     }
 
     #[test]
     fn start_balancer_form_cancel_returns_home_without_error() -> Result<()> {
         let next = start_form(fresh_start_form_data()).cancel();
-        if next.state_data.error.is_some() {
-            bail!("cancel should not surface an error on home");
-        }
+        assert!(
+            next.state_data.error.is_none(),
+            "cancel should not surface an error on home"
+        );
         Ok(())
     }
 
     #[test]
-    fn start_balancer_form_balancer_started_with_web_admin_address_carries_it_forward()
-    -> Result<()> {
+    fn start_balancer_form_balancer_started_with_web_admin_address_carries_it_forward() -> Result<()>
+    {
         let form = start_form(StartBalancerFormData {
             web_admin_panel_address: AddressField::Invalid {
                 raw: "127.0.0.1:8062".to_owned(),
@@ -355,10 +361,12 @@ mod tests {
 
         let next = form.balancer_started();
 
-        match next.state_data.web_admin_panel_address.as_deref() {
-            Some("127.0.0.1:8062") => Ok(()),
-            other => bail!("expected web_admin_panel_address forwarded, got {other:?}"),
-        }
+        assert_eq!(
+            next.state_data.web_admin_panel_address.as_deref(),
+            Some("127.0.0.1:8062")
+        );
+
+        Ok(())
     }
 
     #[test]
@@ -371,9 +379,10 @@ mod tests {
 
         let next = form.balancer_started();
 
-        if next.state_data.web_admin_panel_address.is_some() {
-            bail!("expected empty web_admin_panel_address to become None");
-        }
+        assert!(
+            next.state_data.web_admin_panel_address.is_none(),
+            "expected empty web_admin_panel_address to become None"
+        );
         Ok(())
     }
 
@@ -381,18 +390,18 @@ mod tests {
     fn start_balancer_form_balancer_failed_returns_home_with_error_message() -> Result<()> {
         let next = start_form(fresh_start_form_data()).balancer_failed("nope".to_owned());
 
-        match next.state_data.error.as_deref() {
-            Some("nope") => Ok(()),
-            other => bail!("expected error Some(\"nope\"), got {other:?}"),
-        }
+        assert_eq!(next.state_data.error.as_deref(), Some("nope"));
+
+        Ok(())
     }
 
     #[test]
     fn running_balancer_balancer_stopped_returns_home_without_error() -> Result<()> {
         let next = running(fresh_running_data()).balancer_stopped();
-        if next.state_data.error.is_some() {
-            bail!("balancer_stopped should not surface an error on home");
-        }
+        assert!(
+            next.state_data.error.is_none(),
+            "balancer_stopped should not surface an error on home"
+        );
         Ok(())
     }
 
@@ -400,10 +409,9 @@ mod tests {
     fn running_balancer_balancer_failed_returns_home_with_error_message() -> Result<()> {
         let next = running(fresh_running_data()).balancer_failed("kaboom".to_owned());
 
-        match next.state_data.error.as_deref() {
-            Some("kaboom") => Ok(()),
-            other => bail!("expected error Some(\"kaboom\"), got {other:?}"),
-        }
+        assert_eq!(next.state_data.error.as_deref(), Some("kaboom"));
+
+        Ok(())
     }
 
     use paddler_types::agent_state_application_status::AgentStateApplicationStatus;

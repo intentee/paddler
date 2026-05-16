@@ -28,7 +28,6 @@ pub fn style_field_pick_list_menu(theme: &Theme) -> menu::Style {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Theme;
 
     use super::COLOR_BORDER;
@@ -38,9 +37,10 @@ mod tests {
     fn pick_list_open_menu_outlines_options_with_border_color() -> Result<()> {
         let style = style_field_pick_list_menu(&Theme::Light);
 
-        if style.border.color != COLOR_BORDER {
-            bail!("expected menu border in COLOR_BORDER");
-        }
+        assert_eq!(
+            style.border.color, COLOR_BORDER,
+            "expected menu border in COLOR_BORDER"
+        );
 
         Ok(())
     }

@@ -21,7 +21,6 @@ pub fn style_field_container(theme: &Theme) -> container::Style {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Theme;
 
     use super::COLOR_BORDER;
@@ -31,13 +30,15 @@ mod tests {
     fn field_container_casts_a_solid_offset_shadow_in_border_color() -> Result<()> {
         let style = style_field_container(&Theme::Light);
 
-        if style.shadow.color != COLOR_BORDER {
-            bail!("expected shadow color == COLOR_BORDER");
-        }
-
-        if style.shadow.offset.x != 4.0 || style.shadow.offset.y != 4.0 {
-            bail!("expected shadow offset (4.0, 4.0)");
-        }
+        assert_eq!(
+            style.shadow.color, COLOR_BORDER,
+            "expected shadow color == COLOR_BORDER"
+        );
+        assert!(
+            (style.shadow.offset.x - 4.0).abs() <= f32::EPSILON
+                && (style.shadow.offset.y - 4.0).abs() <= f32::EPSILON,
+            "expected shadow offset (4.0, 4.0)"
+        );
 
         Ok(())
     }

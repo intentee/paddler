@@ -90,7 +90,8 @@ impl StartBalancerFormData {
             inference_address,
             AddressField::Empty | AddressField::Invalid { .. }
         );
-        let web_admin_panel_invalid = matches!(web_admin_panel_address, AddressField::Invalid { .. });
+        let web_admin_panel_invalid =
+            matches!(web_admin_panel_address, AddressField::Invalid { .. });
 
         if model_error_present || any_required_address_invalid || web_admin_panel_invalid {
             self.balancer_address = match balancer_address {
@@ -154,7 +155,6 @@ impl StartBalancerFormData {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use paddler_ports::bind_ephemeral_port::bind_ephemeral_port;
     use paddler_ports::bound_port::BoundPort;
     use paddler_types::agent_desired_model::AgentDesiredModel;
@@ -257,9 +257,10 @@ mod tests {
 
         let _ = data.update(Message::SelectModel(first_preset()?));
 
-        if data.model_error.is_some() {
-            bail!("expected model_error to be cleared after SelectModel");
-        }
+        assert!(
+            data.model_error.is_none(),
+            "expected model_error to be cleared after SelectModel"
+        );
 
         Ok(())
     }
@@ -377,14 +378,13 @@ mod tests {
 
         let action = data.update(Message::Confirm);
 
-        match action {
-            Action::StartBalancer { desired_state, .. } => {
-                assert!(data.starting);
-                assert!(matches!(desired_state.model, AgentDesiredModel::HuggingFace(_)));
-                Ok(())
-            }
-            _ => bail!("expected Action::StartBalancer for valid input with preset"),
-        }
+        assert!(matches!(
+            action,
+            Action::StartBalancer { desired_state, .. } if matches!(desired_state.model, AgentDesiredModel::HuggingFace(_))
+        ));
+        assert!(data.starting);
+
+        Ok(())
     }
 
     #[test]
@@ -397,13 +397,12 @@ mod tests {
 
         let action = data.update(Message::Confirm);
 
-        match action {
-            Action::StartBalancer { desired_state, .. } => {
-                assert!(matches!(desired_state.model, AgentDesiredModel::None));
-                Ok(())
-            }
-            _ => bail!("expected Action::StartBalancer for valid input with add_model_later"),
-        }
+        assert!(matches!(
+            action,
+            Action::StartBalancer { desired_state, .. } if matches!(desired_state.model, AgentDesiredModel::None)
+        ));
+
+        Ok(())
     }
 
     #[test]
@@ -416,15 +415,14 @@ mod tests {
 
         let action = data.update(Message::Confirm);
 
-        match action {
+        assert!(matches!(
+            action,
             Action::StartBalancer {
-                web_admin_panel_port,
+                web_admin_panel_port: Some(_),
                 ..
-            } => {
-                assert!(web_admin_panel_port.is_some());
-                Ok(())
             }
-            _ => bail!("expected Action::StartBalancer"),
-        }
+        ));
+
+        Ok(())
     }
 }

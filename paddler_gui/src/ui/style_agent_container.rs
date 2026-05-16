@@ -23,7 +23,6 @@ pub fn style_agent_container(theme: &Theme) -> container::Style {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use anyhow::bail;
     use iced::Background;
     use iced::Theme;
 
@@ -35,14 +34,15 @@ mod tests {
     fn agent_container_paints_orange_background_with_black_border() -> Result<()> {
         let style = style_agent_container(&Theme::Light);
 
-        match style.background {
-            Some(Background::Color(color)) if color == COLOR_AGENT_BACKGROUND => {}
-            other => bail!("expected COLOR_AGENT_BACKGROUND, got {other:?}"),
-        }
-
-        if style.border.color != COLOR_BORDER {
-            bail!("expected COLOR_BORDER border, got {:?}", style.border.color);
-        }
+        assert!(matches!(
+            style.background,
+            Some(Background::Color(color)) if color == COLOR_AGENT_BACKGROUND
+        ));
+        assert_eq!(
+            style.border.color, COLOR_BORDER,
+            "expected COLOR_BORDER border, got {:?}",
+            style.border.color
+        );
 
         Ok(())
     }
