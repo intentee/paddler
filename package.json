@@ -1,5 +1,6 @@
 {
   "devDependencies": {
+    "@intentee/rust-coverage-check": "0.1.0",
     "@types/hotwired__turbo": "^8",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",

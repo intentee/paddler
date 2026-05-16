@@ -1,5 +1,6 @@
 .DEFAULT_GOAL := target/release/paddler
 
+COVERAGE_PACKAGES := -p paddler_gui
 RUST_LOG ?= debug
 
 PADDLER_CLI_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_cli/src paddler_client/src paddler_types/src -name '*.rs')
@@ -73,6 +74,28 @@ clean:
 .PHONY: clippy
 clippy: esbuild-meta.json
 	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
+
+.PHONY: coverage
+coverage: esbuild-meta.json
+	cargo llvm-cov clean --workspace
+	cargo llvm-cov $(COVERAGE_PACKAGES) --features web_admin_panel --no-report
+	cargo llvm-cov report --json --output-path target/llvm-cov.json
+	cargo llvm-cov report --lcov --output-path target/lcov.info
+	cargo llvm-cov report
+	npx rust-coverage-check target/llvm-cov.json \
+		--workspace-root $(CURDIR) \
+		--gated paddler_gui \
+		--required-percent 100
+
+.PHONY: coverage-clean
+coverage-clean:
+	cargo llvm-cov clean --workspace
+	rm -rf target/llvm-cov-target
+	rm -f target/llvm-cov.json target/lcov.info
+
+.PHONY: coverage-report
+coverage-report: esbuild-meta.json
+	cargo llvm-cov $(COVERAGE_PACKAGES) --features web_admin_panel --html
 
 .PHONY: fmt
 fmt: node_modules
