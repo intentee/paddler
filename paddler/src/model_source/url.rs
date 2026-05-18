@@ -52,7 +52,7 @@ fn url_cache_path(cache_root: &Path, url_string: &str, parsed: &Url) -> PathBuf 
     let basename = url_basename(parsed);
 
     cache_root
-        .join("url-models")
+        .join("downloaded-models")
         .join(hex_digest)
         .join(basename)
 }
@@ -218,7 +218,7 @@ mod tests {
         let path_string = path.to_string_lossy().into_owned();
         let expected_hex = super::hex_lowercase(&Sha256::digest(url_string.as_bytes()));
 
-        assert!(path_string.contains("url-models"));
+        assert!(path_string.contains("downloaded-models"));
         assert!(path_string.ends_with("/model.gguf"));
         assert!(path_string.contains(&expected_hex));
 
