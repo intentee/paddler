@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum AttemptError {
+pub enum DownloadAttemptError {
     #[error("io")]
     Io(#[from] io::Error),
 

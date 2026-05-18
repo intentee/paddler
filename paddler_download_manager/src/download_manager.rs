@@ -6,14 +6,14 @@ use reqwest::Client;
 use reqwest::Url;
 use reqwest::header::RANGE;
 
-use crate::attempt_error::AttemptError;
+use crate::download_attempt_error::DownloadAttemptError;
 use crate::download_error::DownloadError;
 use crate::partial_file::PartialFile;
 use crate::progress_sink::ProgressSink;
 use crate::response_classification::ResponseClassification;
 use crate::retry_policy::RetryPolicy;
-use crate::stream_to_partial::stream_to_partial;
-use crate::stream_to_partial_error::StreamToPartialError;
+use crate::stream_to_partial_file::stream_to_partial_file;
+use crate::stream_to_partial_file_error::StreamToPartialFileError;
 
 pub struct DownloadManager {
     client: Client,
@@ -51,7 +51,7 @@ impl DownloadManager {
         loop {
             match self.attempt_download(url, &partial, &progress_sink).await {
                 Ok(()) => return Ok(()),
-                Err(AttemptError::Transient(transient_error)) => {
+                Err(DownloadAttemptError::Transient(transient_error)) => {
                     attempt += 1;
 
                     if attempt >= self.retry_policy.max_attempts {
@@ -65,24 +65,24 @@ impl DownloadManager {
                     let delay = self.retry_policy.delay_for_attempt(attempt - 1);
                     tokio::time::sleep(delay).await;
                 }
-                Err(AttemptError::NotFound) => {
+                Err(DownloadAttemptError::NotFound) => {
                     return Err(DownloadError::NotFound {
                         url: url.to_owned(),
                     });
                 }
-                Err(AttemptError::PermissionDenied(status)) => {
+                Err(DownloadAttemptError::PermissionDenied(status)) => {
                     return Err(DownloadError::PermissionDenied {
                         url: url.to_owned(),
                         status,
                     });
                 }
-                Err(AttemptError::PartialFileStale) => {
+                Err(DownloadAttemptError::PartialFileStale) => {
                     return Err(DownloadError::PartialFileStale {
                         url: url.to_owned(),
                         partial_path: partial.partial_path.clone(),
                     });
                 }
-                Err(AttemptError::Io(io_error)) => {
+                Err(DownloadAttemptError::Io(io_error)) => {
                     return Err(DownloadError::Io {
                         path: partial.partial_path.clone(),
                         source: io_error,
@@ -97,7 +97,7 @@ impl DownloadManager {
         url: &str,
         partial: &PartialFile,
         progress_sink: &Arc<dyn ProgressSink>,
-    ) -> Result<(), AttemptError> {
+    ) -> Result<(), DownloadAttemptError> {
         let mut offset = partial.current_size().await?;
         let sent_range_header = offset > 0;
 
@@ -109,7 +109,7 @@ impl DownloadManager {
         let response = match request.send().await {
             Ok(response) => response,
             Err(send_error) => {
-                return Err(AttemptError::Transient(anyhow::Error::new(send_error)));
+                return Err(DownloadAttemptError::Transient(anyhow::Error::new(send_error)));
             }
         };
 
@@ -117,16 +117,16 @@ impl DownloadManager {
             ResponseClassification::from_status(response.status(), sent_range_header);
 
         match classification {
-            ResponseClassification::NotFound => return Err(AttemptError::NotFound),
+            ResponseClassification::NotFound => return Err(DownloadAttemptError::NotFound),
             ResponseClassification::PermissionDenied(status) => {
-                return Err(AttemptError::PermissionDenied(status));
+                return Err(DownloadAttemptError::PermissionDenied(status));
             }
             ResponseClassification::PartialFileStale => {
                 partial.remove().await?;
-                return Err(AttemptError::PartialFileStale);
+                return Err(DownloadAttemptError::PartialFileStale);
             }
             ResponseClassification::Retryable(status) => {
-                return Err(AttemptError::Transient(anyhow!(
+                return Err(DownloadAttemptError::Transient(anyhow!(
                     "URL '{url}' returned {status}"
                 )));
             }
@@ -143,13 +143,13 @@ impl DownloadManager {
 
         let mut file = partial.open_for_append().await?;
 
-        match stream_to_partial(response.bytes_stream(), &mut file, progress_sink).await {
+        match stream_to_partial_file(response.bytes_stream(), &mut file, progress_sink).await {
             Ok(()) => {}
-            Err(StreamToPartialError::Stream(stream_error)) => {
-                return Err(AttemptError::Transient(anyhow::Error::new(stream_error)));
+            Err(StreamToPartialFileError::Stream(stream_error)) => {
+                return Err(DownloadAttemptError::Transient(anyhow::Error::new(stream_error)));
             }
-            Err(StreamToPartialError::Write(write_error)) => {
-                return Err(AttemptError::Io(write_error));
+            Err(StreamToPartialFileError::Write(write_error)) => {
+                return Err(DownloadAttemptError::Io(write_error));
             }
         }
 

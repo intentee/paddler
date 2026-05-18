@@ -1,12 +1,7 @@
-#![expect(
-    clippy::expect_used,
-    reason = "test fixture; a poisoned mutex is unrecoverable and indicates a programmer error"
-)]
-
 use std::io;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use anyhow::Result;
@@ -16,6 +11,7 @@ use tokio::io::BufReader;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
@@ -69,7 +65,7 @@ impl Scenario {
 
 pub struct LocalHttpFixture {
     accept_task: Option<JoinHandle<()>>,
-    last_range_header: Arc<Mutex<Option<String>>>,
+    last_range_rx: watch::Receiver<Option<String>>,
     port: u16,
     request_count: Arc<AtomicU32>,
     shutdown_tx: Option<oneshot::Sender<()>>,
@@ -81,11 +77,12 @@ impl LocalHttpFixture {
         let port = listener.local_addr()?.port();
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
         let request_count = Arc::new(AtomicU32::new(0));
-        let last_range_header: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
-        let scenario_state = Arc::new(Mutex::new(ScenarioState::from(scenario)));
+        let (last_range_tx, last_range_rx) = watch::channel(None::<String>);
+        let last_range_tx = Arc::new(last_range_tx);
+        let scenario_state = Arc::new(ScenarioState::from(scenario));
 
         let accept_request_count = request_count.clone();
-        let accept_last_range_header = last_range_header.clone();
+        let accept_last_range_tx = last_range_tx;
         let accept_scenario_state = scenario_state;
 
         let accept_task = tokio::spawn(async move {
@@ -97,14 +94,14 @@ impl LocalHttpFixture {
                             break;
                         };
                         let request_count_for_conn = accept_request_count.clone();
-                        let last_range_for_conn = accept_last_range_header.clone();
+                        let last_range_tx_for_conn = accept_last_range_tx.clone();
                         let scenario_state_for_conn = accept_scenario_state.clone();
 
                         tokio::spawn(async move {
                             let _ = handle_connection(
                                 socket,
                                 request_count_for_conn,
-                                last_range_for_conn,
+                                last_range_tx_for_conn,
                                 scenario_state_for_conn,
                             )
                             .await;
@@ -116,7 +113,7 @@ impl LocalHttpFixture {
 
         Ok(Self {
             accept_task: Some(accept_task),
-            last_range_header,
+            last_range_rx,
             port,
             request_count,
             shutdown_tx: Some(shutdown_tx),
@@ -136,10 +133,7 @@ impl LocalHttpFixture {
     }
 
     pub fn last_recorded_range_header(&self) -> Option<String> {
-        self.last_range_header
-            .lock()
-            .expect("last_range_header mutex poisoned")
-            .clone()
+        self.last_range_rx.borrow().clone()
     }
 }
 
@@ -154,36 +148,38 @@ impl Drop for LocalHttpFixture {
     }
 }
 
-struct ScenarioState {
-    responses: Vec<FixtureResponse>,
-    next_index: usize,
-    always: Option<FixtureResponse>,
+enum ScenarioState {
+    Always(FixtureResponse),
+    Sequence {
+        responses: Vec<FixtureResponse>,
+        next_index: AtomicUsize,
+    },
 }
 
 impl ScenarioState {
-    fn next(&mut self) -> FixtureResponse {
-        if let Some(always) = &self.always {
-            return always.clone();
+    fn next(&self) -> FixtureResponse {
+        match self {
+            Self::Always(response) => response.clone(),
+            Self::Sequence {
+                responses,
+                next_index,
+            } => {
+                let index = next_index
+                    .fetch_add(1, Ordering::Relaxed)
+                    .min(responses.len() - 1);
+                responses[index].clone()
+            }
         }
-
-        let response = self.responses[self.next_index.min(self.responses.len() - 1)].clone();
-        self.next_index = (self.next_index + 1).min(self.responses.len());
-        response
     }
 }
 
 impl From<Scenario> for ScenarioState {
     fn from(scenario: Scenario) -> Self {
         match scenario {
-            Scenario::Always(response) => Self {
-                always: Some(response),
-                next_index: 0,
-                responses: Vec::new(),
-            },
-            Scenario::Sequence(responses) => Self {
-                always: None,
-                next_index: 0,
+            Scenario::Always(response) => Self::Always(response),
+            Scenario::Sequence(responses) => Self::Sequence {
                 responses,
+                next_index: AtomicUsize::new(0),
             },
         }
     }
@@ -192,8 +188,8 @@ impl From<Scenario> for ScenarioState {
 async fn handle_connection(
     mut socket: TcpStream,
     request_count: Arc<AtomicU32>,
-    last_range_header: Arc<Mutex<Option<String>>>,
-    scenario_state: Arc<Mutex<ScenarioState>>,
+    last_range_tx: Arc<watch::Sender<Option<String>>>,
+    scenario_state: Arc<ScenarioState>,
 ) -> Result<()> {
     let (reader_half, mut writer_half) = socket.split();
     let mut reader = BufReader::new(reader_half);
@@ -216,22 +212,10 @@ async fn handle_connection(
         }
     }
 
-    {
-        let mut guard = last_range_header
-            .lock()
-            .expect("last_range_header mutex poisoned");
-        *guard = range_header_value;
-    }
-
+    last_range_tx.send_replace(range_header_value);
     request_count.fetch_add(1, Ordering::Relaxed);
 
-    let response = {
-        let mut guard = scenario_state
-            .lock()
-            .expect("scenario state mutex poisoned");
-        guard.next()
-    };
-
+    let response = scenario_state.next();
     write_response(&mut writer_half, response).await?;
     Ok(())
 }
