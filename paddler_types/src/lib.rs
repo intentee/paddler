@@ -41,4 +41,5 @@ pub mod request_params;
 pub mod rpc_message;
 pub mod slot_aggregated_status_snapshot;
 pub mod streamable_result;
+pub mod url_model_reference;
 pub mod validates;

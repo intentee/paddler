@@ -18,4 +18,7 @@ pub enum AgentIssue {
     MultimodalProjectionCannotBeLoaded(ModelPath),
     SlotCannotStart(SlotCannotStartParams),
     UnableToFindChatTemplate(ModelPath),
+    UrlModelDownloadFailed(ModelPath),
+    UrlModelNotFound(ModelPath),
+    UrlModelPermissionDenied(ModelPath),
 }

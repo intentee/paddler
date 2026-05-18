@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
+from paddler_client.url_model_reference import UrlModelReference
 
 
 class AgentDesiredModel(BaseModel):
@@ -13,6 +14,7 @@ class AgentDesiredModel(BaseModel):
     variant: str
     huggingface: HuggingFaceModelReference | None = None
     local_path: str | None = None
+    url: UrlModelReference | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -33,6 +35,12 @@ class AgentDesiredModel(BaseModel):
                 return {
                     "variant": "LocalToAgent",
                     "local_path": typed_data["LocalToAgent"],
+                }
+
+            if "Url" in typed_data:
+                return {
+                    "variant": "Url",
+                    "url": typed_data["Url"],
                 }
 
             if "variant" in typed_data:
@@ -56,6 +64,13 @@ class AgentDesiredModel(BaseModel):
 
             return {"LocalToAgent": self.local_path}
 
+        if self.variant == "Url":
+            if self.url is None:
+                msg = "url is required for Url"
+                raise ValueError(msg)
+
+            return {"Url": self.url.model_dump()}
+
         msg = f"Unknown AgentDesiredModel variant: {self.variant}"
         raise ValueError(msg)
 
@@ -72,3 +87,7 @@ class AgentDesiredModel(BaseModel):
     @classmethod
     def local_to_agent(cls, path: str) -> "AgentDesiredModel":
         return cls(variant="LocalToAgent", local_path=path)
+
+    @classmethod
+    def from_url(cls, reference: UrlModelReference) -> "AgentDesiredModel":
+        return cls(variant="Url", url=reference)

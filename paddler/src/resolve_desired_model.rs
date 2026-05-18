@@ -1,11 +1,11 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
 use paddler_types::agent_desired_model::AgentDesiredModel;
 
 use crate::desired_model_resolution::DesiredModelResolution;
-use crate::download_huggingface_model::download_huggingface_model;
+use crate::model_source::local::LocalModelPath;
+use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 pub async fn resolve_desired_model(
@@ -14,19 +14,14 @@ pub async fn resolve_desired_model(
 ) -> Result<DesiredModelResolution> {
     match desired {
         AgentDesiredModel::HuggingFace(reference) => {
-            let path = download_huggingface_model(reference, slot_aggregated_status).await?;
-
-            Ok(DesiredModelResolution::Resolved(path))
+            reference.resolve(slot_aggregated_status).await
         }
         AgentDesiredModel::LocalToAgent(path) => {
-            let local_path = PathBuf::from(path);
-
-            if tokio::fs::try_exists(&local_path).await? {
-                Ok(DesiredModelResolution::Resolved(local_path))
-            } else {
-                Ok(DesiredModelResolution::LocalFileMissing(local_path))
-            }
+            LocalModelPath::new(path.clone())
+                .resolve(slot_aggregated_status)
+                .await
         }
+        AgentDesiredModel::Url(reference) => reference.resolve(slot_aggregated_status).await,
         AgentDesiredModel::None => Ok(DesiredModelResolution::NotConfigured),
     }
 }

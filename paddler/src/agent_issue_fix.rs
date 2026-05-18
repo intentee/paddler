@@ -13,6 +13,8 @@ pub enum AgentIssueFix {
     ModelStateIsReconciled,
     MultimodalProjectionIsLoaded(ModelPath),
     SlotStarted(u32),
+    UrlModelDownloaded(ModelPath),
+    UrlModelStartedDownloading(ModelPath),
 }
 
 impl AgentIssueFix {
@@ -67,6 +69,16 @@ impl AgentIssueFix {
             },
             AgentIssue::UnableToFindChatTemplate(issue_model_path) => match self {
                 Self::ModelChatTemplateIsLoaded(fix_model_path) => {
+                    issue_model_path.eq(fix_model_path)
+                }
+                Self::ModelStateIsReconciled => true,
+                _ => false,
+            },
+            AgentIssue::UrlModelDownloadFailed(issue_model_path)
+            | AgentIssue::UrlModelNotFound(issue_model_path)
+            | AgentIssue::UrlModelPermissionDenied(issue_model_path) => match self {
+                Self::UrlModelDownloaded(fix_model_path)
+                | Self::UrlModelStartedDownloading(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
                 Self::ModelStateIsReconciled => true,
@@ -169,6 +181,39 @@ mod tests {
     fn model_file_exists_fixes_model_file_does_not_exist() {
         let fix = AgentIssueFix::ModelFileExists(model_path("model_a"));
         let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_a"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn url_model_downloaded_fixes_url_model_not_found_with_same_path() {
+        let fix = AgentIssueFix::UrlModelDownloaded(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::UrlModelNotFound(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn url_model_started_downloading_fixes_url_model_permission_denied() {
+        let fix =
+            AgentIssueFix::UrlModelStartedDownloading(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::UrlModelPermissionDenied(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn url_model_downloaded_does_not_fix_different_url() {
+        let fix = AgentIssueFix::UrlModelDownloaded(model_path("https://example.com/a.gguf"));
+        let issue = AgentIssue::UrlModelNotFound(model_path("https://example.com/b.gguf"));
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_state_is_reconciled_fixes_url_model_download_failed() {
+        let fix = AgentIssueFix::ModelStateIsReconciled;
+        let issue = AgentIssue::UrlModelDownloadFailed(model_path("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }

@@ -32,6 +32,7 @@ fn format_desired_model(desired_model: &AgentDesiredModel) -> String {
             )
         }
         AgentDesiredModel::LocalToAgent(path) => format!("Local: {path}"),
+        AgentDesiredModel::Url(reference) => format!("URL: {}", reference.url),
         AgentDesiredModel::None => "(not set)".to_owned(),
     }
 }

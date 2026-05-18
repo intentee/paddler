@@ -17,6 +17,7 @@ pub mod in_process_cluster_params;
 pub mod inference_http_client;
 pub mod inference_message_stream;
 pub mod load_test_image_data_uri;
+pub mod local_http_fixture;
 pub mod make_agent_controller_without_remote_agent;
 pub mod make_inference_parameters_deterministic;
 pub mod ministral_3_in_process_cluster_params;
