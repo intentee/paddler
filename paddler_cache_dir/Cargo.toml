@@ -1,0 +1,15 @@
+[package]
+name = "paddler_cache_dir"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+
+[lints]
+workspace = true

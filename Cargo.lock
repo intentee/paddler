@@ -4889,6 +4889,7 @@ dependencies = [
  "minijinja",
  "minijinja-contrib",
  "nanoid",
+ "paddler_cache_dir",
  "paddler_types",
  "rand 0.9.4",
  "reqwest",
@@ -4921,6 +4922,13 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "paddler_cache_dir"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]

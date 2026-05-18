@@ -24,7 +24,6 @@ pub mod desired_model_resolution;
 pub mod dispenses_slots;
 pub mod embedding_input_tokenized;
 pub mod model_source;
-pub mod paddler_cache_dir;
 pub mod produces_snapshot;
 pub mod resolve_desired_model;
 pub mod resolved_socket_addr;

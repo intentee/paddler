@@ -8,6 +8,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use futures_util::StreamExt;
+use paddler_cache_dir::CacheDir;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::url_model_reference::UrlModelReference;
@@ -19,7 +20,6 @@ use url::Url;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
-use crate::paddler_cache_dir::PaddlerCacheDir;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
@@ -202,7 +202,7 @@ impl ResolvesModelSource for UrlModelReference {
         &self,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution> {
-        let cache_root = PaddlerCacheDir::from_process_env().resolve()?;
+        let cache_root = CacheDir::from_process_env().resolve()?;
 
         resolve_url_into_cache(&self.url, &cache_root, slot_aggregated_status).await
     }

@@ -3,13 +3,13 @@ use std::path::PathBuf;
 use anyhow::Context as _;
 use anyhow::Result;
 
-pub struct PaddlerCacheDir {
+pub struct CacheDir {
     pub explicit: Option<String>,
     pub home: Option<String>,
     pub xdg: Option<String>,
 }
 
-impl PaddlerCacheDir {
+impl CacheDir {
     #[must_use]
     pub fn from_process_env() -> Self {
         Self {
@@ -41,11 +41,11 @@ impl PaddlerCacheDir {
 mod tests {
     use anyhow::Result;
 
-    use crate::paddler_cache_dir::PaddlerCacheDir;
+    use crate::CacheDir;
 
     #[test]
     fn explicit_value_wins_over_xdg_and_home() -> Result<()> {
-        let cache = PaddlerCacheDir {
+        let cache = CacheDir {
             explicit: Some("/explicit/cache".to_owned()),
             home: Some("/home/user".to_owned()),
             xdg: Some("/xdg/cache".to_owned()),
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn xdg_value_used_when_no_explicit() -> Result<()> {
-        let cache = PaddlerCacheDir {
+        let cache = CacheDir {
             explicit: None,
             home: Some("/home/user".to_owned()),
             xdg: Some("/xdg/cache".to_owned()),
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn falls_back_to_home_dot_cache_paddler() -> Result<()> {
-        let cache = PaddlerCacheDir {
+        let cache = CacheDir {
             explicit: None,
             home: Some("/home/user".to_owned()),
             xdg: None,
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn errors_when_no_env_set() {
-        let cache = PaddlerCacheDir {
+        let cache = CacheDir {
             explicit: None,
             home: None,
             xdg: None,
