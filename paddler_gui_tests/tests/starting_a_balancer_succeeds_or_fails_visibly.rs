@@ -7,6 +7,7 @@ use iced::futures::StreamExt as _;
 use iced::futures::channel::mpsc;
 use paddler_gui::drive_balancer_stream::drive_balancer_stream;
 use paddler_gui::message::Message;
+use paddler_gui::started_balancer_display::StartedBalancerDisplay;
 use paddler_gui_tests::bind_addresses::BindAddresses;
 use paddler_gui_tests::bind_ephemeral_socket::bind_ephemeral_socket;
 use paddler_gui_tests::make_balancer_runner_params::make_balancer_runner_params;
@@ -29,7 +30,14 @@ async fn an_invalid_bind_address_tells_the_user_the_balancer_failed_to_start() -
     );
 
     let (output, mut receiver) = mpsc::channel::<Message>(8);
-    let driver = tokio::spawn(drive_balancer_stream(params, output));
+    let driver = tokio::spawn(drive_balancer_stream(
+        params,
+        StartedBalancerDisplay {
+            balancer_address: INVALID_BIND_ADDR.to_owned(),
+            web_admin_panel_address: None,
+        },
+        output,
+    ));
 
     let collect = async {
         let mut observed_failed = false;
@@ -69,7 +77,14 @@ async fn a_running_balancer_reports_started_and_then_stopped_when_the_user_cance
     );
 
     let (output, mut receiver) = mpsc::channel::<Message>(16);
-    let driver = tokio::spawn(drive_balancer_stream(params, output));
+    let driver = tokio::spawn(drive_balancer_stream(
+        params,
+        StartedBalancerDisplay {
+            balancer_address: "ignored-during-test".to_owned(),
+            web_admin_panel_address: None,
+        },
+        output,
+    ));
 
     let mut observed_started = false;
     let mut observed_stopped = false;
@@ -77,7 +92,7 @@ async fn a_running_balancer_reports_started_and_then_stopped_when_the_user_cance
     let collect = async {
         while let Some(message) = receiver.next().await {
             match message {
-                Message::BalancerStarted => {
+                Message::BalancerStarted(_) => {
                     observed_started = true;
                     cancellation_token.cancel();
                 }
@@ -122,7 +137,14 @@ async fn when_the_ui_goes_away_the_balancer_stream_exits_without_panicking() -> 
     let (output, receiver) = mpsc::channel::<Message>(1);
     drop(receiver);
 
-    let driver = tokio::spawn(drive_balancer_stream(params, output));
+    let driver = tokio::spawn(drive_balancer_stream(
+        params,
+        StartedBalancerDisplay {
+            balancer_address: "ignored-during-test".to_owned(),
+            web_admin_panel_address: None,
+        },
+        output,
+    ));
 
     cancellation_token.cancel();
 
@@ -146,7 +168,14 @@ async fn a_failed_start_with_a_disconnected_ui_logs_the_error_and_exits_cleanly(
     let (output, receiver) = mpsc::channel::<Message>(1);
     drop(receiver);
 
-    let driver = tokio::spawn(drive_balancer_stream(params, output));
+    let driver = tokio::spawn(drive_balancer_stream(
+        params,
+        StartedBalancerDisplay {
+            balancer_address: INVALID_BIND_ADDR.to_owned(),
+            web_admin_panel_address: None,
+        },
+        output,
+    ));
 
     tokio::time::timeout(BALANCER_STREAM_TIMEOUT, driver).await??;
 

@@ -1,6 +1,6 @@
 use std::mem;
 
-use crate::address_field::AddressField;
+use crate::connect_address_field::ConnectAddressField;
 use crate::join_balancer_form_data::JoinBalancerFormData;
 use crate::slot_count_field::SlotCountField;
 
@@ -32,7 +32,7 @@ impl JoinBalancerFormData {
                 Action::None
             }
             Message::SetBalancerAddress(address) => {
-                self.balancer_address = AddressField::required_from_user_input(address);
+                self.balancer_address = ConnectAddressField::from_user_input(address);
 
                 Action::None
             }
@@ -51,7 +51,7 @@ impl JoinBalancerFormData {
         let slots_count = mem::take(&mut self.slots_count);
 
         let required_balancer_address = match balancer_address {
-            AddressField::Empty => AddressField::Invalid {
+            ConnectAddressField::Empty => ConnectAddressField::Invalid {
                 raw: String::new(),
                 error: "Cluster address is required.".to_owned(),
             },
@@ -65,18 +65,17 @@ impl JoinBalancerFormData {
             other => other,
         };
 
-        let address_bound = matches!(required_balancer_address, AddressField::Bound { .. });
+        let address_valid = matches!(required_balancer_address, ConnectAddressField::Valid { .. });
         let slots_valid = matches!(required_slots_count, SlotCountField::Valid { .. });
 
-        if !address_bound || !slots_valid {
+        if !address_valid || !slots_valid {
             self.balancer_address = required_balancer_address;
             self.slots_count = required_slots_count;
             return Action::None;
         }
 
-        let AddressField::Bound {
-            raw: address_raw,
-            port: _,
+        let ConnectAddressField::Valid {
+            raw: address_raw, ..
         } = required_balancer_address
         else {
             return Action::None;
@@ -106,13 +105,24 @@ mod tests {
         reason = "tests use Result<()> uniformly so the ? operator can be added without churn"
     )]
 
+    use std::net::SocketAddr;
+    use std::net::TcpListener;
+
     use anyhow::Result;
 
     use super::Action;
-    use super::AddressField;
+    use super::ConnectAddressField;
     use super::JoinBalancerFormData;
     use super::Message;
     use super::SlotCountField;
+
+    fn valid_field(raw: &str) -> Result<ConnectAddressField> {
+        let socket_addr: SocketAddr = raw.parse()?;
+        Ok(ConnectAddressField::Valid {
+            raw: raw.to_owned(),
+            socket_addr,
+        })
+    }
 
     #[test]
     fn set_agent_name_records_typed_value_into_form_state() -> Result<()> {
@@ -135,7 +145,7 @@ mod tests {
 
         assert!(matches!(
             data.balancer_address,
-            AddressField::Invalid { .. }
+            ConnectAddressField::Invalid { .. }
         ));
 
         Ok(())
@@ -144,7 +154,7 @@ mod tests {
     #[test]
     fn set_balancer_address_with_empty_input_records_empty_state() -> Result<()> {
         let mut data = JoinBalancerFormData {
-            balancer_address: AddressField::Invalid {
+            balancer_address: ConnectAddressField::Invalid {
                 raw: "stale".to_owned(),
                 error: "stale".to_owned(),
             },
@@ -153,7 +163,23 @@ mod tests {
 
         let _ = data.update(Message::SetBalancerAddress(String::new()));
 
-        assert!(matches!(data.balancer_address, AddressField::Empty));
+        assert!(matches!(data.balancer_address, ConnectAddressField::Empty));
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_balancer_address_with_already_bound_port_still_records_valid_state() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let addr = listener.local_addr()?;
+
+        let mut data = JoinBalancerFormData::default();
+        let _ = data.update(Message::SetBalancerAddress(addr.to_string()));
+
+        assert!(matches!(
+            data.balancer_address,
+            ConnectAddressField::Valid { .. }
+        ));
 
         Ok(())
     }
@@ -221,7 +247,7 @@ mod tests {
         assert!(matches!(action, Action::None));
         assert!(matches!(
             &data.balancer_address,
-            AddressField::Invalid { error, .. } if error.contains("required")
+            ConnectAddressField::Invalid { error, .. } if error.contains("required")
         ));
 
         Ok(())
@@ -229,12 +255,8 @@ mod tests {
 
     #[test]
     fn connecting_without_a_slot_count_records_required_error() -> Result<()> {
-        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
         let mut data = JoinBalancerFormData {
-            balancer_address: AddressField::Bound {
-                raw: bound.socket_addr.to_string(),
-                port: bound,
-            },
+            balancer_address: valid_field("127.0.0.1:9001")?,
             ..JoinBalancerFormData::default()
         };
 
@@ -251,12 +273,8 @@ mod tests {
 
     #[test]
     fn connecting_with_a_zero_slot_count_records_must_be_greater_than_zero_error() -> Result<()> {
-        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
         let mut data = JoinBalancerFormData {
-            balancer_address: AddressField::Bound {
-                raw: bound.socket_addr.to_string(),
-                port: bound,
-            },
+            balancer_address: valid_field("127.0.0.1:9002")?,
             slots_count: SlotCountField::from_user_input("0".to_owned()),
             ..JoinBalancerFormData::default()
         };
@@ -275,13 +293,9 @@ mod tests {
     #[test]
     fn connecting_with_valid_input_and_no_agent_name_yields_connect_agent_with_name_none()
     -> Result<()> {
-        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
-        let raw_address = bound.socket_addr.to_string();
+        let raw_address = "127.0.0.1:9003".to_owned();
         let mut data = JoinBalancerFormData {
-            balancer_address: AddressField::Bound {
-                raw: raw_address.clone(),
-                port: bound,
-            },
+            balancer_address: valid_field(&raw_address)?,
             slots_count: SlotCountField::Valid {
                 raw: "4".to_owned(),
                 value: 4,
@@ -306,13 +320,9 @@ mod tests {
     #[test]
     fn connecting_with_valid_input_and_a_filled_agent_name_yields_connect_agent_with_some_name()
     -> Result<()> {
-        let bound = paddler_ports::bind_ephemeral_port::bind_ephemeral_port()?;
         let mut data = JoinBalancerFormData {
             agent_name: "primary".to_owned(),
-            balancer_address: AddressField::Bound {
-                raw: bound.socket_addr.to_string(),
-                port: bound,
-            },
+            balancer_address: valid_field("127.0.0.1:9004")?,
             slots_count: SlotCountField::Valid {
                 raw: "2".to_owned(),
                 value: 2,

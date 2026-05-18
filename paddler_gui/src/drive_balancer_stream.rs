@@ -8,8 +8,13 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use crate::drive_balancer_loop_inner::drive_balancer_loop_inner;
 use crate::message::Message;
 use crate::running_balancer_snapshot::RunningBalancerSnapshot;
+use crate::started_balancer_display::StartedBalancerDisplay;
 
-pub async fn drive_balancer_stream(params: BalancerRunnerParams, mut output: Sender<Message>) {
+pub async fn drive_balancer_stream(
+    params: BalancerRunnerParams,
+    started_display: StartedBalancerDisplay,
+    mut output: Sender<Message>,
+) {
     let mut runner = match BalancerRunner::start(params).await {
         Ok(runner) => runner,
         Err(error) => {
@@ -26,7 +31,11 @@ pub async fn drive_balancer_stream(params: BalancerRunnerParams, mut output: Sen
 
     let completion_future = runner.wait_for_completion();
 
-    if output.send(Message::BalancerStarted).await.is_err() {
+    if output
+        .send(Message::BalancerStarted(started_display))
+        .await
+        .is_err()
+    {
         return;
     }
 

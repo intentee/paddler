@@ -46,6 +46,7 @@ use crate::running_balancer_handler;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
 use crate::start_balancer_form_handler;
+use crate::started_balancer_display::StartedBalancerDisplay;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
 use crate::ui::view_agent_running::view_agent_running;
@@ -152,21 +153,33 @@ impl App {
                         management_port,
                         inference_port,
                         web_admin_panel_port,
+                        balancer_display_address,
+                        web_admin_panel_display_address,
                         desired_state,
                     } => {
                         self.screen = CurrentScreen::StartBalancerForm(form);
+
+                        let display = StartedBalancerDisplay {
+                            balancer_address: balancer_display_address,
+                            web_admin_panel_address: web_admin_panel_display_address,
+                        };
 
                         self.spawn_balancer(
                             management_port,
                             inference_port,
                             web_admin_panel_port,
+                            display,
                             &desired_state,
                         )
                     }
                 }
             }
-            (CurrentScreen::StartBalancerForm(form), Message::BalancerStarted) => {
-                self.screen = CurrentScreen::RunningBalancer(form.balancer_started());
+            (CurrentScreen::StartBalancerForm(form), Message::BalancerStarted(display)) => {
+                self.screen =
+                    CurrentScreen::RunningBalancer(form.balancer_started(
+                        display.balancer_address,
+                        display.web_admin_panel_address,
+                    ));
 
                 Task::none()
             }
@@ -409,6 +422,7 @@ impl App {
             )
         )]
         web_admin_panel_port: Option<BoundPort>,
+        started_display: StartedBalancerDisplay,
         desired_state: &BalancerDesiredState,
     ) -> Task<Message> {
         let cancel = self.shutdown.child_token();
@@ -477,7 +491,7 @@ impl App {
         };
 
         Task::stream(iced::stream::channel(1, move |output| {
-            drive_balancer_stream(params, output)
+            drive_balancer_stream(params, started_display, output)
         }))
     }
 }
@@ -490,6 +504,7 @@ mod tests {
     )]
 
     use anyhow::Result;
+    use anyhow::bail;
 
     use super::*;
     use crate::agent_running_data::AgentRunningData;
@@ -596,10 +611,16 @@ mod tests {
         })
     }
 
+    fn valid_connect_address_field() -> Result<crate::connect_address_field::ConnectAddressField> {
+        let raw = "127.0.0.1:9100".to_owned();
+        let socket_addr: std::net::SocketAddr = raw.parse()?;
+        Ok(crate::connect_address_field::ConnectAddressField::Valid { raw, socket_addr })
+    }
+
     fn bound_join_form_data() -> Result<JoinBalancerFormData> {
         Ok(JoinBalancerFormData {
             agent_name: String::new(),
-            balancer_address: bound_address_field()?,
+            balancer_address: valid_connect_address_field()?,
             slots_count: crate::slot_count_field::SlotCountField::Valid {
                 raw: "2".to_owned(),
                 value: 2,
@@ -804,12 +825,38 @@ mod tests {
     fn balancer_started_message_transitions_from_start_form_to_running_balancer() -> Result<()> {
         let mut app = app_with_screen(screen_start_form(fresh_start_form_data()));
 
-        let _ = app.update(Message::BalancerStarted);
+        let _ = app.update(Message::BalancerStarted(StartedBalancerDisplay {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            web_admin_panel_address: None,
+        }));
 
         assert!(matches!(
             app.current_screen_for_test(),
             CurrentScreen::RunningBalancer(_)
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn balancer_started_message_populates_the_running_view_with_user_typed_addresses() -> Result<()>
+    {
+        let mut app = app_with_screen(screen_start_form(fresh_start_form_data()));
+
+        let _ = app.update(Message::BalancerStarted(StartedBalancerDisplay {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            web_admin_panel_address: Some("127.0.0.1:8062".to_owned()),
+        }));
+
+        match app.current_screen_for_test() {
+            CurrentScreen::RunningBalancer(screen) => {
+                assert_eq!(screen.state_data.balancer_address, "127.0.0.1:8060");
+                assert_eq!(
+                    screen.state_data.web_admin_panel_address.as_deref(),
+                    Some("127.0.0.1:8062")
+                );
+            }
+            _ => bail!("expected RunningBalancer screen after BalancerStarted"),
+        }
         Ok(())
     }
 
@@ -1030,7 +1077,10 @@ mod tests {
     fn an_unhandled_message_for_the_current_screen_is_logged_and_keeps_the_screen() -> Result<()> {
         let (mut app, _) = App::new();
         // BalancerStarted is only meaningful from the StartBalancerForm screen.
-        let _ = app.update(Message::BalancerStarted);
+        let _ = app.update(Message::BalancerStarted(StartedBalancerDisplay {
+            balancer_address: "127.0.0.1:8060".to_owned(),
+            web_admin_panel_address: None,
+        }));
         assert_screen_is_home(&app)
     }
 

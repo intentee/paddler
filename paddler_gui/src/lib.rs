@@ -2,6 +2,7 @@ pub mod address_field;
 pub mod agent_running_data;
 pub mod agent_running_handler;
 pub mod app;
+pub mod connect_address_field;
 pub mod current_screen;
 pub mod detect_network_interfaces;
 pub mod drive_agent_stream;
@@ -24,6 +25,7 @@ pub mod screen;
 pub mod slot_count_field;
 pub mod start_balancer_form_data;
 pub mod start_balancer_form_handler;
+pub mod started_balancer_display;
 pub mod ui;
 
 use clap::Parser;

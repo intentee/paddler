@@ -33,6 +33,8 @@ pub enum Action {
         management_port: BoundPort,
         inference_port: BoundPort,
         web_admin_panel_port: Option<BoundPort>,
+        balancer_display_address: String,
+        web_admin_panel_display_address: Option<String>,
         desired_state: BalancerDesiredState,
     },
 }
@@ -117,8 +119,8 @@ impl StartBalancerFormData {
         }
 
         let AddressField::Bound {
+            raw: balancer_display_address,
             port: management_port,
-            ..
         } = balancer_address
         else {
             return Action::None;
@@ -130,9 +132,10 @@ impl StartBalancerFormData {
         else {
             return Action::None;
         };
-        let web_admin_panel_port = match web_admin_panel_address {
-            AddressField::Bound { port, .. } => Some(port),
-            AddressField::Empty => None,
+        let (web_admin_panel_port, web_admin_panel_display_address) = match web_admin_panel_address
+        {
+            AddressField::Bound { raw, port } => (Some(port), Some(raw)),
+            AddressField::Empty => (None, None),
             AddressField::Invalid { .. } => return Action::None,
         };
 
@@ -151,6 +154,8 @@ impl StartBalancerFormData {
             management_port,
             inference_port,
             web_admin_panel_port,
+            balancer_display_address,
+            web_admin_panel_display_address,
             desired_state,
         }
     }
@@ -428,6 +433,63 @@ mod tests {
             action,
             Action::StartBalancer {
                 web_admin_panel_port: Some(_),
+                ..
+            }
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn confirming_with_valid_addresses_carries_the_typed_strings_forward() -> Result<()> {
+        let balancer_bound = bind_ephemeral_port()?;
+        let inference_bound = bind_ephemeral_port()?;
+        let web_admin_bound = bind_ephemeral_port()?;
+        let typed_balancer = balancer_bound.socket_addr.to_string();
+        let typed_web_admin = web_admin_bound.socket_addr.to_string();
+
+        let mut data = empty_form();
+        data.balancer_address = AddressField::Bound {
+            raw: typed_balancer.clone(),
+            port: balancer_bound,
+        };
+        data.inference_address = AddressField::Bound {
+            raw: inference_bound.socket_addr.to_string(),
+            port: inference_bound,
+        };
+        data.web_admin_panel_address = AddressField::Bound {
+            raw: typed_web_admin.clone(),
+            port: web_admin_bound,
+        };
+        data.selected_model = Some(first_preset()?);
+
+        let action = data.update(Message::Confirm);
+
+        assert!(matches!(
+            action,
+            Action::StartBalancer {
+                ref balancer_display_address,
+                web_admin_panel_display_address: Some(ref web_admin),
+                ..
+            } if balancer_display_address == &typed_balancer && web_admin == &typed_web_admin
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn confirming_with_no_web_admin_panel_address_carries_none_display() -> Result<()> {
+        let mut data = empty_form();
+        data.balancer_address = bound_address_field()?;
+        data.inference_address = bound_address_field()?;
+        data.selected_model = Some(first_preset()?);
+
+        let action = data.update(Message::Confirm);
+
+        assert!(matches!(
+            action,
+            Action::StartBalancer {
+                web_admin_panel_display_address: None,
                 ..
             }
         ));

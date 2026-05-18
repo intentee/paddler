@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::bail;
 use iced_test::simulator;
-use paddler_gui::address_field::AddressField;
+use paddler_gui::connect_address_field::ConnectAddressField;
 use paddler_gui::join_balancer_form_data::JoinBalancerFormData;
 use paddler_gui::slot_count_field::SlotCountField;
 use paddler_gui::ui::view_join_balancer_form::view_join_balancer_form;
@@ -9,7 +9,7 @@ use paddler_gui::ui::view_join_balancer_form::view_join_balancer_form;
 #[test]
 fn the_cluster_address_and_slots_errors_render_under_their_inputs_when_set() -> Result<()> {
     let data = JoinBalancerFormData {
-        balancer_address: AddressField::Invalid {
+        balancer_address: ConnectAddressField::Invalid {
             raw: String::new(),
             error: "Cluster address is required.".to_owned(),
         },

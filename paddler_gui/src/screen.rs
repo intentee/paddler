@@ -117,19 +117,16 @@ impl Screen<StartBalancerForm> {
     }
 
     #[must_use]
-    pub fn balancer_started(self) -> Screen<RunningBalancer> {
-        self.transition_map(|form_data: StartBalancerFormData| {
-            let balancer_address = form_data.balancer_address.raw_text().to_owned();
-            let web_admin_panel_address = match form_data.web_admin_panel_address {
-                AddressField::Empty => None,
-                AddressField::Bound { raw, .. } | AddressField::Invalid { raw, .. } => Some(raw),
-            };
-            RunningBalancerData {
-                balancer_address,
-                snapshot: RunningBalancerSnapshot::default(),
-                stopping: false,
-                web_admin_panel_address,
-            }
+    pub fn balancer_started(
+        self,
+        balancer_address: String,
+        web_admin_panel_address: Option<String>,
+    ) -> Screen<RunningBalancer> {
+        self.transition_map(|_form_data: StartBalancerFormData| RunningBalancerData {
+            balancer_address,
+            snapshot: RunningBalancerSnapshot::default(),
+            stopping: false,
+            web_admin_panel_address,
         })
     }
 
@@ -172,6 +169,7 @@ mod tests {
     use super::Screen;
     use super::StartBalancerForm;
     use super::StartBalancerFormData;
+    use crate::connect_address_field::ConnectAddressField;
 
     fn home() -> Screen<super::Home> {
         Screen::<super::Home>::builder()
@@ -297,7 +295,7 @@ mod tests {
     fn join_balancer_form_connect_with_empty_agent_name_sets_name_none_on_agent_screen()
     -> Result<()> {
         let form = join_form(JoinBalancerFormData {
-            balancer_address: AddressField::Invalid {
+            balancer_address: ConnectAddressField::Invalid {
                 raw: "127.0.0.1:8060".to_owned(),
                 error: "placeholder".to_owned(),
             },
@@ -318,7 +316,7 @@ mod tests {
     -> Result<()> {
         let form = join_form(JoinBalancerFormData {
             agent_name: "primary".to_owned(),
-            balancer_address: AddressField::Invalid {
+            balancer_address: ConnectAddressField::Invalid {
                 raw: "127.0.0.1:8060".to_owned(),
                 error: "placeholder".to_owned(),
             },
@@ -365,18 +363,16 @@ mod tests {
     }
 
     #[test]
-    fn start_balancer_form_balancer_started_with_web_admin_address_carries_it_forward() -> Result<()>
-    {
-        let form = start_form(StartBalancerFormData {
-            web_admin_panel_address: AddressField::Invalid {
-                raw: "127.0.0.1:8062".to_owned(),
-                error: "placeholder".to_owned(),
-            },
-            ..fresh_start_form_data()
-        });
+    fn start_balancer_form_balancer_started_carries_addresses_into_running_balancer_data()
+    -> Result<()> {
+        let form = start_form(fresh_start_form_data());
 
-        let next = form.balancer_started();
+        let next = form.balancer_started(
+            "127.0.0.1:8060".to_owned(),
+            Some("127.0.0.1:8062".to_owned()),
+        );
 
+        assert_eq!(next.state_data.balancer_address, "127.0.0.1:8060");
         assert_eq!(
             next.state_data.web_admin_panel_address.as_deref(),
             Some("127.0.0.1:8062")
@@ -386,18 +382,15 @@ mod tests {
     }
 
     #[test]
-    fn start_balancer_form_balancer_started_with_empty_web_admin_address_resolves_to_none()
+    fn start_balancer_form_balancer_started_with_no_web_admin_address_resolves_to_none()
     -> Result<()> {
-        let form = start_form(StartBalancerFormData {
-            web_admin_panel_address: AddressField::Empty,
-            ..fresh_start_form_data()
-        });
+        let form = start_form(fresh_start_form_data());
 
-        let next = form.balancer_started();
+        let next = form.balancer_started("127.0.0.1:8060".to_owned(), None);
 
         assert!(
             next.state_data.web_admin_panel_address.is_none(),
-            "expected empty web_admin_panel_address to become None"
+            "expected None web_admin_panel_address to remain None"
         );
         Ok(())
     }
