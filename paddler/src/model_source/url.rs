@@ -7,15 +7,16 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use futures_util::StreamExt;
 use paddler_cache_dir::CacheDir;
+use paddler_download_manager::download_error::DownloadError;
+use paddler_download_manager::download_manager::DownloadManager;
+use paddler_download_manager::progress_sink::ProgressSink;
 use paddler_types::agent_issue::AgentIssue;
 use paddler_types::agent_issue_params::ModelPath;
 use paddler_types::url_model_reference::UrlModelReference;
 use sha2::Digest;
 use sha2::Sha256;
 use tokio::fs;
-use tokio::io::AsyncWriteExt;
 use url::Url;
 
 use crate::agent_issue_fix::AgentIssueFix;
@@ -56,125 +57,39 @@ fn url_cache_path(cache_root: &Path, url_string: &str, parsed: &Url) -> PathBuf 
         .join(basename)
 }
 
-fn content_length_as_usize(response: &reqwest::Response) -> Result<usize> {
-    response.content_length().map_or(Ok(0), |length| {
-        usize::try_from(length).map_err(|conversion_error| {
-            anyhow!("Content-Length '{length}' does not fit in usize: {conversion_error}")
-        })
-    })
+struct SlotAggregatedStatusSink {
+    basename: Option<String>,
+    slot_aggregated_status: Arc<SlotAggregatedStatus>,
+    url: String,
 }
 
-async fn write_response_to_partial_file(
-    response: reqwest::Response,
-    partial_path: &Path,
-    slot_aggregated_status: Arc<SlotAggregatedStatus>,
-) -> Result<()> {
-    let mut file = fs::File::create(partial_path).await.with_context(|| {
-        format!(
-            "Failed to create partial download file '{}'",
-            partial_path.display()
-        )
-    })?;
-    let mut stream = response.bytes_stream();
+impl ProgressSink for SlotAggregatedStatusSink {
+    fn on_started(&self, total_bytes: u64, already_downloaded: u64) {
+        let total = usize::try_from(total_bytes).unwrap_or(usize::MAX);
+        let current = usize::try_from(already_downloaded).unwrap_or(usize::MAX);
 
-    while let Some(next_chunk) = stream.next().await {
-        let bytes = next_chunk.context("Stream error while downloading model bytes")?;
-
-        file.write_all(&bytes).await.with_context(|| {
-            format!(
-                "Failed to write chunk to partial file '{}'",
-                partial_path.display()
-            )
-        })?;
-        slot_aggregated_status.increment_download_current(bytes.len());
-    }
-
-    file.flush().await?;
-
-    Ok(())
-}
-
-async fn download_url_model(
-    url_string: &str,
-    cache_path: &Path,
-    slot_aggregated_status: Arc<SlotAggregatedStatus>,
-) -> Result<()> {
-    let parent = cache_path
-        .parent()
-        .with_context(|| format!("Cache path '{}' has no parent", cache_path.display()))?;
-
-    fs::create_dir_all(parent)
-        .await
-        .with_context(|| format!("Failed to create cache directory '{}'", parent.display()))?;
-
-    let response = match reqwest::Client::new().get(url_string).send().await {
-        Ok(response) => response,
-        Err(send_error) => {
-            slot_aggregated_status.register_issue(AgentIssue::UrlModelDownloadFailed(ModelPath {
-                model_path: url_string.to_owned(),
+        self.slot_aggregated_status
+            .set_download_status(current, total, self.basename.clone());
+        self.slot_aggregated_status
+            .register_fix(&AgentIssueFix::UrlModelStartedDownloading(ModelPath {
+                model_path: self.url.clone(),
             }));
-
-            return Err(send_error).with_context(|| format!("Failed to GET '{url_string}'"));
-        }
-    };
-
-    let status = response.status();
-
-    if status == reqwest::StatusCode::NOT_FOUND {
-        slot_aggregated_status.register_issue(AgentIssue::UrlModelNotFound(ModelPath {
-            model_path: url_string.to_owned(),
-        }));
-
-        return Err(anyhow!("Model URL '{url_string}' returned 404 Not Found"));
     }
 
-    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
-        slot_aggregated_status.register_issue(AgentIssue::UrlModelPermissionDenied(ModelPath {
-            model_path: url_string.to_owned(),
-        }));
+    fn on_chunk(&self, additional_bytes: u64) {
+        let bytes = usize::try_from(additional_bytes).unwrap_or(usize::MAX);
 
-        return Err(anyhow!("Model URL '{url_string}' returned {status}"));
+        self.slot_aggregated_status
+            .increment_download_current(bytes);
     }
 
-    if !status.is_success() {
-        slot_aggregated_status.register_issue(AgentIssue::UrlModelDownloadFailed(ModelPath {
-            model_path: url_string.to_owned(),
-        }));
-
-        return Err(anyhow!("Model URL '{url_string}' returned {status}"));
+    fn on_finished(&self) {
+        self.slot_aggregated_status
+            .register_fix(&AgentIssueFix::UrlModelDownloaded(ModelPath {
+                model_path: self.url.clone(),
+            }));
+        self.slot_aggregated_status.reset_download();
     }
-
-    let total = content_length_as_usize(&response)?;
-    let basename = cache_path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .map(str::to_owned);
-
-    slot_aggregated_status.set_download_status(0, total, basename);
-    slot_aggregated_status.register_fix(&AgentIssueFix::UrlModelStartedDownloading(ModelPath {
-        model_path: url_string.to_owned(),
-    }));
-
-    let partial_path = cache_path.with_extension("partial");
-
-    write_response_to_partial_file(response, &partial_path, slot_aggregated_status.clone()).await?;
-
-    fs::rename(&partial_path, cache_path)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to rename '{}' -> '{}'",
-                partial_path.display(),
-                cache_path.display()
-            )
-        })?;
-
-    slot_aggregated_status.register_fix(&AgentIssueFix::UrlModelDownloaded(ModelPath {
-        model_path: url_string.to_owned(),
-    }));
-    slot_aggregated_status.reset_download();
-
-    Ok(())
 }
 
 async fn resolve_url_into_cache(
@@ -191,9 +106,46 @@ async fn resolve_url_into_cache(
         return Ok(DesiredModelResolution::Resolved(cache_path));
     }
 
-    download_url_model(url_string, &cache_path, slot_aggregated_status).await?;
+    let basename = cache_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_owned);
+    let sink: Arc<dyn ProgressSink> = Arc::new(SlotAggregatedStatusSink {
+        basename,
+        slot_aggregated_status: slot_aggregated_status.clone(),
+        url: url_string.to_owned(),
+    });
 
-    Ok(DesiredModelResolution::Resolved(cache_path))
+    match DownloadManager::new()
+        .download(url_string, &cache_path, sink)
+        .await
+    {
+        Ok(()) => Ok(DesiredModelResolution::Resolved(cache_path)),
+        Err(DownloadError::NotFound { url }) => {
+            slot_aggregated_status.register_issue(AgentIssue::UrlModelNotFound(ModelPath {
+                model_path: url.clone(),
+            }));
+
+            Err(anyhow!("Model URL '{url}' returned 404 Not Found"))
+        }
+        Err(DownloadError::PermissionDenied { url, status }) => {
+            slot_aggregated_status.register_issue(AgentIssue::UrlModelPermissionDenied(
+                ModelPath {
+                    model_path: url.clone(),
+                },
+            ));
+
+            Err(anyhow!("Model URL '{url}' returned {status}"))
+        }
+        Err(other) => {
+            let url_for_issue = url_string.to_owned();
+            slot_aggregated_status.register_issue(AgentIssue::UrlModelDownloadFailed(ModelPath {
+                model_path: url_for_issue,
+            }));
+
+            Err(anyhow::Error::new(other))
+        }
+    }
 }
 
 #[async_trait]
@@ -214,15 +166,9 @@ mod tests {
 
     use anyhow::Result;
     use anyhow::anyhow;
-    use paddler_types::agent_issue::AgentIssue;
-    use paddler_types::agent_issue_params::ModelPath;
     use sha2::Digest;
     use sha2::Sha256;
     use tempfile::TempDir;
-    use tokio::io::AsyncReadExt;
-    use tokio::io::AsyncWriteExt;
-    use tokio::net::TcpListener;
-    use tokio::sync::oneshot;
     use url::Url;
 
     use crate::desired_model_resolution::DesiredModelResolution;
@@ -230,54 +176,6 @@ mod tests {
     use crate::model_source::url::url_basename;
     use crate::model_source::url::url_cache_path;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
-
-    struct FixtureServer {
-        port: u16,
-        _shutdown: oneshot::Sender<()>,
-    }
-
-    impl FixtureServer {
-        async fn start(status_line: &'static str, body: Vec<u8>) -> Result<Self> {
-            let listener = TcpListener::bind("127.0.0.1:0").await?;
-            let port = listener.local_addr()?.port();
-            let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
-            let body_arc = Arc::new(body);
-
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        _ = &mut shutdown_rx => break,
-                        connection = listener.accept() => {
-                            if let Ok((mut socket, _addr)) = connection {
-                                let body = body_arc.clone();
-                                tokio::spawn(async move {
-                                    let mut buffer = [0_u8; 1024];
-                                    let _ = socket.read(&mut buffer).await;
-
-                                    let response = format!(
-                                        "{status_line}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                                        body.len()
-                                    );
-                                    let _ = socket.write_all(response.as_bytes()).await;
-                                    let _ = socket.write_all(&body).await;
-                                    let _ = socket.shutdown().await;
-                                });
-                            }
-                        }
-                    }
-                }
-            });
-
-            Ok(Self {
-                port,
-                _shutdown: shutdown_tx,
-            })
-        }
-
-        fn url(&self, path: &str) -> String {
-            format!("http://127.0.0.1:{}{path}", self.port)
-        }
-    }
 
     fn fresh_status() -> Arc<SlotAggregatedStatus> {
         Arc::new(SlotAggregatedStatus::new(1))
@@ -328,119 +226,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn download_succeeds_against_fixture_server_and_writes_bytes() -> Result<()> {
+    async fn cache_hit_returns_path_without_calling_download_manager() -> Result<()> {
         let cache_root = TempDir::new()?;
-        let body = b"GGUF placeholder bytes".to_vec();
-        let server = FixtureServer::start("HTTP/1.1 200 OK", body.clone()).await?;
-        let status = fresh_status();
-        let url_string = server.url("/model.gguf");
-
-        let resolution = resolve_url_into_cache(&url_string, cache_root.path(), status).await?;
-
-        let path = match resolution {
-            DesiredModelResolution::Resolved(path) => path,
-            other => return Err(anyhow!("expected Resolved, got {other:?}")),
-        };
-        let mut content = Vec::new();
-        tokio::fs::File::open(&path)
-            .await?
-            .read_to_end(&mut content)
-            .await?;
-
-        assert_eq!(content, body);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn download_404_returns_error_and_registers_url_model_not_found() -> Result<()> {
-        let cache_root = TempDir::new()?;
-        let server = FixtureServer::start("HTTP/1.1 404 Not Found", Vec::new()).await?;
-        let status = fresh_status();
-        let url_string = server.url("/missing.gguf");
-
-        let result = resolve_url_into_cache(&url_string, cache_root.path(), status.clone()).await;
-
-        assert!(result.is_err());
-        assert!(status.has_issue(&AgentIssue::UrlModelNotFound(ModelPath {
-            model_path: url_string,
-        })));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn download_401_returns_error_and_registers_url_model_permission_denied() -> Result<()> {
-        let cache_root = TempDir::new()?;
-        let server = FixtureServer::start("HTTP/1.1 401 Unauthorized", Vec::new()).await?;
-        let status = fresh_status();
-        let url_string = server.url("/private.gguf");
-
-        let result = resolve_url_into_cache(&url_string, cache_root.path(), status.clone()).await;
-
-        assert!(result.is_err());
-        assert!(
-            status.has_issue(&AgentIssue::UrlModelPermissionDenied(ModelPath {
-                model_path: url_string,
-            }))
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn download_403_returns_error_and_registers_url_model_permission_denied() -> Result<()> {
-        let cache_root = TempDir::new()?;
-        let server = FixtureServer::start("HTTP/1.1 403 Forbidden", Vec::new()).await?;
-        let status = fresh_status();
-        let url_string = server.url("/forbidden.gguf");
-
-        let result = resolve_url_into_cache(&url_string, cache_root.path(), status.clone()).await;
-
-        assert!(result.is_err());
-        assert!(
-            status.has_issue(&AgentIssue::UrlModelPermissionDenied(ModelPath {
-                model_path: url_string,
-            }))
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn download_500_returns_error_and_registers_url_model_download_failed() -> Result<()> {
-        let cache_root = TempDir::new()?;
-        let server = FixtureServer::start("HTTP/1.1 500 Internal Server Error", Vec::new()).await?;
-        let status = fresh_status();
-        let url_string = server.url("/broken.gguf");
-
-        let result = resolve_url_into_cache(&url_string, cache_root.path(), status.clone()).await;
-
-        assert!(result.is_err());
-        assert!(
-            status.has_issue(&AgentIssue::UrlModelDownloadFailed(ModelPath {
-                model_path: url_string,
-            }))
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn cache_hit_returns_path_without_http_request() -> Result<()> {
-        let cache_root = TempDir::new()?;
-        // Server returns 500 so any real call would fail. The cache hit must avoid the call.
-        let server = FixtureServer::start("HTTP/1.1 500 Internal Server Error", Vec::new()).await?;
-        let status = fresh_status();
-        let url_string = server.url("/cached.gguf");
-        let parsed = Url::parse(&url_string)?;
-        let expected = url_cache_path(cache_root.path(), &url_string, &parsed);
+        let url_string = "https://host.example/cached.gguf";
+        let parsed = Url::parse(url_string)?;
+        let expected = url_cache_path(cache_root.path(), url_string, &parsed);
         if let Some(parent) = expected.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
         tokio::fs::write(&expected, b"cached content").await?;
 
-        let resolution = resolve_url_into_cache(&url_string, cache_root.path(), status).await?;
+        let resolution =
+            resolve_url_into_cache(url_string, cache_root.path(), fresh_status()).await?;
 
         match resolution {
             DesiredModelResolution::Resolved(path) => assert_eq!(path, expected),

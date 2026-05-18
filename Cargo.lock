@@ -4890,6 +4890,7 @@ dependencies = [
  "minijinja-contrib",
  "nanoid",
  "paddler_cache_dir",
+ "paddler_download_manager",
  "paddler_types",
  "rand 0.9.4",
  "reqwest",
@@ -4991,6 +4992,20 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-util",
+ "url",
+]
+
+[[package]]
+name = "paddler_download_manager"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "bytes 1.11.1",
+ "futures-util",
+ "reqwest",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
  "url",
 ]
 

@@ -2,6 +2,7 @@
 
 RUST_LOG ?= debug
 
+COVERAGE_PACKAGES := -p paddler_cache_dir -p paddler_download_manager
 PADDLER_CLI_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_cli/src paddler_client/src paddler_types/src -name '*.rs')
 PADDLER_GUI_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_gui/src paddler_types/src -name '*.rs')
 FRONTEND_SOURCES := $(shell find resources -type f) $(wildcard jarmuz/*.mjs)
@@ -58,6 +59,28 @@ clean:
 .PHONY: clippy
 clippy: esbuild-meta.json
 	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
+
+.PHONY: coverage
+coverage: node_modules
+	cargo llvm-cov clean --workspace
+	cargo llvm-cov $(COVERAGE_PACKAGES) --no-report
+	cargo llvm-cov report --json --output-path target/llvm-cov.json
+	cargo llvm-cov report --lcov --output-path target/lcov.info
+	cargo llvm-cov report
+	npx rust-coverage-check target/llvm-cov.json \
+		--workspace-root $(CURDIR) \
+		--gated paddler_cache_dir=100 \
+		--gated paddler_download_manager=100
+
+.PHONY: coverage-clean
+coverage-clean:
+	cargo llvm-cov clean --workspace
+	rm -rf target/llvm-cov-target
+	rm -f target/llvm-cov.json target/lcov.info
+
+.PHONY: coverage-report
+coverage-report:
+	cargo llvm-cov $(COVERAGE_PACKAGES) --html
 
 .PHONY: fmt
 fmt: node_modules

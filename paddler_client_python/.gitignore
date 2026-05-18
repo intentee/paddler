@@ -18,3 +18,4 @@ venv/
 *.log
 .coverage
 htmlcov/
+target/
