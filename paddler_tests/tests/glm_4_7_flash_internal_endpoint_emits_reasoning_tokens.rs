@@ -31,7 +31,7 @@ async fn glm_4_7_flash_internal_endpoint_emits_reasoning_tokens() -> Result<()> 
             }]),
             enable_thinking: true,
             grammar: None,
-            max_tokens: 400,
+            max_tokens: 200,
             parse_tool_calls: false,
             tools: vec![],
         })
