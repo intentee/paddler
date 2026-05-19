@@ -38,9 +38,9 @@ hf-hub = { version = "0.4", features = ["tokio"] }
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = "=0.6.0"
-llama-cpp-bindings-sys = "=0.6.0"
-llama-cpp-bindings-types = "=0.6.0"
+llama-cpp-bindings = "=0.7.0"
+llama-cpp-bindings-sys = "=0.7.0"
+llama-cpp-bindings-types = "=0.7.0"
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"

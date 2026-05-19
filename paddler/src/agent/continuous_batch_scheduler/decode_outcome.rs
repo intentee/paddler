@@ -1,35 +1,35 @@
-use llama_cpp_bindings::DecodeError;
+use llama_cpp_bindings::error::DecodeError;
 
 #[derive(Debug)]
 pub enum DecodeOutcome {
     Decoded,
     NeedsEviction,
     Aborted,
-    Errored(i32),
+    Errored(DecodeError),
 }
 
 impl DecodeOutcome {
     #[must_use]
-    pub const fn from_decode_result(result: &Result<(), DecodeError>) -> Self {
+    pub fn from_decode_result(result: Result<(), DecodeError>) -> Self {
         match result {
             Ok(()) => Self::Decoded,
             Err(DecodeError::NoKvCacheSlot) => Self::NeedsEviction,
-            Err(DecodeError::Aborted | DecodeError::NTokensZero) => Self::Aborted,
-            Err(DecodeError::Unknown(error_code)) => Self::Errored(*error_code),
+            Err(DecodeError::Aborted | DecodeError::BatchInvalid) => Self::Aborted,
+            Err(other) => Self::Errored(other),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::DecodeError;
+    use llama_cpp_bindings::error::DecodeError;
 
     use super::DecodeOutcome;
 
     #[test]
     fn ok_maps_to_decoded() {
         assert!(matches!(
-            DecodeOutcome::from_decode_result(&Ok(())),
+            DecodeOutcome::from_decode_result(Ok(())),
             DecodeOutcome::Decoded
         ));
     }
@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn no_kv_cache_slot_maps_to_needs_eviction() {
         assert!(matches!(
-            DecodeOutcome::from_decode_result(&Err(DecodeError::NoKvCacheSlot)),
+            DecodeOutcome::from_decode_result(Err(DecodeError::NoKvCacheSlot)),
             DecodeOutcome::NeedsEviction
         ));
     }
@@ -45,23 +45,27 @@ mod tests {
     #[test]
     fn aborted_maps_to_aborted() {
         assert!(matches!(
-            DecodeOutcome::from_decode_result(&Err(DecodeError::Aborted)),
+            DecodeOutcome::from_decode_result(Err(DecodeError::Aborted)),
             DecodeOutcome::Aborted
         ));
     }
 
     #[test]
-    fn n_tokens_zero_maps_to_aborted() {
+    fn batch_invalid_maps_to_aborted() {
         assert!(matches!(
-            DecodeOutcome::from_decode_result(&Err(DecodeError::NTokensZero)),
+            DecodeOutcome::from_decode_result(Err(DecodeError::BatchInvalid)),
             DecodeOutcome::Aborted
         ));
     }
 
     #[test]
-    fn unknown_carries_error_code() {
-        let outcome = DecodeOutcome::from_decode_result(&Err(DecodeError::Unknown(42)));
+    fn other_error_is_forwarded_as_errored() {
+        let outcome =
+            DecodeOutcome::from_decode_result(Err(DecodeError::UnknownStatus { code: 42 }));
 
-        assert!(matches!(outcome, DecodeOutcome::Errored(42)));
+        assert!(matches!(
+            outcome,
+            DecodeOutcome::Errored(DecodeError::UnknownStatus { code: 42 })
+        ));
     }
 }

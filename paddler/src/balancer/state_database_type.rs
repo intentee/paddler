@@ -76,11 +76,16 @@ mod tests {
 
     #[test]
     fn test_file_absolute_path() -> Result<()> {
-        let result = StateDatabaseType::from_str("file:///absolute/path")?;
+        #[cfg(unix)]
+        let (url, expected_path) = ("file:///absolute/path", "/absolute/path");
+        #[cfg(windows)]
+        let (url, expected_path) = ("file://C:/absolute/path", "C:/absolute/path");
+
+        let result = StateDatabaseType::from_str(url)?;
 
         match result {
             StateDatabaseType::File(path) => {
-                assert_eq!(path, PathBuf::from("/absolute/path"));
+                assert_eq!(path, PathBuf::from(expected_path));
             }
             StateDatabaseType::Memory(_) => {
                 return Err(anyhow!("Expected File variant"));

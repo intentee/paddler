@@ -533,8 +533,13 @@ mod tests {
     }
 
     #[test]
-    fn classify_cache_io_error_maps_enospc_to_cache_storage_is_full() {
-        let error = io::Error::from_raw_os_error(28);
+    fn classify_cache_io_error_maps_disk_full_errno_to_cache_storage_is_full() {
+        #[cfg(unix)]
+        const DISK_FULL_ERRNO: i32 = 28;
+        #[cfg(windows)]
+        const DISK_FULL_ERRNO: i32 = 112;
+
+        let error = io::Error::from_raw_os_error(DISK_FULL_ERRNO);
 
         assert!(matches!(
             classify_cache_io_error(TEST_URL, &error),
