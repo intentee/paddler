@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
@@ -21,6 +22,7 @@ struct RecordingSink {
     chunk_bytes: AtomicU64,
     finished_count: AtomicU64,
     started_total: AtomicU64,
+    started_total_indeterminate: AtomicBool,
     started_already: AtomicU64,
 }
 
@@ -32,13 +34,24 @@ impl RecordingSink {
             finished_count: AtomicU64::new(0),
             started_already: AtomicU64::new(0),
             started_total: AtomicU64::new(0),
+            started_total_indeterminate: AtomicBool::new(true),
         }
     }
 }
 
 impl ProgressSink for RecordingSink {
-    fn on_started(&self, total_bytes: u64, already_downloaded: u64) {
-        self.started_total.store(total_bytes, Ordering::Relaxed);
+    fn on_started(&self, total_bytes: Option<u64>, already_downloaded: u64) {
+        match total_bytes {
+            Some(value) => {
+                self.started_total.store(value, Ordering::Relaxed);
+                self.started_total_indeterminate
+                    .store(false, Ordering::Relaxed);
+            }
+            None => {
+                self.started_total_indeterminate
+                    .store(true, Ordering::Relaxed);
+            }
+        }
         self.started_already
             .store(already_downloaded, Ordering::Relaxed);
     }
@@ -62,7 +75,7 @@ async fn streams_200_response_to_disk_and_calls_progress_sink_per_chunk() -> Res
     let progress_sink: Arc<dyn ProgressSink> = sink.clone();
     let dest = directory.path().join("model.gguf");
 
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, progress_sink)
         .await?;
 
@@ -94,7 +107,7 @@ async fn resumes_from_existing_partial_file_with_range_request() -> Result<()> {
     let sink = Arc::new(RecordingSink::new());
     let progress_sink: Arc<dyn ProgressSink> = sink.clone();
 
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, progress_sink)
         .await?;
 
@@ -123,7 +136,7 @@ async fn starts_over_when_server_returns_200_to_range_request() -> Result<()> {
     let sink = Arc::new(RecordingSink::new());
     let progress_sink: Arc<dyn ProgressSink> = sink.clone();
 
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, progress_sink)
         .await?;
 
@@ -139,7 +152,7 @@ async fn returns_not_found_on_404_without_retrying() -> Result<()> {
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(404))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/missing.gguf"), &dest, sink)
         .await;
 
@@ -156,7 +169,7 @@ async fn returns_permission_denied_on_401_without_retrying() -> Result<()> {
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(401))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/private.gguf"), &dest, sink)
         .await;
 
@@ -176,7 +189,7 @@ async fn returns_permission_denied_on_403_without_retrying() -> Result<()> {
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(403))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/forbidden.gguf"), &dest, sink)
         .await;
 
@@ -199,7 +212,7 @@ async fn returns_partial_file_stale_on_416_and_removes_partial() -> Result<()> {
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(416))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, sink)
         .await;
 
@@ -221,7 +234,7 @@ async fn returns_partial_file_stale_on_416_even_when_no_partial_existed() -> Res
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(416))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, sink)
         .await;
 
@@ -241,7 +254,7 @@ async fn five_hundred_status_returns_download_server_errored() -> Result<()> {
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(500))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, sink)
         .await;
 
@@ -266,7 +279,7 @@ async fn stream_drop_after_partial_body_returns_download_stream_interrupted() ->
     .await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/model.gguf"), &dest, sink)
         .await;
 
@@ -288,7 +301,7 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"ok body".to_vec()))).await?;
     let sink_success = Arc::new(RecordingSink::new());
     let progress_success: Arc<dyn ProgressSink> = sink_success.clone();
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(&fixture_success.url("/x"), &dest, progress_success)
         .await?;
     assert_eq!(sink_success.finished_count.load(Ordering::Relaxed), 1);
@@ -299,7 +312,7 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
         LocalHttpFixture::start(Scenario::always(FixtureResponse::status(404))).await?;
     let sink_404 = Arc::new(RecordingSink::new());
     let progress_404: Arc<dyn ProgressSink> = sink_404.clone();
-    let _ = DownloadManager::new()
+    let _ = DownloadManager::new()?
         .download(&fixture_404.url("/x"), &dest, progress_404)
         .await;
     assert_eq!(sink_404.finished_count.load(Ordering::Relaxed), 0);
@@ -308,7 +321,7 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
         LocalHttpFixture::start(Scenario::always(FixtureResponse::status(500))).await?;
     let sink_500 = Arc::new(RecordingSink::new());
     let progress_500: Arc<dyn ProgressSink> = sink_500.clone();
-    let _ = DownloadManager::new()
+    let _ = DownloadManager::new()?
         .download(&fixture_500.url("/x"), &dest, progress_500)
         .await;
     assert_eq!(sink_500.finished_count.load(Ordering::Relaxed), 0);
@@ -322,7 +335,7 @@ async fn invalid_url_returns_invalid_url_error_without_network_call() -> Result<
     let dest = directory.path().join("model.gguf");
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download("not a valid url", &dest, sink)
         .await;
 
@@ -386,8 +399,6 @@ async fn fixture_request_count_increments() -> Result<()> {
 #[tokio::test]
 async fn returns_io_error_when_destination_directory_does_not_exist_and_cannot_be_created()
 -> Result<()> {
-    // Pointing the destination at a path under an existing FILE (not directory) — create_dir_all will fail
-    // because a regular file blocks the parent directory creation.
     let directory = TempDir::new()?;
     let blocker = directory.path().join("blocker");
     tokio::fs::write(&blocker, b"i am a file, not a directory").await?;
@@ -397,7 +408,7 @@ async fn returns_io_error_when_destination_directory_does_not_exist_and_cannot_b
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -414,7 +425,7 @@ async fn last_recorded_range_header_returns_none_when_no_range_was_sent() -> Res
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await?;
 
@@ -434,7 +445,7 @@ async fn send_error_returns_download_server_is_unreachable() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let url = format!("http://127.0.0.1:{port}/never-listens");
-    let result = DownloadManager::new().download(&url, &dest, sink).await;
+    let result = DownloadManager::new()?.download(&url, &dest, sink).await;
 
     let Err(DownloadError::DownloadServerIsUnreachable {
         url: error_url, ..
@@ -459,7 +470,7 @@ async fn open_for_append_error_returns_io_when_partial_path_is_a_directory() -> 
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -486,7 +497,7 @@ async fn download_returns_cache_permission_denied_when_dir_is_read_only() -> Res
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -514,7 +525,7 @@ async fn finalize_error_returns_io_when_destination_is_a_non_empty_directory() -
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -542,7 +553,7 @@ async fn partial_file_stale_with_unremovable_partial_returns_cache_permission_de
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(416))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -570,7 +581,7 @@ async fn truncate_error_during_ignore_range_returns_io() -> Result<()> {
         .await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -593,7 +604,7 @@ async fn download_returns_cache_disk_full_when_target_is_dev_full() -> Result<()
     .await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let result = DownloadManager::new()
+    let result = DownloadManager::new()?
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
@@ -616,7 +627,7 @@ async fn download_succeeds_after_cache_dir_was_deleted_between_calls() -> Result
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(body.clone()))).await?;
     let url = fixture.url("/x");
 
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(
             &url,
             &dest,
@@ -627,7 +638,7 @@ async fn download_succeeds_after_cache_dir_was_deleted_between_calls() -> Result
 
     tokio::fs::remove_dir_all(&cache_subdir).await?;
 
-    DownloadManager::new()
+    DownloadManager::new()?
         .download(
             &url,
             &dest,

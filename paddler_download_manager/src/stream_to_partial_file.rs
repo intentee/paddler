@@ -43,7 +43,6 @@ mod tests {
     use std::sync::atomic::AtomicU64;
     use std::sync::atomic::Ordering;
 
-    use anyhow::Result;
     use bytes::Bytes;
     use futures_util::stream;
     use tempfile::TempDir;
@@ -67,7 +66,7 @@ mod tests {
     }
 
     impl ProgressSink for CountingSink {
-        fn on_started(&self, _total_bytes: u64, _already_downloaded: u64) {}
+        fn on_started(&self, _total_bytes: Option<u64>, _already_downloaded: u64) {}
         fn on_chunk(&self, additional_bytes: u64) {
             self.bytes.fetch_add(additional_bytes, Ordering::Relaxed);
             self.chunks.fetch_add(1, Ordering::Relaxed);
@@ -79,7 +78,7 @@ mod tests {
     fn counting_sink_lifecycle_methods_are_inert() {
         let sink = CountingSink::new();
 
-        sink.on_started(1024, 0);
+        sink.on_started(Some(1024), 0);
         sink.on_finished();
 
         assert_eq!(sink.chunks.load(Ordering::Relaxed), 0);
@@ -87,8 +86,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn writes_every_chunk_in_order() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn writes_every_chunk_in_order() {
+        let directory = TempDir::new().unwrap();
         let path = directory.path().join("dest.bin");
         let chunks: Vec<std::result::Result<Bytes, reqwest::Error>> = vec![
             Ok(Bytes::from_static(b"first")),
@@ -99,20 +98,21 @@ mod tests {
             .append(true)
             .create(true)
             .open(&path)
-            .await?;
+            .await
+            .unwrap();
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
-        stream_to_partial_file(body_stream, &mut file, &sink).await?;
+        stream_to_partial_file(body_stream, &mut file, &sink)
+            .await
+            .unwrap();
 
-        let bytes = tokio::fs::read(&path).await?;
+        let bytes = tokio::fs::read(&path).await.unwrap();
         assert_eq!(bytes, b"firstsecond");
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn calls_progress_sink_once_per_chunk() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn calls_progress_sink_once_per_chunk() {
+        let directory = TempDir::new().unwrap();
         let path = directory.path().join("dest.bin");
         let chunks: Vec<std::result::Result<Bytes, reqwest::Error>> = vec![
             Ok(Bytes::from_static(b"aaa")),
@@ -124,16 +124,17 @@ mod tests {
             .append(true)
             .create(true)
             .open(&path)
-            .await?;
+            .await
+            .unwrap();
         let counting = Arc::new(CountingSink::new());
         let sink: Arc<dyn ProgressSink> = counting.clone();
 
-        stream_to_partial_file(body_stream, &mut file, &sink).await?;
+        stream_to_partial_file(body_stream, &mut file, &sink)
+            .await
+            .unwrap();
 
         assert_eq!(counting.chunks.load(Ordering::Relaxed), 3);
         assert_eq!(counting.bytes.load(Ordering::Relaxed), 6);
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -153,20 +154,18 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn flush_to_read_only_file_returns_error() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn flush_to_read_only_file_returns_error() {
+        let directory = TempDir::new().unwrap();
         let path = directory.path().join("read_only.bin");
-        tokio::fs::write(&path, b"existing").await?;
+        tokio::fs::write(&path, b"existing").await.unwrap();
         let chunks: Vec<std::result::Result<Bytes, reqwest::Error>> =
             vec![Ok(Bytes::from_static(b"more bytes"))];
         let body_stream = stream::iter(chunks);
-        let mut read_only_file = OpenOptions::new().read(true).open(&path).await?;
+        let mut read_only_file = OpenOptions::new().read(true).open(&path).await.unwrap();
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
         let result = stream_to_partial_file(body_stream, &mut read_only_file, &sink).await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 }

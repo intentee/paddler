@@ -2,6 +2,7 @@ use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use reqwest::Client;
 use reqwest::Url;
@@ -40,11 +41,12 @@ pub struct DownloadManager {
 }
 
 impl DownloadManager {
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            client: Client::new(),
-        }
+    pub fn new() -> Result<Self, reqwest::Error> {
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .build()?;
+
+        Ok(Self { client })
     }
 
     pub async fn download(
@@ -144,7 +146,9 @@ impl DownloadManager {
             | ResponseClassification::StreamFromStart => {}
         }
 
-        let total = offset + response.content_length().unwrap_or(0);
+        let total = response
+            .content_length()
+            .map(|content_length| offset + content_length);
         progress_sink.on_started(total, offset);
 
         let mut file = partial.open_for_append().await?;
@@ -170,9 +174,4 @@ impl DownloadManager {
     }
 }
 
-impl Default for DownloadManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 

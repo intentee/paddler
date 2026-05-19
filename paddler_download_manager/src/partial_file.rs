@@ -79,258 +79,253 @@ impl PartialFile {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
     use tempfile::TempDir;
     use tokio::io::AsyncWriteExt;
 
     use crate::partial_file::PartialFile;
 
     #[tokio::test]
-    async fn current_size_returns_zero_when_missing() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn current_size_returns_zero_when_missing() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
 
-        let size = partial.current_size().await?;
+        let size = partial.current_size().await.unwrap();
 
         assert_eq!(size, 0);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn current_size_returns_existing_size() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn current_size_returns_existing_size() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"twelve bytes").await?;
+        tokio::fs::write(&partial.partial_path, b"twelve bytes")
+            .await
+            .unwrap();
 
-        let size = partial.current_size().await?;
+        let size = partial.current_size().await.unwrap();
 
         assert_eq!(size, 12);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn open_for_append_creates_when_missing() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn open_for_append_creates_when_missing() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
 
-        let mut file = partial.open_for_append().await?;
-        file.write_all(b"hello").await?;
-        file.flush().await?;
+        let mut file = partial.open_for_append().await.unwrap();
+        file.write_all(b"hello").await.unwrap();
+        file.flush().await.unwrap();
 
-        let bytes = tokio::fs::read(&partial.partial_path).await?;
+        let bytes = tokio::fs::read(&partial.partial_path).await.unwrap();
         assert_eq!(bytes, b"hello");
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn open_for_append_appends_to_existing() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn open_for_append_appends_to_existing() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"first").await?;
+        tokio::fs::write(&partial.partial_path, b"first")
+            .await
+            .unwrap();
 
-        let mut file = partial.open_for_append().await?;
-        file.write_all(b"-second").await?;
-        file.flush().await?;
+        let mut file = partial.open_for_append().await.unwrap();
+        file.write_all(b"-second").await.unwrap();
+        file.flush().await.unwrap();
 
-        let bytes = tokio::fs::read(&partial.partial_path).await?;
+        let bytes = tokio::fs::read(&partial.partial_path).await.unwrap();
         assert_eq!(bytes, b"first-second");
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn truncate_resets_to_zero() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn truncate_resets_to_zero() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"keep me?").await?;
+        tokio::fs::write(&partial.partial_path, b"keep me?")
+            .await
+            .unwrap();
 
-        partial.truncate().await?;
+        partial.truncate().await.unwrap();
 
-        let size = partial.current_size().await?;
+        let size = partial.current_size().await.unwrap();
         assert_eq!(size, 0);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn finalize_renames_partial_to_final() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn finalize_renames_partial_to_final() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"complete").await?;
+        tokio::fs::write(&partial.partial_path, b"complete")
+            .await
+            .unwrap();
         let final_path = partial.final_path.clone();
 
-        partial.finalize().await?;
+        partial.finalize().await.unwrap();
 
-        let exists = tokio::fs::try_exists(&final_path).await?;
+        let exists = tokio::fs::try_exists(&final_path).await.unwrap();
         assert!(exists);
-        let bytes = tokio::fs::read(&final_path).await?;
+        let bytes = tokio::fs::read(&final_path).await.unwrap();
         assert_eq!(bytes, b"complete");
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn remove_deletes_partial() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn remove_deletes_partial() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"go away").await?;
+        tokio::fs::write(&partial.partial_path, b"go away")
+            .await
+            .unwrap();
         let partial_path = partial.partial_path.clone();
 
-        partial.remove().await?;
+        partial.remove().await.unwrap();
 
-        let exists = tokio::fs::try_exists(&partial_path).await?;
+        let exists = tokio::fs::try_exists(&partial_path).await.unwrap();
         assert!(!exists);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn remove_is_noop_when_missing() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn remove_is_noop_when_missing() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
 
-        partial.remove().await?;
-
-        Ok(())
+        partial.remove().await.unwrap();
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn current_size_propagates_non_notfound_error() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn current_size_propagates_non_notfound_error() {
+        let directory = TempDir::new().unwrap();
         let blocking_file = directory.path().join("blocker");
-        tokio::fs::write(&blocking_file, b"a regular file").await?;
+        tokio::fs::write(&blocking_file, b"a regular file")
+            .await
+            .unwrap();
         let partial = PartialFile::new(blocking_file.join("subdir").join("model.gguf"));
 
         let result = partial.current_size().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn truncate_returns_io_error_when_partial_is_a_directory() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn truncate_returns_io_error_when_partial_is_a_directory() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::create_dir(&partial.partial_path).await?;
+        tokio::fs::create_dir(&partial.partial_path).await.unwrap();
 
         let result = partial.truncate().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn open_for_append_returns_io_error_when_partial_is_a_directory() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn open_for_append_returns_io_error_when_partial_is_a_directory() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::create_dir(&partial.partial_path).await?;
+        tokio::fs::create_dir(&partial.partial_path).await.unwrap();
 
         let result = partial.open_for_append().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn finalize_returns_io_error_when_final_is_a_non_empty_directory() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn finalize_returns_io_error_when_final_is_a_non_empty_directory() {
+        let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"complete").await?;
-        tokio::fs::create_dir(&partial.final_path).await?;
-        tokio::fs::write(partial.final_path.join("blocker"), b"x").await?;
+        tokio::fs::write(&partial.partial_path, b"complete")
+            .await
+            .unwrap();
+        tokio::fs::create_dir(&partial.final_path).await.unwrap();
+        tokio::fs::write(partial.final_path.join("blocker"), b"x")
+            .await
+            .unwrap();
 
         let result = partial.finalize().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn remove_propagates_non_notfound_error() -> Result<()> {
+    async fn remove_propagates_non_notfound_error() {
         use std::os::unix::fs::PermissionsExt;
 
-        let directory = TempDir::new()?;
+        let directory = TempDir::new().unwrap();
         let locked_parent = directory.path().join("locked");
-        tokio::fs::create_dir(&locked_parent).await?;
+        tokio::fs::create_dir(&locked_parent).await.unwrap();
         let partial = PartialFile::new(locked_parent.join("model.gguf"));
-        tokio::fs::write(&partial.partial_path, b"go away").await?;
-        let mut perms = tokio::fs::metadata(&locked_parent).await?.permissions();
+        tokio::fs::write(&partial.partial_path, b"go away")
+            .await
+            .unwrap();
+        let mut perms = tokio::fs::metadata(&locked_parent)
+            .await
+            .unwrap()
+            .permissions();
         perms.set_mode(0o500);
-        tokio::fs::set_permissions(&locked_parent, perms).await?;
+        tokio::fs::set_permissions(&locked_parent, perms)
+            .await
+            .unwrap();
 
         let result = partial.remove().await;
 
-        let mut restore = tokio::fs::metadata(&locked_parent).await?.permissions();
+        let mut restore = tokio::fs::metadata(&locked_parent)
+            .await
+            .unwrap()
+            .permissions();
         restore.set_mode(0o700);
-        tokio::fs::set_permissions(&locked_parent, restore).await?;
+        tokio::fs::set_permissions(&locked_parent, restore)
+            .await
+            .unwrap();
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn open_for_append_fails_when_parent_blocked_by_file() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn open_for_append_fails_when_parent_blocked_by_file() {
+        let directory = TempDir::new().unwrap();
         let blocker = directory.path().join("blocker");
-        tokio::fs::write(&blocker, b"i am a file").await?;
+        tokio::fs::write(&blocker, b"i am a file").await.unwrap();
         let partial = PartialFile::new(blocker.join("subdir").join("model.gguf"));
 
         let result = partial.open_for_append().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn truncate_fails_when_parent_blocked_by_file() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn truncate_fails_when_parent_blocked_by_file() {
+        let directory = TempDir::new().unwrap();
         let blocker = directory.path().join("blocker");
-        tokio::fs::write(&blocker, b"i am a file").await?;
+        tokio::fs::write(&blocker, b"i am a file").await.unwrap();
         let partial = PartialFile::new(blocker.join("subdir").join("model.gguf"));
 
         let result = partial.truncate().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 
     #[cfg(unix)]
     #[tokio::test]
-    async fn finalize_returns_io_error_when_parent_was_deleted_mid_download() -> Result<()> {
-        let directory = TempDir::new()?;
+    async fn finalize_returns_io_error_when_parent_was_deleted_mid_download() {
+        let directory = TempDir::new().unwrap();
         let cache_subdir = directory.path().join("model-cache");
         let dest = cache_subdir.join("model.gguf");
         let partial = PartialFile::new(dest);
 
-        tokio::fs::create_dir_all(&cache_subdir).await?;
-        let mut file = partial.open_for_append().await?;
-        file.write_all(b"partial data").await?;
-        file.flush().await?;
+        tokio::fs::create_dir_all(&cache_subdir).await.unwrap();
+        let mut file = partial.open_for_append().await.unwrap();
+        file.write_all(b"partial data").await.unwrap();
+        file.flush().await.unwrap();
         drop(file);
 
-        tokio::fs::remove_dir_all(&cache_subdir).await?;
+        tokio::fs::remove_dir_all(&cache_subdir).await.unwrap();
 
         let result = partial.finalize().await;
 
         assert!(result.is_err());
-
-        Ok(())
     }
 }

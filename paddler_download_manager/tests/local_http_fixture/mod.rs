@@ -247,7 +247,6 @@ where
             writer.write_all(header.as_bytes()).await?;
             let truncated_len = bytes_before_drop.min(body.len());
             writer.write_all(&body[..truncated_len]).await?;
-            // No graceful shutdown — drop the writer to simulate a mid-stream connection drop.
         }
     }
     Ok(())
