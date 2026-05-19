@@ -60,7 +60,7 @@ async def test_http_continue_from_conversation_history(
         ):
             _assert_not_error(message)
 
-            if message.kind == InferenceMessageKind.CONTENT_TOKEN:
+            if message.is_token:
                 assert message.token is not None
                 tokens.append(message.token)
             elif message.is_terminal:
@@ -89,7 +89,7 @@ async def test_websocket_continue_from_conversation_history(
         async for message in stream:
             _assert_not_error(message)
 
-            if message.kind == InferenceMessageKind.CONTENT_TOKEN:
+            if message.is_token:
                 assert message.token is not None
                 tokens.append(message.token)
             elif message.is_terminal:
@@ -114,7 +114,7 @@ async def test_websocket_continue_from_raw_prompt(
         async for message in stream:
             _assert_not_error(message)
 
-            if message.kind == InferenceMessageKind.CONTENT_TOKEN:
+            if message.is_token:
                 assert message.token is not None
                 tokens.append(message.token)
             elif message.is_terminal:
