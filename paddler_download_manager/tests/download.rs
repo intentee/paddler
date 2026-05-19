@@ -100,9 +100,13 @@ async fn resumes_from_existing_partial_file_with_range_request() -> Result<()> {
     tokio::fs::write(&partial_path, b"first half ").await?;
 
     let body = b"second half".to_vec();
-    let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::partial_content(
-        body.clone(),
-    )))
+    let total = 11_u64 + body.len() as u64;
+    let fixture = LocalHttpFixture::start(Scenario::always(
+        FixtureResponse::partial_content_with_range(
+            body.clone(),
+            format!("bytes 11-{}/{}", total - 1, total),
+        ),
+    ))
     .await?;
     let sink = Arc::new(RecordingSink::new());
     let progress_sink: Arc<dyn ProgressSink> = sink.clone();
@@ -232,6 +236,37 @@ async fn returns_partial_file_stale_on_416_even_when_no_partial_existed() -> Res
     let partial_path = dest.with_extension("partial");
 
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(416))).await?;
+    let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
+
+    let result = DownloadManager::new()?
+        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(DownloadError::PartialFileStale { .. })
+    ));
+    assert!(!tokio::fs::try_exists(&partial_path).await?);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn mismatched_content_range_is_treated_as_partial_file_stale() -> Result<()> {
+    let directory = TempDir::new()?;
+    let dest = directory.path().join("model.gguf");
+    let partial_path = dest.with_extension("partial");
+    tokio::fs::write(&partial_path, b"first half ").await?;
+
+    let body = b"second half".to_vec();
+    let total = 11_u64 + body.len() as u64;
+    let fixture = LocalHttpFixture::start(Scenario::always(
+        FixtureResponse::partial_content_with_range(
+            body,
+            format!("bytes 999-{}/{}", 999 + 10, total),
+        ),
+    ))
+    .await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
@@ -436,15 +471,11 @@ async fn last_recorded_range_header_returns_none_when_no_range_was_sent() -> Res
 
 #[tokio::test]
 async fn send_error_returns_download_server_is_unreachable() -> Result<()> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-    let port = listener.local_addr()?.port();
-    drop(listener);
-
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
-    let url = format!("http://127.0.0.1:{port}/never-listens");
+    let url = "http://127.0.0.1:1/never-listens".to_owned();
     let result = DownloadManager::new()?.download(&url, &dest, sink).await;
 
     let Err(DownloadError::DownloadServerIsUnreachable {

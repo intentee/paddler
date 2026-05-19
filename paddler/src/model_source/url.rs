@@ -1,8 +1,10 @@
+use std::io;
 use std::sync::Arc;
 
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
+use url::Url;
 
 use paddler_cache_dir::CacheDir;
 use paddler_cache_dir::CachedDownloadedModel;
@@ -18,6 +20,30 @@ use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
+
+#[cfg(unix)]
+fn is_disk_full(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(28)
+}
+
+#[cfg(windows)]
+fn is_disk_full(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(112)
+}
+
+fn classify_cache_io_error(url_string: &str, error: &io::Error) -> AgentIssue {
+    let model_path = ModelPath {
+        model_path: url_string.to_owned(),
+    };
+
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        AgentIssue::CacheDirectoryIsNotWritable(model_path)
+    } else if is_disk_full(error) {
+        AgentIssue::CacheStorageIsFull(model_path)
+    } else {
+        AgentIssue::ModelCacheIsCorrupted(model_path)
+    }
+}
 
 fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
     let model_path = ModelPath {
@@ -85,9 +111,29 @@ async fn resolve_url_into_cache(
     cache_dir: &CacheDir,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
 ) -> Result<DesiredModelResolution> {
+    if let Err(parse_error) = Url::parse(url_string) {
+        slot_aggregated_status.reset_download();
+        slot_aggregated_status.register_issue(AgentIssue::DownloadUrlIsMalformed(ModelPath {
+            model_path: url_string.to_owned(),
+        }));
+
+        return Err(anyhow::Error::new(parse_error)
+            .context(format!("Invalid URL '{url_string}'")));
+    }
+
     let cached = CachedDownloadedModel::new(cache_dir, url_string)?;
 
-    if cached.is_cached().await? {
+    let is_cached = match cached.is_cached().await {
+        Ok(value) => value,
+        Err(io_error) => {
+            slot_aggregated_status.reset_download();
+            slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
+
+            return Err(anyhow::Error::new(io_error));
+        }
+    };
+
+    if is_cached {
         slot_aggregated_status.reset_download();
         slot_aggregated_status.register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
             model_path: url_string.to_owned(),
@@ -96,7 +142,12 @@ async fn resolve_url_into_cache(
         return Ok(DesiredModelResolution::Resolved(cached.cache_file_path));
     }
 
-    cached.ensure_cache_subdir_exists().await?;
+    if let Err(io_error) = cached.ensure_cache_subdir_exists().await {
+        slot_aggregated_status.reset_download();
+        slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
+
+        return Err(anyhow::Error::new(io_error));
+    }
 
     let _lock_guard = match cached.try_acquire_download_lock() {
         Ok(guard) => guard,
@@ -112,6 +163,7 @@ async fn resolve_url_into_cache(
         }
         Err(DownloadLockAcquisitionError::Io(io_error)) => {
             slot_aggregated_status.reset_download();
+            slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
 
             return Err(anyhow::Error::new(io_error));
         }
@@ -173,6 +225,7 @@ mod tests {
 
     use crate::desired_model_resolution::DesiredModelResolution;
     use crate::model_source::url::agent_issue_for;
+    use crate::model_source::url::classify_cache_io_error;
     use crate::model_source::url::resolve_url_into_cache;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
 
@@ -219,6 +272,25 @@ mod tests {
             }
             other => return Err(anyhow!("expected Resolved, got {other:?}")),
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn malformed_url_registers_download_url_is_malformed() -> Result<()> {
+        let directory = TempDir::new()?;
+        let cache_dir = cache_dir_at(directory.path());
+        let url_string = "not a url";
+
+        let status = fresh_status();
+        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+
+        assert!(result.is_err(), "malformed URL must produce an Err");
+        assert!(status.has_issue(&AgentIssue::DownloadUrlIsMalformed(
+            paddler_types::agent_issue_params::ModelPath {
+                model_path: url_string.to_owned(),
+            },
+        )));
 
         Ok(())
     }
@@ -378,5 +450,54 @@ mod tests {
             agent_issue_for(&error, TEST_URL),
             AgentIssue::ModelCacheIsCorrupted(_)
         ));
+    }
+
+    #[test]
+    fn classify_cache_io_error_maps_permission_denied_to_cache_directory_is_not_writable() {
+        let error = io::Error::from(io::ErrorKind::PermissionDenied);
+
+        assert!(matches!(
+            classify_cache_io_error(TEST_URL, &error),
+            AgentIssue::CacheDirectoryIsNotWritable(_)
+        ));
+    }
+
+    #[test]
+    fn classify_cache_io_error_maps_enospc_to_cache_storage_is_full() {
+        let error = io::Error::from_raw_os_error(28);
+
+        assert!(matches!(
+            classify_cache_io_error(TEST_URL, &error),
+            AgentIssue::CacheStorageIsFull(_)
+        ));
+    }
+
+    #[test]
+    fn classify_cache_io_error_falls_back_to_model_cache_is_corrupted() {
+        let error = io::Error::from(io::ErrorKind::NotFound);
+
+        assert!(matches!(
+            classify_cache_io_error(TEST_URL, &error),
+            AgentIssue::ModelCacheIsCorrupted(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn ensure_cache_subdir_failure_registers_model_cache_is_corrupted() -> Result<()> {
+        let directory = TempDir::new()?;
+        tokio::fs::write(directory.path().join("downloaded-models"), b"blocker").await?;
+        let cache_dir = cache_dir_at(directory.path());
+        let url_string = "https://host.example/blocked.gguf";
+
+        let status = fresh_status();
+        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+
+        assert!(result.is_err(), "blocked cache subdir must produce an Err");
+        assert!(status.has_issue_like(|issue| matches!(
+            issue,
+            AgentIssue::ModelCacheIsCorrupted(_)
+        )));
+
+        Ok(())
     }
 }

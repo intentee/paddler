@@ -358,28 +358,6 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("ServerRejectedRangeRequest" in issue) {
-          return (
-            <li className={agentIssues__issue} key={index}>
-              <strong>
-                Remote server rejected a partial-download resume:{" "}
-                {issue.ServerRejectedRangeRequest.model_path}
-              </strong>
-              <strong>What will Paddler do?</strong>{" "}
-              <p>
-                Paddler has already discarded the stale partial file. The next
-                re-check will start fresh.
-              </p>
-              <strong>What can you do?</strong>{" "}
-              <p>
-                Usually no action needed; the next tick recovers automatically.
-                If it persists, the remote file changed — replace the URL if
-                you need the new content under a stable path.
-              </p>
-            </li>
-          );
-        }
-
         if ("CacheCannotAcquireLock" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>

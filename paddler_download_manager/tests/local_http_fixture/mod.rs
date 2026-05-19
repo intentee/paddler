@@ -18,7 +18,10 @@ const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 #[derive(Clone)]
 pub enum FixtureResponse {
     Ok(Vec<u8>),
-    PartialContent(Vec<u8>),
+    PartialContentWithRange {
+        body: Vec<u8>,
+        content_range: String,
+    },
     Status(u16),
     OkDropAfter {
         body: Vec<u8>,
@@ -31,8 +34,11 @@ impl FixtureResponse {
         Self::Ok(body)
     }
 
-    pub const fn partial_content(body: Vec<u8>) -> Self {
-        Self::PartialContent(body)
+    pub const fn partial_content_with_range(body: Vec<u8>, content_range: String) -> Self {
+        Self::PartialContentWithRange {
+            body,
+            content_range,
+        }
     }
 
     pub const fn status(code: u16) -> Self {
@@ -211,10 +217,14 @@ where
             writer.write_all(&body).await?;
             writer.shutdown().await?;
         }
-        FixtureResponse::PartialContent(body) => {
+        FixtureResponse::PartialContentWithRange {
+            body,
+            content_range,
+        } => {
             let header = format!(
-                "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                body.len()
+                "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: {}\r\nConnection: close\r\n\r\n",
+                body.len(),
+                content_range,
             );
             writer.write_all(header.as_bytes()).await?;
             writer.write_all(&body).await?;

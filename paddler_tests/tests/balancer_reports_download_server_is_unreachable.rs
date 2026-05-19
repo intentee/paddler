@@ -13,16 +13,11 @@ use paddler_types::agent_issue::AgentIssue;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use paddler_types::inference_parameters::InferenceParameters;
 use paddler_types::url_model_reference::UrlModelReference;
-use tokio::net::TcpListener;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_download_server_is_unreachable() -> Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
-    let port = listener.local_addr()?.port();
-    drop(listener);
-
-    let model_url = format!("http://127.0.0.1:{port}/model.gguf");
+    let model_url = "http://127.0.0.1:1/model.gguf".to_owned();
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agents: AgentConfig::uniform(1, 1),

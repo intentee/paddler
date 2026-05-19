@@ -60,9 +60,6 @@ export const AgentIssueSchema = z.union([
     MultimodalProjectionCannotBeLoaded: AgentIssueModelPathSchema,
   }),
   z.object({
-    ServerRejectedRangeRequest: AgentIssueModelPathSchema,
-  }),
-  z.object({
     SlotCannotStart: z.object({
       error: z.string(),
       slot_index: z.number(),

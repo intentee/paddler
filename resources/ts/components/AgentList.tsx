@@ -93,7 +93,7 @@ export function AgentList({
             {download_filename !== null ? (
               <div className={agentList__agent__download}>
                 {download_indeterminate ? (
-                  <progress value={download_current} />
+                  <progress />
                 ) : (
                   <progress max={download_total} value={download_current} />
                 )}

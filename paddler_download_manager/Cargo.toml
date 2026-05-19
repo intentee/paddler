@@ -12,6 +12,7 @@ version.workspace = true
 anyhow = { workspace = true }
 bytes = { workspace = true }
 futures-util = { workspace = true }
+headers = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

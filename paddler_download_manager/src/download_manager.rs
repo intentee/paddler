@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use headers::ContentRange;
+use headers::HeaderMapExt as _;
 use reqwest::Client;
 use reqwest::Url;
 use reqwest::header::RANGE;
@@ -144,6 +146,20 @@ impl DownloadManager {
             }
             ResponseClassification::StreamFromCurrentOffset
             | ResponseClassification::StreamFromStart => {}
+        }
+
+        if matches!(classification, ResponseClassification::StreamFromCurrentOffset) {
+            let server_start = response
+                .headers()
+                .typed_get::<ContentRange>()
+                .and_then(|content_range| content_range.bytes_range())
+                .map(|(start, _end)| start);
+
+            if server_start != Some(offset) {
+                partial.remove().await?;
+
+                return Err(DownloadAttemptError::PartialFileStale);
+            }
         }
 
         let total = response
