@@ -30,6 +30,25 @@ jobs:
       - name: Run unit tests
         run: make test.unit
 
+  javascript:
+    name: javascript
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run JS client tests
+        run: make test.client.js
+
   python:
     name: python (${{ matrix.python-version }})
     runs-on: ubuntu-latest
