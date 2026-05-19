@@ -13,6 +13,7 @@ def _agent_snapshot_json() -> dict[str, object]:
         "desired_slots_total": 4,
         "download_current": 0,
         "download_filename": None,
+        "download_indeterminate": False,
         "download_total": 0,
         "id": "agent-1",
         "issues": [],
