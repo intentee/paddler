@@ -138,6 +138,7 @@ impl SlotAggregatedStatus {
                 self.download_indeterminate.set(false);
             }
             None => {
+                self.download_total.set(0);
                 self.download_indeterminate.set(true);
             }
         }
@@ -432,6 +433,21 @@ mod tests {
         let snapshot = status.make_snapshot()?;
 
         assert_eq!(snapshot.download_current, 123);
+        assert_eq!(snapshot.download_total, 0);
+        assert!(snapshot.download_indeterminate);
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_download_status_indeterminate_after_known_total_resets_download_total() -> Result<()> {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(0, Some(5000), Some("model.gguf".to_owned()));
+        status.set_download_status(10, None, Some("model.gguf".to_owned()));
+
+        let snapshot = status.make_snapshot()?;
+
         assert_eq!(snapshot.download_total, 0);
         assert!(snapshot.download_indeterminate);
 
