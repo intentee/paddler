@@ -4898,7 +4898,6 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
- "sha2",
  "shellexpand",
  "tempfile",
  "thiserror 2.0.18",
@@ -4930,6 +4929,12 @@ name = "paddler_cache_dir"
 version = "4.0.0"
 dependencies = [
  "anyhow",
+ "fslock",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
 ]
 
 [[package]]
