@@ -37,6 +37,8 @@ log = { workspace = true }
 minijinja = { workspace = true }
 minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
+paddler_cache_dir = { workspace = true }
+paddler_download_manager = { workspace = true }
 paddler_types = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }

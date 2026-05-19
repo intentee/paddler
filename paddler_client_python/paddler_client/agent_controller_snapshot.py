@@ -10,6 +10,7 @@ class AgentControllerSnapshot(BaseModel):
     desired_slots_total: int
     download_current: int
     download_filename: str | None = None
+    download_indeterminate: bool
     download_total: int
     id: str
     issues: list[AgentIssue] = []

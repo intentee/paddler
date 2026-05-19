@@ -4,6 +4,7 @@ from paddler_client.agent_desired_model import AgentDesiredModel
 from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
+from paddler_client.url_model_reference import UrlModelReference
 
 
 def test_agent_desired_model_none_serialization() -> None:
@@ -86,4 +87,29 @@ def test_agent_desired_model_local_to_agent_missing_path_raises() -> None:
     model = AgentDesiredModel(variant="LocalToAgent", local_path=None)
 
     with pytest.raises(ValueError, match="local_path is required"):
+        model.model_dump(mode="json")
+
+
+def test_agent_desired_model_url_serialization() -> None:
+    reference = UrlModelReference(url="https://example.com/model.gguf")
+    model = AgentDesiredModel.from_url(reference)
+    dumped = model.model_dump(mode="json")
+
+    assert dumped == {"Url": {"url": "https://example.com/model.gguf"}}
+
+
+def test_agent_desired_model_url_deserialization() -> None:
+    model = AgentDesiredModel.model_validate(
+        {"Url": {"url": "https://example.com/model.gguf"}}
+    )
+
+    assert model.variant == "Url"
+    assert model.url is not None
+    assert model.url.url == "https://example.com/model.gguf"
+
+
+def test_agent_desired_model_url_missing_reference_raises() -> None:
+    model = AgentDesiredModel(variant="Url", url=None)
+
+    with pytest.raises(ValueError, match="url is required"):
         model.model_dump(mode="json")

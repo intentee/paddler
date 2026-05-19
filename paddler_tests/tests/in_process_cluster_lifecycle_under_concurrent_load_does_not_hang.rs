@@ -1,3 +1,5 @@
+#![cfg(feature = "tests_that_use_in_process_cluster")]
+
 use std::time::Duration;
 use std::time::Instant;
 

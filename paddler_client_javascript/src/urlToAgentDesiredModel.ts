@@ -14,5 +14,11 @@ export function urlToAgentDesiredModel(url: URL): AgentDesiredModel {
     };
   }
 
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    return {
+      Url: { url: url.toString() },
+    };
+  }
+
   throw new Error("Unsupported URL format");
 }

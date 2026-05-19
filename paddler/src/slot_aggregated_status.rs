@@ -1,7 +1,7 @@
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::AtomicU64;
 
 use anyhow::Result;
 use dashmap::DashSet;
@@ -18,9 +18,10 @@ use crate::subscribes_to_updates::SubscribesToUpdates;
 
 pub struct SlotAggregatedStatus {
     desired_slots_total: i32,
-    download_current: AtomicValue<AtomicUsize>,
+    download_current: AtomicValue<AtomicU64>,
     download_filename: RwLock<Option<String>>,
-    download_total: AtomicValue<AtomicUsize>,
+    download_indeterminate: AtomicValue<AtomicBool>,
+    download_total: AtomicValue<AtomicU64>,
     issues: DashSet<AgentIssue>,
     model_path: RwLock<Option<String>>,
     slots_processing: AtomicValue<AtomicI32>,
@@ -38,9 +39,10 @@ impl SlotAggregatedStatus {
 
         Self {
             desired_slots_total,
-            download_current: AtomicValue::<AtomicUsize>::new(0),
+            download_current: AtomicValue::<AtomicU64>::new(0),
             download_filename: RwLock::new(None),
-            download_total: AtomicValue::<AtomicUsize>::new(0),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
             issues: DashSet::new(),
             model_path: RwLock::new(None),
             state_application_status_code: AtomicValue::<AtomicI32>::new(
@@ -77,7 +79,7 @@ impl SlotAggregatedStatus {
             .any(|ref_multi| issue_like(ref_multi.key()))
     }
 
-    pub fn increment_download_current(&self, size: usize) {
+    pub fn increment_download_current(&self, size: u64) {
         self.download_current.increment_by(size);
         self.version.increment();
         self.update_tx.send_replace(());
@@ -117,14 +119,26 @@ impl SlotAggregatedStatus {
     pub fn reset_download(&self) {
         self.download_current.set(0);
         self.download_total.set(0);
+        self.download_indeterminate.set(true);
         self.set_download_filename(None);
         self.version.increment();
         self.update_tx.send_replace(());
     }
 
-    pub fn set_download_status(&self, current: usize, total: usize, filename: Option<String>) {
+    pub fn set_download_status(
+        &self,
+        current: u64,
+        total: Option<u64>,
+        filename: Option<String>,
+    ) {
         self.download_current.set(current);
-        self.download_total.set(total);
+        if let Some(value) = total {
+            self.download_total.set(value);
+            self.download_indeterminate.set(false);
+        } else {
+            self.download_total.set(0);
+            self.download_indeterminate.set(true);
+        }
         self.set_download_filename(filename);
     }
 
@@ -209,6 +223,7 @@ impl ProducesSnapshot for SlotAggregatedStatus {
                 .read()
                 .expect("Lock poisoned when getting download filename")
                 .clone(),
+            download_indeterminate: self.download_indeterminate.get(),
             download_total: self.download_total.get(),
             model_path: self
                 .model_path
@@ -395,7 +410,7 @@ mod tests {
     fn set_download_status_updates_all_fields() -> Result<()> {
         let status = SlotAggregatedStatus::new(2);
 
-        status.set_download_status(100, 500, Some("model.gguf".to_owned()));
+        status.set_download_status(100, Some(500), Some("model.gguf".to_owned()));
 
         let snapshot = status.make_snapshot()?;
 
@@ -407,10 +422,54 @@ mod tests {
     }
 
     #[test]
+    fn set_download_status_with_indeterminate_total_keeps_flag_true() -> Result<()> {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(123, None, Some("model.gguf".to_owned()));
+
+        let snapshot = status.make_snapshot()?;
+
+        assert_eq!(snapshot.download_current, 123);
+        assert_eq!(snapshot.download_total, 0);
+        assert!(snapshot.download_indeterminate);
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_download_status_indeterminate_after_known_total_resets_download_total() -> Result<()> {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(0, Some(5000), Some("model.gguf".to_owned()));
+        status.set_download_status(10, None, Some("model.gguf".to_owned()));
+
+        let snapshot = status.make_snapshot()?;
+
+        assert_eq!(snapshot.download_total, 0);
+        assert!(snapshot.download_indeterminate);
+
+        Ok(())
+    }
+
+    #[test]
+    fn set_download_status_with_known_total_flips_indeterminate_false() -> Result<()> {
+        let status = SlotAggregatedStatus::new(2);
+
+        status.set_download_status(0, Some(5000), Some("model.gguf".to_owned()));
+
+        let snapshot = status.make_snapshot()?;
+
+        assert_eq!(snapshot.download_total, 5000);
+        assert!(!snapshot.download_indeterminate);
+
+        Ok(())
+    }
+
+    #[test]
     fn increment_download_current_accumulates() -> Result<()> {
         let status = SlotAggregatedStatus::new(2);
 
-        status.set_download_status(0, 1000, Some("model.gguf".to_owned()));
+        status.set_download_status(0, Some(1000), Some("model.gguf".to_owned()));
         status.increment_download_current(100);
         status.increment_download_current(200);
 
@@ -426,13 +485,14 @@ mod tests {
     fn reset_download_clears_download_fields() -> Result<()> {
         let status = SlotAggregatedStatus::new(2);
 
-        status.set_download_status(500, 1000, Some("model.gguf".to_owned()));
+        status.set_download_status(500, Some(1000), Some("model.gguf".to_owned()));
         status.reset_download();
 
         let snapshot = status.make_snapshot()?;
 
         assert_eq!(snapshot.download_current, 0);
         assert_eq!(snapshot.download_total, 0);
+        assert!(snapshot.download_indeterminate);
         assert_eq!(snapshot.download_filename, None);
 
         Ok(())

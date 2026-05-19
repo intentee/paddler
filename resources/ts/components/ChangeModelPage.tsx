@@ -24,6 +24,10 @@ function modelSchemaToUrl(model: AgentDesiredModel): string {
     return `agent://${model.LocalToAgent}`;
   }
 
+  if ("Url" in model) {
+    return model.Url.url;
+  }
+
   throw new Error(`Unsupported model schema: ${JSON.stringify(model)}`);
 }
 

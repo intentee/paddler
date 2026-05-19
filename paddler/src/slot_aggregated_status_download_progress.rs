@@ -27,11 +27,12 @@ impl Progress for SlotAggregatedStatusDownloadProgress {
             }));
 
         self.slot_aggregated_status
-            .set_download_status(0, size, Some(filename.to_owned()));
+            .set_download_status(0, Some(size as u64), Some(filename.to_owned()));
     }
 
     async fn update(&mut self, size: usize) {
-        self.slot_aggregated_status.increment_download_current(size);
+        self.slot_aggregated_status
+            .increment_download_current(size as u64);
     }
 
     async fn finish(&mut self) {

@@ -50,6 +50,7 @@ export function AgentList({
         const {
           download_current,
           download_filename,
+          download_indeterminate,
           download_total,
           id,
           issues,
@@ -89,9 +90,13 @@ export function AgentList({
                 />
               )}
             </div>
-            {download_total > 0 ? (
+            {download_filename !== null ? (
               <div className={agentList__agent__download}>
-                <progress max={download_total} value={download_current} />
+                {download_indeterminate ? (
+                  <progress />
+                ) : (
+                  <progress max={download_total} value={download_current} />
+                )}
                 <abbr title={`Downloading: ${download_filename}`}>
                   <img src={iconDownload} alt="Download" />
                 </abbr>

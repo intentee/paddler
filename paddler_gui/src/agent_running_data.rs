@@ -14,6 +14,7 @@ impl AgentRunningData {
             desired_slots_total: status.desired_slots_total,
             download_current: status.download_current,
             download_filename: status.download_filename,
+            download_indeterminate: status.download_indeterminate,
             download_total: status.download_total,
             id: String::new(),
             issues: status.issues,

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::AtomicU64;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -44,9 +44,10 @@ pub struct AgentController {
     pub chat_template_override_sender_collection: Arc<ChatTemplateOverrideSenderCollection>,
     pub connection_close: CancellationToken,
     pub desired_slots_total: AtomicValue<AtomicI32>,
-    pub download_current: AtomicValue<AtomicUsize>,
+    pub download_current: AtomicValue<AtomicU64>,
     pub download_filename: RwLock<Option<String>>,
-    pub download_total: AtomicValue<AtomicUsize>,
+    pub download_indeterminate: AtomicValue<AtomicBool>,
+    pub download_total: AtomicValue<AtomicU64>,
     pub embedding_sender_collection: Arc<EmbeddingSenderCollection>,
     pub generate_tokens_sender_collection: Arc<GenerateTokensSenderCollection>,
     pub id: String,
@@ -145,6 +146,7 @@ impl AgentController {
             desired_slots_total,
             download_current,
             download_filename,
+            download_indeterminate,
             download_total,
             issues,
             model_path,
@@ -167,6 +169,9 @@ impl AgentController {
 
         changed |= self.desired_slots_total.set_check(desired_slots_total);
         changed |= self.download_current.set_check(download_current);
+        changed |= self
+            .download_indeterminate
+            .set_check(download_indeterminate);
         changed |= self.download_total.set_check(download_total);
         changed |= self.slots_total.set_check(slots_total);
         changed |= self
@@ -313,6 +318,7 @@ impl ProducesSnapshot for AgentController {
             desired_slots_total: self.desired_slots_total.get(),
             download_current: self.download_current.get(),
             download_filename: self.get_download_filename(),
+            download_indeterminate: self.download_indeterminate.get(),
             download_total: self.download_total.get(),
             id: self.id.clone(),
             issues: self.get_issues(),
@@ -363,9 +369,10 @@ mod tests {
             ),
             connection_close: CancellationToken::new(),
             desired_slots_total: AtomicValue::<AtomicI32>::new(0),
-            download_current: AtomicValue::<AtomicUsize>::new(0),
+            download_current: AtomicValue::<AtomicU64>::new(0),
             download_filename: RwLock::new(None),
-            download_total: AtomicValue::<AtomicUsize>::new(0),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
             embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
             generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
             id: "agent-test".to_owned(),
@@ -391,6 +398,7 @@ mod tests {
             desired_slots_total: 4,
             download_current: 10,
             download_filename: None,
+            download_indeterminate: false,
             download_total: 100,
             issues: BTreeSet::new(),
             model_path: None,

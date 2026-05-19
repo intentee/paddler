@@ -75,6 +75,7 @@ impl Screen<JoinBalancerForm> {
                     desired_slots_total: 0,
                     download_current: 0,
                     download_filename: None,
+                    download_indeterminate: true,
                     download_total: 0,
                     id: String::new(),
                     issues: BTreeSet::new(),

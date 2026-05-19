@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::AtomicU64;
 
 use actix_web::Error;
 use actix_web::HttpRequest;
@@ -118,6 +118,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                             desired_slots_total,
                             download_current,
                             download_filename,
+                            download_indeterminate,
                             download_total,
                             issues,
                             model_path,
@@ -138,9 +139,10 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                         .clone(),
                     connection_close: connection_close.clone(),
                     desired_slots_total: AtomicValue::<AtomicI32>::new(desired_slots_total),
-                    download_current: AtomicValue::<AtomicUsize>::new(download_current),
+                    download_current: AtomicValue::<AtomicU64>::new(download_current),
                     download_filename: RwLock::new(download_filename),
-                    download_total: AtomicValue::<AtomicUsize>::new(download_total),
+                    download_indeterminate: AtomicValue::<AtomicBool>::new(download_indeterminate),
+                    download_total: AtomicValue::<AtomicU64>::new(download_total),
                     embedding_sender_collection: context.embedding_sender_collection.clone(),
                     generate_tokens_sender_collection: context
                         .generate_tokens_sender_collection

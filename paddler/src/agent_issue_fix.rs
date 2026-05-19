@@ -10,6 +10,8 @@ pub enum AgentIssueFix {
     ModelChatTemplateIsLoaded(ModelPath),
     ModelFileExists(ModelPath),
     ModelIsLoaded(ModelPath),
+    ModelDownloadCompleted(ModelPath),
+    ModelDownloadStarted(ModelPath),
     ModelStateIsReconciled,
     MultimodalProjectionIsLoaded(ModelPath),
     SlotStarted(u32),
@@ -67,6 +69,24 @@ impl AgentIssueFix {
             },
             AgentIssue::UnableToFindChatTemplate(issue_model_path) => match self {
                 Self::ModelChatTemplateIsLoaded(fix_model_path) => {
+                    issue_model_path.eq(fix_model_path)
+                }
+                Self::ModelStateIsReconciled => true,
+                _ => false,
+            },
+            AgentIssue::CacheCannotAcquireLock(issue_model_path)
+            | AgentIssue::CacheDirectoryIsNotWritable(issue_model_path)
+            | AgentIssue::CacheStorageIsFull(issue_model_path)
+            | AgentIssue::DownloadInterrupted(issue_model_path)
+            | AgentIssue::DownloadServerDeniedAccess(issue_model_path)
+            | AgentIssue::DownloadServerErrored(issue_model_path)
+            | AgentIssue::DownloadServerIsUnreachable(issue_model_path)
+            | AgentIssue::DownloadServerRejectedRequest(issue_model_path)
+            | AgentIssue::DownloadUrlIsMalformed(issue_model_path)
+            | AgentIssue::ModelCacheIsCorrupted(issue_model_path)
+            | AgentIssue::ModelDoesNotExistAtUrl(issue_model_path) => match self {
+                Self::ModelDownloadCompleted(fix_model_path)
+                | Self::ModelDownloadStarted(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
                 Self::ModelStateIsReconciled => true,
@@ -171,5 +191,120 @@ mod tests {
         let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_a"));
 
         assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_completed_fixes_model_does_not_exist_at_url_with_same_path() {
+        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::ModelDoesNotExistAtUrl(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_download_server_denied_access() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadServerDeniedAccess(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_cache_directory_is_not_writable() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::CacheDirectoryIsNotWritable(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_cache_storage_is_full() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::CacheStorageIsFull(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_download_server_is_unreachable() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::DownloadServerIsUnreachable(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_download_url_is_malformed() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadUrlIsMalformed(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_model_cache_is_corrupted() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::ModelCacheIsCorrupted(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_download_server_errored() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadServerErrored(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_download_interrupted() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::DownloadInterrupted(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_completed_does_not_fix_different_url() {
+        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/a.gguf"));
+        let issue = AgentIssue::ModelDoesNotExistAtUrl(model_path("https://example.com/b.gguf"));
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_state_is_reconciled_fixes_model_cache_is_corrupted() {
+        let fix = AgentIssueFix::ModelStateIsReconciled;
+        let issue = AgentIssue::ModelCacheIsCorrupted(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_cache_cannot_acquire_lock() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_completed_fixes_cache_cannot_acquire_lock() {
+        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_does_not_fix_huggingface_issues() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::HuggingFaceModelDoesNotExist(model_path("https://example.com/m.gguf"));
+
+        assert!(!fix.can_fix(&issue));
     }
 }

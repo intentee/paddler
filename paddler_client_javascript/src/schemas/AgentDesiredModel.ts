@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { HuggingFaceModelReferenceSchema } from "./HuggingFaceModelReference";
+import { UrlModelReferenceSchema } from "./UrlModelReference";
 
 export const AgentDesiredModelSchema = z.union([
   z.object({
@@ -8,6 +9,9 @@ export const AgentDesiredModelSchema = z.union([
   }),
   z.object({
     LocalToAgent: z.string(),
+  }),
+  z.object({
+    Url: UrlModelReferenceSchema,
   }),
   z.literal("None"),
 ]);

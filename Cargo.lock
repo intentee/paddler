@@ -2696,6 +2696,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "headers"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3314d5adb5d94bcdf56771f2e50dbbc80bb4bdf88967526706205ac9eff24eb"
+dependencies = [
+ "base64",
+ "bytes 1.11.1",
+ "headers-core",
+ "http 1.4.0",
+ "httpdate",
+ "mime",
+ "sha1 0.10.6",
+]
+
+[[package]]
+name = "headers-core"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54b4a22553d4242c49fddb9ba998a99962b5cc6f22cb5a3482bec22522403ce4"
+dependencies = [
+ "http 1.4.0",
+]
+
+[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4889,6 +4913,8 @@ dependencies = [
  "minijinja",
  "minijinja-contrib",
  "nanoid",
+ "paddler_cache_dir",
+ "paddler_download_manager",
  "paddler_types",
  "rand 0.9.4",
  "reqwest",
@@ -4920,6 +4946,18 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "paddler_cache_dir"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "fslock",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -4982,6 +5020,21 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-util",
+ "url",
+]
+
+[[package]]
+name = "paddler_download_manager"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "bytes 1.11.1",
+ "futures-util",
+ "headers",
+ "reqwest",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
  "url",
 ]
 

@@ -13,6 +13,7 @@ def test_agent_controller_snapshot_deserialization() -> None:
             "desired_slots_total": 4,
             "download_current": 100,
             "download_filename": "model.gguf",
+            "download_indeterminate": False,
             "download_total": 1000,
             "id": "agent-1",
             "issues": [{"SlotCannotStart": {"error": "OOM", "slot_index": 0}}],
@@ -39,6 +40,7 @@ def test_agent_controller_pool_snapshot_deserialization() -> None:
                 {
                     "desired_slots_total": 2,
                     "download_current": 0,
+                    "download_indeterminate": True,
                     "download_total": 0,
                     "id": "a1",
                     "issues": [],
