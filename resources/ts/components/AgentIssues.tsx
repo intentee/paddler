@@ -466,8 +466,11 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        const _exhaustive: never = issue;
-        return _exhaustive;
+        return (
+          <li className={agentIssues__issue} key={index}>
+            Unknown issue: {JSON.stringify(issue)}
+          </li>
+        );
       })}
     </ul>
   );
