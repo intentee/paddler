@@ -3781,28 +3781,28 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c12d8de3511f1c3e3025e811ad2644d22d5b6657f18e9496ea3977c456eed8a"
+checksum = "0d1144611b04160ced5626c50470aa83b24b739174f06b57d17fe0acb2e20dd0"
 dependencies = [
  "encoding_rs",
  "enumflags2",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-log-decoder",
  "llguidance",
+ "log",
  "nom 8.0.0",
  "serde_json",
  "thiserror 2.0.18",
  "toktrie",
- "tracing",
- "tracing-core",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "352fc011d0d723af3864d500d3a78b2d5ee0a5200993229f93421984d9abbfe3"
+checksum = "d54fa3f1bf8856c5a080f76a9b595356de0199ff573c2605a6d47d0791401721"
 dependencies = [
  "bindgen",
  "cc",
@@ -3815,23 +3815,29 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6ce8ade04ae8cacd4ce4e627786c0a449c54d87b5e7287e936ab13fd8ceca8"
+checksum = "1d615ae977c1f81cb87cf8b75a7977d3e5d30cf20723050e939657a473dad6ac"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a76906d544513079d6dbd299d9f0469f618077153aba8eeaf950727a06b45aac"
+checksum = "aafa1ae3e0c87d06d44d6a1476307e069bac06bd0efdf374942fcbcc41aa8bfd"
 dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
 ]
+
+[[package]]
+name = "llama-cpp-log-decoder"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66433575f7419dd96c18928a4b56c1cd3a631f6b941515ff479c6896d713b8b3"
 
 [[package]]
 name = "llguidance"
@@ -7353,7 +7359,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
- "valuable",
 ]
 
 [[package]]
@@ -7650,12 +7655,6 @@ dependencies = [
  "num-traits",
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "valuable"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vcpkg"

@@ -18,7 +18,7 @@ use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
-async fn management_two_agents_stream_subscribers_receive_slot_usage_updates() -> Result<()> {
+async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -> Result<()> {
     let device = current_test_device()?;
 
     device.require_available()?;

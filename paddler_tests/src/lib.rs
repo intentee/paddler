@@ -26,7 +26,9 @@ pub mod openai_chat_completions_client;
 pub mod paddler_command;
 pub mod parse_test_device_value;
 pub mod qwen3_embedding_cluster_params;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot_diff;
 pub mod spawn_agent_subprocess;
 pub mod spawn_agent_subprocess_params;
