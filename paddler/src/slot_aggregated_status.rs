@@ -132,15 +132,12 @@ impl SlotAggregatedStatus {
         filename: Option<String>,
     ) {
         self.download_current.set(current);
-        match total {
-            Some(value) => {
-                self.download_total.set(value);
-                self.download_indeterminate.set(false);
-            }
-            None => {
-                self.download_total.set(0);
-                self.download_indeterminate.set(true);
-            }
+        if let Some(value) = total {
+            self.download_total.set(value);
+            self.download_indeterminate.set(false);
+        } else {
+            self.download_total.set(0);
+            self.download_indeterminate.set(true);
         }
         self.set_download_filename(filename);
     }
