@@ -57,7 +57,7 @@ clean:
 
 .PHONY: clippy
 clippy: esbuild-meta.json
-	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler
+	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler,tests_that_use_in_process_cluster
 
 .PHONY: coverage
 coverage: node_modules
@@ -90,15 +90,15 @@ test: test.client.js test.unit test.integration
 
 .PHONY: test.integration
 test.integration: target/debug/paddler
-	cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_llms
+	cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_in_process_cluster,tests_that_use_llms
 
 .PHONY: test.integration.cuda
 test.integration.cuda: target/cuda/debug/paddler
-	PADDLER_BINARY_PATH=../target/cuda/debug/paddler PADDLER_TEST_DEVICE=cuda cargo test --target-dir target/cuda -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_llms
+	PADDLER_BINARY_PATH=../target/cuda/debug/paddler PADDLER_TEST_DEVICE=cuda cargo test --target-dir target/cuda -p paddler_tests --features cuda,tests_that_use_compiled_paddler,tests_that_use_in_process_cluster,tests_that_use_llms
 
 .PHONY: test.integration.metal
 test.integration.metal: target/metal/debug/paddler
-	PADDLER_BINARY_PATH=../target/metal/debug/paddler PADDLER_TEST_DEVICE=metal cargo test --target-dir target/metal -p paddler_tests --features metal,tests_that_use_compiled_paddler,tests_that_use_llms
+	PADDLER_BINARY_PATH=../target/metal/debug/paddler PADDLER_TEST_DEVICE=metal cargo test --target-dir target/metal -p paddler_tests --features metal,tests_that_use_compiled_paddler,tests_that_use_in_process_cluster,tests_that_use_llms
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
