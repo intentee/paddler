@@ -70,7 +70,7 @@ coverage: node_modules
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated paddler_cache_dir=100 \
-		--gated paddler_download_manager=90
+		--gated paddler_download_manager=99
 
 .PHONY: coverage-clean
 coverage-clean:
