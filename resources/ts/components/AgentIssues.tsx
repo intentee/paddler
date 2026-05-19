@@ -380,6 +380,28 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
+        if ("CacheCannotAcquireLock" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Cannot acquire download lock:{" "}
+                {issue.CacheCannotAcquireLock.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will reattempt to download the model every few seconds
+                until the download lock can be acquired.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                This is likely a temporary issue. It happens when another
+                process is currently downloading this URL into the shared cache
+                directory.
+              </p>
+            </li>
+          );
+        }
+
         if ("CacheDirectoryIsNotWritable" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>

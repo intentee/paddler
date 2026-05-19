@@ -7,6 +7,7 @@ export const AgentSchema = z
     desired_slots_total: z.number(),
     download_current: z.number(),
     download_filename: z.string().nullable(),
+    download_indeterminate: z.boolean(),
     download_total: z.number(),
     id: z.string(),
     issues: z.array(AgentIssueSchema),

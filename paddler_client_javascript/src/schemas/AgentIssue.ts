@@ -5,6 +5,9 @@ import { HuggingFaceDownloadLockSchema } from "./HuggingFaceDownloadLock";
 
 export const AgentIssueSchema = z.union([
   z.object({
+    CacheCannotAcquireLock: AgentIssueModelPathSchema,
+  }),
+  z.object({
     CacheDirectoryIsNotWritable: AgentIssueModelPathSchema,
   }),
   z.object({

@@ -194,6 +194,7 @@ mod tests {
             desired_slots_total: 1,
             download_current: 0,
             download_filename: None,
+            download_indeterminate: true,
             download_total: 0,
             id: agent_id.to_owned(),
             issues,

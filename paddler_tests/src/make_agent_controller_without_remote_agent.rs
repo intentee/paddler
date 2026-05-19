@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::AtomicU64;
 
 use paddler::atomic_value::AtomicValue;
 use paddler::balancer::agent_controller::AgentController;
@@ -26,9 +26,10 @@ pub fn make_agent_controller_without_remote_agent(id: &str) -> AgentController {
         ),
         connection_close: CancellationToken::new(),
         desired_slots_total: AtomicValue::<AtomicI32>::new(0),
-        download_current: AtomicValue::<AtomicUsize>::new(0),
+        download_current: AtomicValue::<AtomicU64>::new(0),
         download_filename: RwLock::new(None),
-        download_total: AtomicValue::<AtomicUsize>::new(0),
+        download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+        download_total: AtomicValue::<AtomicU64>::new(0),
         embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
         generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
         id: id.to_owned(),

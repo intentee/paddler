@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
+use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
@@ -69,6 +70,37 @@ impl AtomicValue<AtomicI32> {
     }
 
     pub fn set_check(&self, value: i32) -> bool {
+        if self.get() == value {
+            false
+        } else {
+            self.set(value);
+
+            true
+        }
+    }
+}
+
+impl AtomicValue<AtomicU64> {
+    #[must_use]
+    pub const fn new(initial: u64) -> Self {
+        Self {
+            value: AtomicU64::new(initial),
+        }
+    }
+
+    pub fn get(&self) -> u64 {
+        self.value.load(Ordering::SeqCst)
+    }
+
+    pub fn increment_by(&self, increment: u64) {
+        self.value.fetch_add(increment, Ordering::SeqCst);
+    }
+
+    pub fn set(&self, value: u64) {
+        self.value.store(value, Ordering::SeqCst);
+    }
+
+    pub fn set_check(&self, value: u64) -> bool {
         if self.get() == value {
             false
         } else {

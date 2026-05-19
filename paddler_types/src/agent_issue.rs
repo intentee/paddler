@@ -9,6 +9,7 @@ use crate::agent_issue_params::SlotCannotStartParams;
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum AgentIssue {
+    CacheCannotAcquireLock(ModelPath),
     CacheDirectoryIsNotWritable(ModelPath),
     CacheStorageIsFull(ModelPath),
     ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams),

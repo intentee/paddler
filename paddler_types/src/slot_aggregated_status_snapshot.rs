@@ -10,9 +10,10 @@ use crate::agent_state_application_status::AgentStateApplicationStatus;
 #[serde(deny_unknown_fields)]
 pub struct SlotAggregatedStatusSnapshot {
     pub desired_slots_total: i32,
-    pub download_current: usize,
+    pub download_current: u64,
     pub download_filename: Option<String>,
-    pub download_total: usize,
+    pub download_indeterminate: bool,
+    pub download_total: u64,
     pub issues: BTreeSet<AgentIssue>,
     pub model_path: Option<String>,
     pub slots_processing: i32,

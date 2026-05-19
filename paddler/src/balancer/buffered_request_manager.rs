@@ -100,7 +100,7 @@ mod tests {
     use std::sync::RwLock;
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::AtomicI32;
-    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::AtomicU64;
     use std::task::Poll;
 
     use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
@@ -162,9 +162,10 @@ mod tests {
             ),
             connection_close: CancellationToken::new(),
             desired_slots_total: AtomicValue::<AtomicI32>::new(1),
-            download_current: AtomicValue::<AtomicUsize>::new(0),
+            download_current: AtomicValue::<AtomicU64>::new(0),
             download_filename: RwLock::new(None),
-            download_total: AtomicValue::<AtomicUsize>::new(0),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
             embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
             generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
             id: "agent-1".to_owned(),
@@ -211,9 +212,10 @@ mod tests {
             ),
             connection_close: CancellationToken::new(),
             desired_slots_total: AtomicValue::<AtomicI32>::new(1),
-            download_current: AtomicValue::<AtomicUsize>::new(0),
+            download_current: AtomicValue::<AtomicU64>::new(0),
             download_filename: RwLock::new(None),
-            download_total: AtomicValue::<AtomicUsize>::new(0),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
             embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
             generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
             id: "agent-pre".to_owned(),

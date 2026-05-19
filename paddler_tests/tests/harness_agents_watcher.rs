@@ -17,6 +17,7 @@ fn make_snapshot(agent_id: &str, slots_total: i32) -> AgentControllerPoolSnapsho
             desired_slots_total: slots_total,
             download_current: 0,
             download_filename: None,
+            download_indeterminate: true,
             download_total: 0,
             id: agent_id.to_owned(),
             issues: BTreeSet::new(),

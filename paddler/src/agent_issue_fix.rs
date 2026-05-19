@@ -74,7 +74,8 @@ impl AgentIssueFix {
                 Self::ModelStateIsReconciled => true,
                 _ => false,
             },
-            AgentIssue::CacheDirectoryIsNotWritable(issue_model_path)
+            AgentIssue::CacheCannotAcquireLock(issue_model_path)
+            | AgentIssue::CacheDirectoryIsNotWritable(issue_model_path)
             | AgentIssue::CacheStorageIsFull(issue_model_path)
             | AgentIssue::DownloadInterrupted(issue_model_path)
             | AgentIssue::DownloadServerDeniedAccess(issue_model_path)
@@ -278,6 +279,22 @@ mod tests {
     fn model_state_is_reconciled_fixes_model_cache_is_corrupted() {
         let fix = AgentIssueFix::ModelStateIsReconciled;
         let issue = AgentIssue::ModelCacheIsCorrupted(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_started_fixes_cache_cannot_acquire_lock() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_download_completed_fixes_cache_cannot_acquire_lock() {
+        let fix = AgentIssueFix::ModelDownloadCompleted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
