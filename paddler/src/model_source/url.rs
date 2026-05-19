@@ -116,14 +116,29 @@ async fn resolve_url_into_cache(
     cache_dir: &CacheDir,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
 ) -> Result<DesiredModelResolution> {
-    if let Err(parse_error) = Url::parse(url_string) {
+    let parsed_url = match Url::parse(url_string) {
+        Ok(url) => url,
+        Err(parse_error) => {
+            slot_aggregated_status.reset_download();
+            slot_aggregated_status.register_issue(AgentIssue::DownloadUrlIsMalformed(ModelPath {
+                model_path: url_string.to_owned(),
+            }));
+
+            return Err(anyhow::Error::new(parse_error)
+                .context(format!("Invalid URL '{url_string}'")));
+        }
+    };
+
+    if !matches!(parsed_url.scheme(), "http" | "https") {
         slot_aggregated_status.reset_download();
         slot_aggregated_status.register_issue(AgentIssue::DownloadUrlIsMalformed(ModelPath {
             model_path: url_string.to_owned(),
         }));
 
-        return Err(anyhow::Error::new(parse_error)
-            .context(format!("Invalid URL '{url_string}'")));
+        return Err(anyhow!(
+            "Unsupported URL scheme '{}' for '{url_string}'; only http and https are supported",
+            parsed_url.scheme(),
+        ));
     }
 
     let cached = CachedDownloadedModel::new(cache_dir, url_string)?;
@@ -296,6 +311,30 @@ mod tests {
                 model_path: url_string.to_owned(),
             },
         )));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unsupported_scheme_registers_download_url_is_malformed_without_creating_cache_state()
+    -> Result<()> {
+        let directory = TempDir::new()?;
+        let cache_dir = cache_dir_at(directory.path());
+        let url_string = "ftp://example.invalid/m.gguf";
+
+        let status = fresh_status();
+        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+
+        assert!(result.is_err(), "unsupported scheme must produce an Err");
+        assert!(status.has_issue(&AgentIssue::DownloadUrlIsMalformed(
+            paddler_types::agent_issue_params::ModelPath {
+                model_path: url_string.to_owned(),
+            },
+        )));
+        assert!(
+            !directory.path().join("downloaded-models").exists(),
+            "no cache subdirectory must be created for an unsupported scheme"
+        );
 
         Ok(())
     }
