@@ -12,6 +12,9 @@ pub enum DownloadError {
         source: url::ParseError,
     },
 
+    #[error("URL '{url}' has unsupported scheme '{scheme}'; expected http or https")]
+    UnsupportedUrlScheme { url: String, scheme: String },
+
     #[error("URL '{url}' returned 404 Not Found")]
     NotFound { url: String },
 
@@ -33,6 +36,12 @@ pub enum DownloadError {
 
     #[error("server returned error status {status} for URL '{url}'")]
     DownloadServerErrored {
+        url: String,
+        status: reqwest::StatusCode,
+    },
+
+    #[error("server rejected request to URL '{url}' with status {status}")]
+    DownloadServerRejectedRequest {
         url: String,
         status: reqwest::StatusCode,
     },

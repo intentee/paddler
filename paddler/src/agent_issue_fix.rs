@@ -81,6 +81,7 @@ impl AgentIssueFix {
             | AgentIssue::DownloadServerDeniedAccess(issue_model_path)
             | AgentIssue::DownloadServerErrored(issue_model_path)
             | AgentIssue::DownloadServerIsUnreachable(issue_model_path)
+            | AgentIssue::DownloadServerRejectedRequest(issue_model_path)
             | AgentIssue::DownloadUrlIsMalformed(issue_model_path)
             | AgentIssue::ModelCacheIsCorrupted(issue_model_path)
             | AgentIssue::ModelDoesNotExistAtUrl(issue_model_path) => match self {

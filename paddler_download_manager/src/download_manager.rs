@@ -46,6 +46,7 @@ impl DownloadManager {
     pub fn new() -> Result<Self, reqwest::Error> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(10))
             .build()?;
 
         Ok(Self { client })
@@ -57,10 +58,17 @@ impl DownloadManager {
         final_path: &Path,
         progress_sink: Arc<dyn ProgressSink>,
     ) -> Result<(), DownloadError> {
-        Url::parse(url).map_err(|parse_error| DownloadError::InvalidUrl {
+        let parsed_url = Url::parse(url).map_err(|parse_error| DownloadError::InvalidUrl {
             url: url.to_owned(),
             source: parse_error,
         })?;
+
+        if !matches!(parsed_url.scheme(), "http" | "https") {
+            return Err(DownloadError::UnsupportedUrlScheme {
+                url: url.to_owned(),
+                scheme: parsed_url.scheme().to_owned(),
+            });
+        }
 
         let partial = PartialFile::new(final_path.to_path_buf());
 
@@ -74,6 +82,12 @@ impl DownloadManager {
             }
             Err(DownloadAttemptError::ServerError(status)) => {
                 Err(DownloadError::DownloadServerErrored {
+                    url: url.to_owned(),
+                    status,
+                })
+            }
+            Err(DownloadAttemptError::ClientError(status)) => {
+                Err(DownloadError::DownloadServerRejectedRequest {
                     url: url.to_owned(),
                     status,
                 })
@@ -139,6 +153,9 @@ impl DownloadManager {
             }
             ResponseClassification::ServerError(status) => {
                 return Err(DownloadAttemptError::ServerError(status));
+            }
+            ResponseClassification::ClientError(status) => {
+                return Err(DownloadAttemptError::ClientError(status));
             }
             ResponseClassification::StreamFromStartIgnoringRange => {
                 partial.truncate().await?;

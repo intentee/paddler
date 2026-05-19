@@ -51,7 +51,9 @@ fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
     };
 
     match error {
-        DownloadError::InvalidUrl { .. } => AgentIssue::DownloadUrlIsMalformed(model_path),
+        DownloadError::InvalidUrl { .. } | DownloadError::UnsupportedUrlScheme { .. } => {
+            AgentIssue::DownloadUrlIsMalformed(model_path)
+        }
         DownloadError::NotFound { .. } => AgentIssue::ModelDoesNotExistAtUrl(model_path),
         DownloadError::PermissionDenied { .. } => {
             AgentIssue::DownloadServerDeniedAccess(model_path)
@@ -61,6 +63,9 @@ fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
         }
         DownloadError::DownloadServerErrored { .. } => {
             AgentIssue::DownloadServerErrored(model_path)
+        }
+        DownloadError::DownloadServerRejectedRequest { .. } => {
+            AgentIssue::DownloadServerRejectedRequest(model_path)
         }
         DownloadError::DownloadInterrupted { .. } => AgentIssue::DownloadInterrupted(model_path),
         DownloadError::CachePermissionDenied { .. } => {
@@ -337,6 +342,19 @@ mod tests {
     }
 
     #[test]
+    fn unsupported_url_scheme_maps_to_download_url_is_malformed() {
+        let error = DownloadError::UnsupportedUrlScheme {
+            url: TEST_URL.to_owned(),
+            scheme: "ftp".to_owned(),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadUrlIsMalformed(_)
+        ));
+    }
+
+    #[test]
     fn not_found_maps_to_model_does_not_exist_at_url() {
         let error = DownloadError::NotFound {
             url: TEST_URL.to_owned(),
@@ -397,6 +415,19 @@ mod tests {
         assert!(matches!(
             agent_issue_for(&error, TEST_URL),
             AgentIssue::DownloadServerErrored(_)
+        ));
+    }
+
+    #[test]
+    fn download_server_rejected_request_maps_to_agent_issue() {
+        let error = DownloadError::DownloadServerRejectedRequest {
+            url: TEST_URL.to_owned(),
+            status: StatusCode::BAD_REQUEST,
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadServerRejectedRequest(_)
         ));
     }
 

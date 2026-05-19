@@ -358,6 +358,29 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
+        if ("DownloadServerRejectedRequest" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Download server rejected the request:{" "}
+                {issue.DownloadServerRejectedRequest.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking. If the server starts accepting
+                the request, the next attempt will succeed.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                The server responded with a 4xx status, meaning the request was
+                rejected (for example bad URL, throttling, or unsupported
+                method). Verify the model URL is correct and that the host
+                isn't rate-limiting the agent.
+              </p>
+            </li>
+          );
+        }
+
         if ("CacheCannotAcquireLock" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>

@@ -30,6 +30,9 @@ export const AgentIssueSchema = z.union([
     DownloadServerIsUnreachable: AgentIssueModelPathSchema,
   }),
   z.object({
+    DownloadServerRejectedRequest: AgentIssueModelPathSchema,
+  }),
+  z.object({
     DownloadInterrupted: AgentIssueModelPathSchema,
   }),
   z.object({

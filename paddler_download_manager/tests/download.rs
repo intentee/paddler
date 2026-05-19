@@ -283,6 +283,26 @@ async fn mismatched_content_range_is_treated_as_partial_file_stale() -> Result<(
 }
 
 #[tokio::test]
+async fn four_hundred_status_returns_download_server_rejected_request() -> Result<()> {
+    let directory = TempDir::new()?;
+    let dest = directory.path().join("model.gguf");
+    let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(400))).await?;
+    let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
+
+    let result = DownloadManager::new()?
+        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .await;
+
+    let Err(DownloadError::DownloadServerRejectedRequest { status, .. }) = result else {
+        bail!("expected DownloadServerRejectedRequest, got {result:?}");
+    };
+    assert_eq!(status, reqwest::StatusCode::BAD_REQUEST);
+    assert_eq!(fixture.request_count(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn five_hundred_status_returns_download_server_errored() -> Result<()> {
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
@@ -360,6 +380,24 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
         .download(&fixture_500.url("/x"), &dest, progress_500)
         .await;
     assert_eq!(sink_500.finished_count.load(Ordering::Relaxed), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn unsupported_url_scheme_returns_invalid_url_error_without_network_call() -> Result<()> {
+    let directory = TempDir::new()?;
+    let dest = directory.path().join("model.gguf");
+    let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
+
+    let result = DownloadManager::new()?
+        .download("ftp://example.invalid/model.gguf", &dest, sink)
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(DownloadError::UnsupportedUrlScheme { .. })
+    ));
 
     Ok(())
 }
@@ -465,6 +503,34 @@ async fn last_recorded_range_header_returns_none_when_no_range_was_sent() -> Res
         .await?;
 
     assert!(fixture.last_recorded_range_header().is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn read_timeout_fires_when_server_stalls_before_headers() -> Result<()> {
+    use std::time::Duration;
+
+    let directory = TempDir::new()?;
+    let dest = directory.path().join("model.gguf");
+    let fixture =
+        LocalHttpFixture::start(Scenario::always(FixtureResponse::stall_before_headers())).await?;
+    let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
+
+    let outcome = tokio::time::timeout(
+        Duration::from_secs(20),
+        DownloadManager::new()?.download(&fixture.url("/model.gguf"), &dest, sink),
+    )
+    .await;
+
+    let result = outcome.map_err(|_elapsed| {
+        anyhow::anyhow!("download did not return within test guard; read_timeout never fired")
+    })?;
+
+    assert!(
+        result.is_err(),
+        "stalled server must produce an error, got Ok"
+    );
 
     Ok(())
 }

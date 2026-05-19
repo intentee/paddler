@@ -27,6 +27,7 @@ pub enum FixtureResponse {
         body: Vec<u8>,
         bytes_before_drop: usize,
     },
+    StallBeforeHeaders,
 }
 
 impl FixtureResponse {
@@ -50,6 +51,10 @@ impl FixtureResponse {
             body,
             bytes_before_drop,
         }
+    }
+
+    pub const fn stall_before_headers() -> Self {
+        Self::StallBeforeHeaders
     }
 }
 
@@ -257,6 +262,9 @@ where
             writer.write_all(header.as_bytes()).await?;
             let truncated_len = bytes_before_drop.min(body.len());
             writer.write_all(&body[..truncated_len]).await?;
+        }
+        FixtureResponse::StallBeforeHeaders => {
+            std::future::pending::<()>().await;
         }
     }
     Ok(())

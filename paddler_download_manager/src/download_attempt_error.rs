@@ -5,6 +5,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum DownloadAttemptError {
+    #[error("client error: {0}")]
+    ClientError(StatusCode),
+
     #[error("io")]
     Io(#[from] io::Error),
 

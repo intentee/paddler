@@ -2,6 +2,7 @@ use reqwest::StatusCode;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ResponseClassification {
+    ClientError(StatusCode),
     NotFound,
     PartialFileStale,
     PermissionDenied(StatusCode),
@@ -35,6 +36,10 @@ impl ResponseClassification {
 
         if status == StatusCode::RANGE_NOT_SATISFIABLE {
             return Self::PartialFileStale;
+        }
+
+        if status.is_client_error() {
+            return Self::ClientError(status);
         }
 
         Self::ServerError(status)
@@ -100,6 +105,22 @@ mod tests {
         assert_eq!(
             ResponseClassification::from_status(StatusCode::RANGE_NOT_SATISFIABLE, true),
             ResponseClassification::PartialFileStale
+        );
+    }
+
+    #[test]
+    fn from_status_400_returns_client_error() {
+        assert_eq!(
+            ResponseClassification::from_status(StatusCode::BAD_REQUEST, false),
+            ResponseClassification::ClientError(StatusCode::BAD_REQUEST)
+        );
+    }
+
+    #[test]
+    fn from_status_429_returns_client_error() {
+        assert_eq!(
+            ResponseClassification::from_status(StatusCode::TOO_MANY_REQUESTS, false),
+            ResponseClassification::ClientError(StatusCode::TOO_MANY_REQUESTS)
         );
     }
 
