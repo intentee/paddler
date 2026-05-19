@@ -17,6 +17,12 @@ pub enum DownloadAttemptError {
     #[error("permission denied: {0}")]
     PermissionDenied(StatusCode),
 
-    #[error("transient: {0}")]
-    Transient(anyhow::Error),
+    #[error("server returned error status: {0}")]
+    ServerError(StatusCode),
+
+    #[error("download interrupted: {0}")]
+    Interrupted(anyhow::Error),
+
+    #[error("server unreachable: {0}")]
+    Unreachable(anyhow::Error),
 }

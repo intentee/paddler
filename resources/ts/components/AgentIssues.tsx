@@ -224,11 +224,227 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        return (
-          <li className={agentIssues__issue} key={index}>
-            Unknown issue: {JSON.stringify(issue)}
-          </li>
-        );
+        if ("DownloadUrlIsMalformed" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Download URL is malformed:{" "}
+                {issue.DownloadUrlIsMalformed.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking, but the same malformed URL
+                will keep failing the same way.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">
+                  Edit the model URL on the model configuration page
+                </Link>{" "}
+                to a valid http or https URL.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ModelDoesNotExistAtUrl" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Model does not exist at URL:{" "}
+                {issue.ModelDoesNotExistAtUrl.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking, but the same 404 will keep
+                firing until the remote server publishes the file at that URL.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Check the URL — the file may have moved or been removed.{" "}
+                <Link href="/model">Update the URL</Link> or replace it with one
+                that resolves.
+              </p>
+            </li>
+          );
+        }
+
+        if ("DownloadServerDeniedAccess" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Download server denied access:{" "}
+                {issue.DownloadServerDeniedAccess.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking; if the server starts
+                accepting the request, the next attempt will succeed.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Confirm the URL is correct and reachable without auth. If it's
+                a private model, switch to a URL that doesn't require
+                credentials, or use the HuggingFace integration instead.
+              </p>
+            </li>
+          );
+        }
+
+        if ("DownloadServerErrored" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Download server returned an error status:{" "}
+                {issue.DownloadServerErrored.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking. If the server starts
+                answering normally, the next attempt will succeed.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                The remote server is reachable but returning a 5xx response.
+                Check the server's status page or logs if you control it;
+                otherwise wait — overload and maintenance windows usually clear
+                on the server's end.
+              </p>
+            </li>
+          );
+        }
+
+        if ("DownloadInterrupted" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Download was interrupted:{" "}
+                {issue.DownloadInterrupted.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking. The next attempt resumes
+                from the bytes already on disk if the server supports Range
+                requests; otherwise it starts fresh.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Often transient — check network stability and whether the
+                remote server is being restarted or rate-limiting. No action
+                needed if it clears on its own.
+              </p>
+            </li>
+          );
+        }
+
+        if ("DownloadServerIsUnreachable" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Download server is unreachable:{" "}
+                {issue.DownloadServerIsUnreachable.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking; if the network comes back,
+                the next attempt will succeed.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Check the agent's internet connection, firewall rules, and the
+                remote server's status.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ServerRejectedRangeRequest" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Remote server rejected a partial-download resume:{" "}
+                {issue.ServerRejectedRangeRequest.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler has already discarded the stale partial file. The next
+                re-check will start fresh.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Usually no action needed; the next tick recovers automatically.
+                If it persists, the remote file changed — replace the URL if
+                you need the new content under a stable path.
+              </p>
+            </li>
+          );
+        }
+
+        if ("CacheDirectoryIsNotWritable" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Cache directory is not writable:{" "}
+                {issue.CacheDirectoryIsNotWritable.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking; the moment write permission
+                is restored, the next attempt will succeed.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Grant write permission to the cache directory (
+                <code>$XDG_CACHE_HOME/paddler</code> on Linux/macOS,{" "}
+                <code>%LOCALAPPDATA%\paddler</code> on Windows), or set{" "}
+                <code>PADDLER_CACHE_DIR</code> to a writable location.
+              </p>
+            </li>
+          );
+        }
+
+        if ("CacheStorageIsFull" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Cache storage is full while downloading:{" "}
+                {issue.CacheStorageIsFull.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking; the moment space is
+                available, the next attempt will succeed.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>Free space on the disk that hosts the cache directory.</p>
+            </li>
+          );
+        }
+
+        if ("ModelCacheIsCorrupted" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Model cache is corrupted:{" "}
+                {issue.ModelCacheIsCorrupted.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep re-checking; the cache will be rebuilt
+                on the next attempt.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                If the issue persists, manually clear the{" "}
+                <code>downloaded-models</code> subdirectory of the cache and
+                let Paddler rebuild it.
+              </p>
+            </li>
+          );
+        }
+
+        const _exhaustive: never = issue;
+        return _exhaustive;
       })}
     </ul>
   );

@@ -310,4 +310,27 @@ mod tests {
 
         Ok(())
     }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn finalize_returns_io_error_when_parent_was_deleted_mid_download() -> Result<()> {
+        let directory = TempDir::new()?;
+        let cache_subdir = directory.path().join("model-cache");
+        let dest = cache_subdir.join("model.gguf");
+        let partial = PartialFile::new(dest);
+
+        tokio::fs::create_dir_all(&cache_subdir).await?;
+        let mut file = partial.open_for_append().await?;
+        file.write_all(b"partial data").await?;
+        file.flush().await?;
+        drop(file);
+
+        tokio::fs::remove_dir_all(&cache_subdir).await?;
+
+        let result = partial.finalize().await;
+
+        assert!(result.is_err());
+
+        Ok(())
+    }
 }

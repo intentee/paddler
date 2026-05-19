@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use paddler_cache_dir::CacheDir;
 use paddler_download_manager::download_error::DownloadError;
@@ -71,7 +70,7 @@ impl ProgressSink for SlotAggregatedStatusSink {
         self.slot_aggregated_status
             .set_download_status(current, total, self.basename.clone());
         self.slot_aggregated_status
-            .register_fix(&AgentIssueFix::UrlModelStartedDownloading(ModelPath {
+            .register_fix(&AgentIssueFix::ModelDownloadStarted(ModelPath {
                 model_path: self.url.clone(),
             }));
     }
@@ -85,7 +84,7 @@ impl ProgressSink for SlotAggregatedStatusSink {
 
     fn on_finished(&self) {
         self.slot_aggregated_status
-            .register_fix(&AgentIssueFix::UrlModelDownloaded(ModelPath {
+            .register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
                 model_path: self.url.clone(),
             }));
         self.slot_aggregated_status.reset_download();
@@ -121,29 +120,40 @@ async fn resolve_url_into_cache(
         .await
     {
         Ok(()) => Ok(DesiredModelResolution::Resolved(cache_path)),
-        Err(DownloadError::NotFound { url }) => {
-            slot_aggregated_status.register_issue(AgentIssue::UrlModelNotFound(ModelPath {
-                model_path: url.clone(),
-            }));
+        Err(error) => {
+            slot_aggregated_status.register_issue(agent_issue_for(&error, url_string));
 
-            Err(anyhow!("Model URL '{url}' returned 404 Not Found"))
+            Err(anyhow::Error::new(error))
         }
-        Err(DownloadError::PermissionDenied { url, status }) => {
-            slot_aggregated_status.register_issue(AgentIssue::UrlModelPermissionDenied(
-                ModelPath {
-                    model_path: url.clone(),
-                },
-            ));
+    }
+}
 
-            Err(anyhow!("Model URL '{url}' returned {status}"))
+fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
+    let model_path = ModelPath {
+        model_path: url_string.to_owned(),
+    };
+
+    match error {
+        DownloadError::InvalidUrl { .. } => AgentIssue::DownloadUrlIsMalformed(model_path),
+        DownloadError::NotFound { .. } => AgentIssue::ModelDoesNotExistAtUrl(model_path),
+        DownloadError::PermissionDenied { .. } => {
+            AgentIssue::DownloadServerDeniedAccess(model_path)
         }
-        Err(other) => {
-            let url_for_issue = url_string.to_owned();
-            slot_aggregated_status.register_issue(AgentIssue::UrlModelDownloadFailed(ModelPath {
-                model_path: url_for_issue,
-            }));
-
-            Err(anyhow::Error::new(other))
+        DownloadError::DownloadServerIsUnreachable { .. } => {
+            AgentIssue::DownloadServerIsUnreachable(model_path)
+        }
+        DownloadError::DownloadServerErrored { .. } => {
+            AgentIssue::DownloadServerErrored(model_path)
+        }
+        DownloadError::DownloadInterrupted { .. } => {
+            AgentIssue::DownloadInterrupted(model_path)
+        }
+        DownloadError::CachePermissionDenied { .. } => {
+            AgentIssue::CacheDirectoryIsNotWritable(model_path)
+        }
+        DownloadError::CacheDiskFull { .. } => AgentIssue::CacheStorageIsFull(model_path),
+        DownloadError::PartialFileStale { .. } | DownloadError::Io { .. } => {
+            AgentIssue::ModelCacheIsCorrupted(model_path)
         }
     }
 }
@@ -162,20 +172,29 @@ impl ResolvesModelSource for UrlModelReference {
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
+    use anyhow::Context as _;
     use anyhow::Result;
     use anyhow::anyhow;
+    use paddler_download_manager::download_error::DownloadError;
+    use paddler_types::agent_issue::AgentIssue;
+    use reqwest::StatusCode;
     use sha2::Digest;
     use sha2::Sha256;
     use tempfile::TempDir;
     use url::Url;
 
     use crate::desired_model_resolution::DesiredModelResolution;
+    use crate::model_source::url::agent_issue_for;
     use crate::model_source::url::resolve_url_into_cache;
     use crate::model_source::url::url_basename;
     use crate::model_source::url::url_cache_path;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
+
+    const TEST_URL: &str = "https://example.com/m.gguf";
 
     fn fresh_status() -> Arc<SlotAggregatedStatus> {
         Arc::new(SlotAggregatedStatus::new(1))
@@ -245,5 +264,139 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn invalid_url_maps_to_download_url_is_malformed() -> Result<()> {
+        let parse_error = Url::parse("not a url")
+            .err()
+            .context("'not a url' should not parse")?;
+        let error = DownloadError::InvalidUrl {
+            url: "not a url".to_owned(),
+            source: parse_error,
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadUrlIsMalformed(_)
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn not_found_maps_to_model_does_not_exist_at_url() {
+        let error = DownloadError::NotFound {
+            url: TEST_URL.to_owned(),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::ModelDoesNotExistAtUrl(_)
+        ));
+    }
+
+    #[test]
+    fn permission_denied_maps_to_download_server_denied_access() {
+        let error = DownloadError::PermissionDenied {
+            url: TEST_URL.to_owned(),
+            status: StatusCode::FORBIDDEN,
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadServerDeniedAccess(_)
+        ));
+    }
+
+    #[test]
+    fn partial_file_stale_maps_to_model_cache_is_corrupted() {
+        let error = DownloadError::PartialFileStale {
+            url: TEST_URL.to_owned(),
+            partial_path: PathBuf::from("/tmp/stale.partial"),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::ModelCacheIsCorrupted(_)
+        ));
+    }
+
+    #[test]
+    fn download_server_is_unreachable_maps_to_agent_issue() {
+        let error = DownloadError::DownloadServerIsUnreachable {
+            url: TEST_URL.to_owned(),
+            source: anyhow!("connection refused"),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadServerIsUnreachable(_)
+        ));
+    }
+
+    #[test]
+    fn download_server_errored_maps_to_agent_issue() {
+        let error = DownloadError::DownloadServerErrored {
+            url: TEST_URL.to_owned(),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadServerErrored(_)
+        ));
+    }
+
+    #[test]
+    fn download_interrupted_maps_to_agent_issue() {
+        let error = DownloadError::DownloadInterrupted {
+            url: TEST_URL.to_owned(),
+            source: anyhow!("stream dropped"),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::DownloadInterrupted(_)
+        ));
+    }
+
+    #[test]
+    fn cache_permission_denied_maps_to_cache_directory_is_not_writable() {
+        let error = DownloadError::CachePermissionDenied {
+            path: PathBuf::from("/tmp/locked/model.partial"),
+            source: io::Error::from(io::ErrorKind::PermissionDenied),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::CacheDirectoryIsNotWritable(_)
+        ));
+    }
+
+    #[test]
+    fn cache_disk_full_maps_to_cache_storage_is_full() {
+        let error = DownloadError::CacheDiskFull {
+            path: PathBuf::from("/tmp/full/model.partial"),
+            source: io::Error::from_raw_os_error(28),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::CacheStorageIsFull(_)
+        ));
+    }
+
+    #[test]
+    fn io_maps_to_model_cache_is_corrupted() {
+        let error = DownloadError::Io {
+            path: PathBuf::from("/tmp/anywhere/model.partial"),
+            source: io::Error::from(io::ErrorKind::NotFound),
+        };
+
+        assert!(matches!(
+            agent_issue_for(&error, TEST_URL),
+            AgentIssue::ModelCacheIsCorrupted(_)
+        ));
     }
 }

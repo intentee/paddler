@@ -17,9 +17,9 @@ use paddler_types::url_model_reference::UrlModelReference;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_url_model_not_found() -> Result<()> {
-    let fixture = LocalHttpFixture::start("HTTP/1.1 404 Not Found", Vec::new()).await?;
-    let model_url = fixture.url("/missing.gguf");
+async fn balancer_reports_download_server_denied_access() -> Result<()> {
+    let fixture = LocalHttpFixture::start("HTTP/1.1 403 Forbidden", Vec::new()).await?;
+    let model_url = fixture.url("/private.gguf");
 
     let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
         agents: AgentConfig::uniform(1, 1),
@@ -51,22 +51,22 @@ async fn balancer_reports_url_model_not_found() -> Result<()> {
                     && agent
                         .issues
                         .iter()
-                        .any(|issue| matches!(issue, AgentIssue::UrlModelNotFound(_)))
+                        .any(|issue| matches!(issue, AgentIssue::DownloadServerDeniedAccess(_)))
             })
         })
         .await
-        .context("balancer should report UrlModelNotFound for 404 URL")?;
+        .context("balancer should report DownloadServerDeniedAccess for a 403 URL")?;
 
     let saw_expected_url = snapshot.agents.iter().any(|agent| {
         agent.issues.iter().any(|issue| {
-            matches!(issue, AgentIssue::UrlModelNotFound(model_path)
+            matches!(issue, AgentIssue::DownloadServerDeniedAccess(model_path)
                 if model_path.model_path == model_url)
         })
     });
 
     assert!(
         saw_expected_url,
-        "UrlModelNotFound should reference the configured URL"
+        "DownloadServerDeniedAccess should reference the configured URL"
     );
 
     cluster.shutdown().await?;

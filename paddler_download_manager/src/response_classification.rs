@@ -5,7 +5,7 @@ pub enum ResponseClassification {
     NotFound,
     PartialFileStale,
     PermissionDenied(StatusCode),
-    Retryable(StatusCode),
+    ServerError(StatusCode),
     StreamFromCurrentOffset,
     StreamFromStart,
     StreamFromStartIgnoringRange,
@@ -37,7 +37,7 @@ impl ResponseClassification {
             return Self::PartialFileStale;
         }
 
-        Self::Retryable(status)
+        Self::ServerError(status)
     }
 }
 
@@ -104,18 +104,18 @@ mod tests {
     }
 
     #[test]
-    fn from_status_503_returns_retryable() {
+    fn from_status_503_returns_server_error() {
         assert_eq!(
             ResponseClassification::from_status(StatusCode::SERVICE_UNAVAILABLE, false),
-            ResponseClassification::Retryable(StatusCode::SERVICE_UNAVAILABLE)
+            ResponseClassification::ServerError(StatusCode::SERVICE_UNAVAILABLE)
         );
     }
 
     #[test]
-    fn from_status_500_returns_retryable() {
+    fn from_status_500_returns_server_error() {
         assert_eq!(
             ResponseClassification::from_status(StatusCode::INTERNAL_SERVER_ERROR, false),
-            ResponseClassification::Retryable(StatusCode::INTERNAL_SERVER_ERROR)
+            ResponseClassification::ServerError(StatusCode::INTERNAL_SERVER_ERROR)
         );
     }
 }

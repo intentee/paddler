@@ -1,7 +1,6 @@
 use std::io;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
-use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use anyhow::Result;
@@ -50,16 +49,11 @@ impl FixtureResponse {
 
 pub enum Scenario {
     Always(FixtureResponse),
-    Sequence(Vec<FixtureResponse>),
 }
 
 impl Scenario {
     pub const fn always(response: FixtureResponse) -> Self {
         Self::Always(response)
-    }
-
-    pub const fn sequence(responses: Vec<FixtureResponse>) -> Self {
-        Self::Sequence(responses)
     }
 }
 
@@ -150,25 +144,12 @@ impl Drop for LocalHttpFixture {
 
 enum ScenarioState {
     Always(FixtureResponse),
-    Sequence {
-        responses: Vec<FixtureResponse>,
-        next_index: AtomicUsize,
-    },
 }
 
 impl ScenarioState {
     fn next(&self) -> FixtureResponse {
         match self {
             Self::Always(response) => response.clone(),
-            Self::Sequence {
-                responses,
-                next_index,
-            } => {
-                let index = next_index
-                    .fetch_add(1, Ordering::Relaxed)
-                    .min(responses.len() - 1);
-                responses[index].clone()
-            }
         }
     }
 }
@@ -177,10 +158,6 @@ impl From<Scenario> for ScenarioState {
     fn from(scenario: Scenario) -> Self {
         match scenario {
             Scenario::Always(response) => Self::Always(response),
-            Scenario::Sequence(responses) => Self::Sequence {
-                responses,
-                next_index: AtomicUsize::new(0),
-            },
         }
     }
 }
