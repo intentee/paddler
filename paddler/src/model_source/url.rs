@@ -189,25 +189,6 @@ async fn resolve_url_into_cache(
         }
     };
 
-    let is_cached_after_lock = match cached.is_cached().await {
-        Ok(value) => value,
-        Err(io_error) => {
-            slot_aggregated_status.reset_download();
-            slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
-
-            return Err(anyhow::Error::new(io_error));
-        }
-    };
-
-    if is_cached_after_lock {
-        slot_aggregated_status.reset_download();
-        slot_aggregated_status.register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
-            model_path: url_string.to_owned(),
-        }));
-
-        return Ok(DesiredModelResolution::Resolved(cached.cache_file_path));
-    }
-
     let basename = cached
         .cache_file_path
         .file_name()
