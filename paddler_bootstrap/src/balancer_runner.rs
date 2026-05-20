@@ -20,6 +20,7 @@ use crate::bootstrapped_balancer_handle::BalancerBootstrapConfig;
 use crate::bootstrapped_balancer_handle::BootstrappedBalancerHandle;
 use crate::bootstrapped_balancer_handle::bootstrap_balancer;
 use crate::service_thread::ServiceThread;
+use crate::shutdown_deadline::SHUTDOWN_DEADLINE;
 
 pub struct BalancerRunnerParams {
     pub buffered_request_timeout: Duration,
@@ -82,7 +83,12 @@ impl BalancerRunner {
         let initial_desired_state = state_database.read_balancer_desired_state().await?;
 
         let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
-            service_manager.run_forever(task_shutdown).await
+            service_manager
+                .start(task_shutdown)
+                .run_to_completion(SHUTDOWN_DEADLINE)
+                .await
+                .into_result()
+                .map_err(anyhow::Error::from)
         });
 
         Ok(Self {

@@ -29,8 +29,6 @@ pub mod resolve_desired_model;
 pub mod resolved_socket_addr;
 pub mod resolves_model_source;
 pub mod sends_rpc_message;
-pub mod service;
-pub mod service_manager;
 pub mod sets_desired_state;
 pub mod slot_aggregated_status;
 pub mod slot_aggregated_status_download_progress;

@@ -15,6 +15,7 @@ paddler = { workspace = true }
 paddler_types = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

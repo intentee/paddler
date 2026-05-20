@@ -9,10 +9,10 @@ use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
+use trzcina::Service;
 
 use crate::balancer::web_admin_panel_service::app_data::AppData;
 use crate::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-use crate::service::Service;
 
 pub struct WebAdminPanelService {
     pub configuration: WebAdminPanelServiceConfiguration,
@@ -40,6 +40,7 @@ impl Service for WebAdminPanelService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
+        .shutdown_timeout(10)
         .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")

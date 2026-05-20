@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 use crate::bootstrapped_agent_handle::BootstrappedAgentHandle;
 use crate::bootstrapped_agent_handle::bootstrap_agent;
 use crate::service_thread::ServiceThread;
+use crate::shutdown_deadline::SHUTDOWN_DEADLINE;
 
 pub struct AgentRunnerParams {
     pub agent_name: Option<String>,
@@ -37,7 +38,12 @@ impl AgentRunner {
         } = bootstrap_agent(agent_name, &management_address, slots);
 
         let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
-            service_manager.run_forever(task_shutdown).await
+            service_manager
+                .start(task_shutdown)
+                .run_to_completion(SHUTDOWN_DEADLINE)
+                .await
+                .into_result()
+                .map_err(anyhow::Error::from)
         });
 
         Self {

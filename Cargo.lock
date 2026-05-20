@@ -4930,6 +4930,7 @@ dependencies = [
  "tokio-test",
  "tokio-tungstenite",
  "tokio-util",
+ "trzcina",
  "url",
 ]
 
@@ -4946,6 +4947,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-util",
+ "trzcina",
 ]
 
 [[package]]
@@ -7361,6 +7363,20 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "trzcina"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "295b4876cd6fb6352eb73fa4c3224ec7a01d2416240f0c19c7c73fd951cdabc8"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures-util",
+ "log",
+ "tokio",
+ "tokio-util",
+]
 
 [[package]]
 name = "ttf-parser"

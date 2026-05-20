@@ -12,12 +12,12 @@ use log::error;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
+use trzcina::Service;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
-use crate::service::Service;
 
 pub struct StatsdService {
     pub agent_controller_pool: Arc<AgentControllerPool>,

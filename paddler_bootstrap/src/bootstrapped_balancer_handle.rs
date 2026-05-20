@@ -25,9 +25,9 @@ use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler::service_manager::ServiceManager;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
+use trzcina::ServiceManager;
 
 pub struct BalancerBootstrapConfig {
     pub buffered_request_timeout: Duration,
@@ -89,7 +89,7 @@ pub async fn bootstrap_balancer(
         )),
     };
 
-    service_manager.add_service(InferenceService {
+    service_manager.register_service(InferenceService {
         agent_controller_pool: agent_controller_pool.clone(),
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
         buffered_request_manager: buffered_request_manager.clone(),
@@ -98,7 +98,7 @@ pub async fn bootstrap_balancer(
         web_admin_panel_service_configuration: web_admin_panel_service_configuration.clone(),
     });
 
-    service_manager.add_service(ManagementService {
+    service_manager.register_service(ManagementService {
         agent_controller_pool: agent_controller_pool.clone(),
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
         buffered_request_manager: buffered_request_manager.clone(),
@@ -113,7 +113,7 @@ pub async fn bootstrap_balancer(
         web_admin_panel_service_configuration: web_admin_panel_service_configuration.clone(),
     });
 
-    service_manager.add_service(ReconciliationService {
+    service_manager.register_service(ReconciliationService {
         agent_controller_pool: agent_controller_pool.clone(),
         balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
         balancer_desired_state: state_database.read_balancer_desired_state().await?,
@@ -122,7 +122,7 @@ pub async fn bootstrap_balancer(
     });
 
     if let Some(openai_configuration) = openai_service_configuration {
-        service_manager.add_service(OpenAIService {
+        service_manager.register_service(OpenAIService {
             buffered_request_manager: buffered_request_manager.clone(),
             inference_service_configuration,
             openai_service_configuration: openai_configuration,
@@ -130,7 +130,7 @@ pub async fn bootstrap_balancer(
     }
 
     if let Some(statsd_configuration) = statsd_service_configuration {
-        service_manager.add_service(StatsdService {
+        service_manager.register_service(StatsdService {
             agent_controller_pool: agent_controller_pool.clone(),
             buffered_request_manager: buffered_request_manager.clone(),
             configuration: statsd_configuration,
@@ -139,7 +139,7 @@ pub async fn bootstrap_balancer(
 
     #[cfg(feature = "web_admin_panel")]
     if let Some(web_admin_panel_configuration) = web_admin_panel_service_configuration {
-        service_manager.add_service(WebAdminPanelService {
+        service_manager.register_service(WebAdminPanelService {
             configuration: web_admin_panel_configuration,
         });
     }

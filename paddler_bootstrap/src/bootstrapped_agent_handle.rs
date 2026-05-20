@@ -9,11 +9,11 @@ use paddler::agent::management_socket_client_service::ManagementSocketClientServ
 use paddler::agent::model_metadata_holder::ModelMetadataHolder;
 use paddler::agent::reconciliation_service::ReconciliationService;
 use paddler::agent_applicable_state_holder::AgentApplicableStateHolder;
-use paddler::service_manager::ServiceManager;
 use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 use paddler_types::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
+use trzcina::ServiceManager;
 
 pub struct BootstrappedAgentHandle {
     pub service_manager: ServiceManager,
@@ -41,7 +41,7 @@ pub fn bootstrap_agent(
     let mut service_manager = ServiceManager::default();
     let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(slots));
 
-    service_manager.add_service(LlamaCppArbiterService {
+    service_manager.register_service(LlamaCppArbiterService {
         agent_applicable_state: None,
         agent_applicable_state_holder: agent_applicable_state_holder.clone(),
         agent_name: agent_name.clone(),
@@ -54,7 +54,7 @@ pub fn bootstrap_agent(
         slot_aggregated_status_manager: slot_aggregated_status_manager.clone(),
     });
 
-    service_manager.add_service(ManagementSocketClientService {
+    service_manager.register_service(ManagementSocketClientService {
         agent_applicable_state_holder: agent_applicable_state_holder.clone(),
         agent_desired_state_tx,
         continue_from_conversation_history_request_tx,
@@ -73,7 +73,7 @@ pub fn bootstrap_agent(
         ),
     });
 
-    service_manager.add_service(ReconciliationService {
+    service_manager.register_service(ReconciliationService {
         agent_applicable_state_holder,
         agent_desired_state: None,
         agent_desired_state_rx,

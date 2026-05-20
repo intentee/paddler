@@ -12,6 +12,7 @@ use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
+use trzcina::Service;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
@@ -24,7 +25,6 @@ use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchReques
 use crate::agent::model_metadata_holder::ModelMetadataHolder;
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::service::Service;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
 pub struct LlamaCppArbiterService {

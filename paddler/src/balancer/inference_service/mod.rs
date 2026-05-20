@@ -10,6 +10,7 @@ use actix_web::web::Data;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
+use trzcina::Service;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
@@ -20,7 +21,6 @@ use crate::balancer::inference_service::configuration::Configuration as Inferenc
 use crate::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::create_cors_middleware::create_cors_middleware;
-use crate::service::Service;
 
 pub struct InferenceService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -70,6 +70,7 @@ impl Service for InferenceService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
+        .shutdown_timeout(10)
         .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")
