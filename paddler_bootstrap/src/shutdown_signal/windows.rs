@@ -10,6 +10,10 @@ use tokio::signal::windows::ctrl_c;
 use tokio::signal::windows::ctrl_close;
 use tokio::signal::windows::ctrl_shutdown;
 
+#[expect(
+    clippy::struct_field_names,
+    reason = "field names mirror the Windows console control event types they hold; the shared `ctrl_` prefix is part of the Windows API vocabulary, and `break` is a reserved keyword"
+)]
 pub struct ShutdownSignals {
     ctrl_c: CtrlC,
     ctrl_break: CtrlBreak,

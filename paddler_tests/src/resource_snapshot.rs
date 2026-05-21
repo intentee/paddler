@@ -52,6 +52,3 @@ const fn open_descriptors_directory_path() -> &'static str {
 const fn open_descriptors_directory_path() -> &'static str {
     "/proc/self/fd"
 }
-
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
-compile_error!("ResourceSnapshot is only implemented for macOS and Linux");
