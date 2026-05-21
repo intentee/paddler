@@ -1006,10 +1006,8 @@ impl ContinuousBatchScheduler {
                 DecodeOutcome::Aborted => {
                     return Ok(());
                 }
-                DecodeOutcome::Errored(error_code) => {
-                    return Err(anyhow!(
-                        "Decode failed with unknown error code: {error_code}"
-                    ));
+                DecodeOutcome::Errored(decode_error) => {
+                    return Err(anyhow::Error::new(decode_error).context("decode failed"));
                 }
             }
         }

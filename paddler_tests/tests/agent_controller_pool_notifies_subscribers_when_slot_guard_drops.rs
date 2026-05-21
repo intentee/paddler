@@ -8,7 +8,7 @@ use paddler::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 
 #[test]
-fn agent_controller_pool_signals_update_when_slot_guard_drops() -> Result<()> {
+fn agent_controller_pool_notifies_subscribers_when_slot_guard_drops() -> Result<()> {
     let pool = AgentControllerPool::default();
     let controller = Arc::new(make_agent_controller_without_remote_agent("test-agent"));
 

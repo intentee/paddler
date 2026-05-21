@@ -10,21 +10,15 @@ FRONTEND_SOURCES := $(shell find resources -type f) $(wildcard jarmuz/*.mjs)
 # Real targets
 # -----------------------------------------------------------------------------
 
-package-lock.json: package.json
-	npm install --package-lock-only
+esbuild-meta.json: $(FRONTEND_SOURCES) jarmuz-static.mjs tsconfig.json package.json node_modules
+	./jarmuz-static.mjs
 
 node_modules: package-lock.json
 	npm ci
 	touch node_modules
 
-esbuild-meta.json: $(FRONTEND_SOURCES) jarmuz-static.mjs tsconfig.json package.json node_modules
-	./jarmuz-static.mjs
-
-target/debug/paddler: $(PADDLER_SOURCES)
-	cargo build -p paddler_cli
-
-target/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_cli --features web_admin_panel
+package-lock.json: package.json
+	npm install --package-lock-only
 
 target/cuda/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
@@ -35,21 +29,31 @@ target/cuda/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/cuda/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_gui --features cuda,web_admin_panel --target-dir target/cuda
 
+target/debug/paddler: $(PADDLER_SOURCES)
+	cargo build -p paddler_cli
+
 target/metal/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
 
 target/metal/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
 
-target/vulkan/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_cli --features vulkan,web_admin_panel --target-dir target/vulkan
+target/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_cli --features web_admin_panel
 
 target/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_gui --features web_admin_panel
 
+target/vulkan/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_cli --features vulkan,web_admin_panel --target-dir target/vulkan
+
 # -----------------------------------------------------------------------------
 # Phony targets
 # -----------------------------------------------------------------------------
+
+.PHONY: build.client.js
+build.client.js: node_modules
+	npm --workspace @intentee/paddler-client run build
 
 .PHONY: clean
 clean:
@@ -91,6 +95,10 @@ fmt: node_modules
 .PHONY: test
 test: test.client.js test.unit test.integration
 
+.PHONY: test.client.js
+test.client.js: node_modules
+	npm --workspace @intentee/paddler-client test
+
 .PHONY: test.integration
 test.integration: target/debug/paddler
 	cargo test -p paddler_tests --features tests_that_use_compiled_paddler,tests_that_use_in_process_cluster,tests_that_use_llms
@@ -106,14 +114,6 @@ test.integration.metal: target/metal/debug/paddler
 .PHONY: test.unit
 test.unit: esbuild-meta.json
 	cargo test --features web_admin_panel
-
-.PHONY: build.client.js
-build.client.js: node_modules
-	npm --workspace @intentee/paddler-client run build
-
-.PHONY: test.client.js
-test.client.js: node_modules
-	npm --workspace @intentee/paddler-client test
 
 .PHONY: watch
 watch: node_modules

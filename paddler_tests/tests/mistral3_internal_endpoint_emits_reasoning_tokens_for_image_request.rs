@@ -46,7 +46,7 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() -
             conversation_history,
             enable_thinking: true,
             grammar: None,
-            max_tokens: 400,
+            max_tokens: 200,
             parse_tool_calls: false,
             tools: vec![],
         })

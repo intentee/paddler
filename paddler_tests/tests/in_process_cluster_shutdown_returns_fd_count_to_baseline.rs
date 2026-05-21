@@ -1,3 +1,5 @@
+#![cfg(any(target_os = "macos", target_os = "linux"))]
+
 use anyhow::Result;
 use paddler_tests::in_process_cluster_params::InProcessClusterParams;
 use paddler_tests::resource_snapshot::ResourceSnapshot;
