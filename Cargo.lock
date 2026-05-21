@@ -4940,6 +4940,7 @@ version = "4.0.0"
 dependencies = [
  "actix-web",
  "anyhow",
+ "async-trait",
  "log",
  "nanoid",
  "paddler",
@@ -4980,6 +4981,7 @@ dependencies = [
  "paddler_types",
  "tokio",
  "tokio-util",
+ "trzcina",
 ]
 
 [[package]]

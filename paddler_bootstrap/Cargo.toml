@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 actix-web = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
 paddler = { workspace = true }
