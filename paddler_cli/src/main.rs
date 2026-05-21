@@ -38,31 +38,30 @@ enum Commands {
     Balancer(Balancer),
 }
 
-fn main() -> Result<()> {
+#[actix_web::main]
+async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    actix_web::rt::System::new().block_on(async {
-        let shutdown_signals = register_shutdown_signals()?;
-        let shutdown = CancellationToken::new();
-        let signal_shutdown = shutdown.clone();
+    let shutdown_signals = register_shutdown_signals()?;
+    let shutdown = CancellationToken::new();
+    let signal_shutdown = shutdown.clone();
 
-        tokio::spawn(async move {
-            if let Err(error) = shutdown_signals.wait().await {
-                log::error!("shutdown signal listener failed: {error}");
-                return;
-            }
-            signal_shutdown.cancel();
-        });
-
-        match Cli::parse().command {
-            Some(Commands::Agent(handler)) => handler.handle(shutdown).await,
-            Some(Commands::Balancer(handler)) => {
-                #[cfg(feature = "web_admin_panel")]
-                initialize_instance(ESBUILD_META_CONTENTS);
-
-                handler.handle(shutdown).await
-            }
-            None => Ok(()),
+    tokio::spawn(async move {
+        if let Err(error) = shutdown_signals.wait().await {
+            log::error!("shutdown signal listener failed: {error}");
+            return;
         }
-    })
+        signal_shutdown.cancel();
+    });
+
+    match Cli::parse().command {
+        Some(Commands::Agent(handler)) => handler.handle(shutdown).await,
+        Some(Commands::Balancer(handler)) => {
+            #[cfg(feature = "web_admin_panel")]
+            initialize_instance(ESBUILD_META_CONTENTS);
+
+            handler.handle(shutdown).await
+        }
+        None => Ok(()),
+    }
 }

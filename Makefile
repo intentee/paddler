@@ -32,6 +32,9 @@ target/cuda/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/cuda/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
 
+target/cuda/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_gui --features cuda,web_admin_panel --target-dir target/cuda
+
 target/metal/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
 
