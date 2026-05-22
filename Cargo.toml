@@ -70,6 +70,7 @@ tokio-test = "0.4.4"
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
 thiserror = "2"
+trzcina = "=0.2.1"
 url = { version = "2.5", features = ["serde"] }
 paddler = { version = "4.0.0", path = "paddler" }
 paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }

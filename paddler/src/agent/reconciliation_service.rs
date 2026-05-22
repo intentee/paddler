@@ -9,11 +9,11 @@ use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
+use trzcina::Service;
 
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
-use crate::service::Service;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 pub struct ReconciliationService {

@@ -51,6 +51,7 @@ tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 url = { workspace = true }
 
 # web dashboard deps

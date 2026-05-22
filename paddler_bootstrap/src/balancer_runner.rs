@@ -15,10 +15,11 @@ use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
-use crate::bootstrapped_balancer_handle::BalancerBootstrapConfig;
-use crate::bootstrapped_balancer_handle::BootstrappedBalancerHandle;
-use crate::bootstrapped_balancer_handle::bootstrap_balancer;
+use crate::balancer_service_bundle::BalancerBootstrapConfig;
+use crate::balancer_service_bundle::BalancerServiceBundle;
 use crate::service_thread::ServiceThread;
 
 pub struct BalancerRunnerParams {
@@ -59,18 +60,15 @@ impl BalancerRunner {
             web_admin_panel_service_configuration,
         }: BalancerRunnerParams,
     ) -> Result<Self> {
-        let BootstrappedBalancerHandle {
-            agent_controller_pool,
-            balancer_applicable_state_holder,
-            balancer_desired_state_tx,
-            service_manager,
-            state_database,
-        } = bootstrap_balancer(BalancerBootstrapConfig {
+        let shutdown_options = ServiceShutdownOptions::default();
+
+        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration,
             management_service_configuration,
             max_buffered_requests,
             openai_service_configuration,
+            shutdown_options: shutdown_options.clone(),
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
@@ -79,10 +77,20 @@ impl BalancerRunner {
         })
         .await?;
 
-        let initial_desired_state = state_database.read_balancer_desired_state().await?;
+        let agent_controller_pool = bundle.agent_controller_pool.clone();
+        let balancer_applicable_state_holder = bundle.balancer_applicable_state_holder.clone();
+        let balancer_desired_state_tx = bundle.balancer_desired_state_tx.clone();
+        let initial_desired_state = bundle.initial_desired_state.clone();
 
         let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
-            service_manager.run_forever(task_shutdown).await
+            let mut service_manager = ServiceManager::default();
+            service_manager.register_bundle(bundle).await?;
+            service_manager
+                .start(task_shutdown)
+                .run_to_completion(shutdown_options)
+                .await
+                .into_result()
+                .map_err(anyhow::Error::from)
         });
 
         Ok(Self {

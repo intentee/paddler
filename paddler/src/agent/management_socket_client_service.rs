@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use actix_web::rt;
 use actix_web::web::Bytes;
 use anyhow::Context;
 use anyhow::Result;
@@ -18,6 +17,7 @@ use tokio::time::interval;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
+use trzcina::Service;
 
 use paddler_types::agent_desired_state::AgentDesiredState;
 use paddler_types::jsonrpc::Error as JsonRpcError;
@@ -42,7 +42,6 @@ use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonr
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::RegisterAgentParams;
 use crate::balancer::management_service::http_route::api::ws_agent_socket::jsonrpc::notification_params::UpdateAgentStatusParams;
 use crate::produces_snapshot::ProducesSnapshot;
-use crate::service::Service;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::subscribes_to_updates::SubscribesToUpdates as _;
 
@@ -266,7 +265,7 @@ impl ManagementSocketClientService {
             Message::Text(text) => {
                 let connection_close = incoming_message_context.connection_close.clone();
 
-                rt::spawn(async move {
+                tokio::spawn(async move {
                     tokio::select! {
                         () = connection_close.cancelled() => {
                             info!("Connection close signal received, shutting down");
@@ -327,7 +326,7 @@ impl ManagementSocketClientService {
         let forward_connection_close = connection_close.clone();
         let forward_shutdown = shutdown.clone();
 
-        let message_forward_handle = rt::spawn(async move {
+        let message_forward_handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     () = forward_connection_close.cancelled() => {

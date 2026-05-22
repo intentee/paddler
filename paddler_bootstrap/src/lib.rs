@@ -1,6 +1,6 @@
 pub mod agent_runner;
+pub mod agent_service_bundle;
 pub mod balancer_runner;
-mod bootstrapped_agent_handle;
-mod bootstrapped_balancer_handle;
+pub mod balancer_service_bundle;
 pub mod service_thread;
 pub mod shutdown_signal;

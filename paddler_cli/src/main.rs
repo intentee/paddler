@@ -38,7 +38,7 @@ enum Commands {
     Balancer(Balancer),
 }
 
-#[tokio::main]
+#[actix_web::main]
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -55,12 +55,12 @@ async fn main() -> Result<()> {
     });
 
     match Cli::parse().command {
-        Some(Commands::Agent(handler)) => Ok(handler.handle(shutdown).await?),
+        Some(Commands::Agent(handler)) => handler.handle(shutdown).await,
         Some(Commands::Balancer(handler)) => {
             #[cfg(feature = "web_admin_panel")]
             initialize_instance(ESBUILD_META_CONTENTS);
 
-            Ok(handler.handle(shutdown).await?)
+            handler.handle(shutdown).await
         }
         None => Ok(()),
     }

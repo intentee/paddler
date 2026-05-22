@@ -13,9 +13,11 @@ use paddler::balancer::web_admin_panel_service::configuration::Configuration as 
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
+use paddler_bootstrap::balancer_service_bundle::BalancerBootstrapConfig;
+use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
 use super::value_parser::parse_duration;
@@ -111,7 +113,9 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
-        let mut runner = BalancerRunner::start(BalancerRunnerParams {
+        let shutdown_options = ServiceShutdownOptions::default();
+
+        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout: self.buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: self.inference_addr.socket_addr,
@@ -128,7 +132,7 @@ impl Handler for Balancer {
                     addr: compat_openai_addr.socket_addr,
                 },
             ),
-            cancellation_token: shutdown,
+            shutdown_options: shutdown_options.clone(),
             state_database_type: self.state_database.clone(),
             statsd_prefix: self.statsd_prefix.clone(),
             statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {
@@ -143,6 +147,14 @@ impl Handler for Balancer {
         })
         .await?;
 
-        runner.wait_for_completion().await
+        let mut service_manager = ServiceManager::default();
+        service_manager.register_bundle(bundle).await?;
+
+        service_manager
+            .start(shutdown)
+            .run_to_completion(shutdown_options)
+            .await
+            .into_result()
+            .map_err(anyhow::Error::from)
     }
 }

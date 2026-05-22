@@ -2,9 +2,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner::AgentRunnerParams;
+use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
 use super::value_parser::parse_socket_addr;
@@ -27,13 +28,21 @@ pub struct Agent {
 #[async_trait]
 impl Handler for Agent {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
-        let mut runner = AgentRunner::start(AgentRunnerParams {
-            agent_name: self.name.clone(),
-            management_address: self.management_addr.socket_addr.to_string(),
-            cancellation_token: shutdown,
-            slots: self.slots,
-        });
+        let bundle = AgentServiceBundle::new(
+            self.name.clone(),
+            &self.management_addr.socket_addr.to_string(),
+            self.slots,
+        );
 
-        runner.wait_for_completion().await
+        let mut service_manager = ServiceManager::default();
+
+        service_manager.register_bundle(bundle).await?;
+
+        service_manager
+            .start(shutdown)
+            .run_to_completion(ServiceShutdownOptions::default())
+            .await
+            .into_result()
+            .map_err(anyhow::Error::from)
     }
 }
