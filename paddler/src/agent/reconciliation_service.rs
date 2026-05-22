@@ -31,14 +31,16 @@ async fn convert_to_applicable_state(
         ),
     };
 
-    *is_converted_to_applicable_state = true;
     slot_aggregated_status.set_uses_chat_template_override(
         applicable_state
             .as_ref()
             .is_some_and(|applicable_state| applicable_state.chat_template_override.is_some()),
     );
     slot_aggregated_status.register_fix(&AgentIssueFix::ModelStateIsReconciled);
-    agent_applicable_state_holder.set_agent_applicable_state(applicable_state)
+    agent_applicable_state_holder.set_agent_applicable_state(applicable_state)?;
+    *is_converted_to_applicable_state = true;
+
+    Ok(())
 }
 
 async fn try_convert_to_applicable_state(
@@ -116,5 +118,28 @@ impl Service for ReconciliationService {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn flag_stays_false_when_set_agent_applicable_state_fails() {
+        let holder = AgentApplicableStateHolder::default();
+        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
+        let mut is_converted_to_applicable_state = false;
+
+        let result = convert_to_applicable_state(
+            None,
+            &slot_aggregated_status,
+            &holder,
+            &mut is_converted_to_applicable_state,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(!is_converted_to_applicable_state);
     }
 }

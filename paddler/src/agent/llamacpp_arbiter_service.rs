@@ -42,7 +42,7 @@ async fn apply_state(
         slot_aggregated_status_manager,
     )
     .await?;
-    tear_down_arbiter(continuous_batch_arbiter_handle)?;
+    shutdown_arbiter_handle(continuous_batch_arbiter_handle).await?;
 
     if let Some(applicable_state) = agent_applicable_state.cloned() {
         slot_aggregated_status_manager.reset();
@@ -97,18 +97,6 @@ async fn shutdown_arbiter_handle(
         .await
         .context("Arbiter shutdown task panicked")?
         .context("Arbiter shutdown returned an error")
-}
-
-fn tear_down_arbiter(
-    continuous_batch_arbiter_handle: &mut Option<ContinuousBatchArbiterHandle>,
-) -> Result<()> {
-    if let Some(arbiter_handle) = continuous_batch_arbiter_handle.take() {
-        arbiter_handle
-            .shutdown()
-            .context("Unable to stop arbiter controller")?;
-    }
-
-    Ok(())
 }
 
 async fn try_to_apply_state(
