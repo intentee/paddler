@@ -38,6 +38,9 @@ target/metal/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/metal/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
 
+target/metal/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
+	cargo build --release -p paddler_gui --features metal,web_admin_panel --target-dir target/metal
+
 target/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features web_admin_panel
 
