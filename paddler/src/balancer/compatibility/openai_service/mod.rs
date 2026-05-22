@@ -33,7 +33,7 @@ impl Service for OpenAIService {
         "balancer::compatibility::openai_service"
     }
 
-    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let cors_allowed_hosts = self
             .inference_service_configuration
             .cors_allowed_hosts

@@ -26,7 +26,7 @@ impl Service for WebAdminPanelService {
         "balancer::web_admin_panel_service"
     }
 
-    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let app_data: Data<AppData> = Data::new(AppData {
             template_data: self.configuration.template_data.clone(),
         });
