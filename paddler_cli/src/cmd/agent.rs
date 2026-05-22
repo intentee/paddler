@@ -3,9 +3,9 @@ use async_trait::async_trait;
 use clap::Parser;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
-use paddler_bootstrap::shutdown_deadline::SHUTDOWN_DEADLINE;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
 use super::value_parser::parse_socket_addr;
@@ -40,7 +40,7 @@ impl Handler for Agent {
 
         service_manager
             .start(shutdown)
-            .run_to_completion(SHUTDOWN_DEADLINE)
+            .run_to_completion(ServiceShutdownOptions::default())
             .await
             .into_result()
             .map_err(anyhow::Error::from)

@@ -5,10 +5,10 @@ use anyhow::Result;
 use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
 use crate::agent_service_bundle::AgentServiceBundle;
 use crate::service_thread::ServiceThread;
-use crate::shutdown_deadline::SHUTDOWN_DEADLINE;
 
 pub struct AgentRunnerParams {
     pub agent_name: Option<String>,
@@ -40,7 +40,7 @@ impl AgentRunner {
             service_manager.register_bundle(bundle).await?;
             service_manager
                 .start(task_shutdown)
-                .run_to_completion(SHUTDOWN_DEADLINE)
+                .run_to_completion(ServiceShutdownOptions::default())
                 .await
                 .into_result()
                 .map_err(anyhow::Error::from)

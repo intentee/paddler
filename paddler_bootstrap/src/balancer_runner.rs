@@ -16,11 +16,11 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
 use crate::balancer_service_bundle::BalancerBootstrapConfig;
 use crate::balancer_service_bundle::BalancerServiceBundle;
 use crate::service_thread::ServiceThread;
-use crate::shutdown_deadline::SHUTDOWN_DEADLINE;
 
 pub struct BalancerRunnerParams {
     pub buffered_request_timeout: Duration,
@@ -84,7 +84,7 @@ impl BalancerRunner {
             service_manager.register_bundle(bundle).await?;
             service_manager
                 .start(task_shutdown)
-                .run_to_completion(SHUTDOWN_DEADLINE)
+                .run_to_completion(ServiceShutdownOptions::default())
                 .await
                 .into_result()
                 .map_err(anyhow::Error::from)

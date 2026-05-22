@@ -15,9 +15,9 @@ use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::balancer_service_bundle::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
-use paddler_bootstrap::shutdown_deadline::SHUTDOWN_DEADLINE;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
+use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
 use super::value_parser::parse_duration;
@@ -149,7 +149,7 @@ impl Handler for Balancer {
 
         service_manager
             .start(shutdown)
-            .run_to_completion(SHUTDOWN_DEADLINE)
+            .run_to_completion(ServiceShutdownOptions::default())
             .await
             .into_result()
             .map_err(anyhow::Error::from)
