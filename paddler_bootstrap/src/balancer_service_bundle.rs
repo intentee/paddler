@@ -31,6 +31,7 @@ use paddler_types::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use trzcina::Service;
 use trzcina::ServiceBundle;
+use trzcina::ServiceShutdownOptions;
 
 pub struct BalancerBootstrapConfig {
     pub buffered_request_timeout: Duration,
@@ -38,6 +39,7 @@ pub struct BalancerBootstrapConfig {
     pub management_service_configuration: ManagementServiceConfiguration,
     pub max_buffered_requests: i32,
     pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
+    pub shutdown_options: ServiceShutdownOptions,
     pub state_database_type: StateDatabaseType,
     pub statsd_prefix: String,
     pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
@@ -68,6 +70,7 @@ impl BalancerServiceBundle {
             management_service_configuration,
             max_buffered_requests,
             openai_service_configuration,
+            shutdown_options,
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
@@ -106,6 +109,7 @@ impl BalancerServiceBundle {
             balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
             buffered_request_manager: buffered_request_manager.clone(),
             configuration: inference_service_configuration.clone(),
+            shutdown_options: shutdown_options.clone(),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: web_admin_panel_service_configuration.clone(),
         };
@@ -119,6 +123,7 @@ impl BalancerServiceBundle {
             embedding_sender_collection,
             generate_tokens_sender_collection,
             model_metadata_sender_collection,
+            shutdown_options: shutdown_options.clone(),
             state_database: state_database.clone(),
             statsd_prefix,
             #[cfg(feature = "web_admin_panel")]
@@ -138,6 +143,7 @@ impl BalancerServiceBundle {
                 buffered_request_manager: buffered_request_manager.clone(),
                 inference_service_configuration,
                 openai_service_configuration,
+                shutdown_options: shutdown_options.clone(),
             }
         });
 
@@ -151,6 +157,7 @@ impl BalancerServiceBundle {
         let web_admin_panel_service =
             web_admin_panel_service_configuration.map(|configuration| WebAdminPanelService {
                 configuration,
+                shutdown_options: shutdown_options.clone(),
             });
 
         Ok(Self {

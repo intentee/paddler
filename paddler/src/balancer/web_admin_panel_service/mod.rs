@@ -10,12 +10,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
+use trzcina::ServiceShutdownOptions;
 
 use crate::balancer::web_admin_panel_service::app_data::AppData;
 use crate::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
 pub struct WebAdminPanelService {
     pub configuration: WebAdminPanelServiceConfiguration,
+    pub shutdown_options: ServiceShutdownOptions,
 }
 
 #[async_trait]
@@ -40,7 +42,7 @@ impl Service for WebAdminPanelService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .shutdown_timeout(10)
+        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")

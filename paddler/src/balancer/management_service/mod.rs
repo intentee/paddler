@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
+use trzcina::ServiceShutdownOptions;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
@@ -36,6 +37,7 @@ pub struct ManagementService {
     pub embedding_sender_collection: Arc<EmbeddingSenderCollection>,
     pub generate_tokens_sender_collection: Arc<GenerateTokensSenderCollection>,
     pub model_metadata_sender_collection: Arc<ModelMetadataSenderCollection>,
+    pub shutdown_options: ServiceShutdownOptions,
     pub state_database: Arc<dyn StateDatabase>,
     pub statsd_prefix: String,
     #[cfg(feature = "web_admin_panel")]
@@ -95,7 +97,7 @@ impl Service for ManagementService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .shutdown_timeout(10)
+        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")

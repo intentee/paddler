@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
+use trzcina::ServiceShutdownOptions;
 
 use crate::balancer::agent_controller_pool::AgentControllerPool;
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
@@ -27,6 +28,7 @@ pub struct InferenceService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
+    pub shutdown_options: ServiceShutdownOptions,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
@@ -70,7 +72,7 @@ impl Service for InferenceService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .shutdown_timeout(10)
+        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(self.configuration.addr)
         .expect("Unable to bind server to address")

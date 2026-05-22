@@ -11,6 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
+use trzcina::ServiceShutdownOptions;
 
 use crate::balancer::buffered_request_manager::BufferedRequestManager;
 use crate::balancer::compatibility::openai_service::app_data::AppData;
@@ -23,6 +24,7 @@ pub struct OpenAIService {
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub openai_service_configuration: OpenAIServiceConfiguration,
+    pub shutdown_options: ServiceShutdownOptions,
 }
 
 #[async_trait]
@@ -54,7 +56,7 @@ impl Service for OpenAIService {
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
-        .shutdown_timeout(10)
+        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(self.openai_service_configuration.addr)
         .expect("Unable to bind server to address")

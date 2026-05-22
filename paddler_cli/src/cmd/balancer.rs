@@ -113,6 +113,8 @@ impl Balancer {
 #[async_trait]
 impl Handler for Balancer {
     async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
+        let shutdown_options = ServiceShutdownOptions::default();
+
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout: self.buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
@@ -130,6 +132,7 @@ impl Handler for Balancer {
                     addr: compat_openai_addr.socket_addr,
                 },
             ),
+            shutdown_options: shutdown_options.clone(),
             state_database_type: self.state_database.clone(),
             statsd_prefix: self.statsd_prefix.clone(),
             statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {
@@ -149,7 +152,7 @@ impl Handler for Balancer {
 
         service_manager
             .start(shutdown)
-            .run_to_completion(ServiceShutdownOptions::default())
+            .run_to_completion(shutdown_options)
             .await
             .into_result()
             .map_err(anyhow::Error::from)

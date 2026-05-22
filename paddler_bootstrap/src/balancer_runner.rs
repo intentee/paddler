@@ -60,12 +60,15 @@ impl BalancerRunner {
             web_admin_panel_service_configuration,
         }: BalancerRunnerParams,
     ) -> Result<Self> {
+        let shutdown_options = ServiceShutdownOptions::default();
+
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration,
             management_service_configuration,
             max_buffered_requests,
             openai_service_configuration,
+            shutdown_options: shutdown_options.clone(),
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
@@ -84,7 +87,7 @@ impl BalancerRunner {
             service_manager.register_bundle(bundle).await?;
             service_manager
                 .start(task_shutdown)
-                .run_to_completion(ServiceShutdownOptions::default())
+                .run_to_completion(shutdown_options)
                 .await
                 .into_result()
                 .map_err(anyhow::Error::from)

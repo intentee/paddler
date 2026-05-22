@@ -7373,9 +7373,9 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "trzcina"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0eea6f33e4343101208a931747521feccc6975c95f4b480287a61191264af488"
+checksum = "55cd35208b88a2f0f7eb890af3034ba5676ec11cd9a61ef73248b400ae452fea"
 dependencies = [
  "anyhow",
  "async-trait",
