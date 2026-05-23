@@ -16,6 +16,43 @@ use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
 use crate::sets_desired_state::SetsDesiredState as _;
 
+async fn convert_to_applicable_state(
+    balancer_desired_state: &BalancerDesiredState,
+    agent_controller_pool: &AgentControllerPool,
+    balancer_applicable_state_holder: &BalancerApplicableStateHolder,
+    is_converted_to_applicable_state: &mut bool,
+) -> Result<()> {
+    let balancer_applicable_state = balancer_desired_state.to_applicable_state(()).await?;
+
+    agent_controller_pool
+        .set_desired_state(balancer_applicable_state.agent_desired_state.clone())
+        .await?;
+    balancer_applicable_state_holder
+        .set_balancer_applicable_state(Some(balancer_applicable_state));
+
+    *is_converted_to_applicable_state = true;
+
+    Ok(())
+}
+
+async fn try_convert_to_applicable_state(
+    balancer_desired_state: &BalancerDesiredState,
+    agent_controller_pool: &AgentControllerPool,
+    balancer_applicable_state_holder: &BalancerApplicableStateHolder,
+    is_converted_to_applicable_state: &mut bool,
+) {
+    if let Err(err) = convert_to_applicable_state(
+        balancer_desired_state,
+        agent_controller_pool,
+        balancer_applicable_state_holder,
+        is_converted_to_applicable_state,
+    )
+    .await
+    {
+        error!("Failed to convert to applicable state: {err}");
+    }
+}
+
 pub struct ReconciliationService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
@@ -24,35 +61,21 @@ pub struct ReconciliationService {
     pub is_converted_to_applicable_state: bool,
 }
 
-impl ReconciliationService {
-    pub async fn convert_to_applicable_state(&mut self) -> Result<()> {
-        let balancer_applicable_state = self.balancer_desired_state.to_applicable_state(()).await?;
-
-        self.agent_controller_pool
-            .set_desired_state(balancer_applicable_state.agent_desired_state.clone())
-            .await?;
-        self.balancer_applicable_state_holder
-            .set_balancer_applicable_state(Some(balancer_applicable_state));
-
-        self.is_converted_to_applicable_state = true;
-
-        Ok(())
-    }
-
-    pub async fn try_convert_to_applicable_state(&mut self) {
-        if let Err(err) = self.convert_to_applicable_state().await {
-            error!("Failed to convert to applicable state: {err}");
-        }
-    }
-}
-
 #[async_trait]
 impl Service for ReconciliationService {
     fn name(&self) -> &'static str {
         "balancer::reconciliation_service"
     }
 
-    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        let Self {
+            agent_controller_pool,
+            balancer_applicable_state_holder,
+            mut balancer_desired_state,
+            mut balancer_desired_state_rx,
+            mut is_converted_to_applicable_state,
+        } = *self;
+
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -61,14 +84,24 @@ impl Service for ReconciliationService {
             tokio::select! {
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    if !self.is_converted_to_applicable_state {
-                        self.try_convert_to_applicable_state().await;
+                    if !is_converted_to_applicable_state {
+                        try_convert_to_applicable_state(
+                            &balancer_desired_state,
+                            &agent_controller_pool,
+                            &balancer_applicable_state_holder,
+                            &mut is_converted_to_applicable_state,
+                        ).await;
                     }
                 },
-                balancer_desired_state = self.balancer_desired_state_rx.recv() => {
-                    self.is_converted_to_applicable_state = false;
-                    self.balancer_desired_state = balancer_desired_state?;
-                    self.try_convert_to_applicable_state().await;
+                received_balancer_desired_state = balancer_desired_state_rx.recv() => {
+                    is_converted_to_applicable_state = false;
+                    balancer_desired_state = received_balancer_desired_state?;
+                    try_convert_to_applicable_state(
+                        &balancer_desired_state,
+                        &agent_controller_pool,
+                        &balancer_applicable_state_holder,
+                        &mut is_converted_to_applicable_state,
+                    ).await;
                 }
             }
         }

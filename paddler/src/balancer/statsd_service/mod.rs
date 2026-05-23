@@ -49,7 +49,7 @@ impl Service for StatsdService {
         "balancer::statsd_service"
     }
 
-    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
         let statsd_sink = UdpMetricSink::from(self.configuration.statsd_addr, statsd_sink_socket)?;
 

@@ -16,6 +16,51 @@ use crate::agent_issue_fix::AgentIssueFix;
 use crate::converts_to_applicable_state::ConvertsToApplicableState as _;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
+async fn convert_to_applicable_state(
+    agent_desired_state: Option<&AgentDesiredState>,
+    slot_aggregated_status: &Arc<SlotAggregatedStatus>,
+    agent_applicable_state_holder: &AgentApplicableStateHolder,
+    is_converted_to_applicable_state: &mut bool,
+) -> Result<()> {
+    let applicable_state = match agent_desired_state {
+        None => None,
+        Some(agent_desired_state) => Some(
+            agent_desired_state
+                .to_applicable_state(slot_aggregated_status.clone())
+                .await?,
+        ),
+    };
+
+    slot_aggregated_status.set_uses_chat_template_override(
+        applicable_state
+            .as_ref()
+            .is_some_and(|applicable_state| applicable_state.chat_template_override.is_some()),
+    );
+    slot_aggregated_status.register_fix(&AgentIssueFix::ModelStateIsReconciled);
+    agent_applicable_state_holder.set_agent_applicable_state(applicable_state)?;
+    *is_converted_to_applicable_state = true;
+
+    Ok(())
+}
+
+async fn try_convert_to_applicable_state(
+    agent_desired_state: Option<&AgentDesiredState>,
+    slot_aggregated_status: &Arc<SlotAggregatedStatus>,
+    agent_applicable_state_holder: &AgentApplicableStateHolder,
+    is_converted_to_applicable_state: &mut bool,
+) {
+    if let Err(err) = convert_to_applicable_state(
+        agent_desired_state,
+        slot_aggregated_status,
+        agent_applicable_state_holder,
+        is_converted_to_applicable_state,
+    )
+    .await
+    {
+        error!("Failed to convert to applicable state: {err}");
+    }
+}
+
 pub struct ReconciliationService {
     pub agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
     pub agent_desired_state: Option<AgentDesiredState>,
@@ -24,43 +69,21 @@ pub struct ReconciliationService {
     pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
-impl ReconciliationService {
-    pub async fn convert_to_applicable_state(&mut self) -> Result<()> {
-        let applicable_state = match &self.agent_desired_state {
-            None => None,
-            Some(agent_desired_state) => Some(
-                agent_desired_state
-                    .to_applicable_state(self.slot_aggregated_status.clone())
-                    .await?,
-            ),
-        };
-
-        self.is_converted_to_applicable_state = true;
-        self.slot_aggregated_status.set_uses_chat_template_override(
-            applicable_state
-                .as_ref()
-                .is_some_and(|applicable_state| applicable_state.chat_template_override.is_some()),
-        );
-        self.slot_aggregated_status
-            .register_fix(&AgentIssueFix::ModelStateIsReconciled);
-        self.agent_applicable_state_holder
-            .set_agent_applicable_state(applicable_state)
-    }
-
-    pub async fn try_convert_to_applicable_state(&mut self) {
-        if let Err(err) = self.convert_to_applicable_state().await {
-            error!("Failed to convert to applicable state: {err}");
-        }
-    }
-}
-
 #[async_trait]
 impl Service for ReconciliationService {
     fn name(&self) -> &'static str {
         "agent::reconciliation_service"
     }
 
-    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        let Self {
+            agent_applicable_state_holder,
+            mut agent_desired_state,
+            mut agent_desired_state_rx,
+            mut is_converted_to_applicable_state,
+            slot_aggregated_status,
+        } = *self;
+
         let mut ticker = interval(Duration::from_secs(1));
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -69,20 +92,54 @@ impl Service for ReconciliationService {
             tokio::select! {
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    if !self.is_converted_to_applicable_state {
-                        self.try_convert_to_applicable_state().await;
+                    if !is_converted_to_applicable_state {
+                        try_convert_to_applicable_state(
+                            agent_desired_state.as_ref(),
+                            &slot_aggregated_status,
+                            &agent_applicable_state_holder,
+                            &mut is_converted_to_applicable_state,
+                        ).await;
                     }
                 },
-                next_agent_desired_state = self.agent_desired_state_rx.recv() => {
-                    self.is_converted_to_applicable_state = false;
-                    self.agent_desired_state = if let Some(agent_desired_state) = next_agent_desired_state { Some(agent_desired_state) } else {
+                next_agent_desired_state = agent_desired_state_rx.recv() => {
+                    is_converted_to_applicable_state = false;
+                    agent_desired_state = if let Some(next) = next_agent_desired_state {
+                        Some(next)
+                    } else {
                         error!("Agent desired state channel closed, stopping reconciliation service.");
-
                         break Ok(())
                     };
-                    self.try_convert_to_applicable_state().await;
+                    try_convert_to_applicable_state(
+                        agent_desired_state.as_ref(),
+                        &slot_aggregated_status,
+                        &agent_applicable_state_holder,
+                        &mut is_converted_to_applicable_state,
+                    ).await;
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn flag_stays_false_when_set_agent_applicable_state_fails() {
+        let holder = AgentApplicableStateHolder::default();
+        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
+        let mut is_converted_to_applicable_state = false;
+
+        let result = convert_to_applicable_state(
+            None,
+            &slot_aggregated_status,
+            &holder,
+            &mut is_converted_to_applicable_state,
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert!(!is_converted_to_applicable_state);
     }
 }

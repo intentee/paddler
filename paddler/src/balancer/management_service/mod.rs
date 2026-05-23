@@ -50,7 +50,7 @@ impl Service for ManagementService {
         "balancer::management_service"
     }
 
-    async fn run(&mut self, shutdown: CancellationToken) -> Result<()> {
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         #[cfg_attr(not(feature = "web_admin_panel"), expect(unused_mut))]
         let mut cors_allowed_hosts = self.configuration.cors_allowed_hosts.clone();
 
