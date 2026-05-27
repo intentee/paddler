@@ -4991,6 +4991,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_cli_tests"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "base64",
+ "futures-util",
+ "hf-hub",
+ "llama-cpp-bindings",
+ "log",
+ "nix 0.30.1",
+ "paddler",
+ "paddler_bootstrap",
+ "paddler_client",
+ "paddler_types",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "tokio",
+ "tokio-tungstenite",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
 name = "paddler_client"
 version = "4.0.0"
 dependencies = [
@@ -5068,33 +5095,6 @@ dependencies = [
  "statum",
  "tokio",
  "tokio-util",
-]
-
-[[package]]
-name = "paddler_tests"
-version = "4.0.0"
-dependencies = [
- "anyhow",
- "async-stream",
- "base64",
- "futures-util",
- "hf-hub",
- "llama-cpp-bindings",
- "log",
- "nix 0.30.1",
- "paddler",
- "paddler_bootstrap",
- "paddler_client",
- "paddler_types",
- "reqwest",
- "serde",
- "serde_json",
- "serial_test",
- "tempfile",
- "tokio",
- "tokio-tungstenite",
- "tokio-util",
- "url",
 ]
 
 [[package]]
