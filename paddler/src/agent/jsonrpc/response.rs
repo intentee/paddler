@@ -1,7 +1,7 @@
-use paddler_types::chat_template::ChatTemplate;
-use paddler_types::embedding_result::EmbeddingResult;
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::model_metadata::ModelMetadata;
+use crate::chat_template::ChatTemplate;
+use crate::embedding_result::EmbeddingResult;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::model_metadata::ModelMetadata;
 use serde::Deserialize;
 use serde::Serialize;
 

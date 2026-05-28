@@ -1,8 +1,4 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms",
-    feature = "metal"
-))]
+#![cfg(all(feature = "tests_that_use_llms", feature = "metal"))]
 
 use std::time::Duration;
 
@@ -15,10 +11,10 @@ use paddler_cli_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster_params::SubprocessClusterParams;
 use paddler_cli_tests::test_device::TestDevice;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::kv_cache_dtype::KvCacheDtype;
+use paddler::agent_desired_model::AgentDesiredModel;
+use paddler::agent_issue::AgentIssue;
+use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::kv_cache_dtype::KvCacheDtype;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]

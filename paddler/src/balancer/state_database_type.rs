@@ -7,7 +7,7 @@ use anyhow::Error;
 use anyhow::Result;
 use anyhow::anyhow;
 use indoc::formatdoc;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use crate::balancer_desired_state::BalancerDesiredState;
 use url::Url;
 
 #[derive(Clone)]

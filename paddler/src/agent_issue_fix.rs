@@ -1,6 +1,6 @@
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_issue_params::ModelPath;
-use paddler_types::agent_issue_params::SlotCannotStartParams;
+use crate::agent_issue::AgentIssue;
+use crate::agent_issue_params::ModelPath;
+use crate::agent_issue_params::SlotCannotStartParams;
 
 #[derive(Debug)]
 pub enum AgentIssueFix {
@@ -98,8 +98,8 @@ impl AgentIssueFix {
 
 #[cfg(test)]
 mod tests {
-    use paddler_types::agent_issue_params::ChatTemplateDoesNotCompileParams;
-    use paddler_types::agent_issue_params::SlotCannotStartParams;
+    use crate::agent_issue_params::ChatTemplateDoesNotCompileParams;
+    use crate::agent_issue_params::SlotCannotStartParams;
 
     use super::*;
 

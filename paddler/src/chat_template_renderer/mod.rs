@@ -4,7 +4,7 @@ pub mod raise_exception;
 use anyhow::Result;
 use minijinja::Environment;
 use minijinja_contrib::pycompat::unknown_method_callback;
-use paddler_types::chat_template::ChatTemplate;
+use crate::chat_template::ChatTemplate;
 use serde::ser::Serialize;
 
 use self::pyjinja_tojson::pyjinja_tojson;
@@ -44,9 +44,9 @@ mod tests {
 
     use anyhow::Result;
     use minijinja::context;
-    use paddler_types::chat_template::ChatTemplate;
-    use paddler_types::chat_template_message::ChatTemplateMessage;
-    use paddler_types::chat_template_message_content::ChatTemplateMessageContent;
+    use crate::chat_template::ChatTemplate;
+    use crate::chat_template_message::ChatTemplateMessage;
+    use crate::chat_template_message_content::ChatTemplateMessageContent;
 
     use crate::chat_template_renderer::ChatTemplateRenderer;
 

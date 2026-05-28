@@ -1,4 +1,3 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use anyhow::Result;
 use paddler_cli_tests::agent_config::AgentConfig;

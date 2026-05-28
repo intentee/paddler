@@ -1,7 +1,4 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use std::time::Duration;
 use std::time::Instant;
@@ -10,7 +7,7 @@ use anyhow::Result;
 use paddler_cli_tests::agent_config::AgentConfig;
 use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3_embedding::start_subprocess_cluster_with_qwen3_embedding;
-use paddler_types::inference_parameters::InferenceParameters;
+use paddler::inference_parameters::InferenceParameters;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]

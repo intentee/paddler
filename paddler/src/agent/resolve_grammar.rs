@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::grammar_constraint::GrammarConstraint;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::grammar_constraint::GrammarConstraint;
 use tokio::sync::mpsc;
 
 use crate::agent::grammar_sampler::GrammarSampler;

@@ -12,15 +12,15 @@ use nanoid::nanoid;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::agent_desired_state::AgentDesiredState;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::jsonrpc::RequestEnvelope;
-use paddler_types::request_params::ContinueFromRawPromptParams;
-use paddler_types::request_params::GenerateEmbeddingBatchParams;
-use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use crate::balancer::agent_controller_snapshot::AgentControllerSnapshot;
+use crate::agent_desired_state::AgentDesiredState;
+use crate::agent_issue::AgentIssue;
+use crate::jsonrpc::RequestEnvelope;
+use crate::request_params::ContinueFromRawPromptParams;
+use crate::request_params::GenerateEmbeddingBatchParams;
+use crate::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 use crate::agent::jsonrpc::Message as AgentJsonRpcMessage;
 use crate::agent::jsonrpc::Notification as AgentJsonRpcNotification;
@@ -355,7 +355,7 @@ impl SetsDesiredState for AgentController {
 
 #[cfg(test)]
 mod tests {
-    use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+    use crate::agent_state_application_status::AgentStateApplicationStatus;
 
     use super::*;
 

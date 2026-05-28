@@ -27,7 +27,7 @@ use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use trzcina::Service;
 use trzcina::ServiceBundle;

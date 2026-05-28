@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
-use paddler_types::embedding_result::EmbeddingResult;
+use crate::embedding_result::EmbeddingResult;
 use tokio::sync::mpsc;
 
 use crate::balancer::manages_senders::ManagesSenders;

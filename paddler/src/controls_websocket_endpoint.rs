@@ -17,7 +17,7 @@ use futures_util::StreamExt as _;
 use log::debug;
 use log::error;
 use log::warn;
-use paddler_types::rpc_message::RpcMessage;
+use crate::rpc_message::RpcMessage;
 use serde::de::DeserializeOwned;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;

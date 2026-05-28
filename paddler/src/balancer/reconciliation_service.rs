@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use crate::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;

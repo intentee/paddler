@@ -12,7 +12,7 @@ use paddler::balancer::statsd_service::configuration::Configuration as StatsdSer
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;

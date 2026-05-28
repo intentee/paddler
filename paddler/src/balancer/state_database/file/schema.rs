@@ -1,4 +1,4 @@
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use crate::balancer_desired_state::BalancerDesiredState;
 use serde::Deserialize;
 use serde::Serialize;
 

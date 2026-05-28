@@ -12,24 +12,24 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use nanoid::nanoid;
-use paddler_types::conversation_history::ConversationHistory;
-use paddler_types::conversation_message::ConversationMessage;
-use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::generation_summary::GenerationSummary;
-use paddler_types::inference_client::Message as OutgoingMessage;
-use paddler_types::inference_client::Response as OutgoingResponse;
-use paddler_types::jsonrpc::ErrorEnvelope;
-use paddler_types::jsonrpc::ResponseEnvelope;
+use crate::conversation_history::ConversationHistory;
+use crate::conversation_message::ConversationMessage;
+use crate::conversation_message_content::ConversationMessageContent;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::generation_summary::GenerationSummary;
+use crate::balancer::inference_client::Message as OutgoingMessage;
+use crate::balancer::inference_client::Response as OutgoingResponse;
+use crate::jsonrpc::ErrorEnvelope;
+use crate::jsonrpc::ResponseEnvelope;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::TokenUsage;
 use llama_cpp_bindings::ToolCallArguments;
-use paddler_types::oversized_image_details::OversizedImageDetails;
-use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
-use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use paddler_types::validates::Validates;
+use crate::oversized_image_details::OversizedImageDetails;
+use crate::raw_tool_call_tokens::RawToolCallTokens;
+use crate::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use crate::request_params::continue_from_conversation_history_params::tool::Tool;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
+use crate::validates::Validates;
 use serde::Deserialize;
 use serde_json::json;
 use tokio_stream::StreamExt as _;
@@ -156,7 +156,7 @@ fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
 fn try_universal_error_chunk(message: &OutgoingMessage) -> Option<TransformResult> {
     match message {
         OutgoingMessage::Error(ErrorEnvelope {
-            error: paddler_types::jsonrpc::Error { description, .. },
+            error: crate::jsonrpc::Error { description, .. },
             ..
         }) => Some(server_error_chunk(description)),
         OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
@@ -741,12 +741,12 @@ mod tests {
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::TokenUsage;
     use llama_cpp_bindings::ToolCallArguments;
-    use paddler_types::generated_token_result::GeneratedTokenResult;
-    use paddler_types::generation_summary::GenerationSummary;
-    use paddler_types::inference_client::Message as OutgoingMessage;
-    use paddler_types::inference_client::Response as OutgoingResponse;
-    use paddler_types::jsonrpc::ErrorEnvelope;
-    use paddler_types::jsonrpc::ResponseEnvelope;
+    use crate::generated_token_result::GeneratedTokenResult;
+    use crate::generation_summary::GenerationSummary;
+    use crate::balancer::inference_client::Message as OutgoingMessage;
+    use crate::balancer::inference_client::Response as OutgoingResponse;
+    use crate::jsonrpc::ErrorEnvelope;
+    use crate::jsonrpc::ResponseEnvelope;
 
     use super::OpenAINonStreamingResponseTransformer;
     use super::OpenAINonStreamingState;
@@ -765,7 +765,7 @@ mod tests {
     fn make_error_message(code: i32, description: &str) -> OutgoingMessage {
         OutgoingMessage::Error(ErrorEnvelope {
             request_id: "test-request".to_owned(),
-            error: paddler_types::jsonrpc::Error {
+            error: crate::jsonrpc::Error {
                 code,
                 description: description.to_owned(),
             },
@@ -1060,7 +1060,7 @@ mod tests {
         let chunks = transformer
             .transform(make_token_message(
                 GeneratedTokenResult::UnrecognizedToolCallFormat(
-                    paddler_types::raw_tool_call_tokens::RawToolCallTokens {
+                    crate::raw_tool_call_tokens::RawToolCallTokens {
                         text: "<unknown_marker>blah</unknown_marker>".to_owned(),
                         ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
                     },
@@ -1171,7 +1171,7 @@ mod tests {
         let transformer = streaming_transformer(false);
 
         let message = make_token_message(GeneratedTokenResult::ImageExceedsBatchSize(
-            paddler_types::oversized_image_details::OversizedImageDetails {
+            crate::oversized_image_details::OversizedImageDetails {
                 image_tokens: 368,
                 n_batch: 100,
             },
@@ -1331,7 +1331,7 @@ mod tests {
         let chunks = transformer
             .transform(make_token_message(
                 GeneratedTokenResult::UnrecognizedToolCallFormat(
-                    paddler_types::raw_tool_call_tokens::RawToolCallTokens {
+                    crate::raw_tool_call_tokens::RawToolCallTokens {
                         text: "<unknown_marker>blah</unknown_marker>".to_owned(),
                         ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
                     },
@@ -1415,7 +1415,7 @@ mod tests {
         let transformer = non_streaming_transformer();
 
         let message = make_token_message(GeneratedTokenResult::ImageExceedsBatchSize(
-            paddler_types::oversized_image_details::OversizedImageDetails {
+            crate::oversized_image_details::OversizedImageDetails {
                 image_tokens: 368,
                 n_batch: 100,
             },
@@ -1564,7 +1564,7 @@ mod tests {
 
     #[test]
     fn openai_message_converts_to_conversation_message() -> Result<()> {
-        use paddler_types::conversation_message::ConversationMessage;
+        use crate::conversation_message::ConversationMessage;
 
         let input = serde_json::json!({
             "role": "user",

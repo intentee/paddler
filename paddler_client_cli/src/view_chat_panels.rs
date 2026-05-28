@@ -1,6 +1,6 @@
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::ToolCallArguments;
-use paddler_types::generation_summary::GenerationSummary;
+use paddler::generation_summary::GenerationSummary;
 use ratatui::Frame;
 use ratatui::layout::Margin;
 use ratatui::layout::Rect;
@@ -270,7 +270,7 @@ fn format_completion_status(summary: &GenerationSummary) -> String {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use paddler_types::generation_summary::GenerationSummary;
+    use paddler::generation_summary::GenerationSummary;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::buffer::Buffer;

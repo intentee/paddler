@@ -18,7 +18,6 @@ log = { workspace = true }
 open = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
-paddler_types = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

@@ -3,7 +3,7 @@ mod memory;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use crate::balancer_desired_state::BalancerDesiredState;
 
 pub use self::file::File;
 pub use self::memory::Memory;
@@ -18,9 +18,9 @@ pub trait StateDatabase: Send + Sync {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use paddler_types::agent_desired_model::AgentDesiredModel;
-    use paddler_types::chat_template::ChatTemplate;
-    use paddler_types::inference_parameters::InferenceParameters;
+    use crate::agent_desired_model::AgentDesiredModel;
+    use crate::chat_template::ChatTemplate;
+    use crate::inference_parameters::InferenceParameters;
     use tempfile::NamedTempFile;
     use tokio::sync::broadcast;
 

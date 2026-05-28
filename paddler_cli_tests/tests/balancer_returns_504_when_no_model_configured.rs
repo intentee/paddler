@@ -1,4 +1,3 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -6,8 +5,8 @@ use futures_util::StreamExt as _;
 use paddler_cli_tests::inference_http_client::InferenceHttpClient;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster_params::SubprocessClusterParams;
-use paddler_types::inference_client::Message;
-use paddler_types::request_params::ContinueFromRawPromptParams;
+use paddler::balancer::inference_client::Message;
+use paddler::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
 #[tokio::test(flavor = "multi_thread")]

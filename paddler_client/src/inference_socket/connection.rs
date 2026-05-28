@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use futures_util::StreamExt;
-use paddler_types::inference_client::Message as InferenceMessage;
+use paddler::balancer::inference_client::Message as InferenceMessage;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;

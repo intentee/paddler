@@ -2,8 +2,8 @@ use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use log::error;
 use log::warn;
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::generation_summary::GenerationSummary;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::generation_summary::GenerationSummary;
 
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;

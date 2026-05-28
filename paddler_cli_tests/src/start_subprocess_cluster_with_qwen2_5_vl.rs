@@ -1,6 +1,6 @@
 use anyhow::Result;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler::agent_desired_model::AgentDesiredModel;
+use paddler::balancer_desired_state::BalancerDesiredState;
 
 use crate::agent_config::AgentConfig;
 use crate::cluster_handle::ClusterHandle;

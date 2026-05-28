@@ -1,7 +1,4 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    any(target_os = "macos", target_os = "linux")
-))]
+#![cfg(any(target_os = "macos", target_os = "linux"))]
 
 use anyhow::Result;
 use paddler_cli_tests::resource_snapshot::ResourceSnapshot;

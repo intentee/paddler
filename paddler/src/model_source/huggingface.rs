@@ -12,10 +12,10 @@ use log::warn;
 use tokio::time::Duration;
 use tokio::time::sleep;
 
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_issue_params::HuggingFaceDownloadLock;
-use paddler_types::agent_issue_params::ModelPath;
-use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
+use crate::agent_issue::AgentIssue;
+use crate::agent_issue_params::HuggingFaceDownloadLock;
+use crate::agent_issue_params::ModelPath;
+use crate::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;

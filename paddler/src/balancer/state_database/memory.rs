@@ -2,7 +2,7 @@ use std::sync::RwLock;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use crate::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 
 use super::StateDatabase;

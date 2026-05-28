@@ -3,10 +3,10 @@ use std::path::Path;
 
 use anyhow::Context;
 use anyhow::Result;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use paddler_types::validates::Validates;
+use paddler::request_params::continue_from_conversation_history_params::tool::Tool;
+use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
+use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler::validates::Validates;
 
 pub fn prompt_load_tool(path: &Path) -> Result<Tool<ValidatedParametersSchema>> {
     let file = File::open(path).with_context(|| format!("opening tool file {}", path.display()))?;

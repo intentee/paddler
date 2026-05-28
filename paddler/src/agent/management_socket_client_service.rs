@@ -19,11 +19,11 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
-use paddler_types::agent_desired_state::AgentDesiredState;
-use paddler_types::jsonrpc::Error as JsonRpcError;
-use paddler_types::jsonrpc::ErrorEnvelope;
-use paddler_types::jsonrpc::RequestEnvelope;
-use paddler_types::jsonrpc::ResponseEnvelope;
+use crate::agent_desired_state::AgentDesiredState;
+use crate::jsonrpc::Error as JsonRpcError;
+use crate::jsonrpc::ErrorEnvelope;
+use crate::jsonrpc::RequestEnvelope;
+use crate::jsonrpc::ResponseEnvelope;
 
 use crate::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;

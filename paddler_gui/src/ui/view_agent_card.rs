@@ -5,8 +5,8 @@ use iced::widget::container;
 use iced::widget::progress_bar;
 use iced::widget::row;
 use iced::widget::text;
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+use paddler::balancer::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler::agent_state_application_status::AgentStateApplicationStatus;
 
 use super::font::BOLD;
 use super::font::REGULAR;

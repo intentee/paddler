@@ -1,6 +1,6 @@
 use llama_cpp_bindings::ParsedToolCall;
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::tool_call_pipeline_error::ToolCallPipelineError;
 use crate::tool_call_validation_error::ToolCallValidationError;
@@ -54,8 +54,8 @@ mod tests {
     use anyhow::bail;
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::ToolCallArguments;
-    use paddler_types::generated_token_result::GeneratedTokenResult;
-    use paddler_types::raw_tool_call_tokens::RawToolCallTokens;
+    use crate::generated_token_result::GeneratedTokenResult;
+    use crate::raw_tool_call_tokens::RawToolCallTokens;
     use serde_json::json;
 
     use super::ToolCallEvent;

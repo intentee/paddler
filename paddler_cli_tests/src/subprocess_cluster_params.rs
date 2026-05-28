@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler::balancer_desired_state::BalancerDesiredState;
 
 use crate::agent_config::AgentConfig;
 

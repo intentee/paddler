@@ -1,6 +1,6 @@
 use std::fmt;
 
-use paddler_types::oversized_image_details::OversizedImageDetails;
+use paddler::oversized_image_details::OversizedImageDetails;
 
 #[derive(Debug)]
 pub enum StopReason {

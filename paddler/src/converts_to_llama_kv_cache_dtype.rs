@@ -1,5 +1,5 @@
 use llama_cpp_bindings::context::params::KvCacheType as LlamaKvCacheDtype;
-use paddler_types::kv_cache_dtype::KvCacheDtype;
+use crate::kv_cache_dtype::KvCacheDtype;
 
 pub trait ConvertsToLlamaKvCacheDtype {
     fn to_llama_kv_cache_dtype(self) -> LlamaKvCacheDtype;

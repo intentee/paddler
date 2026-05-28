@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use tokio::sync::mpsc;
 
 use crate::agent::from_request_params::FromRequestParams;

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
-use paddler_types::agent_desired_state::AgentDesiredState;
+use crate::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;

@@ -1,5 +1,5 @@
-use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::request_params::continue_from_conversation_history_params::tool::Tool;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 use crate::agent::grammar_sampler::GrammarSampler;
 use crate::decoded_image::DecodedImage;

@@ -1,4 +1,4 @@
-use paddler_types::agent_desired_state::AgentDesiredState;
+use crate::agent_desired_state::AgentDesiredState;
 use serde::Deserialize;
 use serde::Serialize;
 

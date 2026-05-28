@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use paddler_types::embedding_result::EmbeddingResult;
-use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use crate::embedding_result::EmbeddingResult;
+use crate::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::agent::from_request_params::FromRequestParams;

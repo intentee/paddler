@@ -5,9 +5,9 @@ use std::sync::atomic::AtomicU64;
 
 use anyhow::Result;
 use dashmap::DashSet;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use crate::agent_issue::AgentIssue;
+use crate::agent_state_application_status::AgentStateApplicationStatus;
+use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use tokio::sync::watch;
 
 use crate::agent_issue_fix::AgentIssueFix;
@@ -244,8 +244,8 @@ mod tests {
     use std::time::Duration;
 
     use anyhow::Result;
-    use paddler_types::agent_issue_params::ModelPath;
-    use paddler_types::agent_issue_params::SlotCannotStartParams;
+    use crate::agent_issue_params::ModelPath;
+    use crate::agent_issue_params::SlotCannotStartParams;
     use tokio::time::timeout;
 
     use super::*;

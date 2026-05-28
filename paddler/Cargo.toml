@@ -32,6 +32,7 @@ indoc = { workspace = true }
 jsonschema = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 base64 = { workspace = true }
 log = { workspace = true }
 minijinja = { workspace = true }
@@ -39,7 +40,6 @@ minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
 paddler_cache_dir = { workspace = true }
 paddler_download_manager = { workspace = true }
-paddler_types = { workspace = true }
 thiserror = { workspace = true }
 rand = { workspace = true }
 reqwest = { workspace = true }

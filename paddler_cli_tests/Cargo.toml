@@ -12,8 +12,6 @@ version.workspace = true
 default = []
 cuda = ["paddler/cuda"]
 metal = ["paddler/metal"]
-tests_that_use_compiled_paddler = []
-tests_that_use_in_process_cluster = []
 tests_that_use_llms = []
 web_admin_panel = ["paddler/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
 
@@ -29,7 +27,6 @@ nix = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
-paddler_types = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

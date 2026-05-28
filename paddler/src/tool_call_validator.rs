@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use jsonschema::Validator;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::ToolCallArguments;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::request_params::continue_from_conversation_history_params::tool::Tool;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 use crate::tool_call_validation_error::ToolCallValidationError;
 
@@ -104,11 +104,11 @@ mod tests {
     use anyhow::bail;
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::ToolCallArguments;
-    use paddler_types::request_params::continue_from_conversation_history_params::tool::Tool;
-    use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-    use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-    use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-    use paddler_types::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+    use crate::request_params::continue_from_conversation_history_params::tool::Tool;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
     use serde_json::Map;
     use serde_json::Value;
     use serde_json::json;

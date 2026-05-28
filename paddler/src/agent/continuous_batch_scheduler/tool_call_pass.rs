@@ -1,5 +1,5 @@
 use llama_cpp_bindings::SampledToken;
-use paddler_types::generated_token_result::GeneratedTokenResult;
+use crate::generated_token_result::GeneratedTokenResult;
 
 use crate::agent::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::tool_call_pipeline::ToolCallPipeline;

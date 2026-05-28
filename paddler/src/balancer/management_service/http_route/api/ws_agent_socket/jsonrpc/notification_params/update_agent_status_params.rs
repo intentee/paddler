@@ -1,4 +1,4 @@
-use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use serde::Deserialize;
 use serde::Serialize;
 

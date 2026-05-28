@@ -3,9 +3,9 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::agent_desired_state::AgentDesiredState;
+use crate::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use crate::balancer::agent_controller_snapshot::AgentControllerSnapshot;
+use crate::agent_desired_state::AgentDesiredState;
 use tokio::sync::watch;
 
 use super::agent_controller::AgentController;

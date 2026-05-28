@@ -1,7 +1,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::json_schema_to_grammar;
-use paddler_types::grammar_constraint::GrammarConstraint;
+use crate::grammar_constraint::GrammarConstraint;
 
 use crate::agent::resolved_grammar::ResolvedGrammar;
 

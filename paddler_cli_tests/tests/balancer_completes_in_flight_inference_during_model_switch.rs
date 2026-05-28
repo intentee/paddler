@@ -1,7 +1,4 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
 use anyhow::anyhow;
@@ -10,13 +7,13 @@ use paddler_cli_tests::agent_config::AgentConfig;
 use paddler_cli_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_cli_tests::inference_http_client::InferenceHttpClient;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::grammar_constraint::GrammarConstraint;
-use paddler_types::inference_client::Message as InferenceMessage;
-use paddler_types::inference_client::Response as InferenceResponse;
-use paddler_types::inference_parameters::InferenceParameters;
-use paddler_types::request_params::ContinueFromRawPromptParams;
+use paddler::agent_desired_model::AgentDesiredModel;
+use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::grammar_constraint::GrammarConstraint;
+use paddler::balancer::inference_client::Message as InferenceMessage;
+use paddler::balancer::inference_client::Response as InferenceResponse;
+use paddler::inference_parameters::InferenceParameters;
+use paddler::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

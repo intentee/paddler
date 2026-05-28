@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use paddler_types::agent_desired_state::AgentDesiredState;
+use crate::agent_desired_state::AgentDesiredState;
 use tokio::sync::watch;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
@@ -67,8 +67,8 @@ impl SubscribesToUpdates for BalancerApplicableStateHolder {
 #[cfg(test)]
 mod tests {
     use anyhow::Result;
-    use paddler_types::agent_desired_model::AgentDesiredModel;
-    use paddler_types::inference_parameters::InferenceParameters;
+    use crate::agent_desired_model::AgentDesiredModel;
+    use crate::inference_parameters::InferenceParameters;
     use tokio::time::Duration;
     use tokio::time::timeout;
 

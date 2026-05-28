@@ -1,7 +1,4 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -10,11 +7,11 @@ use paddler_cli_tests::model_card::ModelCard;
 use paddler_cli_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster_params::SubprocessClusterParams;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::chat_template::ChatTemplate;
-use paddler_types::inference_parameters::InferenceParameters;
+use paddler::agent_desired_model::AgentDesiredModel;
+use paddler::agent_issue::AgentIssue;
+use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::chat_template::ChatTemplate;
+use paddler::inference_parameters::InferenceParameters;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]

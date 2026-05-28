@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::request_params::ContinueFromRawPromptParams;
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::request_params::ContinueFromRawPromptParams;
 use tokio::sync::mpsc;
 
 use crate::agent::from_request_params::FromRequestParams;

@@ -6,7 +6,7 @@ use image::DynamicImage;
 use image::ImageFormat;
 use image::imageops::FilterType;
 use log::info;
-use paddler_types::image_url::ImageUrl;
+use crate::image_url::ImageUrl;
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::Options;
 use resvg::usvg::Tree as SvgTree;
@@ -212,7 +212,7 @@ mod tests {
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use image::ImageFormat;
-    use paddler_types::image_url::ImageUrl;
+    use crate::image_url::ImageUrl;
 
     use crate::decoded_image::DecodedImage;
     use crate::decoded_image_error::DecodedImageError;

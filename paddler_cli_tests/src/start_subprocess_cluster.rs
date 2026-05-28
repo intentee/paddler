@@ -3,14 +3,13 @@ use std::process::Stdio;
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_client::PaddlerClient;
-use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use tokio::process::Child;
 use tokio_util::sync::CancellationToken;
 
 use crate::agents_stream_watcher::AgentsStreamWatcher;
 use crate::balancer_addresses::BalancerAddresses;
 use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
-use crate::cluster_completion::ClusterCompletion;
 use crate::cluster_handle::ClusterHandle;
 use crate::cluster_handle_params::ClusterHandleParams;
 use crate::paddler_command::paddler_command;
@@ -137,13 +136,11 @@ pub async fn start_subprocess_cluster(
     Ok(ClusterHandle::new(ClusterHandleParams {
         addresses,
         agent_ids,
+        agent_subprocesses: agent_children,
         agents: agents_watcher,
+        balancer_subprocess: balancer,
         buffered_requests: buffered_requests_watcher,
         cancel_token: CancellationToken::new(),
-        completion: ClusterCompletion::Subprocess {
-            agents: agent_children,
-            balancer,
-        },
         paddler_client,
     }))
 }

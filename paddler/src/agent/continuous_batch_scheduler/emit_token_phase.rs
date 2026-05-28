@@ -1,5 +1,5 @@
 use llama_cpp_bindings::SampledToken;
-use paddler_types::generated_token_result::GeneratedTokenResult;
+use crate::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
@@ -46,7 +46,7 @@ mod tests {
     use anyhow::bail;
     use llama_cpp_bindings::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
-    use paddler_types::generated_token_result::GeneratedTokenResult;
+    use crate::generated_token_result::GeneratedTokenResult;
     use tokio::sync::mpsc;
 
     use super::emit_classified;

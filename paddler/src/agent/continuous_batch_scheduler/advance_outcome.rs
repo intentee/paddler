@@ -1,5 +1,5 @@
 use llama_cpp_bindings::SampledToken;
-use paddler_types::generated_token_result::GeneratedTokenResult;
+use crate::generated_token_result::GeneratedTokenResult;
 
 pub enum AdvanceOutcome {
     SampledAndStored(SampledToken),
@@ -9,8 +9,8 @@ pub enum AdvanceOutcome {
 
 #[cfg(test)]
 mod tests {
-    use paddler_types::generated_token_result::GeneratedTokenResult;
-    use paddler_types::generation_summary::GenerationSummary;
+    use crate::generated_token_result::GeneratedTokenResult;
+    use crate::generation_summary::GenerationSummary;
 
     use super::AdvanceOutcome;
 

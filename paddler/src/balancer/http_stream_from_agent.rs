@@ -6,8 +6,8 @@ use actix_web::HttpResponse;
 use actix_web::http::header;
 use bytes::Bytes;
 use futures::stream::StreamExt;
-use paddler_types::inference_client::Response as OutgoingResponse;
-use paddler_types::streamable_result::StreamableResult;
+use crate::balancer::inference_client::Response as OutgoingResponse;
+use crate::streamable_result::StreamableResult;
 
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;

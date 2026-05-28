@@ -1,7 +1,4 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use std::time::Duration;
 
@@ -12,10 +9,10 @@ use paddler_cli_tests::collect_embedding_results::collect_embedding_results;
 use paddler_cli_tests::inference_http_client::InferenceHttpClient;
 use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3_embedding::start_subprocess_cluster_with_qwen3_embedding;
-use paddler_types::embedding_input_document::EmbeddingInputDocument;
-use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_types::inference_parameters::InferenceParameters;
-use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use paddler::embedding_input_document::EmbeddingInputDocument;
+use paddler::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler::inference_parameters::InferenceParameters;
+use paddler::request_params::GenerateEmbeddingBatchParams;
 use reqwest::Client;
 use tokio::time::timeout;
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use hf_hub::api::tokio::Progress;
-use paddler_types::agent_issue_params::ModelPath;
+use crate::agent_issue_params::ModelPath;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
@@ -46,9 +46,9 @@ mod tests {
 
     use anyhow::Result;
     use hf_hub::api::tokio::Progress;
-    use paddler_types::agent_issue::AgentIssue;
-    use paddler_types::agent_issue_params::HuggingFaceDownloadLock;
-    use paddler_types::agent_issue_params::ModelPath;
+    use crate::agent_issue::AgentIssue;
+    use crate::agent_issue_params::HuggingFaceDownloadLock;
+    use crate::agent_issue_params::ModelPath;
 
     use crate::produces_snapshot::ProducesSnapshot;
     use crate::slot_aggregated_status::SlotAggregatedStatus;

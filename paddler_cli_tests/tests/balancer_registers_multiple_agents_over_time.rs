@@ -1,4 +1,3 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
 
 use anyhow::Context as _;
 use anyhow::Result;

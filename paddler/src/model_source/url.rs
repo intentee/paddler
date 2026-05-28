@@ -12,9 +12,9 @@ use paddler_cache_dir::DownloadLockAcquisitionError;
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_download_manager::progress_sink::ProgressSink;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_issue_params::ModelPath;
-use paddler_types::url_model_reference::UrlModelReference;
+use crate::agent_issue::AgentIssue;
+use crate::agent_issue_params::ModelPath;
+use crate::url_model_reference::UrlModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
@@ -238,7 +238,7 @@ mod tests {
     use paddler_cache_dir::CacheDir;
     use paddler_cache_dir::CachedDownloadedModel;
     use paddler_download_manager::download_error::DownloadError;
-    use paddler_types::agent_issue::AgentIssue;
+    use crate::agent_issue::AgentIssue;
     use reqwest::StatusCode;
     use tempfile::TempDir;
     use url::Url;
@@ -307,7 +307,7 @@ mod tests {
 
         assert!(result.is_err(), "malformed URL must produce an Err");
         assert!(status.has_issue(&AgentIssue::DownloadUrlIsMalformed(
-            paddler_types::agent_issue_params::ModelPath {
+            crate::agent_issue_params::ModelPath {
                 model_path: url_string.to_owned(),
             },
         )));
@@ -327,7 +327,7 @@ mod tests {
 
         assert!(result.is_err(), "unsupported scheme must produce an Err");
         assert!(status.has_issue(&AgentIssue::DownloadUrlIsMalformed(
-            paddler_types::agent_issue_params::ModelPath {
+            crate::agent_issue_params::ModelPath {
                 model_path: url_string.to_owned(),
             },
         )));
@@ -354,7 +354,7 @@ mod tests {
 
         assert!(result.is_err(), "lock contention must produce an Err");
         assert!(status.has_issue(&AgentIssue::CacheCannotAcquireLock(
-            paddler_types::agent_issue_params::ModelPath {
+            crate::agent_issue_params::ModelPath {
                 model_path: url_string.to_owned(),
             },
         )));

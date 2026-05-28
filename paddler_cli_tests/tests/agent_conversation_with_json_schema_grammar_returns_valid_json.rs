@@ -1,18 +1,15 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
 use paddler_cli_tests::agent_config::AgentConfig;
 use paddler_cli_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_cli_tests::inference_http_client::InferenceHttpClient;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_types::conversation_history::ConversationHistory;
-use paddler_types::conversation_message::ConversationMessage;
-use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::grammar_constraint::GrammarConstraint;
-use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler::conversation_history::ConversationHistory;
+use paddler::conversation_message::ConversationMessage;
+use paddler::conversation_message_content::ConversationMessageContent;
+use paddler::grammar_constraint::GrammarConstraint;
+use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

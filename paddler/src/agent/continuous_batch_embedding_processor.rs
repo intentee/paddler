@@ -7,11 +7,11 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use log::warn;
-use paddler_types::embedding::Embedding;
-use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_types::embedding_result::EmbeddingResult;
-use paddler_types::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
-use paddler_types::request_params::GenerateEmbeddingBatchParams;
+use crate::embedding::Embedding;
+use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
+use crate::embedding_result::EmbeddingResult;
+use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
+use crate::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use dashmap::DashMap;
-use paddler_types::model_metadata::ModelMetadata;
+use crate::model_metadata::ModelMetadata;
 use tokio::sync::mpsc;
 
 use crate::balancer::manages_senders::ManagesSenders;

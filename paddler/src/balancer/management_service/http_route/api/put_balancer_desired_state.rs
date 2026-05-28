@@ -5,8 +5,8 @@ use actix_web::error::ErrorBadRequest;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::put;
 use actix_web::web;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::validates::Validates;
+use crate::balancer_desired_state::BalancerDesiredState;
+use crate::validates::Validates;
 
 use crate::balancer::management_service::app_data::AppData;
 

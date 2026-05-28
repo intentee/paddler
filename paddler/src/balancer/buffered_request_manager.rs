@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use paddler_types::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use crate::balancer::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 use tokio::sync::watch;
 use tokio::time::timeout;
 
@@ -103,7 +103,7 @@ mod tests {
     use std::sync::atomic::AtomicU64;
     use std::task::Poll;
 
-    use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+    use crate::agent_state_application_status::AgentStateApplicationStatus;
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;
 

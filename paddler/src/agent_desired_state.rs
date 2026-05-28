@@ -4,16 +4,28 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::agent_desired_state::AgentDesiredState;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_issue_params::ModelPath;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::agent_applicable_state::AgentApplicableState;
+use crate::agent_desired_model::AgentDesiredModel;
+use crate::agent_issue::AgentIssue;
+use crate::agent_issue_params::ModelPath;
+use crate::chat_template::ChatTemplate;
 use crate::converts_to_applicable_state::ConvertsToApplicableState;
 use crate::desired_model_resolution::DesiredModelResolution;
+use crate::inference_parameters::InferenceParameters;
 use crate::resolve_desired_model::resolve_desired_model;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentDesiredState {
+    pub chat_template_override: Option<ChatTemplate>,
+    pub inference_parameters: InferenceParameters,
+    pub model: AgentDesiredModel,
+    pub multimodal_projection: AgentDesiredModel,
+}
 
 async fn resolve_into_optional_path<TLocalMissingIssue>(
     desired: &AgentDesiredModel,
@@ -76,14 +88,14 @@ mod tests {
     use std::sync::Arc;
 
     use anyhow::Result;
-    use paddler_types::agent_desired_model::AgentDesiredModel;
-    use paddler_types::agent_desired_state::AgentDesiredState;
-    use paddler_types::agent_issue::AgentIssue;
-    use paddler_types::agent_issue_params::ModelPath;
-    use paddler_types::inference_parameters::InferenceParameters;
     use tempfile::TempDir;
 
+    use crate::agent_desired_model::AgentDesiredModel;
+    use crate::agent_desired_state::AgentDesiredState;
+    use crate::agent_issue::AgentIssue;
+    use crate::agent_issue_params::ModelPath;
     use crate::converts_to_applicable_state::ConvertsToApplicableState;
+    use crate::inference_parameters::InferenceParameters;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
 
     fn fresh_status() -> Arc<SlotAggregatedStatus> {

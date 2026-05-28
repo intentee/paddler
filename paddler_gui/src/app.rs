@@ -35,7 +35,7 @@ use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
