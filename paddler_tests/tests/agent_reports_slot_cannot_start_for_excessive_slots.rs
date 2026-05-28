@@ -5,7 +5,6 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -13,20 +12,20 @@ use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::agent_issue::AgentIssue;
 use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::inference_parameters::InferenceParameters;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_slot_cannot_start_for_excessive_slots() -> Result<()> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
     } = qwen3_0_6b();
 
-    let inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
+    let inference_parameters = InferenceParameters {
+        n_gpu_layers: gpu_layer_count,
+        ..InferenceParameters::default()
+    };
 
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {

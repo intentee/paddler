@@ -5,7 +5,6 @@ use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
@@ -13,16 +12,13 @@ use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -> Result<()> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
@@ -30,7 +26,10 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
-        inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
+        inference_parameters: InferenceParameters {
+            n_gpu_layers: gpu_layer_count,
+            ..InferenceParameters::default()
+        },
         model: AgentDesiredModel::HuggingFace(reference),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,

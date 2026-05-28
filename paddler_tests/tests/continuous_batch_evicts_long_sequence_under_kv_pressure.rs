@@ -3,7 +3,6 @@
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
@@ -12,6 +11,7 @@ use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::inference_parameters::InferenceParameters;
 use paddler::generated_token_result::GeneratedTokenResult;
 use paddler::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
@@ -19,16 +19,15 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
     } = qwen3_0_6b();
 
-    let mut inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
+    let mut inference_parameters = InferenceParameters {
+        n_gpu_layers: gpu_layer_count,
+        ..InferenceParameters::default()
+    };
 
     inference_parameters.n_batch = 256;
     inference_parameters.context_size = 256;

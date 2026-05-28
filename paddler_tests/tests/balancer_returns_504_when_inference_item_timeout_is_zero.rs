@@ -6,7 +6,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::current_test_device::current_test_device;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -14,6 +13,7 @@ use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::inference_parameters::InferenceParameters;
 use paddler::balancer::inference_client::Message;
 use paddler::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
@@ -21,10 +21,6 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_inference_item_timeout_is_zero() -> Result<()> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
@@ -36,7 +32,10 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() -> Result<()
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
-            inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
+            inference_parameters: InferenceParameters {
+                n_gpu_layers: gpu_layer_count,
+                ..InferenceParameters::default()
+            },
             model: AgentDesiredModel::HuggingFace(reference),
             multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: false,

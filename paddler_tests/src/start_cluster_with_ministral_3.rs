@@ -1,9 +1,9 @@
 use anyhow::Result;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::inference_parameters::InferenceParameters;
 
 use crate::cluster_handle::ClusterHandle;
-use crate::current_test_device::current_test_device;
 use crate::cluster_params::ClusterParams;
 use crate::make_inference_parameters_deterministic::make_inference_parameters_deterministic;
 use crate::ministral_3_cluster_params::Ministral3ClusterParams;
@@ -17,16 +17,15 @@ pub async fn start_cluster_with_ministral_3(
         deterministic_sampling,
     }: Ministral3ClusterParams,
 ) -> Result<ClusterHandle> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
     } = ministral_3_14b_reasoning();
 
-    let base_inference_parameters = device.inference_parameters_for_full_offload(gpu_layer_count);
+    let base_inference_parameters = InferenceParameters {
+        n_gpu_layers: gpu_layer_count,
+        ..InferenceParameters::default()
+    };
     let inference_parameters = if deterministic_sampling {
         make_inference_parameters_deterministic(base_inference_parameters)
     } else {

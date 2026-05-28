@@ -108,11 +108,11 @@ test.integration:
 
 .PHONY: test.integration.cuda
 test.integration.cuda:
-	PADDLER_TEST_DEVICE=cuda cargo test --target-dir target/cuda -p paddler_tests --features cuda,tests_that_use_llms
+	cargo test --target-dir target/cuda -p paddler_tests --features cuda,tests_that_use_llms
 
 .PHONY: test.integration.metal
 test.integration.metal:
-	PADDLER_TEST_DEVICE=metal cargo test --target-dir target/metal -p paddler_tests --features metal,tests_that_use_llms
+	cargo test --target-dir target/metal -p paddler_tests --features metal,tests_that_use_llms
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
