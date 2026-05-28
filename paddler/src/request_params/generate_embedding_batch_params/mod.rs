@@ -344,7 +344,7 @@ mod tests {
                             );
                         }
                     } else {
-                        assert!(sub_batches.is_empty(), "empty input must produce empty Vec",);
+                        assert!(sub_batches.is_empty(), "empty input must produce empty Vec");
                     }
                 }
             }

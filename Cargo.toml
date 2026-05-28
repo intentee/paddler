@@ -1,5 +1,5 @@
 [workspace]
-members = ["paddler", "paddler_bootstrap", "paddler_cache_dir", "paddler_cli", "paddler_client", "paddler_client_cli", "paddler_download_manager", "paddler_gui", "paddler_cli_tests", "paddler_tests"]
+members = ["paddler", "paddler_bootstrap", "paddler_cache_dir", "paddler_cli", "paddler_client", "paddler_client_cli", "paddler_download_manager", "paddler_gui", "paddler_tests"]
 resolver = "2"
 
 [workspace.package]
@@ -77,7 +77,6 @@ paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "4.0.0", path = "paddler_cache_dir" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
-paddler_cli_tests = { version = "4.0.0", path = "paddler_cli_tests" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }
 
 [profile.release]

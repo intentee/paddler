@@ -4,7 +4,7 @@ use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_cluster_with_qwen3_5::start_in_process_cluster_with_qwen3_5;
+use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
@@ -22,7 +22,7 @@ use serde_json::Value;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3_5(AgentConfig::single(1), false).await?;
+    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

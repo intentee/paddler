@@ -9,7 +9,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_cluster_with_smolvlm2_and_n_batch::start_in_process_cluster_with_smolvlm2_and_n_batch;
+use paddler_tests::start_cluster_with_smolvlm2_and_n_batch::start_cluster_with_smolvlm2_and_n_batch;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
@@ -85,7 +85,7 @@ async fn drive_oversized_image_fixture(
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_does_not_crash_on_oversized_image() -> Result<()> {
     let cluster =
-        start_in_process_cluster_with_smolvlm2_and_n_batch(AgentConfig::single(1), 32).await?;
+        start_cluster_with_smolvlm2_and_n_batch(vec![AgentConfig::single(1)], 32).await?;
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
 

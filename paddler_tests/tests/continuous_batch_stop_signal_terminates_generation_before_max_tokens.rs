@@ -6,14 +6,14 @@ use futures_util::StreamExt as _;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler::request_params::ContinueFromRawPromptParams;
 use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stop_signal_terminates_generation_before_max_tokens() -> Result<()> {
-    let mut cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(1)).await?;
+    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let agent_id = cluster
         .agent_ids

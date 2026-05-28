@@ -5,7 +5,7 @@ use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_tests::start_in_process_cluster_with_ministral_3_and_mmproj::start_in_process_cluster_with_ministral_3_and_mmproj;
+use paddler_tests::start_cluster_with_ministral_3_and_mmproj::start_cluster_with_ministral_3_and_mmproj;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
@@ -19,7 +19,7 @@ use reqwest::Client;
 #[tokio::test(flavor = "multi_thread")]
 async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() -> Result<()> {
     let cluster =
-        start_in_process_cluster_with_ministral_3_and_mmproj(AgentConfig::single(1)).await?;
+        start_cluster_with_ministral_3_and_mmproj(vec![AgentConfig::single(1)]).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

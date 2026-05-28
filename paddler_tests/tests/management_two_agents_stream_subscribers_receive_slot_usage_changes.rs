@@ -6,11 +6,11 @@ use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::current_test_device::current_test_device;
-use paddler_tests::in_process_cluster_params::InProcessClusterParams;
+use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_in_process_cluster::start_in_process_cluster;
+use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::request_params::ContinueFromRawPromptParams;
@@ -36,14 +36,14 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
         use_chat_template_override: false,
     };
 
-    let mut cluster = start_in_process_cluster(InProcessClusterParams {
-        agent: Some(AgentConfig {
+    let mut cluster = start_cluster(ClusterParams {
+        agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 1,
-        }),
-        desired_state,
+        }],
+        desired_state: Some(desired_state),
         wait_for_slots_ready: true,
-        ..InProcessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 

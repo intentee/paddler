@@ -1,9 +1,11 @@
 use anyhow::Result;
 use paddler_bootstrap::agent_runner::AgentRunner;
+use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_client::PaddlerClient;
 use tokio_util::sync::CancellationToken;
 
+use crate::agent_config::AgentConfig;
 use crate::agents_stream_watcher::AgentsStreamWatcher;
 use crate::balancer_addresses::BalancerAddresses;
 use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
@@ -46,10 +48,21 @@ impl ClusterHandle {
         }
     }
 
+    pub fn spawn_additional_agent(&mut self, config: &AgentConfig) {
+        let agent_runner = AgentRunner::start(AgentRunnerParams {
+            agent_name: Some(config.name.clone()),
+            management_address: self.addresses.management.to_string(),
+            cancellation_token: self.cancel_token.clone(),
+            slots: config.slot_count,
+        });
+
+        self.agent_runners.push(agent_runner);
+    }
+
     pub async fn shutdown(mut self) -> Result<()> {
         self.cancel_token.cancel();
 
-        for agent_runner in self.agent_runners.iter_mut() {
+        for agent_runner in &mut self.agent_runners {
             agent_runner.wait_for_completion().await?;
         }
 

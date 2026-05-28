@@ -5,7 +5,7 @@ use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_tests::start_in_process_cluster_with_smolvlm2::start_in_process_cluster_with_smolvlm2;
+use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
@@ -19,7 +19,7 @@ use reqwest::Client;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn smolvlm2_generates_tokens_from_image_input() -> Result<()> {
-    let cluster = start_in_process_cluster_with_smolvlm2(AgentConfig::single(1)).await?;
+    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;
 
     let inference_client =
         InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);

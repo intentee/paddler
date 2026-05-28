@@ -2,10 +2,10 @@
 
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::in_process_cluster_params::InProcessClusterParams;
+use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_in_process_cluster::start_in_process_cluster;
+use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::embedding_input_document::EmbeddingInputDocument;
@@ -20,20 +20,20 @@ use reqwest::StatusCode;
 async fn endpoint_rejects_embedding_request_when_embeddings_disabled_in_parameters() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();
 
-    let cluster = start_in_process_cluster(InProcessClusterParams {
-        agent: Some(AgentConfig {
+    let cluster = start_cluster(ClusterParams {
+        agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 1,
-        }),
-        desired_state: BalancerDesiredState {
+        }],
+        desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
             inference_parameters: InferenceParameters::default(),
             model: AgentDesiredModel::HuggingFace(reference),
             multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: false,
-        },
+        }),
         wait_for_slots_ready: true,
-        ..InProcessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 

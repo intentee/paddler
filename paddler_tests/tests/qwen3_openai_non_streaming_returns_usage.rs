@@ -3,7 +3,7 @@
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::openai_chat_completions_client::OpenAIChatCompletionsClient;
-use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use reqwest::Client;
 use serde_json::Value;
 use serde_json::json;
@@ -11,7 +11,7 @@ use serde_json::json;
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_openai_non_streaming_returns_usage() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(1)).await?;
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
     let openai_client = OpenAIChatCompletionsClient::new(
         Client::new(),
         &cluster.addresses.compat_openai_base_url()?,

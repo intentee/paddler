@@ -142,7 +142,7 @@ mod tests {
         let pool = Arc::new(AgentControllerPool::default());
         let manager = Arc::new(BufferedRequestManager::new(
             pool.clone(),
-            Duration::from_secs(60),
+            Duration::from_mins(1),
             10,
         ));
 
@@ -236,7 +236,7 @@ mod tests {
 
         let manager = Arc::new(BufferedRequestManager::new(
             pool,
-            Duration::from_secs(60),
+            Duration::from_mins(1),
             10,
         ));
 

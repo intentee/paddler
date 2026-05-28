@@ -3,8 +3,8 @@
 use anyhow::Result;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::ministral_3_in_process_cluster_params::Ministral3InProcessClusterParams;
-use paddler_tests::start_in_process_cluster_with_ministral_3::start_in_process_cluster_with_ministral_3;
+use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
+use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
@@ -16,7 +16,7 @@ use reqwest::Client;
 #[tokio::test(flavor = "multi_thread")]
 async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
     let cluster =
-        start_in_process_cluster_with_ministral_3(Ministral3InProcessClusterParams::default())
+        start_cluster_with_ministral_3(Ministral3ClusterParams::default())
             .await?;
 
     let inference_client =
