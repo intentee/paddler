@@ -3,31 +3,26 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler::agent_desired_model::AgentDesiredModel;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::grammar_constraint::GrammarConstraint;
 use paddler::balancer::inference_client::Message as InferenceMessage;
 use paddler::balancer::inference_client::Response as InferenceResponse;
+use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::grammar_constraint::GrammarConstraint;
 use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::collect_generated_tokens::collect_generated_tokens;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
     let expected_output = "the quick brown fox jumps over the lazy dog";
 
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
                 grammar: format!("root ::= \"{expected_output}\""),
                 root: "root".to_owned(),

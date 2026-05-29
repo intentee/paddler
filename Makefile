@@ -2,8 +2,9 @@
 
 RUST_LOG ?= debug
 
-COVERAGE_PACKAGES := -p paddler_cache_dir -p paddler_download_manager
-PADDLER_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src paddler_types/src -name '*.rs')
+COVERAGE_FEATURES := --features tests_that_use_llms,web_admin_panel
+COVERAGE_SCOPE := --workspace --exclude paddler_cli_tests --exclude paddler_gui
+PADDLER_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src -name '*.rs')
 FRONTEND_SOURCES := $(shell find resources -type f) $(wildcard jarmuz/*.mjs)
 
 # -----------------------------------------------------------------------------
@@ -67,12 +68,12 @@ clean:
 
 .PHONY: clippy
 clippy: esbuild-meta.json
-	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_compiled_paddler,tests_that_use_in_process_cluster
+	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms
 
 .PHONY: coverage
-coverage: node_modules
+coverage: esbuild-meta.json node_modules
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov $(COVERAGE_PACKAGES) --no-report
+	cargo llvm-cov $(COVERAGE_SCOPE) $(COVERAGE_FEATURES) --no-report
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
@@ -88,8 +89,8 @@ coverage-clean:
 	rm -f target/llvm-cov.json target/lcov.info
 
 .PHONY: coverage-report
-coverage-report:
-	cargo llvm-cov $(COVERAGE_PACKAGES) --html
+coverage-report: esbuild-meta.json
+	cargo llvm-cov $(COVERAGE_SCOPE) $(COVERAGE_FEATURES) --html
 
 .PHONY: fmt
 fmt: node_modules
@@ -104,15 +105,15 @@ test.client.js: node_modules
 
 .PHONY: test.integration
 test.integration:
-	cargo test -p paddler_tests --features tests_that_use_llms
+	cargo test -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms
 
 .PHONY: test.integration.cuda
 test.integration.cuda:
-	cargo test --target-dir target/cuda -p paddler_tests --features cuda,tests_that_use_llms
+	cargo test --target-dir target/cuda -p paddler_tests -p paddler_cli_tests --features cuda,tests_that_use_llms
 
 .PHONY: test.integration.metal
 test.integration.metal:
-	cargo test --target-dir target/metal -p paddler_tests --features metal,tests_that_use_llms
+	cargo test --target-dir target/metal -p paddler_tests -p paddler_cli_tests --features metal,tests_that_use_llms
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json

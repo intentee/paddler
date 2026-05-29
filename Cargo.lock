@@ -4989,6 +4989,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_cli_tests"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64",
+ "futures-util",
+ "log",
+ "nix 0.30.1",
+ "paddler",
+ "paddler_cli",
+ "paddler_client",
+ "paddler_cluster_harness",
+ "reqwest",
+ "serde_json",
+ "serial_test",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "paddler_client"
 version = "4.0.0"
 dependencies = [
@@ -5028,6 +5049,25 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-util",
+ "url",
+]
+
+[[package]]
+name = "paddler_cluster_harness"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "base64",
+ "futures-util",
+ "paddler",
+ "paddler_client",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
  "url",
 ]
 
@@ -5073,6 +5113,7 @@ version = "4.0.0"
 dependencies = [
  "anyhow",
  "async-stream",
+ "async-trait",
  "base64",
  "futures-util",
  "hf-hub",
@@ -5082,6 +5123,7 @@ dependencies = [
  "paddler",
  "paddler_bootstrap",
  "paddler_client",
+ "paddler_cluster_harness",
  "reqwest",
  "serde",
  "serde_json",

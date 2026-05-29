@@ -1,27 +1,29 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::future::Future;
+
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::cluster_params::ClusterParams;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::inference_parameters::InferenceParameters;
 use paddler::chat_template::ChatTemplate;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
+use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster::Cluster;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
 
-async fn run_inference_after_template_swap(inference_client: &InferenceHttpClient) -> Result<bool> {
-    let stream = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+fn run_inference_after_template_swap(
+    cluster: &Cluster,
+) -> impl Future<Output = Result<bool>> + Send + use<> {
+    let generation =
+        cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("The capital of France is".to_owned()),
@@ -32,15 +34,16 @@ async fn run_inference_after_template_swap(inference_client: &InferenceHttpClien
             max_tokens: 10,
             parse_tool_calls: false,
             tools: vec![],
-        })
-        .await?;
+        });
 
-    let collected = collect_generated_tokens(stream).await?;
+    async move {
+        let collected = generation.await?;
 
-    Ok(collected
-        .token_results
-        .iter()
-        .any(|result| result.token_result.is_token()))
+        Ok(collected
+            .token_results
+            .iter()
+            .any(|result| result.token_result.is_token()))
+    }
 }
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
@@ -81,11 +84,8 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
         .context("cluster must have one registered agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
     assert!(
-        run_inference_after_template_swap(&inference_client).await?,
+        run_inference_after_template_swap(&cluster).await?,
         "first inference with template_a must produce tokens"
     );
 
@@ -108,7 +108,7 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
         .map_err(anyhow::Error::new)?;
 
     assert!(
-        run_inference_after_template_swap(&inference_client).await?,
+        run_inference_after_template_swap(&cluster).await?,
         "inference after swap must produce tokens with template_b"
     );
 

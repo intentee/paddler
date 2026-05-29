@@ -2,25 +2,20 @@ use std::str::FromStr as _;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
-use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_client::PaddlerClient;
 use tokio_util::sync::CancellationToken;
 
-use crate::agents_stream_watcher::AgentsStreamWatcher;
 use crate::balancer_addresses::BalancerAddresses;
-use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
-use crate::cluster_handle::ClusterHandle;
-use crate::cluster_handle_params::ClusterHandleParams;
+use crate::cluster::Cluster;
 use crate::cluster_params::ClusterParams;
-use crate::wait_until_healthy::wait_until_healthy;
+use crate::in_process_agent_spawner::InProcessAgentSpawner;
+use crate::in_process_balancer::InProcessBalancer;
+use crate::running_balancer::RunningBalancer;
 
 pub async fn start_cluster(
     ClusterParams {
@@ -34,13 +29,13 @@ pub async fn start_cluster(
         state_database_url,
         wait_for_slots_ready,
     }: ClusterParams,
-) -> Result<ClusterHandle> {
+) -> Result<Cluster> {
     let addresses = BalancerAddresses::pick()?;
-    let cancel_token = CancellationToken::new();
+    let management_address = addresses.management.to_string();
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
         .context("failed to parse state_database_url")?;
 
-    let balancer = BalancerRunner::start(BalancerRunnerParams {
+    let balancer_runner = BalancerRunner::start(BalancerRunnerParams {
         buffered_request_timeout,
         inference_service_configuration: InferenceServiceConfiguration {
             addr: addresses.inference,
@@ -55,7 +50,7 @@ pub async fn start_cluster(
         openai_service_configuration: Some(OpenAIServiceConfiguration {
             addr: addresses.compat_openai,
         }),
-        cancellation_token: cancel_token.clone(),
+        cancellation_token: CancellationToken::new(),
         state_database_type,
         statsd_prefix: "paddler_tests_".to_owned(),
         statsd_service_configuration: None,
@@ -65,45 +60,25 @@ pub async fn start_cluster(
     .await
     .context("failed to start in-process BalancerRunner")?;
 
-    let management_base_url = addresses.management_base_url()?;
-    let inference_base_url = addresses.inference_base_url()?;
+    let running_balancer =
+        RunningBalancer::new(addresses, Box::new(InProcessBalancer::new(balancer_runner)));
 
-    wait_until_healthy(&management_base_url, "health")
-        .await
-        .context("balancer did not become healthy")?;
-
-    let paddler_client = PaddlerClient::new(inference_base_url, management_base_url, 1);
-
-    if let Some(desired_state) = desired_state.as_ref() {
-        paddler_client
-            .management()
-            .put_balancer_desired_state(desired_state)
-            .await
-            .map_err(anyhow::Error::new)
-            .context("failed to PUT balancer desired state")?;
-    }
-
-    let mut agents_watcher = AgentsStreamWatcher::connect(&paddler_client.management()).await?;
-    let buffered_requests_watcher =
-        BufferedRequestsStreamWatcher::connect(&paddler_client.management()).await?;
+    let mut cluster = Cluster::connect(
+        running_balancer,
+        Box::new(InProcessAgentSpawner::new(management_address)),
+        desired_state.as_ref(),
+    )
+    .await?;
 
     let expected_agent_count = agents.len();
-    let mut agent_runners: Vec<AgentRunner> = Vec::with_capacity(expected_agent_count);
-    let mut last_ready_snapshot: Option<AgentControllerPoolSnapshot> = None;
+    let mut last_ready_snapshot = None;
 
     for agent in &agents {
-        let agent_runner = AgentRunner::start(AgentRunnerParams {
-            agent_name: Some(agent.name.clone()),
-            management_address: addresses.management.to_string(),
-            cancellation_token: cancel_token.clone(),
-            slots: agent.slot_count,
-        });
-
-        agent_runners.push(agent_runner);
+        cluster.spawn_additional_agent(agent)?;
 
         if wait_for_slots_ready {
             last_ready_snapshot = Some(
-                agents_watcher
+                cluster
                     .wait_for_agent_ready(&agent.name, agent.slot_count)
                     .await?,
             );
@@ -112,26 +87,17 @@ pub async fn start_cluster(
 
     let registered_snapshot = match last_ready_snapshot {
         Some(snapshot) => snapshot,
-        None => agents_watcher
-            .until(move |snapshot| snapshot.agents.len() >= expected_agent_count)
+        None => cluster
+            .wait_for_agent_count(expected_agent_count)
             .await
             .context("not all in-process agents registered")?,
     };
 
-    let agent_ids: Vec<String> = registered_snapshot
+    cluster.agent_ids = registered_snapshot
         .agents
         .iter()
         .map(|registered_agent| registered_agent.id.clone())
         .collect();
 
-    Ok(ClusterHandle::new(ClusterHandleParams {
-        addresses,
-        agent_ids,
-        agent_runners,
-        agents: agents_watcher,
-        balancer_runner: balancer,
-        buffered_requests: buffered_requests_watcher,
-        cancel_token,
-        paddler_client,
-    }))
+    Ok(cluster)
 }

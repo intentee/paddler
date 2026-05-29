@@ -1,13 +1,10 @@
-
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::cluster_params::ClusterParams;
 use paddler::balancer::inference_client::Message;
 use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_model_configured() -> Result<()> {
@@ -18,11 +15,8 @@ async fn balancer_returns_504_when_no_model_configured() -> Result<()> {
     })
     .await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),

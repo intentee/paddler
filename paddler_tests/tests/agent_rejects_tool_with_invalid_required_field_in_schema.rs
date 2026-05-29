@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
@@ -13,7 +12,6 @@ use paddler::request_params::continue_from_conversation_history_params::tool::to
 use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use reqwest::Client;
 use serde_json::Map;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
@@ -21,15 +19,12 @@ use serde_json::Map;
 async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
     let mut name_properties = Map::new();
 
     name_properties.insert("name".to_owned(), serde_json::json!({"type": "string"}));
 
-    let outcome = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+    let outcome = cluster
+        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("Say hello".to_owned()),

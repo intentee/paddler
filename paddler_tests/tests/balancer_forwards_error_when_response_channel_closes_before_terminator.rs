@@ -9,13 +9,13 @@ use paddler::balancer::chunk_forwarding_session_controller::ChunkForwardingSessi
 use paddler::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use paddler::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
 use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
+use paddler::balancer::inference_client::Message as OutgoingMessage;
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::manages_senders::ManagesSenders as _;
 use paddler::balancer::manages_senders_controller::ManagesSendersController;
 use paddler::balancer::request_from_agent::forward_responses_stream;
-use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
-use paddler::balancer::inference_client::Message as OutgoingMessage;
 use paddler::jsonrpc::ErrorEnvelope;
+use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 

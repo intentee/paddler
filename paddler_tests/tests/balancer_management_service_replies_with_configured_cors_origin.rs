@@ -1,8 +1,7 @@
-
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
@@ -17,7 +16,11 @@ async fn balancer_management_service_replies_with_configured_cors_origin() -> Re
     .await?;
 
     let http_client = reqwest::Client::new();
-    let management_health_url = cluster.addresses.management_base_url()?.join("health")?;
+    let management_health_url = cluster
+        .balancer
+        .addresses
+        .management_base_url()?
+        .join("health")?;
 
     let response = http_client
         .request(reqwest::Method::OPTIONS, management_health_url)

@@ -4,7 +4,7 @@ use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
 
 use crate::agent_config::AgentConfig;
-use crate::cluster_handle::ClusterHandle;
+use crate::cluster::Cluster;
 use crate::cluster_params::ClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
@@ -14,7 +14,7 @@ use crate::start_cluster::start_cluster;
 pub async fn start_cluster_with_qwen3_5(
     agents: Vec<AgentConfig>,
     with_mmproj: bool,
-) -> Result<ClusterHandle> {
+) -> Result<Cluster> {
     let ModelCard {
         gpu_layer_count,
         reference: primary_reference,

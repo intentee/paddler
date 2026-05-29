@@ -1,17 +1,17 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::cluster_params::ClusterParams;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::embedding_input_document::EmbeddingInputDocument;
 use paddler::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::GenerateEmbeddingBatchParams;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
 use reqwest::Client;
 use reqwest::StatusCode;
 
@@ -37,7 +37,7 @@ async fn endpoint_rejects_embedding_request_when_embeddings_disabled_in_paramete
     })
     .await?;
 
-    let inference_base_url = cluster.addresses.inference_base_url()?;
+    let inference_base_url = cluster.balancer.addresses.inference_base_url()?;
     let request_url = inference_base_url.join("api/v1/generate_embedding_batch")?;
 
     let response = Client::new()

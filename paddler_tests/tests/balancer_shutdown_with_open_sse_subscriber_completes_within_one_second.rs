@@ -8,8 +8,7 @@ use paddler_tests::start_cluster::start_cluster;
 use tokio::time::timeout;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_shutdown_with_open_sse_subscriber_completes_within_one_second()
--> Result<()> {
+async fn balancer_shutdown_with_open_sse_subscriber_completes_within_one_second() -> Result<()> {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,

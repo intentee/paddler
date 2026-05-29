@@ -5,17 +5,15 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::inference_http_client::InferenceHttpClient;
+use paddler::agent_desired_model::AgentDesiredModel;
+use paddler::balancer::inference_client::Message;
+use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::inference_parameters::InferenceParameters;
+use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::cluster_params::ClusterParams;
-use paddler::agent_desired_model::AgentDesiredModel;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::balancer::inference_client::Message;
-use paddler::inference_parameters::InferenceParameters;
-use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -38,11 +36,8 @@ async fn balancer_returns_504_when_no_agents_registered() -> Result<()> {
     })
     .await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),

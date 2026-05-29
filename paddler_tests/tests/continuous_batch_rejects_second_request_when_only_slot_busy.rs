@@ -3,19 +3,15 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::cluster_params::ClusterParams;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -52,11 +48,8 @@ async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result
         .context("cluster must have one registered agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut first_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut first_stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 100,
             raw_prompt: "Tell me a long story about an explorer".to_owned(),
@@ -69,27 +62,18 @@ async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result
         .context("first stream must yield at least one message")?;
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 1))
+        .wait_for_slots_processing(&agent_id, 1)
         .await
         .context("first request should occupy the only slot")?;
 
-    let second_outcome = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let second_failed = cluster
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),
         })
-        .await;
-
-    let second_failed = match second_outcome {
-        Err(_) => true,
-        Ok(stream) => {
-            let collected = collect_generated_tokens(stream).await;
-
-            collected.is_err()
-        }
-    };
+        .await
+        .is_err();
 
     assert!(
         second_failed,

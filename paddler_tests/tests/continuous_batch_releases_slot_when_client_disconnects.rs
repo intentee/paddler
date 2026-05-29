@@ -3,12 +3,9 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -21,11 +18,8 @@ async fn continuous_batch_releases_slot_when_client_disconnects() -> Result<()> 
         .context("cluster must have one registered agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 500,
             raw_prompt: "Write a long story about an explorer".to_owned(),
@@ -40,16 +34,14 @@ async fn continuous_batch_releases_slot_when_client_disconnects() -> Result<()> 
     drop(first_message);
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 1))
+        .wait_for_slots_processing(&agent_id, 1)
         .await
         .context("first request should occupy the only slot")?;
 
     drop(stream);
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 0))
+        .wait_for_slots_processing(&agent_id, 0)
         .await
         .context("slot should be released after the HTTP client disconnects")?;
 

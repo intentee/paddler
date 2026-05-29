@@ -2,9 +2,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
-use paddler::embedding_result::EmbeddingResult;
 use paddler::balancer::inference_client::Message as InferenceMessage;
 use paddler::balancer::inference_client::Response as InferenceResponse;
+use paddler::embedding_result::EmbeddingResult;
 
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::embedding_with_producer::EmbeddingWithProducer;

@@ -1,16 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
 use paddler::generated_token_result::GeneratedTokenResult;
 use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const MAX_TOKENS: i32 = 20;
 
@@ -19,11 +16,8 @@ const MAX_TOKENS: i32 = 20;
 async fn qwen3_internal_endpoint_max_tokens_usage_matches_streamed_count() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let stream = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+    let collected = cluster
+        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("Tell me a long story.".to_owned()),
@@ -36,8 +30,6 @@ async fn qwen3_internal_endpoint_max_tokens_usage_matches_streamed_count() -> Re
             tools: vec![],
         })
         .await?;
-
-    let collected = collect_generated_tokens(stream).await?;
 
     let streamed_token_count = collected
         .token_results

@@ -1,18 +1,15 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::cluster_params::ClusterParams;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -44,28 +41,19 @@ async fn two_concurrent_prompts_produce_distinct_outputs() -> Result<()> {
     })
     .await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let stream_a = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 20,
-            raw_prompt: "Count from one to ten in English: one, two,".to_owned(),
-        })
-        .await?;
-
-    let stream_b = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 20,
-            raw_prompt: "The capital of France is".to_owned(),
-        })
-        .await?;
-
+    let params_a = ContinueFromRawPromptParams {
+        grammar: None,
+        max_tokens: 20,
+        raw_prompt: "Count from one to ten in English: one, two,".to_owned(),
+    };
+    let params_b = ContinueFromRawPromptParams {
+        grammar: None,
+        max_tokens: 20,
+        raw_prompt: "The capital of France is".to_owned(),
+    };
     let (collected_a, collected_b) = tokio::join!(
-        collect_generated_tokens(stream_a),
-        collect_generated_tokens(stream_b),
+        cluster.continue_from_raw_prompt(&params_a),
+        cluster.continue_from_raw_prompt(&params_b),
     );
 
     let collected_a = collected_a?;

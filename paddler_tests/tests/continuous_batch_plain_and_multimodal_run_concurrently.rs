@@ -1,12 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
-use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
@@ -15,23 +9,15 @@ use paddler::generated_token_result::GeneratedTokenResult;
 use paddler::image_url::ImageUrl;
 use paddler::request_params::ContinueFromRawPromptParams;
 use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> {
     let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(4)], true).await?;
-
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let plain_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 64,
-            raw_prompt: "Write a long poem about the sea.".to_owned(),
-        })
-        .await?;
 
     let image_data_uri = load_test_image_data_uri()?;
 
@@ -63,21 +49,23 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> 
         },
     ]);
 
-    let multimodal_stream = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: multimodal_conversation,
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 32,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
-        .await?;
-
+    let plain_params = ContinueFromRawPromptParams {
+        grammar: None,
+        max_tokens: 64,
+        raw_prompt: "Write a long poem about the sea.".to_owned(),
+    };
+    let multimodal_params = ContinueFromConversationHistoryParams {
+        add_generation_prompt: true,
+        conversation_history: multimodal_conversation,
+        enable_thinking: false,
+        grammar: None,
+        max_tokens: 32,
+        parse_tool_calls: false,
+        tools: vec![],
+    };
     let (plain_collected, multimodal_collected) = tokio::join!(
-        collect_generated_tokens(plain_stream),
-        collect_generated_tokens(multimodal_stream),
+        cluster.continue_from_raw_prompt(&plain_params),
+        cluster.continue_from_conversation_history(&multimodal_params),
     );
 
     let plain_collected = plain_collected?;

@@ -1,31 +1,11 @@
-pub mod agent_config;
-pub mod agents_status;
-pub mod agents_stream_watcher;
-pub mod balancer_addresses;
-pub mod buffered_requests_status;
-pub mod buffered_requests_stream_watcher;
-pub mod cluster_handle;
-pub mod cluster_handle_params;
-pub mod cluster_params;
-pub mod collect_embedding_results;
-pub mod collect_generated_tokens;
-pub mod collected_embedding_results;
-pub mod collected_generated_tokens;
-pub mod embedding_with_producer;
-pub mod inference_http_client;
-pub mod inference_message_stream;
-pub mod load_test_image_data_uri;
+pub mod in_process_agent;
+pub mod in_process_agent_spawner;
+pub mod in_process_balancer;
 pub mod local_http_fixture;
 pub mod make_agent_controller_without_remote_agent;
-pub mod make_inference_parameters_deterministic;
 pub mod ministral_3_cluster_params;
 pub mod model_card;
-pub mod openai_chat_completions_client;
 pub mod qwen3_embedding_cluster_params;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-pub mod resource_snapshot;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-pub mod resource_snapshot_diff;
 pub mod start_cluster;
 pub mod start_cluster_with_deepseek_r1_distill_llama_8b;
 pub mod start_cluster_with_gemma_4;
@@ -41,6 +21,28 @@ pub mod start_cluster_with_qwen3_6_and_mmproj;
 pub mod start_cluster_with_smolvlm2;
 pub mod start_cluster_with_smolvlm2_and_n_batch;
 pub mod start_embedding_cluster;
-pub mod state_database_file;
-pub mod token_result_with_producer;
-pub mod wait_until_healthy;
+
+pub use paddler_cluster_harness::agent_config;
+pub use paddler_cluster_harness::agent_spawner;
+pub use paddler_cluster_harness::agents_stream_watcher;
+pub use paddler_cluster_harness::balancer_addresses;
+pub use paddler_cluster_harness::buffered_requests_stream_watcher;
+pub use paddler_cluster_harness::cluster;
+pub use paddler_cluster_harness::cluster_params;
+pub use paddler_cluster_harness::collect_embedding_results;
+pub use paddler_cluster_harness::collect_generated_tokens;
+pub use paddler_cluster_harness::collected_embedding_results;
+pub use paddler_cluster_harness::collected_generated_tokens;
+pub use paddler_cluster_harness::embedding_with_producer;
+pub use paddler_cluster_harness::inference_message_stream;
+pub use paddler_cluster_harness::load_test_image_data_uri;
+pub use paddler_cluster_harness::make_inference_parameters_deterministic;
+pub use paddler_cluster_harness::managed_process;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub use paddler_cluster_harness::resource_snapshot;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+pub use paddler_cluster_harness::resource_snapshot_diff;
+pub use paddler_cluster_harness::running_agent;
+pub use paddler_cluster_harness::running_balancer;
+pub use paddler_cluster_harness::state_database_file;
+pub use paddler_cluster_harness::token_result_with_producer;

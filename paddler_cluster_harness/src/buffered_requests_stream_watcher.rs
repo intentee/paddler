@@ -5,8 +5,8 @@ use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::Stream;
 use futures_util::StreamExt as _;
-use paddler_client::ClientManagement;
 use paddler::balancer::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_client::ClientManagement;
 
 pub struct BufferedRequestsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>,

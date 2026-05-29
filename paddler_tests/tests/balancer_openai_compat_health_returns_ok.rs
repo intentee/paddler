@@ -1,8 +1,7 @@
-
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::start_cluster::start_cluster;
 use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_openai_compat_health_returns_ok() -> Result<()> {
@@ -13,7 +12,11 @@ async fn balancer_openai_compat_health_returns_ok() -> Result<()> {
     })
     .await?;
 
-    let openai_health_url = cluster.addresses.compat_openai_base_url()?.join("health")?;
+    let openai_health_url = cluster
+        .balancer
+        .addresses
+        .compat_openai_base_url()?
+        .join("health")?;
 
     let response = reqwest::get(openai_health_url)
         .await

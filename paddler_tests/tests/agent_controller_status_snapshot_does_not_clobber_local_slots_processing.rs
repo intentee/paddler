@@ -1,5 +1,5 @@
-use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 use paddler::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 
 #[test]
 fn agent_controller_status_snapshot_does_not_clobber_local_slots_processing() {

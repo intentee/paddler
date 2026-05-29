@@ -2,13 +2,13 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::cluster_params::ClusterParams;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::agent_issue::AgentIssue;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -39,7 +39,7 @@ async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() -> Result<()
     let expected_path = invalid_gguf_path.to_owned();
 
     cluster
-        .agents
+        .agents_watcher
         .until(move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == watch_agent_id

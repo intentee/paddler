@@ -2,8 +2,6 @@
 
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
@@ -14,7 +12,6 @@ use paddler::request_params::continue_from_conversation_history_params::tool::to
 use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use reqwest::Client;
 use serde_json::Map;
 use serde_json::Value;
 
@@ -23,9 +20,6 @@ use serde_json::Value;
 async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
     let mut location_properties = Map::new();
 
     location_properties.insert(
@@ -33,8 +27,8 @@ async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
         serde_json::json!({"type": "string", "description": "The city name"}),
     );
 
-    let stream = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+    let collected = cluster
+        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("Say hello".to_owned()),
@@ -58,8 +52,6 @@ async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
             })],
         })
         .await?;
-
-    let collected = collect_generated_tokens(stream).await?;
 
     assert!(
         !collected.token_results.is_empty(),

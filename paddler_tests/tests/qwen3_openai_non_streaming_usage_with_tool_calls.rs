@@ -2,9 +2,7 @@
 
 use anyhow::Result;
 use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::openai_chat_completions_client::OpenAIChatCompletionsClient;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use reqwest::Client;
 use serde_json::Value;
 use serde_json::json;
 
@@ -12,13 +10,9 @@ use serde_json::json;
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_openai_non_streaming_usage_with_tool_calls() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
-    let openai_client = OpenAIChatCompletionsClient::new(
-        Client::new(),
-        &cluster.addresses.compat_openai_base_url()?,
-    )?;
 
-    let response = openai_client
-        .post_non_streaming(&json!({
+    let response = cluster
+        .openai_chat_completion_non_streaming(&json!({
             "model": "qwen3-test",
             "messages": [{
                 "role": "user",

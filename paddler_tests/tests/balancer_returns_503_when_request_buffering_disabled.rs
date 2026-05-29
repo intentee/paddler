@@ -9,9 +9,7 @@ use paddler::balancer::inference_client::Message;
 use paddler::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::cluster_params::ClusterParams;
-use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::start_cluster::start_cluster;
-use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -28,13 +26,10 @@ async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
     cluster.spawn_additional_agent(&AgentConfig {
         name: "buffer-disabled-agent".to_owned(),
         slot_count: 2,
-    });
+    })?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),

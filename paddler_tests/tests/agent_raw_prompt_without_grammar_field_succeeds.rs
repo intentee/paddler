@@ -12,6 +12,7 @@ async fn agent_raw_prompt_without_grammar_field_succeeds() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let inference_url = cluster
+        .balancer
         .addresses
         .inference_base_url()?
         .join("api/v1/continue_from_raw_prompt")?;

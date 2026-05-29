@@ -2,13 +2,13 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::smolvlm2_256m::smolvlm2_256m;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::cluster_params::ClusterParams;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::smolvlm2_256m::smolvlm2_256m;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]

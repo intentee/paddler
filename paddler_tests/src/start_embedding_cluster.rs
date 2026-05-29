@@ -3,7 +3,7 @@ use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
 
-use crate::cluster_handle::ClusterHandle;
+use crate::cluster::Cluster;
 use crate::cluster_params::ClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen3_embedding_0_6b::qwen3_embedding_0_6b;
@@ -17,7 +17,7 @@ pub async fn start_embedding_cluster(
         inference_parameters,
         max_buffered_requests,
     }: Qwen3EmbeddingClusterParams,
-) -> Result<ClusterHandle> {
+) -> Result<Cluster> {
     let ModelCard {
         gpu_layer_count,
         reference,

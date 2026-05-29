@@ -1,17 +1,14 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 use paddler::conversation_history::ConversationHistory;
 use paddler::conversation_message::ConversationMessage;
 use paddler::conversation_message_content::ConversationMessageContent;
 use paddler::generated_token_result::GeneratedTokenResult;
 use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 
 fn user_message(text: &str) -> ConversationMessage {
     ConversationMessage {
@@ -25,36 +22,27 @@ fn user_message(text: &str) -> ConversationMessage {
 async fn continuous_batch_concurrent_conversation_history_requests_complete() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let stream_a = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![user_message("What is 2+2?")]),
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 20,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
-        .await?;
-
-    let stream_b = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![user_message("Name a color")]),
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 20,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
-        .await?;
-
+    let params_a = ContinueFromConversationHistoryParams {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![user_message("What is 2+2?")]),
+        enable_thinking: false,
+        grammar: None,
+        max_tokens: 20,
+        parse_tool_calls: false,
+        tools: vec![],
+    };
+    let params_b = ContinueFromConversationHistoryParams {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![user_message("Name a color")]),
+        enable_thinking: false,
+        grammar: None,
+        max_tokens: 20,
+        parse_tool_calls: false,
+        tools: vec![],
+    };
     let (results_a, results_b) = tokio::join!(
-        collect_generated_tokens(stream_a),
-        collect_generated_tokens(stream_b),
+        cluster.continue_from_conversation_history(&params_a),
+        cluster.continue_from_conversation_history(&params_b),
     );
 
     let collected_a = results_a?;

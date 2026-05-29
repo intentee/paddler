@@ -2,21 +2,20 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::local_http_fixture::LocalHttpFixture;
-use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::cluster_params::ClusterParams;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::agent_issue::AgentIssue;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
 use paddler::url_model_reference::UrlModelReference;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::local_http_fixture::LocalHttpFixture;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_download_server_errored() -> Result<()> {
-    let fixture =
-        LocalHttpFixture::start("HTTP/1.1 500 Internal Server Error", Vec::new()).await?;
+    let fixture = LocalHttpFixture::start("HTTP/1.1 500 Internal Server Error", Vec::new()).await?;
     let model_url = fixture.url("/broken.gguf");
 
     let mut cluster = start_cluster(ClusterParams {
@@ -42,7 +41,7 @@ async fn balancer_reports_download_server_errored() -> Result<()> {
         .clone();
 
     let snapshot = cluster
-        .agents
+        .agents_watcher
         .until(move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == agent_id

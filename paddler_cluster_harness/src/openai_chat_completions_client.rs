@@ -5,6 +5,7 @@ use reqwest::Client;
 use serde_json::Value;
 use url::Url;
 
+#[derive(Clone)]
 pub struct OpenAIChatCompletionsClient {
     http_client: Client,
     completions_url: Url,

@@ -12,11 +12,9 @@ use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::cluster_params::ClusterParams;
-use paddler_tests::inference_http_client::InferenceHttpClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
-use reqwest::Client;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -45,11 +43,8 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
     })
     .await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut early_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut early_stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),
@@ -73,18 +68,18 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
     cluster.spawn_additional_agent(&AgentConfig {
         name: "capacity-agent".to_owned(),
         slot_count: 4,
-    });
+    })?;
 
     cluster
-        .agents
+        .agents_watcher
         .until(|snapshot| {
             snapshot.agents.len() == 1 && snapshot.agents.iter().any(|agent| agent.slots_total >= 4)
         })
         .await
         .context("agent should register with 4 slots")?;
 
-    let mut later_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut later_stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),

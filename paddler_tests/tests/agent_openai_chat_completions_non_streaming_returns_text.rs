@@ -12,6 +12,7 @@ async fn agent_openai_chat_completions_non_streaming_returns_text() -> Result<()
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let openai_url = cluster
+        .balancer
         .addresses
         .compat_openai_base_url()?
         .join("v1/chat/completions")?;

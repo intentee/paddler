@@ -2,19 +2,16 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::cluster_params::ClusterParams;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 use paddler::agent_desired_model::AgentDesiredModel;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::inference_parameters::InferenceParameters;
 use paddler::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::agent_config::AgentConfig;
+use paddler_tests::cluster_params::ClusterParams;
+use paddler_tests::collect_generated_tokens::collect_generated_tokens;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -52,11 +49,8 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
         .context("cluster must have registered one agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let token_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let token_stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 8,
             raw_prompt: "Count to three".to_owned(),
@@ -64,16 +58,14 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
         .await?;
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 1))
+        .wait_for_slots_processing(&agent_id, 1)
         .await
         .context("agents_stream must emit a snapshot showing slot usage")?;
 
     collect_generated_tokens(token_stream).await?;
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 0))
+        .wait_for_slots_processing(&agent_id, 0)
         .await
         .context("agents_stream must emit a snapshot showing the slot was released")?;
 

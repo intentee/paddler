@@ -1,0 +1,42 @@
+[package]
+name = "paddler_cli_tests"
+authors.workspace = true
+description = "Subprocess-isolated multi-agent integration tests for Paddler"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[[bin]]
+name = "paddler_cluster_node"
+path = "src/bin/paddler_cluster_node.rs"
+
+[features]
+default = []
+cuda = ["paddler_cli/cuda"]
+metal = ["paddler_cli/metal"]
+tests_that_use_llms = []
+web_admin_panel = ["paddler_cli/web_admin_panel"]
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+log = { workspace = true }
+nix = { workspace = true }
+paddler = { workspace = true }
+paddler_cli = { workspace = true }
+paddler_client = { workspace = true }
+paddler_cluster_harness = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+base64 = { workspace = true }
+futures-util = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+serial_test = { workspace = true }
+url = { workspace = true }
+
+[lints]
+workspace = true
