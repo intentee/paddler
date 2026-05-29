@@ -1,8 +1,8 @@
 use std::sync::RwLock;
 
+use crate::balancer_desired_state::BalancerDesiredState;
 use anyhow::Result;
 use async_trait::async_trait;
-use crate::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 
 use super::StateDatabase;

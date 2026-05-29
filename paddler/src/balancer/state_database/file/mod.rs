@@ -2,11 +2,11 @@ mod schema;
 
 use std::path::PathBuf;
 
+use crate::balancer_desired_state::BalancerDesiredState;
 use anyhow::Context;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::warn;
-use crate::balancer_desired_state::BalancerDesiredState;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;

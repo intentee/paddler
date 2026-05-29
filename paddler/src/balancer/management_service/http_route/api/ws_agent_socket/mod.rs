@@ -7,6 +7,8 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU64;
 
+use crate::jsonrpc::ResponseEnvelope;
+use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use actix_web::Error;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
@@ -22,8 +24,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
 use log::info;
-use crate::jsonrpc::ResponseEnvelope;
-use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;

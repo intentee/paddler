@@ -26,6 +26,7 @@ use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
+use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::produces_snapshot::ProducesSnapshot;
 #[cfg(feature = "web_admin_panel")]
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
@@ -35,7 +36,6 @@ use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
-use paddler::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 

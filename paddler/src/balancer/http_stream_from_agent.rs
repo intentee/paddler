@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use crate::balancer::inference_client::Response as OutgoingResponse;
+use crate::streamable_result::StreamableResult;
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::http::header;
 use bytes::Bytes;
 use futures::stream::StreamExt;
-use crate::balancer::inference_client::Response as OutgoingResponse;
-use crate::streamable_result::StreamableResult;
 
 use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
 use crate::balancer::agent_controller::AgentController;

@@ -1,5 +1,5 @@
-use llama_cpp_bindings::SampledToken;
 use crate::generated_token_result::GeneratedTokenResult;
+use llama_cpp_bindings::SampledToken;
 use tokio::sync::mpsc;
 
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
@@ -42,11 +42,11 @@ const fn token_to_event(sampled_token: SampledToken, piece: String) -> Generated
 
 #[cfg(test)]
 mod tests {
+    use crate::generated_token_result::GeneratedTokenResult;
     use anyhow::Result;
     use anyhow::bail;
     use llama_cpp_bindings::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
-    use crate::generated_token_result::GeneratedTokenResult;
     use tokio::sync::mpsc;
 
     use super::emit_classified;

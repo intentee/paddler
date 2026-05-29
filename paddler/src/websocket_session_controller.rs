@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
+use crate::rpc_message::RpcMessage;
 use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
-use crate::rpc_message::RpcMessage;
 
 use crate::controls_session::ControlsSession;
 

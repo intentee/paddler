@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use crate::agent_desired_state::AgentDesiredState;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
-use crate::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;

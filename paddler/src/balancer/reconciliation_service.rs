@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use crate::balancer_desired_state::BalancerDesiredState;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
-use crate::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
@@ -27,8 +27,7 @@ async fn convert_to_applicable_state(
     agent_controller_pool
         .set_desired_state(balancer_applicable_state.agent_desired_state.clone())
         .await?;
-    balancer_applicable_state_holder
-        .set_balancer_applicable_state(Some(balancer_applicable_state));
+    balancer_applicable_state_holder.set_balancer_applicable_state(Some(balancer_applicable_state));
 
     *is_converted_to_applicable_state = true;
 

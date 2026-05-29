@@ -1,6 +1,6 @@
+use crate::generated_token_result::GeneratedTokenResult;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use crate::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
 use crate::balancer::manages_senders::ManagesSenders;

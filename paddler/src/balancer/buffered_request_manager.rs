@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 use crate::balancer::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use anyhow::Result;
 use tokio::sync::watch;
 use tokio::time::timeout;
 

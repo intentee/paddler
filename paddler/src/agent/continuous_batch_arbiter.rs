@@ -5,6 +5,13 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::available_parallelism;
 
+use crate::agent_issue::AgentIssue;
+use crate::agent_issue_params::ChatTemplateDoesNotCompileParams;
+use crate::agent_issue_params::ModelPath;
+use crate::agent_issue_params::SlotCannotStartParams;
+use crate::chat_template::ChatTemplate;
+use crate::inference_parameters::InferenceParameters;
+use crate::model_metadata::ModelMetadata;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -21,13 +28,6 @@ use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::error;
 use log::info;
 use log::warn;
-use crate::agent_issue::AgentIssue;
-use crate::agent_issue_params::ChatTemplateDoesNotCompileParams;
-use crate::agent_issue_params::ModelPath;
-use crate::agent_issue_params::SlotCannotStartParams;
-use crate::chat_template::ChatTemplate;
-use crate::inference_parameters::InferenceParameters;
-use crate::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
 
 use crate::agent::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;

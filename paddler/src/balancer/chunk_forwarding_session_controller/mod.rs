@@ -2,8 +2,8 @@ pub mod identity_transformer;
 pub mod transform_result;
 pub mod transforms_outgoing_message;
 
-use async_trait::async_trait;
 use crate::balancer::inference_client::Message as OutgoingMessage;
+use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 use self::transform_result::TransformResult;

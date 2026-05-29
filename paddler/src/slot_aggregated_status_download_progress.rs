@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use hf_hub::api::tokio::Progress;
 use crate::agent_issue_params::ModelPath;
+use hf_hub::api::tokio::Progress;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
@@ -26,8 +26,11 @@ impl Progress for SlotAggregatedStatusDownloadProgress {
                 model_path: filename.to_owned(),
             }));
 
-        self.slot_aggregated_status
-            .set_download_status(0, Some(size as u64), Some(filename.to_owned()));
+        self.slot_aggregated_status.set_download_status(
+            0,
+            Some(size as u64),
+            Some(filename.to_owned()),
+        );
     }
 
     async fn update(&mut self, size: usize) {
@@ -44,11 +47,11 @@ impl Progress for SlotAggregatedStatusDownloadProgress {
 mod tests {
     use std::sync::Arc;
 
-    use anyhow::Result;
-    use hf_hub::api::tokio::Progress;
     use crate::agent_issue::AgentIssue;
     use crate::agent_issue_params::HuggingFaceDownloadLock;
     use crate::agent_issue_params::ModelPath;
+    use anyhow::Result;
+    use hf_hub::api::tokio::Progress;
 
     use crate::produces_snapshot::ProducesSnapshot;
     use crate::slot_aggregated_status::SlotAggregatedStatus;

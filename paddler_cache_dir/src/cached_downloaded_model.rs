@@ -227,11 +227,7 @@ mod tests {
 
         let result = cached.try_acquire_download_lock();
 
-        assert!(
-            result
-                .unwrap_err()
-                .is_another_process_downloading()
-        );
+        assert!(result.unwrap_err().is_another_process_downloading());
     }
 
     #[test]

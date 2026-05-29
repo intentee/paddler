@@ -1,8 +1,8 @@
+use crate::grammar_constraint::GrammarConstraint;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use crate::grammar_constraint::GrammarConstraint;
 
 use crate::agent::resolve_grammar_to_gbnf::resolve_grammar_to_gbnf;
 

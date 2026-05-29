@@ -1,12 +1,12 @@
 use std::io::Cursor;
 
+use crate::image_url::ImageUrl;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use image::DynamicImage;
 use image::ImageFormat;
 use image::imageops::FilterType;
 use log::info;
-use crate::image_url::ImageUrl;
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::Options;
 use resvg::usvg::Tree as SvgTree;
@@ -190,6 +190,7 @@ impl DecodedImage {
 
         if needs_resize {
             let resized = image.resize(max_dimension, max_dimension, FilterType::Lanczos3);
+
             return Ok(Self {
                 data: encode_jpeg(&resized)?,
             });
@@ -208,11 +209,11 @@ impl DecodedImage {
 mod tests {
     use std::io::Cursor;
 
+    use crate::image_url::ImageUrl;
     use anyhow::Result;
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use image::ImageFormat;
-    use crate::image_url::ImageUrl;
 
     use crate::decoded_image::DecodedImage;
     use crate::decoded_image_error::DecodedImageError;

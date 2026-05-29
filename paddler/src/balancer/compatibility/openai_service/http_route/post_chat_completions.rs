@@ -737,16 +737,16 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
+    use crate::balancer::inference_client::Message as OutgoingMessage;
+    use crate::balancer::inference_client::Response as OutgoingResponse;
+    use crate::generated_token_result::GeneratedTokenResult;
+    use crate::generation_summary::GenerationSummary;
+    use crate::jsonrpc::ErrorEnvelope;
+    use crate::jsonrpc::ResponseEnvelope;
     use anyhow::Result;
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::TokenUsage;
     use llama_cpp_bindings::ToolCallArguments;
-    use crate::generated_token_result::GeneratedTokenResult;
-    use crate::generation_summary::GenerationSummary;
-    use crate::balancer::inference_client::Message as OutgoingMessage;
-    use crate::balancer::inference_client::Response as OutgoingResponse;
-    use crate::jsonrpc::ErrorEnvelope;
-    use crate::jsonrpc::ResponseEnvelope;
 
     use super::OpenAINonStreamingResponseTransformer;
     use super::OpenAINonStreamingState;

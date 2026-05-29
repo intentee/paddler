@@ -6,15 +6,15 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use url::Url;
 
+use crate::agent_issue::AgentIssue;
+use crate::agent_issue_params::ModelPath;
+use crate::url_model_reference::UrlModelReference;
 use paddler_cache_dir::CacheDir;
 use paddler_cache_dir::CachedDownloadedModel;
 use paddler_cache_dir::DownloadLockAcquisitionError;
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_download_manager::progress_sink::ProgressSink;
-use crate::agent_issue::AgentIssue;
-use crate::agent_issue_params::ModelPath;
-use crate::url_model_reference::UrlModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
@@ -124,8 +124,9 @@ async fn resolve_url_into_cache(
                 model_path: url_string.to_owned(),
             }));
 
-            return Err(anyhow::Error::new(parse_error)
-                .context(format!("Invalid URL '{url_string}'")));
+            return Err(
+                anyhow::Error::new(parse_error).context(format!("Invalid URL '{url_string}'"))
+            );
         }
     };
 
@@ -232,13 +233,13 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
+    use crate::agent_issue::AgentIssue;
     use anyhow::Context as _;
     use anyhow::Result;
     use anyhow::anyhow;
     use paddler_cache_dir::CacheDir;
     use paddler_cache_dir::CachedDownloadedModel;
     use paddler_download_manager::download_error::DownloadError;
-    use crate::agent_issue::AgentIssue;
     use reqwest::StatusCode;
     use tempfile::TempDir;
     use url::Url;
@@ -283,8 +284,7 @@ mod tests {
         cached.ensure_cache_subdir_exists().await?;
         tokio::fs::write(&cached.cache_file_path, b"cached content").await?;
 
-        let resolution =
-            resolve_url_into_cache(url_string, &cache_dir, fresh_status()).await?;
+        let resolution = resolve_url_into_cache(url_string, &cache_dir, fresh_status()).await?;
 
         match resolution {
             DesiredModelResolution::Resolved(path) => {
@@ -568,10 +568,9 @@ mod tests {
         let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
 
         assert!(result.is_err(), "blocked cache subdir must produce an Err");
-        assert!(status.has_issue_like(|issue| matches!(
-            issue,
-            AgentIssue::ModelCacheIsCorrupted(_)
-        )));
+        assert!(
+            status.has_issue_like(|issue| matches!(issue, AgentIssue::ModelCacheIsCorrupted(_)))
+        );
 
         Ok(())
     }

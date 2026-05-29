@@ -138,14 +138,13 @@ impl BalancerServiceBundle {
             is_converted_to_applicable_state: false,
         };
 
-        let openai_service = openai_service_configuration.map(|openai_service_configuration| {
-            OpenAIService {
+        let openai_service =
+            openai_service_configuration.map(|openai_service_configuration| OpenAIService {
                 buffered_request_manager: buffered_request_manager.clone(),
                 inference_service_configuration,
                 openai_service_configuration,
                 shutdown_options: shutdown_options.clone(),
-            }
-        });
+            });
 
         let statsd_service = statsd_service_configuration.map(|configuration| StatsdService {
             agent_controller_pool: agent_controller_pool.clone(),

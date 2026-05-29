@@ -1,11 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
 use paddler::balancer::agent_controller_pool::AgentControllerPool;
+use paddler::balancer::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler::balancer_applicable_state::BalancerApplicableState;
 use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler::produces_snapshot::ProducesSnapshot as _;
-use paddler::balancer::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler::produces_snapshot::ProducesSnapshot as _;
 
 #[derive(Clone, Debug, Default)]
 pub struct RunningBalancerSnapshot {
@@ -53,6 +53,9 @@ mod tests {
     use std::sync::atomic::AtomicU64;
 
     use anyhow::Result;
+    use paddler::agent_desired_model::AgentDesiredModel;
+    use paddler::agent_desired_state::AgentDesiredState;
+    use paddler::agent_state_application_status::AgentStateApplicationStatus;
     use paddler::atomic_value::AtomicValue;
     use paddler::balancer::agent_controller::AgentController;
     use paddler::balancer::agent_controller_pool::AgentControllerPool;
@@ -62,9 +65,6 @@ mod tests {
     use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
     use paddler::balancer_applicable_state::BalancerApplicableState;
     use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use paddler::agent_desired_model::AgentDesiredModel;
-    use paddler::agent_desired_state::AgentDesiredState;
-    use paddler::agent_state_application_status::AgentStateApplicationStatus;
     use paddler::inference_parameters::InferenceParameters;
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;

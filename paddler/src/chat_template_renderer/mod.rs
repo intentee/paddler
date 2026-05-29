@@ -1,10 +1,10 @@
 pub mod pyjinja_tojson;
 pub mod raise_exception;
 
+use crate::chat_template::ChatTemplate;
 use anyhow::Result;
 use minijinja::Environment;
 use minijinja_contrib::pycompat::unknown_method_callback;
-use crate::chat_template::ChatTemplate;
 use serde::ser::Serialize;
 
 use self::pyjinja_tojson::pyjinja_tojson;
@@ -42,11 +42,11 @@ impl ChatTemplateRenderer {
 mod tests {
     use std::collections::HashMap;
 
-    use anyhow::Result;
-    use minijinja::context;
     use crate::chat_template::ChatTemplate;
     use crate::chat_template_message::ChatTemplateMessage;
     use crate::chat_template_message_content::ChatTemplateMessageContent;
+    use anyhow::Result;
+    use minijinja::context;
 
     use crate::chat_template_renderer::ChatTemplateRenderer;
 

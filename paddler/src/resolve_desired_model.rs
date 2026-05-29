@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use anyhow::Result;
 use crate::agent_desired_model::AgentDesiredModel;
+use anyhow::Result;
 
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::model_source::local::LocalModelPath;
@@ -31,8 +31,8 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use anyhow::Result;
     use crate::agent_desired_model::AgentDesiredModel;
+    use anyhow::Result;
     use tempfile::NamedTempFile;
     use tempfile::TempDir;
 

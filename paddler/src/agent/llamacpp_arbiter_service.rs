@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
+use crate::agent_state_application_status::AgentStateApplicationStatus;
 use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
 use log::info;
 use log::warn;
-use crate::agent_state_application_status::AgentStateApplicationStatus;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
@@ -59,9 +59,7 @@ async fn apply_state(
                 info!("Reconciled state change applied successfully");
             }
             ContinuousBatchArbiterBuildOutcome::NoModelConfigured => {
-                warn!(
-                    "No model configured in applicable state; skipping llama.cpp initialization"
-                );
+                warn!("No model configured in applicable state; skipping llama.cpp initialization");
             }
         }
     }
@@ -284,8 +282,7 @@ mod tests {
         let shutdown = CancellationToken::new();
         let task_token = shutdown.clone();
 
-        let mut join_handle =
-            tokio::spawn(async move { Box::new(service).run(task_token).await });
+        let mut join_handle = tokio::spawn(async move { Box::new(service).run(task_token).await });
 
         drop(continue_from_conversation_history_request_tx);
         drop(continue_from_raw_prompt_request_tx);

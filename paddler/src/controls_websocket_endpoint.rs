@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::rpc_message::RpcMessage;
 use actix_web::Error;
 use actix_web::HttpRequest;
 use actix_web::HttpResponse;
@@ -17,7 +18,6 @@ use futures_util::StreamExt as _;
 use log::debug;
 use log::error;
 use log::warn;
-use crate::rpc_message::RpcMessage;
 use serde::de::DeserializeOwned;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;

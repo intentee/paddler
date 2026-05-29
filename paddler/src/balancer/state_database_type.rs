@@ -3,11 +3,11 @@ use std::path::PathBuf;
 use std::path::absolute;
 use std::str::FromStr;
 
+use crate::balancer_desired_state::BalancerDesiredState;
 use anyhow::Error;
 use anyhow::Result;
 use anyhow::anyhow;
 use indoc::formatdoc;
-use crate::balancer_desired_state::BalancerDesiredState;
 use url::Url;
 
 #[derive(Clone)]

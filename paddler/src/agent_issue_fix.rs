@@ -86,9 +86,7 @@ impl AgentIssueFix {
             | AgentIssue::ModelCacheIsCorrupted(issue_model_path)
             | AgentIssue::ModelDoesNotExistAtUrl(issue_model_path) => match self {
                 Self::ModelDownloadCompleted(fix_model_path)
-                | Self::ModelDownloadStarted(fix_model_path) => {
-                    issue_model_path.eq(fix_model_path)
-                }
+                | Self::ModelDownloadStarted(fix_model_path) => issue_model_path.eq(fix_model_path),
                 Self::ModelStateIsReconciled => true,
                 _ => false,
             },
@@ -204,7 +202,8 @@ mod tests {
     #[test]
     fn model_download_started_fixes_download_server_denied_access() {
         let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::DownloadServerDeniedAccess(model_path("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::DownloadServerDeniedAccess(model_path("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
@@ -262,8 +261,7 @@ mod tests {
     #[test]
     fn model_download_started_fixes_download_interrupted() {
         let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue =
-            AgentIssue::DownloadInterrupted(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadInterrupted(model_path("https://example.com/m.gguf"));
 
         assert!(fix.can_fix(&issue));
     }
@@ -303,7 +301,8 @@ mod tests {
     #[test]
     fn model_download_started_does_not_fix_huggingface_issues() {
         let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
-        let issue = AgentIssue::HuggingFaceModelDoesNotExist(model_path("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::HuggingFaceModelDoesNotExist(model_path("https://example.com/m.gguf"));
 
         assert!(!fix.can_fix(&issue));
     }

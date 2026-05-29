@@ -3,11 +3,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU64;
 
-use anyhow::Result;
-use dashmap::DashSet;
 use crate::agent_issue::AgentIssue;
 use crate::agent_state_application_status::AgentStateApplicationStatus;
 use crate::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use anyhow::Result;
+use dashmap::DashSet;
 use tokio::sync::watch;
 
 use crate::agent_issue_fix::AgentIssueFix;
@@ -125,12 +125,7 @@ impl SlotAggregatedStatus {
         self.update_tx.send_replace(());
     }
 
-    pub fn set_download_status(
-        &self,
-        current: u64,
-        total: Option<u64>,
-        filename: Option<String>,
-    ) {
+    pub fn set_download_status(&self, current: u64, total: Option<u64>, filename: Option<String>) {
         self.download_current.set(current);
         if let Some(value) = total {
             self.download_total.set(value);
@@ -243,9 +238,9 @@ impl ProducesSnapshot for SlotAggregatedStatus {
 mod tests {
     use std::time::Duration;
 
-    use anyhow::Result;
     use crate::agent_issue_params::ModelPath;
     use crate::agent_issue_params::SlotCannotStartParams;
+    use anyhow::Result;
     use tokio::time::timeout;
 
     use super::*;

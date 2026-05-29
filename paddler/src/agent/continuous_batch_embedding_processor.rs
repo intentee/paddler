@@ -1,5 +1,10 @@
 use std::sync::Arc;
 
+use crate::embedding::Embedding;
+use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
+use crate::embedding_result::EmbeddingResult;
+use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
+use crate::request_params::GenerateEmbeddingBatchParams;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -7,11 +12,6 @@ use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
 use log::warn;
-use crate::embedding::Embedding;
-use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
-use crate::embedding_result::EmbeddingResult;
-use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
-use crate::request_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;

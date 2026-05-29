@@ -1,6 +1,6 @@
+use crate::agent_desired_state::AgentDesiredState;
 use anyhow::Result;
 use async_trait::async_trait;
-use crate::agent_desired_state::AgentDesiredState;
 
 #[async_trait]
 pub trait SetsDesiredState {

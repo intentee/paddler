@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use crate::generated_token_result::GeneratedTokenResult;
+use crate::raw_tool_call_tokens::RawToolCallTokens;
 use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::RawChatMessage;
 use llama_cpp_bindings::model::LlamaModel;
-use crate::generated_token_result::GeneratedTokenResult;
-use crate::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::tool_call_buffer::ToolCallBuffer;
 use crate::tool_call_event::ToolCallEvent;

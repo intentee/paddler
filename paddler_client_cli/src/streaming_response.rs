@@ -1,8 +1,8 @@
 use llama_cpp_bindings_types::ParsedToolCall;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::generation_summary::GenerationSummary;
 use paddler::balancer::inference_client::Message;
 use paddler::balancer::inference_client::Response;
+use paddler::generated_token_result::GeneratedTokenResult;
+use paddler::generation_summary::GenerationSummary;
 use paddler::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::stop_reason::StopReason;

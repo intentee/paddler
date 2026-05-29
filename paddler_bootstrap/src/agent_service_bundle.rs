@@ -11,9 +11,9 @@ use paddler::agent::management_socket_client_service::ManagementSocketClientServ
 use paddler::agent::model_metadata_holder::ModelMetadataHolder;
 use paddler::agent::reconciliation_service::ReconciliationService;
 use paddler::agent_applicable_state_holder::AgentApplicableStateHolder;
+use paddler::agent_desired_state::AgentDesiredState;
 use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
-use paddler::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
 use trzcina::Service;
 use trzcina::ServiceBundle;
@@ -42,7 +42,9 @@ impl AgentServiceBundle {
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
         let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
         let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(slots));
-        let slot_aggregated_status = slot_aggregated_status_manager.slot_aggregated_status.clone();
+        let slot_aggregated_status = slot_aggregated_status_manager
+            .slot_aggregated_status
+            .clone();
 
         let llamacpp_arbiter_service = LlamaCppArbiterService {
             agent_applicable_state: None,

@@ -66,9 +66,9 @@ impl SubscribesToUpdates for BalancerApplicableStateHolder {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
     use crate::agent_desired_model::AgentDesiredModel;
     use crate::inference_parameters::InferenceParameters;
+    use anyhow::Result;
     use tokio::time::Duration;
     use tokio::time::timeout;
 

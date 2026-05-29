@@ -1,3 +1,5 @@
+use crate::balancer_desired_state::BalancerDesiredState;
+use crate::validates::Validates;
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
@@ -5,8 +7,6 @@ use actix_web::error::ErrorBadRequest;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::put;
 use actix_web::web;
-use crate::balancer_desired_state::BalancerDesiredState;
-use crate::validates::Validates;
 
 use crate::balancer::management_service::app_data::AppData;
 

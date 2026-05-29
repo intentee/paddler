@@ -1,5 +1,5 @@
-use llama_cpp_bindings::SampledToken;
 use crate::generated_token_result::GeneratedTokenResult;
+use llama_cpp_bindings::SampledToken;
 
 pub enum AdvanceOutcome {
     SampledAndStored(SampledToken),

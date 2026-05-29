@@ -1,16 +1,16 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use anyhow::Result;
-use log::debug;
-use log::error;
-use log::warn;
 use crate::balancer::inference_client::Message as OutgoingMessage;
 use crate::balancer::inference_client::Response as OutgoingResponse;
 use crate::jsonrpc::Error as JsonRpcError;
 use crate::jsonrpc::ErrorEnvelope;
 use crate::jsonrpc::ResponseEnvelope;
 use crate::streamable_result::StreamableResult;
+use anyhow::Result;
+use log::debug;
+use log::error;
+use log::warn;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 

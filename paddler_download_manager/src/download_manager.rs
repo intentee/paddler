@@ -135,7 +135,9 @@ impl DownloadManager {
         let response = match request.send().await {
             Ok(response) => response,
             Err(send_error) => {
-                return Err(DownloadAttemptError::Unreachable(anyhow::Error::new(send_error)));
+                return Err(DownloadAttemptError::Unreachable(anyhow::Error::new(
+                    send_error,
+                )));
             }
         };
 
@@ -165,7 +167,10 @@ impl DownloadManager {
             | ResponseClassification::StreamFromStart => {}
         }
 
-        if matches!(classification, ResponseClassification::StreamFromCurrentOffset) {
+        if matches!(
+            classification,
+            ResponseClassification::StreamFromCurrentOffset
+        ) {
             let server_start = response
                 .headers()
                 .typed_get::<ContentRange>()
@@ -206,5 +211,3 @@ impl DownloadManager {
         Ok(())
     }
 }
-
-

@@ -1,9 +1,9 @@
 mod file;
 mod memory;
 
+use crate::balancer_desired_state::BalancerDesiredState;
 use anyhow::Result;
 use async_trait::async_trait;
-use crate::balancer_desired_state::BalancerDesiredState;
 
 pub use self::file::File;
 pub use self::memory::Memory;
@@ -17,10 +17,10 @@ pub trait StateDatabase: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
     use crate::agent_desired_model::AgentDesiredModel;
     use crate::chat_template::ChatTemplate;
     use crate::inference_parameters::InferenceParameters;
+    use anyhow::Result;
     use tempfile::NamedTempFile;
     use tokio::sync::broadcast;
 

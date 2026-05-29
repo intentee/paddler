@@ -1,9 +1,9 @@
+use crate::generated_token_result::GeneratedTokenResult;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use log::warn;
-use crate::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 
