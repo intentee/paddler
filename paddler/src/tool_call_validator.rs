@@ -100,8 +100,6 @@ impl ToolCallValidator {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use anyhow::bail;
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::ToolCallArguments;
     use crate::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -114,6 +112,7 @@ mod tests {
     use serde_json::json;
 
     use super::ToolCallValidator;
+    use super::ValidatorBuildError;
     use crate::tool_call_validation_error::ToolCallValidationError;
 
     fn valid_json_arguments(value: Value) -> ToolCallArguments {
@@ -152,126 +151,119 @@ mod tests {
     }
 
     #[test]
-    fn schema_validator_accepts_matching_arguments() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()])?;
+    fn schema_validator_accepts_matching_arguments() {
+        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "get_weather".to_owned(),
             valid_json_arguments(json!({"location": "Paris"})),
         );
 
-        validator.validate(&parsed)?;
-
-        Ok(())
+        assert!(validator.validate(&parsed).is_ok());
     }
 
     #[test]
-    fn schema_validator_rejects_missing_required_field() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()])?;
+    fn schema_validator_rejects_missing_required_field() {
+        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "get_weather".to_owned(),
             valid_json_arguments(json!({})),
         );
 
-        match validator.validate(&parsed) {
-            Err(ToolCallValidationError::SchemaMismatch { tool_name, .. }) => {
-                assert_eq!(tool_name, "get_weather");
-                Ok(())
-            }
-            other => bail!("expected SchemaMismatch, got {other:?}"),
-        }
+        let validation_error = validator.validate(&parsed).err().unwrap();
+
+        assert!(matches!(
+            validation_error,
+            ToolCallValidationError::SchemaMismatch { tool_name, .. } if tool_name == "get_weather"
+        ));
     }
 
     #[test]
-    fn schema_validator_rejects_wrong_type() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()])?;
+    fn schema_validator_rejects_wrong_type() {
+        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "get_weather".to_owned(),
             valid_json_arguments(json!({"location": 42})),
         );
 
-        match validator.validate(&parsed) {
-            Err(ToolCallValidationError::SchemaMismatch { .. }) => Ok(()),
-            other => bail!("expected SchemaMismatch, got {other:?}"),
-        }
+        let validation_error = validator.validate(&parsed).err().unwrap();
+
+        assert!(matches!(
+            validation_error,
+            ToolCallValidationError::SchemaMismatch { tool_name, .. } if tool_name == "get_weather"
+        ));
     }
 
     #[test]
-    fn unknown_tool_name_returns_error() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()])?;
+    fn unknown_tool_name_returns_error() {
+        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "set_thermostat".to_owned(),
             valid_json_arguments(json!({"value": 21})),
         );
 
-        match validator.validate(&parsed) {
-            Err(ToolCallValidationError::UnknownToolName(name)) => {
-                assert_eq!(name, "set_thermostat");
-                Ok(())
-            }
-            other => bail!("expected UnknownToolName, got {other:?}"),
-        }
+        let validation_error = validator.validate(&parsed).err().unwrap();
+
+        assert!(matches!(
+            validation_error,
+            ToolCallValidationError::UnknownToolName(name) if name == "set_thermostat"
+        ));
     }
 
     #[test]
-    fn invalid_json_arguments_pass_validation_silently() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()])?;
+    fn invalid_json_arguments_pass_validation_silently() {
+        let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "get_weather".to_owned(),
             ToolCallArguments::InvalidJson("not json".to_owned()),
         );
 
-        validator.validate(&parsed)?;
-
-        Ok(())
+        assert!(validator.validate(&parsed).is_ok());
     }
 
     #[test]
-    fn schemaless_tool_accepts_any_object() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[schemaless_tool()])?;
+    fn schemaless_tool_accepts_any_object() {
+        let validator = ToolCallValidator::from_tools(&[schemaless_tool()]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "freeform".to_owned(),
             valid_json_arguments(json!({"x": 1, "y": 2})),
         );
 
-        validator.validate(&parsed)?;
-
-        Ok(())
+        assert!(validator.validate(&parsed).is_ok());
     }
 
     #[test]
-    fn known_tool_names_returns_all_registered_names() -> Result<()> {
+    fn known_tool_names_returns_all_registered_names() {
         let validator =
-            ToolCallValidator::from_tools(&[weather_tool_with_schema(), schemaless_tool()])?;
+            ToolCallValidator::from_tools(&[weather_tool_with_schema(), schemaless_tool()])
+                .unwrap();
 
         let mut names = validator.known_tool_names();
         names.sort_unstable();
 
         assert_eq!(names, vec!["freeform", "get_weather"]);
-
-        Ok(())
     }
 
     #[test]
-    fn empty_tools_yields_validator_that_rejects_any_call() -> Result<()> {
-        let validator = ToolCallValidator::from_tools(&[])?;
+    fn empty_tools_yields_validator_that_rejects_any_call() {
+        let validator = ToolCallValidator::from_tools(&[]).unwrap();
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "anything".to_owned(),
             valid_json_arguments(json!({})),
         );
 
-        assert!(matches!(
-            validator.validate(&parsed),
-            Err(ToolCallValidationError::UnknownToolName(_))
-        ));
+        let validation_error = validator.validate(&parsed).err().unwrap();
 
-        Ok(())
+        assert!(matches!(
+            validation_error,
+            ToolCallValidationError::UnknownToolName(name) if name == "anything"
+        ));
     }
 
     fn tool_with_invalid_property_schema() -> Tool<ValidatedParametersSchema> {
@@ -293,20 +285,15 @@ mod tests {
     }
 
     #[test]
-    fn invalid_property_schema_rejects_validator_build() -> Result<()> {
-        let error = ToolCallValidator::from_tools(&[tool_with_invalid_property_schema()])
+    fn invalid_property_schema_rejects_validator_build() {
+        let build_error = ToolCallValidator::from_tools(&[tool_with_invalid_property_schema()])
             .err()
-            .ok_or_else(|| anyhow::anyhow!("expected ValidatorBuildError, got Ok"))?;
+            .unwrap();
 
-        match error {
-            super::ValidatorBuildError::InvalidSchema { tool_name, .. } => {
-                assert_eq!(tool_name, "broken_tool");
-                Ok(())
-            }
-            super::ValidatorBuildError::SerializationFailed { .. } => {
-                bail!("expected InvalidSchema, got SerializationFailed: {error:?}");
-            }
-        }
+        assert!(matches!(
+            build_error,
+            ValidatorBuildError::InvalidSchema { tool_name, .. } if tool_name == "broken_tool"
+        ));
     }
 
     fn tool_with_invalid_additional_properties_schema() -> Tool<ValidatedParametersSchema> {
@@ -325,20 +312,15 @@ mod tests {
     }
 
     #[test]
-    fn invalid_additional_properties_schema_rejects_validator_build() -> Result<()> {
-        let error =
+    fn invalid_additional_properties_schema_rejects_validator_build() {
+        let build_error =
             ToolCallValidator::from_tools(&[tool_with_invalid_additional_properties_schema()])
                 .err()
-                .ok_or_else(|| anyhow::anyhow!("expected ValidatorBuildError, got Ok"))?;
+                .unwrap();
 
-        match error {
-            super::ValidatorBuildError::InvalidSchema { tool_name, .. } => {
-                assert_eq!(tool_name, "broken_additional");
-                Ok(())
-            }
-            super::ValidatorBuildError::SerializationFailed { .. } => {
-                bail!("expected InvalidSchema, got SerializationFailed: {error:?}");
-            }
-        }
+        assert!(matches!(
+            build_error,
+            ValidatorBuildError::InvalidSchema { tool_name, .. } if tool_name == "broken_additional"
+        ));
     }
 }

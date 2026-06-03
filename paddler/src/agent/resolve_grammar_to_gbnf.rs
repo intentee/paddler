@@ -25,37 +25,31 @@ pub fn resolve_grammar_to_gbnf(grammar_constraint: &GrammarConstraint) -> Result
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-
     use super::*;
 
     #[test]
-    fn resolves_gbnf_variant() -> Result<()> {
+    fn resolves_gbnf_variant() {
         let constraint = GrammarConstraint::Gbnf {
             grammar: "root ::= \"yes\" | \"no\"".to_owned(),
             root: "root".to_owned(),
         };
 
-        let resolved = resolve_grammar_to_gbnf(&constraint)?;
+        let resolved = resolve_grammar_to_gbnf(&constraint).unwrap();
 
         assert_eq!(resolved.grammar_string, "root ::= \"yes\" | \"no\"");
         assert_eq!(resolved.root_rule, "root");
-
-        Ok(())
     }
 
     #[test]
-    fn resolves_json_schema_variant() -> Result<()> {
+    fn resolves_json_schema_variant() {
         let constraint = GrammarConstraint::JsonSchema {
             schema: r#"{"type": "object", "properties": {"name": {"type": "string"}}}"#.to_owned(),
         };
 
-        let resolved = resolve_grammar_to_gbnf(&constraint)?;
+        let resolved = resolve_grammar_to_gbnf(&constraint).unwrap();
 
         assert!(!resolved.grammar_string.is_empty());
         assert_eq!(resolved.root_rule, "root");
-
-        Ok(())
     }
 
     #[test]

@@ -42,7 +42,7 @@ async fn balancer_forwards_504_timeout_error_when_agent_stops_emitting_chunks() 
 
     let agent_controller_clone = agent_controller.clone();
     let request_id_clone = request_id.clone();
-    let forward_handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
+    let forward_handle: tokio::task::JoinHandle<()> = tokio::spawn(async move {
         forward_responses_stream::<_, EmbeddingSenderCollection>(
             agent_controller_clone,
             connection_close,
@@ -50,16 +50,16 @@ async fn balancer_forwards_504_timeout_error_when_agent_stops_emitting_chunks() 
             receive_response_controller,
             request_id_clone,
             session_controller,
+            CancellationToken::new(),
         )
-        .await
+        .await;
     });
 
     let forward_completed_within = inference_item_timeout * 10;
     tokio::time::timeout(forward_completed_within, forward_handle)
         .await
         .context("forward_responses_stream did not return within the 504-timeout budget")?
-        .context("forward_responses_stream task panicked")?
-        .context("forward_responses_stream returned an error")?;
+        .context("forward_responses_stream task panicked")?;
 
     let chunk = chunk_rx
         .recv()

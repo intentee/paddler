@@ -28,8 +28,8 @@ async fn agent_reports_slot_cannot_start_for_metal_quantized_distinct_kv() -> Re
         ..InferenceParameters::default()
     };
 
-    inference_parameters.k_cache_dtype = KvCacheDtype::Q8_0;
-    inference_parameters.v_cache_dtype = KvCacheDtype::Q4_0;
+    inference_parameters.k_cache_dtype = KvCacheDtype::Q80;
+    inference_parameters.v_cache_dtype = KvCacheDtype::Q40;
 
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {

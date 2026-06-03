@@ -50,7 +50,7 @@ impl StreamingResponse {
                 self.stop_reason = Some(StopReason::TooManyBufferedRequests);
             }
             Response::Embedding(_) => {
-                unreachable!("server sent an embedding response on a token-generation stream")
+                self.stop_reason = Some(StopReason::UnexpectedEmbeddingResponse);
             }
         }
     }
@@ -114,6 +114,7 @@ impl StreamingResponse {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
+    use paddler::embedding_result::EmbeddingResult;
     use paddler::jsonrpc::Error;
     use paddler::jsonrpc::ErrorEnvelope;
     use paddler::jsonrpc::ResponseEnvelope;
@@ -225,5 +226,22 @@ mod tests {
             state.stop_reason,
             Some(StopReason::WireStreamError(ref message)) if message.contains("connection reset")
         ));
+    }
+
+    #[test]
+    fn embedding_response_on_token_stream_sets_unexpected_embedding_stop_reason() {
+        let mut state = StreamingResponse::default();
+
+        state.apply_message(Message::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "test-request".to_owned(),
+            response: Response::Embedding(EmbeddingResult::Done),
+        }));
+
+        assert!(matches!(
+            state.stop_reason,
+            Some(StopReason::UnexpectedEmbeddingResponse)
+        ));
+        assert!(state.is_finished());
     }
 }

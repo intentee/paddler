@@ -20,13 +20,12 @@ mod tests {
     use crate::agent_desired_model::AgentDesiredModel;
     use crate::chat_template::ChatTemplate;
     use crate::inference_parameters::InferenceParameters;
-    use anyhow::Result;
     use tempfile::NamedTempFile;
     use tokio::sync::broadcast;
 
     use super::*;
 
-    async fn subtest_store_desired_state<TDatabase: StateDatabase>(db: &TDatabase) -> Result<()> {
+    async fn subtest_store_desired_state<TDatabase: StateDatabase>(database: &TDatabase) {
         let desired_state = BalancerDesiredState {
             chat_template_override: None,
             inference_parameters: InferenceParameters::default(),
@@ -35,40 +34,36 @@ mod tests {
             use_chat_template_override: false,
         };
 
-        db.store_balancer_desired_state(&desired_state).await?;
+        database
+            .store_balancer_desired_state(&desired_state)
+            .await
+            .unwrap();
 
-        let read_state = db.read_balancer_desired_state().await?;
+        let read_state = database.read_balancer_desired_state().await.unwrap();
 
         assert_eq!(read_state.model, desired_state.model);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_file_database() -> Result<()> {
+    async fn test_file_database() {
         let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
-        let tempfile = NamedTempFile::new()?;
-        let db = File::new(balancer_desired_state_tx, tempfile.path().to_path_buf());
+        let tempfile = NamedTempFile::new().unwrap();
+        let database = File::new(balancer_desired_state_tx, tempfile.path().to_path_buf());
 
-        subtest_store_desired_state(&db).await?;
-
-        Ok(())
+        subtest_store_desired_state(&database).await;
     }
 
     #[tokio::test]
-    async fn test_memory_database() -> Result<()> {
+    async fn test_memory_database() {
         let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
-        let db = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
+        let database = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
 
-        subtest_store_desired_state(&db).await?;
-
-        Ok(())
+        subtest_store_desired_state(&database).await;
     }
 
     #[tokio::test]
-    async fn test_file_database_persists_chat_template_override_across_fresh_instance() -> Result<()>
-    {
-        let tempfile = NamedTempFile::new()?;
+    async fn test_file_database_persists_chat_template_override_across_fresh_instance() {
+        let tempfile = NamedTempFile::new().unwrap();
         let path = tempfile.path().to_path_buf();
 
         let chat_template = ChatTemplate {
@@ -83,20 +78,21 @@ mod tests {
         };
 
         {
-            let (tx, _rx) = broadcast::channel(100);
-            let db = File::new(tx, path.clone());
+            let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
+            let database = File::new(balancer_desired_state_tx, path.clone());
 
-            db.store_balancer_desired_state(&desired_state).await?;
+            database
+                .store_balancer_desired_state(&desired_state)
+                .await
+                .unwrap();
         }
 
-        let (tx, _rx) = broadcast::channel(100);
-        let db = File::new(tx, path);
-        let read_back = db.read_balancer_desired_state().await?;
+        let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
+        let database = File::new(balancer_desired_state_tx, path);
+        let read_back = database.read_balancer_desired_state().await.unwrap();
 
         assert_eq!(read_back.chat_template_override, Some(chat_template));
         assert!(read_back.use_chat_template_override);
         assert_eq!(read_back.model, desired_state.model);
-
-        Ok(())
     }
 }

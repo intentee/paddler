@@ -37,3 +37,5 @@ pub mod statsd_service;
 mod unbounded_stream_from_agent;
 #[cfg(feature = "web_admin_panel")]
 pub mod web_admin_panel_service;
+
+pub const BALANCER_HTTP_SERVICE_WORKER_COUNT: usize = 2;

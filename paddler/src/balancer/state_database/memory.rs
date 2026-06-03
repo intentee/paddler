@@ -1,8 +1,7 @@
-use std::sync::RwLock;
-
 use crate::balancer_desired_state::BalancerDesiredState;
 use anyhow::Result;
 use async_trait::async_trait;
+use parking_lot::RwLock;
 use tokio::sync::broadcast;
 
 use super::StateDatabase;
@@ -27,22 +26,13 @@ impl Memory {
 
 #[async_trait]
 impl StateDatabase for Memory {
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     async fn read_balancer_desired_state(&self) -> Result<BalancerDesiredState> {
-        Ok(self
-            .balancer_desired_state
-            .read()
-            .expect("Failed to acquire read lock")
-            .clone())
+        Ok(self.balancer_desired_state.read().clone())
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     async fn store_balancer_desired_state(&self, state: &BalancerDesiredState) -> Result<()> {
         {
-            let mut balancer_desired_state = self
-                .balancer_desired_state
-                .write()
-                .expect("Failed to acquire write lock");
+            let mut balancer_desired_state = self.balancer_desired_state.write();
 
             *balancer_desired_state = state.clone();
         }

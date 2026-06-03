@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
 
@@ -33,11 +34,11 @@ impl AssembleBatchPhase {
         let mut tokens_added: usize = 0;
 
         for (request_index, request) in requests.iter().enumerate() {
-            if !matches!(request.phase, ContinuousBatchRequestPhase::Generating) {
+            if !matches!(request.state.phase, ContinuousBatchRequestPhase::Generating) {
                 continue;
             }
 
-            let Some(pending_token) = request.pending_sampled_token else {
+            let Some(pending_token) = request.state.pending_sampled_token else {
                 continue;
             };
 
@@ -49,8 +50,8 @@ impl AssembleBatchPhase {
 
             pass.batch.add(
                 &pending_token,
-                request.current_token_position,
-                &[request.sequence_id],
+                request.state.current_token_position,
+                &[request.state.sequence_id],
                 true,
             )?;
 
@@ -65,22 +66,17 @@ impl AssembleBatchPhase {
         Ok(tokens_added)
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_possible_wrap,
-        reason = "token counts and positions fit in i32 for llama.cpp FFI"
-    )]
     fn fill_ingesting(
         &self,
         pass: &mut BatchPass,
         requests: &[ContinuousBatchActiveRequest],
     ) -> Result<()> {
         for (request_index, request) in requests.iter().enumerate() {
-            if !matches!(request.phase, ContinuousBatchRequestPhase::Ingesting) {
+            if !matches!(request.state.phase, ContinuousBatchRequestPhase::Ingesting) {
                 continue;
             }
 
-            let remaining = request.remaining_prompt_tokens();
+            let remaining = request.state.remaining_prompt_tokens();
             let chunk_size = compute_ingesting_chunk_size(
                 remaining.len(),
                 self.n_batch,
@@ -91,19 +87,20 @@ impl AssembleBatchPhase {
                 continue;
             }
 
-            let chunk = &request.prompt_tokens
-                [request.prompt_tokens_ingested..request.prompt_tokens_ingested + chunk_size];
-            let is_last_chunk =
-                request.prompt_tokens_ingested + chunk_size >= request.prompt_tokens.len();
+            let chunk = &request.state.prompt_tokens[request.state.prompt_tokens_ingested
+                ..request.state.prompt_tokens_ingested + chunk_size];
+            let is_last_chunk = request.state.prompt_tokens_ingested + chunk_size
+                >= request.state.prompt_tokens.len();
 
             for (offset, token) in chunk.iter().enumerate() {
-                let position = request.current_token_position + offset as i32;
+                let position = request.state.current_token_position
+                    + i32::try_from(offset).context("token offset does not fit in i32")?;
                 let is_last_token_of_prompt = is_last_chunk && offset == chunk_size - 1;
 
                 pass.batch.add(
                     &SampledToken::Content(*token),
                     position,
-                    &[request.sequence_id],
+                    &[request.state.sequence_id],
                     is_last_token_of_prompt,
                 )?;
             }
@@ -133,7 +130,23 @@ fn compute_ingesting_chunk_size(
 
 #[cfg(test)]
 mod tests {
+    use super::AssembleBatchPhase;
     use super::compute_ingesting_chunk_size;
+    use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
+    use crate::agent::continuous_batch_scheduler::batch_pass::BatchPass;
+
+    #[test]
+    fn run_over_empty_requests_leaves_batch_untouched() {
+        let assemble_phase = AssembleBatchPhase { n_batch: 16 };
+        let mut pass = BatchPass::new(16, 1).unwrap();
+        let mut requests: [ContinuousBatchActiveRequest; 0] = [];
+
+        assemble_phase.run(&mut pass, &mut requests).unwrap();
+
+        assert_eq!(pass.contributions.current_batch_token_count, 0);
+        assert_eq!(pass.batch.n_tokens(), 0);
+        assert!(pass.is_empty());
+    }
 
     #[test]
     fn chunk_size_is_min_of_remaining_and_available_space() {

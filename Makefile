@@ -2,10 +2,20 @@
 
 RUST_LOG ?= debug
 
-COVERAGE_FEATURES := --features tests_that_use_llms,web_admin_panel
-COVERAGE_SCOPE := --workspace --exclude paddler_cli_tests --exclude paddler_gui
 PADDLER_SOURCES := $(shell find paddler/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src -name '*.rs')
 FRONTEND_SOURCES := $(shell find resources -type f) $(wildcard jarmuz/*.mjs)
+
+TEST_DEVICE ?= cpu
+
+ifeq ($(TEST_DEVICE),cpu)
+TEST_DEVICE_FEATURE_SUFFIX :=
+TEST_DEVICE_TARGET_DIR :=
+else
+TEST_DEVICE_FEATURE_SUFFIX := ,$(TEST_DEVICE)
+TEST_DEVICE_TARGET_DIR := --target-dir target/$(TEST_DEVICE)
+endif
+
+TEST_TIMEOUT := timeout --kill-after=60s 30m
 
 # -----------------------------------------------------------------------------
 # Real targets
@@ -70,28 +80,6 @@ clean:
 clippy: esbuild-meta.json
 	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms
 
-.PHONY: coverage
-coverage: esbuild-meta.json node_modules
-	cargo llvm-cov clean --workspace
-	cargo llvm-cov $(COVERAGE_SCOPE) $(COVERAGE_FEATURES) --no-report
-	cargo llvm-cov report --json --output-path target/llvm-cov.json
-	cargo llvm-cov report --lcov --output-path target/lcov.info
-	cargo llvm-cov report
-	npx rust-coverage-check target/llvm-cov.json \
-		--workspace-root $(CURDIR) \
-		--gated paddler_cache_dir=100 \
-		--gated paddler_download_manager=99
-
-.PHONY: coverage-clean
-coverage-clean:
-	cargo llvm-cov clean --workspace
-	rm -rf target/llvm-cov-target
-	rm -f target/llvm-cov.json target/lcov.info
-
-.PHONY: coverage-report
-coverage-report: esbuild-meta.json
-	cargo llvm-cov $(COVERAGE_SCOPE) $(COVERAGE_FEATURES) --html
-
 .PHONY: fmt
 fmt: node_modules
 	./jarmuz-fmt.mjs
@@ -103,21 +91,33 @@ test: test.client.js test.unit test.integration
 test.client.js: node_modules
 	npm --workspace @intentee/paddler-client test
 
+.PHONY: test.coverage
+test.coverage: esbuild-meta.json node_modules
+	cargo llvm-cov clean --profraw-only
+	$(TEST_TIMEOUT) cargo llvm-cov --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
+	cargo llvm-cov report --json --output-path target/llvm-cov.json
+	cargo llvm-cov report --lcov --output-path target/lcov.info
+	cargo llvm-cov report
+	npx rust-coverage-check target/llvm-cov.json \
+		--workspace-root $(CURDIR) \
+		--gated paddler=100 \
+		--gated paddler_bootstrap=100 \
+		--gated paddler_cache_dir=100 \
+		--gated paddler_download_manager=99
+
+.PHONY: test.coverage-clean
+test.coverage-clean:
+	cargo llvm-cov clean --workspace
+	rm -rf target/llvm-cov-target
+	rm -f target/llvm-cov.json target/lcov.info
+
 .PHONY: test.integration
 test.integration:
-	cargo test -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms
-
-.PHONY: test.integration.cuda
-test.integration.cuda:
-	cargo test --target-dir target/cuda -p paddler_tests -p paddler_cli_tests --features cuda,tests_that_use_llms
-
-.PHONY: test.integration.metal
-test.integration.metal:
-	cargo test --target-dir target/metal -p paddler_tests -p paddler_cli_tests --features metal,tests_that_use_llms
+	$(TEST_TIMEOUT) cargo test -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
-	cargo test --features web_admin_panel
+	$(TEST_TIMEOUT) cargo test --features web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: watch
 watch: node_modules

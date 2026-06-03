@@ -141,14 +141,23 @@ mod tests {
         let marker = MediaMarker::new("[IMAGE]".to_owned());
         let result = history.replace_images_with_marker(&marker);
 
-        let ChatTemplateMessageContent::Parts(parts) = &result.messages[0].content else {
-            unreachable!("expected Parts variant");
-        };
-
-        assert_eq!(parts.len(), 3);
-        assert_eq!(parts[0].text, "before");
-        assert_eq!(parts[1].text, "[IMAGE]");
-        assert_eq!(parts[2].text, "after");
+        assert_eq!(
+            result.messages[0].content,
+            ChatTemplateMessageContent::Parts(vec![
+                ChatTemplateMessageContentPart {
+                    content_type: "text".to_owned(),
+                    text: "before".to_owned(),
+                },
+                ChatTemplateMessageContentPart {
+                    content_type: "text".to_owned(),
+                    text: "[IMAGE]".to_owned(),
+                },
+                ChatTemplateMessageContentPart {
+                    content_type: "text".to_owned(),
+                    text: "after".to_owned(),
+                },
+            ])
+        );
     }
 
     #[test]

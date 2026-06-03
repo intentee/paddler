@@ -1,5 +1,8 @@
 #[derive(Debug, thiserror::Error)]
-#[expect(clippy::error_impl_error)]
+#[expect(
+    clippy::error_impl_error,
+    reason = "the crate's single public error type is idiomatically named `Error` and correctly implements std::error::Error; renaming would be smurf naming and break the module-named-after-its-item convention"
+)]
 pub enum Error {
     #[error("HTTP request failed: {0}")]
     Http(#[from] reqwest::Error),

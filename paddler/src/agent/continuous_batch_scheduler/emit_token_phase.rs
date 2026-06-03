@@ -42,9 +42,8 @@ const fn token_to_event(sampled_token: SampledToken, piece: String) -> Generated
 
 #[cfg(test)]
 mod tests {
-    use crate::generated_token_result::GeneratedTokenResult;
-    use anyhow::Result;
-    use anyhow::bail;
+    use std::mem::discriminant;
+
     use llama_cpp_bindings::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
     use tokio::sync::mpsc;
@@ -52,6 +51,7 @@ mod tests {
     use super::emit_classified;
     use crate::agent::continuous_batch_scheduler::classified_token::ClassifiedToken;
     use crate::agent::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
+    use crate::generated_token_result::GeneratedTokenResult;
 
     fn classified_with_piece(sampled: SampledToken, piece: &str) -> ClassifiedToken {
         ClassifiedToken {
@@ -64,86 +64,107 @@ mod tests {
     }
 
     #[test]
-    fn empty_visible_piece_emits_empty_string_without_sending() -> Result<()> {
+    fn empty_visible_piece_emits_empty_string_without_sending() {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(1)), "");
 
-        match emit_classified(&classified, &tx) {
-            EmitTokenOutcome::Emitted(piece) if piece.is_empty() => {}
-            other => bail!("expected Emitted(\"\"), got {other:?}"),
-        }
+        let outcome = emit_classified(&classified, &tx);
 
-        match rx.try_recv() {
-            Err(mpsc::error::TryRecvError::Empty) => Ok(()),
-            other => bail!("expected empty channel, got {other:?}"),
-        }
+        assert_eq!(
+            discriminant(&outcome),
+            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+        );
+
+        let receive_error = rx.try_recv().err().unwrap();
+
+        assert_eq!(
+            discriminant(&receive_error),
+            discriminant(&mpsc::error::TryRecvError::Empty),
+        );
     }
 
     #[test]
-    fn content_token_emits_content_event() -> Result<()> {
+    fn content_token_emits_content_event() {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(2)), "hi");
 
-        emit_classified(&classified, &tx);
+        let outcome = emit_classified(&classified, &tx);
 
-        match rx.try_recv() {
-            Ok(GeneratedTokenResult::ContentToken(text)) if text == "hi" => Ok(()),
-            other => bail!("expected ContentToken(\"hi\"), got {other:?}"),
-        }
+        assert_eq!(
+            discriminant(&outcome),
+            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+        );
+
+        let event = rx.try_recv().unwrap();
+
+        assert_eq!(
+            discriminant(&event),
+            discriminant(&GeneratedTokenResult::ContentToken(String::new())),
+        );
+        assert_eq!(event.token_text().unwrap(), "hi");
     }
 
     #[test]
-    fn reasoning_token_emits_reasoning_event() -> Result<()> {
+    fn reasoning_token_emits_reasoning_event() {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified =
             classified_with_piece(SampledToken::Reasoning(LlamaToken::new(3)), "think");
 
         emit_classified(&classified, &tx);
 
-        match rx.try_recv() {
-            Ok(GeneratedTokenResult::ReasoningToken(text)) if text == "think" => Ok(()),
-            other => bail!("expected ReasoningToken(\"think\"), got {other:?}"),
-        }
+        let event = rx.try_recv().unwrap();
+
+        assert_eq!(
+            discriminant(&event),
+            discriminant(&GeneratedTokenResult::ReasoningToken(String::new())),
+        );
+        assert_eq!(event.token_text().unwrap(), "think");
     }
 
     #[test]
-    fn tool_call_token_emits_tool_call_event() -> Result<()> {
+    fn tool_call_token_emits_tool_call_event() {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified = classified_with_piece(SampledToken::ToolCall(LlamaToken::new(4)), "{");
 
         emit_classified(&classified, &tx);
 
-        match rx.try_recv() {
-            Ok(GeneratedTokenResult::ToolCallToken(text)) if text == "{" => Ok(()),
-            other => bail!("expected ToolCallToken(\"{{\"), got {other:?}"),
-        }
+        let event = rx.try_recv().unwrap();
+
+        assert_eq!(
+            discriminant(&event),
+            discriminant(&GeneratedTokenResult::ToolCallToken(String::new())),
+        );
+        assert_eq!(event.token_text().unwrap(), "{");
     }
 
     #[test]
-    fn undeterminable_token_emits_undeterminable_event() -> Result<()> {
+    fn undeterminable_token_emits_undeterminable_event() {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified =
             classified_with_piece(SampledToken::Undeterminable(LlamaToken::new(5)), "?");
 
         emit_classified(&classified, &tx);
 
-        match rx.try_recv() {
-            Ok(GeneratedTokenResult::UndeterminableToken(text)) if text == "?" => Ok(()),
-            other => bail!("expected UndeterminableToken(\"?\"), got {other:?}"),
-        }
+        let event = rx.try_recv().unwrap();
+
+        assert_eq!(
+            discriminant(&event),
+            discriminant(&GeneratedTokenResult::UndeterminableToken(String::new())),
+        );
+        assert_eq!(event.token_text().unwrap(), "?");
     }
 
     #[test]
-    fn dropped_receiver_returns_channel_dropped() -> Result<()> {
+    fn dropped_receiver_returns_channel_dropped() {
         let (tx, rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         drop(rx);
         let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(6)), "hi");
 
-        match emit_classified(&classified, &tx) {
-            EmitTokenOutcome::ChannelDropped => Ok(()),
-            EmitTokenOutcome::Emitted(piece) => {
-                bail!("expected ChannelDropped on dropped receiver, got Emitted({piece:?})")
-            }
-        }
+        let outcome = emit_classified(&classified, &tx);
+
+        assert_eq!(
+            discriminant(&outcome),
+            discriminant(&EmitTokenOutcome::ChannelDropped),
+        );
     }
 }

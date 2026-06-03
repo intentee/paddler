@@ -18,6 +18,7 @@ log = { workspace = true }
 open = { workspace = true }
 paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
+parking_lot = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

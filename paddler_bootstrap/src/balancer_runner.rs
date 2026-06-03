@@ -15,11 +15,11 @@ use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use crate::balancer_service_bundle::BalancerBootstrapConfig;
 use crate::balancer_service_bundle::BalancerServiceBundle;
+use crate::run_service_manager::run_service_manager;
 use crate::service_thread::ServiceThread;
 
 pub struct BalancerRunnerParams {
@@ -29,6 +29,7 @@ pub struct BalancerRunnerParams {
     pub max_buffered_requests: i32,
     pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
     pub cancellation_token: CancellationToken,
+    pub shutdown_options: ServiceShutdownOptions,
     pub state_database_type: StateDatabaseType,
     pub statsd_prefix: String,
     pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
@@ -53,6 +54,7 @@ impl BalancerRunner {
             max_buffered_requests,
             openai_service_configuration,
             cancellation_token,
+            shutdown_options,
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
@@ -60,8 +62,6 @@ impl BalancerRunner {
             web_admin_panel_service_configuration,
         }: BalancerRunnerParams,
     ) -> Result<Self> {
-        let shutdown_options = ServiceShutdownOptions::default();
-
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration,
@@ -82,15 +82,8 @@ impl BalancerRunner {
         let balancer_desired_state_tx = bundle.balancer_desired_state_tx.clone();
         let initial_desired_state = bundle.initial_desired_state.clone();
 
-        let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
-            let mut service_manager = ServiceManager::default();
-            service_manager.register_bundle(bundle).await?;
-            service_manager
-                .start(task_shutdown)
-                .run_to_completion(shutdown_options)
-                .await
-                .into_result()
-                .map_err(anyhow::Error::from)
+        let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| {
+            run_service_manager(bundle, task_shutdown, shutdown_options)
         });
 
         Ok(Self {

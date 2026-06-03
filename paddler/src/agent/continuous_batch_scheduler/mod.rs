@@ -61,6 +61,7 @@ use crate::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest
 use crate::agent::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::agent::continuous_batch_embedding_processor::ContinuousBatchEmbeddingProcessor;
 use crate::agent::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::agent::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::agent::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::agent::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
@@ -76,6 +77,16 @@ use crate::decoded_image::DecodedImage;
 use crate::tool_call_pipeline::ToolCallPipeline;
 use crate::tool_call_validator::ToolCallValidator;
 use crate::tool_call_validator::ValidatorBuildError;
+
+fn send_generated_token_result_or_warn(
+    agent_name: Option<&str>,
+    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    result: GeneratedTokenResult,
+) {
+    if generated_tokens_tx.send(result).is_err() {
+        warn!("{agent_name:?}: failed to send result to client (receiver dropped)");
+    }
+}
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
@@ -356,17 +367,11 @@ impl ContinuousBatchScheduler {
 
                     error!("{message}");
 
-                    if generated_tokens_tx
-                        .send(GeneratedTokenResult::GrammarInitializationFailed(
-                            message.clone(),
-                        ))
-                        .is_err()
-                    {
-                        warn!(
-                            "{:?}: failed to send result to client (receiver dropped)",
-                            self.scheduler_context.agent_name
-                        );
-                    }
+                    send_generated_token_result_or_warn(
+                        self.scheduler_context.agent_name.as_deref(),
+                        generated_tokens_tx,
+                        GeneratedTokenResult::GrammarInitializationFailed(message.clone()),
+                    );
 
                     Err(anyhow!(message))
                 }
@@ -428,7 +433,7 @@ impl ContinuousBatchScheduler {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "text prompt acceptance genuinely needs all these parameters from the caller"
+        reason = "these are distinct concerns (the prompt, the generation config, the output channel, the stop signal, the slot guard) that do not form a cohesive value object; bundling them would violate single-responsibility grouping"
     )]
     fn accept_text_prompt(
         &mut self,
@@ -453,15 +458,11 @@ impl ContinuousBatchScheduler {
                     self.scheduler_context.agent_name
                 );
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::ToolSchemaInvalid(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::ToolSchemaInvalid(message),
+                );
 
                 return Ok(());
             }
@@ -482,15 +483,11 @@ impl ContinuousBatchScheduler {
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::SamplerError(message))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    self.scheduler_context.agent_name
-                );
-            }
+            send_generated_token_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                &generated_tokens_tx,
+                GeneratedTokenResult::SamplerError(message),
+            );
 
             return Ok(());
         };
@@ -510,15 +507,11 @@ impl ContinuousBatchScheduler {
                 error!("{message}");
                 self.sequence_id_pool.release(sequence_id);
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::SamplerError(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::SamplerError(message),
+                );
 
                 return Ok(());
             }
@@ -539,19 +532,7 @@ impl ContinuousBatchScheduler {
         token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
         token_classifier.ingest_prompt_tokens(&prompt_tokens);
 
-        #[expect(
-            clippy::cast_sign_loss,
-            reason = "sequence IDs are always non-negative"
-        )]
-        if let Err(err) =
-            self.llama_context
-                .clear_kv_cache_seq(Some(sequence_id as u32), None, None)
-        {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
-                self.scheduler_context.agent_name
-            );
-        }
+        self.clear_kv_cache_for_sequence(sequence_id);
 
         debug!(
             "{:?}: accepted text prompt request on sequence {sequence_id} ({} tokens)",
@@ -560,19 +541,21 @@ impl ContinuousBatchScheduler {
         );
 
         self.active_requests.push(ContinuousBatchActiveRequest {
+            state: ContinuousBatchRequestState {
+                current_token_position: 0,
+                i_batch: None,
+                max_tokens,
+                pending_sampled_token: None,
+                phase: ContinuousBatchRequestPhase::Ingesting,
+                prompt_tokens,
+                prompt_tokens_ingested: 0,
+                sequence_id,
+            },
             chain,
             token_classifier,
-            current_token_position: 0,
             grammar_sampler: llama_grammar_sampler,
             generated_tokens_tx,
             generate_tokens_stop_rx,
-            i_batch: None,
-            max_tokens,
-            pending_sampled_token: None,
-            phase: ContinuousBatchRequestPhase::Ingesting,
-            prompt_tokens,
-            prompt_tokens_ingested: 0,
-            sequence_id,
             slot_guard,
             tool_call_pipeline,
         });
@@ -582,7 +565,7 @@ impl ContinuousBatchScheduler {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "multimodal request handling genuinely requires all these parameters from the caller"
+        reason = "these are distinct concerns (the multimodal context, prompt, images, generation config, the output channel, the stop signal, the slot guard) that do not form a cohesive value object; bundling them would violate single-responsibility grouping"
     )]
     fn accept_multimodal_request(
         &mut self,
@@ -609,15 +592,11 @@ impl ContinuousBatchScheduler {
                     self.scheduler_context.agent_name
                 );
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::ToolSchemaInvalid(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::ToolSchemaInvalid(message),
+                );
 
                 return Ok(());
             }
@@ -631,15 +610,11 @@ impl ContinuousBatchScheduler {
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::SamplerError(message))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    self.scheduler_context.agent_name
-                );
-            }
+            send_generated_token_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                &generated_tokens_tx,
+                GeneratedTokenResult::SamplerError(message),
+            );
 
             return Ok(());
         };
@@ -662,15 +637,11 @@ impl ContinuousBatchScheduler {
                 error!("{message}");
                 self.sequence_id_pool.release(sequence_id);
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::ImageDecodingFailed(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::ImageDecodingFailed(message),
+                );
 
                 return Ok(());
             }
@@ -698,15 +669,11 @@ impl ContinuousBatchScheduler {
                 error!("{message}");
                 self.sequence_id_pool.release(sequence_id);
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::SamplerError(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::SamplerError(message),
+                );
 
                 return Ok(());
             }
@@ -714,36 +681,21 @@ impl ContinuousBatchScheduler {
 
         let batch_size = self.scheduler_context.inference_parameters.n_batch;
 
-        #[expect(
-            clippy::cast_sign_loss,
-            reason = "sequence IDs are always non-negative"
-        )]
-        if let Err(err) =
-            self.llama_context
-                .clear_kv_cache_seq(Some(sequence_id as u32), None, None)
-        {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
-                self.scheduler_context.agent_name
-            );
-        }
+        self.clear_kv_cache_for_sequence(sequence_id);
 
         self.harvest_pending_samples_before_external_decode();
 
         let mut token_classifier = self.build_token_classifier_for_active_request();
 
-        #[expect(
-            clippy::cast_possible_truncation,
-            clippy::cast_possible_wrap,
-            reason = "batch_size fits in i32 for llama.cpp FFI"
-        )]
+        let batch_size_i32 = i32::try_from(batch_size).context("batch_size does not fit in i32")?;
+
         let eval_outcome = token_classifier.eval_multimodal_chunks(
             &input_chunks,
             multimodal_context,
             &self.llama_context,
             0,
             sequence_id,
-            batch_size as i32,
+            batch_size_i32,
             true,
         );
 
@@ -759,20 +711,14 @@ impl ContinuousBatchScheduler {
 
                 self.sequence_id_pool.release(sequence_id);
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::ImageExceedsBatchSize(
-                        OversizedImageDetails {
-                            image_tokens: mismatch.image_tokens,
-                            n_batch: mismatch.n_batch,
-                        },
-                    ))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
+                        image_tokens: mismatch.image_tokens,
+                        n_batch: mismatch.n_batch,
+                    }),
+                );
 
                 return Ok(());
             }
@@ -785,15 +731,11 @@ impl ContinuousBatchScheduler {
                 error!("{message}");
                 self.sequence_id_pool.release(sequence_id);
 
-                if generated_tokens_tx
-                    .send(GeneratedTokenResult::SamplerError(message))
-                    .is_err()
-                {
-                    warn!(
-                        "{:?}: failed to send result to client (receiver dropped)",
-                        self.scheduler_context.agent_name
-                    );
-                }
+                send_generated_token_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                    GeneratedTokenResult::SamplerError(message),
+                );
 
                 return Ok(());
             }
@@ -817,19 +759,21 @@ impl ContinuousBatchScheduler {
         );
 
         self.active_requests.push(ContinuousBatchActiveRequest {
+            state: ContinuousBatchRequestState {
+                current_token_position: tokens_ingested,
+                i_batch: Some(-1),
+                max_tokens,
+                pending_sampled_token: None,
+                phase: ContinuousBatchRequestPhase::Generating,
+                prompt_tokens: Vec::new(),
+                prompt_tokens_ingested: 0,
+                sequence_id,
+            },
             chain,
             token_classifier,
-            current_token_position: tokens_ingested,
             grammar_sampler: llama_grammar_sampler,
             generated_tokens_tx,
             generate_tokens_stop_rx,
-            i_batch: Some(-1),
-            max_tokens,
-            pending_sampled_token: None,
-            phase: ContinuousBatchRequestPhase::Generating,
-            prompt_tokens: Vec::new(),
-            prompt_tokens_ingested: 0,
-            sequence_id,
             slot_guard,
             tool_call_pipeline,
         });
@@ -840,17 +784,17 @@ impl ContinuousBatchScheduler {
     fn harvest_pending_samples_before_external_decode(&mut self) {
         for active_request in &mut self.active_requests {
             if !matches!(
-                active_request.phase,
+                active_request.state.phase,
                 ContinuousBatchRequestPhase::Generating
             ) {
                 continue;
             }
 
-            if active_request.pending_sampled_token.is_some() {
+            if active_request.state.pending_sampled_token.is_some() {
                 continue;
             }
 
-            let Some(batch_index) = active_request.i_batch else {
+            let Some(batch_index) = active_request.state.i_batch else {
                 continue;
             };
 
@@ -867,17 +811,17 @@ impl ContinuousBatchScheduler {
                     // happens in `advance_generating_phase` after the next decode,
                     // not here.
                     let _ = active_request.token_classifier.ingest(raw_token);
-                    active_request.pending_sampled_token =
+                    active_request.state.pending_sampled_token =
                         Some(llama_cpp_bindings::SampledToken::Content(raw_token));
-                    active_request.i_batch = None;
+                    active_request.state.i_batch = None;
                 }
                 Ok(SamplingOutcome::AllCandidatesEliminated) => {
                     error!(
                         "{:?}: sequence {} pre-eval harvest exhausted candidates",
-                        self.scheduler_context.agent_name, active_request.sequence_id
+                        self.scheduler_context.agent_name, active_request.state.sequence_id
                     );
                     active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
+                        self.scheduler_context.agent_name.as_deref(),
                         GeneratedTokenResult::SamplerError(
                             "all token candidates were eliminated during sampling".to_owned(),
                         ),
@@ -886,20 +830,20 @@ impl ContinuousBatchScheduler {
                 Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
                     error!(
                         "{:?}: sequence {} pre-eval harvest grammar rejected: {message}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
+                        self.scheduler_context.agent_name, active_request.state.sequence_id
                     );
                     active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
+                        self.scheduler_context.agent_name.as_deref(),
                         GeneratedTokenResult::GrammarRejectedModelOutput(message),
                     );
                 }
                 Err(err) => {
                     error!(
                         "{:?}: sequence {} pre-eval harvest sampling error: {err:#}",
-                        self.scheduler_context.agent_name, active_request.sequence_id
+                        self.scheduler_context.agent_name, active_request.state.sequence_id
                     );
                     active_request.complete_with_outcome(
-                        &self.scheduler_context.agent_name,
+                        self.scheduler_context.agent_name.as_deref(),
                         GeneratedTokenResult::SamplerError(err.to_string()),
                     );
                 }
@@ -915,7 +859,7 @@ impl ContinuousBatchScheduler {
                 };
 
                 active_request.complete_with_outcome(
-                    &self.scheduler_context.agent_name,
+                    self.scheduler_context.agent_name.as_deref(),
                     GeneratedTokenResult::Done(summary),
                 );
             }
@@ -958,7 +902,7 @@ impl ContinuousBatchScheduler {
     fn has_active_requests(&self) -> bool {
         self.active_requests
             .iter()
-            .any(|request| !matches!(request.phase, ContinuousBatchRequestPhase::Completed))
+            .any(|request| !matches!(request.state.phase, ContinuousBatchRequestPhase::Completed))
     }
 
     fn execute_one_iteration(&mut self) -> Result<()> {
@@ -970,12 +914,9 @@ impl ContinuousBatchScheduler {
         loop {
             let max_sequences = self.active_requests.len();
 
-            #[expect(
-                clippy::cast_possible_truncation,
-                clippy::cast_possible_wrap,
-                reason = "token counts and positions fit in i32 for llama.cpp FFI"
-            )]
-            let mut pass = BatchPass::new(n_batch, max_sequences.max(1) as i32)?;
+            let max_sequences_i32 = i32::try_from(max_sequences.max(1))
+                .context("max sequence count does not fit in i32")?;
+            let mut pass = BatchPass::new(n_batch, max_sequences_i32)?;
 
             assemble_phase.run(&mut pass, &mut self.active_requests)?;
 
@@ -992,7 +933,7 @@ impl ContinuousBatchScheduler {
 
             match decode_batch_phase::run(&mut pass, &mut self.llama_context) {
                 DecodeOutcome::Decoded => {
-                    commit_phase::run(pass, &mut self.active_requests);
+                    commit_phase::run(pass, &mut self.active_requests)?;
 
                     return Ok(());
                 }
@@ -1026,12 +967,15 @@ impl ContinuousBatchScheduler {
         let mut largest_position: i32 = -1;
 
         for (index, active_request) in self.active_requests.iter().enumerate() {
-            if matches!(active_request.phase, ContinuousBatchRequestPhase::Completed) {
+            if matches!(
+                active_request.state.phase,
+                ContinuousBatchRequestPhase::Completed
+            ) {
                 continue;
             }
 
-            if active_request.current_token_position > largest_position {
-                largest_position = active_request.current_token_position;
+            if active_request.state.current_token_position > largest_position {
+                largest_position = active_request.state.current_token_position;
                 largest_seq_index = Some(index);
             }
         }
@@ -1042,24 +986,19 @@ impl ContinuousBatchScheduler {
             warn!(
                 "{:?}: evicting sequence {} (position {}) due to KV cache pressure",
                 self.scheduler_context.agent_name,
-                evicted_request.sequence_id,
-                evicted_request.current_token_position
+                evicted_request.state.sequence_id,
+                evicted_request.state.current_token_position
             );
 
-            if evicted_request
-                .generated_tokens_tx
-                .send(GeneratedTokenResult::SamplerError(
+            send_generated_token_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                &evicted_request.generated_tokens_tx,
+                GeneratedTokenResult::SamplerError(
                     "Request evicted due to KV cache pressure".to_owned(),
-                ))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    self.scheduler_context.agent_name
-                );
-            }
+                ),
+            );
 
-            evicted_request.phase = ContinuousBatchRequestPhase::Completed;
+            evicted_request.state.phase = ContinuousBatchRequestPhase::Completed;
 
             self.cleanup_completed_request(eviction_index);
         }
@@ -1070,7 +1009,7 @@ impl ContinuousBatchScheduler {
 
         while removal_index < self.active_requests.len() {
             if matches!(
-                self.active_requests[removal_index].phase,
+                self.active_requests[removal_index].state.phase,
                 ContinuousBatchRequestPhase::Completed
             ) {
                 self.cleanup_completed_request(removal_index);
@@ -1080,33 +1019,87 @@ impl ContinuousBatchScheduler {
         }
     }
 
+    fn clear_kv_cache_for_sequence(&mut self, sequence_id: i32) {
+        let sequence_id_u32 = match u32::try_from(sequence_id) {
+            Ok(sequence_id_u32) => sequence_id_u32,
+            Err(err) => {
+                error!(
+                    "{:?}: sequence id {sequence_id} does not fit in u32: {err}",
+                    self.scheduler_context.agent_name
+                );
+
+                return;
+            }
+        };
+
+        if let Err(err) = self
+            .llama_context
+            .clear_kv_cache_seq(Some(sequence_id_u32), None, None)
+        {
+            error!(
+                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
+                self.scheduler_context.agent_name
+            );
+        }
+    }
+
     fn cleanup_completed_request(&mut self, index: usize) {
         let removed_request = self.active_requests.swap_remove(index);
 
-        #[expect(
-            clippy::cast_sign_loss,
-            reason = "sequence IDs are always non-negative"
-        )]
-        if let Err(err) = self.llama_context.clear_kv_cache_seq(
-            Some(removed_request.sequence_id as u32),
-            None,
-            None,
-        ) {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {}: {err}",
-                self.scheduler_context.agent_name, removed_request.sequence_id
-            );
-        }
+        self.clear_kv_cache_for_sequence(removed_request.state.sequence_id);
 
-        self.sequence_id_pool.release(removed_request.sequence_id);
+        self.sequence_id_pool
+            .release(removed_request.state.sequence_id);
 
         let usage = removed_request.token_classifier.usage();
 
         debug!(
             "{:?}: cleaned up sequence {} ({} completion tokens generated)",
             self.scheduler_context.agent_name,
-            removed_request.sequence_id,
+            removed_request.state.sequence_id,
             usage.content_tokens + usage.reasoning_tokens + usage.undeterminable_tokens,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use log::LevelFilter;
+    use tokio::sync::mpsc;
+
+    use super::send_generated_token_result_or_warn;
+    use crate::generated_token_result::GeneratedTokenResult;
+
+    #[test]
+    fn delivers_result_to_a_live_receiver() {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+
+        send_generated_token_result_or_warn(
+            Some("agent"),
+            &generated_tokens_tx,
+            GeneratedTokenResult::SamplerError("boom".to_owned()),
+        );
+
+        assert!(matches!(
+            generated_tokens_rx.try_recv(),
+            Ok(GeneratedTokenResult::SamplerError(message)) if message == "boom"
+        ));
+    }
+
+    #[test]
+    fn warns_without_panicking_when_the_receiver_was_dropped() {
+        log::set_max_level(LevelFilter::Trace);
+
+        let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
+
+        drop(generated_tokens_rx);
+
+        send_generated_token_result_or_warn(
+            None,
+            &generated_tokens_tx,
+            GeneratedTokenResult::SamplerError("boom".to_owned()),
+        );
+
+        assert!(generated_tokens_tx.is_closed());
     }
 }

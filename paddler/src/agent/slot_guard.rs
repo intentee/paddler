@@ -29,7 +29,6 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
-    use anyhow::Result;
     use tokio_util::sync::CancellationToken;
 
     use crate::agent::drain_in_flight_requests::drain_in_flight_requests;
@@ -37,7 +36,7 @@ mod tests {
     use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
     #[tokio::test]
-    async fn increments_slot_on_construct_and_releases_on_drop() -> Result<()> {
+    async fn increments_slot_on_construct_and_releases_on_drop() {
         let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(4));
 
         assert_eq!(
@@ -68,12 +67,10 @@ mod tests {
                 .slots_processing_count(),
             0
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn drain_in_flight_requests_blocks_until_guard_dropped() -> Result<()> {
+    async fn drain_in_flight_requests_blocks_until_guard_dropped() {
         let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(4));
         let shutdown = CancellationToken::new();
 
@@ -99,8 +96,10 @@ mod tests {
         drop(guard);
 
         let unblock_window = Duration::from_millis(500);
-        tokio::time::timeout(unblock_window, drain_task).await???;
-
-        Ok(())
+        tokio::time::timeout(unblock_window, drain_task)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
     }
 }

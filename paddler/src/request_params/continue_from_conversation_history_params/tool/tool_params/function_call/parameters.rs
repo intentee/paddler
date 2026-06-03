@@ -28,3 +28,69 @@ impl Validates<Parameters<ValidatedParametersSchema>> for Parameters<RawParamete
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::Map;
+    use serde_json::Value;
+
+    use super::*;
+
+    fn properties_with_name() -> Map<String, Value> {
+        let mut properties = Map::new();
+        properties.insert("name".to_owned(), Value::String("string".to_owned()));
+
+        properties
+    }
+
+    #[test]
+    fn is_empty_returns_true_for_empty_variant() {
+        let parameters: Parameters<RawParametersSchema> = Parameters::Empty;
+
+        assert!(parameters.is_empty());
+    }
+
+    #[test]
+    fn is_empty_returns_false_for_schema_variant() {
+        let parameters = Parameters::Schema(RawParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(Map::new()),
+            required: None,
+            additional_properties: None,
+        });
+
+        assert!(!parameters.is_empty());
+    }
+
+    #[test]
+    fn validate_keeps_empty_variant_empty() {
+        let parameters: Parameters<RawParametersSchema> = Parameters::Empty;
+
+        let validated = parameters.validate().unwrap();
+
+        assert!(validated.is_empty());
+    }
+
+    #[test]
+    fn validate_carries_schema_into_validated_variant() {
+        let parameters = Parameters::Schema(RawParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(properties_with_name()),
+            required: Some(vec!["name".to_owned()]),
+            additional_properties: None,
+        });
+
+        let validated = parameters.validate().unwrap();
+
+        assert!(!validated.is_empty());
+
+        let expected = Parameters::Schema(ValidatedParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(properties_with_name()),
+            required: Some(vec!["name".to_owned()]),
+            additional_properties: None,
+        });
+
+        assert_eq!(validated, expected);
+    }
+}

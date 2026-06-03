@@ -201,3 +201,78 @@ impl ServiceBundle for BalancerServiceBundle {
         Ok(services)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::net::SocketAddr;
+
+    #[cfg(feature = "web_admin_panel")]
+    use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
+    #[cfg(feature = "web_admin_panel")]
+    use paddler::resolved_socket_addr::ResolvedSocketAddr;
+
+    use super::*;
+
+    #[cfg(feature = "web_admin_panel")]
+    const EXPECTED_SERVICE_COUNT: usize = 6;
+    #[cfg(not(feature = "web_admin_panel"))]
+    const EXPECTED_SERVICE_COUNT: usize = 5;
+
+    fn loopback_addr() -> SocketAddr {
+        SocketAddr::from(([127, 0, 0, 1], 0))
+    }
+
+    #[tokio::test]
+    async fn services_includes_every_optional_service_when_configured() {
+        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
+            buffered_request_timeout: Duration::from_secs(10),
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: loopback_addr(),
+                cors_allowed_hosts: vec![],
+                inference_item_timeout: Duration::from_secs(30),
+            },
+            management_service_configuration: ManagementServiceConfiguration {
+                addr: loopback_addr(),
+                cors_allowed_hosts: vec![],
+            },
+            max_buffered_requests: 30,
+            openai_service_configuration: Some(OpenAIServiceConfiguration {
+                addr: loopback_addr(),
+            }),
+            shutdown_options: ServiceShutdownOptions::default(),
+            state_database_type: StateDatabaseType::Memory(Box::default()),
+            statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+            statsd_service_configuration: Some(StatsdServiceConfiguration {
+                statsd_addr: loopback_addr(),
+                statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+                statsd_reporting_interval: Duration::from_secs(10),
+            }),
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
+                addr: loopback_addr(),
+                template_data: TemplateData {
+                    buffered_request_timeout: Duration::from_secs(10),
+                    compat_openai_addr: None,
+                    inference_addr: ResolvedSocketAddr {
+                        input_addr: "127.0.0.1:0".to_owned(),
+                        socket_addr: loopback_addr(),
+                    },
+                    management_addr: ResolvedSocketAddr {
+                        input_addr: "127.0.0.1:0".to_owned(),
+                        socket_addr: loopback_addr(),
+                    },
+                    max_buffered_requests: 30,
+                    statsd_addr: None,
+                    statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+                    statsd_reporting_interval: Duration::from_secs(10),
+                },
+            }),
+        })
+        .await
+        .unwrap();
+
+        let services = bundle.services().await.unwrap();
+
+        assert_eq!(services.len(), EXPECTED_SERVICE_COUNT);
+    }
+}

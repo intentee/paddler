@@ -29,7 +29,10 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[expect(clippy::large_enum_variant)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "clap's #[derive(Subcommand)] requires unboxed `Args` payloads (Box<T> is unsupported by the derive); the command is parsed once at startup, so the variant size difference is immaterial"
+)]
 #[derive(Subcommand)]
 enum Commands {
     /// Generates tokens and embeddings; connects to the balancer

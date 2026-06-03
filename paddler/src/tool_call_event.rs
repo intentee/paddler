@@ -52,8 +52,6 @@ impl ToolCallEvent {
 mod tests {
     use crate::generated_token_result::GeneratedTokenResult;
     use crate::raw_tool_call_tokens::RawToolCallTokens;
-    use anyhow::Result;
-    use anyhow::bail;
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::ToolCallArguments;
     use serde_json::json;
@@ -110,7 +108,7 @@ mod tests {
     }
 
     #[test]
-    fn resolved_converts_to_tool_call_parsed() -> Result<()> {
+    fn resolved_converts_to_tool_call_parsed() {
         let parsed = ParsedToolCall::new(
             "id".to_owned(),
             "tool".to_owned(),
@@ -118,39 +116,46 @@ mod tests {
         );
         let event = ToolCallEvent::Resolved(vec![parsed.clone()]);
 
-        match event.into_generated_token_result() {
-            Some(GeneratedTokenResult::ToolCallParsed(calls)) if calls == vec![parsed] => Ok(()),
-            other => bail!("expected ToolCallParsed with one call, got {other:?}"),
-        }
+        let result = event
+            .into_generated_token_result()
+            .expect("Resolved must convert to Some");
+
+        assert!(
+            matches!(result, GeneratedTokenResult::ToolCallParsed(calls) if calls == vec![parsed])
+        );
     }
 
     #[test]
-    fn parse_failed_converts_to_tool_call_parse_failed_with_message() -> Result<()> {
+    fn parse_failed_converts_to_tool_call_parse_failed_with_message() {
         let event = ToolCallEvent::ParseFailed(ToolCallPipelineError::EmptyBuffer);
 
-        match event.into_generated_token_result() {
-            Some(GeneratedTokenResult::ToolCallParseFailed(message)) if !message.is_empty() => {
-                Ok(())
-            }
-            other => bail!("expected ToolCallParseFailed with non-empty message, got {other:?}"),
-        }
+        let result = event
+            .into_generated_token_result()
+            .expect("ParseFailed must convert to Some");
+
+        assert!(matches!(
+            result,
+            GeneratedTokenResult::ToolCallParseFailed(message)
+                if message == ToolCallPipelineError::EmptyBuffer.to_string()
+        ));
     }
 
     #[test]
-    fn validation_failed_converts_to_tool_call_validation_failed_with_messages() -> Result<()> {
+    fn validation_failed_converts_to_tool_call_validation_failed_with_messages() {
         let event =
             ToolCallEvent::ValidationFailed(vec![ToolCallValidationError::UnknownToolName(
                 "missing".to_owned(),
             )]);
 
-        match event.into_generated_token_result() {
-            Some(GeneratedTokenResult::ToolCallValidationFailed(messages))
-                if messages.len() == 1 && messages[0].contains("missing") =>
-            {
-                Ok(())
-            }
-            other => bail!("expected ToolCallValidationFailed mentioning 'missing', got {other:?}"),
-        }
+        let result = event
+            .into_generated_token_result()
+            .expect("ValidationFailed must convert to Some");
+
+        assert!(matches!(
+            result,
+            GeneratedTokenResult::ToolCallValidationFailed(messages)
+                if messages.len() == 1 && messages[0].contains("missing")
+        ));
     }
 
     #[test]
@@ -166,20 +171,20 @@ mod tests {
     }
 
     #[test]
-    fn unrecognized_format_converts_to_unrecognized_tool_call_format_preserving_payload()
-    -> Result<()> {
+    fn unrecognized_format_converts_to_unrecognized_tool_call_format_preserving_payload() {
         let event = ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
             text: "raw output".to_owned(),
             ffi_error_message: "parser bailed".to_owned(),
         });
 
-        match event.into_generated_token_result() {
-            Some(GeneratedTokenResult::UnrecognizedToolCallFormat(raw)) => {
-                assert_eq!(raw.text, "raw output");
-                assert_eq!(raw.ffi_error_message, "parser bailed");
-                Ok(())
-            }
-            other => bail!("expected UnrecognizedToolCallFormat preserving payload, got {other:?}"),
-        }
+        let result = event
+            .into_generated_token_result()
+            .expect("UnrecognizedFormat must convert to Some");
+
+        assert!(matches!(
+            result,
+            GeneratedTokenResult::UnrecognizedToolCallFormat(raw)
+                if raw.text == "raw output" && raw.ffi_error_message == "parser bailed"
+        ));
     }
 }

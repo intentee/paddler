@@ -49,6 +49,7 @@ minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wor
 nanoid = "0.4"
 nix = { version = "0.30", features = ["signal"] }
 open = "5.3.4"
+parking_lot = "=0.12.5"
 pastey = "0.2"
 rand = "0.9"
 ratatui = "=0.30.0"

@@ -6,6 +6,7 @@ pub mod continuous_batch_arbiter_build_outcome;
 pub mod continuous_batch_arbiter_handle;
 pub mod continuous_batch_embedding_processor;
 pub mod continuous_batch_request_phase;
+pub mod continuous_batch_request_state;
 pub mod continuous_batch_scheduler;
 pub mod continuous_batch_scheduler_command;
 pub mod continuous_batch_scheduler_context;

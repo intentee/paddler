@@ -27,7 +27,7 @@ async fn continuous_batch_generates_tokens_with_distinct_k_and_v_cache_dtypes() 
         ..InferenceParameters::default()
     };
 
-    inference_parameters.k_cache_dtype = KvCacheDtype::Q8_0;
+    inference_parameters.k_cache_dtype = KvCacheDtype::Q80;
     inference_parameters.v_cache_dtype = KvCacheDtype::F16;
 
     let cluster = start_cluster(ClusterParams {

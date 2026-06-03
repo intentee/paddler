@@ -1,4 +1,4 @@
-use std::sync::RwLock;
+use parking_lot::RwLock;
 
 use crate::model_metadata::ModelMetadata;
 
@@ -12,22 +12,14 @@ impl ModelMetadataHolder {
         Self::default()
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_model_metadata(&self, metadata: ModelMetadata) {
-        let mut lock = self
-            .model_metadata
-            .write()
-            .expect("Failed to acquire write lock on model metadata");
+        let mut lock = self.model_metadata.write();
 
         *lock = Some(metadata);
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_model_metadata(&self) -> Option<ModelMetadata> {
-        let lock = self
-            .model_metadata
-            .read()
-            .expect("Failed to acquire read lock on model metadata");
+        let lock = self.model_metadata.read();
 
         lock.clone()
     }
@@ -38,5 +30,32 @@ impl Default for ModelMetadataHolder {
         Self {
             model_metadata: RwLock::new(None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use super::*;
+
+    #[test]
+    fn new_holder_starts_empty() {
+        let holder = ModelMetadataHolder::new();
+
+        assert!(holder.get_model_metadata().is_none());
+    }
+
+    #[test]
+    fn stored_metadata_is_returned() {
+        let holder = ModelMetadataHolder::new();
+        let mut metadata = BTreeMap::new();
+        metadata.insert("architecture".to_owned(), "llama".to_owned());
+
+        holder.set_model_metadata(ModelMetadata { metadata });
+
+        let stored = holder.get_model_metadata().unwrap();
+
+        assert_eq!(stored.metadata.get("architecture").unwrap(), "llama");
     }
 }

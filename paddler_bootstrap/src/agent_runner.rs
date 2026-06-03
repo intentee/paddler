@@ -4,10 +4,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use paddler::slot_aggregated_status::SlotAggregatedStatus;
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use crate::agent_service_bundle::AgentServiceBundle;
+use crate::run_service_manager::run_service_manager;
 use crate::service_thread::ServiceThread;
 
 pub struct AgentRunnerParams {
@@ -35,15 +35,8 @@ impl AgentRunner {
         let bundle = AgentServiceBundle::new(agent_name, &management_address, slots);
         let slot_aggregated_status = bundle.slot_aggregated_status.clone();
 
-        let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| async move {
-            let mut service_manager = ServiceManager::default();
-            service_manager.register_bundle(bundle).await?;
-            service_manager
-                .start(task_shutdown)
-                .run_to_completion(ServiceShutdownOptions::default())
-                .await
-                .into_result()
-                .map_err(anyhow::Error::from)
+        let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| {
+            run_service_manager(bundle, task_shutdown, ServiceShutdownOptions::default())
         });
 
         Self {

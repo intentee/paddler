@@ -310,3 +310,365 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         Ok(res)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use actix_web::FromRequest as _;
+    use actix_web::body::to_bytes;
+    use actix_web::http::header;
+    use actix_web::test::TestRequest;
+    use actix_web::web::Bytes;
+    use actix_web::web::Payload;
+    use serde::Deserialize;
+    use serde::Serialize;
+    use std::mem::discriminant;
+
+    use super::ContinuationDecision;
+    use super::ContinuationStopParameters;
+    use super::ControlsWebSocketEndpoint;
+    use super::WebSocketSessionController;
+    use crate::rpc_message::RpcMessage;
+    use actix_ws::AggregatedMessage;
+    use actix_ws::CloseCode;
+    use actix_ws::CloseReason;
+    use actix_ws::Session;
+    use anyhow::Result;
+    use anyhow::anyhow;
+    use async_trait::async_trait;
+    use std::sync::Arc;
+    use tokio_util::sync::CancellationToken;
+
+    #[derive(Deserialize, Serialize)]
+    struct ProbeIncomingMessage {}
+
+    impl RpcMessage for ProbeIncomingMessage {}
+
+    #[derive(Serialize)]
+    struct ProbeOutgoingMessage;
+
+    impl RpcMessage for ProbeOutgoingMessage {}
+
+    #[derive(Clone, Copy)]
+    enum DeserializedMessageOutcome {
+        Continue,
+        Stop,
+        Err,
+    }
+
+    struct ProbeEndpoint {
+        deserialized_message_outcome: DeserializedMessageOutcome,
+    }
+
+    #[async_trait]
+    impl ControlsWebSocketEndpoint for ProbeEndpoint {
+        type Context = DeserializedMessageOutcome;
+        type IncomingMessage = ProbeIncomingMessage;
+        type OutgoingMessage = ProbeOutgoingMessage;
+
+        fn create_context(&self) -> Self::Context {
+            self.deserialized_message_outcome
+        }
+
+        async fn handle_deserialized_message(
+            _connection_close: CancellationToken,
+            context: Arc<Self::Context>,
+            _deserialized_message: Self::IncomingMessage,
+            _websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
+        ) -> Result<ContinuationDecision> {
+            match *context {
+                DeserializedMessageOutcome::Continue => Ok(ContinuationDecision::Continue),
+                DeserializedMessageOutcome::Stop => {
+                    Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                        close_reason: None,
+                    }))
+                }
+                DeserializedMessageOutcome::Err => {
+                    Err(anyhow!("deserialized message handler failed"))
+                }
+            }
+        }
+    }
+
+    #[derive(Clone, Copy)]
+    enum ConnectionStartOutcome {
+        Stop,
+        Err,
+    }
+
+    struct StartOverridingEndpoint {
+        connection_start_outcome: ConnectionStartOutcome,
+    }
+
+    #[async_trait]
+    impl ControlsWebSocketEndpoint for StartOverridingEndpoint {
+        type Context = ConnectionStartOutcome;
+        type IncomingMessage = ProbeIncomingMessage;
+        type OutgoingMessage = ProbeOutgoingMessage;
+
+        fn create_context(&self) -> Self::Context {
+            self.connection_start_outcome
+        }
+
+        async fn handle_deserialized_message(
+            _connection_close: CancellationToken,
+            _context: Arc<Self::Context>,
+            _deserialized_message: Self::IncomingMessage,
+            _websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
+        ) -> Result<ContinuationDecision> {
+            Ok(ContinuationDecision::Continue)
+        }
+
+        async fn on_connection_start(
+            context: Arc<Self::Context>,
+            _session: &mut Session,
+        ) -> Result<ContinuationDecision> {
+            match *context {
+                ConnectionStartOutcome::Stop => {
+                    Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                        close_reason: Some(CloseReason {
+                            code: CloseCode::Normal,
+                            description: Some("stop on start".to_owned()),
+                        }),
+                    }))
+                }
+                ConnectionStartOutcome::Err => Err(anyhow!("connection start handler failed")),
+            }
+        }
+    }
+
+    struct AggregatedErroringEndpoint;
+
+    #[async_trait]
+    impl ControlsWebSocketEndpoint for AggregatedErroringEndpoint {
+        type Context = ();
+        type IncomingMessage = ProbeIncomingMessage;
+        type OutgoingMessage = ProbeOutgoingMessage;
+
+        fn create_context(&self) -> Self::Context {}
+
+        async fn handle_deserialized_message(
+            _connection_close: CancellationToken,
+            _context: Arc<Self::Context>,
+            _deserialized_message: Self::IncomingMessage,
+            _websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
+        ) -> Result<ContinuationDecision> {
+            Ok(ContinuationDecision::Continue)
+        }
+
+        async fn handle_aggregated_message(
+            _connection_close: CancellationToken,
+            _context: Arc<Self::Context>,
+            _msg: Option<Result<AggregatedMessage, actix_ws::ProtocolError>>,
+            _session: &mut Session,
+        ) -> Result<ContinuationDecision> {
+            Err(anyhow!("aggregated message handler failed"))
+        }
+    }
+
+    fn handshake_request() -> TestRequest {
+        TestRequest::get()
+            .insert_header((header::CONNECTION, "upgrade"))
+            .insert_header((header::UPGRADE, "websocket"))
+            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
+            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
+    }
+
+    #[expect(
+        clippy::future_not_send,
+        reason = "test-only helper; the future is awaited in place, never sent across threads"
+    )]
+    async fn open_session() -> Session {
+        let (request, mut raw_payload) = handshake_request().to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+        let (_response, session, _msg_stream) = actix_ws::handle(&request, payload).unwrap();
+
+        session
+    }
+
+    #[actix_web::test]
+    async fn handle_serialization_error_continues() {
+        let session = open_session().await;
+        let serialization_error = serde_json::from_str::<u8>("not-a-number").err().unwrap();
+        let continuation_decision = ProbeEndpoint::handle_serialization_error(
+            CancellationToken::new(),
+            Arc::new(DeserializedMessageOutcome::Continue),
+            serialization_error,
+            WebSocketSessionController::new(session),
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(
+            continuation_decision,
+            ContinuationDecision::Continue
+        ));
+    }
+
+    #[actix_web::test]
+    async fn default_on_connection_start_continues() {
+        let mut session = open_session().await;
+        let continuation_decision = ProbeEndpoint::on_connection_start(
+            Arc::new(DeserializedMessageOutcome::Continue),
+            &mut session,
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(
+            continuation_decision,
+            ContinuationDecision::Continue
+        ));
+    }
+
+    #[actix_web::test]
+    async fn deserialized_message_stop_cancels_connection() {
+        let session = open_session().await;
+        let connection_close = CancellationToken::new();
+        let continuation_decision = ProbeEndpoint::handle_text_message(
+            connection_close.clone(),
+            Arc::new(DeserializedMessageOutcome::Stop),
+            "{}",
+            WebSocketSessionController::new(session),
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(
+            continuation_decision,
+            ContinuationDecision::Continue
+        ));
+
+        connection_close.cancelled().await;
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[actix_web::test]
+    async fn deserialized_message_error_cancels_connection() {
+        let session = open_session().await;
+        let connection_close = CancellationToken::new();
+        let continuation_decision = ProbeEndpoint::handle_text_message(
+            connection_close.clone(),
+            Arc::new(DeserializedMessageOutcome::Err),
+            "{}",
+            WebSocketSessionController::new(session),
+        )
+        .await
+        .unwrap();
+
+        assert!(matches!(
+            continuation_decision,
+            ContinuationDecision::Continue
+        ));
+
+        connection_close.cancelled().await;
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[expect(
+        clippy::future_not_send,
+        reason = "test-only helper; the future is awaited in place, never sent across threads"
+    )]
+    async fn drain_close_frame(endpoint: &impl ControlsWebSocketEndpoint) -> Bytes {
+        let (request, mut raw_payload) = handshake_request().to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+        let response = endpoint
+            .respond(payload, request, CancellationToken::new())
+            .unwrap();
+
+        assert_eq!(response.status().as_u16(), 101);
+
+        to_bytes(response.into_body()).await.unwrap()
+    }
+
+    #[actix_web::test]
+    async fn respond_runs_message_loop_until_stream_closes() {
+        let close_frame = drain_close_frame(&ProbeEndpoint {
+            deserialized_message_outcome: DeserializedMessageOutcome::Continue,
+        })
+        .await;
+
+        assert!(!close_frame.is_empty());
+    }
+
+    #[actix_web::test]
+    async fn respond_closes_when_start_handler_stops() {
+        let close_frame = drain_close_frame(&StartOverridingEndpoint {
+            connection_start_outcome: ConnectionStartOutcome::Stop,
+        })
+        .await;
+
+        assert!(!close_frame.is_empty());
+    }
+
+    #[actix_web::test]
+    async fn respond_closes_when_start_handler_errors() {
+        let close_frame = drain_close_frame(&StartOverridingEndpoint {
+            connection_start_outcome: ConnectionStartOutcome::Err,
+        })
+        .await;
+
+        assert!(!close_frame.is_empty());
+    }
+
+    #[actix_web::test]
+    async fn respond_breaks_when_aggregated_handler_errors() {
+        let close_frame = drain_close_frame(&AggregatedErroringEndpoint).await;
+
+        assert!(!close_frame.is_empty());
+    }
+
+    #[actix_web::test]
+    async fn start_overriding_endpoint_deserialized_message_continues() {
+        let session = open_session().await;
+        let continuation_decision = StartOverridingEndpoint::handle_deserialized_message(
+            CancellationToken::new(),
+            Arc::new(ConnectionStartOutcome::Stop),
+            ProbeIncomingMessage {},
+            WebSocketSessionController::new(session),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+    }
+
+    #[actix_web::test]
+    async fn aggregated_erroring_endpoint_deserialized_message_continues() {
+        let session = open_session().await;
+        let continuation_decision = AggregatedErroringEndpoint::handle_deserialized_message(
+            CancellationToken::new(),
+            Arc::new(()),
+            ProbeIncomingMessage {},
+            WebSocketSessionController::new(session),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+    }
+
+    #[actix_web::test]
+    async fn respond_propagates_handshake_error_on_non_websocket_request() {
+        let (request, mut raw_payload) = TestRequest::get().to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+        let respond_result =
+            AggregatedErroringEndpoint.respond(payload, request, CancellationToken::new());
+        let handshake_error = respond_result.err().unwrap();
+
+        assert_eq!(handshake_error.error_response().status().as_u16(), 400);
+    }
+}

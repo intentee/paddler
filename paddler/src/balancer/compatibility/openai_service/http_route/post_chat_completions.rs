@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -12,6 +11,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use nanoid::nanoid;
+use parking_lot::Mutex;
 use crate::conversation_history::ConversationHistory;
 use crate::conversation_message::ConversationMessage;
 use crate::conversation_message_content::ConversationMessageContent;
@@ -71,15 +71,11 @@ fn openai_usage_json(usage: &TokenUsage) -> serde_json::Value {
     })
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "system time before UNIX_EPOCH means we are moving back in time"
-)]
-fn current_timestamp() -> u64 {
-    SystemTime::now()
+fn timestamp_from(now: SystemTime) -> Result<u64> {
+    Ok(now
         .duration_since(UNIX_EPOCH)
-        .expect("time went backwards")
-        .as_secs()
+        .context("system time is before the Unix epoch")?
+        .as_secs())
 }
 
 fn validation_failure_message(errors: &[String]) -> String {
@@ -216,6 +212,7 @@ struct OpenAIStreamingState {
 
 #[derive(Clone)]
 struct OpenAIStreamingResponseTransformer {
+    created: u64,
     include_usage: bool,
     model: String,
     state: Arc<Mutex<OpenAIStreamingState>>,
@@ -224,10 +221,10 @@ struct OpenAIStreamingResponseTransformer {
 
 impl OpenAIStreamingResponseTransformer {
     fn content_chunk(&self, request_id: &str, text: &str) -> Result<String> {
-        Ok(serde_json::to_string(&json!({
+        serde_json::to_string(&json!({
             "id": request_id,
             "object": "chat.completion.chunk",
-            "created": current_timestamp(),
+            "created": self.created,
             "model": self.model,
             "system_fingerprint": self.system_fingerprint,
             "choices": [
@@ -241,14 +238,15 @@ impl OpenAIStreamingResponseTransformer {
                     "finish_reason": null
                 }
             ]
-        }))?)
+        }))
+        .context("serializing content chunk")
     }
 
     fn reasoning_chunk(&self, request_id: &str, text: &str) -> Result<String> {
-        Ok(serde_json::to_string(&json!({
+        serde_json::to_string(&json!({
             "id": request_id,
             "object": "chat.completion.chunk",
-            "created": current_timestamp(),
+            "created": self.created,
             "model": self.model,
             "system_fingerprint": self.system_fingerprint,
             "choices": [
@@ -262,7 +260,8 @@ impl OpenAIStreamingResponseTransformer {
                     "finish_reason": null
                 }
             ]
-        }))?)
+        }))
+        .context("serializing reasoning chunk")
     }
 
     fn tool_calls_chunk(
@@ -270,48 +269,51 @@ impl OpenAIStreamingResponseTransformer {
         request_id: &str,
         parsed_calls: &[ParsedToolCall],
     ) -> Result<String> {
-        let tool_calls = parsed_calls
+        parsed_calls
             .iter()
             .enumerate()
-            .map(|(index, call)| -> Result<serde_json::Value> {
-                let arguments = arguments_to_openai_string(&call.arguments)?;
-                Ok(json!({
-                    "index": index,
-                    "id": call.id,
-                    "type": "function",
-                    "function": {
-                        "name": call.name,
-                        "arguments": arguments,
-                    }
-                }))
+            .map(|(index, call)| {
+                arguments_to_openai_string(&call.arguments).map(|arguments| {
+                    json!({
+                        "index": index,
+                        "id": call.id,
+                        "type": "function",
+                        "function": {
+                            "name": call.name,
+                            "arguments": arguments,
+                        }
+                    })
+                })
             })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(serde_json::to_string(&json!({
-            "id": request_id,
-            "object": "chat.completion.chunk",
-            "created": current_timestamp(),
-            "model": self.model,
-            "system_fingerprint": self.system_fingerprint,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {
-                        "role": "assistant",
-                        "tool_calls": tool_calls,
-                    },
-                    "logprobs": null,
-                    "finish_reason": null
-                }
-            ]
-        }))?)
+            .collect::<Result<Vec<_>>>()
+            .and_then(|tool_calls| {
+                serde_json::to_string(&json!({
+                    "id": request_id,
+                    "object": "chat.completion.chunk",
+                    "created": self.created,
+                    "model": self.model,
+                    "system_fingerprint": self.system_fingerprint,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "role": "assistant",
+                                "tool_calls": tool_calls,
+                            },
+                            "logprobs": null,
+                            "finish_reason": null
+                        }
+                    ]
+                }))
+                .context("serializing tool-calls chunk")
+            })
     }
 
     fn finish_chunk(&self, request_id: &str, finish_reason: &str) -> Result<String> {
-        Ok(serde_json::to_string(&json!({
+        serde_json::to_string(&json!({
             "id": request_id,
             "object": "chat.completion.chunk",
-            "created": current_timestamp(),
+            "created": self.created,
             "model": self.model,
             "system_fingerprint": self.system_fingerprint,
             "choices": [
@@ -322,31 +324,31 @@ impl OpenAIStreamingResponseTransformer {
                     "finish_reason": finish_reason
                 }
             ]
-        }))?)
+        }))
+        .context("serializing finish chunk")
     }
 
     fn usage_chunk(&self, request_id: &str, usage: &TokenUsage) -> Result<String> {
-        Ok(serde_json::to_string(&json!({
+        serde_json::to_string(&json!({
             "id": request_id,
             "object": "chat.completion.chunk",
-            "created": current_timestamp(),
+            "created": self.created,
             "model": self.model,
             "system_fingerprint": self.system_fingerprint,
             "choices": [],
             "usage": openai_usage_json(usage),
-        }))?)
+        }))
+        .context("serializing usage chunk")
     }
 
     fn handle_content(&self, request_id: &str, text: &str) -> Result<Vec<TransformResult>> {
-        Ok(vec![TransformResult::Chunk(
-            self.content_chunk(request_id, text)?,
-        )])
+        self.content_chunk(request_id, text)
+            .map(|chunk| vec![TransformResult::Chunk(chunk)])
     }
 
     fn handle_reasoning(&self, request_id: &str, text: &str) -> Result<Vec<TransformResult>> {
-        Ok(vec![TransformResult::Chunk(
-            self.reasoning_chunk(request_id, text)?,
-        )])
+        self.reasoning_chunk(request_id, text)
+            .map(|chunk| vec![TransformResult::Chunk(chunk)])
     }
 
     fn handle_tool_call_parsed(
@@ -358,14 +360,10 @@ impl OpenAIStreamingResponseTransformer {
             return Ok(vec![]);
         }
 
-        self.state
-            .lock()
-            .map_err(|err| anyhow!("streaming state mutex poisoned: {err}"))?
-            .saw_tool_call = true;
+        self.state.lock().saw_tool_call = true;
 
-        Ok(vec![TransformResult::Chunk(
-            self.tool_calls_chunk(request_id, parsed_calls)?,
-        )])
+        self.tool_calls_chunk(request_id, parsed_calls)
+            .map(|chunk| vec![TransformResult::Chunk(chunk)])
     }
 
     fn handle_done(
@@ -373,21 +371,20 @@ impl OpenAIStreamingResponseTransformer {
         request_id: &str,
         summary: &GenerationSummary,
     ) -> Result<Vec<TransformResult>> {
-        let saw_tool_call = self
-            .state
-            .lock()
-            .map_err(|err| anyhow!("streaming state mutex poisoned: {err}"))?
-            .saw_tool_call;
-
+        let saw_tool_call = self.state.lock().saw_tool_call;
         let finish_reason = if saw_tool_call { "tool_calls" } else { "stop" };
-        let finish = TransformResult::Chunk(self.finish_chunk(request_id, finish_reason)?);
 
-        if self.include_usage {
-            let usage = TransformResult::Chunk(self.usage_chunk(request_id, &summary.usage)?);
-            Ok(vec![finish, usage])
-        } else {
-            Ok(vec![finish])
-        }
+        self.finish_chunk(request_id, finish_reason)
+            .and_then(|finish_chunk| {
+                let finish = TransformResult::Chunk(finish_chunk);
+
+                if self.include_usage {
+                    self.usage_chunk(request_id, &summary.usage)
+                        .map(|usage_chunk| vec![finish, TransformResult::Chunk(usage_chunk)])
+                } else {
+                    Ok(vec![finish])
+                }
+            })
     }
 }
 
@@ -463,104 +460,91 @@ struct OpenAINonStreamingState {
 
 #[derive(Clone)]
 struct OpenAINonStreamingResponseTransformer {
+    created: u64,
     model: String,
     state: Arc<Mutex<OpenAINonStreamingState>>,
 }
 
 impl OpenAINonStreamingResponseTransformer {
-    fn append_content(&self, text: &str) -> Result<()> {
-        self.state
-            .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?
-            .content
-            .push_str(text);
-        Ok(())
+    fn append_content(&self, text: &str) {
+        self.state.lock().content.push_str(text);
     }
 
-    fn append_reasoning(&self, text: &str) -> Result<()> {
-        self.state
-            .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?
-            .reasoning
-            .push_str(text);
-        Ok(())
+    fn append_reasoning(&self, text: &str) {
+        self.state.lock().reasoning.push_str(text);
     }
 
-    fn append_tool_calls(&self, parsed_calls: Vec<ParsedToolCall>) -> Result<()> {
-        self.state
-            .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?
-            .tool_calls
-            .extend(parsed_calls);
-        Ok(())
+    fn append_tool_calls(&self, parsed_calls: Vec<ParsedToolCall>) {
+        self.state.lock().tool_calls.extend(parsed_calls);
     }
 
     fn build_done_chunk(&self, request_id: &str, summary: &GenerationSummary) -> Result<String> {
-        let snapshot = self.snapshot_state()?;
+        let snapshot = self.snapshot_state();
 
         let has_tool_calls = !snapshot.tool_calls.is_empty();
         let finish_reason = if has_tool_calls { "tool_calls" } else { "stop" };
 
-        let mut message_obj = json!({
-            "role": "assistant",
-            "content": if snapshot.content.is_empty() && has_tool_calls {
-                serde_json::Value::Null
-            } else {
-                json!(snapshot.content)
-            },
-            "refusal": null,
-            "annotations": []
-        });
-
-        if !snapshot.reasoning.is_empty()
-            && let Some(map) = message_obj.as_object_mut()
-        {
-            map.insert("reasoning_content".to_owned(), json!(snapshot.reasoning));
-        }
-
-        if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
-            let tool_calls_json = snapshot
-                .tool_calls
-                .iter()
-                .map(|call| -> Result<serde_json::Value> {
-                    let arguments = arguments_to_openai_string(&call.arguments)?;
-                    Ok(json!({
+        let tool_calls_json = snapshot
+            .tool_calls
+            .iter()
+            .map(|call| {
+                arguments_to_openai_string(&call.arguments).map(|arguments| {
+                    json!({
                         "id": call.id,
                         "type": "function",
                         "function": {
                             "name": call.name,
                             "arguments": arguments,
                         }
-                    }))
+                    })
                 })
-                .collect::<Result<Vec<_>>>()?;
-            map.insert("tool_calls".to_owned(), json!(tool_calls_json));
-        }
+            })
+            .collect::<Result<Vec<_>>>();
 
-        Ok(serde_json::to_string(&json!({
-            "id": request_id,
-            "object": "chat.completion",
-            "created": current_timestamp(),
-            "model": self.model,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": message_obj,
-                    "logprobs": null,
-                    "finish_reason": finish_reason
-                }
-            ],
-            "usage": openai_usage_json(&summary.usage),
-            "service_tier": "default"
-        }))?)
+        tool_calls_json.and_then(|tool_calls_json| {
+            let mut message_obj = json!({
+                "role": "assistant",
+                "content": if snapshot.content.is_empty() && has_tool_calls {
+                    serde_json::Value::Null
+                } else {
+                    json!(snapshot.content)
+                },
+                "refusal": null,
+                "annotations": []
+            });
+
+            if !snapshot.reasoning.is_empty()
+                && let Some(map) = message_obj.as_object_mut()
+            {
+                map.insert("reasoning_content".to_owned(), json!(snapshot.reasoning));
+            }
+
+            if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
+                map.insert("tool_calls".to_owned(), json!(tool_calls_json));
+            }
+
+            serde_json::to_string(&json!({
+                "id": request_id,
+                "object": "chat.completion",
+                "created": self.created,
+                "model": self.model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": message_obj,
+                        "logprobs": null,
+                        "finish_reason": finish_reason
+                    }
+                ],
+                "usage": openai_usage_json(&summary.usage),
+                "service_tier": "default"
+            }))
+            .context("serializing non-streaming completion")
+        })
     }
 
-    fn snapshot_state(&self) -> Result<OpenAINonStreamingState> {
-        let state = self
-            .state
-            .lock()
-            .map_err(|err| anyhow!("non-streaming state mutex poisoned: {err}"))?;
-        Ok(state.clone())
+    fn snapshot_state(&self) -> OpenAINonStreamingState {
+        self.state.lock().clone()
     }
 }
 
@@ -580,7 +564,7 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                     ),
                 ..
             }) => {
-                self.append_content(&text)?;
+                self.append_content(&text);
                 Ok(vec![])
             }
             OutgoingMessage::Response(ResponseEnvelope {
@@ -588,7 +572,7 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
                 ..
             }) => {
-                self.append_reasoning(&text)?;
+                self.append_reasoning(&text);
                 Ok(vec![])
             }
             OutgoingMessage::Response(ResponseEnvelope {
@@ -600,7 +584,7 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
                 ..
             }) => {
-                self.append_tool_calls(parsed_calls)?;
+                self.append_tool_calls(parsed_calls);
                 Ok(vec![])
             }
             OutgoingMessage::Response(ResponseEnvelope {
@@ -673,6 +657,9 @@ async fn respond(
         tools: validated_tools,
     };
 
+    let created =
+        timestamp_from(SystemTime::now()).map_err(actix_web::error::ErrorInternalServerError)?;
+
     if openai_params.stream.unwrap_or(false) {
         let include_usage = openai_params
             .stream_options
@@ -684,11 +671,13 @@ async fn respond(
             app_data.inference_service_configuration.clone(),
             paddler_params,
             OpenAIStreamingResponseTransformer {
+                created,
                 include_usage,
                 model: openai_params.model.clone(),
                 state: Arc::new(Mutex::new(OpenAIStreamingState::default())),
                 system_fingerprint: nanoid!(),
             },
+            app_data.shutdown.clone(),
         ))
     } else {
         let results: Vec<TransformResult> = unbounded_stream_from_agent(
@@ -696,9 +685,11 @@ async fn respond(
             app_data.inference_service_configuration.clone(),
             paddler_params,
             OpenAINonStreamingResponseTransformer {
+                created,
                 model: openai_params.model.clone(),
                 state: Arc::new(Mutex::new(OpenAINonStreamingState::default())),
             },
+            app_data.shutdown.clone(),
         )
         .collect()
         .await;
@@ -734,8 +725,22 @@ async fn respond(
 
 #[cfg(test)]
 mod tests {
+    use parking_lot::Mutex;
+    use std::net::Ipv4Addr;
+    use std::net::SocketAddr;
     use std::sync::Arc;
-    use std::sync::Mutex;
+    use std::time::Duration;
+    use std::time::SystemTime;
+    use std::time::UNIX_EPOCH;
+
+    use actix_web::App;
+    use actix_web::http::StatusCode;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body;
+    use actix_web::web::Data;
+    use tokio_util::sync::CancellationToken;
 
     use crate::balancer::inference_client::Message as OutgoingMessage;
     use crate::balancer::inference_client::Response as OutgoingResponse;
@@ -748,11 +753,16 @@ mod tests {
     use llama_cpp_bindings::TokenUsage;
     use llama_cpp_bindings::ToolCallArguments;
 
+    use super::AppData;
     use super::OpenAINonStreamingResponseTransformer;
     use super::OpenAINonStreamingState;
     use super::OpenAIStreamingResponseTransformer;
+    use super::register;
+    use crate::balancer::agent_controller_pool::AgentControllerPool;
+    use crate::balancer::buffered_request_manager::BufferedRequestManager;
     use crate::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
     use crate::balancer::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+    use crate::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 
     fn make_token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
         OutgoingMessage::Response(ResponseEnvelope {
@@ -782,6 +792,7 @@ mod tests {
 
     fn streaming_transformer(include_usage: bool) -> OpenAIStreamingResponseTransformer {
         OpenAIStreamingResponseTransformer {
+            created: 0,
             include_usage,
             model: "test-model".to_owned(),
             state: Arc::new(Mutex::new(super::OpenAIStreamingState::default())),
@@ -791,9 +802,26 @@ mod tests {
 
     fn non_streaming_transformer() -> OpenAINonStreamingResponseTransformer {
         OpenAINonStreamingResponseTransformer {
+            created: 0,
             model: "test-model".to_owned(),
             state: Arc::new(Mutex::new(OpenAINonStreamingState::default())),
         }
+    }
+
+    #[test]
+    fn timestamp_from_now_returns_seconds_since_epoch() {
+        let timestamp = super::timestamp_from(SystemTime::now()).unwrap();
+
+        assert!(timestamp > 0);
+    }
+
+    #[test]
+    fn timestamp_from_before_unix_epoch_returns_error() {
+        let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
+
+        let result = super::timestamp_from(before_epoch);
+
+        assert!(result.is_err());
     }
 
     fn assert_chunk_contains(result: &TransformResult, expected: &str) -> Result<()> {
@@ -1459,7 +1487,7 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_text_only_request() -> Result<()> {
+    fn deserialize_text_only_request() {
         let input = serde_json::json!({
             "model": "test-model",
             "messages": [
@@ -1467,18 +1495,16 @@ mod tests {
             ]
         });
 
-        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
 
         assert_eq!(params.model, "test-model");
         assert_eq!(params.messages.len(), 1);
         assert_eq!(params.messages[0].role, "user");
         assert_eq!(params.messages[0].content.text_content(), "hello");
-
-        Ok(())
     }
 
     #[test]
-    fn deserialize_request_with_stream_options_include_usage_true() -> Result<()> {
+    fn deserialize_request_with_stream_options_include_usage_true() {
         let input = serde_json::json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],
@@ -1486,34 +1512,28 @@ mod tests {
             "stream_options": {"include_usage": true}
         });
 
-        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
 
-        let stream_options = params
-            .stream_options
-            .ok_or_else(|| anyhow::anyhow!("expected stream_options"))?;
+        let stream_options = params.stream_options.unwrap();
 
         assert!(stream_options.include_usage);
-
-        Ok(())
     }
 
     #[test]
-    fn deserialize_request_without_stream_options_defaults_to_none() -> Result<()> {
+    fn deserialize_request_without_stream_options_defaults_to_none() {
         let input = serde_json::json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],
             "stream": true
         });
 
-        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
 
         assert!(params.stream_options.is_none());
-
-        Ok(())
     }
 
     #[test]
-    fn deserialize_multimodal_request_with_image() -> Result<()> {
+    fn deserialize_multimodal_request_with_image() {
         let input = serde_json::json!({
             "model": "vision-model",
             "messages": [
@@ -1527,7 +1547,7 @@ mod tests {
             ]
         });
 
-        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
 
         assert_eq!(params.messages.len(), 1);
         assert_eq!(
@@ -1539,12 +1559,10 @@ mod tests {
 
         assert_eq!(image_urls.len(), 1);
         assert_eq!(image_urls[0].url, "data:image/jpeg;base64,/9j/4AAQ");
-
-        Ok(())
     }
 
     #[test]
-    fn deserialize_multi_turn_conversation() -> Result<()> {
+    fn deserialize_multi_turn_conversation() {
         let input = serde_json::json!({
             "model": "test-model",
             "messages": [
@@ -1555,15 +1573,13 @@ mod tests {
             ]
         });
 
-        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input)?;
+        let params: super::OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
 
         assert_eq!(params.messages.len(), 4);
-
-        Ok(())
     }
 
     #[test]
-    fn openai_message_converts_to_conversation_message() -> Result<()> {
+    fn openai_message_converts_to_conversation_message() {
         use crate::conversation_message::ConversationMessage;
 
         let input = serde_json::json!({
@@ -1574,14 +1590,12 @@ mod tests {
             ]
         });
 
-        let openai_message: super::OpenAIMessage = serde_json::from_value(input)?;
+        let openai_message: super::OpenAIMessage = serde_json::from_value(input).unwrap();
         let conversation_message = ConversationMessage::from(&openai_message);
 
         assert_eq!(conversation_message.role, "user");
         assert_eq!(conversation_message.content.text_content(), "OCR this");
         assert_eq!(conversation_message.content.image_urls().len(), 1);
-
-        Ok(())
     }
 
     #[test]
@@ -1609,5 +1623,370 @@ mod tests {
         let message = super::validation_failure_message(&[]);
 
         assert!(message.contains("validation"));
+    }
+
+    fn invalid_json_call() -> ParsedToolCall {
+        ParsedToolCall::new(
+            "call_invalid".to_owned(),
+            "broken_tool".to_owned(),
+            ToolCallArguments::InvalidJson("{not valid json".to_owned()),
+        )
+    }
+
+    fn assert_chunk_body_contains(result: &TransformResult, expected: &str) {
+        let TransformResult::Chunk(content) = result else {
+            panic!("expected a chunk variant");
+        };
+
+        assert!(
+            content.contains(expected),
+            "chunk does not contain '{expected}': {content}"
+        );
+    }
+
+    fn assert_error_body_contains(result: &TransformResult, expected: &str) {
+        let TransformResult::Error(content) = result else {
+            panic!("expected an error variant");
+        };
+
+        assert!(
+            content.contains(expected),
+            "error does not contain '{expected}': {content}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn streaming_tool_call_with_invalid_json_arguments_passes_raw_string_through() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(
+                vec![invalid_json_call()],
+            )))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_chunk_body_contains(&chunks[0], "{not valid json");
+        assert_chunk_body_contains(&chunks[0], "\"name\":\"broken_tool\"");
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_tool_call_with_invalid_json_arguments_passes_raw_string_through() {
+        let transformer = non_streaming_transformer();
+
+        transformer
+            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(
+                vec![invalid_json_call()],
+            )))
+            .await
+            .unwrap();
+
+        let final_chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::Done(
+                summary_with_counts(3, 0, 0),
+            )))
+            .await
+            .unwrap();
+
+        assert_eq!(final_chunks.len(), 1);
+        assert_chunk_body_contains(&final_chunks[0], "{not valid json");
+        assert_chunk_body_contains(&final_chunks[0], "\"name\":\"broken_tool\"");
+    }
+
+    #[actix_web::test]
+    async fn streaming_empty_parsed_tool_calls_emit_no_chunks() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::ToolCallParsed(
+                Vec::new(),
+            )))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 0);
+    }
+
+    #[actix_web::test]
+    async fn streaming_embedding_response_returns_invalid_request_error() {
+        let transformer = streaming_transformer(false);
+
+        let message = make_response_message(OutgoingResponse::Embedding(
+            crate::embedding_result::EmbeddingResult::Done,
+        ));
+        let chunks = transformer.transform(message).await.unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "invalid_request_error");
+        assert_error_body_contains(
+            &chunks[0],
+            "unexpected embedding response in chat completions",
+        );
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_embedding_response_returns_invalid_request_error() {
+        let transformer = non_streaming_transformer();
+
+        let message = make_response_message(OutgoingResponse::Embedding(
+            crate::embedding_result::EmbeddingResult::Done,
+        ));
+        let chunks = transformer.transform(message).await.unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "invalid_request_error");
+        assert_error_body_contains(
+            &chunks[0],
+            "unexpected embedding response in chat completions",
+        );
+    }
+
+    #[actix_web::test]
+    async fn streaming_grammar_incompatible_with_thinking_returns_server_error() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(
+                GeneratedTokenResult::GrammarIncompatibleWithThinking(
+                    "grammar conflicts with thinking".to_owned(),
+                ),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "grammar conflicts with thinking");
+        assert_error_body_contains(&chunks[0], "server_error");
+    }
+
+    #[actix_web::test]
+    async fn streaming_grammar_rejected_model_output_returns_server_error() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(
+                GeneratedTokenResult::GrammarRejectedModelOutput(
+                    "output rejected by grammar".to_owned(),
+                ),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "output rejected by grammar");
+    }
+
+    #[actix_web::test]
+    async fn streaming_grammar_initialization_failed_returns_server_error() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(
+                GeneratedTokenResult::GrammarInitializationFailed(
+                    "could not build grammar".to_owned(),
+                ),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "could not build grammar");
+    }
+
+    #[actix_web::test]
+    async fn streaming_grammar_syntax_error_returns_server_error() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(
+                GeneratedTokenResult::GrammarSyntaxError("bad grammar syntax".to_owned()),
+            ))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "bad grammar syntax");
+    }
+
+    #[actix_web::test]
+    async fn streaming_sampler_error_returns_server_error() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::SamplerError(
+                "sampler blew up".to_owned(),
+            )))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "sampler blew up");
+    }
+
+    #[actix_web::test]
+    async fn streaming_tool_schema_invalid_returns_server_error() {
+        let transformer = streaming_transformer(false);
+
+        let chunks = transformer
+            .transform(make_token_message(GeneratedTokenResult::ToolSchemaInvalid(
+                "schema is not valid".to_owned(),
+            )))
+            .await
+            .unwrap();
+
+        assert_eq!(chunks.len(), 1);
+        assert_error_body_contains(&chunks[0], "schema is not valid");
+    }
+
+    fn app_data_without_agents(max_buffered_requests: i32) -> AppData {
+        AppData {
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                Arc::new(AgentControllerPool::default()),
+                Duration::ZERO,
+                max_buffered_requests,
+            )),
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+                cors_allowed_hosts: Vec::new(),
+                inference_item_timeout: Duration::ZERO,
+            },
+            shutdown: CancellationToken::new(),
+        }
+    }
+
+    #[actix_web::test]
+    async fn invalid_tool_schema_returns_bad_request() {
+        let app = init_service(
+            App::new()
+                .app_data(Data::new(app_data_without_agents(0)))
+                .configure(register),
+        )
+        .await;
+
+        let request = TestRequest::post()
+            .uri("/v1/chat/completions")
+            .set_json(serde_json::json!({
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "hi"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "broken",
+                            "description": "tool with an unsatisfiable required field",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"present": {"type": "string"}},
+                                "required": ["absent"]
+                            }
+                        }
+                    }
+                ]
+            }))
+            .to_request();
+
+        let response = call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        let body = read_body(response).await;
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(parsed["error"]["type"], "invalid_request_error");
+        assert!(
+            parsed["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("absent")
+        );
+    }
+
+    #[actix_web::test]
+    async fn non_streaming_request_without_available_agent_returns_internal_server_error() {
+        let app = init_service(
+            App::new()
+                .app_data(Data::new(app_data_without_agents(0)))
+                .configure(register),
+        )
+        .await;
+
+        let request = TestRequest::post()
+            .uri("/v1/chat/completions")
+            .set_json(serde_json::json!({
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "hi"}]
+            }))
+            .to_request();
+
+        let response = call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body = read_body(response).await;
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(parsed["error"]["type"], "server_error");
+        assert!(
+            parsed["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("Buffered requests overflow")
+        );
+    }
+
+    #[test]
+    fn assert_chunk_contains_rejects_error_variant() {
+        let outcome = assert_chunk_contains(&TransformResult::Error("boom".to_owned()), "boom");
+
+        assert!(outcome.is_err());
+        assert!(
+            outcome
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("expected TransformResult::Chunk")
+        );
+    }
+
+    #[test]
+    fn assert_chunk_does_not_contain_rejects_error_variant() {
+        let outcome =
+            assert_chunk_does_not_contain(&TransformResult::Error("boom".to_owned()), "boom");
+
+        assert!(outcome.is_err());
+        assert!(
+            outcome
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("expected TransformResult::Chunk")
+        );
+    }
+
+    #[test]
+    fn assert_error_contains_rejects_chunk_variant() {
+        let outcome = assert_error_contains(&TransformResult::Chunk("body".to_owned()), "body");
+
+        assert!(outcome.is_err());
+        assert!(
+            outcome
+                .err()
+                .unwrap()
+                .to_string()
+                .contains("expected TransformResult::Error")
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "expected a chunk variant")]
+    fn assert_chunk_body_contains_panics_on_error_variant() {
+        assert_chunk_body_contains(&TransformResult::Error("boom".to_owned()), "boom");
+    }
+
+    #[test]
+    #[should_panic(expected = "expected an error variant")]
+    fn assert_error_body_contains_panics_on_chunk_variant() {
+        assert_error_body_contains(&TransformResult::Chunk("body".to_owned()), "body");
     }
 }

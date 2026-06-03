@@ -50,7 +50,6 @@ mod tests {
     use crate::agent_issue::AgentIssue;
     use crate::agent_issue_params::HuggingFaceDownloadLock;
     use crate::agent_issue_params::ModelPath;
-    use anyhow::Result;
     use hf_hub::api::tokio::Progress;
 
     use crate::produces_snapshot::ProducesSnapshot;
@@ -58,7 +57,7 @@ mod tests {
     use crate::slot_aggregated_status_download_progress::SlotAggregatedStatusDownloadProgress;
 
     #[tokio::test]
-    async fn test_init_sets_download_status_and_registers_fix() -> Result<()> {
+    async fn test_init_sets_download_status_and_registers_fix() {
         let status = Arc::new(SlotAggregatedStatus::new(2));
 
         status.register_issue(AgentIssue::HuggingFaceCannotAcquireLock(
@@ -74,7 +73,7 @@ mod tests {
 
         progress.init(1000, "model.gguf").await;
 
-        let snapshot = status.make_snapshot()?;
+        let snapshot = status.make_snapshot().unwrap();
 
         assert_eq!(snapshot.download_total, 1000);
         assert_eq!(snapshot.download_current, 0);
@@ -87,12 +86,10 @@ mod tests {
                 },
             },
         )));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_update_increments_download_current() -> Result<()> {
+    async fn test_update_increments_download_current() {
         let status = Arc::new(SlotAggregatedStatus::new(2));
         let mut progress = SlotAggregatedStatusDownloadProgress::new(Arc::clone(&status));
 
@@ -100,16 +97,14 @@ mod tests {
         progress.update(300).await;
         progress.update(200).await;
 
-        let snapshot = status.make_snapshot()?;
+        let snapshot = status.make_snapshot().unwrap();
 
         assert_eq!(snapshot.download_current, 500);
         assert_eq!(snapshot.download_total, 1000);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_finish_resets_download() -> Result<()> {
+    async fn test_finish_resets_download() {
         let status = Arc::new(SlotAggregatedStatus::new(2));
         let mut progress = SlotAggregatedStatusDownloadProgress::new(Arc::clone(&status));
 
@@ -117,12 +112,10 @@ mod tests {
         progress.update(1000).await;
         progress.finish().await;
 
-        let snapshot = status.make_snapshot()?;
+        let snapshot = status.make_snapshot().unwrap();
 
         assert_eq!(snapshot.download_current, 0);
         assert_eq!(snapshot.download_total, 0);
         assert_eq!(snapshot.download_filename, None);
-
-        Ok(())
     }
 }

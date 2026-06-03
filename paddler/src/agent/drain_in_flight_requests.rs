@@ -53,17 +53,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn returns_immediately_when_no_slots_processing() -> anyhow::Result<()> {
+    async fn returns_immediately_when_no_slots_processing() {
         let slot_aggregated_status_manager = create_status_manager(4);
         let shutdown = CancellationToken::new();
 
-        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await?;
-
-        Ok(())
+        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
-    async fn waits_for_processing_slots_to_reach_zero() -> anyhow::Result<()> {
+    async fn waits_for_processing_slots_to_reach_zero() {
         let slot_aggregated_status_manager = create_status_manager(4);
         let shutdown = CancellationToken::new();
 
@@ -79,7 +79,9 @@ mod tests {
             status.release_slot();
         });
 
-        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await?;
+        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown)
+            .await
+            .unwrap();
 
         assert_eq!(
             slot_aggregated_status_manager
@@ -88,13 +90,11 @@ mod tests {
             0
         );
 
-        release_handle.await?;
-
-        Ok(())
+        release_handle.await.unwrap();
     }
 
     #[tokio::test]
-    async fn aborts_on_shutdown_signal() -> anyhow::Result<()> {
+    async fn aborts_on_shutdown_signal() {
         let slot_aggregated_status_manager = create_status_manager(4);
         let shutdown = CancellationToken::new();
 
@@ -108,7 +108,9 @@ mod tests {
             shutdown_trigger.cancel();
         });
 
-        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown).await?;
+        drain_in_flight_requests(&slot_aggregated_status_manager, &shutdown)
+            .await
+            .unwrap();
 
         assert_eq!(
             slot_aggregated_status_manager
@@ -117,8 +119,6 @@ mod tests {
             1,
         );
 
-        shutdown_handle.await?;
-
-        Ok(())
+        shutdown_handle.await.unwrap();
     }
 }

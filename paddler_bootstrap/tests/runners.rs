@@ -1,3 +1,4 @@
+use std::fs;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::time::Duration;
@@ -13,6 +14,8 @@ use paddler::balancer::state_database_type::StateDatabaseType;
 use paddler::balancer_desired_state::BalancerDesiredState;
 use paddler::chat_template::ChatTemplate;
 use paddler::inference_parameters::InferenceParameters;
+use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -62,6 +65,7 @@ fn make_balancer_runner_params(
         max_buffered_requests: 30,
         openai_service_configuration: None,
         cancellation_token,
+        shutdown_options: ServiceShutdownOptions::default(),
         state_database_type: StateDatabaseType::Memory(Box::default()),
         statsd_prefix: "paddler_bootstrap_test_".to_owned(),
         statsd_service_configuration: None,
@@ -231,6 +235,103 @@ async fn agent_runner_cancels_from_parent_token() -> Result<()> {
 
     parent.cancel();
     drop(runner);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn in_flight_request_is_released_when_balancer_shuts_down() -> Result<()> {
+    let management_addr = pick_free_loopback_addr()?;
+    let inference_addr = pick_free_loopback_addr()?;
+
+    let mut params =
+        make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
+
+    // The request never finds an agent, so it stays buffered (in flight) until this long
+    // timeout — which is far longer than the short shutdown deadline below.
+    params.buffered_request_timeout = Duration::from_mins(1);
+
+    // A short, non-zero deadline: if the in-flight request fails to observe shutdown, actix
+    // runs its graceful drain to this deadline and trzcina aborts the service — the bug.
+    params.shutdown_options = ServiceShutdownOptions {
+        cooperative_deadline: Duration::from_secs(2),
+        abort_deadline: Duration::from_secs(2),
+    };
+
+    let mut runner = BalancerRunner::start(params).await?;
+
+    wait_until_bound(inference_addr).await?;
+
+    // No agents are registered, so this request buffers and holds its streaming response open.
+    let held_response = reqwest::Client::new()
+        .post(format!(
+            "http://{inference_addr}/api/v1/continue_from_raw_prompt"
+        ))
+        .json(&ContinueFromRawPromptParams {
+            grammar: None,
+            max_tokens: 10,
+            raw_prompt: "hold the connection open during shutdown".to_owned(),
+        })
+        .send()
+        .await
+        .context("inference request headers should be received")?;
+
+    runner.cancel();
+
+    let body = held_response
+        .text()
+        .await
+        .context("held in-flight response body should be readable")?;
+
+    let shutdown_result = runner.wait_for_completion().await;
+
+    assert!(
+        body.contains("shutting down"),
+        "in-flight request must be released with a shutdown error, got body: {body:?}"
+    );
+    assert!(
+        shutdown_result.is_ok(),
+        "balancer shutdown must complete cleanly below the deadline, got: {shutdown_result:?}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_runner_completes_after_explicit_cancel() -> Result<()> {
+    let management_addr = pick_free_loopback_addr()?;
+
+    let mut runner = AgentRunner::start(make_agent_runner_params(
+        management_addr,
+        CancellationToken::new(),
+    ));
+
+    runner.cancel();
+    runner.wait_for_completion().await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() -> Result<()> {
+    let corrupt_state_database = NamedTempFile::new()?;
+    fs::write(
+        corrupt_state_database.path(),
+        b"this is not a valid state database",
+    )?;
+
+    let management_addr = pick_free_loopback_addr()?;
+    let inference_addr = pick_free_loopback_addr()?;
+
+    let mut params =
+        make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
+
+    params.state_database_type =
+        StateDatabaseType::File(corrupt_state_database.path().to_path_buf());
+
+    let start_result = BalancerRunner::start(params).await;
+
+    assert!(start_result.is_err());
 
     Ok(())
 }

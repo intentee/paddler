@@ -31,8 +31,7 @@ pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
         ));
     }
 
-    let separators: Option<Value> = kwargs.get("separators")?;
-    if separators.is_some() {
+    if kwargs.has("separators") {
         return Err(Error::new(
             ErrorKind::InvalidOperation,
             "tojson(separators=...) is not supported by minijinja: separator strings are fixed.",
@@ -48,163 +47,169 @@ pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use anyhow::anyhow;
     use minijinja::Environment;
     use minijinja::context;
 
     use super::pyjinja_tojson;
 
-    fn render(template_source: &str, scope: minijinja::Value) -> Result<String> {
-        let mut env = Environment::new();
-        env.add_filter("tojson", pyjinja_tojson);
-        env.add_template_owned("t", template_source.to_owned())?;
-        Ok(env.get_template("t")?.render(scope)?)
+    fn render(template_source: &str, scope: minijinja::Value) -> String {
+        let mut environment = Environment::new();
+        environment.add_filter("tojson", pyjinja_tojson);
+        environment
+            .add_template_owned("t", template_source.to_owned())
+            .unwrap();
+
+        environment
+            .get_template("t")
+            .unwrap()
+            .render(scope)
+            .unwrap()
     }
 
-    fn render_expecting_error(
-        template_source: &str,
-        scope: minijinja::Value,
-    ) -> Result<minijinja::Error> {
-        let mut env = Environment::new();
-        env.add_filter("tojson", pyjinja_tojson);
-        env.add_template_owned("t", template_source.to_owned())?;
-        let outcome = env.get_template("t")?.render(scope);
+    fn render_error_message(template_source: &str, scope: minijinja::Value) -> String {
+        let mut environment = Environment::new();
+        environment.add_filter("tojson", pyjinja_tojson);
+        environment
+            .add_template_owned("t", template_source.to_owned())
+            .unwrap();
 
-        outcome.err().ok_or_else(|| anyhow!("expected Err, got Ok"))
+        environment
+            .get_template("t")
+            .unwrap()
+            .render(scope)
+            .unwrap_err()
+            .to_string()
     }
 
     #[test]
-    fn no_kwargs_emits_quoted_json_string() -> Result<()> {
-        let result = render("{{ value | tojson }}", context! { value => "hello" })?;
+    fn no_kwargs_emits_quoted_json_string() {
+        let result = render("{{ value | tojson }}", context! { value => "hello" });
 
         assert_eq!(result, "\"hello\"");
-
-        Ok(())
     }
 
     #[test]
-    fn ensure_ascii_false_matches_default_output() -> Result<()> {
+    fn ensure_ascii_false_matches_default_output() {
         let with_kwarg = render(
             "{{ value | tojson(ensure_ascii=False) }}",
             context! { value => "café" },
-        )?;
-        let without_kwarg = render("{{ value | tojson }}", context! { value => "café" })?;
+        );
+        let without_kwarg = render("{{ value | tojson }}", context! { value => "café" });
 
         assert_eq!(with_kwarg, without_kwarg);
         assert_eq!(with_kwarg, "\"café\"");
-
-        Ok(())
     }
 
     #[test]
-    fn ensure_ascii_true_returns_error_naming_the_kwarg() -> Result<()> {
-        let err = render_expecting_error(
+    fn ensure_ascii_true_returns_error_naming_the_kwarg() {
+        let rendered = render_error_message(
             "{{ value | tojson(ensure_ascii=True) }}",
             context! { value => "x" },
-        )?;
-        let rendered = err.to_string();
+        );
 
-        if !rendered.contains("ensure_ascii=True") {
-            return Err(anyhow!(
-                "error must name the rejected kwarg; got: {rendered}"
-            ));
-        }
-
-        Ok(())
+        assert!(
+            rendered.contains("ensure_ascii=True"),
+            "error must name the rejected kwarg; got: {rendered}"
+        );
     }
 
     #[test]
-    fn sort_keys_false_matches_default_output() -> Result<()> {
+    fn ensure_ascii_non_bool_propagates_kwargs_get_error() {
+        let rendered = render_error_message(
+            "{{ value | tojson(ensure_ascii='nope') }}",
+            context! { value => "x" },
+        );
+
+        assert!(
+            !rendered.is_empty(),
+            "a type-mismatched ensure_ascii kwarg must surface an error"
+        );
+    }
+
+    #[test]
+    fn sort_keys_false_matches_default_output() {
         let with_kwarg = render(
             "{{ value | tojson(sort_keys=False) }}",
             context! { value => "x" },
-        )?;
+        );
 
         assert_eq!(with_kwarg, "\"x\"");
-
-        Ok(())
     }
 
     #[test]
-    fn sort_keys_true_returns_error_naming_the_kwarg() -> Result<()> {
-        let err = render_expecting_error(
+    fn sort_keys_true_returns_error_naming_the_kwarg() {
+        let rendered = render_error_message(
             "{{ value | tojson(sort_keys=True) }}",
             context! { value => "x" },
-        )?;
-        let rendered = err.to_string();
+        );
 
-        if !rendered.contains("sort_keys=True") {
-            return Err(anyhow!(
-                "error must name the rejected kwarg; got: {rendered}"
-            ));
-        }
-
-        Ok(())
+        assert!(
+            rendered.contains("sort_keys=True"),
+            "error must name the rejected kwarg; got: {rendered}"
+        );
     }
 
     #[test]
-    fn separators_returns_error_naming_the_kwarg() -> Result<()> {
-        let err = render_expecting_error(
+    fn sort_keys_non_bool_propagates_kwargs_get_error() {
+        let rendered = render_error_message(
+            "{{ value | tojson(sort_keys='nope') }}",
+            context! { value => "x" },
+        );
+
+        assert!(
+            !rendered.is_empty(),
+            "a type-mismatched sort_keys kwarg must surface an error"
+        );
+    }
+
+    #[test]
+    fn separators_returns_error_naming_the_kwarg() {
+        let rendered = render_error_message(
             "{{ value | tojson(separators=[',', ':']) }}",
             context! { value => "x" },
-        )?;
-        let rendered = err.to_string();
+        );
 
-        if !rendered.contains("separators") {
-            return Err(anyhow!(
-                "error must name the rejected kwarg; got: {rendered}"
-            ));
-        }
-
-        Ok(())
+        assert!(
+            rendered.contains("separators"),
+            "error must name the rejected kwarg; got: {rendered}"
+        );
     }
 
     #[test]
-    fn indent_kwarg_emits_pretty_printed_json() -> Result<()> {
+    fn indent_kwarg_emits_pretty_printed_json() {
         let result = render(
             "{{ value | tojson(indent=2) }}",
             context! { value => context! { k => "v" } },
-        )?;
+        );
 
         assert_eq!(result, "{\n  \"k\": \"v\"\n}");
-
-        Ok(())
     }
 
     #[test]
-    fn indent_kwarg_combines_with_ensure_ascii_false() -> Result<()> {
+    fn indent_kwarg_combines_with_ensure_ascii_false() {
         let result = render(
             "{{ value | tojson(ensure_ascii=False, indent=2) }}",
             context! { value => context! { k => "café" } },
-        )?;
+        );
 
         assert_eq!(result, "{\n  \"k\": \"café\"\n}");
-
-        Ok(())
     }
 
     #[test]
-    fn unknown_kwarg_returns_error() -> Result<()> {
-        let err =
-            render_expecting_error("{{ value | tojson(bogus=42) }}", context! { value => "x" })?;
-        let rendered = err.to_string();
+    fn unknown_kwarg_returns_error() {
+        let rendered =
+            render_error_message("{{ value | tojson(bogus=42) }}", context! { value => "x" });
 
-        if !rendered.contains("bogus") {
-            return Err(anyhow!(
-                "error must name the unknown kwarg; got: {rendered}"
-            ));
-        }
-
-        Ok(())
+        assert!(
+            rendered.contains("bogus"),
+            "error must name the unknown kwarg; got: {rendered}"
+        );
     }
 
     #[test]
-    fn non_ascii_codepoints_emitted_unescaped() -> Result<()> {
-        let result = render("{{ value | tojson }}", context! { value => "日本語" })?;
+    fn non_ascii_codepoints_emitted_unescaped() {
+        let result = render("{{ value | tojson }}", context! { value => "日本語" });
 
         assert_eq!(result, "\"日本語\"");
-
-        Ok(())
     }
 }

@@ -60,3 +60,33 @@ pub trait ManagesSenders: Send + Sync {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tokio::sync::mpsc;
+
+    use super::ManagesSenders;
+    use crate::balancer::embedding_sender_collection::EmbeddingSenderCollection;
+
+    #[test]
+    fn register_sender_rejects_duplicate_request_id() {
+        let sender_collection = EmbeddingSenderCollection::default();
+        let request_id = "duplicate-request".to_owned();
+        let (first_sender, _first_receiver) = mpsc::unbounded_channel();
+        let (second_sender, _second_receiver) = mpsc::unbounded_channel();
+
+        sender_collection
+            .register_sender(request_id.clone(), first_sender)
+            .unwrap();
+
+        let duplicate_error = sender_collection
+            .register_sender(request_id, second_sender)
+            .err()
+            .unwrap();
+
+        assert_eq!(
+            duplicate_error.to_string(),
+            "Sender for request_id duplicate-request already exists"
+        );
+    }
+}

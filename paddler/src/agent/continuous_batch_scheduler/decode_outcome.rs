@@ -22,40 +22,48 @@ impl DecodeOutcome {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use llama_cpp_bindings::error::DecodeError;
 
     use super::DecodeOutcome;
 
     #[test]
     fn ok_maps_to_decoded() {
-        assert!(matches!(
-            DecodeOutcome::from_decode_result(Ok(())),
-            DecodeOutcome::Decoded
-        ));
+        assert_eq!(
+            discriminant(&DecodeOutcome::from_decode_result(Ok(()))),
+            discriminant(&DecodeOutcome::Decoded)
+        );
     }
 
     #[test]
     fn no_kv_cache_slot_maps_to_needs_eviction() {
-        assert!(matches!(
-            DecodeOutcome::from_decode_result(Err(DecodeError::NoKvCacheSlot)),
-            DecodeOutcome::NeedsEviction
-        ));
+        assert_eq!(
+            discriminant(&DecodeOutcome::from_decode_result(Err(
+                DecodeError::NoKvCacheSlot
+            ))),
+            discriminant(&DecodeOutcome::NeedsEviction)
+        );
     }
 
     #[test]
     fn aborted_maps_to_aborted() {
-        assert!(matches!(
-            DecodeOutcome::from_decode_result(Err(DecodeError::Aborted)),
-            DecodeOutcome::Aborted
-        ));
+        assert_eq!(
+            discriminant(&DecodeOutcome::from_decode_result(Err(
+                DecodeError::Aborted
+            ))),
+            discriminant(&DecodeOutcome::Aborted)
+        );
     }
 
     #[test]
     fn batch_invalid_maps_to_aborted() {
-        assert!(matches!(
-            DecodeOutcome::from_decode_result(Err(DecodeError::BatchInvalid)),
-            DecodeOutcome::Aborted
-        ));
+        assert_eq!(
+            discriminant(&DecodeOutcome::from_decode_result(Err(
+                DecodeError::BatchInvalid
+            ))),
+            discriminant(&DecodeOutcome::Aborted)
+        );
     }
 
     #[test]

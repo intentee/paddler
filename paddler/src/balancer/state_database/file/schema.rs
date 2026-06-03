@@ -13,3 +13,13 @@ pub struct Schema {
     #[serde(default = "default_version")]
     pub version: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_version_is_one() {
+        assert_eq!(default_version(), "1");
+    }
+}

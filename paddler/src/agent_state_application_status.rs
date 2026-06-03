@@ -72,29 +72,27 @@ mod tests {
     }
 
     #[test]
-    fn try_from_valid_values() -> Result<()> {
+    fn try_from_valid_values() {
         assert_eq!(
-            AgentStateApplicationStatus::try_from(0)?,
+            AgentStateApplicationStatus::try_from(0).unwrap(),
             AgentStateApplicationStatus::Applied
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(1)?,
+            AgentStateApplicationStatus::try_from(1).unwrap(),
             AgentStateApplicationStatus::AttemptedAndNotAppliable
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(2)?,
+            AgentStateApplicationStatus::try_from(2).unwrap(),
             AgentStateApplicationStatus::AttemptedAndRetrying
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(3)?,
+            AgentStateApplicationStatus::try_from(3).unwrap(),
             AgentStateApplicationStatus::Fresh
         );
         assert_eq!(
-            AgentStateApplicationStatus::try_from(4)?,
+            AgentStateApplicationStatus::try_from(4).unwrap(),
             AgentStateApplicationStatus::Stuck
         );
-
-        Ok(())
     }
 
     #[test]

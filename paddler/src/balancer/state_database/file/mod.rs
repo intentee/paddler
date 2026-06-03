@@ -71,7 +71,8 @@ impl File {
         let balancer_desired_state = schema.balancer_desired_state.clone();
         let _lock = self.write_lock.write().await;
 
-        let serialized_schema = serde_json::to_string_pretty(schema)?;
+        let serialized_schema = serde_json::to_string_pretty(schema)
+            .context("Failed to serialize the state database schema")?;
         let mut file = fs::File::create(&self.path).await?;
 
         file.write_all(serialized_schema.as_bytes()).await?;
@@ -116,5 +117,187 @@ impl StateDatabase for File {
             schema.balancer_desired_state = balancer_desired_state.clone();
         })
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use log::LevelFilter;
+    use tempfile::NamedTempFile;
+    use tempfile::TempDir;
+    use tokio::fs;
+    use tokio::sync::broadcast;
+
+    use super::File;
+    use super::schema::Schema;
+    use crate::agent_desired_model::AgentDesiredModel;
+    use crate::balancer::state_database::StateDatabase;
+    use crate::balancer_desired_state::BalancerDesiredState;
+
+    #[tokio::test]
+    async fn store_then_read_round_trips_through_real_file() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("state.json");
+        let database = File::new(balancer_desired_state_notify_tx, path.clone());
+
+        let desired_state = BalancerDesiredState {
+            chat_template_override: None,
+            inference_parameters: BalancerDesiredState::default().inference_parameters,
+            model: AgentDesiredModel::LocalToAgent("stored_model_path".to_owned()),
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: false,
+        };
+
+        database
+            .store_balancer_desired_state(&desired_state)
+            .await
+            .unwrap();
+
+        let read_back = database.read_balancer_desired_state().await.unwrap();
+
+        assert_eq!(read_back.model, desired_state.model);
+        assert!(fs::metadata(&path).await.unwrap().is_file());
+    }
+
+    #[tokio::test]
+    async fn reading_missing_file_stores_and_returns_default_state() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("not_yet_created.json");
+        let database = File::new(balancer_desired_state_notify_tx, path.clone());
+
+        let read_state = database.read_balancer_desired_state().await.unwrap();
+
+        assert_eq!(read_state, BalancerDesiredState::default());
+        assert!(fs::metadata(&path).await.unwrap().is_file());
+    }
+
+    #[tokio::test]
+    async fn reading_invalid_json_returns_parse_error() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_path_buf();
+        fs::write(&path, b"this is not valid json").await.unwrap();
+        let database = File::new(balancer_desired_state_notify_tx, path);
+
+        let read_result = database.read_balancer_desired_state().await;
+
+        assert!(read_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn reading_a_directory_path_returns_non_not_found_error() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_dir = TempDir::new().unwrap();
+        let database = File::new(
+            balancer_desired_state_notify_tx,
+            temp_dir.path().to_path_buf(),
+        );
+
+        let read_result = database.read_balancer_desired_state().await;
+
+        assert!(read_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn storing_default_state_fails_when_parent_directory_is_missing() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_dir = TempDir::new().unwrap();
+        let path: PathBuf = temp_dir.path().join("missing_directory").join("state.json");
+        let database = File::new(balancer_desired_state_notify_tx, path);
+
+        let read_result = database.read_balancer_desired_state().await;
+
+        assert!(read_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn updating_schema_fails_when_path_is_a_directory() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_dir = TempDir::new().unwrap();
+        let database = File::new(
+            balancer_desired_state_notify_tx,
+            temp_dir.path().to_path_buf(),
+        );
+
+        let store_result = database
+            .store_balancer_desired_state(&BalancerDesiredState::default())
+            .await;
+
+        assert!(store_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn storing_fails_when_no_receivers_are_listening() {
+        let (balancer_desired_state_notify_tx, balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        drop(balancer_desired_state_notify_rx);
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("state.json");
+        let database = File::new(balancer_desired_state_notify_tx, path);
+
+        let store_result = database
+            .store_balancer_desired_state(&BalancerDesiredState::default())
+            .await;
+
+        assert!(store_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn reading_missing_file_logs_path_when_warnings_are_enabled() {
+        log::set_max_level(LevelFilter::Warn);
+
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("warned_missing.json");
+        let database = File::new(balancer_desired_state_notify_tx, path.clone());
+
+        let read_state = database.read_balancer_desired_state().await.unwrap();
+
+        assert_eq!(read_state, BalancerDesiredState::default());
+        assert!(fs::metadata(&path).await.unwrap().is_file());
+    }
+
+    #[tokio::test]
+    async fn storing_schema_fails_when_target_is_unwritable() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let database = File::new(balancer_desired_state_notify_tx, PathBuf::from("/dev/full"));
+
+        let store_result = database.store_schema(&Schema::default()).await;
+
+        let store_error = store_result.err().unwrap();
+
+        assert!(store_error.downcast_ref::<std::io::Error>().is_some());
+    }
+
+    #[tokio::test]
+    async fn storing_a_large_schema_surfaces_the_write_error_during_write_all() {
+        const TOKIO_FILE_BUFFER_BYTES: usize = 2 * 1024 * 1024;
+
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let database = File::new(balancer_desired_state_notify_tx, PathBuf::from("/dev/full"));
+
+        let mut schema = Schema::default();
+        schema.balancer_desired_state.model =
+            AgentDesiredModel::LocalToAgent("x".repeat(TOKIO_FILE_BUFFER_BYTES * 2));
+
+        let store_result = database.store_schema(&schema).await;
+
+        let store_error = store_result.err().unwrap();
+        let io_error = store_error.downcast_ref::<std::io::Error>().unwrap();
+
+        assert_eq!(io_error.kind(), std::io::ErrorKind::StorageFull);
     }
 }

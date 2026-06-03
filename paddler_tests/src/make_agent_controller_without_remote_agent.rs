@@ -1,6 +1,6 @@
+use parking_lot::RwLock;
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU64;

@@ -141,3 +141,76 @@ impl AtomicValue<AtomicUsize> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bool_set_check_reports_and_applies_changes() {
+        let value = AtomicValue::<AtomicBool>::new(false);
+
+        assert!(!value.get());
+        assert!(value.set_check(true));
+        assert!(value.get());
+        assert!(!value.set_check(true));
+
+        value.set(false);
+
+        assert!(!value.get());
+    }
+
+    #[test]
+    fn i32_arithmetic_and_compare_and_swap() {
+        let value = AtomicValue::<AtomicI32>::new(0);
+
+        value.increment();
+        value.increment();
+        value.decrement();
+
+        assert_eq!(value.get(), 1);
+        assert!(value.compare_and_swap(1, 5));
+        assert_eq!(value.get(), 5);
+        assert!(!value.compare_and_swap(1, 9));
+        assert_eq!(value.get(), 5);
+
+        value.set(7);
+
+        assert!(value.set_check(8));
+        assert!(!value.set_check(8));
+
+        value.reset();
+
+        assert_eq!(value.get(), 0);
+    }
+
+    #[test]
+    fn u64_increment_by_and_set_check() {
+        let value = AtomicValue::<AtomicU64>::new(0);
+
+        value.increment_by(10);
+
+        assert_eq!(value.get(), 10);
+        assert!(value.set_check(20));
+        assert!(!value.set_check(20));
+
+        value.set(0);
+
+        assert_eq!(value.get(), 0);
+    }
+
+    #[test]
+    fn usize_increment_by_and_set_check() {
+        let value = AtomicValue::<AtomicUsize>::new(0);
+
+        value.increment_by(3);
+
+        assert_eq!(value.get(), 3);
+        assert!(value.set_check(4));
+        assert!(!value.set_check(4));
+
+        value.set(0);
+
+        assert_eq!(value.get(), 0);
+    }
+}

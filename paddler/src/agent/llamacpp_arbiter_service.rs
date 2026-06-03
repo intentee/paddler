@@ -248,9 +248,148 @@ impl Service for LlamaCppArbiterService {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+    use std::sync::mpsc::channel as std_channel;
+    use std::thread;
+
     use anyhow::bail;
 
     use super::*;
+
+    fn spawn_arbiter_handle_with_live_receiver() -> (
+        ContinuousBatchArbiterHandle,
+        std::sync::mpsc::Receiver<ContinuousBatchSchedulerCommand>,
+    ) {
+        let (command_tx, command_rx) = std_channel();
+        let scheduler_thread_handle = thread::spawn(|| Ok(()));
+
+        (
+            ContinuousBatchArbiterHandle {
+                command_tx,
+                scheduler_thread_handle,
+            },
+            command_rx,
+        )
+    }
+
+    #[test]
+    fn forward_command_delivers_command_when_handle_present() {
+        let (arbiter_handle, command_rx) = spawn_arbiter_handle_with_live_receiver();
+
+        forward_command(
+            Some(&arbiter_handle),
+            ContinuousBatchSchedulerCommand::Shutdown,
+        );
+
+        let delivered = command_rx.recv().unwrap();
+
+        assert_eq!(
+            discriminant(&delivered),
+            discriminant(&ContinuousBatchSchedulerCommand::Shutdown),
+        );
+    }
+
+    #[test]
+    fn forward_command_logs_error_when_receiver_dropped() {
+        let (arbiter_handle, command_rx) = spawn_arbiter_handle_with_live_receiver();
+
+        drop(command_rx);
+
+        forward_command(
+            Some(&arbiter_handle),
+            ContinuousBatchSchedulerCommand::Shutdown,
+        );
+    }
+
+    #[test]
+    fn forward_command_logs_error_when_handle_absent() {
+        forward_command(None, ContinuousBatchSchedulerCommand::Shutdown);
+    }
+
+    #[tokio::test]
+    async fn wait_for_in_flight_requests_drains_when_handle_present() {
+        let (arbiter_handle, _command_rx) = spawn_arbiter_handle_with_live_receiver();
+        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(1));
+        let shutdown = CancellationToken::new();
+
+        wait_for_in_flight_requests_to_finish(
+            &shutdown,
+            Some(&arbiter_handle),
+            &slot_aggregated_status_manager,
+        )
+        .await
+        .unwrap();
+
+        arbiter_handle.shutdown().unwrap();
+    }
+
+    #[tokio::test]
+    async fn wait_for_in_flight_requests_returns_immediately_without_handle() {
+        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(1));
+        let shutdown = CancellationToken::new();
+
+        wait_for_in_flight_requests_to_finish(&shutdown, None, &slot_aggregated_status_manager)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_state_without_model_marks_status_applied() {
+        let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
+        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(1));
+        let shutdown = CancellationToken::new();
+        let mut continuous_batch_arbiter_handle: Option<ContinuousBatchArbiterHandle> = None;
+
+        apply_state(
+            &shutdown,
+            None,
+            None,
+            1,
+            &model_metadata_holder,
+            &slot_aggregated_status_manager,
+            &mut continuous_batch_arbiter_handle,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            slot_aggregated_status_manager
+                .slot_aggregated_status
+                .get_state_application_status()
+                .unwrap(),
+            AgentStateApplicationStatus::Applied,
+        );
+    }
+
+    #[tokio::test]
+    async fn shutdown_arbiter_handle_returns_ok_when_handle_absent() {
+        let mut continuous_batch_arbiter_handle: Option<ContinuousBatchArbiterHandle> = None;
+
+        shutdown_arbiter_handle(&mut continuous_batch_arbiter_handle)
+            .await
+            .unwrap();
+
+        assert!(continuous_batch_arbiter_handle.is_none());
+    }
+
+    #[tokio::test]
+    async fn shutdown_arbiter_handle_joins_and_clears_present_handle() {
+        let (arbiter_handle, command_rx) = spawn_arbiter_handle_with_live_receiver();
+        let mut continuous_batch_arbiter_handle = Some(arbiter_handle);
+
+        shutdown_arbiter_handle(&mut continuous_batch_arbiter_handle)
+            .await
+            .unwrap();
+
+        assert!(continuous_batch_arbiter_handle.is_none());
+
+        let delivered = command_rx.recv().unwrap();
+
+        assert_eq!(
+            discriminant(&delivered),
+            discriminant(&ContinuousBatchSchedulerCommand::Shutdown),
+        );
+    }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn does_not_exit_when_request_channels_close_without_shutdown() -> Result<()> {

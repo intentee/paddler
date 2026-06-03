@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use std::sync::RwLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU64;
@@ -9,6 +8,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::debug;
 use nanoid::nanoid;
+use parking_lot::RwLock;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -73,17 +73,12 @@ impl AgentController {
         .await
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_download_filename(&self) -> Option<String> {
-        self.download_filename
-            .read()
-            .expect("Poisoned lock on download filename")
-            .clone()
+        self.download_filename.read().clone()
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_issues(&self) -> BTreeSet<AgentIssue> {
-        self.issues.read().expect("Poisoned lock on issues").clone()
+        self.issues.read().clone()
     }
 
     pub async fn get_model_metadata(
@@ -96,37 +91,24 @@ impl AgentController {
         .await
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_model_path(&self) -> Option<String> {
-        self.model_path
-            .read()
-            .expect("Poisoned lock on model path")
-            .clone()
+        self.model_path.read().clone()
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_download_filename(&self, filename: Option<String>) {
-        let mut locked_filename = self
-            .download_filename
-            .write()
-            .expect("Poisoned lock on download filename");
+        let mut locked_filename = self.download_filename.write();
 
         *locked_filename = filename;
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_issues(&self, issues: BTreeSet<AgentIssue>) {
-        let mut locked_issues = self.issues.write().expect("Poisoned lock on issues");
+        let mut locked_issues = self.issues.write();
 
         *locked_issues = issues;
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_model_path(&self, model_path: Option<String>) {
-        let mut locked_path = self
-            .model_path
-            .write()
-            .expect("Poisoned lock on model path");
+        let mut locked_path = self.model_path.write();
 
         *locked_path = model_path;
     }
@@ -355,9 +337,14 @@ impl SetsDesiredState for AgentController {
 
 #[cfg(test)]
 mod tests {
+    use crate::agent_issue_params::ModelPath;
     use crate::agent_state_application_status::AgentStateApplicationStatus;
 
     use super::*;
+
+    fn is_updated(result: &AgentControllerUpdateResult) -> bool {
+        matches!(result, AgentControllerUpdateResult::Updated)
+    }
 
     fn fresh_agent_controller() -> AgentController {
         let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
@@ -391,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn multi_field_update_stores_all_changed_atomic_fields() -> Result<()> {
+    fn multi_field_update_stores_all_changed_atomic_fields() {
         let agent_controller = fresh_agent_controller();
 
         let snapshot = SlotAggregatedStatusSnapshot {
@@ -411,38 +398,220 @@ mod tests {
 
         let result = agent_controller.update_from_slot_aggregated_status_snapshot(snapshot);
 
-        if !matches!(result, AgentControllerUpdateResult::Updated) {
-            anyhow::bail!("update with multiple changed fields must return Updated");
-        }
+        assert!(is_updated(&result));
+        assert_eq!(agent_controller.desired_slots_total.get(), 4);
+        assert_eq!(agent_controller.download_current.get(), 10);
+        assert_eq!(agent_controller.download_total.get(), 100);
+        assert_eq!(agent_controller.slots_total.get(), 4);
+        assert!(agent_controller.uses_chat_template_override.get());
+    }
 
-        if agent_controller.desired_slots_total.get() != 4 {
-            anyhow::bail!(
-                "desired_slots_total must be stored: expected 4, got {}",
-                agent_controller.desired_slots_total.get()
-            );
-        }
-        if agent_controller.download_current.get() != 10 {
-            anyhow::bail!(
-                "download_current must be stored: expected 10, got {}",
-                agent_controller.download_current.get()
-            );
-        }
-        if agent_controller.download_total.get() != 100 {
-            anyhow::bail!(
-                "download_total must be stored: expected 100, got {}",
-                agent_controller.download_total.get()
-            );
-        }
-        if agent_controller.slots_total.get() != 4 {
-            anyhow::bail!(
-                "slots_total must be stored: expected 4, got {}",
-                agent_controller.slots_total.get()
-            );
-        }
-        if !agent_controller.uses_chat_template_override.get() {
-            anyhow::bail!("uses_chat_template_override must be stored: expected true, got false");
-        }
+    #[test]
+    fn update_with_older_version_is_discarded() {
+        let agent_controller = fresh_agent_controller();
 
-        Ok(())
+        agent_controller.newest_update_version.set(5);
+
+        let snapshot = SlotAggregatedStatusSnapshot {
+            desired_slots_total: 9,
+            download_current: 0,
+            download_filename: None,
+            download_indeterminate: true,
+            download_total: 0,
+            issues: BTreeSet::new(),
+            model_path: None,
+            slots_processing: 0,
+            slots_total: 0,
+            state_application_status: AgentStateApplicationStatus::Fresh,
+            uses_chat_template_override: false,
+            version: 1,
+        };
+
+        let result = agent_controller.update_from_slot_aggregated_status_snapshot(snapshot);
+
+        assert!(!is_updated(&result));
+        assert_eq!(agent_controller.desired_slots_total.get(), 0);
+    }
+
+    #[test]
+    fn update_stores_new_download_filename_model_path_and_issues() {
+        let agent_controller = fresh_agent_controller();
+
+        let mut issues = BTreeSet::new();
+        issues.insert(AgentIssue::ModelFileDoesNotExist(ModelPath {
+            model_path: "/models/test.gguf".to_owned(),
+        }));
+
+        let snapshot = SlotAggregatedStatusSnapshot {
+            desired_slots_total: 0,
+            download_current: 0,
+            download_filename: Some("weights.gguf".to_owned()),
+            download_indeterminate: true,
+            download_total: 0,
+            issues: issues.clone(),
+            model_path: Some("/models/test.gguf".to_owned()),
+            slots_processing: 0,
+            slots_total: 0,
+            state_application_status: AgentStateApplicationStatus::Fresh,
+            uses_chat_template_override: false,
+            version: 1,
+        };
+
+        let result = agent_controller.update_from_slot_aggregated_status_snapshot(snapshot);
+
+        assert!(is_updated(&result));
+        assert_eq!(
+            agent_controller.get_download_filename(),
+            Some("weights.gguf".to_owned())
+        );
+        assert_eq!(
+            agent_controller.get_model_path(),
+            Some("/models/test.gguf".to_owned())
+        );
+        assert_eq!(agent_controller.get_issues(), issues);
+    }
+
+    #[test]
+    fn update_with_identical_values_reports_no_meaningful_changes() {
+        let agent_controller = fresh_agent_controller();
+
+        let snapshot = SlotAggregatedStatusSnapshot {
+            desired_slots_total: 0,
+            download_current: 0,
+            download_filename: None,
+            download_indeterminate: true,
+            download_total: 0,
+            issues: BTreeSet::new(),
+            model_path: None,
+            slots_processing: 0,
+            slots_total: 0,
+            state_application_status: AgentStateApplicationStatus::Fresh,
+            uses_chat_template_override: false,
+            version: 1,
+        };
+
+        let result = agent_controller.update_from_slot_aggregated_status_snapshot(snapshot);
+
+        assert!(!is_updated(&result));
+    }
+
+    #[test]
+    fn make_snapshot_fails_for_invalid_state_application_status() {
+        let agent_controller = fresh_agent_controller();
+
+        agent_controller.state_application_status_code.set(99);
+
+        let result = agent_controller.make_snapshot();
+        let error = result.err().unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("Invalid value for AgentStateApplicationStatus")
+        );
+    }
+
+    #[tokio::test]
+    async fn get_chat_template_override_registers_pending_request() {
+        let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
+        let agent_controller = AgentController {
+            agent_message_tx,
+            ..fresh_agent_controller()
+        };
+
+        let controller = agent_controller.get_chat_template_override().await.unwrap();
+
+        assert!(
+            controller
+                .response_sender_collection
+                .get_sender_collection()
+                .contains_key(&controller.request_id)
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_raw_prompt_streaming_response_registers_sender() {
+        let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
+        let agent_controller = AgentController {
+            agent_message_tx,
+            ..fresh_agent_controller()
+        };
+
+        let controller = HandlesAgentStreamingResponse::<ContinueFromRawPromptParams>::handle_streaming_response(
+            &agent_controller,
+            "raw-prompt-request".to_owned(),
+            ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 16,
+                raw_prompt: "hello".to_owned(),
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(controller.request_id, "raw-prompt-request");
+        assert!(
+            controller
+                .response_sender_collection
+                .get_sender_collection()
+                .contains_key("raw-prompt-request")
+        );
+    }
+
+    #[tokio::test]
+    async fn handle_streaming_response_fails_when_request_id_already_registered() {
+        let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
+        let agent_controller = AgentController {
+            agent_message_tx,
+            ..fresh_agent_controller()
+        };
+
+        let _first_controller =
+            HandlesAgentStreamingResponse::<ContinueFromRawPromptParams>::handle_streaming_response(
+                &agent_controller,
+                "duplicate-request".to_owned(),
+                ContinueFromRawPromptParams {
+                    grammar: None,
+                    max_tokens: 16,
+                    raw_prompt: "first".to_owned(),
+                },
+            )
+            .await
+            .unwrap();
+
+        let result =
+            HandlesAgentStreamingResponse::<ContinueFromRawPromptParams>::handle_streaming_response(
+                &agent_controller,
+                "duplicate-request".to_owned(),
+                ContinueFromRawPromptParams {
+                    grammar: None,
+                    max_tokens: 16,
+                    raw_prompt: "second".to_owned(),
+                },
+            )
+            .await;
+
+        let error = result.err().unwrap();
+
+        assert_eq!(
+            error.to_string(),
+            "Sender for request_id duplicate-request already exists"
+        );
+    }
+
+    #[tokio::test]
+    async fn send_rpc_message_fails_when_agent_message_receiver_dropped() {
+        let (agent_message_tx, agent_message_rx) = mpsc::unbounded_channel();
+
+        drop(agent_message_rx);
+
+        let agent_controller = AgentController {
+            agent_message_tx,
+            ..fresh_agent_controller()
+        };
+
+        let result = agent_controller.get_chat_template_override().await;
+
+        assert!(result.is_err());
     }
 }

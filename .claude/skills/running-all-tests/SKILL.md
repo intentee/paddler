@@ -24,7 +24,7 @@ echo "Device: $DEVICE"
 
 `$DEVICE` selects the Rust integration suite variant in Step 2. The other four suites don't take a device feature.
 
-## Step 2: run the five suites
+## Step 2: run the suites
 
 Copy this checklist and tick each item as the suite completes:
 
@@ -33,16 +33,14 @@ Copy this checklist and tick each item as the suite completes:
 - [ ] Python client
 - [ ] Rust unit
 - [ ] Rust integration
-- [ ] paddler_gui
 ```
 
 | # | Suite            | Inner command                                                                                                                     | Working dir              |
 |---|------------------|-----------------------------------------------------------------------------------------------------------------------------------|--------------------------|
 | 1 | JS client        | `make test.client.js`                                                                                                             | repo root                |
 | 2 | Python client    | NixOS: `poetry run pytest`, `ruff`, `poetry run mypy"`. Every other OS: `poetry run pytest`, `poetry run ruff`, `poetry run mypy` | `paddler_client_python/` |
-| 3 | Rust unit        | `make test.unit`                                                                                                                  | repo root                |
-| 4 | Rust integration | `make test.integration` (cpu) / `make test.integration.cuda` / `make test.integration.metal` — pick by `$DEVICE`                  | repo root                |
-| 5 | paddler_gui      | `cargo test -p paddler_gui --features web_admin_panel`                                                                            | `paddler_gui/`           |
+| 3 | Rust unit        | `TEST_DEVICE=$DEVICE make test.unit`                                                                                              | repo root                |
+| 4 | Rust integration | `TEST_DEVICE=$DEVICE make test.integration`                                                                                       | repo root                |
 
 Run them in this order. Cheap suites (1, 3, 4) surface bugs quickly; the heavy GPU-bound suites (2, 5) come last.
 

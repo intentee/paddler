@@ -22,5 +22,6 @@ async fn respond(
         app_data.inference_service_configuration.clone(),
         params.into_inner(),
         IdentityTransformer::new(),
+        app_data.shutdown.clone(),
     ))
 }

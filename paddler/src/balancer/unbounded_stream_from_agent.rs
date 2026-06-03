@@ -1,14 +1,10 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use crate::balancer::inference_client::Message as OutgoingMessage;
 use crate::balancer::inference_client::Response as OutgoingResponse;
-use crate::jsonrpc::Error as JsonRpcError;
-use crate::jsonrpc::ErrorEnvelope;
 use crate::streamable_result::StreamableResult;
 use actix_web::rt;
 use futures_util::Stream;
-use log::error;
 use nanoid::nanoid;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -25,13 +21,13 @@ use crate::balancer::inference_service::configuration::Configuration as Inferenc
 use crate::balancer::manages_senders::ManagesSenders;
 use crate::balancer::request_from_agent::request_from_agent;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
-use crate::controls_session::ControlsSession as _;
 
 pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     buffered_request_manager: Arc<BufferedRequestManager>,
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
     transformer: TTransformsOutgoingMessage,
+    shutdown: CancellationToken,
 ) -> impl Stream<Item = TransformResult>
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
@@ -47,33 +43,84 @@ where
         let connection_close = connection_close.clone();
 
         async move {
-            let mut session_controller =
-                ChunkForwardingSessionController::new(chunk_tx, transformer);
+            let session_controller = ChunkForwardingSessionController::new(chunk_tx, transformer);
 
-            if let Err(err) = request_from_agent(
-                buffered_request_manager.clone(),
+            request_from_agent(
+                buffered_request_manager,
                 connection_close,
-                inference_service_configuration.clone(),
+                inference_service_configuration,
                 params,
-                request_id.clone(),
-                session_controller.clone(),
+                request_id,
+                session_controller,
+                shutdown,
             )
-            .await
-            {
-                error!("Failed to handle request: {err}");
-
-                session_controller
-                    .send_response_safe(OutgoingMessage::Error(ErrorEnvelope {
-                        request_id: request_id.clone(),
-                        error: JsonRpcError {
-                            code: 500,
-                            description: format!("Request {request_id} failed: {err}"),
-                        },
-                    }))
-                    .await;
-            }
+            .await;
         }
     });
 
     CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+    use std::time::Duration;
+
+    use futures_util::StreamExt as _;
+
+    use super::*;
+    use crate::balancer::agent_controller_pool::AgentControllerPool;
+    use crate::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+    use crate::request_params::ContinueFromRawPromptParams;
+
+    fn inference_service_configuration() -> InferenceServiceConfiguration {
+        const TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
+
+        InferenceServiceConfiguration {
+            addr: "127.0.0.1:0".parse().unwrap(),
+            cors_allowed_hosts: Vec::new(),
+            inference_item_timeout: TIMEOUT_LONGER_THAN_ANY_TEST_RUN,
+        }
+    }
+
+    #[actix_web::test]
+    async fn spawned_task_runs_request_from_agent_and_closes_stream_on_shutdown() {
+        let pool = Arc::new(AgentControllerPool::default());
+        let buffered_request_manager = Arc::new(BufferedRequestManager::new(
+            pool,
+            Duration::from_secs(1),
+            10,
+        ));
+
+        let shutdown = CancellationToken::new();
+
+        shutdown.cancel();
+
+        let mut stream = Box::pin(unbounded_stream_from_agent(
+            buffered_request_manager,
+            inference_service_configuration(),
+            ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 1,
+                raw_prompt: "fixture prompt".to_owned(),
+            },
+            IdentityTransformer::new(),
+            shutdown,
+        ));
+
+        let shutdown_chunk = stream.next().await.unwrap();
+
+        assert_eq!(
+            discriminant(&TransformResult::Chunk(String::new())),
+            discriminant(&shutdown_chunk),
+        );
+
+        let chunk_text = match shutdown_chunk {
+            TransformResult::Chunk(chunk_text) | TransformResult::Error(chunk_text) => chunk_text,
+            TransformResult::Discard => String::new(),
+        };
+
+        assert!(chunk_text.contains("shutting down"));
+        assert!(stream.next().await.is_none());
+    }
 }

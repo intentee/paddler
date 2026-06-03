@@ -20,17 +20,19 @@ impl CompletionCheckPhase<'_> {
             return CompletionCheckOutcome::ReachedEog;
         }
 
-        #[expect(
-            clippy::cast_sign_loss,
-            reason = "max_tokens is non-negative by API contract"
-        )]
-        let max_tokens_u64 = request.max_tokens as u64;
+        max_tokens_outcome(request.state.max_tokens, request.token_classifier.usage())
+    }
+}
 
-        if completion_token_count(request.token_classifier.usage()) >= max_tokens_u64 {
-            CompletionCheckOutcome::ReachedMaxTokens
-        } else {
-            CompletionCheckOutcome::Continue
-        }
+fn max_tokens_outcome(max_tokens: i32, usage: &TokenUsage) -> CompletionCheckOutcome {
+    let Ok(max_tokens_u64) = u64::try_from(max_tokens) else {
+        return CompletionCheckOutcome::ReachedMaxTokens;
+    };
+
+    if completion_token_count(usage) >= max_tokens_u64 {
+        CompletionCheckOutcome::ReachedMaxTokens
+    } else {
+        CompletionCheckOutcome::Continue
     }
 }
 
@@ -43,6 +45,44 @@ mod tests {
     use llama_cpp_bindings::TokenUsage;
 
     use super::completion_token_count;
+    use super::max_tokens_outcome;
+    use crate::agent::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
+
+    #[test]
+    fn negative_max_tokens_reaches_max_tokens() {
+        let usage = TokenUsage::new();
+
+        assert!(matches!(
+            max_tokens_outcome(-1, &usage),
+            CompletionCheckOutcome::ReachedMaxTokens
+        ));
+    }
+
+    #[test]
+    fn reaching_the_max_token_budget_reports_reached_max_tokens() {
+        let usage = TokenUsage {
+            content_tokens: 4,
+            ..TokenUsage::new()
+        };
+
+        assert!(matches!(
+            max_tokens_outcome(4, &usage),
+            CompletionCheckOutcome::ReachedMaxTokens
+        ));
+    }
+
+    #[test]
+    fn staying_under_the_max_token_budget_continues() {
+        let usage = TokenUsage {
+            content_tokens: 3,
+            ..TokenUsage::new()
+        };
+
+        assert!(matches!(
+            max_tokens_outcome(4, &usage),
+            CompletionCheckOutcome::Continue
+        ));
+    }
 
     #[test]
     fn completion_token_count_sums_content_reasoning_and_undeterminable() {

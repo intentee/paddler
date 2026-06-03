@@ -1,6 +1,5 @@
-use std::sync::RwLock;
-
 use crate::agent_desired_state::AgentDesiredState;
+use parking_lot::RwLock;
 use tokio::sync::watch;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
@@ -12,21 +11,15 @@ pub struct BalancerApplicableStateHolder {
 }
 
 impl BalancerApplicableStateHolder {
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_agent_desired_state(&self) -> Option<AgentDesiredState> {
         self.balancer_applicable_state
             .read()
-            .expect("Failed to get balancer state lock")
             .as_ref()
             .map(|state| state.agent_desired_state.clone())
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_balancer_applicable_state(&self) -> Option<BalancerApplicableState> {
-        self.balancer_applicable_state
-            .read()
-            .expect("Failed to get balancer state lock")
-            .clone()
+        self.balancer_applicable_state.read().clone()
     }
 
     pub fn set_balancer_applicable_state(
@@ -34,11 +27,7 @@ impl BalancerApplicableStateHolder {
         balancer_applicable_state: Option<BalancerApplicableState>,
     ) {
         {
-            #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
-            let mut lock = self
-                .balancer_applicable_state
-                .write()
-                .expect("Failed to get balancer state lock");
+            let mut lock = self.balancer_applicable_state.write();
 
             *lock = balancer_applicable_state;
         }
@@ -68,7 +57,6 @@ impl SubscribesToUpdates for BalancerApplicableStateHolder {
 mod tests {
     use crate::agent_desired_model::AgentDesiredModel;
     use crate::inference_parameters::InferenceParameters;
-    use anyhow::Result;
     use tokio::time::Duration;
     use tokio::time::timeout;
 
@@ -79,14 +67,14 @@ mod tests {
             agent_desired_state: AgentDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters::default(),
-                model: AgentDesiredModel::None,
+                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
                 multimodal_projection: AgentDesiredModel::None,
             },
         }
     }
 
     #[tokio::test]
-    async fn set_balancer_applicable_state_wakes_subscribed_waiter() -> Result<()> {
+    async fn set_balancer_applicable_state_wakes_subscribed_waiter() {
         let holder = BalancerApplicableStateHolder::default();
         let mut update_rx = holder.subscribe_to_updates();
 
@@ -94,14 +82,12 @@ mod tests {
 
         timeout(Duration::from_secs(1), update_rx.changed())
             .await
-            .map_err(|error| anyhow::anyhow!("waiter did not awaken: {error}"))?
-            .map_err(|error| anyhow::anyhow!("watch sender dropped: {error}"))?;
-
-        Ok(())
+            .expect("waiter did not awaken before the timeout elapsed")
+            .expect("watch sender was dropped before the change arrived");
     }
 
     #[test]
-    fn get_balancer_applicable_state_returns_stored_value() -> Result<()> {
+    fn get_balancer_applicable_state_returns_stored_value() {
         let holder = BalancerApplicableStateHolder::default();
 
         assert!(holder.get_balancer_applicable_state().is_none());
@@ -112,13 +98,43 @@ mod tests {
 
         let stored = holder
             .get_balancer_applicable_state()
-            .ok_or_else(|| anyhow::anyhow!("state should be present after set"))?;
+            .expect("state should be present after set");
 
         assert_eq!(
             stored.agent_desired_state.model,
             applicable_state.agent_desired_state.model
         );
+    }
 
-        Ok(())
+    #[test]
+    fn get_agent_desired_state_returns_none_before_any_state_is_set() {
+        let holder = BalancerApplicableStateHolder::default();
+
+        assert!(holder.get_agent_desired_state().is_none());
+    }
+
+    #[test]
+    fn get_agent_desired_state_returns_stored_agent_desired_state() {
+        let holder = BalancerApplicableStateHolder::default();
+        let applicable_state = make_applicable_state();
+
+        holder.set_balancer_applicable_state(Some(applicable_state.clone()));
+
+        let stored = holder
+            .get_agent_desired_state()
+            .expect("agent desired state should be present after set");
+
+        assert_eq!(stored.model, applicable_state.agent_desired_state.model);
+    }
+
+    #[test]
+    fn set_balancer_applicable_state_can_clear_back_to_none() {
+        let holder = BalancerApplicableStateHolder::default();
+
+        holder.set_balancer_applicable_state(Some(make_applicable_state()));
+        holder.set_balancer_applicable_state(None);
+
+        assert!(holder.get_balancer_applicable_state().is_none());
+        assert!(holder.get_agent_desired_state().is_none());
     }
 }

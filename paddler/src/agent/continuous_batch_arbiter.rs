@@ -111,17 +111,11 @@ impl ContinuousBatchArbiter {
             let llama_backend =
                 Arc::new(LlamaBackend::init().context("Unable to initialize llama.cpp backend")?);
 
-            #[expect(
-                clippy::cast_sign_loss,
-                reason = "desired_slots_total is always positive"
-            )]
-            let n_seq_max = desired_slots_total as u32;
+            let n_seq_max = u32::try_from(desired_slots_total)
+                .context("desired_slots_total does not fit in u32")?;
 
-            #[expect(
-                clippy::cast_possible_truncation,
-                reason = "n_batch fits in u32 for llama.cpp FFI; usize is the internal type"
-            )]
-            let inference_parameters_n_batch_u32 = inference_parameters.n_batch as u32;
+            let inference_parameters_n_batch_u32 = u32::try_from(inference_parameters.n_batch)
+                .context("n_batch does not fit in u32")?;
 
             let context_params = LlamaContextParams::default()
                 .with_embeddings(inference_parameters.enable_embeddings)
@@ -323,17 +317,13 @@ impl ContinuousBatchArbiter {
                 {
                     Ok(context) => context,
                     Err(err) => {
-                        for slot_index in 0..desired_slots_total {
-                            #[expect(
-                                clippy::cast_sign_loss,
-                                reason = "slot_index is always non-negative"
-                            )]
+                        for slot_index in 0..n_seq_max {
                             slot_aggregated_status_manager
                                 .slot_aggregated_status
                                 .register_issue(AgentIssue::SlotCannotStart(
                                     SlotCannotStartParams {
                                         error: format!("{err:#}"),
-                                        slot_index: slot_index as u32,
+                                        slot_index,
                                     },
                                 ));
                         }
@@ -425,15 +415,17 @@ impl ContinuousBatchArbiter {
             "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
         )?;
 
-        for slot_index in 0..self.desired_slots_total {
+        let desired_slots_total_u32 = u32::try_from(self.desired_slots_total)
+            .context("desired_slots_total does not fit in u32")?;
+
+        for slot_index in 0..desired_slots_total_u32 {
             self.slot_aggregated_status_manager
                 .slot_aggregated_status
                 .increment_total_slots();
 
-            #[expect(clippy::cast_sign_loss, reason = "slot_index is always non-negative")]
             self.slot_aggregated_status_manager
                 .slot_aggregated_status
-                .register_fix(&AgentIssueFix::SlotStarted(slot_index as u32));
+                .register_fix(&AgentIssueFix::SlotStarted(slot_index));
         }
 
         Ok(ContinuousBatchArbiterHandle {

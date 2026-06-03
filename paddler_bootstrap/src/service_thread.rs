@@ -73,3 +73,79 @@ impl Drop for ServiceThread {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn service_thread_finishes_cleanly_when_completion_receiver_dropped_after_success() {
+        let cancellation_token = CancellationToken::new();
+        let mut service_thread = ServiceThread::spawn(
+            cancellation_token.clone(),
+            |task_cancellation_token| async move {
+                task_cancellation_token.cancelled().await;
+
+                Ok(())
+            },
+        );
+
+        drop(service_thread.wait_for_completion());
+
+        cancellation_token.cancel();
+
+        drop(service_thread);
+    }
+
+    #[tokio::test]
+    async fn service_thread_finishes_cleanly_when_completion_receiver_dropped_after_failure() {
+        let cancellation_token = CancellationToken::new();
+        let mut service_thread = ServiceThread::spawn(
+            cancellation_token.clone(),
+            |task_cancellation_token| async move {
+                task_cancellation_token.cancelled().await;
+
+                Err(anyhow!("service run failed"))
+            },
+        );
+
+        drop(service_thread.wait_for_completion());
+
+        cancellation_token.cancel();
+
+        drop(service_thread);
+    }
+
+    #[tokio::test]
+    async fn wait_for_completion_errors_when_service_thread_panics() {
+        let mut service_thread =
+            ServiceThread::spawn(CancellationToken::new(), |_task_cancellation_token| async {
+                panic!("service thread crashed")
+            });
+
+        let completion_result = service_thread.wait_for_completion().await;
+
+        assert!(completion_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn wait_for_completion_errors_when_called_twice() {
+        let cancellation_token = CancellationToken::new();
+        let mut service_thread = ServiceThread::spawn(
+            cancellation_token.clone(),
+            |task_cancellation_token| async move {
+                task_cancellation_token.cancelled().await;
+
+                Ok(())
+            },
+        );
+
+        cancellation_token.cancel();
+
+        let first_completion = service_thread.wait_for_completion().await;
+        let second_completion = service_thread.wait_for_completion().await;
+
+        assert!(first_completion.is_ok());
+        assert!(second_completion.is_err());
+    }
+}

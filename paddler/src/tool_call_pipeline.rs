@@ -69,36 +69,6 @@ impl ToolCallPipeline {
     }
 
     #[must_use]
-    pub fn try_partial(&self) -> ToolCallEvent {
-        let input = self.buffer.as_str();
-        if input.is_empty() {
-            return ToolCallEvent::Pending;
-        }
-
-        match self.model.parse_chat_message(&self.tools_json, input, true) {
-            Ok(ChatMessageParseOutcome::Recognized(parsed)) if parsed.tool_calls.is_empty() => {
-                ToolCallEvent::Pending
-            }
-            Ok(ChatMessageParseOutcome::Recognized(parsed)) => {
-                self.validate_resolved(parsed.tool_calls)
-            }
-            Ok(ChatMessageParseOutcome::Unrecognized(RawChatMessage {
-                text,
-                ffi_error_message,
-                ..
-            })) => ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
-                text,
-                ffi_error_message,
-            }),
-            Err(err) => ToolCallEvent::ParseFailed(ToolCallPipelineError::Bindings(err)),
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.buffer.clear();
-    }
-
-    #[must_use]
     pub const fn buffer_is_empty(&self) -> bool {
         self.buffer.is_empty()
     }

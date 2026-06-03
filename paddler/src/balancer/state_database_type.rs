@@ -53,18 +53,19 @@ impl FromStr for StateDatabaseType {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
     use std::str::FromStr;
-
-    use anyhow::Result;
 
     use super::*;
 
     #[test]
-    fn test_memory_basic() -> Result<()> {
-        let result = StateDatabaseType::from_str("memory://")?;
-        assert!(matches!(result, StateDatabaseType::Memory(_)));
+    fn test_memory_basic() {
+        let result = StateDatabaseType::from_str("memory://").unwrap();
 
-        Ok(())
+        assert_eq!(
+            discriminant(&result),
+            discriminant(&StateDatabaseType::Memory(Box::default())),
+        );
     }
 
     #[test]
@@ -75,24 +76,28 @@ mod tests {
     }
 
     #[test]
-    fn test_file_absolute_path() -> Result<()> {
+    fn test_file_scheme_without_authority_is_error() {
+        let result = StateDatabaseType::from_str("file:relative");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_file_absolute_path() {
         #[cfg(unix)]
-        let (url, expected_path) = ("file:///absolute/path", "/absolute/path");
+        let expected_path = "/absolute/path";
+        #[cfg(unix)]
+        let url = "file:///absolute/path";
         #[cfg(windows)]
-        let (url, expected_path) = ("file://C:/absolute/path", "C:/absolute/path");
+        let expected_path = "C:/absolute/path";
+        #[cfg(windows)]
+        let url = "file://C:/absolute/path";
 
-        let result = StateDatabaseType::from_str(url)?;
+        let result = StateDatabaseType::from_str(url).unwrap();
 
-        match result {
-            StateDatabaseType::File(path) => {
-                assert_eq!(path, PathBuf::from(expected_path));
-            }
-            StateDatabaseType::Memory(_) => {
-                return Err(anyhow!("Expected File variant"));
-            }
-        }
-
-        Ok(())
+        assert!(
+            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from(expected_path))
+        );
     }
 
     #[test]

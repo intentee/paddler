@@ -2,6 +2,7 @@ pub mod pyjinja_tojson;
 pub mod raise_exception;
 
 use crate::chat_template::ChatTemplate;
+use anyhow::Context as _;
 use anyhow::Result;
 use minijinja::Environment;
 use minijinja_contrib::pycompat::unknown_method_callback;
@@ -33,7 +34,8 @@ impl ChatTemplateRenderer {
     pub fn render<TContext: Serialize>(&self, context: TContext) -> Result<String> {
         Ok(self
             .minijinja_env
-            .get_template(CHAT_TEMPLATE_NAME)?
+            .get_template(CHAT_TEMPLATE_NAME)
+            .context("chat template is not registered in the rendering environment")?
             .render(context)?)
     }
 }
@@ -45,7 +47,6 @@ mod tests {
     use crate::chat_template::ChatTemplate;
     use crate::chat_template_message::ChatTemplateMessage;
     use crate::chat_template_message_content::ChatTemplateMessageContent;
-    use anyhow::Result;
     use minijinja::context;
 
     use crate::chat_template_renderer::ChatTemplateRenderer;
@@ -69,27 +70,25 @@ mod tests {
     }
 
     #[test]
-    fn render_produces_expected_output() -> Result<()> {
+    fn render_produces_expected_output() {
         let template = ChatTemplate {
             content: "Hello {{ name }}!".to_owned(),
         };
-        let renderer = ChatTemplateRenderer::new(template)?;
+        let renderer = ChatTemplateRenderer::new(template).unwrap();
         let mut context = HashMap::new();
         context.insert("name", "world");
 
-        let result = renderer.render(context)?;
+        let result = renderer.render(context).unwrap();
 
         assert_eq!(result, "Hello world!");
-
-        Ok(())
     }
 
     #[test]
-    fn renders_messages_loop_with_roles() -> Result<()> {
+    fn renders_messages_loop_with_roles() {
         let template = ChatTemplate {
             content: "{% for message in messages %}{{ message.role }}:{{ message.content }}\n{% endfor %}".to_owned(),
         };
-        let renderer = ChatTemplateRenderer::new(template)?;
+        let renderer = ChatTemplateRenderer::new(template).unwrap();
         let messages = vec![
             ChatTemplateMessage {
                 content: ChatTemplateMessageContent::Text("hi".to_owned()),
@@ -101,62 +100,78 @@ mod tests {
             },
         ];
 
-        let result = renderer.render(context! { messages => messages })?;
+        let result = renderer.render(context! { messages => messages }).unwrap();
 
         assert_eq!(result, "user:hi\nassistant:hello\n");
-
-        Ok(())
     }
 
     #[test]
-    fn add_generation_prompt_branch_changes_output() -> Result<()> {
+    fn add_generation_prompt_branch_changes_output() {
         let template = ChatTemplate {
             content: "A{% if add_generation_prompt %}B{% endif %}".to_owned(),
         };
-        let renderer = ChatTemplateRenderer::new(template)?;
+        let renderer = ChatTemplateRenderer::new(template).unwrap();
 
-        let with_prompt = renderer.render(context! { add_generation_prompt => true })?;
-        let without_prompt = renderer.render(context! { add_generation_prompt => false })?;
+        let with_prompt = renderer
+            .render(context! { add_generation_prompt => true })
+            .unwrap();
+        let without_prompt = renderer
+            .render(context! { add_generation_prompt => false })
+            .unwrap();
 
         assert_eq!(with_prompt, "AB");
         assert_eq!(without_prompt, "A");
-
-        Ok(())
     }
 
     #[test]
-    fn registers_pyjinja_tojson_filter() -> Result<()> {
+    fn registers_pyjinja_tojson_filter() {
         let template = ChatTemplate {
             content: "{{ value | tojson(ensure_ascii=False) }}".to_owned(),
         };
-        let renderer = ChatTemplateRenderer::new(template)?;
+        let renderer = ChatTemplateRenderer::new(template).unwrap();
 
-        let result = renderer.render(context! { value => "café" })?;
+        let result = renderer.render(context! { value => "café" }).unwrap();
 
         assert_eq!(result, "\"café\"");
-
-        Ok(())
     }
 
     #[test]
-    fn registers_raise_exception_function() -> Result<()> {
+    fn registers_raise_exception_function() {
         let template = ChatTemplate {
             content: "{{ raise_exception('boom') }}".to_owned(),
         };
-        let template_renderer = ChatTemplateRenderer::new(template)?;
+        let template_renderer = ChatTemplateRenderer::new(template).unwrap();
 
-        let err = template_renderer
+        let render_error = template_renderer
             .render(context! {})
-            .err()
-            .ok_or_else(|| anyhow::anyhow!("expected Err, got Ok"))?;
-        let error_message = err.to_string();
+            .expect_err("raise_exception must turn rendering into an error");
+        let error_message = render_error.to_string();
 
-        if !error_message.contains("boom") {
-            return Err(anyhow::anyhow!(
-                "raise_exception must surface its message; got: {error_message}"
-            ));
-        }
+        assert!(
+            error_message.contains("boom"),
+            "raise_exception must surface its message; got: {error_message}"
+        );
+    }
 
-        Ok(())
+    #[test]
+    fn render_fails_when_template_is_not_registered() {
+        let template = ChatTemplate {
+            content: "Hello {{ name }}!".to_owned(),
+        };
+        let mut renderer = ChatTemplateRenderer::new(template).unwrap();
+
+        renderer
+            .minijinja_env
+            .remove_template(super::CHAT_TEMPLATE_NAME);
+
+        let render_error = renderer
+            .render(context! {})
+            .expect_err("rendering must fail when the template is missing");
+        let error_message = render_error.to_string();
+
+        assert_eq!(
+            error_message,
+            "chat template is not registered in the rendering environment"
+        );
     }
 }

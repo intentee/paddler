@@ -50,6 +50,8 @@ mod tests {
 
     use super::*;
 
+    const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(1);
+
     struct CounterProducer {
         update_tx: watch::Sender<()>,
         value: AtomicI32,
@@ -86,63 +88,49 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshots_stream_emits_initial_snapshot() -> Result<()> {
+    async fn snapshots_stream_emits_initial_snapshot() {
         let producer = Arc::new(CounterProducer::new());
         let shutdown = CancellationToken::new();
         let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        let first = timeout(Duration::from_secs(1), stream.next())
+        let first = timeout(SNAPSHOT_TIMEOUT, stream.next())
             .await
-            .map_err(|err| anyhow::anyhow!("initial snapshot did not arrive: {err}"))?
-            .ok_or_else(|| anyhow::anyhow!("stream ended before yielding initial snapshot"))?;
+            .unwrap()
+            .unwrap();
 
         assert_eq!(first, 0);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn snapshots_stream_emits_after_subscribed_signal() -> Result<()> {
+    async fn snapshots_stream_emits_after_subscribed_signal() {
         let producer = Arc::new(CounterProducer::new());
         let shutdown = CancellationToken::new();
         let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        stream
-            .next()
-            .await
-            .ok_or_else(|| anyhow::anyhow!("stream ended before initial snapshot"))?;
+        stream.next().await.unwrap();
 
         producer.bump();
 
-        let next = timeout(Duration::from_secs(1), stream.next())
+        let next = timeout(SNAPSHOT_TIMEOUT, stream.next())
             .await
-            .map_err(|err| anyhow::anyhow!("snapshot after signal did not arrive: {err}"))?
-            .ok_or_else(|| anyhow::anyhow!("stream ended before yielding bumped snapshot"))?;
+            .unwrap()
+            .unwrap();
 
         assert_eq!(next, 1);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn snapshots_stream_terminates_on_shutdown() -> Result<()> {
+    async fn snapshots_stream_terminates_on_shutdown() {
         let producer = Arc::new(CounterProducer::new());
         let shutdown = CancellationToken::new();
         let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        stream
-            .next()
-            .await
-            .ok_or_else(|| anyhow::anyhow!("stream ended before initial snapshot"))?;
+        stream.next().await.unwrap();
 
         shutdown.cancel();
 
-        let terminated = timeout(Duration::from_secs(1), stream.next())
-            .await
-            .map_err(|err| anyhow::anyhow!("stream did not close after shutdown: {err}"))?;
+        let terminated = timeout(SNAPSHOT_TIMEOUT, stream.next()).await.unwrap();
 
         assert!(terminated.is_none());
-
-        Ok(())
     }
 }

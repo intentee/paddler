@@ -1,6 +1,5 @@
-use std::sync::RwLock;
-
 use anyhow::Result;
+use parking_lot::RwLock;
 use tokio::sync::watch;
 
 use crate::agent_applicable_state::AgentApplicableState;
@@ -11,24 +10,16 @@ pub struct AgentApplicableStateHolder {
 }
 
 impl AgentApplicableStateHolder {
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn get_agent_applicable_state(&self) -> Option<AgentApplicableState> {
-        self.agent_applicable_state
-            .read()
-            .expect("Failed to acquire read lock")
-            .clone()
+        self.agent_applicable_state.read().clone()
     }
 
-    #[expect(clippy::expect_used, reason = "mutex lock poison is unrecoverable")]
     pub fn set_agent_applicable_state(
         &self,
         agent_applicable_state: Option<AgentApplicableState>,
     ) -> Result<()> {
         {
-            let mut state = self
-                .agent_applicable_state
-                .write()
-                .expect("Failed to acquire write lock");
+            let mut state = self.agent_applicable_state.write();
 
             (*state).clone_from(&agent_applicable_state);
         }

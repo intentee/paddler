@@ -23,3 +23,25 @@ impl BatchPass<'_> {
         self.contributions.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::BatchPass;
+
+    #[test]
+    fn new_creates_empty_batch_pass() {
+        let batch_pass = BatchPass::new(16, 1).unwrap();
+
+        assert_eq!(batch_pass.batch.n_tokens(), 0);
+        assert!(batch_pass.is_empty());
+    }
+
+    #[test]
+    fn new_forwards_llama_batch_error_for_oversized_n_batch() {
+        let result = BatchPass::new(usize::MAX, 1);
+
+        let error = result.err().unwrap();
+
+        assert!(error.to_string().contains("overflow"));
+    }
+}

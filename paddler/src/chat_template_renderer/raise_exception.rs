@@ -12,35 +12,27 @@ pub fn raise_exception(message: &str) -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::Result;
-    use anyhow::anyhow;
+    use minijinja::ErrorKind;
 
     use super::raise_exception;
 
     #[test]
-    fn returns_err_with_supplied_message_quoted() -> Result<()> {
-        let err = raise_exception("template is invalid")
-            .err()
-            .ok_or_else(|| anyhow!("expected Err, got Ok"))?;
-        let rendered = err.to_string();
+    fn returns_err_with_supplied_message_quoted() {
+        let error = raise_exception("template is invalid")
+            .expect_err("raise_exception must always return Err");
+        let rendered = error.to_string();
 
-        if !rendered.contains("template is invalid") {
-            return Err(anyhow!(
-                "error must include the supplied message; got: {rendered}"
-            ));
-        }
-
-        Ok(())
+        assert!(
+            rendered.contains("template is invalid"),
+            "error must include the supplied message; got: {rendered}"
+        );
     }
 
     #[test]
-    fn returns_err_with_invalid_operation_kind() -> Result<()> {
-        let err = raise_exception("anything")
-            .err()
-            .ok_or_else(|| anyhow!("expected Err, got Ok"))?;
+    fn returns_err_with_invalid_operation_kind() {
+        let error =
+            raise_exception("anything").expect_err("raise_exception must always return Err");
 
-        assert_eq!(err.kind(), minijinja::ErrorKind::InvalidOperation);
-
-        Ok(())
+        assert_eq!(error.kind(), ErrorKind::InvalidOperation);
     }
 }

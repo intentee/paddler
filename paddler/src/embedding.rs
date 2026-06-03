@@ -36,14 +36,16 @@ impl Embedding {
             return Ok(self);
         }
 
+        let embedding = match normalization_method {
+            EmbeddingNormalizationMethod::None => self.embedding,
+            EmbeddingNormalizationMethod::L2 => l2(&self.embedding),
+            EmbeddingNormalizationMethod::RmsNorm { epsilon } => {
+                rms_norm(&self.embedding, *epsilon)?
+            }
+        };
+
         Ok(Self {
-            embedding: match normalization_method {
-                EmbeddingNormalizationMethod::None => self.embedding,
-                EmbeddingNormalizationMethod::L2 => l2(&self.embedding),
-                EmbeddingNormalizationMethod::RmsNorm { epsilon } => {
-                    rms_norm(&self.embedding, *epsilon)
-                }
-            },
+            embedding,
             normalization_method: normalization_method.clone(),
             pooling_type: self.pooling_type.clone(),
             source_document_id: self.source_document_id,
@@ -65,41 +67,41 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_from_none_to_l2() -> Result<()> {
+    fn test_normalize_from_none_to_l2() {
         let embedding = make_embedding(vec![3.0, 4.0], EmbeddingNormalizationMethod::None);
-        let result = embedding.normalize(&EmbeddingNormalizationMethod::L2)?;
+        let result = embedding
+            .normalize(&EmbeddingNormalizationMethod::L2)
+            .unwrap();
 
         assert_eq!(result.embedding, vec![0.6, 0.8]);
-        assert!(matches!(
-            result.normalization_method,
-            EmbeddingNormalizationMethod::L2
-        ));
-
-        Ok(())
+        assert!(
+            !result
+                .normalization_method
+                .needs_transformation_to(&EmbeddingNormalizationMethod::L2)
+        );
     }
 
     #[test]
-    fn test_normalize_from_none_to_rms_norm() -> Result<()> {
+    fn test_normalize_from_none_to_rms_norm() {
         let embedding =
             make_embedding(vec![2.0, 2.0, 2.0, 2.0], EmbeddingNormalizationMethod::None);
-        let result =
-            embedding.normalize(&EmbeddingNormalizationMethod::RmsNorm { epsilon: 0.0 })?;
+        let result = embedding
+            .normalize(&EmbeddingNormalizationMethod::RmsNorm { epsilon: 0.0 })
+            .unwrap();
 
-        for val in &result.embedding {
-            assert!((val - 1.0).abs() < 1e-6);
+        for value in &result.embedding {
+            assert!((value - 1.0).abs() < 1e-6);
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_normalize_none_to_none_is_noop() -> Result<()> {
+    fn test_normalize_none_to_none_is_noop() {
         let embedding = make_embedding(vec![1.0, 2.0, 3.0], EmbeddingNormalizationMethod::None);
-        let result = embedding.normalize(&EmbeddingNormalizationMethod::None)?;
+        let result = embedding
+            .normalize(&EmbeddingNormalizationMethod::None)
+            .unwrap();
 
         assert_eq!(result.embedding, vec![1.0, 2.0, 3.0]);
-
-        Ok(())
     }
 
     #[test]
@@ -130,18 +132,30 @@ mod tests {
     }
 
     #[test]
-    fn test_normalize_preserves_metadata() -> Result<()> {
+    fn test_normalize_to_rms_norm_propagates_oversized_embedding_error() {
+        let oversized_length = usize::from(u16::MAX) + 1;
+        let embedding = make_embedding(
+            vec![1.0; oversized_length],
+            EmbeddingNormalizationMethod::None,
+        );
+        let result = embedding.normalize(&EmbeddingNormalizationMethod::RmsNorm { epsilon: 0.0 });
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_normalize_preserves_metadata() {
         let embedding = Embedding {
             embedding: vec![3.0, 4.0],
             normalization_method: EmbeddingNormalizationMethod::None,
             pooling_type: PoolingType::Cls,
             source_document_id: "doc-42".to_owned(),
         };
-        let result = embedding.normalize(&EmbeddingNormalizationMethod::L2)?;
+        let result = embedding
+            .normalize(&EmbeddingNormalizationMethod::L2)
+            .unwrap();
 
-        assert!(matches!(result.pooling_type, PoolingType::Cls));
+        assert_eq!(result.pooling_type, PoolingType::Cls);
         assert_eq!(result.source_document_id, "doc-42");
-
-        Ok(())
     }
 }

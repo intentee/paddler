@@ -6,6 +6,7 @@ use paddler::balancer::compatibility::openai_service::configuration::Configurati
 use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler::balancer::state_database_type::StateDatabaseType;
+use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use tokio_util::sync::CancellationToken;
@@ -30,6 +31,11 @@ pub async fn start_cluster(
         wait_for_slots_ready,
     }: ClusterParams,
 ) -> Result<Cluster> {
+    // Make every `log!` macro evaluate its argument expressions during integration
+    // tests; no logger is installed, so this exercises the logging instrumentation
+    // without emitting output.
+    log::set_max_level(log::LevelFilter::Trace);
+
     let addresses = BalancerAddresses::pick()?;
     let management_address = addresses.management.to_string();
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
@@ -51,6 +57,7 @@ pub async fn start_cluster(
             addr: addresses.compat_openai,
         }),
         cancellation_token: CancellationToken::new(),
+        shutdown_options: ServiceShutdownOptions::default(),
         state_database_type,
         statsd_prefix: "paddler_tests_".to_owned(),
         statsd_service_configuration: None,

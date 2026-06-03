@@ -97,6 +97,7 @@ impl AgentIssueFix {
 #[cfg(test)]
 mod tests {
     use crate::agent_issue_params::ChatTemplateDoesNotCompileParams;
+    use crate::agent_issue_params::HuggingFaceDownloadLock;
     use crate::agent_issue_params::SlotCannotStartParams;
 
     use super::*;
@@ -303,6 +304,114 @@ mod tests {
         let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
         let issue =
             AgentIssue::HuggingFaceModelDoesNotExist(model_path("https://example.com/m.gguf"));
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn chat_template_does_not_compile_not_fixed_by_unrelated_fix() {
+        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
+        let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
+            error: "error".to_owned(),
+            model_path: model_path("model_a"),
+            template_content: "template".to_owned(),
+        });
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn hugging_face_cannot_acquire_lock_fixes() {
+        let issue = AgentIssue::HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock {
+            lock_path: "/tmp/lock".to_owned(),
+            model_path: model_path("model_a"),
+        });
+
+        assert!(AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")).can_fix(&issue));
+        assert!(
+            AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a")).can_fix(&issue)
+        );
+        assert!(AgentIssueFix::ModelStateIsReconciled.can_fix(&issue));
+        assert!(
+            !AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_b")).can_fix(&issue)
+        );
+        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+    }
+
+    #[test]
+    fn hugging_face_model_does_not_exist_fixes() {
+        let issue = AgentIssue::HuggingFaceModelDoesNotExist(model_path("model_a"));
+
+        assert!(AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")).can_fix(&issue));
+        assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(AgentIssueFix::ModelStateIsReconciled.can_fix(&issue));
+        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+    }
+
+    #[test]
+    fn hugging_face_permissions_fixed_by_started_downloading() {
+        let fix = AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a"));
+        let issue = AgentIssue::HuggingFacePermissions(model_path("model_a"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_cannot_be_loaded_not_fixed_by_unrelated_fix() {
+        let fix = AgentIssueFix::ModelFileExists(model_path("model_a"));
+        let issue = AgentIssue::ModelCannotBeLoaded(model_path("model_a"));
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn model_file_does_not_exist_fixed_by_multimodal_projection_and_not_others() {
+        let issue = AgentIssue::ModelFileDoesNotExist(model_path("model_a"));
+
+        assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+    }
+
+    #[test]
+    fn multimodal_projection_cannot_be_loaded_fixed_only_by_multimodal_projection_loaded() {
+        let issue = AgentIssue::MultimodalProjectionCannotBeLoaded(model_path("model_a"));
+
+        assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
+    }
+
+    #[test]
+    fn slot_cannot_start_not_fixed_by_unrelated_fix() {
+        let fix = AgentIssueFix::ModelIsLoaded(model_path("model_a"));
+        let issue = AgentIssue::SlotCannotStart(SlotCannotStartParams {
+            error: "failed".to_owned(),
+            slot_index: 1,
+        });
+
+        assert!(!fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn unable_to_find_chat_template_fixed_by_model_chat_template_loaded() {
+        let issue = AgentIssue::UnableToFindChatTemplate(model_path("model_a"));
+
+        assert!(AgentIssueFix::ModelChatTemplateIsLoaded(model_path("model_a")).can_fix(&issue));
+        assert!(!AgentIssueFix::ModelChatTemplateIsLoaded(model_path("model_b")).can_fix(&issue));
+    }
+
+    #[test]
+    fn download_server_rejected_request_fixed_by_model_download_started() {
+        let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
+        let issue =
+            AgentIssue::DownloadServerRejectedRequest(model_path("https://example.com/m.gguf"));
+
+        assert!(fix.can_fix(&issue));
+    }
+
+    #[test]
+    fn download_issue_not_fixed_by_unrelated_fix() {
+        let fix = AgentIssueFix::ModelIsLoaded(model_path("https://example.com/m.gguf"));
+        let issue = AgentIssue::DownloadInterrupted(model_path("https://example.com/m.gguf"));
 
         assert!(!fix.can_fix(&issue));
     }

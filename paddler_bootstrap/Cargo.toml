@@ -18,7 +18,11 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 
 [dev-dependencies]
+reqwest = { workspace = true }
 tempfile = { workspace = true }
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true }
 
 [lints]
 workspace = true

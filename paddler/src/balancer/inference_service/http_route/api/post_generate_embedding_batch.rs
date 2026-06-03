@@ -1,8 +1,6 @@
 use crate::balancer::inference_client::Message as OutgoingMessage;
 use crate::balancer::inference_client::Response as OutgoingResponse;
 use crate::embedding_result::EmbeddingResult;
-use crate::jsonrpc::Error as JsonRpcError;
-use crate::jsonrpc::ErrorEnvelope;
 use crate::jsonrpc::ResponseEnvelope;
 use crate::request_params::ChunkEvenlyWithCapError;
 use crate::request_params::GenerateEmbeddingBatchParams;
@@ -20,7 +18,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::StreamExt;
-use log::error;
 use nanoid::nanoid;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
@@ -110,35 +107,25 @@ async fn respond(
         let connection_close_clone = connection_close.clone();
         let inference_service_configuration_clone =
             app_data.inference_service_configuration.clone();
+        let shutdown_clone = app_data.shutdown.clone();
 
         chunk_tasks.spawn(async move {
             let request_id: String = nanoid!();
-            let mut session_controller = ChunkForwardingSessionController::new(
+            let session_controller = ChunkForwardingSessionController::new(
                 chunk_tx_clone,
                 EmbeddingChunkBodyTransformer,
             );
 
-            if let Err(err) = request_from_agent(
+            request_from_agent(
                 buffered_request_manager_clone,
                 connection_close_clone,
                 inference_service_configuration_clone,
                 batch,
-                request_id.clone(),
-                session_controller.clone(),
+                request_id,
+                session_controller,
+                shutdown_clone,
             )
-            .await
-            {
-                error!("Failed to handle request: {err}");
-                session_controller
-                    .send_response_safe(OutgoingMessage::Error(ErrorEnvelope {
-                        request_id: request_id.clone(),
-                        error: JsonRpcError {
-                            code: 500,
-                            description: format!("Request {request_id} failed: {err}"),
-                        },
-                    }))
-                    .await;
-            }
+            .await;
         });
     }
 
@@ -177,4 +164,250 @@ async fn respond(
         .insert_header(header::ContentType::json())
         .insert_header((header::CACHE_CONTROL, "no-cache"))
         .streaming(stream))
+}
+
+#[cfg(test)]
+mod tests {
+    use parking_lot::RwLock;
+    use std::collections::BTreeSet;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::AtomicI32;
+    use std::sync::atomic::AtomicU64;
+    use std::time::Duration;
+
+    use actix_web::App;
+    use actix_web::http::StatusCode;
+    use actix_web::test;
+    use actix_web::web;
+    use tokio::sync::mpsc;
+    use tokio_util::sync::CancellationToken;
+
+    use super::register;
+    use crate::agent_desired_model::AgentDesiredModel;
+    use crate::agent_desired_state::AgentDesiredState;
+    use crate::agent_state_application_status::AgentStateApplicationStatus;
+    use crate::atomic_value::AtomicValue;
+    use crate::balancer::agent_controller::AgentController;
+    use crate::balancer::agent_controller_pool::AgentControllerPool;
+    use crate::balancer::buffered_request_manager::BufferedRequestManager;
+    use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+    use crate::balancer::embedding_sender_collection::EmbeddingSenderCollection;
+    use crate::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+    use crate::balancer::inference_service::app_data::AppData;
+    use crate::balancer::inference_service::configuration::Configuration;
+    use crate::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
+    use crate::balancer_applicable_state::BalancerApplicableState;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::embedding_input_document::EmbeddingInputDocument;
+    use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
+    use crate::inference_parameters::InferenceParameters;
+    use crate::request_params::GenerateEmbeddingBatchParams;
+
+    fn agent_with_dropped_receiver(agent_id: &str) -> Arc<AgentController> {
+        let (agent_message_tx, agent_message_rx) = mpsc::unbounded_channel();
+
+        drop(agent_message_rx);
+
+        Arc::new(AgentController {
+            agent_message_tx,
+            chat_template_override_sender_collection: Arc::new(
+                ChatTemplateOverrideSenderCollection::default(),
+            ),
+            connection_close: CancellationToken::new(),
+            desired_slots_total: AtomicValue::<AtomicI32>::new(1),
+            download_current: AtomicValue::<AtomicU64>::new(0),
+            download_filename: RwLock::new(None),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
+            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
+            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
+            id: agent_id.to_owned(),
+            issues: RwLock::new(BTreeSet::new()),
+            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            model_path: RwLock::new(None),
+            name: None,
+            newest_update_version: AtomicValue::<AtomicI32>::new(0),
+            slots_processing: AtomicValue::<AtomicI32>::new(0),
+            slots_total: AtomicValue::<AtomicI32>::new(1),
+            state_application_status_code: AtomicValue::<AtomicI32>::new(
+                AgentStateApplicationStatus::Fresh as i32,
+            ),
+            uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
+        })
+    }
+
+    fn inference_parameters_with_embeddings(
+        enable_embeddings: bool,
+        embedding_batch_size: usize,
+    ) -> InferenceParameters {
+        InferenceParameters {
+            embedding_batch_size,
+            enable_embeddings,
+            ..InferenceParameters::default()
+        }
+    }
+
+    fn applicable_state(inference_parameters: InferenceParameters) -> BalancerApplicableState {
+        BalancerApplicableState {
+            agent_desired_state: AgentDesiredState {
+                chat_template_override: None,
+                inference_parameters,
+                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                multimodal_projection: AgentDesiredModel::None,
+            },
+        }
+    }
+
+    fn app_data(
+        agent_controller_pool: Arc<AgentControllerPool>,
+        balancer_applicable_state: Option<BalancerApplicableState>,
+    ) -> AppData {
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(balancer_applicable_state);
+
+        AppData {
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                agent_controller_pool.clone(),
+                Duration::from_secs(1),
+                10,
+            )),
+            agent_controller_pool,
+            balancer_applicable_state_holder,
+            inference_service_configuration: Configuration {
+                addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+                cors_allowed_hosts: Vec::new(),
+                inference_item_timeout: Duration::from_secs(1),
+            },
+            shutdown: CancellationToken::new(),
+        }
+    }
+
+    fn single_document_params() -> GenerateEmbeddingBatchParams {
+        GenerateEmbeddingBatchParams {
+            input_batch: vec![EmbeddingInputDocument {
+                content: "the quick brown fox".to_owned(),
+                id: "doc-1".to_owned(),
+            }],
+            normalization_method: EmbeddingNormalizationMethod::None,
+        }
+    }
+
+    #[actix_web::test]
+    async fn responds_service_unavailable_when_balancer_state_is_not_set() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(app_data(
+                    Arc::new(AgentControllerPool::default()),
+                    None,
+                )))
+                .configure(register),
+        )
+        .await;
+
+        let request = test::TestRequest::post()
+            .uri("/api/v1/generate_embedding_batch")
+            .set_json(single_document_params())
+            .to_request();
+        let response = test::call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[actix_web::test]
+    async fn responds_service_unavailable_when_no_agents_are_connected() {
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(app_data(
+                    Arc::new(AgentControllerPool::default()),
+                    Some(applicable_state(inference_parameters_with_embeddings(
+                        true, 256,
+                    ))),
+                )))
+                .configure(register),
+        )
+        .await;
+
+        let request = test::TestRequest::post()
+            .uri("/api/v1/generate_embedding_batch")
+            .set_json(single_document_params())
+            .to_request();
+        let response = test::call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[actix_web::test]
+    async fn responds_internal_server_error_when_embedding_batch_size_is_zero() {
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
+
+        agent_controller_pool
+            .register_agent_controller(
+                "agent-zero".to_owned(),
+                agent_with_dropped_receiver("agent-zero"),
+            )
+            .unwrap();
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(app_data(
+                    agent_controller_pool,
+                    Some(applicable_state(inference_parameters_with_embeddings(
+                        true, 0,
+                    ))),
+                )))
+                .configure(register),
+        )
+        .await;
+
+        let request = test::TestRequest::post()
+            .uri("/api/v1/generate_embedding_batch")
+            .set_json(single_document_params())
+            .to_request();
+        let response = test::call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_web::test]
+    async fn streams_error_chunk_when_agent_request_fails() {
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
+
+        agent_controller_pool
+            .register_agent_controller(
+                "agent-closed".to_owned(),
+                agent_with_dropped_receiver("agent-closed"),
+            )
+            .unwrap();
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(app_data(
+                    agent_controller_pool,
+                    Some(applicable_state(inference_parameters_with_embeddings(
+                        true, 256,
+                    ))),
+                )))
+                .configure(register),
+        )
+        .await;
+
+        let request = test::TestRequest::post()
+            .uri("/api/v1/generate_embedding_batch")
+            .set_json(single_document_params())
+            .to_request();
+        let response = test::call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = test::read_body(response).await;
+        let body_text = String::from_utf8(body.to_vec()).unwrap();
+
+        assert!(
+            body_text.contains("Failed to generate response"),
+            "streamed body must carry the forwarded agent error chunk, got: {body_text}"
+        );
+    }
 }

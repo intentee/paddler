@@ -20,6 +20,7 @@ pub enum StopReason {
     ToolCallParseFailed(String),
     ToolCallValidationFailed(Vec<String>),
     ToolSchemaInvalid(String),
+    UnexpectedEmbeddingResponse,
     WireStreamError(String),
 }
 
@@ -75,6 +76,9 @@ impl fmt::Display for StopReason {
             }
             Self::ToolSchemaInvalid(detail) => {
                 write!(formatter, "tool schema invalid: {detail}")
+            }
+            Self::UnexpectedEmbeddingResponse => {
+                formatter.write_str("server sent an embedding response on a token-generation stream")
             }
             Self::WireStreamError(detail) => {
                 write!(formatter, "wire stream error: {detail}")

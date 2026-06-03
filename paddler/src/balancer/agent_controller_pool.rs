@@ -182,10 +182,62 @@ impl SetsDesiredState for AgentControllerPool {
 
 #[cfg(test)]
 mod tests {
+    use parking_lot::RwLock;
+    use std::collections::BTreeSet;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::AtomicI32;
+    use std::sync::atomic::AtomicU64;
     use std::time::Duration;
 
+    use tokio::sync::mpsc;
     use tokio::sync::watch;
     use tokio::time::timeout;
+    use tokio_util::sync::CancellationToken;
+
+    use super::AgentControllerPool;
+    use crate::agent_state_application_status::AgentStateApplicationStatus;
+    use crate::atomic_value::AtomicValue;
+    use crate::balancer::agent_controller::AgentController;
+    use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+    use crate::balancer::embedding_sender_collection::EmbeddingSenderCollection;
+    use crate::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+    use crate::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
+    use crate::produces_snapshot::ProducesSnapshot;
+
+    fn agent_controller_with_slots(
+        slots_processing: i32,
+        slots_total: i32,
+    ) -> Arc<AgentController> {
+        let (agent_message_tx, _agent_message_rx) = mpsc::unbounded_channel();
+
+        Arc::new(AgentController {
+            agent_message_tx,
+            chat_template_override_sender_collection: Arc::new(
+                ChatTemplateOverrideSenderCollection::default(),
+            ),
+            connection_close: CancellationToken::new(),
+            desired_slots_total: AtomicValue::<AtomicI32>::new(0),
+            download_current: AtomicValue::<AtomicU64>::new(0),
+            download_filename: RwLock::new(None),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
+            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
+            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
+            id: "agent-test".to_owned(),
+            issues: RwLock::new(BTreeSet::new()),
+            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            model_path: RwLock::new(None),
+            name: None,
+            newest_update_version: AtomicValue::<AtomicI32>::new(0),
+            slots_processing: AtomicValue::<AtomicI32>::new(slots_processing),
+            slots_total: AtomicValue::<AtomicI32>::new(slots_total),
+            state_application_status_code: AtomicValue::<AtomicI32>::new(
+                AgentStateApplicationStatus::Fresh as i32,
+            ),
+            uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
+        })
+    }
 
     #[tokio::test]
     async fn watch_receiver_observes_send_fired_before_changed_await() {
@@ -199,5 +251,62 @@ mod tests {
                 .is_ok(),
             "watch::Receiver must observe a send fired before .changed() is awaited"
         );
+    }
+
+    #[test]
+    fn register_agent_controller_rejects_duplicate_id() {
+        let pool = AgentControllerPool::default();
+
+        assert!(
+            pool.register_agent_controller(
+                "duplicate".to_owned(),
+                agent_controller_with_slots(0, 1),
+            )
+            .is_ok()
+        );
+
+        let duplicate_result = pool
+            .register_agent_controller("duplicate".to_owned(), agent_controller_with_slots(0, 1));
+
+        assert_eq!(
+            duplicate_result.err().unwrap().to_string(),
+            "AgentController already registered"
+        );
+    }
+
+    #[test]
+    fn remove_agent_controller_returns_false_for_unknown_id() {
+        let pool = AgentControllerPool::default();
+
+        assert!(!pool.remove_agent_controller("never-registered").unwrap());
+    }
+
+    #[test]
+    fn total_slots_sums_processing_and_total_across_agents() {
+        let pool = AgentControllerPool::default();
+
+        pool.register_agent_controller("first".to_owned(), agent_controller_with_slots(1, 4))
+            .unwrap();
+        pool.register_agent_controller("second".to_owned(), agent_controller_with_slots(2, 8))
+            .unwrap();
+
+        let total_slots = pool.total_slots();
+
+        assert_eq!(total_slots.slots_processing, 3);
+        assert_eq!(total_slots.slots_total, 12);
+    }
+
+    #[test]
+    fn make_snapshot_includes_each_registered_agent() {
+        let pool = AgentControllerPool::default();
+
+        pool.register_agent_controller("only".to_owned(), agent_controller_with_slots(2, 5))
+            .unwrap();
+
+        let snapshot = pool.make_snapshot().unwrap();
+
+        assert_eq!(snapshot.agents.len(), 1);
+        assert_eq!(snapshot.agents[0].slots_processing, 2);
+        assert_eq!(snapshot.agents[0].slots_total, 5);
     }
 }

@@ -40,64 +40,67 @@ impl Validates<ValidatedParametersSchema> for RawParametersSchema {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::from_value;
     use serde_json::json;
 
     use super::*;
 
     #[test]
-    fn test_deserialize_with_valid_properties() -> Result<()> {
-        let input = json!({
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "integer", "minimum": 0}
-            },
-            "required": ["name"],
-            "additionalProperties": false
-        });
+    fn validate_passes_when_every_required_field_is_present() {
+        let mut properties = Map::new();
+        properties.insert("name".to_owned(), json!({"type": "string"}));
+        properties.insert("age".to_owned(), json!({"type": "integer"}));
 
-        let raw_schema: RawParametersSchema = from_value(input)?;
-        let schema: ValidatedParametersSchema = raw_schema.validate()?;
+        let raw_schema = RawParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(properties),
+            required: Some(vec!["name".to_owned()]),
+            additional_properties: Some(json!(false)),
+        };
+
+        let schema = raw_schema.validate().unwrap();
 
         assert_eq!(schema.schema_type, "object");
-        assert!(schema.properties.is_some());
-
-        let properties = schema
-            .properties
-            .as_ref()
-            .ok_or_else(|| anyhow!("expected properties"))?;
-
-        assert_eq!(properties.len(), 2);
+        assert_eq!(schema.properties.as_ref().unwrap().len(), 2);
         assert_eq!(schema.required, Some(vec!["name".to_owned()]));
         assert_eq!(schema.additional_properties, Some(json!(false)));
-
-        Ok(())
     }
 
     #[test]
-    fn test_deserialize_required_field_not_in_properties() -> Result<()> {
-        let input = json!({
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"}
-            },
-            "required": ["name", "missing_field"]
-        });
+    fn validate_passes_when_required_is_absent() {
+        let mut properties = Map::new();
+        properties.insert("name".to_owned(), json!({"type": "string"}));
 
-        let raw_schema: RawParametersSchema = from_value(input)?;
-        let result: Result<ValidatedParametersSchema, _> = raw_schema.validate();
+        let raw_schema = RawParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(properties),
+            required: None,
+            additional_properties: None,
+        };
 
-        assert!(result.is_err());
+        let schema = raw_schema.validate().unwrap();
 
-        if let Err(error) = &result {
-            assert!(
-                error
-                    .to_string()
-                    .contains("Required field 'missing_field' not found in properties")
-            );
-        }
+        assert_eq!(schema.schema_type, "object");
+        assert_eq!(schema.required, None);
+        assert_eq!(schema.additional_properties, None);
+    }
 
-        Ok(())
+    #[test]
+    fn validate_fails_when_required_field_is_missing_from_properties() {
+        let mut properties = Map::new();
+        properties.insert("name".to_owned(), json!({"type": "string"}));
+
+        let raw_schema = RawParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(properties),
+            required: Some(vec!["name".to_owned(), "missing_field".to_owned()]),
+            additional_properties: None,
+        };
+
+        let error = raw_schema.validate().unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Required field 'missing_field' not found in properties"
+        );
     }
 }

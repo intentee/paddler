@@ -50,3 +50,54 @@ where
             });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::ManagesSendersController;
+    use crate::balancer::embedding_sender_collection::EmbeddingSenderCollection;
+    use crate::balancer::manages_senders::ManagesSenders;
+
+    #[test]
+    fn registers_sender_on_construction() {
+        let response_sender_collection = Arc::new(EmbeddingSenderCollection::default());
+
+        let controller = ManagesSendersController::from_request_id(
+            "request-1".to_owned(),
+            response_sender_collection.clone(),
+        )
+        .unwrap();
+
+        assert!(
+            response_sender_collection
+                .get_sender_collection()
+                .contains_key("request-1")
+        );
+
+        drop(controller);
+    }
+
+    #[test]
+    fn returns_error_when_sender_already_registered() {
+        let response_sender_collection = Arc::new(EmbeddingSenderCollection::default());
+
+        let _first_controller = ManagesSendersController::from_request_id(
+            "request-1".to_owned(),
+            response_sender_collection.clone(),
+        )
+        .unwrap();
+
+        let result = ManagesSendersController::from_request_id(
+            "request-1".to_owned(),
+            response_sender_collection,
+        );
+
+        let error = result.err().unwrap();
+
+        assert_eq!(
+            error.to_string(),
+            "Sender for request_id request-1 already exists"
+        );
+    }
+}

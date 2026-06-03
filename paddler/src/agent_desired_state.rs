@@ -87,7 +87,6 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use anyhow::Result;
     use tempfile::TempDir;
 
     use crate::agent_desired_model::AgentDesiredModel;
@@ -98,15 +97,23 @@ mod tests {
     use crate::inference_parameters::InferenceParameters;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
 
+    struct MissingLocalModel {
+        _dir_guard: TempDir,
+        path: PathBuf,
+    }
+
     fn fresh_status() -> Arc<SlotAggregatedStatus> {
         Arc::new(SlotAggregatedStatus::new(1))
     }
 
-    fn nonexistent_path_in_temp_dir(label: &str) -> Result<(TempDir, PathBuf)> {
-        let dir = tempfile::tempdir()?;
-        let path = dir.path().join(format!("missing-{label}.gguf"));
+    fn nonexistent_path_in_temp_dir(label: &str) -> MissingLocalModel {
+        let dir_guard = tempfile::tempdir().unwrap();
+        let path = dir_guard.path().join(format!("missing-{label}.gguf"));
 
-        Ok((dir, path))
+        MissingLocalModel {
+            _dir_guard: dir_guard,
+            path,
+        }
     }
 
     fn desired_state(
@@ -122,9 +129,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn local_missing_model_registers_model_file_does_not_exist_and_errs() -> Result<()> {
+    async fn local_missing_model_registers_model_file_does_not_exist_and_errs() {
         let status = fresh_status();
-        let (_dir_guard, missing_path) = nonexistent_path_in_temp_dir("model")?;
+        let MissingLocalModel {
+            _dir_guard,
+            path: missing_path,
+        } = nonexistent_path_in_temp_dir("model");
         let desired = desired_state(
             AgentDesiredModel::LocalToAgent(missing_path.display().to_string()),
             AgentDesiredModel::None,
@@ -148,15 +158,16 @@ mod tests {
             })),
             "MultimodalProjectionCannotBeLoaded must NOT be registered for a missing model"
         );
-
-        Ok(())
     }
 
     #[tokio::test]
     async fn local_missing_multimodal_projection_registers_multimodal_projection_cannot_be_loaded_and_errs()
-    -> Result<()> {
+     {
         let status = fresh_status();
-        let (_dir_guard, missing_path) = nonexistent_path_in_temp_dir("projection")?;
+        let MissingLocalModel {
+            _dir_guard,
+            path: missing_path,
+        } = nonexistent_path_in_temp_dir("projection");
         let desired = desired_state(
             AgentDesiredModel::None,
             AgentDesiredModel::LocalToAgent(missing_path.display().to_string()),
@@ -180,7 +191,5 @@ mod tests {
             })),
             "ModelFileDoesNotExist must NOT be registered for a missing projection"
         );
-
-        Ok(())
     }
 }

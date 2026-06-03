@@ -38,6 +38,7 @@ type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 struct InferenceSocketController {
     buffered_request_manager: Arc<BufferedRequestManager>,
     inference_service_configuration: InferenceServiceConfiguration,
+    shutdown: CancellationToken,
 }
 
 #[async_trait]
@@ -50,6 +51,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         InferenceSocketControllerContext {
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.inference_service_configuration.clone(),
+            shutdown: self.shutdown.clone(),
         }
     }
 
@@ -80,18 +82,16 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 let validated_params = conversation_history_params.validate()?;
 
                 rt::spawn(async move {
-                    if let Err(err) = request_from_agent(
+                    request_from_agent(
                         context.buffered_request_manager.clone(),
                         connection_close,
                         context.inference_service_configuration.clone(),
                         validated_params,
-                        request_id.clone(),
+                        request_id,
                         websocket_session_controller,
+                        context.shutdown.clone(),
                     )
-                    .await
-                    {
-                        error!("Request {request_id:?} failed: {err}");
-                    }
+                    .await;
                 });
 
                 Ok(ContinuationDecision::Continue)
@@ -101,18 +101,16 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 request: InferenceJsonRpcRequest::ContinueFromRawPrompt(raw_prompt_params),
             }) => {
                 rt::spawn(async move {
-                    if let Err(err) = request_from_agent(
+                    request_from_agent(
                         context.buffered_request_manager.clone(),
                         connection_close,
                         context.inference_service_configuration.clone(),
                         raw_prompt_params,
-                        request_id.clone(),
+                        request_id,
                         websocket_session_controller,
+                        context.shutdown.clone(),
                     )
-                    .await
-                    {
-                        error!("Request {request_id:?} failed: {err}");
-                    }
+                    .await;
                 });
 
                 Ok(ContinuationDecision::Continue)
@@ -124,7 +122,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 #[get("/api/v1/inference_socket")]
 #[expect(
     clippy::future_not_send,
-    reason = "actix-web handlers run on a single-threaded runtime"
+    reason = "actix-web handler futures are inherently !Send: each worker runs them on its own single-threaded runtime and never moves them across threads"
 )]
 async fn respond(
     app_data: Data<AppData>,
@@ -134,6 +132,7 @@ async fn respond(
     let inference_socket_controller = InferenceSocketController {
         buffered_request_manager: app_data.buffered_request_manager.clone(),
         inference_service_configuration: app_data.inference_service_configuration.clone(),
+        shutdown: app_data.shutdown.clone(),
     };
 
     inference_socket_controller.respond(payload, http_request, app_data.shutdown.clone())
@@ -141,4 +140,364 @@ async fn respond(
 
 pub fn register(service_config: &mut ServiceConfig) {
     service_config.service(respond);
+}
+
+#[cfg(test)]
+mod tests {
+    use parking_lot::RwLock;
+    use std::collections::BTreeSet;
+    use std::mem::discriminant;
+    use std::net::SocketAddr;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::AtomicI32;
+    use std::sync::atomic::AtomicU64;
+    use std::time::Duration;
+
+    use actix_web::App;
+    use actix_web::FromRequest as _;
+    use actix_web::http::StatusCode;
+    use actix_web::http::header;
+    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::web::Data;
+    use actix_web::web::Payload;
+    use tokio::sync::mpsc;
+    use tokio_util::sync::CancellationToken;
+
+    use crate::agent::jsonrpc::Message as AgentJsonRpcMessage;
+    use crate::agent::jsonrpc::Notification as AgentJsonRpcNotification;
+    use crate::agent::jsonrpc::Request as AgentJsonRpcRequest;
+    use crate::agent_state_application_status::AgentStateApplicationStatus;
+    use crate::atomic_value::AtomicValue;
+    use crate::balancer::agent_controller::AgentController;
+    use crate::balancer::agent_controller_pool::AgentControllerPool;
+    use crate::balancer::buffered_request_manager::BufferedRequestManager;
+    use crate::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+    use crate::balancer::embedding_sender_collection::EmbeddingSenderCollection;
+    use crate::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+    use crate::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::continuation_decision::ContinuationDecision;
+    use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint as _;
+    use crate::conversation_history::ConversationHistory;
+    use crate::jsonrpc::Error as JsonRpcError;
+    use crate::jsonrpc::ErrorEnvelope;
+    use crate::jsonrpc::RequestEnvelope;
+    use crate::request_params::ContinueFromRawPromptParams;
+    use crate::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+    use crate::websocket_session_controller::WebSocketSessionController;
+
+    use super::AppData;
+    use super::InferenceJsonRpcMessage;
+    use super::InferenceJsonRpcRequest;
+    use super::InferenceServiceConfiguration;
+    use super::InferenceSocketController;
+    use super::InferenceSocketControllerContext;
+    use super::OutgoingMessage;
+    use super::register;
+
+    struct RegisteredAgent {
+        pool: Arc<AgentControllerPool>,
+        agent_message_rx: mpsc::UnboundedReceiver<AgentJsonRpcMessage>,
+    }
+
+    fn pool_with_one_free_slot(agent_id: &str) -> RegisteredAgent {
+        let pool = Arc::new(AgentControllerPool::default());
+        let (agent_message_tx, agent_message_rx) = mpsc::unbounded_channel();
+        let agent_controller = Arc::new(AgentController {
+            agent_message_tx,
+            chat_template_override_sender_collection: Arc::new(
+                ChatTemplateOverrideSenderCollection::default(),
+            ),
+            connection_close: CancellationToken::new(),
+            desired_slots_total: AtomicValue::<AtomicI32>::new(1),
+            download_current: AtomicValue::<AtomicU64>::new(0),
+            download_filename: RwLock::new(None),
+            download_indeterminate: AtomicValue::<AtomicBool>::new(true),
+            download_total: AtomicValue::<AtomicU64>::new(0),
+            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
+            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
+            id: agent_id.to_owned(),
+            issues: RwLock::new(BTreeSet::new()),
+            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            model_path: RwLock::new(None),
+            name: None,
+            newest_update_version: AtomicValue::<AtomicI32>::new(0),
+            slots_processing: AtomicValue::<AtomicI32>::new(0),
+            slots_total: AtomicValue::<AtomicI32>::new(1),
+            state_application_status_code: AtomicValue::<AtomicI32>::new(
+                AgentStateApplicationStatus::Fresh as i32,
+            ),
+            uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
+        });
+
+        pool.register_agent_controller(agent_id.to_owned(), agent_controller)
+            .unwrap();
+
+        RegisteredAgent {
+            pool,
+            agent_message_rx,
+        }
+    }
+
+    fn context_with_pool(pool: Arc<AgentControllerPool>) -> Arc<InferenceSocketControllerContext> {
+        Arc::new(InferenceSocketControllerContext {
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                pool,
+                Duration::from_mins(1),
+                10,
+            )),
+            inference_service_configuration: inference_service_configuration(),
+            shutdown: CancellationToken::new(),
+        })
+    }
+
+    #[expect(
+        clippy::future_not_send,
+        reason = "actix_ws::Session is !Send and the future is awaited in place"
+    )]
+    async fn open_session_controller() -> WebSocketSessionController<OutgoingMessage> {
+        let (request, mut raw_payload) = TestRequest::get()
+            .insert_header((header::CONNECTION, "upgrade"))
+            .insert_header((header::UPGRADE, "websocket"))
+            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
+            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+        let (_response, session, _msg_stream) = actix_ws::handle(&request, payload).unwrap();
+
+        WebSocketSessionController::new(session)
+    }
+
+    fn inference_service_configuration() -> InferenceServiceConfiguration {
+        InferenceServiceConfiguration {
+            addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+            cors_allowed_hosts: vec!["http://localhost".to_owned()],
+            inference_item_timeout: Duration::from_secs(30),
+        }
+    }
+
+    #[actix_web::test]
+    async fn create_context_copies_controller_state() {
+        let buffered_request_manager = Arc::new(BufferedRequestManager::new(
+            Arc::new(AgentControllerPool::default()),
+            Duration::from_mins(1),
+            10,
+        ));
+        let shutdown = CancellationToken::new();
+        let controller = InferenceSocketController {
+            buffered_request_manager: buffered_request_manager.clone(),
+            inference_service_configuration: inference_service_configuration(),
+            shutdown: shutdown.clone(),
+        };
+
+        let context = controller.create_context();
+
+        assert!(Arc::ptr_eq(
+            &context.buffered_request_manager,
+            &buffered_request_manager
+        ));
+        assert_eq!(
+            context
+                .inference_service_configuration
+                .inference_item_timeout,
+            Duration::from_secs(30)
+        );
+        assert_eq!(
+            context.inference_service_configuration.cors_allowed_hosts,
+            vec!["http://localhost".to_owned()]
+        );
+
+        shutdown.cancel();
+
+        assert!(context.shutdown.is_cancelled());
+    }
+
+    #[actix_web::test]
+    async fn respond_upgrades_websocket_handshake() {
+        let app_data = Data::new(AppData {
+            agent_controller_pool: Arc::new(AgentControllerPool::default()),
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                Arc::new(AgentControllerPool::default()),
+                Duration::from_mins(1),
+                10,
+            )),
+            inference_service_configuration: inference_service_configuration(),
+            shutdown: CancellationToken::new(),
+        });
+        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
+
+        let request = test::TestRequest::get()
+            .uri("/api/v1/inference_socket")
+            .insert_header((header::UPGRADE, "websocket"))
+            .insert_header((header::CONNECTION, "Upgrade"))
+            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
+            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_request();
+        let response = test::call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
+    }
+
+    #[actix_web::test]
+    async fn handle_error_message_continues_without_dispatch() {
+        let RegisteredAgent {
+            pool,
+            mut agent_message_rx,
+        } = pool_with_one_free_slot("agent-error-arm");
+        let session_controller = open_session_controller().await;
+
+        let continuation_decision = InferenceSocketController::handle_deserialized_message(
+            CancellationToken::new(),
+            context_with_pool(pool),
+            InferenceJsonRpcMessage::Error(ErrorEnvelope {
+                request_id: "request-error".to_owned(),
+                error: JsonRpcError {
+                    code: -32_600,
+                    description: "client reported error".to_owned(),
+                },
+            }),
+            session_controller,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+        assert!(agent_message_rx.try_recv().is_err());
+    }
+
+    #[actix_web::test]
+    async fn handle_raw_prompt_request_dispatches_to_agent() {
+        let RegisteredAgent {
+            pool,
+            mut agent_message_rx,
+        } = pool_with_one_free_slot("agent-raw-prompt");
+        let session_controller = open_session_controller().await;
+        let connection_close = CancellationToken::new();
+
+        let continuation_decision = InferenceSocketController::handle_deserialized_message(
+            connection_close.clone(),
+            context_with_pool(pool),
+            InferenceJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-raw-prompt".to_owned(),
+                request: InferenceJsonRpcRequest::ContinueFromRawPrompt(
+                    ContinueFromRawPromptParams {
+                        grammar: None,
+                        max_tokens: 1,
+                        raw_prompt: "fixture prompt".to_owned(),
+                    },
+                ),
+            }),
+            session_controller,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+
+        let dispatched_message = agent_message_rx.recv().await.unwrap();
+
+        assert_eq!(
+            discriminant(&dispatched_message),
+            discriminant(&AgentJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-raw-prompt".to_owned(),
+                request: AgentJsonRpcRequest::ContinueFromRawPrompt(ContinueFromRawPromptParams {
+                    grammar: None,
+                    max_tokens: 1,
+                    raw_prompt: "fixture prompt".to_owned(),
+                }),
+            })),
+        );
+
+        connection_close.cancel();
+
+        let stop_message = agent_message_rx.recv().await.unwrap();
+
+        assert_eq!(
+            discriminant(&stop_message),
+            discriminant(&AgentJsonRpcMessage::Notification(
+                AgentJsonRpcNotification::StopRespondingTo("request-raw-prompt".to_owned())
+            )),
+        );
+    }
+
+    #[actix_web::test]
+    async fn handle_conversation_history_request_validates_and_dispatches_to_agent() {
+        let RegisteredAgent {
+            pool,
+            mut agent_message_rx,
+        } = pool_with_one_free_slot("agent-conversation-history");
+        let session_controller = open_session_controller().await;
+        let connection_close = CancellationToken::new();
+
+        let continuation_decision = InferenceSocketController::handle_deserialized_message(
+            connection_close.clone(),
+            context_with_pool(pool),
+            InferenceJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-conversation-history".to_owned(),
+                request: InferenceJsonRpcRequest::ContinueFromConversationHistory(
+                    ContinueFromConversationHistoryParams {
+                        add_generation_prompt: true,
+                        conversation_history: ConversationHistory::new(Vec::new()),
+                        enable_thinking: false,
+                        grammar: None,
+                        max_tokens: 1,
+                        parse_tool_calls: false,
+                        tools: Vec::new(),
+                    },
+                ),
+            }),
+            session_controller,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+
+        let dispatched_message = agent_message_rx.recv().await.unwrap();
+
+        assert_eq!(
+            discriminant(&dispatched_message),
+            discriminant(&AgentJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-conversation-history".to_owned(),
+                request: AgentJsonRpcRequest::ContinueFromConversationHistory(
+                    ContinueFromConversationHistoryParams {
+                        add_generation_prompt: true,
+                        conversation_history: ConversationHistory::new(Vec::new()),
+                        enable_thinking: false,
+                        grammar: None,
+                        max_tokens: 1,
+                        parse_tool_calls: false,
+                        tools: Vec::new(),
+                    },
+                ),
+            })),
+        );
+
+        connection_close.cancel();
+
+        let stop_message = agent_message_rx.recv().await.unwrap();
+
+        assert_eq!(
+            discriminant(&stop_message),
+            discriminant(&AgentJsonRpcMessage::Notification(
+                AgentJsonRpcNotification::StopRespondingTo(
+                    "request-conversation-history".to_owned()
+                )
+            )),
+        );
+    }
 }

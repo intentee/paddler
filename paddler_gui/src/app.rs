@@ -31,6 +31,7 @@ use paddler::produces_snapshot::ProducesSnapshot;
 #[cfg(feature = "web_admin_panel")]
 use paddler::resolved_socket_addr::ResolvedSocketAddr;
 use paddler::subscribes_to_updates::SubscribesToUpdates as _;
+use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -503,6 +504,7 @@ impl App {
             max_buffered_requests,
             openai_service_configuration: None,
             cancellation_token: cancel,
+            shutdown_options: ServiceShutdownOptions::default(),
             state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
             statsd_prefix: statsd_prefix.to_owned(),
             statsd_service_configuration: None,
