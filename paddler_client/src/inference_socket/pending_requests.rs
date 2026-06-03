@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use paddler::balancer::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::Message as InferenceMessage;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::error::Result;

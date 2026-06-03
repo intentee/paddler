@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use paddler::balancer::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::Message as InferenceMessage;
 use serde::Serialize;
 use serde_json::to_string;
 use tokio::sync::Mutex;

@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

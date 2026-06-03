@@ -1,7 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

@@ -19,31 +19,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "366ffbaa4442f4684d91e2cd7c5ea7c4ed8add41959a31447066e279e432b618"
 
 [[package]]
-name = "actix"
-version = "0.13.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de7fa236829ba0841304542f7614c42b80fca007455315c45c785ccfa873a85b"
-dependencies = [
- "actix-macros",
- "actix-rt",
- "actix_derive",
- "bitflags 2.11.0",
- "bytes 1.11.1",
- "crossbeam-channel",
- "futures-core",
- "futures-sink",
- "futures-task",
- "futures-util",
- "log",
- "once_cell",
- "parking_lot",
- "pin-project-lite",
- "smallvec",
- "tokio",
- "tokio-util",
-]
-
-[[package]]
 name = "actix-codec"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -302,17 +277,6 @@ dependencies = [
  "bytestring",
  "futures-core",
  "tokio",
-]
-
-[[package]]
-name = "actix_derive"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6ac1e58cded18cb28ddc17143c4dea5345b3ad575e14f32f66e4054a56eb271"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -4885,27 +4849,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler"
+name = "paddler_agent"
 version = "4.0.0"
 dependencies = [
- "actix",
- "actix-cors",
- "actix-rt",
- "actix-web",
- "actix-web-lab",
- "actix-ws",
  "anyhow",
- "askama",
  "async-stream",
  "async-trait",
  "base64",
  "bytes 1.11.1",
- "cadence",
- "clap",
  "dashmap",
  "encoding_rs",
- "env_logger",
- "esbuild-metafile",
  "futures 0.3.32",
  "futures-util",
  "hf-hub",
@@ -4916,17 +4869,17 @@ dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "log",
- "mime_guess",
  "minijinja",
  "minijinja-contrib",
  "nanoid",
  "paddler_cache_dir",
  "paddler_download_manager",
+ "paddler_messaging",
+ "paddler_state_conversion",
  "parking_lot",
  "rand 0.9.4",
  "reqwest",
  "resvg 0.46.0",
- "rust-embed",
  "serde",
  "serde_json",
  "shellexpand",
@@ -4942,6 +4895,46 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_balancer"
+version = "4.0.0"
+dependencies = [
+ "actix-cors",
+ "actix-web",
+ "actix-web-lab",
+ "actix-ws",
+ "anyhow",
+ "askama",
+ "async-stream",
+ "async-trait",
+ "bytes 1.11.1",
+ "cadence",
+ "dashmap",
+ "esbuild-metafile",
+ "futures 0.3.32",
+ "futures-util",
+ "indoc",
+ "llama-cpp-bindings-types",
+ "log",
+ "mime_guess",
+ "nanoid",
+ "paddler_messaging",
+ "paddler_state_conversion",
+ "parking_lot",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tokio-test",
+ "tokio-util",
+ "trzcina",
+ "url",
+]
+
+[[package]]
 name = "paddler_bootstrap"
 version = "4.0.0"
 dependencies = [
@@ -4951,7 +4944,9 @@ dependencies = [
  "log",
  "nanoid",
  "nix 0.30.1",
- "paddler",
+ "paddler_agent",
+ "paddler_balancer",
+ "paddler_messaging",
  "reqwest",
  "tempfile",
  "tokio",
@@ -4984,7 +4979,7 @@ dependencies = [
  "esbuild-metafile",
  "log",
  "nanoid",
- "paddler",
+ "paddler_balancer",
  "paddler_bootstrap",
  "tokio",
  "tokio-util",
@@ -5001,10 +4996,10 @@ dependencies = [
  "futures-util",
  "log",
  "nix 0.30.1",
- "paddler",
  "paddler_cli",
  "paddler_client",
  "paddler_cluster_harness",
+ "paddler_messaging",
  "reqwest",
  "serde_json",
  "serial_test",
@@ -5021,7 +5016,7 @@ dependencies = [
  "futures-util",
  "log",
  "nanoid",
- "paddler",
+ "paddler_messaging",
  "reqwest",
  "serde",
  "serde_json",
@@ -5044,9 +5039,9 @@ dependencies = [
  "futures-util",
  "llama-cpp-bindings-types",
  "log",
- "paddler",
  "paddler_bootstrap",
  "paddler_client",
+ "paddler_messaging",
  "ratatui",
  "reqwest",
  "serde_json",
@@ -5064,8 +5059,8 @@ dependencies = [
  "async-trait",
  "base64",
  "futures-util",
- "paddler",
  "paddler_client",
+ "paddler_messaging",
  "reqwest",
  "serde",
  "serde_json",
@@ -5103,12 +5098,38 @@ dependencies = [
  "if-addrs",
  "log",
  "open",
- "paddler",
+ "paddler_balancer",
  "paddler_bootstrap",
+ "paddler_messaging",
  "parking_lot",
  "statum",
  "tokio",
  "tokio-util",
+]
+
+[[package]]
+name = "paddler_messaging"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "encoding_rs",
+ "llama-cpp-bindings-types",
+ "log",
+ "nanoid",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
+]
+
+[[package]]
+name = "paddler_state_conversion"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
 ]
 
 [[package]]
@@ -5124,10 +5145,12 @@ dependencies = [
  "llama-cpp-bindings",
  "log",
  "nix 0.30.1",
- "paddler",
+ "paddler_agent",
+ "paddler_balancer",
  "paddler_bootstrap",
  "paddler_client",
  "paddler_cluster_harness",
+ "paddler_messaging",
  "parking_lot",
  "reqwest",
  "serde",

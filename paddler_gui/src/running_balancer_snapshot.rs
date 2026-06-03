@@ -1,11 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
-use paddler::balancer::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler::balancer_applicable_state::BalancerApplicableState;
-use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::produces_snapshot::ProducesSnapshot as _;
+use paddler_balancer::agent_controller_pool::AgentControllerPool;
+use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
+use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
 #[derive(Clone, Debug, Default)]
 pub struct RunningBalancerSnapshot {
@@ -45,27 +45,27 @@ impl RunningBalancerSnapshot {
 
 #[cfg(test)]
 mod tests {
+    use parking_lot::RwLock;
     use std::collections::BTreeSet;
     use std::sync::Arc;
-    use parking_lot::RwLock;
     use std::sync::atomic::AtomicBool;
     use std::sync::atomic::AtomicI32;
     use std::sync::atomic::AtomicU64;
 
     use anyhow::Result;
-    use paddler::agent_desired_model::AgentDesiredModel;
-    use paddler::agent_desired_state::AgentDesiredState;
-    use paddler::agent_state_application_status::AgentStateApplicationStatus;
-    use paddler::atomic_value::AtomicValue;
-    use paddler::balancer::agent_controller::AgentController;
-    use paddler::balancer::agent_controller_pool::AgentControllerPool;
-    use paddler::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-    use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
-    use paddler::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
-    use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
-    use paddler::balancer_applicable_state::BalancerApplicableState;
-    use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use paddler::inference_parameters::InferenceParameters;
+    use paddler_balancer::agent_controller::AgentController;
+    use paddler_balancer::agent_controller_pool::AgentControllerPool;
+    use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
+    use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use paddler_balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+    use paddler_balancer::embedding_sender_collection::EmbeddingSenderCollection;
+    use paddler_balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+    use paddler_balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+    use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::inference_parameters::InferenceParameters;
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;
 

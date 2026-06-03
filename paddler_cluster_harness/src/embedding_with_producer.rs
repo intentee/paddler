@@ -1,4 +1,4 @@
-use paddler::embedding::Embedding;
+use paddler_messaging::embedding::Embedding;
 
 #[derive(Debug)]
 pub struct EmbeddingWithProducer {

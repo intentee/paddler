@@ -4,13 +4,13 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler::embedding_input_document::EmbeddingInputDocument;
-use paddler::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler::inference_parameters::InferenceParameters;
-use paddler::request_params::GenerateEmbeddingBatchParams;
 use paddler_cli_tests::agent_config::AgentConfig;
 use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
 use tokio::time::timeout;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

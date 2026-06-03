@@ -12,7 +12,9 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
-paddler = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_balancer = { workspace = true }
+paddler_messaging = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
@@ -29,4 +31,7 @@ workspace = true
 
 [features]
 default = []
-web_admin_panel = ["paddler/web_admin_panel"]
+cuda = ["paddler_agent/cuda"]
+metal = ["paddler_agent/metal"]
+vulkan = ["paddler_agent/vulkan"]
+web_admin_panel = ["paddler_balancer/web_admin_panel"]

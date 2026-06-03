@@ -1,4 +1,4 @@
-use paddler::inference_parameters::InferenceParameters;
+use paddler_messaging::inference_parameters::InferenceParameters;
 
 #[must_use]
 pub const fn make_inference_parameters_deterministic(

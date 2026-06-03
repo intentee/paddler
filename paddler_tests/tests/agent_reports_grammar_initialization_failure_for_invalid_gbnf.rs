@@ -1,9 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::grammar_constraint::GrammarConstraint;
-use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

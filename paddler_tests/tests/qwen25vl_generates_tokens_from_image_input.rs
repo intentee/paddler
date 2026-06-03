@@ -1,13 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler::conversation_history::ConversationHistory;
-use paddler::conversation_message::ConversationMessage;
-use paddler::conversation_message_content::ConversationMessageContent;
-use paddler::conversation_message_content_part::ConversationMessageContentPart;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::image_url::ImageUrl;
-use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::image_url::ImageUrl;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen2_5_vl::start_cluster_with_qwen2_5_vl;

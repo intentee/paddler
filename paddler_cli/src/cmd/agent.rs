@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
-use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;

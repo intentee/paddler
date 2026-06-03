@@ -1,9 +1,9 @@
 use llama_cpp_bindings_types::ParsedToolCall;
-use paddler::balancer::inference_client::Message;
-use paddler::balancer::inference_client::Response;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::generation_summary::GenerationSummary;
-use paddler::raw_tool_call_tokens::RawToolCallTokens;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::inference_client::Message;
+use paddler_messaging::inference_client::Response;
+use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 
 use crate::stop_reason::StopReason;
 
@@ -114,10 +114,10 @@ impl StreamingResponse {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use paddler::embedding_result::EmbeddingResult;
-    use paddler::jsonrpc::Error;
-    use paddler::jsonrpc::ErrorEnvelope;
-    use paddler::jsonrpc::ResponseEnvelope;
+    use paddler_messaging::embedding_result::EmbeddingResult;
+    use paddler_messaging::jsonrpc::Error;
+    use paddler_messaging::jsonrpc::ErrorEnvelope;
+    use paddler_messaging::jsonrpc::ResponseEnvelope;
 
     use super::*;
 

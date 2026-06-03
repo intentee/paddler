@@ -1,10 +1,10 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler::embedding_input_document::EmbeddingInputDocument;
-use paddler::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler::inference_parameters::InferenceParameters;
-use paddler::request_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;

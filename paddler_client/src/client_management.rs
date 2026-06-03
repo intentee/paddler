@@ -1,10 +1,10 @@
 use futures_util::StreamExt;
-use paddler::agent_desired_state::AgentDesiredState;
-use paddler::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler::balancer::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::chat_template::ChatTemplate;
-use paddler::model_metadata::ModelMetadata;
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::model_metadata::ModelMetadata;
 use reqwest::Client;
 use serde_json::from_str;
 use url::Url;

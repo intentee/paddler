@@ -1,4 +1,4 @@
-use paddler::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 use crate::agent_running_data::AgentRunningData;
 

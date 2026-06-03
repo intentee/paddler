@@ -5,9 +5,9 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::future;
-use paddler::request_params::ContinueFromRawPromptParams;
 use paddler_cli_tests::agent_config::AgentConfig;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]

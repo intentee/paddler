@@ -8,7 +8,7 @@ use iced::widget::row;
 use iced::widget::svg;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::text;
-use paddler::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
 
 use super::font::BOLD;
 use super::font::REGULAR;

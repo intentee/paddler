@@ -6,8 +6,8 @@ use anyhow::anyhow;
 use anyhow::bail;
 use futures_util::Stream;
 use futures_util::StreamExt as _;
-use paddler::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_client::ClientManagement;
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
 pub struct AgentsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>,
@@ -171,10 +171,10 @@ mod tests {
     use std::collections::BTreeSet;
 
     use futures_util::stream;
-    use paddler::agent_issue::AgentIssue;
-    use paddler::agent_issue_params::ModelPath;
-    use paddler::agent_state_application_status::AgentStateApplicationStatus;
-    use paddler::balancer::agent_controller_snapshot::AgentControllerSnapshot;
+    use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+    use paddler_messaging::agent_issue::AgentIssue;
+    use paddler_messaging::agent_issue_params::ModelPath;
+    use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 
     use super::*;
 

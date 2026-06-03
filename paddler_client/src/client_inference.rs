@@ -1,14 +1,14 @@
 use std::sync::OnceLock;
 
 use nanoid::nanoid;
-use paddler::balancer::inference_client::Message as InferenceMessage;
-use paddler::inference_server::Message as InferenceServerMessage;
-use paddler::inference_server::Request as InferenceServerRequest;
-use paddler::jsonrpc::RequestEnvelope;
-use paddler::request_params::ContinueFromRawPromptParams;
-use paddler::request_params::GenerateEmbeddingBatchParams;
-use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_messaging::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_server::Message as InferenceServerMessage;
+use paddler_messaging::inference_server::Request as InferenceServerRequest;
+use paddler_messaging::jsonrpc::RequestEnvelope;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use reqwest::Client;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use url::Url;

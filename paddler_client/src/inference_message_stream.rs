@@ -1,7 +1,7 @@
 use std::pin::Pin;
 
 use futures_util::Stream;
-use paddler::balancer::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::Message as InferenceMessage;
 
 use crate::Result;
 

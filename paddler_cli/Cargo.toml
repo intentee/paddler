@@ -19,7 +19,7 @@ clap = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
-paddler = { workspace = true }
+paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
@@ -33,11 +33,11 @@ workspace = true
 
 [features]
 default = []
-cuda = ["paddler/cuda"]
-metal = ["paddler/metal"]
-vulkan = ["paddler/vulkan"]
+cuda = ["paddler_bootstrap/cuda"]
+metal = ["paddler_bootstrap/metal"]
+vulkan = ["paddler_bootstrap/vulkan"]
 web_admin_panel = [
     "dep:esbuild-metafile",
-    "paddler/web_admin_panel",
+    "paddler_balancer/web_admin_panel",
     "paddler_bootstrap/web_admin_panel",
 ]

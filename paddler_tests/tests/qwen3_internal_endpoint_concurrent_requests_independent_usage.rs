@@ -2,12 +2,12 @@
 
 use anyhow::Result;
 use futures_util::future;
-use paddler::conversation_history::ConversationHistory;
-use paddler::conversation_message::ConversationMessage;
-use paddler::conversation_message_content::ConversationMessageContent;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::generation_summary::GenerationSummary;
-use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generation_summary::GenerationSummary;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

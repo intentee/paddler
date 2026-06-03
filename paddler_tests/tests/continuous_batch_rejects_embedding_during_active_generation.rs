@@ -2,10 +2,10 @@
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler::embedding_input_document::EmbeddingInputDocument;
-use paddler::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler::request_params::ContinueFromRawPromptParams;
-use paddler::request_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;

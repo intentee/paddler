@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use paddler::balancer::agent_controller_slot_guard::AgentControllerSlotGuard;
+use paddler_balancer::agent_controller_slot_guard::AgentControllerSlotGuard;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 use tokio::sync::watch;
 

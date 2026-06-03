@@ -1,4 +1,4 @@
-use paddler::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
 pub fn assert_slots_processing(
     agent_id: &str,

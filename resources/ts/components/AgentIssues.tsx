@@ -233,8 +233,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking, but the same malformed URL
-                will keep failing the same way.
+                Paddler will keep re-checking, but the same malformed URL will
+                keep failing the same way.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
@@ -256,8 +256,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking, but the same 404 will keep
-                firing until the remote server publishes the file at that URL.
+                Paddler will keep re-checking, but the same 404 will keep firing
+                until the remote server publishes the file at that URL.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
@@ -278,14 +278,14 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking; if the server starts
-                accepting the request, the next attempt will succeed.
+                Paddler will keep re-checking; if the server starts accepting
+                the request, the next attempt will succeed.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
-                Confirm the URL is correct and reachable without auth. If it's
-                a private model, switch to a URL that doesn't require
-                credentials, or use the HuggingFace integration instead.
+                Confirm the URL is correct and reachable without auth. If it's a
+                private model, switch to a URL that doesn't require credentials,
+                or use the HuggingFace integration instead.
               </p>
             </li>
           );
@@ -300,8 +300,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking. If the server starts
-                answering normally, the next attempt will succeed.
+                Paddler will keep re-checking. If the server starts answering
+                normally, the next attempt will succeed.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
@@ -318,20 +318,19 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                Download was interrupted:{" "}
-                {issue.DownloadInterrupted.model_path}
+                Download was interrupted: {issue.DownloadInterrupted.model_path}
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking. The next attempt resumes
-                from the bytes already on disk if the server supports Range
-                requests; otherwise it starts fresh.
+                Paddler will keep re-checking. The next attempt resumes from the
+                bytes already on disk if the server supports Range requests;
+                otherwise it starts fresh.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
-                Often transient — check network stability and whether the
-                remote server is being restarted or rate-limiting. No action
-                needed if it clears on its own.
+                Often transient — check network stability and whether the remote
+                server is being restarted or rate-limiting. No action needed if
+                it clears on its own.
               </p>
             </li>
           );
@@ -346,8 +345,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking; if the network comes back,
-                the next attempt will succeed.
+                Paddler will keep re-checking; if the network comes back, the
+                next attempt will succeed.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
@@ -374,8 +373,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               <p>
                 The server responded with a 4xx status, meaning the request was
                 rejected (for example bad URL, throttling, or unsupported
-                method). Verify the model URL is correct and that the host
-                isn't rate-limiting the agent.
+                method). Verify the model URL is correct and that the host isn't
+                rate-limiting the agent.
               </p>
             </li>
           );
@@ -412,8 +411,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking; the moment write permission
-                is restored, the next attempt will succeed.
+                Paddler will keep re-checking; the moment write permission is
+                restored, the next attempt will succeed.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
@@ -435,8 +434,8 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking; the moment space is
-                available, the next attempt will succeed.
+                Paddler will keep re-checking; the moment space is available,
+                the next attempt will succeed.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>Free space on the disk that hosts the cache directory.</p>
@@ -453,14 +452,14 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               </strong>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will keep re-checking; the cache will be rebuilt
-                on the next attempt.
+                Paddler will keep re-checking; the cache will be rebuilt on the
+                next attempt.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
                 If the issue persists, manually clear the{" "}
-                <code>downloaded-models</code> subdirectory of the cache and
-                let Paddler rebuild it.
+                <code>downloaded-models</code> subdirectory of the cache and let
+                Paddler rebuild it.
               </p>
             </li>
           );

@@ -3,31 +3,31 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
-use paddler::balancer::buffered_request_manager::BufferedRequestManager;
-use paddler::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-use paddler::balancer::compatibility::openai_service::OpenAIService;
-use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
-use paddler::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
-use paddler::balancer::inference_service::InferenceService;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::management_service::ManagementService;
-use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
-use paddler::balancer::reconciliation_service::ReconciliationService;
-use paddler::balancer::state_database::File;
-use paddler::balancer::state_database::Memory;
-use paddler::balancer::state_database::StateDatabase;
-use paddler::balancer::state_database_type::StateDatabaseType;
-use paddler::balancer::statsd_service::StatsdService;
-use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use paddler_balancer::agent_controller_pool::AgentControllerPool;
+use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use paddler_balancer::buffered_request_manager::BufferedRequestManager;
+use paddler_balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+use paddler_balancer::compatibility::openai_service::OpenAIService;
+use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::embedding_sender_collection::EmbeddingSenderCollection;
+use paddler_balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+use paddler_balancer::inference_service::InferenceService;
+use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler_balancer::management_service::ManagementService;
+use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler_balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
+use paddler_balancer::reconciliation_service::ReconciliationService;
+use paddler_balancer::state_database::File;
+use paddler_balancer::state_database::Memory;
+use paddler_balancer::state_database::StateDatabase;
+use paddler_balancer::state_database_type::StateDatabaseType;
+use paddler_balancer::statsd_service::StatsdService;
+use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
+use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler::balancer_desired_state::BalancerDesiredState;
+use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use trzcina::Service;
 use trzcina::ServiceBundle;
@@ -207,9 +207,9 @@ mod tests {
     use std::net::SocketAddr;
 
     #[cfg(feature = "web_admin_panel")]
-    use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
+    use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
     #[cfg(feature = "web_admin_panel")]
-    use paddler::resolved_socket_addr::ResolvedSocketAddr;
+    use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 
     use super::*;
 

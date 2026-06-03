@@ -4,10 +4,10 @@ use std::io::Write as _;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler::agent_desired_model::AgentDesiredModel;
-use paddler::agent_issue::AgentIssue;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::inference_parameters::InferenceParameters;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;

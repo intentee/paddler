@@ -8,17 +8,17 @@ use llama_cpp_bindings::ToolCallArguments;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
-use paddler::tool_call_event::ToolCallEvent;
-use paddler::tool_call_pipeline::ToolCallPipeline;
-use paddler::tool_call_validator::ToolCallValidator;
+use paddler_agent::tool_call_event::ToolCallEvent;
+use paddler_agent::tool_call_pipeline::ToolCallPipeline;
+use paddler_agent::tool_call_validator::ToolCallValidator;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::deepseek_r1_distill_llama_8b::deepseek_r1_distill_llama_8b;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
 
 const QWEN_XML_PAYLOAD: &str = "<tool_call>\n\

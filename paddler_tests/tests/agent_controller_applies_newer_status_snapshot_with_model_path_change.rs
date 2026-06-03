@@ -1,5 +1,5 @@
-use paddler::balancer::agent_controller_update_result::AgentControllerUpdateResult;
-use paddler::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use paddler_balancer::agent_controller_update_result::AgentControllerUpdateResult;
+use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 
 #[test]

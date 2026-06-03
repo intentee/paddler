@@ -1,4 +1,4 @@
-use paddler::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
 #[derive(Debug)]
 pub struct TokenResultWithProducer {

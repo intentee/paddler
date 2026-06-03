@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_tests::token_result_with_producer::TokenResultWithProducer;

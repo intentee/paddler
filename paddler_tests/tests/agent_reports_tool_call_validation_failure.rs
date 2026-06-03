@@ -1,24 +1,24 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler::agent_desired_model::AgentDesiredModel;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::inference_parameters::InferenceParameters;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
-use paddler::conversation_history::ConversationHistory;
-use paddler::conversation_message::ConversationMessage;
-use paddler::conversation_message_content::ConversationMessageContent;
-use paddler::generated_token_result::GeneratedTokenResult;
-use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
 use serde_json::Value;
 

@@ -1,5 +1,20 @@
 [workspace]
-members = ["paddler", "paddler_bootstrap", "paddler_cache_dir", "paddler_cli", "paddler_cli_tests", "paddler_client", "paddler_client_cli", "paddler_cluster_harness", "paddler_download_manager", "paddler_gui", "paddler_tests"]
+members = [
+    "paddler_agent",
+    "paddler_balancer",
+    "paddler_bootstrap",
+    "paddler_cache_dir",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_client",
+    "paddler_client_cli",
+    "paddler_cluster_harness",
+    "paddler_download_manager",
+    "paddler_gui",
+    "paddler_messaging",
+    "paddler_state_conversion",
+    "paddler_tests",
+]
 resolver = "2"
 
 [workspace.package]
@@ -73,13 +88,16 @@ tokio-util = "0.7"
 thiserror = "2"
 trzcina = "=0.3.0"
 url = { version = "2.5", features = ["serde"] }
-paddler = { version = "4.0.0", path = "paddler" }
+paddler_agent = { version = "4.0.0", path = "paddler_agent" }
+paddler_balancer = { version = "4.0.0", path = "paddler_balancer" }
 paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "4.0.0", path = "paddler_cache_dir" }
 paddler_cli = { version = "4.0.0", path = "paddler_cli" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
 paddler_cluster_harness = { version = "4.0.0", path = "paddler_cluster_harness" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
+paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
+paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }
 
 [profile.release]

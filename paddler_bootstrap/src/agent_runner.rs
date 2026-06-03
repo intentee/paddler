@@ -2,7 +2,7 @@ use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::Result;
-use paddler::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_agent::slot_aggregated_status::SlotAggregatedStatus;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 

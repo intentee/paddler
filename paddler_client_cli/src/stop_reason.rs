@@ -1,6 +1,6 @@
 use std::fmt;
 
-use paddler::oversized_image_details::OversizedImageDetails;
+use paddler_messaging::oversized_image_details::OversizedImageDetails;
 
 #[derive(Debug)]
 pub enum StopReason {
@@ -77,9 +77,8 @@ impl fmt::Display for StopReason {
             Self::ToolSchemaInvalid(detail) => {
                 write!(formatter, "tool schema invalid: {detail}")
             }
-            Self::UnexpectedEmbeddingResponse => {
-                formatter.write_str("server sent an embedding response on a token-generation stream")
-            }
+            Self::UnexpectedEmbeddingResponse => formatter
+                .write_str("server sent an embedding response on a token-generation stream"),
             Self::WireStreamError(detail) => {
                 write!(formatter, "wire stream error: {detail}")
             }

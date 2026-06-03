@@ -10,10 +10,10 @@ version.workspace = true
 
 [features]
 default = []
-cuda = ["paddler/cuda"]
-metal = ["paddler/metal"]
+cuda = ["paddler_agent/cuda"]
+metal = ["paddler_agent/metal"]
 tests_that_use_llms = []
-web_admin_panel = ["paddler/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
+web_admin_panel = ["paddler_balancer/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -25,10 +25,12 @@ hf-hub = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
-paddler = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
 paddler_cluster_harness = { workspace = true }
+paddler_messaging = { workspace = true }
 parking_lot = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }

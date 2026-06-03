@@ -4,7 +4,7 @@ use std::net::ToSocketAddrs;
 use anyhow::Result;
 use anyhow::anyhow;
 use log::warn;
-use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 
 fn resolve_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
     let addrs: Vec<SocketAddr> = input_addr.to_socket_addrs()?.collect();

@@ -2,14 +2,14 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler::agent_desired_model::AgentDesiredModel;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::chat_template::ChatTemplate;
-use paddler::conversation_history::ConversationHistory;
-use paddler::conversation_message::ConversationMessage;
-use paddler::conversation_message_content::ConversationMessageContent;
-use paddler::inference_parameters::InferenceParameters;
-use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;

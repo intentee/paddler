@@ -19,9 +19,9 @@ env_logger = { workspace = true }
 futures-util = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
-paddler = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
+paddler_messaging = { workspace = true }
 ratatui = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }

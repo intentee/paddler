@@ -1,11 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler::conversation_history::ConversationHistory;
-use paddler::conversation_message::ConversationMessage;
-use paddler::conversation_message_content::ConversationMessageContent;
-use paddler::grammar_constraint::GrammarConstraint;
-use paddler::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 

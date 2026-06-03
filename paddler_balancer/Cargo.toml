@@ -1,0 +1,61 @@
+[package]
+name = "paddler_balancer"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+actix-cors = { workspace = true }
+actix-web = { workspace = true }
+actix-web-lab = { workspace = true }
+actix-ws = { workspace = true }
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+bytes = { workspace = true }
+cadence = { workspace = true }
+dashmap = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+indoc = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
+log = { workspace = true }
+nanoid = { workspace = true }
+parking_lot = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+shellexpand = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+trzcina = { workspace = true }
+url = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_state_conversion = { workspace = true }
+
+# web dashboard deps
+askama = { workspace = true, optional = true }
+esbuild-metafile = { workspace = true, optional = true }
+mime_guess = { workspace = true, optional = true }
+rust-embed = { workspace = true, optional = true }
+
+[features]
+default = []
+web_admin_panel = [
+    "dep:askama",
+    "dep:esbuild-metafile",
+    "dep:mime_guess",
+    "dep:rust-embed",
+]
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio-test = { workspace = true }
+
+[lints]
+workspace = true

@@ -19,24 +19,24 @@ use iced::widget::image::Handle as ImageHandle;
 use iced::widget::operation;
 use iced::widget::stack;
 use iced::window;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler::balancer::state_database_type::StateDatabaseType;
+use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::state_database_type::StateDatabaseType;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::produces_snapshot::ProducesSnapshot;
+use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::resolved_socket_addr::ResolvedSocketAddr;
-use paddler::subscribes_to_updates::SubscribesToUpdates as _;
+use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::produces_snapshot::ProducesSnapshot;
+use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 

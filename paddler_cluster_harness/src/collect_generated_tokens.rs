@@ -2,9 +2,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
-use paddler::balancer::inference_client::Message as InferenceMessage;
-use paddler::balancer::inference_client::Response as InferenceResponse;
-use paddler::streamable_result::StreamableResult as _;
+use paddler_messaging::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::Response as InferenceResponse;
+use paddler_messaging::streamable_result::StreamableResult as _;
 
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::inference_message_stream::InferenceMessageStream;

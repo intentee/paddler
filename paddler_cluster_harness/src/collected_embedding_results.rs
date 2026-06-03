@@ -1,5 +1,5 @@
-use paddler::jsonrpc::Error as JsonRpcError;
-use paddler::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
+use paddler_messaging::jsonrpc::Error as JsonRpcError;
+use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 
 use crate::embedding_with_producer::EmbeddingWithProducer;
 

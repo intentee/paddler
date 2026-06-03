@@ -1,4 +1,4 @@
-use paddler::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 
 #[test]

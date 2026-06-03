@@ -1,6 +1,6 @@
 use crossterm::event::KeyEvent;
 use crossterm::event::MouseEvent;
-use paddler::balancer::inference_client::Message;
+use paddler_messaging::inference_client::Message;
 
 #[derive(Debug)]
 pub enum ChatSessionEvent {

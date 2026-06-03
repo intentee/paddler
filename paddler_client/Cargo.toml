@@ -14,7 +14,7 @@ dashmap = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
-paddler = { workspace = true }
+paddler_messaging = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

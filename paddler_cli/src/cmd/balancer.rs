@@ -3,16 +3,16 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
-use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler::balancer::state_database_type::StateDatabaseType;
-use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::state_database_type::StateDatabaseType;
+use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_bootstrap::balancer_service_bundle::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
 use tokio_util::sync::CancellationToken;

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use paddler::inference_parameters::InferenceParameters;
+use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::agent_config::AgentConfig;
 

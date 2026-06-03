@@ -3,10 +3,10 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler::agent_desired_model::AgentDesiredModel;
-use paddler::balancer_desired_state::BalancerDesiredState;
-use paddler::inference_parameters::InferenceParameters;
-use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;

@@ -72,16 +72,28 @@ mod tests {
         let unregisterable = SignalKind::from_raw(UnixSignal::SIGKILL as i32);
 
         assert!(
-            register_signals(unregisterable, SignalKind::interrupt(), SignalKind::hangup())
-                .is_err()
+            register_signals(
+                unregisterable,
+                SignalKind::interrupt(),
+                SignalKind::hangup()
+            )
+            .is_err()
         );
         assert!(
-            register_signals(SignalKind::terminate(), unregisterable, SignalKind::hangup())
-                .is_err()
+            register_signals(
+                SignalKind::terminate(),
+                unregisterable,
+                SignalKind::hangup()
+            )
+            .is_err()
         );
         assert!(
-            register_signals(SignalKind::terminate(), SignalKind::interrupt(), unregisterable)
-                .is_err()
+            register_signals(
+                SignalKind::terminate(),
+                SignalKind::interrupt(),
+                unregisterable
+            )
+            .is_err()
         );
     }
 }

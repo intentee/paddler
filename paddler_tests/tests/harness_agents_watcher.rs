@@ -3,11 +3,11 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::stream;
-use paddler::agent_issue::AgentIssue;
-use paddler::agent_issue_params::ModelPath;
-use paddler::agent_state_application_status::AgentStateApplicationStatus;
-use paddler::balancer::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler::balancer::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::agent_issue_params::ModelPath;
+use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_tests::agents_stream_watcher::AgentsStreamWatcher;
 
 fn make_snapshot(agent_id: &str, slots_total: i32) -> AgentControllerPoolSnapshot {

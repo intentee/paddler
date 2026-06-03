@@ -2,9 +2,9 @@
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler::balancer::inference_client::Message as InferenceMessage;
-use paddler::balancer::inference_client::Response;
-use paddler::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::Response;
+use paddler_messaging::request_params::ContinueFromRawPromptParams;
 use paddler_tests::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
