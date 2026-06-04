@@ -19,3 +19,17 @@ impl StateDatabaseFile {
         Ok(Self { _file: file, url })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::StateDatabaseFile;
+
+    #[test]
+    fn new_builds_a_file_url_for_a_real_temp_file() {
+        let database = StateDatabaseFile::new().unwrap();
+
+        let path = database.url.strip_prefix("file://").unwrap();
+
+        assert!(std::path::Path::new(path).exists());
+    }
+}

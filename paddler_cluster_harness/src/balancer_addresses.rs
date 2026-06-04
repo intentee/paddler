@@ -60,3 +60,44 @@ impl BalancerAddresses {
             .with_context(|| format!("failed to build base URL for {address}"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::BalancerAddresses;
+
+    #[test]
+    fn pick_reserves_three_distinct_loopback_ports() {
+        let addresses = BalancerAddresses::pick().unwrap();
+
+        for address in [
+            addresses.inference,
+            addresses.management,
+            addresses.compat_openai,
+        ] {
+            assert!(address.ip().is_loopback());
+            assert_ne!(address.port(), 0);
+        }
+
+        assert_ne!(addresses.inference.port(), addresses.management.port());
+        assert_ne!(addresses.inference.port(), addresses.compat_openai.port());
+        assert_ne!(addresses.management.port(), addresses.compat_openai.port());
+    }
+
+    #[test]
+    fn builds_base_urls_for_each_service() {
+        let addresses = BalancerAddresses::pick().unwrap();
+
+        assert_eq!(
+            addresses.inference_base_url().unwrap().scheme(),
+            "http"
+        );
+        assert_eq!(
+            addresses.management_base_url().unwrap().port(),
+            Some(addresses.management.port())
+        );
+        assert_eq!(
+            addresses.compat_openai_base_url().unwrap().port(),
+            Some(addresses.compat_openai.port())
+        );
+    }
+}

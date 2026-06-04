@@ -68,3 +68,137 @@ pub async fn collect_generated_tokens(
         token_results,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use paddler_messaging::embedding_result::EmbeddingResult;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::inference_client::Message as InferenceMessage;
+    use paddler_messaging::inference_client::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::Error;
+    use paddler_messaging::jsonrpc::ErrorEnvelope;
+    use paddler_messaging::jsonrpc::ResponseEnvelope;
+
+    use super::collect_generated_tokens;
+    use crate::inference_message_stream::InferenceMessageStream;
+
+    fn stream(items: Vec<anyhow::Result<InferenceMessage>>) -> InferenceMessageStream {
+        Box::pin(futures_util::stream::iter(items))
+    }
+
+    fn token(result: GeneratedTokenResult) -> anyhow::Result<InferenceMessage> {
+        Ok(InferenceMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "req".to_owned(),
+            response: InferenceResponse::GeneratedToken(result),
+        }))
+    }
+
+    #[tokio::test]
+    async fn accumulates_content_token_text() {
+        let collected = collect_generated_tokens(stream(vec![
+            token(GeneratedTokenResult::ContentToken("hel".to_owned())),
+            token(GeneratedTokenResult::ContentToken("lo".to_owned())),
+        ]))
+        .await
+        .unwrap();
+
+        assert_eq!(collected.text, "hello");
+        assert_eq!(collected.token_results.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn stops_after_a_terminal_token() {
+        let collected = collect_generated_tokens(stream(vec![
+            token(GeneratedTokenResult::ContentToken("hi".to_owned())),
+            token(GeneratedTokenResult::ImageDecodingFailed("dead".to_owned())),
+            token(GeneratedTokenResult::ContentToken("IGNORED".to_owned())),
+        ]))
+        .await
+        .unwrap();
+
+        assert_eq!(collected.token_results.len(), 2);
+        assert!(collected.text.starts_with("hi"));
+        assert!(!collected.text.contains("IGNORED"));
+    }
+
+    #[tokio::test]
+    async fn rejects_an_embedding_response() {
+        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
+            ResponseEnvelope {
+                generated_by: None,
+                request_id: "req".to_owned(),
+                response: InferenceResponse::Embedding(EmbeddingResult::Done),
+            },
+        ))]))
+        .await
+        .err()
+        .unwrap();
+
+        assert!(error.to_string().contains("unexpected embedding response"));
+    }
+
+    #[tokio::test]
+    async fn rejects_a_timeout() {
+        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
+            ResponseEnvelope {
+                generated_by: None,
+                request_id: "req".to_owned(),
+                response: InferenceResponse::Timeout,
+            },
+        ))]))
+        .await
+        .err()
+        .unwrap();
+
+        assert!(error.to_string().contains("timed out"));
+    }
+
+    #[tokio::test]
+    async fn rejects_too_many_buffered_requests() {
+        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
+            ResponseEnvelope {
+                generated_by: None,
+                request_id: "req".to_owned(),
+                response: InferenceResponse::TooManyBufferedRequests,
+            },
+        ))]))
+        .await
+        .err()
+        .unwrap();
+
+        assert!(error.to_string().contains("too many buffered"));
+    }
+
+    #[tokio::test]
+    async fn propagates_a_wire_error() {
+        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Error(
+            ErrorEnvelope {
+                request_id: "req".to_owned(),
+                error: Error {
+                    code: -32001,
+                    description: "rpc failure".to_owned(),
+                },
+            },
+        ))]))
+        .await
+        .err()
+        .unwrap();
+
+        assert!(error.to_string().contains("JSON-RPC error code -32001"));
+    }
+
+    #[tokio::test]
+    async fn propagates_a_stream_error() {
+        let error = collect_generated_tokens(stream(vec![Err(anyhow::anyhow!("socket closed"))]))
+            .await
+            .err()
+            .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("inference stream yielded an error")
+        );
+    }
+}

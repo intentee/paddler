@@ -63,7 +63,6 @@ fn openai_usage_json(usage: &TokenUsage) -> serde_json::Value {
         "prompt_tokens_details": {
             "cached_tokens": usage.cached_prompt_tokens,
             "audio_tokens": usage.input_audio_tokens,
-            "image_tokens": usage.input_image_tokens,
         },
         "completion_tokens_details": {
             "reasoning_tokens": usage.reasoning_tokens,
@@ -242,28 +241,6 @@ impl OpenAIStreamingResponseTransformer {
         .context("serializing content chunk")
     }
 
-    fn reasoning_chunk(&self, request_id: &str, text: &str) -> Result<String> {
-        serde_json::to_string(&json!({
-            "id": request_id,
-            "object": "chat.completion.chunk",
-            "created": self.created,
-            "model": self.model,
-            "system_fingerprint": self.system_fingerprint,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {
-                        "role": "assistant",
-                        "reasoning_content": text,
-                    },
-                    "logprobs": null,
-                    "finish_reason": null
-                }
-            ]
-        }))
-        .context("serializing reasoning chunk")
-    }
-
     fn tool_calls_chunk(
         &self,
         request_id: &str,
@@ -346,11 +323,6 @@ impl OpenAIStreamingResponseTransformer {
             .map(|chunk| vec![TransformResult::Chunk(chunk)])
     }
 
-    fn handle_reasoning(&self, request_id: &str, text: &str) -> Result<Vec<TransformResult>> {
-        self.reasoning_chunk(request_id, text)
-            .map(|chunk| vec![TransformResult::Chunk(chunk)])
-    }
-
     fn handle_tool_call_parsed(
         &self,
         request_id: &str,
@@ -406,13 +378,11 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 ..
             }) => self.handle_content(&request_id, &text),
             OutgoingMessage::Response(ResponseEnvelope {
-                request_id,
                 response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
-                ..
-            }) => self.handle_reasoning(&request_id, &text),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ReasoningToken(_)
+                        | GeneratedTokenResult::ToolCallToken(_),
+                    ),
                 ..
             }) => Ok(vec![]),
             OutgoingMessage::Response(ResponseEnvelope {
@@ -454,7 +424,6 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
 #[derive(Clone, Default)]
 struct OpenAINonStreamingState {
     content: String,
-    reasoning: String,
     tool_calls: Vec<ParsedToolCall>,
 }
 
@@ -468,10 +437,6 @@ struct OpenAINonStreamingResponseTransformer {
 impl OpenAINonStreamingResponseTransformer {
     fn append_content(&self, text: &str) {
         self.state.lock().content.push_str(text);
-    }
-
-    fn append_reasoning(&self, text: &str) {
-        self.state.lock().reasoning.push_str(text);
     }
 
     fn append_tool_calls(&self, parsed_calls: Vec<ParsedToolCall>) {
@@ -512,12 +477,6 @@ impl OpenAINonStreamingResponseTransformer {
                 "refusal": null,
                 "annotations": []
             });
-
-            if !snapshot.reasoning.is_empty()
-                && let Some(map) = message_obj.as_object_mut()
-            {
-                map.insert("reasoning_content".to_owned(), json!(snapshot.reasoning));
-            }
 
             if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
                 map.insert("tool_calls".to_owned(), json!(tool_calls_json));
@@ -569,14 +528,10 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
             }
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
-                ..
-            }) => {
-                self.append_reasoning(&text);
-                Ok(vec![])
-            }
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ReasoningToken(_)
+                        | GeneratedTokenResult::ToolCallToken(_),
+                    ),
                 ..
             }) => Ok(vec![]),
             OutgoingMessage::Response(ResponseEnvelope {
@@ -902,17 +857,14 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn streaming_reasoning_token_emits_reasoning_content_delta() -> Result<()> {
+    async fn streaming_reasoning_token_is_dropped() -> Result<()> {
         let transformer = streaming_transformer(false);
 
         let message =
             make_token_message(GeneratedTokenResult::ReasoningToken("thought".to_owned()));
         let chunks = transformer.transform(message).await?;
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"reasoning_content\":\"thought\"")?;
-        assert_chunk_contains(&chunks[0], "\"role\":\"assistant\"")?;
-        assert_chunk_does_not_contain(&chunks[0], "\"content\":")?;
+        assert_eq!(chunks.len(), 0);
 
         Ok(())
     }
@@ -1244,7 +1196,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn non_streaming_separates_reasoning_from_content() -> Result<()> {
+    async fn non_streaming_drops_reasoning_but_keeps_reasoning_token_count() -> Result<()> {
         let transformer = non_streaming_transformer();
 
         transformer
@@ -1265,7 +1217,7 @@ mod tests {
 
         assert_eq!(final_chunks.len(), 1);
         assert_chunk_contains(&final_chunks[0], "\"content\":\"answer\"")?;
-        assert_chunk_contains(&final_chunks[0], "\"reasoning_content\":\"think\"")?;
+        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content")?;
         assert_chunk_contains(&final_chunks[0], "\"reasoning_tokens\":1")?;
 
         Ok(())

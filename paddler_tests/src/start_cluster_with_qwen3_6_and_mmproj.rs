@@ -27,7 +27,7 @@ pub async fn start_cluster_with_qwen3_6_and_mmproj(agents: Vec<AgentConfig>) -> 
             chat_template_override: None,
             inference_parameters: InferenceParameters {
                 n_gpu_layers: gpu_layer_count,
-                ..InferenceParameters::default()
+                ..InferenceParameters::deterministic()
             },
             model: AgentDesiredModel::HuggingFace(primary_reference),
             multimodal_projection: AgentDesiredModel::HuggingFace(mmproj_reference),

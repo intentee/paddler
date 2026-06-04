@@ -75,6 +75,22 @@ impl Default for InferenceParameters {
     }
 }
 
+impl InferenceParameters {
+    #[must_use]
+    pub fn deterministic() -> Self {
+        Self {
+            min_p: 0.0,
+            penalty_frequency: 0.0,
+            penalty_presence: 0.0,
+            penalty_repeat: 1.0,
+            temperature: 0.0,
+            top_k: 1,
+            top_p: 1.0,
+            ..Self::default()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,5 +127,22 @@ mod tests {
         let params = InferenceParameters::default();
 
         assert_eq!(params.embedding_batch_size, 256);
+    }
+
+    #[test]
+    fn deterministic_applies_greedy_sampling_over_defaults() {
+        assert_eq!(
+            InferenceParameters::deterministic(),
+            InferenceParameters {
+                min_p: 0.0,
+                penalty_frequency: 0.0,
+                penalty_presence: 0.0,
+                penalty_repeat: 1.0,
+                temperature: 0.0,
+                top_k: 1,
+                top_p: 1.0,
+                ..InferenceParameters::default()
+            }
+        );
     }
 }

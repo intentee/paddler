@@ -12,7 +12,6 @@ pub mod collected_generated_tokens;
 pub mod embedding_with_producer;
 pub mod inference_message_stream;
 pub mod load_test_image_data_uri;
-pub mod make_inference_parameters_deterministic;
 pub mod managed_process;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot;

@@ -98,13 +98,22 @@ test.coverage: esbuild-meta.json node_modules
 	cargo llvm-cov report
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
-		--gated paddler_agent=96 \
-		--gated paddler_balancer=96 \
+		--gated paddler_agent=100 \
+		--gated paddler_balancer=100 \
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
-		--gated paddler_download_manager=99 \
-		--gated paddler_messaging=96 \
-		--gated paddler_state_conversion=100
+		--gated paddler_cli=100 \
+		--gated paddler_cli_tests=100 \
+		--gated paddler_client=100 \
+		--gated paddler_client_cli=100 \
+		--gated paddler_cluster_harness=100 \
+		--gated paddler_download_manager=100 \
+		--gated paddler_gui=100 \
+		--gated paddler_messaging=100 \
+		--gated paddler_openai_conformance=100 \
+		--gated paddler_tests=100
+# paddler_state_conversion is intentionally not gated: it contains only trait
+# definitions (no executable code), so it has no coverage to measure.
 
 .PHONY: test.coverage-clean
 test.coverage-clean:

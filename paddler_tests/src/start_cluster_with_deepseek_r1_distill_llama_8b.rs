@@ -24,7 +24,7 @@ pub async fn start_cluster_with_deepseek_r1_distill_llama_8b(
             chat_template_override: None,
             inference_parameters: InferenceParameters {
                 n_gpu_layers: gpu_layer_count,
-                ..InferenceParameters::default()
+                ..InferenceParameters::deterministic()
             },
             model: AgentDesiredModel::HuggingFace(reference),
             multimodal_projection: AgentDesiredModel::None,

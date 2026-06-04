@@ -148,4 +148,22 @@ mod tests {
         assert!(first_completion.is_ok());
         assert!(second_completion.is_err());
     }
+
+    #[tokio::test]
+    async fn cancel_stops_the_running_service_thread() {
+        let mut service_thread = ServiceThread::spawn(
+            CancellationToken::new(),
+            |task_cancellation_token| async move {
+                task_cancellation_token.cancelled().await;
+
+                Ok(())
+            },
+        );
+
+        service_thread.cancel();
+
+        let completion_result = service_thread.wait_for_completion().await;
+
+        assert!(completion_result.is_ok());
+    }
 }

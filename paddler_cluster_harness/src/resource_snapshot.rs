@@ -52,3 +52,39 @@ const fn open_descriptors_directory_path() -> &'static str {
 const fn open_descriptors_directory_path() -> &'static str {
     "/proc/self/fd"
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ResourceSnapshot;
+
+    #[test]
+    fn try_from_self_counts_the_processes_open_descriptors() {
+        let snapshot = ResourceSnapshot::try_from_self().unwrap();
+
+        assert!(snapshot.open_file_descriptor_count > 0);
+    }
+
+    #[test]
+    fn diff_reports_growth() {
+        let later = ResourceSnapshot {
+            open_file_descriptor_count: 10,
+        };
+        let earlier = ResourceSnapshot {
+            open_file_descriptor_count: 3,
+        };
+
+        assert_eq!(later.diff(&earlier).open_file_descriptors_grew_by, 7);
+    }
+
+    #[test]
+    fn diff_saturates_when_descriptors_shrink() {
+        let later = ResourceSnapshot {
+            open_file_descriptor_count: 3,
+        };
+        let earlier = ResourceSnapshot {
+            open_file_descriptor_count: 10,
+        };
+
+        assert_eq!(later.diff(&earlier).open_file_descriptors_grew_by, 0);
+    }
+}

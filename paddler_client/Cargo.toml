@@ -24,6 +24,9 @@ tokio-stream = { workspace = true }
 tokio-tungstenite = { workspace = true }
 url = { workspace = true }
 
+[dev-dependencies]
+http = { workspace = true }
+
 [lints]
 workspace = true
 

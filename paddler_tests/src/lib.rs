@@ -36,7 +36,6 @@ pub use paddler_cluster_harness::collected_generated_tokens;
 pub use paddler_cluster_harness::embedding_with_producer;
 pub use paddler_cluster_harness::inference_message_stream;
 pub use paddler_cluster_harness::load_test_image_data_uri;
-pub use paddler_cluster_harness::make_inference_parameters_deterministic;
 pub use paddler_cluster_harness::managed_process;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub use paddler_cluster_harness::resource_snapshot;

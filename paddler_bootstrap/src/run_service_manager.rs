@@ -41,10 +41,44 @@ mod tests {
         }
     }
 
+    struct FailingService;
+
+    #[async_trait]
+    impl Service for FailingService {
+        fn name(&self) -> &'static str {
+            "failing_service"
+        }
+
+        async fn run(self: Box<Self>, _shutdown: CancellationToken) -> Result<()> {
+            Err(anyhow!("service run failed"))
+        }
+    }
+
+    struct BundleWithFailingService;
+
+    #[async_trait]
+    impl ServiceBundle for BundleWithFailingService {
+        async fn services(self) -> Result<Vec<Box<dyn Service>>> {
+            Ok(vec![Box::new(FailingService)])
+        }
+    }
+
     #[tokio::test]
     async fn propagates_bundle_registration_error() {
         let result = run_service_manager(
             FailingServiceBundle,
+            CancellationToken::new(),
+            ServiceShutdownOptions::default(),
+        )
+        .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn propagates_service_run_error() {
+        let result = run_service_manager(
+            BundleWithFailingService,
             CancellationToken::new(),
             ServiceShutdownOptions::default(),
         )

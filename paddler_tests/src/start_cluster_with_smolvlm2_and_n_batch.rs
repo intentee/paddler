@@ -27,7 +27,7 @@ pub async fn start_cluster_with_smolvlm2_and_n_batch(
     let inference_parameters = InferenceParameters {
         n_gpu_layers: gpu_layer_count,
         n_batch,
-        ..InferenceParameters::default()
+        ..InferenceParameters::deterministic()
     };
 
     start_cluster(ClusterParams {

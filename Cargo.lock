@@ -473,6 +473,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arraydeque"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d902e3d592a523def97af8f317b08ce16b7ab854c1985a0c671e6f15cebc236"
+
+[[package]]
 name = "arrayref"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2657,6 +2663,15 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash 0.2.0",
+]
+
+[[package]]
+name = "hashlink"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea0b22561a9c04a7cb1a302c013e0259cd3b4bb619f145b32f72b8b4bcbed230"
+dependencies = [
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -5014,6 +5029,7 @@ dependencies = [
  "anyhow",
  "dashmap",
  "futures-util",
+ "http 1.4.0",
  "log",
  "nanoid",
  "paddler_messaging",
@@ -5125,6 +5141,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_openai_conformance"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "jsonschema",
+ "serde_json",
+ "thiserror 2.0.18",
+ "yaml-rust2",
+]
+
+[[package]]
 name = "paddler_state_conversion"
 version = "4.0.0"
 dependencies = [
@@ -5151,6 +5178,7 @@ dependencies = [
  "paddler_client",
  "paddler_cluster_harness",
  "paddler_messaging",
+ "paddler_openai_conformance",
  "parking_lot",
  "reqwest",
  "serde",
@@ -9015,6 +9043,17 @@ name = "y4m"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5a4b21e1a62b67a2970e6831bc091d7b87e119e7f9791aef9702e3bef04448"
+
+[[package]]
+name = "yaml-rust2"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "631a50d867fafb7093e709d75aaee9e0e0d5deb934021fcea25ac2fe09edc51e"
+dependencies = [
+ "arraydeque",
+ "encoding_rs",
+ "hashlink",
+]
 
 [[package]]
 name = "yansi"

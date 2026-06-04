@@ -42,6 +42,7 @@ tokio-util = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
+paddler_openai_conformance = { workspace = true }
 serial_test = { workspace = true }
 
 [lints]

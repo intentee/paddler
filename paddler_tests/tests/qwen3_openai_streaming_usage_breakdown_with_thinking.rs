@@ -20,8 +20,7 @@ async fn qwen3_openai_streaming_usage_breakdown_with_thinking() -> Result<()> {
             }],
             "stream": true,
             "stream_options": {"include_usage": true},
-            "max_completion_tokens": 200,
-            "chat_template_kwargs": {"enable_thinking": true}
+            "max_completion_tokens": 200
         }))
         .await?;
 

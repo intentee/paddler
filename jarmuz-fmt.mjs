@@ -19,6 +19,7 @@ jarmuz({
     "paddler_download_manager",
     "paddler_gui",
     "paddler_messaging",
+    "paddler_openai_conformance",
     "paddler_state_conversion",
     "paddler_tests",
     "resources",

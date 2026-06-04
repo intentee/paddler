@@ -5,7 +5,6 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::cluster::Cluster;
 use crate::cluster_params::ClusterParams;
-use crate::make_inference_parameters_deterministic::make_inference_parameters_deterministic;
 use crate::ministral_3_cluster_params::Ministral3ClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::ministral_3_14b_reasoning::ministral_3_14b_reasoning;
@@ -22,14 +21,16 @@ pub async fn start_cluster_with_ministral_3(
         reference,
     } = ministral_3_14b_reasoning();
 
-    let base_inference_parameters = InferenceParameters {
-        n_gpu_layers: gpu_layer_count,
-        ..InferenceParameters::default()
-    };
     let inference_parameters = if deterministic_sampling {
-        make_inference_parameters_deterministic(base_inference_parameters)
+        InferenceParameters {
+            n_gpu_layers: gpu_layer_count,
+            ..InferenceParameters::deterministic()
+        }
     } else {
-        base_inference_parameters
+        InferenceParameters {
+            n_gpu_layers: gpu_layer_count,
+            ..InferenceParameters::default()
+        }
     };
 
     start_cluster(ClusterParams {
