@@ -2,25 +2,19 @@
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
-use paddler_tests::token_result_with_producer::TokenResultWithProducer;
-use paddler_types::generated_token_result::GeneratedTokenResult;
-use paddler_types::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(2)).await?;
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut first_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut first_stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 500,
             raw_prompt: "Write a long essay about photosynthesis".to_owned(),
@@ -34,15 +28,13 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<
 
     drop(first_stream);
 
-    let second_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let second_collected = cluster
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),
         })
         .await?;
-
-    let second_collected = collect_generated_tokens(second_stream).await?;
 
     assert!(matches!(
         second_collected.token_results.last(),

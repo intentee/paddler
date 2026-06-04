@@ -1,20 +1,18 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_openai_chat_completions_streaming_returns_chunks() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let openai_url = cluster
+        .balancer
         .addresses
         .compat_openai_base_url()?
         .join("v1/chat/completions")?;
@@ -37,16 +35,17 @@ async fn agent_openai_chat_completions_streaming_returns_chunks() -> Result<()> 
 
     let chunks: Vec<serde_json::Value> = body
         .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| {
-            let stripped = line.strip_prefix("data: ").unwrap_or(line);
-
-            serde_json::from_str(stripped).context("each chunk should be valid JSON")
-        })
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter(|payload| *payload != "[DONE]")
+        .map(|payload| serde_json::from_str(payload).context("each chunk should be valid JSON"))
         .collect::<Result<_>>()?;
 
     assert!(!chunks.is_empty(), "should have received streaming chunks");
     assert_eq!(chunks[0]["object"], "chat.completion.chunk");
+    assert!(
+        body.trim_end().ends_with("data: [DONE]"),
+        "the OpenAI streaming response must terminate with the [DONE] sentinel: {body:?}"
+    );
 
     cluster.shutdown().await?;
 

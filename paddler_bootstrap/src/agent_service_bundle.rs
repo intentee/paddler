@@ -3,17 +3,17 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use nanoid::nanoid;
-use paddler::agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use paddler::agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-use paddler::agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
-use paddler::agent::llamacpp_arbiter_service::LlamaCppArbiterService;
-use paddler::agent::management_socket_client_service::ManagementSocketClientService;
-use paddler::agent::model_metadata_holder::ModelMetadataHolder;
-use paddler::agent::reconciliation_service::ReconciliationService;
-use paddler::agent_applicable_state_holder::AgentApplicableStateHolder;
-use paddler::slot_aggregated_status::SlotAggregatedStatus;
-use paddler::slot_aggregated_status_manager::SlotAggregatedStatusManager;
-use paddler_types::agent_desired_state::AgentDesiredState;
+use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
+use paddler_agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
+use paddler_agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use paddler_agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
+use paddler_agent::llamacpp_arbiter_service::LlamaCppArbiterService;
+use paddler_agent::management_socket_client_service::ManagementSocketClientService;
+use paddler_agent::model_metadata_holder::ModelMetadataHolder;
+use paddler_agent::reconciliation_service::ReconciliationService;
+use paddler_agent::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_agent::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+use paddler_messaging::agent_desired_state::AgentDesiredState;
 use tokio::sync::mpsc;
 use trzcina::Service;
 use trzcina::ServiceBundle;
@@ -42,7 +42,9 @@ impl AgentServiceBundle {
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
         let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
         let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(slots));
-        let slot_aggregated_status = slot_aggregated_status_manager.slot_aggregated_status.clone();
+        let slot_aggregated_status = slot_aggregated_status_manager
+            .slot_aggregated_status
+            .clone();
 
         let llamacpp_arbiter_service = LlamaCppArbiterService {
             agent_applicable_state: None,

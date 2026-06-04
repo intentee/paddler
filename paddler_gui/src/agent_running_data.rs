@@ -1,5 +1,5 @@
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 pub struct AgentRunningData {
     pub balancer_address: String,

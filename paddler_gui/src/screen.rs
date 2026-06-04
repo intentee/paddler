@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use statum::machine;
 use statum::state;
 use statum::transition;

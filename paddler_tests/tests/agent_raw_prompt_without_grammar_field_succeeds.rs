@@ -1,20 +1,18 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_raw_prompt_without_grammar_field_succeeds() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let inference_url = cluster
+        .balancer
         .addresses
         .inference_base_url()?
         .join("api/v1/continue_from_raw_prompt")?;

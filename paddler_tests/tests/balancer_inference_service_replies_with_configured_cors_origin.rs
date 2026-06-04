@@ -1,24 +1,26 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
-
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_inference_service_replies_with_configured_cors_origin() -> Result<()> {
-    let cluster = start_subprocess_cluster(SubprocessClusterParams {
+    let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
         wait_for_slots_ready: false,
-        ..SubprocessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 
     let http_client = reqwest::Client::new();
-    let inference_health_url = cluster.addresses.inference_base_url()?.join("health")?;
+    let inference_health_url = cluster
+        .balancer
+        .addresses
+        .inference_base_url()?
+        .join("health")?;
 
     let response = http_client
         .request(reqwest::Method::OPTIONS, inference_health_url)

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
+use paddler_balancer::agent_controller_pool::AgentControllerPool;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

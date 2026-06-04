@@ -3,16 +3,16 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
-use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler::balancer::state_database_type::StateDatabaseType;
-use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::state_database_type::StateDatabaseType;
+use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_bootstrap::balancer_service_bundle::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
 use tokio_util::sync::CancellationToken;
@@ -20,8 +20,8 @@ use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
-use super::value_parser::parse_duration;
-use super::value_parser::parse_socket_addr;
+use super::value_parser::parse_duration::parse_duration;
+use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
 pub struct Balancer {
@@ -156,5 +156,30 @@ impl Handler for Balancer {
             .await
             .into_result()
             .map_err(anyhow::Error::from)
+    }
+}
+
+#[cfg(all(test, feature = "web_admin_panel"))]
+mod tests {
+    use clap::Parser as _;
+
+    use super::Balancer;
+
+    #[test]
+    fn web_admin_panel_configuration_is_built_from_the_provided_address() {
+        let balancer = Balancer::parse_from([
+            "balancer",
+            "--web-admin-panel-addr",
+            "127.0.0.1:8062",
+            "--max-buffered-requests",
+            "7",
+        ]);
+
+        let configuration = balancer
+            .get_web_admin_panel_service_configuration()
+            .unwrap();
+
+        assert_eq!(configuration.addr.port(), 8062);
+        assert_eq!(configuration.template_data.max_buffered_requests, 7);
     }
 }

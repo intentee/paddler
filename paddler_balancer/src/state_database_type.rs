@@ -1,0 +1,123 @@
+use std::path::Path;
+use std::path::PathBuf;
+use std::path::absolute;
+use std::str::FromStr;
+
+use anyhow::Error;
+use anyhow::Result;
+use anyhow::anyhow;
+use indoc::formatdoc;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use url::Url;
+
+#[derive(Clone)]
+pub enum StateDatabaseType {
+    File(PathBuf),
+    Memory(Box<BalancerDesiredState>),
+}
+
+impl FromStr for StateDatabaseType {
+    type Err = Error;
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        let url = Url::parse(input)?;
+
+        match url.scheme() {
+            "file" => {
+                let path = input
+                    .strip_prefix("file://")
+                    .ok_or_else(|| anyhow!("Invalid file URL: {input}"))?
+                    .trim();
+
+                if path.is_empty() {
+                    return Err(anyhow!("File path cannot be empty"));
+                }
+
+                if !Path::new(path).is_absolute() {
+                    let absolute_path = absolute(shellexpand::tilde(path).to_string())?;
+                    let expanded_path = absolute_path.display();
+
+                    return Err(anyhow!(formatdoc! {"
+                        To avoid ambiguity, needing to guess the full file path (and to stay safe overall), Paddler requires absolute paths.
+                        The path you wanted is *probably* '{expanded_path}'. If that is so, pass it as '--state-database file://{expanded_path}'.
+                    "}));
+                }
+
+                Ok(Self::File(PathBuf::from(path)))
+            }
+            "memory" => Ok(Self::Memory(Box::default())),
+            scheme => Err(anyhow!("Unsupported scheme '{scheme}'")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+    use std::str::FromStr;
+
+    use super::*;
+
+    #[test]
+    fn test_memory_basic() {
+        let result = StateDatabaseType::from_str("memory://").unwrap();
+
+        assert_eq!(
+            discriminant(&result),
+            discriminant(&StateDatabaseType::Memory(Box::default())),
+        );
+    }
+
+    #[test]
+    fn test_file_relative_path() {
+        let result = StateDatabaseType::from_str("file://path/to/db");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_file_scheme_without_authority_is_error() {
+        let result = StateDatabaseType::from_str("file:relative");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_file_absolute_path() {
+        #[cfg(unix)]
+        let expected_path = "/absolute/path";
+        #[cfg(unix)]
+        let url = "file:///absolute/path";
+        #[cfg(windows)]
+        let expected_path = "C:/absolute/path";
+        #[cfg(windows)]
+        let url = "file://C:/absolute/path";
+
+        let result = StateDatabaseType::from_str(url).unwrap();
+
+        assert!(
+            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from(expected_path))
+        );
+    }
+
+    #[test]
+    fn test_file_empty_path_fails() {
+        let result = StateDatabaseType::from_str("file://");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unsupported_scheme() {
+        let result = StateDatabaseType::from_str("mysql://localhost/db");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_invalid_url() {
+        let result = StateDatabaseType::from_str("not-a-url");
+
+        assert!(result.is_err());
+    }
+}

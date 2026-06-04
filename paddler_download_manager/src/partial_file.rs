@@ -68,10 +68,7 @@ impl PartialFile {
     }
 
     async fn ensure_partial_parent_exists(&self) -> Result<(), io::Error> {
-        let parent = self
-            .partial_path
-            .parent()
-            .unwrap_or_else(|| Path::new("."));
+        let parent = self.partial_path.parent().unwrap_or_else(|| Path::new("."));
 
         fs::create_dir_all(parent).await
     }
@@ -79,6 +76,9 @@ impl PartialFile {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    use std::path::PathBuf;
+
     use tempfile::TempDir;
     use tokio::io::AsyncWriteExt;
 
@@ -223,6 +223,16 @@ mod tests {
         let directory = TempDir::new().unwrap();
         let partial = PartialFile::new(directory.path().join("model.gguf"));
         tokio::fs::create_dir(&partial.partial_path).await.unwrap();
+
+        let result = partial.open_for_append().await;
+
+        assert!(result.is_err());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn open_for_append_returns_io_error_when_path_has_no_parent() {
+        let partial = PartialFile::new(PathBuf::from("/"));
 
         let result = partial.open_for_append().await;
 

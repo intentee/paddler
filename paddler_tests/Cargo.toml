@@ -1,7 +1,7 @@
 [package]
 name = "paddler_tests"
 authors.workspace = true
-description = "Stable test harness and integration/model tests for Paddler"
+description = "In-process integration tests for Paddler"
 edition.workspace = true
 homepage.workspace = true
 license.workspace = true
@@ -10,26 +10,28 @@ version.workspace = true
 
 [features]
 default = []
-cuda = ["paddler/cuda"]
-metal = ["paddler/metal"]
-tests_that_use_compiled_paddler = []
-tests_that_use_in_process_cluster = []
+cuda = ["paddler_agent/cuda"]
+metal = ["paddler_agent/metal"]
 tests_that_use_llms = []
-web_admin_panel = ["paddler/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
+web_admin_panel = ["paddler_balancer/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
 
 [dependencies]
 anyhow = { workspace = true }
 async-stream = { workspace = true }
+async-trait = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
 hf-hub = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
 nix = { workspace = true }
-paddler = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
-paddler_types = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
+parking_lot = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -37,9 +39,11 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
+paddler_openai_response_format_validator = { workspace = true }
 serial_test = { workspace = true }
 
 [lints]

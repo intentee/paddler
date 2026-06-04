@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use paddler_types::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use serde::Serialize;
 use serde_json::to_string;
 use tokio::sync::Mutex;
@@ -86,5 +86,20 @@ impl Pool {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Pool;
+
+    #[tokio::test]
+    async fn round_robins_across_connection_slots() {
+        let pool = Pool::new(url::Url::parse("http://127.0.0.1:1").unwrap(), 3);
+
+        assert_eq!(pool.next_connection_index().await, 0);
+        assert_eq!(pool.next_connection_index().await, 1);
+        assert_eq!(pool.next_connection_index().await, 2);
+        assert_eq!(pool.next_connection_index().await, 0);
     }
 }

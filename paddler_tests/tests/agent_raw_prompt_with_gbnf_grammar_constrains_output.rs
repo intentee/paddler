@@ -1,27 +1,18 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_types::grammar_constraint::GrammarConstraint;
-use paddler_types::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_raw_prompt_with_gbnf_grammar_constrains_output() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let collected = cluster
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
                 grammar: r#"root ::= "yes" | "no""#.to_owned(),
                 root: "root".to_owned(),
@@ -32,8 +23,6 @@ async fn agent_raw_prompt_with_gbnf_grammar_constrains_output() -> Result<()> {
                     .to_owned(),
         })
         .await?;
-
-    let collected = collect_generated_tokens(stream).await?;
 
     assert!(
         collected.text == "yes" || collected.text == "no",

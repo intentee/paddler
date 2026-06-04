@@ -3,13 +3,12 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::stream;
-use paddler_tests::agents_status::assert_slots_total_at_least::assert_slots_total_at_least;
-use paddler_tests::agents_stream_watcher::AgentsStreamWatcher;
-use paddler_types::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_types::agent_controller_snapshot::AgentControllerSnapshot;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::agent_issue_params::ModelPath;
-use paddler_types::agent_state_application_status::AgentStateApplicationStatus;
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
+use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+use paddler_test_cluster_harness::agents_stream_watcher::AgentsStreamWatcher;
 
 fn make_snapshot(agent_id: &str, slots_total: i32) -> AgentControllerPoolSnapshot {
     AgentControllerPoolSnapshot {
@@ -42,7 +41,12 @@ async fn until_returns_first_snapshot_matching_predicate() -> Result<()> {
     let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
 
     let snapshot = watcher
-        .until(assert_slots_total_at_least("agent-a", 1))
+        .until(|snapshot| {
+            snapshot
+                .agents
+                .iter()
+                .any(|agent| agent.id == "agent-a" && agent.slots_total >= 1)
+        })
         .await?;
 
     assert_eq!(snapshot.agents.len(), 1);
@@ -81,7 +85,12 @@ async fn until_errors_when_stream_closes_before_match() {
     let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
 
     let outcome = watcher
-        .until(assert_slots_total_at_least("agent-a", 10))
+        .until(|snapshot| {
+            snapshot
+                .agents
+                .iter()
+                .any(|agent| agent.id == "agent-a" && agent.slots_total >= 10)
+        })
         .await;
 
     assert!(

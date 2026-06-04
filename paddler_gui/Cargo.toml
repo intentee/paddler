@@ -16,12 +16,14 @@ iced = { workspace = true }
 if-addrs = { workspace = true }
 log = { workspace = true }
 open = { workspace = true }
-paddler = { workspace = true }
+paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
-paddler_types = { workspace = true }
+paddler_messaging = { workspace = true }
+parking_lot = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }
@@ -31,10 +33,10 @@ workspace = true
 
 [features]
 default = []
-cuda = ["paddler/cuda"]
-metal = ["paddler/metal"]
+cuda = ["paddler_bootstrap/cuda"]
+metal = ["paddler_bootstrap/metal"]
 web_admin_panel = [
     "dep:esbuild-metafile",
-    "paddler/web_admin_panel",
+    "paddler_balancer/web_admin_panel",
     "paddler_bootstrap/web_admin_panel",
 ]

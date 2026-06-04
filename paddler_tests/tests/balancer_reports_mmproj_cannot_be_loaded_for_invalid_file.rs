@@ -1,19 +1,16 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::agent_issue::AgentIssue;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::inference_parameters::InferenceParameters;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -25,7 +22,7 @@ async fn balancer_reports_mmproj_cannot_be_loaded_for_invalid_file() -> Result<(
 
     let ModelCard { reference, .. } = qwen3_0_6b();
 
-    let mut cluster = start_subprocess_cluster(SubprocessClusterParams {
+    let mut cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         desired_state: Some(BalancerDesiredState {
@@ -35,7 +32,7 @@ async fn balancer_reports_mmproj_cannot_be_loaded_for_invalid_file() -> Result<(
             multimodal_projection: AgentDesiredModel::LocalToAgent(invalid_mmproj_path.to_owned()),
             use_chat_template_override: false,
         }),
-        ..SubprocessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 
@@ -49,7 +46,7 @@ async fn balancer_reports_mmproj_cannot_be_loaded_for_invalid_file() -> Result<(
     let expected_path = invalid_mmproj_path.to_owned();
 
     cluster
-        .agents
+        .agents_watcher
         .until(move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == watch_agent_id

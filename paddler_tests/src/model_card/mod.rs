@@ -16,7 +16,7 @@ pub mod qwen3_embedding_0_6b;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;
 
-use paddler_types::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 pub struct ModelCard {
     pub gpu_layer_count: u32,

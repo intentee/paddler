@@ -1,36 +1,28 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::grammar_constraint::GrammarConstraint;
-use paddler_types::inference_client::Message as InferenceMessage;
-use paddler_types::inference_client::Response as InferenceResponse;
-use paddler_types::inference_parameters::InferenceParameters;
-use paddler_types::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::response::Response as InferenceResponse;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<()> {
-    let cluster = start_subprocess_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
-
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
 
     let expected_output = "the quick brown fox jumps over the lazy dog";
 
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
                 grammar: format!("root ::= \"{expected_output}\""),
                 root: "root".to_owned(),

@@ -1,0 +1,62 @@
+[package]
+name = "paddler_agent"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+dashmap = { workspace = true }
+encoding_rs = { workspace = true }
+futures = { workspace = true }
+futures-util = { workspace = true }
+hf-hub = { workspace = true }
+image = { workspace = true }
+jsonschema = { workspace = true }
+llama-cpp-bindings = { workspace = true }
+llama-cpp-bindings-sys = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
+log = { workspace = true }
+minijinja = { workspace = true }
+minijinja-contrib = { workspace = true }
+nanoid = { workspace = true }
+paddler_cache_dir = { workspace = true }
+paddler_download_manager = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_state_conversion = { workspace = true }
+parking_lot = { workspace = true }
+rand = { workspace = true }
+reqwest = { workspace = true }
+resvg = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+shellexpand = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+tokio-tungstenite = { workspace = true }
+tokio-util = { workspace = true }
+trzcina = { workspace = true }
+url = { workspace = true }
+
+[features]
+default = []
+cuda = ["llama-cpp-bindings/cuda"]
+metal = ["llama-cpp-bindings/metal"]
+vulkan = ["llama-cpp-bindings/vulkan"]
+
+[dev-dependencies]
+indoc = { workspace = true }
+tempfile = { workspace = true }
+tokio-test = { workspace = true }
+
+[lints]
+workspace = true

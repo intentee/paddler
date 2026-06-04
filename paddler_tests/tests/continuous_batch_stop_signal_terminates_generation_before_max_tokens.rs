@@ -3,17 +3,14 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
-use paddler_types::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stop_signal_terminates_generation_before_max_tokens() -> Result<()> {
-    let mut cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(1)).await?;
+    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let agent_id = cluster
         .agent_ids
@@ -21,11 +18,8 @@ async fn continuous_batch_stop_signal_terminates_generation_before_max_tokens() 
         .context("cluster must have one registered agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let mut stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let mut stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 500,
             raw_prompt: "Write a very long story about a dragon".to_owned(),
@@ -38,16 +32,14 @@ async fn continuous_batch_stop_signal_terminates_generation_before_max_tokens() 
         .context("inference stream must yield at least one message")?;
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 1))
+        .wait_for_slots_processing(&agent_id, 1)
         .await
         .context("slot should be occupied while the request is in flight")?;
 
     drop(stream);
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 0))
+        .wait_for_slots_processing(&agent_id, 0)
         .await
         .context("dropping the stream must terminate generation before max_tokens is reached")?;
 

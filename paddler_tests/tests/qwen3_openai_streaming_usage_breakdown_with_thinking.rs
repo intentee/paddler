@@ -1,24 +1,18 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::openai_chat_completions_client::OpenAIChatCompletionsClient;
-use paddler_tests::start_in_process_cluster_with_qwen3::start_in_process_cluster_with_qwen3;
-use reqwest::Client;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
 use serde_json::json;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_openai_streaming_usage_breakdown_with_thinking() -> Result<()> {
-    let cluster = start_in_process_cluster_with_qwen3(AgentConfig::single(1)).await?;
-    let openai_client = OpenAIChatCompletionsClient::new(
-        Client::new(),
-        &cluster.addresses.compat_openai_base_url()?,
-    )?;
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
-    let chunks = openai_client
-        .post_streaming(&json!({
+    let chunks = cluster
+        .openai_chat_completion_streaming(&json!({
             "model": "qwen3-test",
             "messages": [{
                 "role": "user",
@@ -26,8 +20,7 @@ async fn qwen3_openai_streaming_usage_breakdown_with_thinking() -> Result<()> {
             }],
             "stream": true,
             "stream_options": {"include_usage": true},
-            "max_completion_tokens": 200,
-            "chat_template_kwargs": {"enable_thinking": true}
+            "max_completion_tokens": 200
         }))
         .await?;
 

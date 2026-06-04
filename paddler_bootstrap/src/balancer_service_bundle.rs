@@ -3,31 +3,31 @@ use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
-use paddler::balancer::buffered_request_manager::BufferedRequestManager;
-use paddler::balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-use paddler::balancer::compatibility::openai_service::OpenAIService;
-use paddler::balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
-use paddler::balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
-use paddler::balancer::inference_service::InferenceService;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::management_service::ManagementService;
-use paddler::balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler::balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
-use paddler::balancer::reconciliation_service::ReconciliationService;
-use paddler::balancer::state_database::File;
-use paddler::balancer::state_database::Memory;
-use paddler::balancer::state_database::StateDatabase;
-use paddler::balancer::state_database_type::StateDatabaseType;
-use paddler::balancer::statsd_service::StatsdService;
-use paddler::balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use paddler_balancer::agent_controller_pool::AgentControllerPool;
+use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use paddler_balancer::buffered_request_manager::BufferedRequestManager;
+use paddler_balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+use paddler_balancer::compatibility::openai_service::OpenAIService;
+use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::embedding_sender_collection::EmbeddingSenderCollection;
+use paddler_balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+use paddler_balancer::inference_service::InferenceService;
+use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler_balancer::management_service::ManagementService;
+use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
+use paddler_balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
+use paddler_balancer::reconciliation_service::ReconciliationService;
+use paddler_balancer::state_database::StateDatabase;
+use paddler_balancer::state_database::file::File;
+use paddler_balancer::state_database::memory::Memory;
+use paddler_balancer::state_database_type::StateDatabaseType;
+use paddler_balancer::statsd_service::StatsdService;
+use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::WebAdminPanelService;
+use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
 #[cfg(feature = "web_admin_panel")]
-use paddler::balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-use paddler::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
 use trzcina::Service;
 use trzcina::ServiceBundle;
@@ -138,14 +138,13 @@ impl BalancerServiceBundle {
             is_converted_to_applicable_state: false,
         };
 
-        let openai_service = openai_service_configuration.map(|openai_service_configuration| {
-            OpenAIService {
+        let openai_service =
+            openai_service_configuration.map(|openai_service_configuration| OpenAIService {
                 buffered_request_manager: buffered_request_manager.clone(),
                 inference_service_configuration,
                 openai_service_configuration,
                 shutdown_options: shutdown_options.clone(),
-            }
-        });
+            });
 
         let statsd_service = statsd_service_configuration.map(|configuration| StatsdService {
             agent_controller_pool: agent_controller_pool.clone(),
@@ -200,5 +199,80 @@ impl ServiceBundle for BalancerServiceBundle {
         }
 
         Ok(services)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::SocketAddr;
+
+    #[cfg(feature = "web_admin_panel")]
+    use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
+    #[cfg(feature = "web_admin_panel")]
+    use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
+
+    use super::*;
+
+    #[cfg(feature = "web_admin_panel")]
+    const EXPECTED_SERVICE_COUNT: usize = 6;
+    #[cfg(not(feature = "web_admin_panel"))]
+    const EXPECTED_SERVICE_COUNT: usize = 5;
+
+    fn loopback_addr() -> SocketAddr {
+        SocketAddr::from(([127, 0, 0, 1], 0))
+    }
+
+    #[tokio::test]
+    async fn services_includes_every_optional_service_when_configured() {
+        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
+            buffered_request_timeout: Duration::from_secs(10),
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: loopback_addr(),
+                cors_allowed_hosts: vec![],
+                inference_item_timeout: Duration::from_secs(30),
+            },
+            management_service_configuration: ManagementServiceConfiguration {
+                addr: loopback_addr(),
+                cors_allowed_hosts: vec![],
+            },
+            max_buffered_requests: 30,
+            openai_service_configuration: Some(OpenAIServiceConfiguration {
+                addr: loopback_addr(),
+            }),
+            shutdown_options: ServiceShutdownOptions::default(),
+            state_database_type: StateDatabaseType::Memory(Box::default()),
+            statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+            statsd_service_configuration: Some(StatsdServiceConfiguration {
+                statsd_addr: loopback_addr(),
+                statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+                statsd_reporting_interval: Duration::from_secs(10),
+            }),
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
+                addr: loopback_addr(),
+                template_data: TemplateData {
+                    buffered_request_timeout: Duration::from_secs(10),
+                    compat_openai_addr: None,
+                    inference_addr: ResolvedSocketAddr {
+                        input_addr: "127.0.0.1:0".to_owned(),
+                        socket_addr: loopback_addr(),
+                    },
+                    management_addr: ResolvedSocketAddr {
+                        input_addr: "127.0.0.1:0".to_owned(),
+                        socket_addr: loopback_addr(),
+                    },
+                    max_buffered_requests: 30,
+                    statsd_addr: None,
+                    statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+                    statsd_reporting_interval: Duration::from_secs(10),
+                },
+            }),
+        })
+        .await
+        .unwrap();
+
+        let services = bundle.services().await.unwrap();
+
+        assert_eq!(services.len(), EXPECTED_SERVICE_COUNT);
     }
 }

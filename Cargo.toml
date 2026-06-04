@@ -1,5 +1,20 @@
 [workspace]
-members = ["paddler", "paddler_bootstrap", "paddler_cache_dir", "paddler_cli", "paddler_client", "paddler_client_cli", "paddler_download_manager", "paddler_gui", "paddler_tests", "paddler_types"]
+members = [
+    "paddler_agent",
+    "paddler_balancer",
+    "paddler_bootstrap",
+    "paddler_cache_dir",
+    "paddler_cli",
+    "paddler_cli_tests",
+    "paddler_client",
+    "paddler_download_manager",
+    "paddler_gui",
+    "paddler_messaging",
+    "paddler_openai_response_format_validator",
+    "paddler_state_conversion",
+    "paddler_test_cluster_harness",
+    "paddler_tests",
+]
 resolver = "2"
 
 [workspace.package]
@@ -20,6 +35,7 @@ actix-web-lab = "0.26"
 actix-ws = "0.3"
 anyhow = { version = "1", features = ["backtrace"] }
 askama = "0.14"
+async-openai = { version = "=0.40.3", features = ["byot", "chat-completion", "responses"] }
 async-stream = "0.3"
 async-trait = "0.1"
 bytes = "1.11"
@@ -35,6 +51,7 @@ futures = "0.3"
 futures-util = { version = "0.3", features = ["tokio-io"] }
 headers = "=0.4.1"
 hf-hub = { version = "0.4", features = ["tokio"] }
+http = "1"
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
@@ -49,6 +66,7 @@ minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wor
 nanoid = "0.4"
 nix = { version = "0.30", features = ["signal"] }
 open = "5.3.4"
+parking_lot = "=0.12.5"
 pastey = "0.2"
 rand = "0.9"
 ratatui = "=0.30.0"
@@ -72,13 +90,19 @@ tokio-util = "0.7"
 thiserror = "2"
 trzcina = "=0.3.0"
 url = { version = "2.5", features = ["serde"] }
-paddler = { version = "4.0.0", path = "paddler" }
+yaml-rust2 = "0.11"
+paddler_agent = { version = "4.0.0", path = "paddler_agent" }
+paddler_balancer = { version = "4.0.0", path = "paddler_balancer" }
 paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "4.0.0", path = "paddler_cache_dir" }
+paddler_cli = { version = "4.0.0", path = "paddler_cli" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
+paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
+paddler_openai_response_format_validator = { version = "4.0.0", path = "paddler_openai_response_format_validator" }
+paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
+paddler_test_cluster_harness = { version = "4.0.0", path = "paddler_test_cluster_harness" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }
-paddler_types = { version = "4.0.0", path = "paddler_types" }
 
 [profile.release]
 lto = true

@@ -5,17 +5,17 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler::balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
-use paddler::balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-use paddler::balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
-use paddler::balancer::embedding_sender_collection::EmbeddingSenderCollection;
-use paddler::balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler::balancer::manages_senders::ManagesSenders as _;
-use paddler::balancer::manages_senders_controller::ManagesSendersController;
-use paddler::balancer::request_from_agent::forward_responses_stream;
+use paddler_balancer::chunk_forwarding_session_controller::ChunkForwardingSessionController;
+use paddler_balancer::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+use paddler_balancer::chunk_forwarding_session_controller::transform_result::TransformResult;
+use paddler_balancer::embedding_sender_collection::EmbeddingSenderCollection;
+use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use paddler_balancer::manages_senders::ManagesSenders as _;
+use paddler_balancer::manages_senders_controller::ManagesSendersController;
+use paddler_balancer::request_from_agent::forward_responses_stream;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
-use paddler_types::inference_client::Message as OutgoingMessage;
-use paddler_types::jsonrpc::ErrorEnvelope;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -43,7 +43,7 @@ async fn forward_responses_stream_emits_error_envelope_when_response_channel_clo
 
     let agent_controller_clone = agent_controller.clone();
     let request_id_clone = request_id.clone();
-    let forward_handle: tokio::task::JoinHandle<Result<()>> = tokio::spawn(async move {
+    let forward_handle: tokio::task::JoinHandle<()> = tokio::spawn(async move {
         forward_responses_stream::<_, EmbeddingSenderCollection>(
             agent_controller_clone,
             connection_close,
@@ -51,8 +51,9 @@ async fn forward_responses_stream_emits_error_envelope_when_response_channel_clo
             receive_response_controller,
             request_id_clone,
             session_controller,
+            CancellationToken::new(),
         )
-        .await
+        .await;
     });
 
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -64,8 +65,7 @@ async fn forward_responses_stream_emits_error_envelope_when_response_channel_clo
     tokio::time::timeout(Duration::from_secs(5), forward_handle)
         .await
         .context("forward_responses_stream did not complete in time")?
-        .context("forward_responses_stream task panicked")?
-        .context("forward_responses_stream returned an error")?;
+        .context("forward_responses_stream task panicked")?;
 
     let chunk = chunk_rx
         .recv()

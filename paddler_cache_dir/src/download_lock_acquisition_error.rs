@@ -29,8 +29,7 @@ mod tests {
     #[test]
     fn is_another_process_downloading_returns_true_only_for_that_variant() {
         let another_process = DownloadLockAcquisitionError::AnotherProcessIsDownloading;
-        let io_error =
-            DownloadLockAcquisitionError::Io(io::Error::from(io::ErrorKind::NotFound));
+        let io_error = DownloadLockAcquisitionError::Io(io::Error::from(io::ErrorKind::NotFound));
 
         assert!(another_process.is_another_process_downloading());
         assert!(!io_error.is_another_process_downloading());
@@ -38,8 +37,7 @@ mod tests {
 
     #[test]
     fn is_io_returns_true_only_for_io_variant() {
-        let io_error =
-            DownloadLockAcquisitionError::Io(io::Error::from(io::ErrorKind::NotFound));
+        let io_error = DownloadLockAcquisitionError::Io(io::Error::from(io::ErrorKind::NotFound));
         let another_process = DownloadLockAcquisitionError::AnotherProcessIsDownloading;
 
         assert!(io_error.is_io());

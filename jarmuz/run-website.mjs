@@ -7,10 +7,16 @@ export function run({ development, once = false, rustJobs }) {
     once,
     pipeline: ["stylelint", "tcm", "tsc", "eslint", esbuildJob, ...rustJobs],
     watch: [
-      "paddler",
+      "paddler_agent",
+      "paddler_balancer",
+      "paddler_bootstrap",
+      "paddler_cache_dir",
+      "paddler_cli",
       "paddler_client",
       "paddler_client_javascript",
-      "paddler_types",
+      "paddler_download_manager",
+      "paddler_messaging",
+      "paddler_state_conversion",
       "resources",
     ],
   }).decide(function ({ matches, schedule }) {
@@ -28,7 +34,7 @@ export function run({ development, once = false, rustJobs }) {
         schedule("tcm");
         schedule(esbuildJob);
         return;
-      case matches("paddler/templates/**/*.html"):
+      case matches("paddler_balancer/templates/**/*.html"):
       case matches("**/*.rs"):
         for (const job of rustJobs) {
           schedule(job);

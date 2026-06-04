@@ -1,5 +1,5 @@
 use anyhow::Result;
-use paddler_tests::state_database_file::StateDatabaseFile;
+use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
 
 #[test]
 fn harness_state_database_file_builds_file_url() -> Result<()> {

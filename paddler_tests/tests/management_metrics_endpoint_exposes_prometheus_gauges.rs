@@ -1,16 +1,14 @@
-#![cfg(feature = "tests_that_use_compiled_paddler")]
-
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_metrics_endpoint_exposes_prometheus_gauges() -> Result<()> {
-    let cluster = start_subprocess_cluster(SubprocessClusterParams {
+    let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
-        ..SubprocessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 

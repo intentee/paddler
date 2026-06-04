@@ -1,30 +1,29 @@
-#![cfg(all(
-    feature = "tests_that_use_compiled_paddler",
-    feature = "tests_that_use_llms"
-))]
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::future::Future;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::current_test_device::current_test_device;
-use paddler_tests::inference_http_client::InferenceHttpClient;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_tests::subprocess_cluster_params::SubprocessClusterParams;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::chat_template::ChatTemplate;
-use paddler_types::conversation_history::ConversationHistory;
-use paddler_types::conversation_message::ConversationMessage;
-use paddler_types::conversation_message_content::ConversationMessageContent;
-use paddler_types::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use reqwest::Client;
+use paddler_tests::start_cluster::start_cluster;
 
-async fn run_inference_after_template_swap(inference_client: &InferenceHttpClient) -> Result<bool> {
-    let stream = inference_client
-        .post_continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+fn run_inference_after_template_swap(
+    cluster: &Cluster,
+) -> impl Future<Output = Result<bool>> + Send + use<> {
+    let generation =
+        cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("The capital of France is".to_owned()),
@@ -35,24 +34,21 @@ async fn run_inference_after_template_swap(inference_client: &InferenceHttpClien
             max_tokens: 10,
             parse_tool_calls: false,
             tools: vec![],
-        })
-        .await?;
+        });
 
-    let collected = collect_generated_tokens(stream).await?;
+    async move {
+        let collected = generation.await?;
 
-    Ok(collected
-        .token_results
-        .iter()
-        .any(|result| result.token_result.is_token()))
+        Ok(collected
+            .token_results
+            .iter()
+            .any(|result| result.token_result.is_token()))
+    }
 }
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn chat_template_swaps_between_inference_calls() -> Result<()> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
@@ -65,17 +61,20 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
         content: "PREFIX:{{ messages[0].content }}".to_owned(),
     };
 
-    let cluster = start_subprocess_cluster(SubprocessClusterParams {
+    let cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(template_a.clone()),
-            inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
+            inference_parameters: InferenceParameters {
+                n_gpu_layers: gpu_layer_count,
+                ..InferenceParameters::default()
+            },
             model: AgentDesiredModel::HuggingFace(reference.clone()),
             multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: true,
         }),
-        ..SubprocessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 
@@ -85,17 +84,17 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
         .context("cluster must have one registered agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
     assert!(
-        run_inference_after_template_swap(&inference_client).await?,
+        run_inference_after_template_swap(&cluster).await?,
         "first inference with template_a must produce tokens"
     );
 
     let swap_state = BalancerDesiredState {
         chat_template_override: Some(template_b.clone()),
-        inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
+        inference_parameters: InferenceParameters {
+            n_gpu_layers: gpu_layer_count,
+            ..InferenceParameters::default()
+        },
         model: AgentDesiredModel::HuggingFace(reference),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: true,
@@ -109,7 +108,7 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
         .map_err(anyhow::Error::new)?;
 
     assert!(
-        run_inference_after_template_swap(&inference_client).await?,
+        run_inference_after_template_swap(&cluster).await?,
         "inference after swap must produce tokens with template_b"
     );
 

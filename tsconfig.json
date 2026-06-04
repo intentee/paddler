@@ -40,6 +40,6 @@
     },
     "include": [
         "jarmuz/**/*",
-        "resources/ts/**/*",
+        "resources/ts/**/*"
     ]
 }

@@ -3,15 +3,13 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_embedding_results::collect_embedding_results;
-use paddler_tests::inference_http_client::InferenceHttpClient;
-use paddler_tests::start_in_process_embedding_cluster::start_in_process_embedding_cluster;
-use paddler_types::embedding_input_document::EmbeddingInputDocument;
-use paddler_types::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_types::inference_parameters::InferenceParameters;
-use paddler_types::request_params::GenerateEmbeddingBatchParams;
-use reqwest::Client;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
+use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
@@ -19,41 +17,28 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()>
     let client_count: usize = 4;
     let docs_per_client: usize = 3;
 
-    let cluster = start_in_process_embedding_cluster(
-        InferenceParameters {
+    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
+        agents: vec![AgentConfig::single(4)],
+        inference_parameters: InferenceParameters {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        AgentConfig::single(4),
-    )
+        ..Qwen3EmbeddingClusterParams::default()
+    })
     .await?;
 
-    let inference_base_url = cluster.addresses.inference_base_url()?;
-
     let client_tasks = (0..client_count).map(|client_index| {
-        let inference_base_url = inference_base_url.clone();
+        let input_batch: Vec<EmbeddingInputDocument> = (0..docs_per_client)
+            .map(|document_index| EmbeddingInputDocument {
+                content: format!("Content from client {client_index} document {document_index}."),
+                id: format!("client-{client_index}-doc-{document_index}"),
+            })
+            .collect();
 
-        async move {
-            let inference_client = InferenceHttpClient::new(Client::new(), inference_base_url);
-
-            let input_batch: Vec<EmbeddingInputDocument> = (0..docs_per_client)
-                .map(|document_index| EmbeddingInputDocument {
-                    content: format!(
-                        "Content from client {client_index} document {document_index}."
-                    ),
-                    id: format!("client-{client_index}-doc-{document_index}"),
-                })
-                .collect();
-
-            let stream = inference_client
-                .post_generate_embedding_batch(&GenerateEmbeddingBatchParams {
-                    input_batch,
-                    normalization_method: EmbeddingNormalizationMethod::None,
-                })
-                .await?;
-
-            collect_embedding_results(stream).await
-        }
+        cluster.generate_embedding_batch(&GenerateEmbeddingBatchParams {
+            input_batch,
+            normalization_method: EmbeddingNormalizationMethod::None,
+        })
     });
 
     let per_client_results = futures_util::future::join_all(client_tasks).await;

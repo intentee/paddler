@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler::balancer::agent_controller_pool::AgentControllerPool;
-use paddler::subscribes_to_updates::SubscribesToUpdates as _;
+use paddler_balancer::agent_controller_pool::AgentControllerPool;
+use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 
 #[test]

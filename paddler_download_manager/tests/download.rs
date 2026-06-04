@@ -450,7 +450,10 @@ async fn fixture_drops_connection_when_configured_to() -> Result<()> {
     let response = reqwest::get(fixture.url("/x")).await?;
     let body_result = response.bytes().await;
 
-    assert!(body_result.is_err(), "expected dropped connection during body read");
+    assert!(
+        body_result.is_err(),
+        "expected dropped connection during body read"
+    );
 
     Ok(())
 }
@@ -544,10 +547,7 @@ async fn send_error_returns_download_server_is_unreachable() -> Result<()> {
     let url = "http://127.0.0.1:1/never-listens".to_owned();
     let result = DownloadManager::new()?.download(&url, &dest, sink).await;
 
-    let Err(DownloadError::DownloadServerIsUnreachable {
-        url: error_url, ..
-    }) = result
-    else {
+    let Err(DownloadError::DownloadServerIsUnreachable { url: error_url, .. }) = result else {
         bail!("expected DownloadServerIsUnreachable, got {result:?}");
     };
     assert_eq!(error_url, url);
@@ -674,8 +674,8 @@ async fn truncate_error_during_ignore_range_returns_io() -> Result<()> {
     let partial_path = dest.with_extension("partial");
     tokio::fs::create_dir(&partial_path).await?;
 
-    let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec())))
-        .await?;
+    let fixture =
+        LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?

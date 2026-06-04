@@ -2,27 +2,20 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::agents_status::assert_slots_processing::assert_slots_processing;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::current_test_device::current_test_device;
-use paddler_tests::in_process_cluster_params::InProcessClusterParams;
-use paddler_tests::inference_http_client::InferenceHttpClient;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_in_process_cluster::start_in_process_cluster;
-use paddler_types::agent_desired_model::AgentDesiredModel;
-use paddler_types::balancer_desired_state::BalancerDesiredState;
-use paddler_types::request_params::ContinueFromRawPromptParams;
-use reqwest::Client;
+use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -> Result<()> {
-    let device = current_test_device()?;
-
-    device.require_available()?;
-
     let ModelCard {
         gpu_layer_count,
         reference,
@@ -30,20 +23,23 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
-        inference_parameters: device.inference_parameters_for_full_offload(gpu_layer_count),
+        inference_parameters: InferenceParameters {
+            n_gpu_layers: gpu_layer_count,
+            ..InferenceParameters::default()
+        },
         model: AgentDesiredModel::HuggingFace(reference),
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: false,
     };
 
-    let mut cluster = start_in_process_cluster(InProcessClusterParams {
-        agent: Some(AgentConfig {
+    let mut cluster = start_cluster(ClusterParams {
+        agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 1,
-        }),
-        desired_state,
+        }],
+        desired_state: Some(desired_state),
         wait_for_slots_ready: true,
-        ..InProcessClusterParams::default()
+        ..ClusterParams::default()
     })
     .await?;
 
@@ -53,11 +49,8 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
         .context("cluster must have registered one agent")?
         .clone();
 
-    let inference_client =
-        InferenceHttpClient::new(Client::new(), cluster.addresses.inference_base_url()?);
-
-    let token_stream = inference_client
-        .post_continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let token_stream = cluster
+        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 8,
             raw_prompt: "Count to three".to_owned(),
@@ -65,16 +58,14 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
         .await?;
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 1))
+        .wait_for_slots_processing(&agent_id, 1)
         .await
         .context("agents_stream must emit a snapshot showing slot usage")?;
 
     collect_generated_tokens(token_stream).await?;
 
     cluster
-        .agents
-        .until(assert_slots_processing(&agent_id, 0))
+        .wait_for_slots_processing(&agent_id, 0)
         .await
         .context("agents_stream must emit a snapshot showing the slot was released")?;
 

@@ -1,14 +1,14 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
-use paddler::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
-use super::value_parser::parse_socket_addr;
+use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
 pub struct Agent {

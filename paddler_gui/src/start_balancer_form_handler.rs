@@ -2,7 +2,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 
-use paddler_types::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
 use crate::model_preset::ModelPreset;
 use crate::start_balancer_form_data::StartBalancerFormData;
