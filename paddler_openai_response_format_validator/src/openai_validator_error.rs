@@ -12,4 +12,12 @@ pub enum OpenAIValidatorError {
         "chat completion stream chunk does not conform to the official OpenAI schema: {violations:?}"
     )]
     StreamChunkDoesNotConform { violations: Vec<String> },
+    #[error("responses request does not conform to the official OpenAI schema: {violations:?}")]
+    ResponsesRequestDoesNotConform { violations: Vec<String> },
+    #[error("responses response does not conform to the official OpenAI schema: {violations:?}")]
+    ResponsesResponseDoesNotConform { violations: Vec<String> },
+    #[error(
+        "responses stream event does not conform to the official OpenAI schema: {violations:?}"
+    )]
+    ResponsesStreamEventDoesNotConform { violations: Vec<String> },
 }

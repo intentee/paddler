@@ -1,5 +1,5 @@
 [package]
-name = "paddler_openai_validator"
+name = "paddler_openai_response_format_validator"
 authors.workspace = true
 description.workspace = true
 edition.workspace = true

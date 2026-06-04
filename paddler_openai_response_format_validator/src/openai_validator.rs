@@ -28,6 +28,48 @@ const STREAM_STRICT_POINTERS: &[&str] = &[
     "/$defs/CompletionUsage/properties/completion_tokens_details",
 ];
 
+const RESPONSES_REQUEST_ROOT: &str = "CreateResponse";
+const RESPONSES_RESPONSE_ROOT: &str = "Response";
+const RESPONSES_STREAM_EVENT_ROOT: &str = "ResponseStreamEvent";
+
+const RESPONSES_REQUEST_STRICT_POINTERS: &[&str] = &[];
+
+const RESPONSES_SHARED_OUTPUT_STRICT_POINTERS: &[&str] = &[
+    "/$defs/Response",
+    "/$defs/OutputMessage",
+    "/$defs/OutputTextContent",
+    "/$defs/ReasoningItem",
+    "/$defs/FunctionToolCall",
+    "/$defs/ResponseUsage",
+    "/$defs/ResponseUsage/properties/input_tokens_details",
+    "/$defs/ResponseUsage/properties/output_tokens_details",
+];
+
+const RESPONSES_EMITTED_EVENT_STRICT_POINTERS: &[&str] = &[
+    "/$defs/ResponseCreatedEvent",
+    "/$defs/ResponseInProgressEvent",
+    "/$defs/ResponseCompletedEvent",
+    "/$defs/ResponseFailedEvent",
+    "/$defs/ResponseOutputItemAddedEvent",
+    "/$defs/ResponseOutputItemDoneEvent",
+    "/$defs/ResponseContentPartAddedEvent",
+    "/$defs/ResponseContentPartDoneEvent",
+    "/$defs/ResponseTextDeltaEvent",
+    "/$defs/ResponseTextDoneEvent",
+    "/$defs/ResponseReasoningTextDeltaEvent",
+    "/$defs/ResponseReasoningTextDoneEvent",
+    "/$defs/ResponseFunctionCallArgumentsDeltaEvent",
+    "/$defs/ResponseFunctionCallArgumentsDoneEvent",
+];
+
+fn responses_stream_event_strict_pointers() -> Vec<&'static str> {
+    let mut pointers = RESPONSES_EMITTED_EVENT_STRICT_POINTERS.to_vec();
+
+    pointers.extend_from_slice(RESPONSES_SHARED_OUTPUT_STRICT_POINTERS);
+
+    pointers
+}
+
 fn compile_strict_schema(
     components: &Value,
     root_name: &str,
@@ -50,6 +92,9 @@ pub struct OpenAIValidator {
     request: Validator,
     response: Validator,
     stream_chunk: Validator,
+    responses_request: Validator,
+    responses_response: Validator,
+    responses_stream_event: Validator,
 }
 
 impl OpenAIValidator {
@@ -66,6 +111,21 @@ impl OpenAIValidator {
             request: compile_strict_schema(components, REQUEST_ROOT, REQUEST_STRICT_POINTERS)?,
             response: compile_strict_schema(components, RESPONSE_ROOT, RESPONSE_STRICT_POINTERS)?,
             stream_chunk: compile_strict_schema(components, STREAM_ROOT, STREAM_STRICT_POINTERS)?,
+            responses_request: compile_strict_schema(
+                components,
+                RESPONSES_REQUEST_ROOT,
+                RESPONSES_REQUEST_STRICT_POINTERS,
+            )?,
+            responses_response: compile_strict_schema(
+                components,
+                RESPONSES_RESPONSE_ROOT,
+                RESPONSES_SHARED_OUTPUT_STRICT_POINTERS,
+            )?,
+            responses_stream_event: compile_strict_schema(
+                components,
+                RESPONSES_STREAM_EVENT_ROOT,
+                &responses_stream_event_strict_pointers(),
+            )?,
         })
     }
 
@@ -105,6 +165,42 @@ impl OpenAIValidator {
             Ok(())
         } else {
             Err(OpenAIValidatorError::StreamChunkDoesNotConform { violations })
+        }
+    }
+
+    pub fn validate_responses_request(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
+        let violations = schema_violations(&self.responses_request, instance);
+
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(OpenAIValidatorError::ResponsesRequestDoesNotConform { violations })
+        }
+    }
+
+    pub fn validate_responses_response(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        let violations = schema_violations(&self.responses_response, instance);
+
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(OpenAIValidatorError::ResponsesResponseDoesNotConform { violations })
+        }
+    }
+
+    pub fn validate_responses_stream_event(
+        &self,
+        instance: &Value,
+    ) -> Result<(), OpenAIValidatorError> {
+        let violations = schema_violations(&self.responses_stream_event, instance);
+
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations })
         }
     }
 }
@@ -300,5 +396,163 @@ mod tests {
             .unwrap();
 
         assert!(error.to_string().contains("Broken"));
+    }
+
+    fn official_responses_request() -> Value {
+        json!({ "model": "test", "input": "Say hello" })
+    }
+
+    fn official_responses_response() -> Value {
+        json!({
+            "id": "resp_test",
+            "object": "response",
+            "created_at": 0,
+            "error": null,
+            "incomplete_details": null,
+            "instructions": null,
+            "model": "test",
+            "tools": [],
+            "output": [{
+                "id": "msg_0",
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{
+                    "type": "output_text",
+                    "text": "hello",
+                    "annotations": [],
+                    "logprobs": []
+                }]
+            }],
+            "parallel_tool_calls": true,
+            "metadata": {},
+            "tool_choice": "auto",
+            "temperature": 1,
+            "top_p": 1,
+            "usage": {
+                "input_tokens": 1,
+                "input_tokens_details": { "cached_tokens": 0 },
+                "output_tokens": 1,
+                "output_tokens_details": { "reasoning_tokens": 0 },
+                "total_tokens": 2
+            }
+        })
+    }
+
+    fn official_responses_stream_event() -> Value {
+        json!({
+            "type": "response.output_text.delta",
+            "item_id": "msg_0",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "hello",
+            "sequence_number": 1,
+            "logprobs": []
+        })
+    }
+
+    #[test]
+    fn accepts_an_official_responses_request() {
+        validator()
+            .validate_responses_request(&official_responses_request())
+            .unwrap();
+    }
+
+    #[test]
+    fn accepts_an_official_responses_response() {
+        validator()
+            .validate_responses_response(&official_responses_response())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_responses_response_with_an_extra_top_level_key() {
+        let mut response = official_responses_response();
+        response["paddler_extension"] = json!("nope");
+
+        let error = validator()
+            .validate_responses_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("responses response does not conform")
+        );
+    }
+
+    #[test]
+    fn rejects_responses_response_with_an_extra_output_text_field() {
+        let mut response = official_responses_response();
+        response["output"][0]["content"][0]["reasoning_content"] = json!("nope");
+
+        let error = validator()
+            .validate_responses_response(&response)
+            .err()
+            .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("responses response does not conform")
+        );
+    }
+
+    #[test]
+    fn accepts_an_official_responses_stream_event() {
+        validator()
+            .validate_responses_stream_event(&official_responses_stream_event())
+            .unwrap();
+    }
+
+    #[test]
+    fn rejects_responses_stream_event_with_an_extra_key() {
+        let mut event = official_responses_stream_event();
+        event["paddler_extension"] = json!("nope");
+
+        let error = validator()
+            .validate_responses_stream_event(&event)
+            .err()
+            .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("responses stream event does not conform")
+        );
+    }
+
+    #[test]
+    fn fails_when_create_response_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components.as_object_mut().unwrap().remove("CreateResponse");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(error.to_string().contains("CreateResponse"));
+    }
+
+    #[test]
+    fn fails_when_responses_response_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components.as_object_mut().unwrap().remove("Response");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(error.to_string().contains("Response"));
+    }
+
+    #[test]
+    fn fails_when_response_stream_event_schema_is_absent() {
+        let mut components = parse_components(OPENAPI_YAML).unwrap();
+        components
+            .as_object_mut()
+            .unwrap()
+            .remove("ResponseStreamEvent");
+
+        let error = OpenAIValidator::from_components(&components).err().unwrap();
+
+        assert!(error.to_string().contains("ResponseStreamEvent"));
     }
 }

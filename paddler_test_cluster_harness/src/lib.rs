@@ -27,4 +27,6 @@ mod buffered_requests_status;
 mod inference_http_client;
 mod ndjson_lines_from_response;
 mod openai_chat_completions_client;
+mod openai_config_from_base_url;
+mod openai_responses_client;
 mod wait_until_healthy;

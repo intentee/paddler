@@ -54,6 +54,7 @@ web_admin_panel = [
 ]
 
 [dev-dependencies]
+paddler_openai_response_format_validator = { workspace = true }
 tempfile = { workspace = true }
 tokio-test = { workspace = true }
 

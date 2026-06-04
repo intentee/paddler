@@ -21,6 +21,21 @@ fn rewrite_ref(reference: &Value) -> Value {
     }
 }
 
+fn unique_strings(values: &[Value]) -> Vec<Value> {
+    let mut seen = BTreeSet::new();
+    let mut unique = Vec::new();
+
+    for value in values {
+        let key = value.to_string();
+
+        if seen.insert(key) {
+            unique.push(value.clone());
+        }
+    }
+
+    unique
+}
+
 fn transform_object(object: &Map<String, Value>) -> Value {
     let mut transformed = Map::new();
     let mut nullable = false;
@@ -28,6 +43,21 @@ fn transform_object(object: &Map<String, Value>) -> Value {
     for (key, value) in object {
         match key.as_str() {
             "nullable" => nullable = matches!(value, Value::Bool(true)),
+            // Draft 2019-09 recursion keywords the OpenAI document still carries; Draft 2020-12
+            // replaced them with `$dynamicAnchor`/`$dynamicRef`. Drop them so the assembled schema
+            // passes 2020-12 meta-validation. The schemas that use them (recursive filters) are not
+            // part of any Paddler-emitted payload, so removing the recursion is inconsequential.
+            "$recursiveAnchor" | "$recursiveRef" => {}
+            // OpenAPI 3.0 expressed exclusive bounds as booleans; Draft 2020-12 expects the bound to
+            // be the number itself. A boolean form is meaningless under 2020-12, so drop it.
+            "exclusiveMinimum" | "exclusiveMaximum" if value.is_boolean() => {}
+            "required" => {
+                if let Value::Array(entries) = value {
+                    transformed.insert(key.clone(), Value::Array(unique_strings(entries)));
+                } else {
+                    transformed.insert(key.clone(), transform_node(value));
+                }
+            }
             "$ref" => {
                 transformed.insert("$ref".to_owned(), rewrite_ref(value));
             }
@@ -185,6 +215,51 @@ mod tests {
         let transformed = transform_node(&json!({ "type": "string", "nullable": false }));
 
         assert_eq!(transformed, json!({ "type": "string" }));
+    }
+
+    #[test]
+    fn drops_draft_2019_recursive_keywords() {
+        let transformed = transform_node(&json!({
+            "$recursiveAnchor": true,
+            "$recursiveRef": "#",
+            "type": "object"
+        }));
+
+        assert_eq!(transformed, json!({ "type": "object" }));
+    }
+
+    #[test]
+    fn drops_boolean_exclusive_bounds() {
+        let transformed = transform_node(&json!({
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true
+        }));
+
+        assert_eq!(transformed, json!({ "type": "number", "minimum": 0 }));
+    }
+
+    #[test]
+    fn keeps_numeric_exclusive_bounds() {
+        let transformed = transform_node(&json!({ "type": "number", "exclusiveMinimum": 0 }));
+
+        assert_eq!(
+            transformed,
+            json!({ "type": "number", "exclusiveMinimum": 0 })
+        );
+    }
+
+    #[test]
+    fn deduplicates_required_entries() {
+        let transformed = transform_node(&json!({
+            "type": "object",
+            "required": ["id", "name", "id"]
+        }));
+
+        assert_eq!(
+            transformed,
+            json!({ "type": "object", "required": ["id", "name"] })
+        );
     }
 
     #[test]

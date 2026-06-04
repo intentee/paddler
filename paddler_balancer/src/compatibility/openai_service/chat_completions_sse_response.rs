@@ -1,12 +1,14 @@
+use std::convert::Infallible;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::http::header;
-use bytes::Bytes;
-use futures::stream::StreamExt;
+use actix_web_lab::sse;
+use futures::stream::StreamExt as _;
+use futures::stream::once;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::streamable_result::StreamableResult;
 use tokio_util::sync::CancellationToken;
 
@@ -18,9 +20,8 @@ use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
-use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 
-pub fn http_stream_from_agent<TParams, TTransformsOutgoingMessage>(
+pub fn chat_completions_sse_response<TParams, TTransformsOutgoingMessage>(
     buffered_request_manager: Arc<BufferedRequestManager>,
     inference_service_configuration: InferenceServiceConfiguration,
     params: TParams,
@@ -33,7 +34,7 @@ where
     <<AgentController as HandlesAgentStreamingResponse<TParams>>::SenderCollection as ManagesSenders>::Value: Debug + Into<OutgoingResponse> + StreamableResult,
     TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage<Output = TransformResult> + Send + Sync + 'static,
 {
-    let stream = unbounded_stream_from_agent(
+    let event_stream = unbounded_stream_from_agent(
         buffered_request_manager,
         inference_service_configuration,
         params,
@@ -42,20 +43,22 @@ where
     )
     .filter_map(|transform_result| async move {
         match transform_result {
-            TransformResult::Chunk(chunk) => {
-                Some(Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))))
-            }
-            TransformResult::Error(error) => {
-                Some(Ok::<_, Error>(Bytes::from(format!("{error}\n"))))
+            TransformResult::Chunk(chunk) | TransformResult::Error(chunk) => {
+                Some(Ok::<sse::Event, Infallible>(sse::Event::Data(
+                    sse::Data::new(chunk),
+                )))
             }
             TransformResult::Discard => None,
         }
-    });
+    })
+    .chain(once(async {
+        Ok::<sse::Event, Infallible>(sse::Event::Data(sse::Data::new("[DONE]")))
+    }));
 
     HttpResponse::Ok()
-        .insert_header(header::ContentType::json())
+        .content_type("text/event-stream")
         .insert_header((header::CACHE_CONTROL, "no-cache"))
-        .streaming(stream)
+        .body(sse::Sse::from_stream(event_stream))
 }
 
 #[cfg(test)]
@@ -65,31 +68,14 @@ mod tests {
     use std::time::Duration;
 
     use actix_web::body;
-    use anyhow::Result;
-    use async_trait::async_trait;
     use tokio_util::sync::CancellationToken;
 
-    use super::http_stream_from_agent;
+    use super::chat_completions_sse_response;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
-    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-    use paddler_messaging::inference_client::message::Message as OutgoingMessage;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-
-    #[derive(Clone)]
-    struct ErrorTransformer;
-
-    #[async_trait]
-    impl TransformsOutgoingMessage for ErrorTransformer {
-        type Output = TransformResult;
-
-        async fn transform(&self, _message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-            Ok(vec![TransformResult::Error("boom".to_owned())])
-        }
-    }
 
     fn empty_pool_manager() -> Arc<BufferedRequestManager> {
         Arc::new(BufferedRequestManager::new(
@@ -116,11 +102,11 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn forwards_transformed_chunk_to_streaming_body() {
+    async fn frames_each_chunk_as_an_sse_data_event_and_terminates_with_done() {
         let shutdown = CancellationToken::new();
         shutdown.cancel();
 
-        let response = http_stream_from_agent(
+        let response = chat_completions_sse_response(
             empty_pool_manager(),
             inference_service_configuration(),
             raw_prompt_params(),
@@ -128,38 +114,25 @@ mod tests {
             shutdown,
         );
 
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "text/event-stream"
+        );
+
         let body_bytes = body::to_bytes(response.into_body()).await.unwrap();
         let body_text = String::from_utf8(body_bytes.to_vec()).unwrap();
 
+        assert!(
+            body_text.contains("data: "),
+            "each chunk must be framed as an SSE data event: {body_text}"
+        );
         assert!(
             body_text.contains("balancer is shutting down"),
-            "chunk arm must serialize the shutdown error envelope into the streaming body: {body_text}"
+            "the shutdown chunk must be framed into the SSE body: {body_text}"
         );
         assert!(
-            body_text.ends_with('\n'),
-            "chunk arm must append a trailing newline: {body_text:?}"
-        );
-    }
-
-    #[actix_web::test]
-    async fn forwards_transformed_error_to_streaming_body() {
-        let shutdown = CancellationToken::new();
-        shutdown.cancel();
-
-        let response = http_stream_from_agent(
-            empty_pool_manager(),
-            inference_service_configuration(),
-            raw_prompt_params(),
-            ErrorTransformer,
-            shutdown,
-        );
-
-        let body_bytes = body::to_bytes(response.into_body()).await.unwrap();
-        let body_text = String::from_utf8(body_bytes.to_vec()).unwrap();
-
-        assert_eq!(
-            body_text, "boom\n",
-            "error arm must forward the transformer error string with a trailing newline"
+            body_text.ends_with("data: [DONE]\n\n"),
+            "the stream must terminate with the OpenAI [DONE] sentinel: {body_text:?}"
         );
     }
 }

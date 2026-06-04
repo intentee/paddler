@@ -14,7 +14,6 @@ use crate::agent_controller::AgentController;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
-use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -28,7 +27,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     params: TParams,
     transformer: TTransformsOutgoingMessage,
     shutdown: CancellationToken,
-) -> impl Stream<Item = TransformResult>
+) -> impl Stream<Item = TTransformsOutgoingMessage::Output>
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
     AgentController: HandlesAgentStreamingResponse<TParams>,
@@ -37,7 +36,7 @@ where
 {
     let request_id: String = nanoid!();
     let connection_close = CancellationToken::new();
-    let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<TransformResult>();
+    let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
     rt::spawn({
         let connection_close = connection_close.clone();
@@ -71,6 +70,7 @@ mod tests {
     use super::*;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     fn inference_service_configuration() -> InferenceServiceConfiguration {

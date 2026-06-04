@@ -17,6 +17,8 @@ impl IdentityTransformer {
 
 #[async_trait]
 impl TransformsOutgoingMessage for IdentityTransformer {
+    type Output = TransformResult;
+
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
         let serialized = serde_json::to_string(&message)?;
 

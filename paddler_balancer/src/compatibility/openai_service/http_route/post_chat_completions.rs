@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 
 use actix_web::Error;
 use actix_web::HttpResponse;
@@ -19,13 +18,9 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
-use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::TokenUsage;
-use llama_cpp_bindings_types::ToolCallArguments;
-use paddler_messaging::oversized_image_details::OversizedImageDetails;
-use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
@@ -37,22 +32,14 @@ use tokio_stream::StreamExt as _;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::compatibility::openai_service::app_data::AppData;
-use crate::http_stream_from_agent::http_stream_from_agent;
+use crate::compatibility::openai_service::arguments_to_tool_call_string::arguments_to_tool_call_string;
+use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
+use crate::compatibility::openai_service::openai_error::OpenAIError;
+use crate::compatibility::openai_service::timestamp_from::timestamp_from;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
-}
-
-fn openai_error_json(error_type: &str, message: &str) -> serde_json::Value {
-    json!({
-        "error": {
-            "message": message,
-            "type": error_type,
-            "param": null,
-            "code": null
-        }
-    })
 }
 
 fn openai_usage_json(usage: &TokenUsage) -> serde_json::Value {
@@ -70,104 +57,24 @@ fn openai_usage_json(usage: &TokenUsage) -> serde_json::Value {
     })
 }
 
-fn timestamp_from(now: SystemTime) -> Result<u64> {
-    Ok(now
-        .duration_since(UNIX_EPOCH)
-        .context("system time is before the Unix epoch")?
-        .as_secs())
-}
-
-fn validation_failure_message(errors: &[String]) -> String {
-    errors
-        .first()
-        .cloned()
-        .unwrap_or_else(|| "tool call failed validation".to_owned())
-}
-
-fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
-    format!(
-        "model produced output the parser did not recognise as any registered tool-call format; \
-         FFI error: {}; raw text: {}",
-        raw.ffi_error_message, raw.text,
-    )
-}
-
-fn image_exceeds_batch_size_message(details: &OversizedImageDetails) -> String {
-    format!(
-        "image required {} tokens but agent n_batch is {}; rerun with a larger n_batch",
-        details.image_tokens, details.n_batch,
-    )
-}
-
-fn arguments_to_openai_string(arguments: &ToolCallArguments) -> Result<String> {
-    match arguments {
-        ToolCallArguments::ValidJson(value) => {
-            serde_json::to_string(value).context("serializing tool-call arguments to OpenAI string")
-        }
-        ToolCallArguments::InvalidJson(raw) => Ok(raw.clone()),
-    }
-}
-
-fn server_error_chunk(description: &str) -> TransformResult {
-    TransformResult::Error(openai_error_json("server_error", description).to_string())
-}
-
-fn timeout_response_chunk() -> TransformResult {
-    TransformResult::Error(openai_error_json("timeout", "request timed out").to_string())
-}
-
-fn rate_limit_response_chunk() -> TransformResult {
-    TransformResult::Error(
-        openai_error_json("rate_limit_error", "too many buffered requests").to_string(),
-    )
-}
-
-fn unexpected_embedding_response_chunk() -> TransformResult {
-    TransformResult::Error(
-        openai_error_json(
-            "invalid_request_error",
-            "unexpected embedding response in chat completions",
-        )
-        .to_string(),
-    )
-}
-
-fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
-    match token {
-        GeneratedTokenResult::ChatTemplateError(description)
-        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
-        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
-        | GeneratedTokenResult::GrammarInitializationFailed(description)
-        | GeneratedTokenResult::GrammarSyntaxError(description)
-        | GeneratedTokenResult::ImageDecodingFailed(description)
-        | GeneratedTokenResult::MultimodalNotSupported(description)
-        | GeneratedTokenResult::SamplerError(description)
-        | GeneratedTokenResult::ToolCallParseFailed(description)
-        | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(description),
-        _ => None,
-    }
-}
-
 fn try_universal_error_chunk(message: &OutgoingMessage) -> Option<TransformResult> {
-    match message {
-        OutgoingMessage::Error(ErrorEnvelope {
-            error: paddler_messaging::jsonrpc::error::Error { description, .. },
-            ..
-        }) => Some(server_error_chunk(description)),
-        OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
-            OutgoingResponse::GeneratedToken(GeneratedTokenResult::ImageExceedsBatchSize(
-                details,
-            )) => Some(server_error_chunk(&image_exceeds_batch_size_message(
-                details,
-            ))),
-            OutgoingResponse::GeneratedToken(token) => {
-                description_from_error_token(token).map(server_error_chunk)
+    if let OutgoingMessage::Response(ResponseEnvelope {
+        response: OutgoingResponse::Embedding(_),
+        ..
+    }) = message
+    {
+        return Some(TransformResult::Error(
+            OpenAIError {
+                error_type: "invalid_request_error",
+                message: "unexpected embedding response in chat completions".to_owned(),
             }
-            OutgoingResponse::Timeout => Some(timeout_response_chunk()),
-            OutgoingResponse::TooManyBufferedRequests => Some(rate_limit_response_chunk()),
-            OutgoingResponse::Embedding(_) => Some(unexpected_embedding_response_chunk()),
-        },
+            .to_envelope()
+            .to_string(),
+        ));
     }
+
+    OpenAIError::classify(message)
+        .map(|error| TransformResult::Error(error.to_envelope().to_string()))
 }
 
 #[derive(Deserialize)]
@@ -250,7 +157,7 @@ impl OpenAIStreamingResponseTransformer {
             .iter()
             .enumerate()
             .map(|(index, call)| {
-                arguments_to_openai_string(&call.arguments).map(|arguments| {
+                arguments_to_tool_call_string(&call.arguments).map(|arguments| {
                     json!({
                         "index": index,
                         "id": call.id,
@@ -362,6 +269,8 @@ impl OpenAIStreamingResponseTransformer {
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
+    type Output = TransformResult;
+
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
         if let Some(error_chunk) = try_universal_error_chunk(&message) {
             return Ok(vec![error_chunk]);
@@ -391,24 +300,6 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
                 ..
             }) => self.handle_tool_call_parsed(&request_id, &parsed_calls),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallValidationFailed(
-                        errors,
-                    )),
-                ..
-            }) => Ok(vec![server_error_chunk(&validation_failure_message(
-                &errors,
-            ))]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::UnrecognizedToolCallFormat(
-                        raw,
-                    )),
-                ..
-            }) => Ok(vec![server_error_chunk(
-                &unrecognized_tool_call_format_message(&raw),
-            )]),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
@@ -453,7 +344,7 @@ impl OpenAINonStreamingResponseTransformer {
             .tool_calls
             .iter()
             .map(|call| {
-                arguments_to_openai_string(&call.arguments).map(|arguments| {
+                arguments_to_tool_call_string(&call.arguments).map(|arguments| {
                     json!({
                         "id": call.id,
                         "type": "function",
@@ -509,6 +400,8 @@ impl OpenAINonStreamingResponseTransformer {
 
 #[async_trait]
 impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
+    type Output = TransformResult;
+
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
         if let Some(error_chunk) = try_universal_error_chunk(&message) {
             return Ok(vec![error_chunk]);
@@ -543,24 +436,6 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                 Ok(vec![])
             }
             OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallValidationFailed(
-                        errors,
-                    )),
-                ..
-            }) => Ok(vec![server_error_chunk(&validation_failure_message(
-                &errors,
-            ))]),
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::UnrecognizedToolCallFormat(
-                        raw,
-                    )),
-                ..
-            }) => Ok(vec![server_error_chunk(
-                &unrecognized_tool_call_format_message(&raw),
-            )]),
-            OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
                 ..
@@ -591,7 +466,14 @@ async fn respond(
         Err(err) => {
             return Ok(HttpResponse::BadRequest()
                 .content_type("application/json")
-                .body(openai_error_json("invalid_request_error", &err.to_string()).to_string()));
+                .body(
+                    OpenAIError {
+                        error_type: "invalid_request_error",
+                        message: err.to_string(),
+                    }
+                    .to_envelope()
+                    .to_string(),
+                ));
         }
     };
 
@@ -621,7 +503,7 @@ async fn respond(
             .as_ref()
             .is_some_and(|options| options.include_usage);
 
-        Ok(http_stream_from_agent(
+        Ok(chat_completions_sse_response(
             app_data.buffered_request_manager.clone(),
             app_data.inference_service_configuration.clone(),
             paddler_params,
@@ -667,7 +549,14 @@ async fn respond(
             || {
                 HttpResponse::InternalServerError()
                     .content_type("application/json")
-                    .body(openai_error_json("server_error", "no completion produced").to_string())
+                    .body(
+                        OpenAIError {
+                            error_type: "server_error",
+                            message: "no completion produced".to_owned(),
+                        }
+                        .to_envelope()
+                        .to_string(),
+                    )
             },
             |json_body| {
                 HttpResponse::Ok()
@@ -685,8 +574,6 @@ mod tests {
     use std::net::SocketAddr;
     use std::sync::Arc;
     use std::time::Duration;
-    use std::time::SystemTime;
-    use std::time::UNIX_EPOCH;
 
     use actix_web::App;
     use actix_web::http::StatusCode;
@@ -761,22 +648,6 @@ mod tests {
             model: "test-model".to_owned(),
             state: Arc::new(Mutex::new(OpenAINonStreamingState::default())),
         }
-    }
-
-    #[test]
-    fn timestamp_from_now_returns_seconds_since_epoch() {
-        let timestamp = super::timestamp_from(SystemTime::now()).unwrap();
-
-        assert!(timestamp > 0);
-    }
-
-    #[test]
-    fn timestamp_from_before_unix_epoch_returns_error() {
-        let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
-
-        let result = super::timestamp_from(before_epoch);
-
-        assert!(result.is_err());
     }
 
     fn assert_chunk_contains(result: &TransformResult, expected: &str) -> Result<()> {
@@ -1546,33 +1417,6 @@ mod tests {
         assert_eq!(conversation_message.role, "user");
         assert_eq!(conversation_message.content.text_content(), "OCR this");
         assert_eq!(conversation_message.content.image_urls().len(), 1);
-    }
-
-    #[test]
-    fn openai_error_json_has_correct_structure() {
-        let error = super::openai_error_json("server_error", "something went wrong");
-
-        assert_eq!(error["error"]["type"], "server_error");
-        assert_eq!(error["error"]["message"], "something went wrong");
-        assert!(error["error"]["param"].is_null());
-        assert!(error["error"]["code"].is_null());
-    }
-
-    #[test]
-    fn validation_failure_message_returns_first_error() {
-        let message = super::validation_failure_message(&[
-            "first issue".to_owned(),
-            "second issue".to_owned(),
-        ]);
-
-        assert_eq!(message, "first issue");
-    }
-
-    #[test]
-    fn validation_failure_message_falls_back_when_no_errors() {
-        let message = super::validation_failure_message(&[]);
-
-        assert!(message.contains("validation"));
     }
 
     fn invalid_json_call() -> ParsedToolCall {

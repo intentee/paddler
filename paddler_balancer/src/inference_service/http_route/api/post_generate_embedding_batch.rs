@@ -38,6 +38,8 @@ struct EmbeddingChunkBodyTransformer;
 
 #[async_trait]
 impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
+    type Output = TransformResult;
+
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
         if let OutgoingMessage::Response(ResponseEnvelope {
             response: OutgoingResponse::Embedding(EmbeddingResult::Done),

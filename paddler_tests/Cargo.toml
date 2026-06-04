@@ -43,7 +43,7 @@ trzcina = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
-paddler_openai_validator = { workspace = true }
+paddler_openai_response_format_validator = { workspace = true }
 serial_test = { workspace = true }
 
 [lints]

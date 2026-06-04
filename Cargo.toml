@@ -10,7 +10,7 @@ members = [
     "paddler_download_manager",
     "paddler_gui",
     "paddler_messaging",
-    "paddler_openai_validator",
+    "paddler_openai_response_format_validator",
     "paddler_state_conversion",
     "paddler_test_cluster_harness",
     "paddler_tests",
@@ -35,6 +35,7 @@ actix-web-lab = "0.26"
 actix-ws = "0.3"
 anyhow = { version = "1", features = ["backtrace"] }
 askama = "0.14"
+async-openai = { version = "=0.40.3", features = ["byot", "chat-completion", "responses"] }
 async-stream = "0.3"
 async-trait = "0.1"
 bytes = "1.11"
@@ -98,7 +99,7 @@ paddler_cli = { version = "4.0.0", path = "paddler_cli" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
 paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
-paddler_openai_validator = { version = "4.0.0", path = "paddler_openai_validator" }
+paddler_openai_response_format_validator = { version = "4.0.0", path = "paddler_openai_response_format_validator" }
 paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
 paddler_test_cluster_harness = { version = "4.0.0", path = "paddler_test_cluster_harness" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }

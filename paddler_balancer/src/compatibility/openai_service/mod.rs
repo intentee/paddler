@@ -1,6 +1,12 @@
 pub mod app_data;
+pub mod arguments_to_tool_call_string;
+pub mod chat_completions_sse_response;
 pub mod configuration;
 pub mod http_route;
+pub mod openai_error;
+pub mod responses_stream_event;
+pub mod sse_response_from_agent;
+pub mod timestamp_from;
 
 use std::sync::Arc;
 
@@ -55,6 +61,7 @@ impl Service for OpenAIService {
                 .app_data(app_data.clone())
                 .configure(common_http_route::get_health::register)
                 .configure(http_route::post_chat_completions::register)
+                .configure(http_route::post_responses::register)
         })
         .shutdown_signal(async move {
             shutdown.cancelled().await;

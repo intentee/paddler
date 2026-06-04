@@ -28,6 +28,7 @@ use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::inference_http_client::InferenceHttpClient;
 use crate::inference_message_stream::InferenceMessageStream;
 use crate::openai_chat_completions_client::OpenAIChatCompletionsClient;
+use crate::openai_responses_client::OpenAIResponsesClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
 use crate::wait_until_healthy::wait_until_healthy;
@@ -42,6 +43,7 @@ pub struct Cluster {
     agent_spawner: Box<dyn AgentSpawner>,
     inference_client: InferenceHttpClient,
     openai_client: OpenAIChatCompletionsClient,
+    openai_responses_client: OpenAIResponsesClient,
 }
 
 impl Cluster {
@@ -73,9 +75,9 @@ impl Cluster {
         let buffered_requests_watcher =
             BufferedRequestsStreamWatcher::connect(&paddler_client.management()).await?;
 
-        let http_client = Client::new();
-        let inference_client = InferenceHttpClient::new(http_client.clone(), inference_base_url);
-        let openai_client = OpenAIChatCompletionsClient::new(http_client, &openai_base_url)?;
+        let inference_client = InferenceHttpClient::new(Client::new(), inference_base_url);
+        let openai_client = OpenAIChatCompletionsClient::new(&openai_base_url)?;
+        let openai_responses_client = OpenAIResponsesClient::new(&openai_base_url)?;
 
         Ok(Self {
             agent_ids: Vec::new(),
@@ -87,6 +89,7 @@ impl Cluster {
             agent_spawner,
             inference_client,
             openai_client,
+            openai_responses_client,
         })
     }
 
@@ -201,6 +204,26 @@ impl Cluster {
         let body = body.clone();
 
         async move { openai_client.post_non_streaming(&body).await }
+    }
+
+    pub fn openai_responses_streaming(
+        &self,
+        body: &Value,
+    ) -> impl Future<Output = Result<Vec<Value>>> + Send + use<> {
+        let openai_responses_client = self.openai_responses_client.clone();
+        let body = body.clone();
+
+        async move { openai_responses_client.post_streaming(&body).await }
+    }
+
+    pub fn openai_responses_non_streaming(
+        &self,
+        body: &Value,
+    ) -> impl Future<Output = Result<Value>> + Send + use<> {
+        let openai_responses_client = self.openai_responses_client.clone();
+        let body = body.clone();
+
+        async move { openai_responses_client.post_non_streaming(&body).await }
     }
 
     pub async fn wait_for_agent_count(
