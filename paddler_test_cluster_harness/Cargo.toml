@@ -1,0 +1,30 @@
+[package]
+name = "paddler_test_cluster_harness"
+authors.workspace = true
+description = "Shared balancer-API-facing test harness for Paddler integration tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+futures-util = { workspace = true }
+paddler_client = { workspace = true }
+paddler_messaging = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+http = { workspace = true }
+
+[lints]
+workspace = true

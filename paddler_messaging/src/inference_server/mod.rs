@@ -1,5 +1,2 @@
-mod message;
-mod request;
-
-pub use self::message::Message;
-pub use self::request::Request;
+pub mod message;
+pub mod request;

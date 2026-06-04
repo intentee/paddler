@@ -3,7 +3,7 @@ use async_trait::async_trait;
 
 use crate::manages_senders::ManagesSenders;
 use crate::manages_senders_controller::ManagesSendersController;
-use paddler_messaging::management_socket::agent::Request as AgentJsonRpcRequest;
+use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 
 #[async_trait]
 pub trait HandlesAgentStreamingResponse<TParams>

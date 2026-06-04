@@ -2,9 +2,9 @@ use std::net::SocketAddr;
 
 use anyhow::Result;
 
-use paddler_cluster_harness::agent_config::AgentConfig;
-use paddler_cluster_harness::agent_spawner::AgentSpawner;
-use paddler_cluster_harness::managed_process::ManagedProcess;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::agent_spawner::AgentSpawner;
+use paddler_test_cluster_harness::managed_process::ManagedProcess;
 
 use crate::spawn_agent_subprocess::spawn_agent_subprocess;
 use crate::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;

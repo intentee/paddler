@@ -3,7 +3,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_tests::agent_config::AgentConfig;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

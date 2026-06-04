@@ -3,10 +3,10 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use tokio_util::sync::CancellationToken;
 
-use crate::agent_config::AgentConfig;
-use crate::agent_spawner::AgentSpawner;
 use crate::in_process_agent::InProcessAgent;
-use crate::managed_process::ManagedProcess;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::agent_spawner::AgentSpawner;
+use paddler_test_cluster_harness::managed_process::ManagedProcess;
 
 pub struct InProcessAgentSpawner {
     management_address: String,

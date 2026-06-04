@@ -8,7 +8,7 @@ use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
-use super::value_parser::parse_socket_addr;
+use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
 pub struct Agent {

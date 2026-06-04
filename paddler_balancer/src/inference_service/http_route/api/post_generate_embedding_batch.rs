@@ -14,11 +14,11 @@ use bytes::Bytes;
 use futures::stream::StreamExt;
 use nanoid::nanoid;
 use paddler_messaging::embedding_result::EmbeddingResult;
-use paddler_messaging::inference_client::Message as OutgoingMessage;
-use paddler_messaging::inference_client::Response as OutgoingResponse;
-use paddler_messaging::jsonrpc::ResponseEnvelope;
-use paddler_messaging::request_params::ChunkEvenlyWithCapError;
-use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+use paddler_messaging::request_params::generate_embedding_batch_params::chunk_evenly_with_cap_error::ChunkEvenlyWithCapError;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -203,7 +203,7 @@ mod tests {
     use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::inference_parameters::InferenceParameters;
-    use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
+    use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
     fn agent_with_dropped_receiver(agent_id: &str) -> Arc<AgentController> {
         let (agent_message_tx, agent_message_rx) = mpsc::unbounded_channel();

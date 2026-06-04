@@ -221,8 +221,8 @@ impl ProducesSnapshot for SlotAggregatedStatus {
 mod tests {
     use std::time::Duration;
 
-    use paddler_messaging::agent_issue_params::ModelPath;
-    use paddler_messaging::agent_issue_params::SlotCannotStartParams;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
+    use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
     use tokio::time::timeout;
 
     use super::*;

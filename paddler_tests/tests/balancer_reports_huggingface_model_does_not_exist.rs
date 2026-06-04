@@ -7,8 +7,8 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

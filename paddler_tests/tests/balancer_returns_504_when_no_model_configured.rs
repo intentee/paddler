@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_messaging::inference_client::Message;
-use paddler_messaging::request_params::ContinueFromRawPromptParams;
-use paddler_tests::cluster_params::ClusterParams;
+use paddler_messaging::inference_client::message::Message;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]

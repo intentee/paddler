@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_tests::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use tokio::time::timeout;
 

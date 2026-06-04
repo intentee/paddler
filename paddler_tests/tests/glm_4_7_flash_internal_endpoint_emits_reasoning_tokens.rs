@@ -6,7 +6,7 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::agent_config::AgentConfig;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_glm_4_7_flash::start_cluster_with_glm_4_7_flash;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

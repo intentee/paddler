@@ -1,12 +1,9 @@
-mod file;
-mod memory;
+pub mod file;
+pub mod memory;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
-pub use self::file::File;
-pub use self::memory::Memory;
 
 #[async_trait]
 pub trait StateDatabase: Send + Sync {
@@ -23,6 +20,8 @@ mod tests {
     use tempfile::NamedTempFile;
     use tokio::sync::broadcast;
 
+    use super::file::File;
+    use super::memory::Memory;
     use super::*;
 
     async fn subtest_store_desired_state<TDatabase: StateDatabase>(database: &TDatabase) {

@@ -1,15 +1,15 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_openai_conformance::openai_conformance_validator::OpenAIConformanceValidator;
-use paddler_tests::agent_config::AgentConfig;
+use paddler_openai_validator::openai_validator::OpenAIValidator;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_non_streaming_conforms_to_official_schema() -> Result<()> {
-    let validator = OpenAIConformanceValidator::new()?;
+    let validator = OpenAIValidator::new()?;
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let request = json!({

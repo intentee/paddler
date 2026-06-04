@@ -3,7 +3,7 @@ use std::pin::Pin;
 use futures_util::Stream;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
-use crate::Result;
+use crate::error::Result;
 
 pub type BufferedRequestsStream =
     Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>;

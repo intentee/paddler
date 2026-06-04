@@ -7,13 +7,12 @@ members = [
     "paddler_cli",
     "paddler_cli_tests",
     "paddler_client",
-    "paddler_client_cli",
-    "paddler_cluster_harness",
     "paddler_download_manager",
     "paddler_gui",
     "paddler_messaging",
-    "paddler_openai_conformance",
+    "paddler_openai_validator",
     "paddler_state_conversion",
+    "paddler_test_cluster_harness",
     "paddler_tests",
 ]
 resolver = "2"
@@ -97,11 +96,11 @@ paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "4.0.0", path = "paddler_cache_dir" }
 paddler_cli = { version = "4.0.0", path = "paddler_cli" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
-paddler_cluster_harness = { version = "4.0.0", path = "paddler_cluster_harness" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
 paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
-paddler_openai_conformance = { version = "4.0.0", path = "paddler_openai_conformance" }
+paddler_openai_validator = { version = "4.0.0", path = "paddler_openai_validator" }
 paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
+paddler_test_cluster_harness = { version = "4.0.0", path = "paddler_test_cluster_harness" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }
 
 [profile.release]

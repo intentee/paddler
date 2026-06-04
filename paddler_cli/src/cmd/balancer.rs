@@ -20,8 +20,8 @@ use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use super::handler::Handler;
-use super::value_parser::parse_duration;
-use super::value_parser::parse_socket_addr;
+use super::value_parser::parse_duration::parse_duration;
+use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
 pub struct Balancer {
@@ -156,5 +156,30 @@ impl Handler for Balancer {
             .await
             .into_result()
             .map_err(anyhow::Error::from)
+    }
+}
+
+#[cfg(all(test, feature = "web_admin_panel"))]
+mod tests {
+    use clap::Parser as _;
+
+    use super::Balancer;
+
+    #[test]
+    fn web_admin_panel_configuration_is_built_from_the_provided_address() {
+        let balancer = Balancer::parse_from([
+            "balancer",
+            "--web-admin-panel-addr",
+            "127.0.0.1:8062",
+            "--max-buffered-requests",
+            "7",
+        ]);
+
+        let configuration = balancer
+            .get_web_admin_panel_service_configuration()
+            .unwrap();
+
+        assert_eq!(configuration.addr.port(), 8062);
+        assert_eq!(configuration.template_data.max_buffered_requests, 7);
     }
 }

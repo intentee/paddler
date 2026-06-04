@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use paddler_tests::balancer_addresses::BalancerAddresses;
+use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn picks_three_distinct_ports_per_invocation() -> Result<()> {

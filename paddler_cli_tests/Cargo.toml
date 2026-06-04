@@ -26,8 +26,8 @@ log = { workspace = true }
 nix = { workspace = true }
 paddler_cli = { workspace = true }
 paddler_client = { workspace = true }
-paddler_cluster_harness = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

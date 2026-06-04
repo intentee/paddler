@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler_messaging::inference_client::Message as OutgoingMessage;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 
 use super::transform_result::TransformResult;
 

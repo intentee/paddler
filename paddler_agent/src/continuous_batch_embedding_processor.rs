@@ -11,13 +11,13 @@ use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
-use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
-use crate::normalization::normalize_embedding;
+use crate::normalization::normalize_embedding::normalize_embedding;
 use crate::plan_embedding_batches::plan_embedding_batches;
 
 pub struct ContinuousBatchEmbeddingProcessor<'context> {

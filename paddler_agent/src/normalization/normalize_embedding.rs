@@ -4,8 +4,8 @@ use anyhow::anyhow;
 use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 
-use crate::normalization::l2;
-use crate::normalization::rms_norm;
+use crate::normalization::l2::l2;
+use crate::normalization::rms_norm::rms_norm;
 
 pub fn normalize_embedding(
     embedding: Embedding,

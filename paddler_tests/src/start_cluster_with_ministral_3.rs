@@ -3,12 +3,12 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use crate::cluster::Cluster;
-use crate::cluster_params::ClusterParams;
 use crate::ministral_3_cluster_params::Ministral3ClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::ministral_3_14b_reasoning::ministral_3_14b_reasoning;
 use crate::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
 pub async fn start_cluster_with_ministral_3(
     Ministral3ClusterParams {

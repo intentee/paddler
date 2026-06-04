@@ -1,12 +1,12 @@
-use crate::jsonrpc::Error;
-use crate::jsonrpc::ErrorEnvelope;
-use crate::jsonrpc::RequestEnvelope;
+use crate::jsonrpc::error::Error;
+use crate::jsonrpc::error_envelope::ErrorEnvelope;
+use crate::jsonrpc::request_envelope::RequestEnvelope;
 use crate::rpc_message::RpcMessage;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::Notification;
-use super::Request;
+use super::notification::Notification;
+use super::request::Request;
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

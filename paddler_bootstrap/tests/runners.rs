@@ -7,10 +7,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler_balancer::state_database::File as StateDatabaseFile;
 use paddler_balancer::state_database::StateDatabase;
+use paddler_balancer::state_database::file::File as StateDatabaseFile;
 use paddler_balancer::state_database_type::StateDatabaseType;
-use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -19,11 +18,12 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_messaging::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use tempfile::NamedTempFile;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceShutdownOptions;
 
 fn pick_free_loopback_addr() -> Result<SocketAddr> {
     let probe =

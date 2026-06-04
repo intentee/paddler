@@ -1,8 +1,8 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_cli_tests::agent_config::AgentConfig;
-use paddler_cli_tests::cluster_params::ClusterParams;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_registers_multiple_agents_over_time() -> Result<()> {

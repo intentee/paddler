@@ -17,10 +17,10 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
-use paddler_messaging::inference_client::Message as OutgoingMessage;
-use paddler_messaging::inference_client::Response as OutgoingResponse;
-use paddler_messaging::jsonrpc::ErrorEnvelope;
-use paddler_messaging::jsonrpc::ResponseEnvelope;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::TokenUsage;
 use llama_cpp_bindings_types::ToolCallArguments;
@@ -151,7 +151,7 @@ fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
 fn try_universal_error_chunk(message: &OutgoingMessage) -> Option<TransformResult> {
     match message {
         OutgoingMessage::Error(ErrorEnvelope {
-            error: paddler_messaging::jsonrpc::Error { description, .. },
+            error: paddler_messaging::jsonrpc::error::Error { description, .. },
             ..
         }) => Some(server_error_chunk(description)),
         OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
@@ -703,10 +703,10 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallArguments;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
-    use paddler_messaging::inference_client::Message as OutgoingMessage;
-    use paddler_messaging::inference_client::Response as OutgoingResponse;
-    use paddler_messaging::jsonrpc::ErrorEnvelope;
-    use paddler_messaging::jsonrpc::ResponseEnvelope;
+    use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+    use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 
     use super::AppData;
     use super::OpenAINonStreamingResponseTransformer;
@@ -730,7 +730,7 @@ mod tests {
     fn make_error_message(code: i32, description: &str) -> OutgoingMessage {
         OutgoingMessage::Error(ErrorEnvelope {
             request_id: "test-request".to_owned(),
-            error: paddler_messaging::jsonrpc::Error {
+            error: paddler_messaging::jsonrpc::error::Error {
                 code,
                 description: description.to_owned(),
             },

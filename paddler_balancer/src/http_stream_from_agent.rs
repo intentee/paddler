@@ -6,7 +6,7 @@ use actix_web::HttpResponse;
 use actix_web::http::header;
 use bytes::Bytes;
 use futures::stream::StreamExt;
-use paddler_messaging::inference_client::Response as OutgoingResponse;
+use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::streamable_result::StreamableResult;
 use tokio_util::sync::CancellationToken;
 
@@ -18,7 +18,7 @@ use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
-use paddler_messaging::management_socket::agent::Request as AgentJsonRpcRequest;
+use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 
 pub fn http_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     buffered_request_manager: Arc<BufferedRequestManager>,
@@ -76,8 +76,8 @@ mod tests {
     use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
     use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-    use paddler_messaging::inference_client::Message as OutgoingMessage;
-    use paddler_messaging::request_params::ContinueFromRawPromptParams;
+    use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     #[derive(Clone)]
     struct ErrorTransformer;

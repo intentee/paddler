@@ -6,7 +6,7 @@ use futures_util::Stream;
 use futures_util::stream::unfold;
 use reqwest::Response;
 
-use crate::Result;
+use crate::error::Result;
 
 fn make_stream(response: Response) -> impl Stream<Item = Result<String>> + Send {
     unfold(
@@ -69,7 +69,7 @@ mod tests {
     use futures_util::StreamExt as _;
 
     use super::Sse;
-    use crate::Result;
+    use crate::error::Result;
 
     fn response_from_chunks(
         chunks: Vec<core::result::Result<&'static str, IoError>>,
@@ -139,6 +139,6 @@ mod tests {
         ])
         .await;
 
-        assert!(lines.iter().any(|line| line.is_err()));
+        assert!(lines.iter().any(Result::is_err));
     }
 }

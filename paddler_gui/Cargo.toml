@@ -23,6 +23,7 @@ parking_lot = { workspace = true }
 statum = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 
 [dev-dependencies]
 dashmap = { workspace = true }

@@ -9,7 +9,7 @@ use reqwest::Response;
 use serde::de::DeserializeOwned;
 use serde_json::from_str;
 
-use crate::Result;
+use crate::error::Result;
 
 fn make_stream<TItem: DeserializeOwned + Send + 'static>(
     response: Response,
@@ -88,7 +88,7 @@ mod tests {
     use serde_json::json;
 
     use super::Ndjson;
-    use crate::Result;
+    use crate::error::Result;
 
     fn response_from_chunks(
         chunks: Vec<core::result::Result<&'static str, IoError>>,
@@ -166,6 +166,6 @@ mod tests {
         ])
         .await;
 
-        assert!(items.iter().any(|item| item.is_err()));
+        assert!(items.iter().any(Result::is_err));
     }
 }

@@ -8,10 +8,10 @@ use paddler_messaging::conversation_message_content_part::ConversationMessageCon
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
-use paddler_tests::token_result_with_producer::TokenResultWithProducer;
 
 fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
     ConversationHistory::new(vec![

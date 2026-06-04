@@ -29,10 +29,4 @@ pub enum Error {
     Other(String),
 }
 
-impl From<anyhow::Error> for Error {
-    fn from(err: anyhow::Error) -> Self {
-        Self::Other(err.to_string())
-    }
-}
-
 pub type Result<TValue> = std::result::Result<TValue, Error>;

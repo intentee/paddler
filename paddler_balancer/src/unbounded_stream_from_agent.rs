@@ -4,7 +4,7 @@ use std::sync::Arc;
 use actix_web::rt;
 use futures_util::Stream;
 use nanoid::nanoid;
-use paddler_messaging::inference_client::Response as OutgoingResponse;
+use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::streamable_result::StreamableResult;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -20,7 +20,7 @@ use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
 use crate::request_from_agent::request_from_agent;
-use paddler_messaging::management_socket::agent::Request as AgentJsonRpcRequest;
+use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 
 pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     buffered_request_manager: Arc<BufferedRequestManager>,
@@ -71,7 +71,7 @@ mod tests {
     use super::*;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
-    use paddler_messaging::request_params::ContinueFromRawPromptParams;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     fn inference_service_configuration() -> InferenceServiceConfiguration {
         const TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);

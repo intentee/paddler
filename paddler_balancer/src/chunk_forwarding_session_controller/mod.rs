@@ -3,7 +3,7 @@ pub mod transform_result;
 pub mod transforms_outgoing_message;
 
 use async_trait::async_trait;
-use paddler_messaging::inference_client::Message as OutgoingMessage;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use tokio::sync::mpsc;
 
 use self::transform_result::TransformResult;

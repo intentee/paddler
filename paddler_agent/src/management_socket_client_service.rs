@@ -20,10 +20,10 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
 use paddler_messaging::agent_desired_state::AgentDesiredState;
-use paddler_messaging::jsonrpc::Error as JsonRpcError;
-use paddler_messaging::jsonrpc::ErrorEnvelope;
-use paddler_messaging::jsonrpc::RequestEnvelope;
-use paddler_messaging::jsonrpc::ResponseEnvelope;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
+use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
@@ -33,15 +33,15 @@ use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
-use paddler_messaging::management_socket::agent::Message as JsonRpcMessage;
-use paddler_messaging::management_socket::agent::Notification as JsonRpcNotification;
-use paddler_messaging::management_socket::agent::Request as JsonRpcRequest;
-use paddler_messaging::management_socket::agent::Response as JsonRpcResponse;
-use paddler_messaging::management_socket::agent::notification_params::VersionParams;
-use paddler_messaging::management_socket::balancer::Message as ManagementJsonRpcMessage;
-use paddler_messaging::management_socket::balancer::Notification as ManagementJsonRpcNotification;
-use paddler_messaging::management_socket::balancer::notification_params::RegisterAgentParams;
-use paddler_messaging::management_socket::balancer::notification_params::UpdateAgentStatusParams;
+use paddler_messaging::management_socket::agent::message::Message as JsonRpcMessage;
+use paddler_messaging::management_socket::agent::notification::Notification as JsonRpcNotification;
+use paddler_messaging::management_socket::agent::request::Request as JsonRpcRequest;
+use paddler_messaging::management_socket::agent::response::Response as JsonRpcResponse;
+use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
+use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
+use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
+use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
+use paddler_messaging::management_socket::balancer::notification_params::update_agent_status_params::UpdateAgentStatusParams;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
@@ -528,9 +528,9 @@ mod tests {
     use tokio_tungstenite::tungstenite::protocol::frame::coding::Data;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
 
-    use paddler_messaging::management_socket::agent::notification_params::SetStateParams;
+    use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
     use paddler_messaging::model_metadata::ModelMetadata;
-    use paddler_messaging::request_params::ContinueFromRawPromptParams;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     use super::*;
 

@@ -28,7 +28,6 @@ use paddler_balancer::state_database_type::StateDatabaseType;
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -39,6 +38,7 @@ use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceShutdownOptions;
 
 use crate::agent_running_handler;
 use crate::current_screen::CurrentScreen;

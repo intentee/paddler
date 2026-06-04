@@ -1,8 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use paddler_messaging::request_params::ContinueFromRawPromptParams;
-use paddler_tests::agent_config::AgentConfig;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

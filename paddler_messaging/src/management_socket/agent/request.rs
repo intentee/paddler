@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::request_params::ContinueFromRawPromptParams;
-use crate::request_params::GenerateEmbeddingBatchParams;
+use crate::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use crate::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use crate::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 

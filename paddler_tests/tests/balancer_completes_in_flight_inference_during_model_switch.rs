@@ -6,12 +6,12 @@ use futures_util::StreamExt as _;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::inference_client::Message as InferenceMessage;
-use paddler_messaging::inference_client::Response as InferenceResponse;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::response::Response as InferenceResponse;
 use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_messaging::request_params::ContinueFromRawPromptParams;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::collect_generated_tokens::collect_generated_tokens;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[serial_test::file_serial(model_load, path => "../target/model_load.lock")]

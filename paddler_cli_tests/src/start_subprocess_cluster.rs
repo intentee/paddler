@@ -3,10 +3,10 @@ use std::process::Stdio;
 use anyhow::Context as _;
 use anyhow::Result;
 
-use paddler_cluster_harness::balancer_addresses::BalancerAddresses;
-use paddler_cluster_harness::cluster::Cluster;
-use paddler_cluster_harness::cluster_params::ClusterParams;
-use paddler_cluster_harness::running_balancer::RunningBalancer;
+use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::running_balancer::RunningBalancer;
 
 use crate::paddler_command::paddler_command;
 use crate::subprocess_agent_spawner::SubprocessAgentSpawner;

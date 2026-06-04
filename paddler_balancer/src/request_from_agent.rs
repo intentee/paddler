@@ -4,11 +4,11 @@ use std::sync::Arc;
 use log::debug;
 use log::error;
 use log::warn;
-use paddler_messaging::inference_client::Message as OutgoingMessage;
-use paddler_messaging::inference_client::Response as OutgoingResponse;
-use paddler_messaging::jsonrpc::Error as JsonRpcError;
-use paddler_messaging::jsonrpc::ErrorEnvelope;
-use paddler_messaging::jsonrpc::ResponseEnvelope;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::streamable_result::StreamableResult;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
@@ -22,7 +22,7 @@ use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
 use crate::manages_senders_controller::ManagesSendersController;
-use paddler_messaging::management_socket::agent::Request as AgentJsonRpcRequest;
+use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 
 pub async fn request_from_agent<TControlsSession, TParams>(
     buffered_request_manager: Arc<BufferedRequestManager>,
@@ -359,9 +359,9 @@ mod tests {
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_messaging::atomic_value::AtomicValue;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
-    use paddler_messaging::management_socket::agent::Message as AgentJsonRpcMessage;
-    use paddler_messaging::management_socket::agent::Notification as AgentJsonRpcNotification;
-    use paddler_messaging::request_params::ContinueFromRawPromptParams;
+    use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
+    use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     struct AgentControllerWithIncomingChannel {
         agent_controller: Arc<AgentController>,

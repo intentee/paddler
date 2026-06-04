@@ -13,8 +13,8 @@ use tokio::time::Duration;
 use tokio::time::sleep;
 
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::HuggingFaceDownloadLock;
-use paddler_messaging::agent_issue_params::ModelPath;
+use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;

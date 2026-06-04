@@ -2,7 +2,7 @@ use actix_web::Error;
 use actix_web::Responder;
 use actix_web::post;
 use actix_web::web;
-use paddler_messaging::request_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::http_stream_from_agent::http_stream_from_agent;

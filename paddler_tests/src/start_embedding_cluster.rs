@@ -3,12 +3,12 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use crate::cluster::Cluster;
-use crate::cluster_params::ClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::qwen3_embedding_0_6b::qwen3_embedding_0_6b;
 use crate::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use crate::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
 pub async fn start_embedding_cluster(
     Qwen3EmbeddingClusterParams {

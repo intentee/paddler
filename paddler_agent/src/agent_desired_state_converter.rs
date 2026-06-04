@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::ModelPath;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_state_conversion::converts_to_applicable_state::ConvertsToApplicableState;
 
 use crate::agent_applicable_state::AgentApplicableState;
@@ -85,7 +85,7 @@ mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::agent_issue::AgentIssue;
-    use paddler_messaging::agent_issue_params::ModelPath;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::inference_parameters::InferenceParameters;
     use paddler_state_conversion::converts_to_applicable_state::ConvertsToApplicableState as _;
 

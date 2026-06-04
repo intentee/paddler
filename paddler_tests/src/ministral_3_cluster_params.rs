@@ -1,4 +1,4 @@
-use crate::agent_config::AgentConfig;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
 
 pub struct Ministral3ClusterParams {
     pub agents: Vec<AgentConfig>,

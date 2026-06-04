@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use futures_util::StreamExt;
-use paddler_messaging::inference_client::Message as InferenceMessage;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
@@ -63,5 +63,19 @@ impl Connection {
         }
 
         Ok(response_rx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use url::Url;
+
+    use super::Connection;
+
+    #[tokio::test]
+    async fn connect_fails_for_an_unreachable_server() {
+        let url = Url::parse("http://127.0.0.1:1").unwrap();
+
+        assert!(Connection::connect(url).await.is_err());
     }
 }

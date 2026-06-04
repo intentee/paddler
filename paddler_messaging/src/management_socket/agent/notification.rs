@@ -1,8 +1,8 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::notification_params::SetStateParams;
-use super::notification_params::VersionParams;
+use super::notification_params::set_state_params::SetStateParams;
+use super::notification_params::version_params::VersionParams;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

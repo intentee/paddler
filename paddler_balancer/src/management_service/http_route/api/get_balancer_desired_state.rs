@@ -44,9 +44,9 @@ mod tests {
     use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
     use crate::management_service::app_data::AppData;
     use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
-    use crate::state_database::File;
-    use crate::state_database::Memory;
     use crate::state_database::StateDatabase;
+    use crate::state_database::file::File;
+    use crate::state_database::memory::Memory;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::inference_parameters::InferenceParameters;

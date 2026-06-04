@@ -14,8 +14,8 @@ use paddler_messaging::conversation_message_content_part::ConversationMessageCon
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::agent_config::AgentConfig;
-use paddler_tests::cluster::Cluster;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_tests::start_cluster_with_smolvlm2_and_n_batch::start_cluster_with_smolvlm2_and_n_batch;
 
 fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {

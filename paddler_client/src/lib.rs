@@ -1,23 +1,18 @@
-mod agents_stream;
-mod buffered_requests_stream;
-mod client_inference;
-mod client_management;
-mod error;
+pub mod agents_stream;
+pub mod buffered_requests_stream;
+pub mod client_inference;
+pub mod client_management;
+pub mod error;
 mod format_api_url;
-mod inference_message_stream;
+pub mod inference_message_stream;
 mod inference_socket;
 mod stream;
 
 use reqwest::Client;
 use url::Url;
 
-pub use agents_stream::AgentsStream;
-pub use buffered_requests_stream::BufferedRequestsStream;
-pub use client_inference::ClientInference;
-pub use client_management::ClientManagement;
-pub use error::Error;
-pub use error::Result;
-pub use inference_message_stream::InferenceMessageStream;
+use crate::client_inference::ClientInference;
+use crate::client_management::ClientManagement;
 
 pub struct PaddlerClient {
     inference_url: Url,

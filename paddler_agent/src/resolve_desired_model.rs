@@ -46,7 +46,7 @@ mod tests {
     use crate::resolve_desired_model::resolve_desired_model;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_messaging::agent_issue::AgentIssue;
-    use paddler_messaging::agent_issue_params::ModelPath;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
     fn fresh_status() -> Arc<SlotAggregatedStatus> {

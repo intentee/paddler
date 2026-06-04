@@ -3,6 +3,6 @@ use std::pin::Pin;
 use futures_util::Stream;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
-use crate::Result;
+use crate::error::Result;
 
 pub type AgentsStream = Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>;

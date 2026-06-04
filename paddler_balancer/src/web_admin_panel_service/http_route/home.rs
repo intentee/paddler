@@ -5,7 +5,7 @@ use askama::Template;
 use esbuild_metafile::HttpPreloader;
 use esbuild_metafile::filters;
 
-use crate::response::view;
+use crate::response::view::view;
 use crate::web_admin_panel_service::app_data::AppData;
 
 pub fn register(cfg: &mut web::ServiceConfig) {

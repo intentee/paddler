@@ -26,50 +26,37 @@ mod tests {
     use url::Url;
 
     use super::url;
-    use crate::error::Result;
 
     #[test]
-    fn test_http_becomes_ws() -> Result<()> {
-        let input = Url::parse("http://localhost:8080/some/path")?;
-        let result = url(input)?;
+    fn http_becomes_ws() {
+        let result = url(Url::parse("http://localhost:8080/some/path").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "ws");
         assert_eq!(result.path(), "/api/v1/inference_socket");
         assert_eq!(result.host_str(), Some("localhost"));
         assert_eq!(result.port(), Some(8080));
-
-        Ok(())
     }
 
     #[test]
-    fn test_https_becomes_wss() -> Result<()> {
-        let input = Url::parse("https://example.com/ignored")?;
-        let result = url(input)?;
+    fn https_becomes_wss() {
+        let result = url(Url::parse("https://example.com/ignored").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "wss");
         assert_eq!(result.path(), "/api/v1/inference_socket");
-
-        Ok(())
     }
 
     #[test]
-    fn test_ws_scheme_preserved() -> Result<()> {
-        let input = Url::parse("ws://localhost:9090")?;
-        let result = url(input)?;
+    fn ws_scheme_preserved() {
+        let result = url(Url::parse("ws://localhost:9090").unwrap()).unwrap();
 
         assert_eq!(result.scheme(), "ws");
         assert_eq!(result.path(), "/api/v1/inference_socket");
-
-        Ok(())
     }
 
     #[test]
-    fn test_original_path_replaced() -> Result<()> {
-        let input = Url::parse("http://host/deeply/nested/path?query=1")?;
-        let result = url(input)?;
+    fn original_path_replaced() {
+        let result = url(Url::parse("http://host/deeply/nested/path?query=1").unwrap()).unwrap();
 
         assert_eq!(result.path(), "/api/v1/inference_socket");
-
-        Ok(())
     }
 }

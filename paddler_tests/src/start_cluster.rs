@@ -6,17 +6,17 @@ use paddler_balancer::compatibility::openai_service::configuration::Configuratio
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::state_database_type::StateDatabaseType;
-use paddler_bootstrap::ServiceShutdownOptions;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceShutdownOptions;
 
-use crate::balancer_addresses::BalancerAddresses;
-use crate::cluster::Cluster;
-use crate::cluster_params::ClusterParams;
 use crate::in_process_agent_spawner::InProcessAgentSpawner;
 use crate::in_process_balancer::InProcessBalancer;
-use crate::running_balancer::RunningBalancer;
+use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::running_balancer::RunningBalancer;
 
 pub async fn start_cluster(
     ClusterParams {

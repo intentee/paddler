@@ -153,7 +153,7 @@ mod tests {
     use crate::management_service::configuration::Configuration as ManagementServiceConfiguration;
     use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
     use crate::resolved_socket_addr::ResolvedSocketAddr;
-    use crate::state_database::Memory;
+    use crate::state_database::memory::Memory;
     use crate::web_admin_panel_service::template_data::TemplateData;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 

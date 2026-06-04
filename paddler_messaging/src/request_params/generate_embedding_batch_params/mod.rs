@@ -1,9 +1,9 @@
-mod chunk_evenly_with_cap_error;
+pub mod chunk_evenly_with_cap_error;
 
 use serde::Deserialize;
 use serde::Serialize;
 
-pub use self::chunk_evenly_with_cap_error::ChunkEvenlyWithCapError;
+use self::chunk_evenly_with_cap_error::ChunkEvenlyWithCapError;
 use crate::embedding_input_document::EmbeddingInputDocument;
 use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
 

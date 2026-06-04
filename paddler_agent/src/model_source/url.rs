@@ -6,14 +6,14 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use url::Url;
 
-use paddler_cache_dir::CacheDir;
-use paddler_cache_dir::CachedDownloadedModel;
-use paddler_cache_dir::DownloadLockAcquisitionError;
+use paddler_cache_dir::cache_dir::CacheDir;
+use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
+use paddler_cache_dir::download_lock_acquisition_error::DownloadLockAcquisitionError;
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_download_manager::progress_sink::ProgressSink;
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::ModelPath;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::url_model_reference::UrlModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
@@ -236,8 +236,8 @@ mod tests {
     use std::sync::Arc;
 
     use anyhow::anyhow;
-    use paddler_cache_dir::CacheDir;
-    use paddler_cache_dir::CachedDownloadedModel;
+    use paddler_cache_dir::cache_dir::CacheDir;
+    use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
     use paddler_download_manager::download_error::DownloadError;
     use paddler_messaging::agent_issue::AgentIssue;
     use reqwest::StatusCode;
@@ -255,7 +255,7 @@ mod tests {
     use crate::model_source::url::resolve_url_into_cache;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_download_manager::progress_sink::ProgressSink;
-    use paddler_messaging::agent_issue_params::ModelPath;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
 
     const TEST_URL: &str = "https://example.com/m.gguf";

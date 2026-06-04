@@ -29,8 +29,8 @@ paddler_agent = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
-paddler_cluster_harness = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
 parking_lot = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
@@ -39,10 +39,11 @@ tempfile = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
-paddler_openai_conformance = { workspace = true }
+paddler_openai_validator = { workspace = true }
 serial_test = { workspace = true }
 
 [lints]

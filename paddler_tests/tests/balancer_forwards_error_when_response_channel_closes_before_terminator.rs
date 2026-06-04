@@ -13,8 +13,8 @@ use paddler_balancer::inference_service::configuration::Configuration as Inferen
 use paddler_balancer::manages_senders::ManagesSenders as _;
 use paddler_balancer::manages_senders_controller::ManagesSendersController;
 use paddler_balancer::request_from_agent::forward_responses_stream;
-use paddler_messaging::inference_client::Message as OutgoingMessage;
-use paddler_messaging::jsonrpc::ErrorEnvelope;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;

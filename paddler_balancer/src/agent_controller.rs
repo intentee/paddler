@@ -15,9 +15,9 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::jsonrpc::RequestEnvelope;
-use paddler_messaging::request_params::ContinueFromRawPromptParams;
-use paddler_messaging::request_params::GenerateEmbeddingBatchParams;
+use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
@@ -33,10 +33,10 @@ use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
 use crate::sends_rpc_message::SendsRpcMessage;
 use crate::sets_desired_state::SetsDesiredState;
 use paddler_messaging::atomic_value::AtomicValue;
-use paddler_messaging::management_socket::agent::Message as AgentJsonRpcMessage;
-use paddler_messaging::management_socket::agent::Notification as AgentJsonRpcNotification;
-use paddler_messaging::management_socket::agent::Request as AgentJsonRpcRequest;
-use paddler_messaging::management_socket::agent::notification_params::SetStateParams;
+use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
+use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
+use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
+use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 
 pub struct AgentController {
@@ -337,7 +337,7 @@ impl SetsDesiredState for AgentController {
 
 #[cfg(test)]
 mod tests {
-    use paddler_messaging::agent_issue_params::ModelPath;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 
     use super::*;
