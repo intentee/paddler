@@ -16,6 +16,8 @@ use trzcina::ServiceShutdownOptions;
 use crate::web_admin_panel_service::app_data::AppData;
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
+const HTTP_WORKERS: usize = 2;
+
 pub struct WebAdminPanelService {
     pub configuration: WebAdminPanelServiceConfiguration,
     pub shutdown_options: ServiceShutdownOptions,
@@ -41,6 +43,7 @@ impl Service for WebAdminPanelService {
                 .configure(http_route::static_files::register)
                 .configure(http_route::home::register)
         })
+        .workers(HTTP_WORKERS)
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
