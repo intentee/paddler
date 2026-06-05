@@ -63,6 +63,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
+use crate::balancer_http_server::BalancerHttpServer;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::openai_service::app_data::AppData;
 use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
@@ -106,6 +107,7 @@ impl Service for OpenAIService {
                 .configure(http_route::post_chat_completions::register)
                 .configure(http_route::post_responses::register)
         })
+        .workers(BalancerHttpServer::OpenAI.worker_count())
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })

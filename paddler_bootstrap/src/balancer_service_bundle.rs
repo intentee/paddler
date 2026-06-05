@@ -5,11 +5,15 @@ use anyhow::Result;
 use async_trait::async_trait;
 use paddler_balancer::agent_controller_pool::AgentControllerPool;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+#[cfg(unix)]
+use paddler_balancer::balancer_http_server::BalancerHttpServer;
 use paddler_balancer::buffered_request_manager::BufferedRequestManager;
 use paddler_balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use paddler_balancer::compatibility::openai_service::OpenAIService;
 use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler_balancer::embedding_sender_collection::EmbeddingSenderCollection;
+#[cfg(unix)]
+use paddler_balancer::ensure_file_descriptor_limit::ensure_file_descriptor_limit;
 use paddler_balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
 use paddler_balancer::inference_service::InferenceService;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -78,6 +82,25 @@ impl BalancerServiceBundle {
             web_admin_panel_service_configuration,
         }: BalancerBootstrapConfig,
     ) -> Result<Self> {
+        #[cfg(unix)]
+        {
+            let mut active_http_servers = vec![
+                BalancerHttpServer::Inference,
+                BalancerHttpServer::Management,
+            ];
+
+            if openai_service_configuration.is_some() {
+                active_http_servers.push(BalancerHttpServer::OpenAI);
+            }
+
+            #[cfg(feature = "web_admin_panel")]
+            if web_admin_panel_service_configuration.is_some() {
+                active_http_servers.push(BalancerHttpServer::WebAdminPanel);
+            }
+
+            ensure_file_descriptor_limit(&active_http_servers)?;
+        }
+
         let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
 
         let agent_controller_pool = Arc::new(AgentControllerPool::default());

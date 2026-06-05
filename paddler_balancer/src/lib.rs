@@ -6,6 +6,7 @@ pub mod agent_controller_update_result;
 pub mod balancer_applicable_state;
 pub mod balancer_applicable_state_holder;
 pub mod balancer_desired_state_converter;
+pub mod balancer_http_server;
 mod buffered_request_agent_wait_result;
 mod buffered_request_count_guard;
 mod buffered_request_counter;
@@ -23,6 +24,10 @@ pub mod create_cors_middleware;
 pub mod dispatch_candidate;
 pub mod dispatched_agent;
 pub mod embedding_sender_collection;
+#[cfg(unix)]
+pub mod ensure_file_descriptor_limit;
+#[cfg(unix)]
+pub mod file_descriptor_limit_error;
 pub mod generate_tokens_sender_collection;
 mod handles_agent_streaming_response;
 mod http_route;

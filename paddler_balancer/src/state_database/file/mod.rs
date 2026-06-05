@@ -281,6 +281,9 @@ mod tests {
         assert!(store_error.downcast_ref::<std::io::Error>().is_some());
     }
 
+    // `/dev/full` always fails writes with `ENOSPC` (`StorageFull`) only on Linux; other platforms
+    // surface a different error kind, so this exact-kind assertion is Linux-specific.
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn storing_a_large_schema_surfaces_the_write_error_during_write_all() {
         const TOKIO_FILE_BUFFER_BYTES: usize = 2 * 1024 * 1024;

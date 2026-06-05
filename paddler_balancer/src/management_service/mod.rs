@@ -16,6 +16,7 @@ use trzcina::ServiceShutdownOptions;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::balancer_http_server::BalancerHttpServer;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use crate::create_cors_middleware::create_cors_middleware;
@@ -118,6 +119,7 @@ impl Service for ManagementService {
                 .configure(http_route::api::ws_agent_socket::register)
                 .configure(http_route::get_metrics::register)
         })
+        .workers(BalancerHttpServer::Management.worker_count())
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })

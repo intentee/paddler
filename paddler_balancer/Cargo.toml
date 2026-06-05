@@ -44,6 +44,9 @@ esbuild-metafile = { workspace = true, optional = true }
 mime_guess = { workspace = true, optional = true }
 rust-embed = { workspace = true, optional = true }
 
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["resource"] }
+
 [features]
 default = []
 web_admin_panel = [

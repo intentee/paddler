@@ -16,6 +16,7 @@ use trzcina::ServiceShutdownOptions;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::balancer_http_server::BalancerHttpServer;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
@@ -85,6 +86,7 @@ impl Service for InferenceService {
                 .configure(http_route::api::post_generate_embedding_batch::register)
                 .configure(http_route::api::ws_inference_socket::register)
         })
+        .workers(BalancerHttpServer::Inference.worker_count())
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })

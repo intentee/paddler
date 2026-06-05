@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
+use crate::balancer_http_server::BalancerHttpServer;
 use crate::web_admin_panel_service::app_data::AppData;
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
@@ -41,6 +42,7 @@ impl Service for WebAdminPanelService {
                 .configure(http_route::static_files::register)
                 .configure(http_route::home::register)
         })
+        .workers(BalancerHttpServer::WebAdminPanel.worker_count())
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
