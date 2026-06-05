@@ -39,7 +39,6 @@ fn collect_web_admin_panel_cors_allowed_hosts(
         .collect()
 }
 
-// Capped to bound open file descriptors; macOS defaults to a 256 soft FD limit.
 const HTTP_WORKERS: usize = 2;
 
 pub struct ManagementService {

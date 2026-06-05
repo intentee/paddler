@@ -16,7 +16,6 @@ use trzcina::ServiceShutdownOptions;
 use crate::web_admin_panel_service::app_data::AppData;
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
-// Capped to bound open file descriptors; macOS defaults to a 256 soft FD limit.
 const HTTP_WORKERS: usize = 2;
 
 pub struct WebAdminPanelService {

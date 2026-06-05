@@ -24,7 +24,6 @@ use crate::inference_service::configuration::Configuration as InferenceServiceCo
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
-// Capped to bound open file descriptors; macOS defaults to a 256 soft FD limit.
 const HTTP_WORKERS: usize = 16;
 
 pub struct InferenceService {
