@@ -70,6 +70,9 @@ use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 
+// Capped to bound open file descriptors; macOS defaults to a 256 soft FD limit.
+const HTTP_WORKERS: usize = 16;
+
 pub struct OpenAIService {
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub inference_service_configuration: InferenceServiceConfiguration,
@@ -106,6 +109,7 @@ impl Service for OpenAIService {
                 .configure(http_route::post_chat_completions::register)
                 .configure(http_route::post_responses::register)
         })
+        .workers(HTTP_WORKERS)
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })

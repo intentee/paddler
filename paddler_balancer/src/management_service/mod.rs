@@ -39,6 +39,9 @@ fn collect_web_admin_panel_cors_allowed_hosts(
         .collect()
 }
 
+// Capped to bound open file descriptors; macOS defaults to a 256 soft FD limit.
+const HTTP_WORKERS: usize = 2;
+
 pub struct ManagementService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
@@ -118,6 +121,7 @@ impl Service for ManagementService {
                 .configure(http_route::api::ws_agent_socket::register)
                 .configure(http_route::get_metrics::register)
         })
+        .workers(HTTP_WORKERS)
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })

@@ -24,6 +24,9 @@ use crate::inference_service::configuration::Configuration as InferenceServiceCo
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
+// Capped to bound open file descriptors; macOS defaults to a 256 soft FD limit.
+const HTTP_WORKERS: usize = 16;
+
 pub struct InferenceService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
@@ -85,6 +88,7 @@ impl Service for InferenceService {
                 .configure(http_route::api::post_generate_embedding_batch::register)
                 .configure(http_route::api::ws_inference_socket::register)
         })
+        .workers(HTTP_WORKERS)
         .shutdown_signal(async move {
             shutdown.cancelled().await;
         })
