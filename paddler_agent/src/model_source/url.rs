@@ -190,6 +190,13 @@ async fn resolve_url_into_cache(
         }
     };
 
+    if let Err(io_error) = cached.remove_invalid_cache_entry().await {
+        slot_aggregated_status.reset_download();
+        slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
+
+        return Err(anyhow::Error::new(io_error));
+    }
+
     let basename = cached
         .cache_file_path
         .file_name()
@@ -774,5 +781,62 @@ mod tests {
             DesiredModelResolution::Resolved(resolved_path) if resolved_path == expected_path
         ));
         assert_eq!(tokio::fs::read(&expected_path).await.unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn resolve_recovers_from_stale_directory_then_downloads() {
+        let directory = TempDir::new().unwrap();
+        let cache_dir = cache_dir_at(directory.path());
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url_string = format!("http://127.0.0.1:{port}/model.gguf");
+        let body = b"recovered model bytes".to_vec();
+        let server = tokio::spawn(serve_single_ok_response(listener, body.clone()));
+
+        let cached = CachedDownloadedModel::new(&cache_dir, &url_string).unwrap();
+        let expected_path = cached.cache_file_path.clone();
+        cached.ensure_cache_subdir_exists().await.unwrap();
+        tokio::fs::create_dir(&expected_path).await.unwrap();
+
+        let resolution = resolve_url_into_cache(&url_string, &cache_dir, fresh_status())
+            .await
+            .unwrap();
+
+        server.await.unwrap();
+
+        assert!(matches!(
+            resolution,
+            DesiredModelResolution::Resolved(resolved_path) if resolved_path == expected_path
+        ));
+        assert_eq!(tokio::fs::read(&expected_path).await.unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn resolve_reports_unreachable_when_dead_url_with_stale_directory() {
+        let directory = TempDir::new().unwrap();
+        let cache_dir = cache_dir_at(directory.path());
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        let url_string = format!("http://127.0.0.1:{port}/model.gguf");
+
+        let cached = CachedDownloadedModel::new(&cache_dir, &url_string).unwrap();
+        cached.ensure_cache_subdir_exists().await.unwrap();
+        tokio::fs::create_dir(&cached.cache_file_path)
+            .await
+            .unwrap();
+
+        let status = fresh_status();
+        let result = resolve_url_into_cache(&url_string, &cache_dir, status.clone()).await;
+
+        assert!(result.is_err(), "a dead URL must produce an Err");
+        assert!(
+            status.has_issue(&AgentIssue::DownloadServerIsUnreachable(ModelPath {
+                model_path: url_string.clone(),
+            })),
+            "recovery must clear the stale dir so the dead-URL download reports unreachable"
+        );
     }
 }
