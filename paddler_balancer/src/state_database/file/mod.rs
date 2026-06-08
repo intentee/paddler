@@ -281,6 +281,7 @@ mod tests {
         assert!(store_error.downcast_ref::<std::io::Error>().is_some());
     }
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn storing_a_large_schema_surfaces_the_write_error_during_write_all() {
         const TOKIO_FILE_BUFFER_BYTES: usize = 2 * 1024 * 1024;
@@ -299,5 +300,20 @@ mod tests {
         let io_error = store_error.downcast_ref::<std::io::Error>().unwrap();
 
         assert_eq!(io_error.kind(), std::io::ErrorKind::StorageFull);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn storing_to_dev_full_surfaces_permission_denied() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            broadcast::channel(8);
+        let database = File::new(balancer_desired_state_notify_tx, PathBuf::from("/dev/full"));
+
+        let store_result = database.store_schema(&Schema::default()).await;
+
+        let store_error = store_result.err().unwrap();
+        let io_error = store_error.downcast_ref::<std::io::Error>().unwrap();
+
+        assert_eq!(io_error.kind(), std::io::ErrorKind::PermissionDenied);
     }
 }
