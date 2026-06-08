@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use url::Url;
 
 use paddler_cache_dir::cache_dir::CacheDir;
+use paddler_cache_dir::cache_entry_healer::CacheEntryHealer;
+use paddler_cache_dir::cache_entry_validator::CacheEntryValidator;
 use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
 use paddler_cache_dir::download_lock_acquisition_error::DownloadLockAcquisitionError;
 use paddler_download_manager::download_error::DownloadError;
@@ -143,8 +145,9 @@ async fn resolve_url_into_cache(
     }
 
     let cached = CachedDownloadedModel::new(cache_dir, url_string)?;
+    let cache_entry_validator = CacheEntryValidator::new(cached.cache_file_path.clone());
 
-    let is_cached = match cached.is_cached().await {
+    let is_cached = match cache_entry_validator.is_valid().await {
         Ok(value) => value,
         Err(io_error) => {
             slot_aggregated_status.reset_download();
@@ -190,7 +193,9 @@ async fn resolve_url_into_cache(
         }
     };
 
-    if let Err(io_error) = cached.remove_invalid_cache_entry().await {
+    let cache_entry_healer = CacheEntryHealer::new(cached.cache_file_path.clone());
+
+    if let Err(io_error) = cache_entry_healer.remove_if_invalid().await {
         slot_aggregated_status.reset_download();
         slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
 
