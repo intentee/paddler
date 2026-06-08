@@ -14,7 +14,7 @@ impl CacheEntryValidator {
     }
 
     pub async fn is_valid(&self) -> Result<bool, io::Error> {
-        match fs::metadata(&self.path).await {
+        match fs::symlink_metadata(&self.path).await {
             Ok(metadata) => Ok(metadata.is_file()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error),
@@ -52,6 +52,27 @@ mod tests {
         assert!(
             !validator.is_valid().await.unwrap(),
             "a directory occupying the cache file path is not a valid cached model"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn is_valid_returns_false_for_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let directory = TempDir::new().unwrap();
+        let real_file = directory.path().join("real.gguf");
+        tokio::fs::write(&real_file, b"real model bytes")
+            .await
+            .unwrap();
+        let symlink_at_cache_path = directory.path().join("model.gguf");
+        symlink(&real_file, &symlink_at_cache_path).unwrap();
+
+        let validator = CacheEntryValidator::new(symlink_at_cache_path);
+
+        assert!(
+            !validator.is_valid().await.unwrap(),
+            "a symlink at the cache path is corrupted, even when it points to a regular file"
         );
     }
 

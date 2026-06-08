@@ -817,6 +817,47 @@ mod tests {
         assert_eq!(tokio::fs::read(&expected_path).await.unwrap(), body);
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn resolve_treats_symlink_as_corrupted_then_redownloads() {
+        use std::os::unix::fs::symlink;
+
+        let directory = TempDir::new().unwrap();
+        let cache_dir = cache_dir_at(directory.path());
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url_string = format!("http://127.0.0.1:{port}/model.gguf");
+        let body = b"redownloaded model bytes".to_vec();
+        let server = tokio::spawn(serve_single_ok_response(listener, body.clone()));
+
+        let cached = CachedDownloadedModel::new(&cache_dir, &url_string).unwrap();
+        let expected_path = cached.cache_file_path.clone();
+        cached.ensure_cache_subdir_exists().await.unwrap();
+        let planted_target = directory.path().join("planted-target.gguf");
+        tokio::fs::write(&planted_target, b"planted contents")
+            .await
+            .unwrap();
+        symlink(&planted_target, &expected_path).unwrap();
+
+        let resolution = resolve_url_into_cache(&url_string, &cache_dir, fresh_status())
+            .await
+            .unwrap();
+
+        server.await.unwrap();
+
+        assert!(matches!(
+            resolution,
+            DesiredModelResolution::Resolved(resolved_path) if resolved_path == expected_path
+        ));
+        assert_eq!(tokio::fs::read(&expected_path).await.unwrap(), body);
+        assert_eq!(
+            tokio::fs::read(&planted_target).await.unwrap(),
+            b"planted contents",
+            "healing must remove the symlink itself, not the file it points to"
+        );
+    }
+
     #[tokio::test]
     async fn resolve_reports_unreachable_when_dead_url_with_stale_directory() {
         let directory = TempDir::new().unwrap();
