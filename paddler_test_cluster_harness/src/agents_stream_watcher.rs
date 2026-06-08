@@ -1,5 +1,4 @@
 use std::pin::Pin;
-use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -9,9 +8,6 @@ use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_client::client_management::ClientManagement;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use tokio::time::timeout;
-
-const UNTIL_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct AgentsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>,
@@ -39,16 +35,6 @@ impl AgentsStreamWatcher {
         Self { stream }
     }
 
-    async fn next_snapshot(&mut self) -> Result<Option<AgentControllerPoolSnapshot>> {
-        match timeout(UNTIL_TIMEOUT, self.stream.next()).await {
-            Err(_elapsed) => Err(anyhow!(
-                "agents stream did not satisfy the predicate within {UNTIL_TIMEOUT:?}"
-            )),
-            Ok(None) => Ok(None),
-            Ok(Some(item)) => Ok(Some(item.context("agents stream yielded an error")?)),
-        }
-    }
-
     pub async fn until<TPredicate>(
         &mut self,
         mut predicate: TPredicate,
@@ -56,7 +42,9 @@ impl AgentsStreamWatcher {
     where
         TPredicate: FnMut(&AgentControllerPoolSnapshot) -> bool,
     {
-        while let Some(snapshot) = self.next_snapshot().await? {
+        while let Some(item) = self.stream.next().await {
+            let snapshot = item.context("agents stream yielded an error")?;
+
             if predicate(&snapshot) {
                 return Ok(snapshot);
             }
@@ -75,7 +63,9 @@ impl AgentsStreamWatcher {
     where
         TPredicate: FnMut(&AgentControllerPoolSnapshot) -> bool,
     {
-        while let Some(snapshot) = self.next_snapshot().await? {
+        while let Some(item) = self.stream.next().await {
+            let snapshot = item.context("agents stream yielded an error")?;
+
             let agent_present = snapshot
                 .agents
                 .iter()
@@ -227,26 +217,6 @@ mod tests {
 
     fn make_watcher(snapshots: Vec<AgentControllerPoolSnapshot>) -> AgentsStreamWatcher {
         AgentsStreamWatcher::from_stream(Box::pin(stream::iter(snapshots.into_iter().map(Ok))))
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn until_times_out_when_predicate_is_never_satisfied() -> Result<()> {
-        let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(stream::pending::<
-            Result<AgentControllerPoolSnapshot>,
-        >()));
-
-        let error = watcher
-            .until(|_snapshot| false)
-            .await
-            .err()
-            .context("until must time out when no snapshot ever arrives")?;
-
-        assert!(
-            format!("{error:#}").contains("within"),
-            "timeout error must mention the elapsed bound, got: {error:#}"
-        );
-
-        Ok(())
     }
 
     #[tokio::test]
