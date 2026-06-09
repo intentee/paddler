@@ -29,6 +29,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Install cargo-nextest
+        run: cargo install --locked --version 0.9.137 cargo-nextest
+
       - name: Run unit tests
         run: make test.unit
 

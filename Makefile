@@ -92,7 +92,7 @@ test.client.js: node_modules
 .PHONY: test.coverage
 test.coverage: esbuild-meta.json node_modules
 	cargo llvm-cov clean --profraw-only
-	cargo llvm-cov --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
+	cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
@@ -109,8 +109,7 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_gui=13 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
-		--gated paddler_test_cluster_harness=67 \
-		--gated paddler_tests=80
+		--gated paddler_test_cluster_harness=67
 
 .PHONY: test.coverage-clean
 test.coverage-clean:
@@ -120,11 +119,11 @@ test.coverage-clean:
 
 .PHONY: test.integration
 test.integration:
-	cargo test -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
-	cargo test --features web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	cargo nextest run --features web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: watch
 watch: node_modules

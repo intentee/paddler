@@ -31,9 +31,6 @@ pub async fn start_cluster(
         wait_for_slots_ready,
     }: ClusterParams,
 ) -> Result<Cluster> {
-    // Make every `log!` macro evaluate its argument expressions during integration
-    // tests; no logger is installed, so this exercises the logging instrumentation
-    // without emitting output.
     log::set_max_level(log::LevelFilter::Trace);
 
     let addresses = BalancerAddresses::pick()?;

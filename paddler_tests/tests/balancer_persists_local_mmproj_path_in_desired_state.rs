@@ -10,7 +10,6 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_tests::start_cluster::start_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_local_mmproj_path_in_desired_state() -> Result<()> {
     let ModelCard { reference, .. } = smolvlm2_256m();

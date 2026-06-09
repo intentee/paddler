@@ -11,7 +11,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_streams_tokens_from_image_data_uri() -> Result<()> {
     let cluster = start_cluster_with_smolvlm2(AgentConfig::uniform(1, 4)).await?;

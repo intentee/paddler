@@ -79,7 +79,6 @@ fn drive_normal_image_fixture(
     })
 }
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_completes_generation_with_adequate_n_batch() -> Result<()> {
     let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;

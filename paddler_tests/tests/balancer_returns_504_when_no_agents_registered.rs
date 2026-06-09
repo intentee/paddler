@@ -15,7 +15,6 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_agents_registered() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();

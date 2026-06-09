@@ -6,7 +6,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_chat_completion_non_streaming_conforms_to_official_schema() -> Result<()> {
     let validator = OpenAIValidator::new()?;

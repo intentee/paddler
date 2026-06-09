@@ -7,7 +7,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_long_and_short_prompts_complete_concurrently() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;

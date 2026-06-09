@@ -15,7 +15,6 @@ use paddler_tests::start_cluster::start_cluster;
 
 const PARTIAL_GPU_LAYER_COUNT: u32 = 14;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Result<()> {
     let ModelCard { reference, .. } = qwen3_0_6b();

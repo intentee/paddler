@@ -12,7 +12,6 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_cluster::start_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> Result<()> {
     let ModelCard { reference, .. } = nomic_embed_text_v1_5();

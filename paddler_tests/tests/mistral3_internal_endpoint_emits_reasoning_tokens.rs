@@ -9,7 +9,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
 use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
     let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default()).await?;

@@ -14,7 +14,6 @@ use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> {
     let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(4)], true).await?;
