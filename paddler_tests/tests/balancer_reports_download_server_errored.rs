@@ -12,7 +12,6 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::local_http_fixture::LocalHttpFixture;
 use paddler_tests::start_cluster::start_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_download_server_errored() -> Result<()> {
     let fixture = LocalHttpFixture::start("HTTP/1.1 500 Internal Server Error", Vec::new()).await?;

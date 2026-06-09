@@ -12,7 +12,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_internal_endpoint_emits_reasoning_tokens_for_image_request() -> Result<()> {
     let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], true).await?;

@@ -1,5 +1,6 @@
 [package]
 name = "paddler_download_manager"
+autotests = false
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -7,6 +8,10 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }

@@ -14,7 +14,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;

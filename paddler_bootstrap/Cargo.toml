@@ -1,10 +1,15 @@
 [package]
 name = "paddler_bootstrap"
+autotests = false
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 description = "Shared service wiring for Paddler CLI and desktop app"
 license.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
 
 [dependencies]
 actix-web = { workspace = true }

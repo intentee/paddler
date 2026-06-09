@@ -9,7 +9,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_gemma_4::start_cluster_with_gemma_4;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn gemma4_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
     let cluster = start_cluster_with_gemma_4(vec![AgentConfig::single(1)]).await?;

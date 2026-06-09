@@ -23,8 +23,6 @@ pub struct ResponsesResponseBuilder {
 }
 
 impl ResponsesResponseBuilder {
-    // `usage` is intentionally absent here: the official `ResponseUsage` reference is not nullable, so the
-    // in-progress and failed snapshots must omit it rather than emit `null`. Only `completed` adds it.
     fn base(&self, status: &str, output: &Value, error: &Value) -> Value {
         let instructions = self
             .instructions
@@ -74,5 +72,65 @@ impl ResponsesResponseBuilder {
             &json!([]),
             &json!({ "code": "server_error", "message": error.message }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use llama_cpp_bindings_types::TokenUsage;
+
+    use super::ResponsesResponseBuilder;
+    use crate::compatibility::openai_service::openai_error::OpenAIError;
+
+    fn builder() -> ResponsesResponseBuilder {
+        ResponsesResponseBuilder {
+            id: "resp_test".to_owned(),
+            created_at: 1_234,
+            model: "test-model".to_owned(),
+            instructions: None,
+        }
+    }
+
+    #[test]
+    fn in_progress_reports_in_progress_status_with_no_output() {
+        let response = builder().in_progress();
+
+        assert_eq!(response["status"], "in_progress");
+        assert_eq!(response["object"], "response");
+        assert_eq!(response["output"], serde_json::json!([]));
+        assert!(response.get("usage").is_none());
+    }
+
+    #[test]
+    fn failed_carries_the_error_message() {
+        let response = builder().failed(&OpenAIError {
+            error_type: "server_error",
+            message: "boom".to_owned(),
+        });
+
+        assert_eq!(response["status"], "failed");
+        assert_eq!(response["error"]["message"], "boom");
+        assert!(response.get("usage").is_none());
+    }
+
+    #[test]
+    fn completed_includes_usage_and_output() {
+        let response = builder().completed(
+            vec![serde_json::json!({ "type": "message" })],
+            &TokenUsage {
+                prompt_tokens: 3,
+                cached_prompt_tokens: 0,
+                input_image_tokens: 0,
+                input_audio_tokens: 0,
+                content_tokens: 5,
+                reasoning_tokens: 2,
+                tool_call_tokens: 0,
+                undeterminable_tokens: 0,
+            },
+        );
+
+        assert_eq!(response["status"], "completed");
+        assert_eq!(response["usage"]["input_tokens"], 3);
+        assert_eq!(response["output"][0]["type"], "message");
     }
 }

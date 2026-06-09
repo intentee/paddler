@@ -11,7 +11,6 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const MAX_TOKENS: i32 = 20;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_max_tokens_usage_matches_streamed_count() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;

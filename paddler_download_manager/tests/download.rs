@@ -15,8 +15,6 @@ use crate::local_http_fixture::FixtureResponse;
 use crate::local_http_fixture::LocalHttpFixture;
 use crate::local_http_fixture::Scenario;
 
-mod local_http_fixture;
-
 struct RecordingSink {
     chunk_count: AtomicU64,
     chunk_bytes: AtomicU64,
