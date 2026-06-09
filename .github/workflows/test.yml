@@ -29,6 +29,11 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9.137
+
       - name: Run unit tests
         run: make test.unit
 

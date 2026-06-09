@@ -10,7 +10,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_thinking_mode_stops_cleanly_before_max_tokens() -> Result<()> {
     let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false).await?;

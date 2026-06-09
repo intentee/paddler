@@ -14,7 +14,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;

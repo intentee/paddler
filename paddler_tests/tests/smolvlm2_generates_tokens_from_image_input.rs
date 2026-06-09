@@ -13,7 +13,6 @@ use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn smolvlm2_generates_tokens_from_image_input() -> Result<()> {
     let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;

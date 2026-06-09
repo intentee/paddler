@@ -17,7 +17,6 @@ fn user_message(text: &str) -> ConversationMessage {
     }
 }
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_concurrent_conversation_history_requests_complete() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;

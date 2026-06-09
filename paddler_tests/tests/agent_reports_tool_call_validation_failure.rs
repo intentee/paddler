@@ -22,7 +22,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use serde_json::Map;
 use serde_json::Value;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_tool_call_validation_failure() -> Result<()> {
     let ModelCard {

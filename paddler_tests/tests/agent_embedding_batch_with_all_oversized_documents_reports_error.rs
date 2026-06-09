@@ -11,7 +11,6 @@ use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
 const N_BATCH: u32 = 64;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_embedding_batch_with_all_oversized_documents_reports_error() -> Result<()> {
     let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {

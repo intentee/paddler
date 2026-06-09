@@ -29,7 +29,6 @@ Paris\n\
 </function>\n\
 </tool_call>";
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[test]
 fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_registered()
 -> Result<()> {

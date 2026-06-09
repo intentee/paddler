@@ -10,7 +10,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_rejects_embedding_during_active_generation() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;

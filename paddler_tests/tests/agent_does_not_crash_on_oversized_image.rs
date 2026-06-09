@@ -82,7 +82,6 @@ fn drive_oversized_image_fixture(
     })
 }
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_does_not_crash_on_oversized_image() -> Result<()> {
     let cluster = start_cluster_with_smolvlm2_and_n_batch(vec![AgentConfig::single(1)], 32).await?;

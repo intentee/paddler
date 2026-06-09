@@ -1,0 +1,9 @@
+[test-groups]
+serial = { max-threads = 1 }
+
+[profile.default]
+slow-timeout = { period = "10s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = '(package(=paddler_tests) | package(=paddler_cli_tests)) and kind(test)'
+test-group = 'serial'

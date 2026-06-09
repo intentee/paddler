@@ -15,7 +15,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use serde_json::Map;
 use serde_json::Value;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;

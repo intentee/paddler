@@ -11,7 +11,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
     let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {

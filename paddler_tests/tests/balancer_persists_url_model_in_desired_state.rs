@@ -9,7 +9,6 @@ use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
     let configured_url = "https://example.invalid/persisted-model.gguf".to_owned();

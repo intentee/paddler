@@ -13,7 +13,6 @@ use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen2_5_vl::start_cluster_with_qwen2_5_vl;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen25vl_generates_tokens_from_image_input() -> Result<()> {
     let cluster = start_cluster_with_qwen2_5_vl(vec![AgentConfig::single(1)]).await?;

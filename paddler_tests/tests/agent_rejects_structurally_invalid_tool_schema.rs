@@ -21,7 +21,6 @@ use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use serde_json::Map;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
     let ModelCard {

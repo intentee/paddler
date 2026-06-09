@@ -1,5 +1,6 @@
 [package]
 name = "paddler_tests"
+autotests = false
 authors.workspace = true
 description = "In-process integration tests for Paddler"
 edition.workspace = true
@@ -7,6 +8,10 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
 
 [features]
 default = []
@@ -44,7 +49,6 @@ url = { workspace = true }
 
 [dev-dependencies]
 paddler_openai_response_format_validator = { workspace = true }
-serial_test = { workspace = true }
 
 [lints]
 workspace = true

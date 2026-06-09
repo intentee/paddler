@@ -11,7 +11,6 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_desired_state_across_restart() -> Result<()> {
     let database = StateDatabaseFile::new()?;

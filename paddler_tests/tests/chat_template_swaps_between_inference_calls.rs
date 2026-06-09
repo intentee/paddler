@@ -46,7 +46,6 @@ fn run_inference_after_template_swap(
     }
 }
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn chat_template_swaps_between_inference_calls() -> Result<()> {
     let ModelCard {

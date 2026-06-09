@@ -9,7 +9,6 @@ use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_clu
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 
-#[serial_test::file_serial(model_load, path => "../target/model_load.lock")]
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
     const AGENT_COUNT: usize = 4;
