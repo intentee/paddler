@@ -394,9 +394,7 @@ impl ManagementSocketClientService {
                             slot_aggregated_status_snapshot,
                         }),
                     ))
-                    .unwrap_or_else(|err| {
-                        error!("Failed to send register agent notification: {err}");
-                    });
+                    .context("Failed to send register agent notification")?;
             }
             Err(err) => {
                 error!("Failed to create slot aggregated status snapshot: {err}");

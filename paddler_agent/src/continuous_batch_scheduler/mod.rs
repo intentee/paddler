@@ -532,7 +532,7 @@ impl ContinuousBatchScheduler {
         token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
         token_classifier.ingest_prompt_tokens(&prompt_tokens);
 
-        self.clear_kv_cache_for_sequence(sequence_id);
+        self.clear_kv_cache_for_sequence(sequence_id)?;
 
         debug!(
             "{:?}: accepted text prompt request on sequence {sequence_id} ({} tokens)",
@@ -681,7 +681,7 @@ impl ContinuousBatchScheduler {
 
         let batch_size = self.scheduler_context.inference_parameters.n_batch;
 
-        self.clear_kv_cache_for_sequence(sequence_id);
+        self.clear_kv_cache_for_sequence(sequence_id)?;
 
         self.harvest_pending_samples_before_external_decode();
 
@@ -1019,34 +1019,26 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn clear_kv_cache_for_sequence(&mut self, sequence_id: i32) {
-        let sequence_id_u32 = match u32::try_from(sequence_id) {
-            Ok(sequence_id_u32) => sequence_id_u32,
-            Err(err) => {
-                error!(
-                    "{:?}: sequence id {sequence_id} does not fit in u32: {err}",
-                    self.scheduler_context.agent_name
-                );
+    fn clear_kv_cache_for_sequence(&mut self, sequence_id: i32) -> Result<()> {
+        let sequence_id_u32 = u32::try_from(sequence_id)
+            .map_err(|err| anyhow!("sequence id {sequence_id} does not fit in u32: {err}"))?;
 
-                return;
-            }
-        };
-
-        if let Err(err) = self
-            .llama_context
+        self.llama_context
             .clear_kv_cache_seq(Some(sequence_id_u32), None, None)
-        {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
-                self.scheduler_context.agent_name
-            );
-        }
+            .map_err(|err| anyhow!("failed to clear KV cache for sequence {sequence_id}: {err}"))?;
+
+        Ok(())
     }
 
     fn cleanup_completed_request(&mut self, index: usize) {
         let removed_request = self.active_requests.swap_remove(index);
 
-        self.clear_kv_cache_for_sequence(removed_request.state.sequence_id);
+        if let Err(err) = self.clear_kv_cache_for_sequence(removed_request.state.sequence_id) {
+            error!(
+                "{:?}: best-effort KV cache cleanup failed for sequence {}: {err}",
+                self.scheduler_context.agent_name, removed_request.state.sequence_id
+            );
+        }
 
         self.sequence_id_pool
             .release(removed_request.state.sequence_id);
