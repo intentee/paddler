@@ -115,6 +115,11 @@ async fn resumes_from_existing_partial_file_with_range_request() -> Result<()> {
 
     assert_eq!(tokio::fs::read(&dest).await?, b"first half second half");
     assert_eq!(sink.started_already.load(Ordering::Relaxed), 11);
+    assert_eq!(
+        sink.chunk_bytes.load(Ordering::Relaxed),
+        body.len() as u64,
+        "resume must transfer only the missing tail, not re-download the existing prefix"
+    );
     assert!(
         fixture
             .last_recorded_range_header()
