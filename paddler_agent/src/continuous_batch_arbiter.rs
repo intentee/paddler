@@ -20,6 +20,7 @@ use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::error;
 use log::info;
+use log::warn;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
@@ -332,7 +333,7 @@ impl ContinuousBatchArbiter {
                 &mut llama_context,
                 scheduler_context.inference_parameters.n_batch,
                 desired_slots_total,
-            )?;
+            );
 
             let mut scheduler = ContinuousBatchScheduler::new(
                 command_rx,
@@ -434,24 +435,28 @@ impl ContinuousBatchArbiter {
         llama_context: &mut LlamaContext<'_>,
         n_batch: usize,
         desired_slots_total: i32,
-    ) -> Result<()> {
+    ) {
         let warmup_tokens = vec![model.token_bos(); 4];
-        let mut warmup_batch = LlamaBatch::new(n_batch, desired_slots_total)
-            .map_err(|err| anyhow!("Warmup batch allocation failed: {err:#}"))?;
+        let mut warmup_batch = match LlamaBatch::new(n_batch, desired_slots_total) {
+            Ok(warmup_batch) => warmup_batch,
+            Err(err) => {
+                warn!("Warmup batch allocation failed: {err:#}");
+                return;
+            }
+        };
 
         for sequence_index in 0..desired_slots_total {
-            warmup_batch
-                .add_sequence(&warmup_tokens, sequence_index, true)
-                .map_err(|err| anyhow!("Warmup batch add_sequence failed: {err:#}"))?;
+            if let Err(err) = warmup_batch.add_sequence(&warmup_tokens, sequence_index, true) {
+                warn!("Warmup batch add_sequence failed: {err:#}");
+                return;
+            }
         }
 
         llama_context.clear_kv_cache();
-        llama_context
-            .decode(&mut warmup_batch)
-            .map_err(|err| anyhow!("Warmup decode failed: {err:#}"))?;
+        if let Err(err) = llama_context.decode(&mut warmup_batch) {
+            warn!("Warmup decode failed: {err:#}");
+        }
         llama_context.synchronize();
         llama_context.clear_kv_cache();
-
-        Ok(())
     }
 }
