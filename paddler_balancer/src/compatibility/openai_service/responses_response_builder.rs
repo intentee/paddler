@@ -98,6 +98,7 @@ mod tests {
         assert_eq!(response["status"], "in_progress");
         assert_eq!(response["object"], "response");
         assert_eq!(response["output"], serde_json::json!([]));
+        assert!(response.get("usage").is_none());
     }
 
     #[test]
@@ -109,6 +110,7 @@ mod tests {
 
         assert_eq!(response["status"], "failed");
         assert_eq!(response["error"]["message"], "boom");
+        assert!(response.get("usage").is_none());
     }
 
     #[test]
