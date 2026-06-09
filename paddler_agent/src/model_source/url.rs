@@ -7,8 +7,8 @@ use async_trait::async_trait;
 use url::Url;
 
 use paddler_cache_dir::cache_dir::CacheDir;
-use paddler_cache_dir::cache_entry_healer::CacheEntryHealer;
-use paddler_cache_dir::cache_entry_validator::CacheEntryValidator;
+use paddler_cache_dir::cache_entry_health::CacheEntryHealth;
+use paddler_cache_dir::cache_entry_state::CacheEntryState;
 use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
 use paddler_cache_dir::download_lock_acquisition_error::DownloadLockAcquisitionError;
 use paddler_download_manager::download_error::DownloadError;
@@ -47,6 +47,17 @@ fn classify_cache_io_error(url_string: &str, error: &io::Error) -> AgentIssue {
     }
 }
 
+fn cache_io_failure(
+    slot_aggregated_status: &SlotAggregatedStatus,
+    url_string: &str,
+    io_error: io::Error,
+) -> anyhow::Error {
+    slot_aggregated_status.reset_download();
+    slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
+
+    anyhow::Error::new(io_error)
+}
+
 fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
     let model_path = ModelPath {
         model_path: url_string.to_owned(),
@@ -78,6 +89,13 @@ fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
             AgentIssue::ModelCacheIsCorrupted(model_path)
         }
     }
+}
+
+fn register_download_completed(slot_aggregated_status: &SlotAggregatedStatus, url_string: &str) {
+    slot_aggregated_status.reset_download();
+    slot_aggregated_status.register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
+        model_path: url_string.to_owned(),
+    }));
 }
 
 struct SlotAggregatedStatusSink {
@@ -145,32 +163,31 @@ async fn resolve_url_into_cache(
     }
 
     let cached = CachedDownloadedModel::new(cache_dir, url_string)?;
-    let cache_entry_validator = CacheEntryValidator::new(cached.cache_file_path.clone());
+    let cache_entry_health = CacheEntryHealth::new(cached.cache_file_path.clone());
 
-    let is_cached = match cache_entry_validator.is_valid().await {
+    let is_cached = match cache_entry_health.is_cached().await {
         Ok(value) => value,
         Err(io_error) => {
-            slot_aggregated_status.reset_download();
-            slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
-
-            return Err(anyhow::Error::new(io_error));
+            return Err(cache_io_failure(
+                &slot_aggregated_status,
+                url_string,
+                io_error,
+            ));
         }
     };
 
     if is_cached {
-        slot_aggregated_status.reset_download();
-        slot_aggregated_status.register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
-            model_path: url_string.to_owned(),
-        }));
+        register_download_completed(&slot_aggregated_status, url_string);
 
         return Ok(DesiredModelResolution::Resolved(cached.cache_file_path));
     }
 
     if let Err(io_error) = cached.ensure_cache_subdir_exists().await {
-        slot_aggregated_status.reset_download();
-        slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
-
-        return Err(anyhow::Error::new(io_error));
+        return Err(cache_io_failure(
+            &slot_aggregated_status,
+            url_string,
+            io_error,
+        ));
     }
 
     let _lock_guard = match cached.try_acquire_download_lock() {
@@ -186,20 +203,28 @@ async fn resolve_url_into_cache(
             ));
         }
         Err(DownloadLockAcquisitionError::Io(io_error)) => {
-            slot_aggregated_status.reset_download();
-            slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
-
-            return Err(anyhow::Error::new(io_error));
+            return Err(cache_io_failure(
+                &slot_aggregated_status,
+                url_string,
+                io_error,
+            ));
         }
     };
 
-    let cache_entry_healer = CacheEntryHealer::new(cached.cache_file_path.clone());
+    match cache_entry_health.heal().await {
+        Ok(CacheEntryState::Cached) => {
+            register_download_completed(&slot_aggregated_status, url_string);
 
-    if let Err(io_error) = cache_entry_healer.remove_if_invalid().await {
-        slot_aggregated_status.reset_download();
-        slot_aggregated_status.register_issue(classify_cache_io_error(url_string, &io_error));
-
-        return Err(anyhow::Error::new(io_error));
+            return Ok(DesiredModelResolution::Resolved(cached.cache_file_path));
+        }
+        Ok(CacheEntryState::Vacant) => {}
+        Err(io_error) => {
+            return Err(cache_io_failure(
+                &slot_aggregated_status,
+                url_string,
+                io_error,
+            ));
+        }
     }
 
     let basename = cached
@@ -883,6 +908,48 @@ mod tests {
                 model_path: url_string.clone(),
             })),
             "recovery must clear the stale dir so the dead-URL download reports unreachable"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn heal_failure_after_acquiring_lock_registers_cache_directory_is_not_writable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = TempDir::new().unwrap();
+        let cache_dir = cache_dir_at(directory.path());
+        let url_string = "https://host.example/unhealable.gguf";
+        let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
+        cached.ensure_cache_subdir_exists().await.unwrap();
+        tokio::fs::create_dir(&cached.cache_file_path)
+            .await
+            .unwrap();
+        let nested = cached.cache_file_path.join("nested");
+        tokio::fs::create_dir(&nested).await.unwrap();
+        tokio::fs::write(nested.join("child"), b"x").await.unwrap();
+        let mut permissions = tokio::fs::metadata(&nested).await.unwrap().permissions();
+        permissions.set_mode(0o500);
+        tokio::fs::set_permissions(&nested, permissions)
+            .await
+            .unwrap();
+
+        let status = fresh_status();
+        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+
+        let mut restored = tokio::fs::metadata(&nested).await.unwrap().permissions();
+        restored.set_mode(0o700);
+        tokio::fs::set_permissions(&nested, restored).await.unwrap();
+
+        assert!(
+            result.is_err(),
+            "a cache entry that cannot be healed must produce an Err"
+        );
+        assert!(
+            status.has_issue_like(|issue| matches!(
+                issue,
+                AgentIssue::CacheDirectoryIsNotWritable(_)
+            )),
+            "a permission-denied heal must surface as a non-writable cache directory"
         );
     }
 }
