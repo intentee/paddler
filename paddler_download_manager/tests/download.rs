@@ -4,12 +4,21 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use anyhow::bail;
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_download_manager::progress_sink::ProgressSink;
 
 use tempfile::TempDir;
+use tokio::fs::create_dir;
+use tokio::fs::metadata;
+use tokio::fs::read;
+use tokio::fs::remove_dir_all;
+use tokio::fs::remove_file;
+use tokio::fs::set_permissions;
+use tokio::fs::try_exists;
+use tokio::fs::write;
 
 use crate::local_http_fixture::FixtureResponse;
 use crate::local_http_fixture::LocalHttpFixture;
@@ -77,7 +86,7 @@ async fn streams_200_response_to_disk_and_calls_progress_sink_per_chunk() -> Res
         .download(&fixture.url("/model.gguf"), &dest, progress_sink)
         .await?;
 
-    assert_eq!(tokio::fs::read(&dest).await?, body);
+    assert_eq!(read(&dest).await?, body);
     assert_eq!(
         sink.started_total.load(Ordering::Relaxed),
         body.len() as u64
@@ -95,7 +104,7 @@ async fn resumes_from_existing_partial_file_with_range_request() -> Result<()> {
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::write(&partial_path, b"first half ").await?;
+    write(&partial_path, b"first half ").await?;
 
     let body = b"second half".to_vec();
     let total = 11_u64 + body.len() as u64;
@@ -113,7 +122,7 @@ async fn resumes_from_existing_partial_file_with_range_request() -> Result<()> {
         .download(&fixture.url("/model.gguf"), &dest, progress_sink)
         .await?;
 
-    assert_eq!(tokio::fs::read(&dest).await?, b"first half second half");
+    assert_eq!(read(&dest).await?, b"first half second half");
     assert_eq!(sink.started_already.load(Ordering::Relaxed), 11);
     assert!(
         fixture
@@ -130,7 +139,7 @@ async fn starts_over_when_server_returns_200_to_range_request() -> Result<()> {
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::write(&partial_path, b"stale partial bytes").await?;
+    write(&partial_path, b"stale partial bytes").await?;
 
     let body = b"fresh entire body".to_vec();
     let fixture =
@@ -142,7 +151,7 @@ async fn starts_over_when_server_returns_200_to_range_request() -> Result<()> {
         .download(&fixture.url("/model.gguf"), &dest, progress_sink)
         .await?;
 
-    assert_eq!(tokio::fs::read(&dest).await?, body);
+    assert_eq!(read(&dest).await?, body);
 
     Ok(())
 }
@@ -209,7 +218,7 @@ async fn returns_partial_file_stale_on_416_and_removes_partial() -> Result<()> {
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::write(&partial_path, b"stale").await?;
+    write(&partial_path, b"stale").await?;
 
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(416))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
@@ -222,7 +231,7 @@ async fn returns_partial_file_stale_on_416_and_removes_partial() -> Result<()> {
         result,
         Err(DownloadError::PartialFileStale { .. })
     ));
-    assert!(!tokio::fs::try_exists(&partial_path).await?);
+    assert!(!try_exists(&partial_path).await?);
 
     Ok(())
 }
@@ -244,7 +253,7 @@ async fn returns_partial_file_stale_on_416_even_when_no_partial_existed() -> Res
         result,
         Err(DownloadError::PartialFileStale { .. })
     ));
-    assert!(!tokio::fs::try_exists(&partial_path).await?);
+    assert!(!try_exists(&partial_path).await?);
 
     Ok(())
 }
@@ -254,7 +263,7 @@ async fn mismatched_content_range_is_treated_as_partial_file_stale() -> Result<(
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::write(&partial_path, b"first half ").await?;
+    write(&partial_path, b"first half ").await?;
 
     let body = b"second half".to_vec();
     let total = 11_u64 + body.len() as u64;
@@ -275,7 +284,7 @@ async fn mismatched_content_range_is_treated_as_partial_file_stale() -> Result<(
         result,
         Err(DownloadError::PartialFileStale { .. })
     ));
-    assert!(!tokio::fs::try_exists(&partial_path).await?);
+    assert!(!try_exists(&partial_path).await?);
 
     Ok(())
 }
@@ -359,7 +368,7 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
         .await?;
     assert_eq!(sink_success.finished_count.load(Ordering::Relaxed), 1);
 
-    tokio::fs::remove_file(&dest).await?;
+    remove_file(&dest).await?;
 
     let fixture_404 =
         LocalHttpFixture::start(Scenario::always(FixtureResponse::status(404))).await?;
@@ -475,7 +484,7 @@ async fn returns_io_error_when_destination_directory_does_not_exist_and_cannot_b
 -> Result<()> {
     let directory = TempDir::new()?;
     let blocker = directory.path().join("blocker");
-    tokio::fs::write(&blocker, b"i am a file, not a directory").await?;
+    write(&blocker, b"i am a file, not a directory").await?;
     let dest = blocker.join("subdir").join("model.gguf");
 
     let fixture =
@@ -525,7 +534,7 @@ async fn read_timeout_fires_when_server_stalls_before_headers() -> Result<()> {
     .await;
 
     let result = outcome.map_err(|_elapsed| {
-        anyhow::anyhow!("download did not return within test guard; read_timeout never fired")
+        anyhow!("download did not return within test guard; read_timeout never fired")
     })?;
 
     assert!(
@@ -559,7 +568,7 @@ async fn open_for_append_error_returns_io_when_partial_path_is_a_directory() -> 
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::create_dir(&partial_path).await?;
+    create_dir(&partial_path).await?;
 
     let fixture =
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
@@ -582,11 +591,11 @@ async fn download_returns_cache_permission_denied_when_dir_is_read_only() -> Res
 
     let directory = TempDir::new()?;
     let readonly_parent = directory.path().join("readonly");
-    tokio::fs::create_dir(&readonly_parent).await?;
+    create_dir(&readonly_parent).await?;
     let dest = readonly_parent.join("model.gguf");
-    let mut perms = tokio::fs::metadata(&readonly_parent).await?.permissions();
+    let mut perms = metadata(&readonly_parent).await?.permissions();
     perms.set_mode(0o500);
-    tokio::fs::set_permissions(&readonly_parent, perms).await?;
+    set_permissions(&readonly_parent, perms).await?;
 
     let fixture =
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
@@ -596,9 +605,9 @@ async fn download_returns_cache_permission_denied_when_dir_is_read_only() -> Res
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
-    let mut restore = tokio::fs::metadata(&readonly_parent).await?.permissions();
+    let mut restore = metadata(&readonly_parent).await?.permissions();
     restore.set_mode(0o700);
-    tokio::fs::set_permissions(&readonly_parent, restore).await?;
+    set_permissions(&readonly_parent, restore).await?;
 
     let Err(DownloadError::CachePermissionDenied { source, .. }) = result else {
         bail!("expected CachePermissionDenied, got {result:?}");
@@ -613,8 +622,8 @@ async fn download_returns_cache_permission_denied_when_dir_is_read_only() -> Res
 async fn finalize_error_returns_io_when_destination_is_a_non_empty_directory() -> Result<()> {
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
-    tokio::fs::create_dir(&dest).await?;
-    tokio::fs::write(dest.join("blocker"), b"x").await?;
+    create_dir(&dest).await?;
+    write(dest.join("blocker"), b"x").await?;
 
     let fixture =
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
@@ -637,13 +646,13 @@ async fn partial_file_stale_with_unremovable_partial_returns_cache_permission_de
 
     let directory = TempDir::new()?;
     let locked_parent = directory.path().join("locked");
-    tokio::fs::create_dir(&locked_parent).await?;
+    create_dir(&locked_parent).await?;
     let dest = locked_parent.join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::write(&partial_path, b"stale").await?;
-    let mut perms = tokio::fs::metadata(&locked_parent).await?.permissions();
+    write(&partial_path, b"stale").await?;
+    let mut perms = metadata(&locked_parent).await?.permissions();
     perms.set_mode(0o500);
-    tokio::fs::set_permissions(&locked_parent, perms).await?;
+    set_permissions(&locked_parent, perms).await?;
 
     let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::status(416))).await?;
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
@@ -652,9 +661,9 @@ async fn partial_file_stale_with_unremovable_partial_returns_cache_permission_de
         .download(&fixture.url("/x"), &dest, sink)
         .await;
 
-    let mut restore = tokio::fs::metadata(&locked_parent).await?.permissions();
+    let mut restore = metadata(&locked_parent).await?.permissions();
     restore.set_mode(0o700);
-    tokio::fs::set_permissions(&locked_parent, restore).await?;
+    set_permissions(&locked_parent, restore).await?;
 
     assert!(matches!(
         result,
@@ -670,7 +679,7 @@ async fn truncate_error_during_ignore_range_returns_io() -> Result<()> {
     let directory = TempDir::new()?;
     let dest = directory.path().join("model.gguf");
     let partial_path = dest.with_extension("partial");
-    tokio::fs::create_dir(&partial_path).await?;
+    create_dir(&partial_path).await?;
 
     let fixture =
         LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
@@ -729,9 +738,9 @@ async fn download_succeeds_after_cache_dir_was_deleted_between_calls() -> Result
             Arc::new(RecordingSink::new()) as Arc<dyn ProgressSink>,
         )
         .await?;
-    assert_eq!(tokio::fs::read(&dest).await?, body);
+    assert_eq!(read(&dest).await?, body);
 
-    tokio::fs::remove_dir_all(&cache_subdir).await?;
+    remove_dir_all(&cache_subdir).await?;
 
     DownloadManager::new()?
         .download(
@@ -740,7 +749,7 @@ async fn download_succeeds_after_cache_dir_was_deleted_between_calls() -> Result
             Arc::new(RecordingSink::new()) as Arc<dyn ProgressSink>,
         )
         .await?;
-    assert_eq!(tokio::fs::read(&dest).await?, body);
+    assert_eq!(read(&dest).await?, body);
 
     Ok(())
 }

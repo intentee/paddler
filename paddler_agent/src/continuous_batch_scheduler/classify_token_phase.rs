@@ -1,3 +1,4 @@
+use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::sampled_token_classifier::IngestOutcome;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenSection;
@@ -9,10 +10,11 @@ use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 pub fn run(
     request: &mut ContinuousBatchActiveRequest,
     raw_token: LlamaToken,
-) -> Vec<ClassifiedToken> {
+) -> Result<Vec<ClassifiedToken>> {
     let section_before_ingest = request.token_classifier.current_section();
-    let outcomes = request.token_classifier.ingest(raw_token);
-    classify_ingest_outcomes(outcomes, section_before_ingest)
+    let outcomes = request.token_classifier.ingest(raw_token)?;
+
+    Ok(classify_ingest_outcomes(outcomes, section_before_ingest))
 }
 
 fn classify_ingest_outcomes(

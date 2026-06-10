@@ -16,6 +16,6 @@ pub mod smolvlm2_256m_mmproj;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 pub struct ModelCard {
-    pub gpu_layer_count: u32,
+    pub gpu_layer_count: i32,
     pub reference: HuggingFaceModelReference,
 }

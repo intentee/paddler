@@ -78,6 +78,7 @@ impl ResponsesResponseBuilder {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::TokenUsage;
+    use serde_json::json;
 
     use super::ResponsesResponseBuilder;
     use crate::compatibility::openai_service::openai_error::OpenAIError;
@@ -97,7 +98,7 @@ mod tests {
 
         assert_eq!(response["status"], "in_progress");
         assert_eq!(response["object"], "response");
-        assert_eq!(response["output"], serde_json::json!([]));
+        assert_eq!(response["output"], json!([]));
         assert!(response.get("usage").is_none());
     }
 
@@ -116,7 +117,7 @@ mod tests {
     #[test]
     fn completed_includes_usage_and_output() {
         let response = builder().completed(
-            vec![serde_json::json!({ "type": "message" })],
+            vec![json!({ "type": "message" })],
             &TokenUsage {
                 prompt_tokens: 3,
                 cached_prompt_tokens: 0,

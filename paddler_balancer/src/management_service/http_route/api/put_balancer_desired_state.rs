@@ -43,7 +43,9 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
     use actix_web::web::Data;
     use tokio::sync::broadcast;
     use tokio_util::sync::CancellationToken;
@@ -91,12 +93,12 @@ mod tests {
             BalancerDesiredState::default(),
         ));
         let app_data = build_app_data(state_database.clone());
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::put()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::put()
             .uri("/api/v1/balancer_desired_state")
             .set_json(BalancerDesiredState::default())
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
@@ -112,7 +114,7 @@ mod tests {
             BalancerDesiredState::default(),
         ));
         let app_data = build_app_data(state_database);
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
         let invalid_desired_state = BalancerDesiredState {
             inference_parameters: InferenceParameters {
                 image_resize_to_fit: 0,
@@ -120,11 +122,11 @@ mod tests {
             },
             ..BalancerDesiredState::default()
         };
-        let request = test::TestRequest::put()
+        let request = TestRequest::put()
             .uri("/api/v1/balancer_desired_state")
             .set_json(invalid_desired_state)
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
@@ -143,12 +145,12 @@ mod tests {
             BalancerDesiredState::default(),
         ));
         let app_data = build_app_data(state_database);
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::put()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::put()
             .uri("/api/v1/balancer_desired_state")
             .set_json(BalancerDesiredState::default())
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }

@@ -33,7 +33,10 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body_json;
     use actix_web::web::Data;
     use tokio::sync::broadcast;
     use tokio::sync::mpsc;
@@ -122,18 +125,18 @@ mod tests {
             )
             .unwrap();
 
-        let app = test::init_service(
+        let app = init_service(
             App::new()
                 .app_data(app_data_with_pool(agent_controller_pool))
                 .configure(register),
         )
         .await;
-        let request = test::TestRequest::get().uri("/api/v1/agents").to_request();
-        let response = test::call_service(&app, request).await;
+        let request = TestRequest::get().uri("/api/v1/agents").to_request();
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let snapshot: AgentControllerPoolSnapshot = test::read_body_json(response).await;
+        let snapshot: AgentControllerPoolSnapshot = read_body_json(response).await;
 
         assert_eq!(snapshot.agents.len(), 1);
         assert_eq!(snapshot.agents[0].id, "agent-test");
@@ -150,14 +153,14 @@ mod tests {
             )
             .unwrap();
 
-        let app = test::init_service(
+        let app = init_service(
             App::new()
                 .app_data(app_data_with_pool(agent_controller_pool))
                 .configure(register),
         )
         .await;
-        let request = test::TestRequest::get().uri("/api/v1/agents").to_request();
-        let response = test::call_service(&app, request).await;
+        let request = TestRequest::get().uri("/api/v1/agents").to_request();
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }

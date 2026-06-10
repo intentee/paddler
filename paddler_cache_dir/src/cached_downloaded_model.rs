@@ -5,7 +5,8 @@ use anyhow::Result;
 use fslock::LockFile;
 use sha2::Digest;
 use sha2::Sha256;
-use tokio::fs;
+use tokio::fs::create_dir_all;
+use tokio::fs::try_exists;
 
 use crate::cache_dir::CacheDir;
 use crate::cached_downloaded_model_lock::CachedDownloadedModelLock;
@@ -45,11 +46,11 @@ impl CachedDownloadedModel {
     }
 
     pub async fn is_cached(&self) -> Result<bool, std::io::Error> {
-        fs::try_exists(&self.cache_file_path).await
+        try_exists(&self.cache_file_path).await
     }
 
     pub async fn ensure_cache_subdir_exists(&self) -> Result<(), std::io::Error> {
-        fs::create_dir_all(&self.cache_subdir).await
+        create_dir_all(&self.cache_subdir).await
     }
 
     pub fn try_acquire_download_lock(

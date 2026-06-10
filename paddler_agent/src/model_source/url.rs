@@ -242,6 +242,9 @@ mod tests {
     use paddler_messaging::agent_issue::AgentIssue;
     use reqwest::StatusCode;
     use tempfile::TempDir;
+    use tokio::fs::create_dir;
+    use tokio::fs::read;
+    use tokio::fs::write;
     use tokio::io::AsyncBufReadExt as _;
     use tokio::io::AsyncWriteExt as _;
     use tokio::io::BufReader;
@@ -290,7 +293,7 @@ mod tests {
         let url_string = "https://host.example/cached.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
-        tokio::fs::write(&cached.cache_file_path, b"cached content")
+        write(&cached.cache_file_path, b"cached content")
             .await
             .unwrap();
 
@@ -394,7 +397,7 @@ mod tests {
         let url_string = "https://host.example/lock-as-directory.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
-        tokio::fs::create_dir(&cached.lock_file_path).await.unwrap();
+        create_dir(&cached.lock_file_path).await.unwrap();
 
         let status = fresh_status();
         let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
@@ -608,7 +611,7 @@ mod tests {
     #[tokio::test]
     async fn ensure_cache_subdir_failure_registers_model_cache_is_corrupted() {
         let directory = TempDir::new().unwrap();
-        tokio::fs::write(directory.path().join("downloaded-models"), b"blocker")
+        write(directory.path().join("downloaded-models"), b"blocker")
             .await
             .unwrap();
         let cache_dir = cache_dir_at(directory.path());
@@ -773,6 +776,6 @@ mod tests {
             resolution,
             DesiredModelResolution::Resolved(resolved_path) if resolved_path == expected_path
         ));
-        assert_eq!(tokio::fs::read(&expected_path).await.unwrap(), body);
+        assert_eq!(read(&expected_path).await.unwrap(), body);
     }
 }

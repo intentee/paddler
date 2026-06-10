@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::read_dir;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -13,7 +13,7 @@ impl ResourceSnapshot {
     pub fn try_from_self() -> Result<Self> {
         let directory_path = open_descriptors_directory_path();
 
-        let entries = fs::read_dir(directory_path).with_context(|| {
+        let entries = read_dir(directory_path).with_context(|| {
             format!(
                 "failed to read open-descriptors directory {directory_path:?} for the current process"
             )

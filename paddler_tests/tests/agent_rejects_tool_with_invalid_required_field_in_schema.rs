@@ -13,6 +13,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
+use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
@@ -20,7 +21,7 @@ async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()
 
     let mut name_properties = Map::new();
 
-    name_properties.insert("name".to_owned(), serde_json::json!({"type": "string"}));
+    name_properties.insert("name".to_owned(), json!({"type": "string"}));
 
     let outcome = cluster
         .continue_from_conversation_history(&ContinueFromConversationHistoryParams {

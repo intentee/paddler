@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
+use command_handler::handler::Handler;
 use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
@@ -19,7 +20,6 @@ use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
-use super::handler::Handler;
 use super::value_parser::parse_duration::parse_duration;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
@@ -110,9 +110,9 @@ impl Balancer {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Handler for Balancer {
-    async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
+    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
         let shutdown_options = ServiceShutdownOptions::default();
 
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use jsonschema::Validator;
+use jsonschema::validator_for;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::ToolCallArguments;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -39,7 +40,7 @@ impl ToolCallValidator {
                             message: err.to_string(),
                         }
                     })?;
-                    let compiled = jsonschema::validator_for(&schema_value).map_err(|err| {
+                    let compiled = validator_for(&schema_value).map_err(|err| {
                         ValidatorBuildError::InvalidSchema {
                             tool_name: function.name.clone(),
                             message: err.to_string(),
@@ -117,7 +118,7 @@ mod tests {
         let mut properties = Map::new();
         properties.insert(
             "location".to_owned(),
-            serde_json::json!({"type": "string", "description": "city"}),
+            json!({"type": "string", "description": "city"}),
         );
 
         Tool::Function(FunctionCall {
@@ -262,7 +263,7 @@ mod tests {
 
     fn tool_with_invalid_property_schema() -> Tool<ValidatedParametersSchema> {
         let mut properties = Map::new();
-        properties.insert("location".to_owned(), serde_json::json!({"type": 42}));
+        properties.insert("location".to_owned(), json!({"type": 42}));
 
         Tool::Function(FunctionCall {
             function: Function {

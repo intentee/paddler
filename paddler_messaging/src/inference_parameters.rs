@@ -19,9 +19,9 @@ pub struct InferenceParameters {
     pub v_cache_dtype: KvCacheDtype,
     /// The minimum probability for a token to be considered, relative to the probability of the most likely token
     pub min_p: f32,
-    /// Number of model layers to offload to GPU. 0 = CPU-only.
+    /// Number of model layers to offload to GPU. 0 = CPU-only, -1 = offload all layers.
     /// Set to a value >= the model's transformer block count for full GPU offload.
-    pub n_gpu_layers: u32,
+    pub n_gpu_layers: i32,
     pub penalty_frequency: f32,
     /// How many tokens to scan for repetitions (-1 = context size, 0 = disabled)
     pub penalty_last_n: i32,

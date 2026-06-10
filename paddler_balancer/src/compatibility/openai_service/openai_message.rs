@@ -20,11 +20,13 @@ impl OpenAIMessage {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::OpenAIMessage;
 
     #[test]
     fn openai_message_converts_to_conversation_message() {
-        let input = serde_json::json!({
+        let input = json!({
             "role": "user",
             "content": [
                 {"type": "text", "text": "OCR this"},

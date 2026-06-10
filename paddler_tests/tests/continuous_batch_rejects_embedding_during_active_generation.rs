@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::StreamExt as _;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -25,7 +26,7 @@ async fn continuous_batch_rejects_embedding_during_active_generation() -> Result
     let _first_token = generation_stream
         .next()
         .await
-        .ok_or_else(|| anyhow::anyhow!("generation stream must yield at least one message"))?;
+        .ok_or_else(|| anyhow!("generation stream must yield at least one message"))?;
 
     let embedding_outcome = cluster
         .generate_embedding_batch(&GenerateEmbeddingBatchParams {

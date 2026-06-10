@@ -14,16 +14,16 @@ pub fn arguments_to_tool_call_string(arguments: &ToolCallArguments) -> Result<St
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::ToolCallArguments;
+    use serde_json::json;
 
     use super::arguments_to_tool_call_string;
 
     #[test]
     fn serializes_valid_json_arguments() {
-        let serialized =
-            arguments_to_tool_call_string(&ToolCallArguments::ValidJson(serde_json::json!({
-                "location": "Paris"
-            })))
-            .unwrap();
+        let serialized = arguments_to_tool_call_string(&ToolCallArguments::ValidJson(json!({
+            "location": "Paris"
+        })))
+        .unwrap();
 
         assert_eq!(serialized, "{\"location\":\"Paris\"}");
     }

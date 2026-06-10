@@ -47,6 +47,9 @@ mod tests {
     use futures_util::stream;
     use tempfile::TempDir;
     use tokio::fs::OpenOptions;
+    use tokio::fs::read;
+    use tokio::fs::write;
+    use tokio::io::duplex;
 
     use crate::progress_sink::ProgressSink;
     use crate::stream_to_partial_file::stream_to_partial_file;
@@ -106,7 +109,7 @@ mod tests {
             .await
             .unwrap();
 
-        let bytes = tokio::fs::read(&path).await.unwrap();
+        let bytes = read(&path).await.unwrap();
         assert_eq!(bytes, b"firstsecond");
     }
 
@@ -139,7 +142,7 @@ mod tests {
 
     #[tokio::test]
     async fn write_to_closed_duplex_returns_error() {
-        let (reader_half, mut writer_half) = tokio::io::duplex(0);
+        let (reader_half, mut writer_half) = duplex(0);
         drop(reader_half);
 
         let chunks: Vec<std::result::Result<Bytes, reqwest::Error>> =
@@ -157,7 +160,7 @@ mod tests {
     async fn flush_to_read_only_file_returns_error() {
         let directory = TempDir::new().unwrap();
         let path = directory.path().join("read_only.bin");
-        tokio::fs::write(&path, b"existing").await.unwrap();
+        write(&path, b"existing").await.unwrap();
         let chunks: Vec<std::result::Result<Bytes, reqwest::Error>> =
             vec![Ok(Bytes::from_static(b"more bytes"))];
         let body_stream = stream::iter(chunks);

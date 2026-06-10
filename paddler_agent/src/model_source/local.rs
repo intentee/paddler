@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use tokio::fs::try_exists;
 
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::resolves_model_source::ResolvesModelSource;
@@ -27,7 +28,7 @@ impl ResolvesModelSource for LocalModelPath {
     ) -> Result<DesiredModelResolution> {
         let local_path = PathBuf::from(&self.path);
 
-        if tokio::fs::try_exists(&local_path).await? {
+        if try_exists(&local_path).await? {
             Ok(DesiredModelResolution::Resolved(local_path))
         } else {
             Ok(DesiredModelResolution::LocalFileMissing(local_path))

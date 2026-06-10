@@ -28,9 +28,6 @@ trzcina = { workspace = true }
 reqwest = { workspace = true }
 tempfile = { workspace = true }
 
-[target.'cfg(unix)'.dev-dependencies]
-nix = { workspace = true }
-
 [lints]
 workspace = true
 

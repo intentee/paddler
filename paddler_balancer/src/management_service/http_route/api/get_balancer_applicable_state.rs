@@ -26,7 +26,11 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body;
+    use actix_web::test::read_body_json;
     use actix_web::web::Data;
     use tokio::sync::broadcast;
     use tokio_util::sync::CancellationToken;
@@ -92,15 +96,15 @@ mod tests {
         ));
 
         let app_data = build_app_data(balancer_applicable_state_holder);
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get()
             .uri("/api/v1/balancer_applicable_state")
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let agent_desired_state: AgentDesiredState = test::read_body_json(response).await;
+        let agent_desired_state: AgentDesiredState = read_body_json(response).await;
 
         assert_eq!(
             agent_desired_state.model,
@@ -111,15 +115,15 @@ mod tests {
     #[actix_web::test]
     async fn responds_with_json_null_when_no_state_is_set() {
         let app_data = build_app_data(Arc::new(BalancerApplicableStateHolder::default()));
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get()
             .uri("/api/v1/balancer_applicable_state")
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = test::read_body(response).await;
+        let body = read_body(response).await;
 
         assert_eq!(body.as_ref(), b"null");
     }

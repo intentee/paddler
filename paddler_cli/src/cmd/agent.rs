@@ -1,13 +1,13 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
+use command_handler::handler::Handler;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
-use super::handler::Handler;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
@@ -25,9 +25,9 @@ pub struct Agent {
     slots: i32,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Handler for Agent {
-    async fn handle(&self, shutdown: CancellationToken) -> Result<()> {
+    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
         let bundle = AgentServiceBundle::new(
             self.name.clone(),
             &self.management_addr.socket_addr.to_string(),

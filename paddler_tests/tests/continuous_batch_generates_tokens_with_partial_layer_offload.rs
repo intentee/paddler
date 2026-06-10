@@ -13,7 +13,7 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
-const PARTIAL_GPU_LAYER_COUNT: u32 = 14;
+const PARTIAL_GPU_LAYER_COUNT: i32 = 14;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Result<()> {

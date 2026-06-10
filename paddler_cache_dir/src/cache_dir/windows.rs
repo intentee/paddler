@@ -1,3 +1,4 @@
+use std::env::var;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
@@ -13,9 +14,9 @@ impl CacheDir {
     #[must_use]
     pub fn from_process_env() -> Self {
         Self {
-            explicit: std::env::var("PADDLER_CACHE_DIR").ok(),
-            localappdata: std::env::var("LOCALAPPDATA").ok(),
-            userprofile: std::env::var("USERPROFILE").ok(),
+            explicit: var("PADDLER_CACHE_DIR").ok(),
+            localappdata: var("LOCALAPPDATA").ok(),
+            userprofile: var("USERPROFILE").ok(),
         }
     }
 
@@ -42,7 +43,7 @@ impl CacheDir {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache_dir::windows::CacheDir;
+    use super::CacheDir;
 
     #[test]
     fn explicit_value_wins_over_localappdata_and_userprofile() {

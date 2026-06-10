@@ -120,10 +120,6 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 }
 
 #[get("/api/v1/inference_socket")]
-#[expect(
-    clippy::future_not_send,
-    reason = "actix-web handler futures are inherently !Send: each worker runs them on its own single-threaded runtime and never moves them across threads"
-)]
 async fn respond(
     app_data: Data<AppData>,
     payload: Payload,
@@ -158,8 +154,9 @@ mod tests {
     use actix_web::FromRequest as _;
     use actix_web::http::StatusCode;
     use actix_web::http::header;
-    use actix_web::test;
     use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
     use actix_web::web::Data;
     use actix_web::web::Payload;
     use tokio::sync::mpsc;
@@ -253,10 +250,6 @@ mod tests {
         })
     }
 
-    #[expect(
-        clippy::future_not_send,
-        reason = "actix_ws::Session is !Send and the future is awaited in place"
-    )]
     async fn open_session_controller() -> WebSocketSessionController<OutgoingMessage> {
         let (request, mut raw_payload) = TestRequest::get()
             .insert_header((header::CONNECTION, "upgrade"))
@@ -329,16 +322,16 @@ mod tests {
             inference_service_configuration: inference_service_configuration(),
             shutdown: CancellationToken::new(),
         });
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
 
-        let request = test::TestRequest::get()
+        let request = TestRequest::get()
             .uri("/api/v1/inference_socket")
             .insert_header((header::UPGRADE, "websocket"))
             .insert_header((header::CONNECTION, "Upgrade"))
             .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
             .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
     }

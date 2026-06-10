@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::StreamExt as _;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -23,7 +24,7 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<
     let _first_token = first_stream
         .next()
         .await
-        .ok_or_else(|| anyhow::anyhow!("first stream must yield at least one message"))?;
+        .ok_or_else(|| anyhow!("first stream must yield at least one message"))?;
 
     drop(first_stream);
 

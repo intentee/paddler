@@ -473,10 +473,6 @@ mod tests {
             .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
     }
 
-    #[expect(
-        clippy::future_not_send,
-        reason = "test-only helper; the future is awaited in place, never sent across threads"
-    )]
     async fn open_session() -> Session {
         let (request, mut raw_payload) = handshake_request().to_http_parts();
         let payload = Payload::from_request(&request, &mut raw_payload)
@@ -568,10 +564,6 @@ mod tests {
         assert!(connection_close.is_cancelled());
     }
 
-    #[expect(
-        clippy::future_not_send,
-        reason = "test-only helper; the future is awaited in place, never sent across threads"
-    )]
     async fn drain_close_frame(endpoint: &impl ControlsWebSocketEndpoint) -> Bytes {
         let (request, mut raw_payload) = handshake_request().to_http_parts();
         let payload = Payload::from_request(&request, &mut raw_payload)

@@ -161,6 +161,7 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body;
     use actix_web::web::Data;
+    use serde_json::json;
     use tokio_util::sync::CancellationToken;
 
     use super::AppData;
@@ -196,7 +197,7 @@ mod tests {
 
         let request = TestRequest::post()
             .uri("/v1/chat/completions")
-            .set_json(serde_json::json!({
+            .set_json(json!({
                 "model": "test-model",
                 "messages": [{"role": "user", "content": "hi"}],
                 "tools": [
@@ -243,7 +244,7 @@ mod tests {
 
         let request = TestRequest::post()
             .uri("/v1/chat/completions")
-            .set_json(serde_json::json!({
+            .set_json(json!({
                 "model": "test-model",
                 "messages": [{"role": "user", "content": "hi"}]
             }))

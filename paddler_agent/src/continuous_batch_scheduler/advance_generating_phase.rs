@@ -79,7 +79,19 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        let classified_outcomes = classify_token_phase::run(request, raw_token);
+        let classified_outcomes = match classify_token_phase::run(request, raw_token) {
+            Ok(outcomes) => outcomes,
+            Err(error) => {
+                error!(
+                    "{:?}: sequence {} token classification failed: {error:#}",
+                    self.scheduler_context.agent_name, request.state.sequence_id
+                );
+
+                return Some(AdvanceOutcome::Completed(
+                    GeneratedTokenResult::DetokenizationFailed(error.to_string()),
+                ));
+            }
+        };
 
         let completion_phase = CompletionCheckPhase {
             model: &self.scheduler_context.model,

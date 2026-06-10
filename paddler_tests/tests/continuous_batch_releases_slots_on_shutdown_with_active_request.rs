@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -21,7 +22,7 @@ async fn continuous_batch_releases_slots_on_shutdown_with_active_request() -> Re
     let _first_message = stream
         .next()
         .await
-        .ok_or_else(|| anyhow::anyhow!("inference stream must yield at least one message"))?;
+        .ok_or_else(|| anyhow!("inference stream must yield at least one message"))?;
 
     drop(stream);
 

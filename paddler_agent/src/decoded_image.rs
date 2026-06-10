@@ -1,20 +1,26 @@
 use std::io::Cursor;
+use std::str::from_utf8;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use image::DynamicImage;
 use image::ImageFormat;
+use image::RgbaImage;
+use image::guess_format;
 use image::imageops::FilterType;
+use image::load_from_memory;
 use log::info;
 use paddler_messaging::image_url::ImageUrl;
+use resvg::render;
 use resvg::tiny_skia::Pixmap;
+use resvg::tiny_skia::Transform;
 use resvg::usvg::Options;
 use resvg::usvg::Tree as SvgTree;
 
 use crate::decoded_image_error::DecodedImageError;
 
 fn is_svg(data: &[u8]) -> bool {
-    let trimmed = match std::str::from_utf8(data) {
+    let trimmed = match from_utf8(data) {
         Ok(text) => text.trim_start(),
         Err(_) => return false,
     };
@@ -31,11 +37,6 @@ fn compute_target_dimension(svg_dim: f64, scale: f64) -> Result<u32, DecodedImag
         });
     }
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        reason = "bounds-checked above: target is in 0..=u32::MAX"
-    )]
     Ok(target as u32)
 }
 
@@ -68,16 +69,11 @@ fn rasterize_svg_to_dynamic_image(
     let render_scale_x = f64::from(target_width) / svg_width;
     let render_scale_y = f64::from(target_height) / svg_height;
 
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "Transform::from_scale requires f32; scale factors are small ratios"
-    )]
-    let transform =
-        resvg::tiny_skia::Transform::from_scale(render_scale_x as f32, render_scale_y as f32);
+    let transform = Transform::from_scale(render_scale_x as f32, render_scale_y as f32);
 
-    resvg::render(&svg_tree, transform, &mut pixmap.as_mut());
+    render(&svg_tree, transform, &mut pixmap.as_mut());
 
-    let rgba = image::RgbaImage::from_raw(target_width, target_height, pixmap.data().to_vec())
+    let rgba = RgbaImage::from_raw(target_width, target_height, pixmap.data().to_vec())
         .ok_or_else(|| DecodedImageError::ConversionFailed {
             message: "rasterized pixmap buffer length did not match target dimensions".to_owned(),
         })?;
@@ -100,7 +96,7 @@ fn load_supported_image(
         return Ok((image, LoadedImageOrigin::NeedsReencode));
     }
 
-    let format = image::guess_format(data).map_err(|err| DecodedImageError::ConversionFailed {
+    let format = guess_format(data).map_err(|err| DecodedImageError::ConversionFailed {
         message: err.to_string(),
     })?;
 
@@ -119,10 +115,9 @@ fn load_supported_image(
         }
     };
 
-    let image =
-        image::load_from_memory(data).map_err(|err| DecodedImageError::ConversionFailed {
-            message: err.to_string(),
-        })?;
+    let image = load_from_memory(data).map_err(|err| DecodedImageError::ConversionFailed {
+        message: err.to_string(),
+    })?;
 
     Ok((image, origin))
 }
@@ -207,12 +202,15 @@ impl DecodedImage {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::read;
     use std::io::Cursor;
     use std::mem::discriminant;
 
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use image::ImageFormat;
+    use image::guess_format;
+    use image::load_from_memory;
     use paddler_messaging::image_url::ImageUrl;
 
     use crate::decoded_image::DecodedImage;
@@ -299,7 +297,7 @@ mod tests {
     }
 
     fn load_fixture(filename: &str) -> Vec<u8> {
-        std::fs::read(format!(
+        read(format!(
             "{}/../fixtures/{filename}",
             env!("CARGO_MANIFEST_DIR"),
         ))
@@ -414,7 +412,7 @@ mod tests {
 
         let result = decoded_image.prepared_for_inference(1024).unwrap();
 
-        let result_format = image::guess_format(&result.data).unwrap();
+        let result_format = guess_format(&result.data).unwrap();
         assert_eq!(result_format, ImageFormat::Png);
     }
 
@@ -425,10 +423,10 @@ mod tests {
 
         let result = decoded_image.prepared_for_inference(1024).unwrap();
 
-        let result_format = image::guess_format(&result.data).unwrap();
+        let result_format = guess_format(&result.data).unwrap();
         assert_eq!(result_format, ImageFormat::Png);
 
-        let result_image = image::load_from_memory(&result.data).unwrap();
+        let result_image = load_from_memory(&result.data).unwrap();
         assert_eq!(result_image.width(), 640);
         assert_eq!(result_image.height(), 427);
     }
@@ -444,10 +442,10 @@ mod tests {
 
         let result = decoded_image.prepared_for_inference(1024).unwrap();
 
-        let result_format = image::guess_format(&result.data).unwrap();
+        let result_format = guess_format(&result.data).unwrap();
         assert_eq!(result_format, ImageFormat::Png);
 
-        let result_image = image::load_from_memory(&result.data).unwrap();
+        let result_image = load_from_memory(&result.data).unwrap();
         assert_eq!(result_image.width(), 50);
         assert_eq!(result_image.height(), 50);
     }
@@ -459,8 +457,8 @@ mod tests {
 
         let result = decoded_image.prepared_for_inference(320).unwrap();
 
-        let result_format = image::guess_format(&result.data).unwrap();
-        let result_image = image::load_from_memory(&result.data).unwrap();
+        let result_format = guess_format(&result.data).unwrap();
+        let result_image = load_from_memory(&result.data).unwrap();
 
         assert!(result_image.width() <= 320);
         assert!(result_image.height() <= 320);
@@ -474,10 +472,10 @@ mod tests {
 
         let result = decoded_image.prepared_for_inference(1024).unwrap();
 
-        let result_format = image::guess_format(&result.data).unwrap();
+        let result_format = guess_format(&result.data).unwrap();
         assert_eq!(result_format, ImageFormat::Jpeg);
 
-        let result_image = image::load_from_memory(&result.data).unwrap();
+        let result_image = load_from_memory(&result.data).unwrap();
         assert!(result_image.width() <= 1024);
         assert!(result_image.height() <= 1024);
     }
@@ -489,7 +487,7 @@ mod tests {
 
         let result = decoded_image.prepared_for_inference(1000).unwrap();
 
-        let result_image = image::load_from_memory(&result.data).unwrap();
+        let result_image = load_from_memory(&result.data).unwrap();
         assert_eq!(result_image.width(), 1000);
         assert_eq!(result_image.height(), 500);
     }
@@ -498,14 +496,14 @@ mod tests {
     fn test_prepared_with_jpg_fixture_within_bound() {
         let fixture_data = load_fixture("llamas.jpg");
 
-        let original_image = image::load_from_memory(&fixture_data).unwrap();
+        let original_image = load_from_memory(&fixture_data).unwrap();
         assert_eq!(original_image.width(), 640);
         assert_eq!(original_image.height(), 427);
 
         let decoded_image = DecodedImage { data: fixture_data };
         let result = decoded_image.prepared_for_inference(320).unwrap();
 
-        let result_image = image::load_from_memory(&result.data).unwrap();
+        let result_image = load_from_memory(&result.data).unwrap();
         assert_eq!(result_image.width(), 320);
         assert_eq!(result_image.height(), 214);
     }

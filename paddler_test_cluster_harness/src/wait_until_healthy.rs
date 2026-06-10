@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use anyhow::anyhow;
 use reqwest::Client;
 use reqwest::StatusCode;
 use url::Url;
@@ -22,7 +23,7 @@ pub async fn wait_until_healthy(base_url: &Url, endpoint: &str) -> Result<()> {
                     tokio::time::sleep(HEALTHCHECK_PROBE_INTERVAL).await;
                 }
                 other => {
-                    return Err(anyhow::anyhow!(
+                    return Err(anyhow!(
                         "unexpected status {other} while probing {health_url}"
                     ));
                 }

@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
@@ -60,7 +61,7 @@ async fn qwen3_openai_streaming_emits_tool_calls_for_function_tool() -> Result<(
         .pointer("/choices/0/delta/tool_calls/0/function/name")
         .and_then(Value::as_str)
         .ok_or_else(|| {
-            anyhow::anyhow!("structured tool-call chunk missing function.name: {structured_chunk}")
+            anyhow!("structured tool-call chunk missing function.name: {structured_chunk}")
         })?;
 
     assert_eq!(function_name, "get_weather");
@@ -69,9 +70,7 @@ async fn qwen3_openai_streaming_emits_tool_calls_for_function_tool() -> Result<(
         .pointer("/choices/0/delta/tool_calls/0/function/arguments")
         .and_then(Value::as_str)
         .ok_or_else(|| {
-            anyhow::anyhow!(
-                "structured tool-call chunk missing function.arguments: {structured_chunk}"
-            )
+            anyhow!("structured tool-call chunk missing function.arguments: {structured_chunk}")
         })?;
 
     let parsed_arguments: Value = serde_json::from_str(function_arguments)?;

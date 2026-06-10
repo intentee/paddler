@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -14,6 +15,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
+use serde_json::json;
 use serde_json::Value;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -23,7 +25,7 @@ async fn qwen35_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
     let mut location_properties = Map::new();
     location_properties.insert(
         "location".to_owned(),
-        serde_json::json!({"type": "string", "description": "The city name"}),
+        json!({"type": "string", "description": "The city name"}),
     );
 
     let collected = cluster
@@ -74,7 +76,7 @@ async fn qwen35_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
         .iter()
         .flat_map(|calls| calls.iter())
         .next()
-        .ok_or_else(|| anyhow::anyhow!("no parsed tool calls in any event"))?;
+        .ok_or_else(|| anyhow!("no parsed tool calls in any event"))?;
 
     assert_eq!(first_call.name, "get_weather");
 

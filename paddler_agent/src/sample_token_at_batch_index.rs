@@ -16,10 +16,14 @@ pub fn sample_token_at_batch_index(
         .context("failed to read token data array for sampling")?;
 
     if let Some(grammar) = grammar_sampler.as_ref() {
-        token_data_array.apply_sampler(grammar);
+        token_data_array
+            .apply_sampler(grammar)
+            .context("failed to apply grammar sampler to token data array")?;
     }
 
-    token_data_array.apply_sampler(chain);
+    token_data_array
+        .apply_sampler(chain)
+        .context("failed to apply sampler chain to token data array")?;
 
     let Some(llama_token) = token_data_array.selected_token() else {
         return Ok(SamplingOutcome::AllCandidatesEliminated);

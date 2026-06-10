@@ -62,7 +62,7 @@ pub fn prepare_conversation_history_request(
             anyhow!(message)
         })?;
 
-    let media_marker = MediaMarker::new(mtmd_default_marker().to_owned());
+    let media_marker = MediaMarker::new(mtmd_default_marker()?.to_owned());
     let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
 
     let raw_prompt = scheduler_context

@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -14,6 +15,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
+use serde_json::json;
 use serde_json::Value;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -23,7 +25,7 @@ async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens()
     let mut location_properties = Map::new();
     location_properties.insert(
         "location".to_owned(),
-        serde_json::json!({"type": "string", "description": "The city name"}),
+        json!({"type": "string", "description": "The city name"}),
     );
 
     let collected = cluster
@@ -72,7 +74,7 @@ async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens()
     let last = collected
         .token_results
         .last()
-        .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
+        .ok_or_else(|| anyhow!("no token results received"))?;
     let GeneratedTokenResult::Done(_) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };

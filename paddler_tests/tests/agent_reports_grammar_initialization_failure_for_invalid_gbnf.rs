@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -37,7 +38,7 @@ async fn agent_reports_grammar_initialization_failure_for_invalid_gbnf() -> Resu
             _ => None,
         })
         .ok_or_else(|| {
-            anyhow::anyhow!(
+            anyhow!(
                 "expected a GrammarInitializationFailed event for malformed GBNF; got:\n{}",
                 collected.text
             )

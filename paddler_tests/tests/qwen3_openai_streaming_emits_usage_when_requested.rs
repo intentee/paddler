@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
@@ -22,24 +23,24 @@ async fn qwen3_openai_streaming_emits_usage_when_requested() -> Result<()> {
 
     let last_chunk = chunks
         .last()
-        .ok_or_else(|| anyhow::anyhow!("no chunks received from streaming endpoint"))?;
+        .ok_or_else(|| anyhow!("no chunks received from streaming endpoint"))?;
 
     let usage = last_chunk
         .get("usage")
-        .ok_or_else(|| anyhow::anyhow!("trailing chunk lacks usage field: {last_chunk}"))?;
+        .ok_or_else(|| anyhow!("trailing chunk lacks usage field: {last_chunk}"))?;
 
     let prompt_tokens = usage
         .get("prompt_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow::anyhow!("usage.prompt_tokens missing or not u64"))?;
+        .ok_or_else(|| anyhow!("usage.prompt_tokens missing or not u64"))?;
     let completion_tokens = usage
         .get("completion_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow::anyhow!("usage.completion_tokens missing or not u64"))?;
+        .ok_or_else(|| anyhow!("usage.completion_tokens missing or not u64"))?;
     let total_tokens = usage
         .get("total_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow::anyhow!("usage.total_tokens missing or not u64"))?;
+        .ok_or_else(|| anyhow!("usage.total_tokens missing or not u64"))?;
 
     assert!(prompt_tokens > 0);
     assert!(completion_tokens > 0);
@@ -48,7 +49,7 @@ async fn qwen3_openai_streaming_emits_usage_when_requested() -> Result<()> {
     let trailing_choices = last_chunk
         .get("choices")
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow::anyhow!("trailing chunk lacks choices array"))?;
+        .ok_or_else(|| anyhow!("trailing chunk lacks choices array"))?;
 
     assert!(
         trailing_choices.is_empty(),

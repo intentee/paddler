@@ -28,7 +28,10 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body_json;
     use actix_web::web::Data;
     use tokio::sync::broadcast;
     use tokio_util::sync::CancellationToken;
@@ -82,15 +85,15 @@ mod tests {
             statsd_prefix: "paddler".to_owned(),
         });
 
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get()
             .uri("/api/v1/buffered_requests")
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let snapshot: BufferedRequestManagerSnapshot = test::read_body_json(response).await;
+        let snapshot: BufferedRequestManagerSnapshot = read_body_json(response).await;
 
         assert_eq!(snapshot.buffered_requests_current, 2);
     }

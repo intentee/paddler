@@ -13,6 +13,7 @@ use crate::streamable_result::StreamableResult;
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     ContentToken(String),
+    DetokenizationFailed(String),
     Done(GenerationSummary),
     GrammarIncompatibleWithThinking(String),
     GrammarInitializationFailed(String),
@@ -74,6 +75,7 @@ impl StreamableResult for GeneratedTokenResult {
         matches!(
             self,
             Self::ChatTemplateError(_)
+                | Self::DetokenizationFailed(_)
                 | Self::Done(_)
                 | Self::GrammarIncompatibleWithThinking(_)
                 | Self::GrammarInitializationFailed(_)
@@ -100,6 +102,11 @@ mod tests {
     #[test]
     fn chat_template_error_is_done() {
         assert!(GeneratedTokenResult::ChatTemplateError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn detokenization_failed_is_done() {
+        assert!(GeneratedTokenResult::DetokenizationFailed("err".to_owned()).is_done());
     }
 
     #[test]

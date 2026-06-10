@@ -1,5 +1,6 @@
 use futures_util::StreamExt;
 use futures_util::stream::SplitStream;
+use log::debug;
 use log::error;
 use log::warn;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -76,7 +77,7 @@ pub fn spawn_read_task(ws_read: WebSocketReadStream, pending: PendingRequests) -
                 }))
                 .is_err()
             {
-                log::debug!("Receiver already dropped for request: {}", entry.key());
+                debug!("Receiver already dropped for request: {}", entry.key());
             }
         }
 
