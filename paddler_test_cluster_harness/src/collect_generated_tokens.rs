@@ -71,6 +71,7 @@ pub async fn collect_generated_tokens(
 
 #[cfg(test)]
 mod tests {
+    use anyhow::anyhow;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -193,7 +194,7 @@ mod tests {
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_generated_tokens(stream(vec![Err(anyhow::anyhow!("socket closed"))]))
+        let error = collect_generated_tokens(stream(vec![Err(anyhow!("socket closed"))]))
             .await
             .err()
             .unwrap();

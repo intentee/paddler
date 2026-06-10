@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
@@ -95,7 +96,7 @@ impl AgentControllerPool {
 
             Ok(())
         } else {
-            Err(anyhow::anyhow!("AgentController already registered"))
+            Err(anyhow!("AgentController already registered"))
         }
     }
 

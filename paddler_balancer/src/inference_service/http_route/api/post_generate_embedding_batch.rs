@@ -181,7 +181,10 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body;
     use actix_web::web;
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;
@@ -299,7 +302,7 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_service_unavailable_when_balancer_state_is_not_set() {
-        let app = test::init_service(
+        let app = init_service(
             App::new()
                 .app_data(web::Data::new(app_data(
                     Arc::new(AgentControllerPool::default()),
@@ -309,18 +312,18 @@ mod tests {
         )
         .await;
 
-        let request = test::TestRequest::post()
+        let request = TestRequest::post()
             .uri("/api/v1/generate_embedding_batch")
             .set_json(single_document_params())
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[actix_web::test]
     async fn responds_service_unavailable_when_no_agents_are_connected() {
-        let app = test::init_service(
+        let app = init_service(
             App::new()
                 .app_data(web::Data::new(app_data(
                     Arc::new(AgentControllerPool::default()),
@@ -332,11 +335,11 @@ mod tests {
         )
         .await;
 
-        let request = test::TestRequest::post()
+        let request = TestRequest::post()
             .uri("/api/v1/generate_embedding_batch")
             .set_json(single_document_params())
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
@@ -352,7 +355,7 @@ mod tests {
             )
             .unwrap();
 
-        let app = test::init_service(
+        let app = init_service(
             App::new()
                 .app_data(web::Data::new(app_data(
                     agent_controller_pool,
@@ -364,11 +367,11 @@ mod tests {
         )
         .await;
 
-        let request = test::TestRequest::post()
+        let request = TestRequest::post()
             .uri("/api/v1/generate_embedding_batch")
             .set_json(single_document_params())
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
@@ -384,7 +387,7 @@ mod tests {
             )
             .unwrap();
 
-        let app = test::init_service(
+        let app = init_service(
             App::new()
                 .app_data(web::Data::new(app_data(
                     agent_controller_pool,
@@ -396,15 +399,15 @@ mod tests {
         )
         .await;
 
-        let request = test::TestRequest::post()
+        let request = TestRequest::post()
             .uri("/api/v1/generate_embedding_batch")
             .set_json(single_document_params())
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = test::read_body(response).await;
+        let body = read_body(response).await;
         let body_text = String::from_utf8(body.to_vec()).unwrap();
 
         assert!(

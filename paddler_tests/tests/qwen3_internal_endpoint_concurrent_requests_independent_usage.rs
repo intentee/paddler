@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use futures_util::future;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -39,12 +40,12 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
             let last = collected
                 .token_results
                 .last()
-                .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
+                .ok_or_else(|| anyhow!("no token results received"))?;
             match &last.token_result {
                 GeneratedTokenResult::Done(summary) => {
                     Ok::<GenerationSummary, anyhow::Error>(*summary)
                 }
-                other => Err(anyhow::anyhow!("last result was not Done: {other:?}")),
+                other => Err(anyhow!("last result was not Done: {other:?}")),
             }
         }
     });

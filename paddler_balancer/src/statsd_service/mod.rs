@@ -21,10 +21,6 @@ use crate::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "cadence StatsdClient::with_error_handler requires an owned Fn(MetricError) handler"
-)]
 fn log_statsd_error(error: MetricError) {
     error!("Statsd error: {error}");
 }

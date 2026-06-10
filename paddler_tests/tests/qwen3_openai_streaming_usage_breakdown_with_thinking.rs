@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
@@ -27,20 +28,20 @@ async fn qwen3_openai_streaming_usage_breakdown_with_thinking() -> Result<()> {
         .iter()
         .rev()
         .find(|chunk| chunk.get("usage").is_some_and(|usage| !usage.is_null()))
-        .ok_or_else(|| anyhow::anyhow!("no chunk contained usage information"))?;
+        .ok_or_else(|| anyhow!("no chunk contained usage information"))?;
 
     let prompt_tokens = usage_chunk
         .pointer("/usage/prompt_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow::anyhow!("usage chunk missing prompt_tokens"))?;
+        .ok_or_else(|| anyhow!("usage chunk missing prompt_tokens"))?;
     let completion_tokens = usage_chunk
         .pointer("/usage/completion_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow::anyhow!("usage chunk missing completion_tokens"))?;
+        .ok_or_else(|| anyhow!("usage chunk missing completion_tokens"))?;
     let total_tokens = usage_chunk
         .pointer("/usage/total_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow::anyhow!("usage chunk missing total_tokens"))?;
+        .ok_or_else(|| anyhow!("usage chunk missing total_tokens"))?;
 
     assert!(prompt_tokens > 0);
     assert!(completion_tokens > 0);

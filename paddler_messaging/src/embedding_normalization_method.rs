@@ -1,4 +1,4 @@
-use std::mem;
+use std::mem::discriminant;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -23,7 +23,7 @@ impl EmbeddingNormalizationMethod {
 
     #[must_use]
     pub fn needs_transformation_to(&self, other: &Self) -> bool {
-        mem::discriminant(self) != mem::discriminant(other)
+        discriminant(self) != discriminant(other)
     }
 }
 

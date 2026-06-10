@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
@@ -20,6 +21,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
+use serde_json::json;
 use serde_json::Value;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -53,7 +55,7 @@ async fn agent_reports_tool_call_validation_failure() -> Result<()> {
     let mut location_properties = Map::new();
     location_properties.insert(
         "location".to_owned(),
-        serde_json::json!({"type": "integer", "description": "The city name"}),
+        json!({"type": "integer", "description": "The city name"}),
     );
 
     let collected = cluster
@@ -105,7 +107,7 @@ async fn agent_reports_tool_call_validation_failure() -> Result<()> {
         .iter()
         .flat_map(|messages| messages.iter())
         .next()
-        .ok_or_else(|| anyhow::anyhow!("no validation-failure messages in any event"))?;
+        .ok_or_else(|| anyhow!("no validation-failure messages in any event"))?;
 
     assert!(
         first_failure.contains("get_weather"),

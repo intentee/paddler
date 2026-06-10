@@ -69,10 +69,6 @@ impl ResponsesStreamingResponseTransformer {
 impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
     type Output = ResponsesStreamEvent;
 
-    #[expect(
-        clippy::significant_drop_tightening,
-        reason = "one guard must span the whole per-message state transition; calls are serial so there is no contention"
-    )]
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<ResponsesStreamEvent>> {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
         let mut state = self.state.lock();

@@ -1,3 +1,5 @@
+use std::mem::take;
+
 #[derive(Debug, Default)]
 pub struct ToolCallBuffer {
     accumulated: String,
@@ -26,7 +28,7 @@ impl ToolCallBuffer {
 
     #[must_use]
     pub fn take(&mut self) -> String {
-        std::mem::take(&mut self.accumulated)
+        take(&mut self.accumulated)
     }
 
     #[must_use]

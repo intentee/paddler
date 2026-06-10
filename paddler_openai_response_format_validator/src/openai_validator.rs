@@ -1,6 +1,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use jsonschema::Validator;
+use jsonschema::validator_for;
 use serde_json::Value;
 
 use crate::openai_spec::OPENAPI_YAML;
@@ -77,7 +78,7 @@ fn compile_strict_schema(
 ) -> Result<Validator> {
     let schema = strict_chat_completion_schema(components, root_name, strict_pointers)?;
 
-    jsonschema::validator_for(&schema)
+    validator_for(&schema)
         .map_err(|error| anyhow!("compiling the strict {root_name:?} schema: {error}"))
 }
 

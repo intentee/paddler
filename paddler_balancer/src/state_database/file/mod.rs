@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use log::warn;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use tokio::fs;
+use tokio::fs::read_to_string;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
@@ -35,7 +35,7 @@ impl File {
     }
 
     async fn read_schema_from_file(&self) -> Result<Schema> {
-        match fs::read_to_string(&self.path).await {
+        match read_to_string(&self.path).await {
             Ok(content) => {
                 if content.is_empty() {
                     return self.store_default_schema().await;
@@ -73,7 +73,7 @@ impl File {
 
         let serialized_schema = serde_json::to_string_pretty(schema)
             .context("Failed to serialize the state database schema")?;
-        let mut file = fs::File::create(&self.path).await?;
+        let mut file = tokio::fs::File::create(&self.path).await?;
 
         file.write_all(serialized_schema.as_bytes()).await?;
         file.sync_all().await?;
@@ -127,7 +127,8 @@ mod tests {
     use log::LevelFilter;
     use tempfile::NamedTempFile;
     use tempfile::TempDir;
-    use tokio::fs;
+    use tokio::fs::metadata;
+    use tokio::fs::write;
     use tokio::sync::broadcast;
 
     use super::File;
@@ -160,7 +161,7 @@ mod tests {
         let read_back = database.read_balancer_desired_state().await.unwrap();
 
         assert_eq!(read_back.model, desired_state.model);
-        assert!(fs::metadata(&path).await.unwrap().is_file());
+        assert!(metadata(&path).await.unwrap().is_file());
     }
 
     #[tokio::test]
@@ -174,7 +175,7 @@ mod tests {
         let read_state = database.read_balancer_desired_state().await.unwrap();
 
         assert_eq!(read_state, BalancerDesiredState::default());
-        assert!(fs::metadata(&path).await.unwrap().is_file());
+        assert!(metadata(&path).await.unwrap().is_file());
     }
 
     #[tokio::test]
@@ -183,7 +184,7 @@ mod tests {
             broadcast::channel(8);
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_path_buf();
-        fs::write(&path, b"this is not valid json").await.unwrap();
+        write(&path, b"this is not valid json").await.unwrap();
         let database = File::new(balancer_desired_state_notify_tx, path);
 
         let read_result = database.read_balancer_desired_state().await;
@@ -265,7 +266,7 @@ mod tests {
         let read_state = database.read_balancer_desired_state().await.unwrap();
 
         assert_eq!(read_state, BalancerDesiredState::default());
-        assert!(fs::metadata(&path).await.unwrap().is_file());
+        assert!(metadata(&path).await.unwrap().is_file());
     }
 
     #[tokio::test]

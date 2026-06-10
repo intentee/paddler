@@ -18,7 +18,7 @@ pub fn view_from_http_response_builder<TTemplate: Template>(
 #[cfg(test)]
 mod tests {
     use std::fmt;
-    use std::mem;
+    use std::mem::discriminant;
 
     use actix_web::HttpResponse;
     use actix_web::http::StatusCode;
@@ -164,8 +164,8 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            mem::discriminant(&write_error),
-            mem::discriminant(&AskamaError::ValueMissing),
+            discriminant(&write_error),
+            discriminant(&AskamaError::ValueMissing),
         );
     }
 
@@ -178,9 +178,6 @@ mod tests {
             .err()
             .unwrap();
 
-        assert_eq!(
-            mem::discriminant(&write_error),
-            mem::discriminant(&AskamaError::Fmt),
-        );
+        assert_eq!(discriminant(&write_error), discriminant(&AskamaError::Fmt),);
     }
 }

@@ -21,16 +21,19 @@ mod tests {
     use actix_web::App;
     use actix_web::http::StatusCode;
     use actix_web::http::header;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body;
 
     use super::FAVICON;
     use super::register;
 
     #[actix_web::test]
     async fn serves_embedded_favicon_as_svg() {
-        let app = test::init_service(App::new().configure(register)).await;
-        let request = test::TestRequest::get().uri("/favicon.ico").to_request();
-        let response = test::call_service(&app, request).await;
+        let app = init_service(App::new().configure(register)).await;
+        let request = TestRequest::get().uri("/favicon.ico").to_request();
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -43,7 +46,7 @@ mod tests {
             "image/svg+xml"
         );
 
-        let body = test::read_body(response).await;
+        let body = read_body(response).await;
 
         assert_eq!(body.as_ref(), FAVICON);
     }

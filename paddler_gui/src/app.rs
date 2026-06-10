@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::sync::LazyLock;
 use std::time::Duration;
 
+use command_handler::shutdown_signal::register_shutdown_signals;
 use iced::Bottom;
 use iced::Center;
 use iced::Element;
@@ -32,7 +33,6 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;

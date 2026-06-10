@@ -5,10 +5,10 @@ use clap::Parser;
 use clap::Subcommand;
 use cmd::agent::Agent;
 use cmd::balancer::Balancer;
-use cmd::handler::Handler as _;
+use command_handler::handler::Handler as _;
+use command_handler::shutdown_signal::register_shutdown_signals;
 #[cfg(feature = "web_admin_panel")]
 use esbuild_metafile::instance::initialize_instance;
-use paddler_bootstrap::shutdown_signal::register_shutdown_signals;
 use tokio_util::sync::CancellationToken;
 
 #[cfg(feature = "web_admin_panel")]
@@ -28,45 +28,29 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[expect(
-    clippy::large_enum_variant,
-    reason = "clap's #[derive(Subcommand)] requires unboxed `Args` payloads (Box<T> is unsupported by the derive); the command is parsed once at startup, so the variant size difference is immaterial"
-)]
 #[derive(Subcommand)]
 enum Commands {
     /// Generates tokens and embeddings; connects to the balancer
     Agent(Agent),
     /// Distributes incoming requests among agents
-    Balancer(Balancer),
-}
-
-async fn run_async() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
-    let shutdown_signals = register_shutdown_signals()?;
-    let shutdown = CancellationToken::new();
-    let signal_shutdown = shutdown.clone();
-
-    tokio::spawn(async move {
-        if let Err(error) = shutdown_signals.wait().await {
-            log::error!("shutdown signal listener failed: {error}");
-            return;
-        }
-        signal_shutdown.cancel();
-    });
-
-    match Cli::parse().command {
-        Some(Commands::Agent(handler)) => handler.handle(shutdown).await,
-        Some(Commands::Balancer(handler)) => {
-            #[cfg(feature = "web_admin_panel")]
-            initialize_instance(ESBUILD_META_CONTENTS);
-
-            handler.handle(shutdown).await
-        }
-        None => Ok(()),
-    }
+    Balancer(Box<Balancer>),
 }
 
 pub fn run() -> Result<()> {
-    actix_web::rt::System::new().block_on(run_async())
+    actix_web::rt::System::new().block_on(async {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
+        let shutdown: CancellationToken = register_shutdown_signals()?.into();
+
+        match Cli::parse().command {
+            Some(Commands::Agent(handler)) => handler.handle(shutdown).await,
+            Some(Commands::Balancer(handler)) => {
+                #[cfg(feature = "web_admin_panel")]
+                initialize_instance(ESBUILD_META_CONTENTS);
+
+                (*handler).handle(shutdown).await
+            }
+            None => Ok(()),
+        }
+    })
 }

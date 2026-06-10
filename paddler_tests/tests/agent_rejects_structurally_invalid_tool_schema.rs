@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -20,6 +21,7 @@ use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use serde_json::Map;
+use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
@@ -55,7 +57,7 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
     // rejects it, so the agent's tool-call pipeline build reports the tool's schema
     // as invalid and the scheduler emits `ToolSchemaInvalid` before any generation.
     let mut invalid_properties = Map::new();
-    invalid_properties.insert("location".to_owned(), serde_json::json!({ "type": 123 }));
+    invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
 
     let collected = cluster
         .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
@@ -93,7 +95,7 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
             _ => None,
         })
         .ok_or_else(|| {
-            anyhow::anyhow!(
+            anyhow!(
                 "expected a ToolSchemaInvalid event when a tool's JSON Schema is invalid; got:\n{}",
                 collected.text
             )

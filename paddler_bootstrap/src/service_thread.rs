@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::thread;
+use std::thread::JoinHandle;
 
 use anyhow::Result;
 use anyhow::anyhow;
@@ -11,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 pub struct ServiceThread {
     cancellation_token: CancellationToken,
     completion_rx: Option<oneshot::Receiver<Result<()>>>,
-    thread: Option<thread::JoinHandle<()>>,
+    thread: Option<JoinHandle<()>>,
 }
 
 impl ServiceThread {
@@ -23,7 +23,7 @@ impl ServiceThread {
         let task_token = cancellation_token.clone();
         let (completion_tx, completion_rx) = oneshot::channel::<Result<()>>();
 
-        let thread = thread::spawn(move || {
+        let thread = std::thread::spawn(move || {
             let result = actix_web::rt::System::new().block_on(run(task_token));
             if let Err(unsent) = completion_tx.send(result) {
                 match unsent {

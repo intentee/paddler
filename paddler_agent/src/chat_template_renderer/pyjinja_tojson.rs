@@ -4,11 +4,6 @@ use minijinja::Value;
 use minijinja::filters::tojson;
 use minijinja::value::Kwargs;
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "minijinja's Filter trait requires Kwargs by value; taking &Kwargs makes the \
-              function unregisterable as a filter"
-)]
 pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
     let indent: Option<Value> = kwargs.get("indent")?;
 

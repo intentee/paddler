@@ -57,6 +57,7 @@ impl BufferedRequestsStreamWatcher {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::anyhow;
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
     use super::BufferedRequestsStreamWatcher;
@@ -96,7 +97,7 @@ mod tests {
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let mut watcher = watcher(vec![Err(anyhow::anyhow!("socket closed"))]);
+        let mut watcher = watcher(vec![Err(anyhow!("socket closed"))]);
 
         let error = watcher.until(|_| true).await.err().unwrap();
 

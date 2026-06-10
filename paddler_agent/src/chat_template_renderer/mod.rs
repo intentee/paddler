@@ -4,6 +4,7 @@ pub mod raise_exception;
 use anyhow::Context as _;
 use anyhow::Result;
 use minijinja::Environment;
+use minijinja_contrib::add_to_environment;
 use minijinja_contrib::pycompat::unknown_method_callback;
 use paddler_messaging::chat_template::ChatTemplate;
 use serde::ser::Serialize;
@@ -25,7 +26,7 @@ impl ChatTemplateRenderer {
         minijinja_env.add_template_owned(CHAT_TEMPLATE_NAME, content)?;
         minijinja_env.set_unknown_method_callback(unknown_method_callback);
 
-        minijinja_contrib::add_to_environment(&mut minijinja_env);
+        add_to_environment(&mut minijinja_env);
         minijinja_env.add_filter("tojson", pyjinja_tojson);
 
         Ok(Self { minijinja_env })

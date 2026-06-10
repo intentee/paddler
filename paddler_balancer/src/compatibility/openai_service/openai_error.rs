@@ -34,6 +34,7 @@ fn image_exceeds_batch_size_message(details: &OversizedImageDetails) -> String {
 fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
     match token {
         GeneratedTokenResult::ChatTemplateError(description)
+        | GeneratedTokenResult::DetokenizationFailed(description)
         | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
         | GeneratedTokenResult::GrammarRejectedModelOutput(description)
         | GeneratedTokenResult::GrammarInitializationFailed(description)
@@ -115,6 +116,8 @@ impl OpenAIError {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::ToolCallArguments;
+    use serde_json::json;
+
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generation_summary::GenerationSummary;
 
@@ -253,7 +256,7 @@ mod tests {
         let parsed = vec![llama_cpp_bindings_types::ParsedToolCall::new(
             "call_x".to_owned(),
             "get_weather".to_owned(),
-            ToolCallArguments::ValidJson(serde_json::json!({"location": "Paris"})),
+            ToolCallArguments::ValidJson(json!({"location": "Paris"})),
         )];
 
         assert!(

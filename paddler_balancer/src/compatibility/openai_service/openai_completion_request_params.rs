@@ -19,11 +19,13 @@ pub struct OpenAICompletionRequestParams {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::OpenAICompletionRequestParams;
 
     #[test]
     fn deserialize_text_only_request() {
-        let input = serde_json::json!({
+        let input = json!({
             "model": "test-model",
             "messages": [
                 {"role": "user", "content": "hello"}
@@ -40,7 +42,7 @@ mod tests {
 
     #[test]
     fn deserialize_request_with_stream_options_include_usage_true() {
-        let input = serde_json::json!({
+        let input = json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],
             "stream": true,
@@ -56,7 +58,7 @@ mod tests {
 
     #[test]
     fn deserialize_request_without_stream_options_defaults_to_none() {
-        let input = serde_json::json!({
+        let input = json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hi"}],
             "stream": true
@@ -69,7 +71,7 @@ mod tests {
 
     #[test]
     fn deserialize_multimodal_request_with_image() {
-        let input = serde_json::json!({
+        let input = json!({
             "model": "vision-model",
             "messages": [
                 {
@@ -98,7 +100,7 @@ mod tests {
 
     #[test]
     fn deserialize_multi_turn_conversation() {
-        let input = serde_json::json!({
+        let input = json!({
             "model": "test-model",
             "messages": [
                 {"role": "system", "content": "You are a helpful assistant."},

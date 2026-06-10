@@ -385,15 +385,19 @@ impl ContinuousBatchScheduler {
     )]
     fn build_token_classifier_for_active_request(
         &self,
-    ) -> llama_cpp_bindings::SampledTokenClassifier<'static> {
-        let classifier = self.scheduler_context.model.sampled_token_classifier();
+    ) -> Result<llama_cpp_bindings::SampledTokenClassifier<'static>> {
+        let classifier = self
+            .scheduler_context
+            .model
+            .sampled_token_classifier()
+            .context("failed to build the sampled token classifier")?;
 
-        unsafe {
+        Ok(unsafe {
             std::mem::transmute::<
                 llama_cpp_bindings::SampledTokenClassifier<'_>,
                 llama_cpp_bindings::SampledTokenClassifier<'static>,
             >(classifier)
-        }
+        })
     }
 
     fn build_tool_call_pipeline(
@@ -431,10 +435,6 @@ impl ContinuousBatchScheduler {
         Ok(ToolCallPipelineBuildOutcome::Ready(pipeline))
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "these are distinct concerns (the prompt, the generation config, the output channel, the stop signal, the slot guard) that do not form a cohesive value object; bundling them would violate single-responsibility grouping"
-    )]
     fn accept_text_prompt(
         &mut self,
         prompt: &str,
@@ -527,7 +527,7 @@ impl ContinuousBatchScheduler {
 
         let chain = self.create_sampler_chain();
 
-        let mut token_classifier = self.build_token_classifier_for_active_request();
+        let mut token_classifier = self.build_token_classifier_for_active_request()?;
 
         token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
         token_classifier.ingest_prompt_tokens(&prompt_tokens);
@@ -563,10 +563,6 @@ impl ContinuousBatchScheduler {
         Ok(())
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "these are distinct concerns (the multimodal context, prompt, images, generation config, the output channel, the stop signal, the slot guard) that do not form a cohesive value object; bundling them would violate single-responsibility grouping"
-    )]
     fn accept_multimodal_request(
         &mut self,
         multimodal_context: &MtmdContext,
@@ -685,7 +681,7 @@ impl ContinuousBatchScheduler {
 
         self.harvest_pending_samples_before_external_decode();
 
-        let mut token_classifier = self.build_token_classifier_for_active_request();
+        let mut token_classifier = self.build_token_classifier_for_active_request()?;
 
         let batch_size_i32 = i32::try_from(batch_size).context("batch_size does not fit in i32")?;
 
@@ -810,7 +806,19 @@ impl ContinuousBatchScheduler {
                     // batch via `pending_sampled_token`; their user-visible emission
                     // happens in `advance_generating_phase` after the next decode,
                     // not here.
-                    let _ = active_request.token_classifier.ingest(raw_token);
+                    if let Err(error) = active_request.token_classifier.ingest(raw_token) {
+                        error!(
+                            "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
+                            self.scheduler_context.agent_name, active_request.state.sequence_id
+                        );
+                        active_request.complete_with_outcome(
+                            self.scheduler_context.agent_name.as_deref(),
+                            GeneratedTokenResult::DetokenizationFailed(error.to_string()),
+                        );
+
+                        continue;
+                    }
+
                     active_request.state.pending_sampled_token =
                         Some(llama_cpp_bindings::SampledToken::Content(raw_token));
                     active_request.state.i_batch = None;

@@ -29,7 +29,10 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body_json;
     use actix_web::web::Data;
     use tempfile::TempDir;
     use tokio::sync::broadcast;
@@ -88,15 +91,15 @@ mod tests {
             stored_state.clone(),
         ));
         let app_data = build_app_data(state_database);
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get()
             .uri("/api/v1/balancer_desired_state")
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let desired_state: BalancerDesiredState = test::read_body_json(response).await;
+        let desired_state: BalancerDesiredState = read_body_json(response).await;
 
         assert_eq!(desired_state, stored_state);
     }
@@ -111,11 +114,11 @@ mod tests {
             temp_dir.path().to_path_buf(),
         ));
         let app_data = build_app_data(state_database);
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get()
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get()
             .uri("/api/v1/balancer_desired_state")
             .to_request();
-        let response = test::call_service(&app, request).await;
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }

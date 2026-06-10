@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use anyhow::anyhow;
 use anyhow::bail;
 use llama_cpp_bindings::ToolCallArguments;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
@@ -20,6 +21,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
+use serde_json::json;
 
 const QWEN_XML_PAYLOAD: &str = "<tool_call>\n\
 <function=get_weather>\n\
@@ -50,7 +52,7 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
     let mut location_properties = Map::new();
     location_properties.insert(
         "location".to_owned(),
-        serde_json::json!({"type": "string", "description": "The city name"}),
+        json!({"type": "string", "description": "The city name"}),
     );
     let tools = vec![Tool::Function(FunctionCall {
         function: Function {
@@ -90,7 +92,7 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
 
     let mapped = ToolCallEvent::Resolved(parsed_calls)
         .into_generated_token_result()
-        .ok_or_else(|| anyhow::anyhow!("Resolved must produce a GeneratedTokenResult variant"))?;
+        .ok_or_else(|| anyhow!("Resolved must produce a GeneratedTokenResult variant"))?;
     let GeneratedTokenResult::ToolCallParsed(wire_calls) = mapped else {
         bail!("expected GeneratedTokenResult::ToolCallParsed after mapping");
     };

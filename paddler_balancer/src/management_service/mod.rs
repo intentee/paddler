@@ -142,6 +142,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use anyhow::Result;
     use tokio::sync::broadcast;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
@@ -197,40 +198,40 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::unwrap_used,
-        reason = "test fixture helper; allow-unwrap-in-tests is not applied to non-#[test] helpers inside cfg(all(test, feature)) modules"
-    )]
-    fn make_resolved_socket_addr(input_addr: &str) -> ResolvedSocketAddr {
-        ResolvedSocketAddr {
+    fn make_resolved_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
+        Ok(ResolvedSocketAddr {
             input_addr: input_addr.to_owned(),
-            socket_addr: input_addr.parse().unwrap(),
-        }
+            socket_addr: input_addr.parse()?,
+        })
     }
 
-    fn make_web_admin_panel_configuration(addr: SocketAddr) -> WebAdminPanelServiceConfiguration {
-        WebAdminPanelServiceConfiguration {
+    fn make_web_admin_panel_configuration(
+        addr: SocketAddr,
+    ) -> Result<WebAdminPanelServiceConfiguration> {
+        Ok(WebAdminPanelServiceConfiguration {
             addr,
             template_data: TemplateData {
                 buffered_request_timeout: Duration::from_secs(1),
                 compat_openai_addr: None,
-                inference_addr: make_resolved_socket_addr("127.0.0.1:8081"),
-                management_addr: make_resolved_socket_addr("127.0.0.1:8082"),
+                inference_addr: make_resolved_socket_addr("127.0.0.1:8081")?,
+                management_addr: make_resolved_socket_addr("127.0.0.1:8082")?,
                 max_buffered_requests: 1,
                 statsd_addr: None,
                 statsd_prefix: "paddler".to_owned(),
                 statsd_reporting_interval: Duration::from_secs(1),
             },
-        }
+        })
     }
 
     #[test]
-    fn builds_http_origin_from_web_admin_panel_addr() {
-        let configuration = make_web_admin_panel_configuration("127.0.0.1:9000".parse().unwrap());
+    fn builds_http_origin_from_web_admin_panel_addr() -> Result<()> {
+        let configuration = make_web_admin_panel_configuration("127.0.0.1:9000".parse()?)?;
 
         let allowed_hosts = collect_web_admin_panel_cors_allowed_hosts(Some(&configuration));
 
         assert_eq!(allowed_hosts, vec!["http://127.0.0.1:9000".to_owned()]);
+
+        Ok(())
     }
 
     #[test]

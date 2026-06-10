@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use anyhow::anyhow;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -70,7 +71,7 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
     let last = collected
         .token_results
         .last()
-        .ok_or_else(|| anyhow::anyhow!("no token results received"))?;
+        .ok_or_else(|| anyhow!("no token results received"))?;
     let GeneratedTokenResult::Done(summary) = &last.token_result else {
         anyhow::bail!("last result was not Done: {last:?}");
     };

@@ -95,6 +95,7 @@ pub async fn collect_embedding_results(
 
 #[cfg(test)]
 mod tests {
+    use anyhow::anyhow;
     use paddler_messaging::embedding::Embedding;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -269,7 +270,7 @@ mod tests {
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_embedding_results(stream(vec![Err(anyhow::anyhow!("socket closed"))]))
+        let error = collect_embedding_results(stream(vec![Err(anyhow!("socket closed"))]))
             .await
             .err()
             .unwrap();

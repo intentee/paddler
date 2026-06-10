@@ -60,7 +60,10 @@ mod tests {
 
     use actix_web::App;
     use actix_web::http::StatusCode;
-    use actix_web::test;
+    use actix_web::test::TestRequest;
+    use actix_web::test::call_service;
+    use actix_web::test::init_service;
+    use actix_web::test::read_body;
     use actix_web::web::Data;
     use parking_lot::Once;
 
@@ -107,13 +110,13 @@ mod tests {
                 statsd_reporting_interval: Duration::from_millis(500),
             },
         });
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get().uri("/").to_request();
-        let response = test::call_service(&app, request).await;
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get().uri("/").to_request();
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = test::read_body(response).await;
+        let body = read_body(response).await;
         let body_text = std::str::from_utf8(body.as_ref()).unwrap();
 
         assert!(body_text.contains("data-compat-openai-addr=\"127.0.0.1:8081\""));
@@ -148,13 +151,13 @@ mod tests {
                 statsd_reporting_interval: Duration::from_millis(500),
             },
         });
-        let app = test::init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = test::TestRequest::get().uri("/").to_request();
-        let response = test::call_service(&app, request).await;
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let request = TestRequest::get().uri("/").to_request();
+        let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = test::read_body(response).await;
+        let body = read_body(response).await;
         let body_text = std::str::from_utf8(body.as_ref()).unwrap();
 
         assert!(body_text.contains("data-compat-openai-addr=\"\""));
