@@ -15,7 +15,7 @@ npm install @intentee/paddler-client rxjs zod
 ### WebSocket inference (multiplexed, request-id-keyed)
 
 ```ts
-import { inferenceSocketClient } from "@intentee/paddler-client";
+import { inferenceSocketClient } from "@intentee/paddler-client/inferenceSocketClient";
 
 const webSocket = new WebSocket("ws://localhost:8061/api/v1/inference_socket");
 
@@ -45,7 +45,8 @@ continueConversation({
 ### HTTP NDJSON streaming
 
 ```ts
-import { streamHttpNdjson, InferenceServiceGenerateTokensResponseSchema } from "@intentee/paddler-client";
+import { streamHttpNdjson } from "@intentee/paddler-client/streamHttpNdjson";
+import { InferenceServiceGenerateTokensResponseSchema } from "@intentee/paddler-client/schemas/InferenceServiceGenerateTokensResponse";
 
 const controller = new AbortController();
 
@@ -60,19 +61,22 @@ streamHttpNdjson({
 ### SSE management stream
 
 ```ts
-import { streamEventSource, AgentsResponseSchema, matchEventSourceUpdateState } from "@intentee/paddler-client";
+import { streamEventSource } from "@intentee/paddler-client/streamEventSource";
+import { AgentsResponseSchema } from "@intentee/paddler-client/schemas/AgentsResponse";
 
 streamEventSource({
   url: new URL("http://localhost:8062/api/v1/agents/stream"),
   schema: AgentsResponseSchema,
 }).subscribe((state) => {
-  matchEventSourceUpdateState(state, {
-    initial: () => console.log("connecting"),
-    connected: () => console.log("connected"),
-    dataSnapshot: ({ data }) => console.log("agents", data.agents.length),
-    connectionError: () => console.error("connection lost"),
-    deserializationError: () => console.error("invalid payload"),
-  });
+  if (state.isOk) {
+    console.log("agents", state.data.agents.length);
+  } else if (state.isConnectionError) {
+    console.error("connection lost");
+  } else if (state.isDeserializationError) {
+    console.error("invalid payload");
+  } else if (state.isConnected) {
+    console.log("connected");
+  }
 });
 ```
 
