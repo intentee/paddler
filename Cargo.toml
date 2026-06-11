@@ -99,7 +99,7 @@ paddler_cli = { version = "4.0.0", path = "paddler_cli" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
 paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
-paddler_openai_response_format_validator = { version = "4.0.0", path = "paddler_openai_response_format_validator" }
+paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }
 paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
 paddler_test_cluster_harness = { version = "4.0.0", path = "paddler_test_cluster_harness" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }

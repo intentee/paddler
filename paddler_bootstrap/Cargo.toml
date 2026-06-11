@@ -5,7 +5,9 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 description = "Shared service wiring for Paddler CLI and desktop app"
+homepage.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [[test]]
 name = "integration"
