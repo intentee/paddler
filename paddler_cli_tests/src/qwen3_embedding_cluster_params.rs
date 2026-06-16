@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster::agent_config::AgentConfig;
 
 pub struct Qwen3EmbeddingClusterParams {
     pub agents: Vec<AgentConfig>,

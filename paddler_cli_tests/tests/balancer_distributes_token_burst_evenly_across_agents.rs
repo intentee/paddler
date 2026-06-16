@@ -6,8 +6,8 @@ use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::future;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
@@ -24,12 +24,20 @@ async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
         .map(|index| format!("Burst request number {index}: Count from one to five."))
         .collect();
 
-    let collection_futures = prompts.iter().map(|prompt| {
-        cluster.continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let request_params: Vec<ContinueFromRawPromptParams> = prompts
+        .iter()
+        .map(|prompt| ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 16,
             raw_prompt: prompt.clone(),
         })
+        .collect();
+
+    let collection_futures = request_params.iter().map(|params| {
+        cluster
+            .inference_client
+            .http()
+            .continue_from_raw_prompt_collected(params)
     });
 
     let collected_streams = future::try_join_all(collection_futures).await?;

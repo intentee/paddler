@@ -1,0 +1,36 @@
+[package]
+name = "paddler_testcontainer"
+authors.workspace = true
+description = "Start a Paddler cluster in Docker via testcontainers and talk to it with paddler_client"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[features]
+default = []
+tests_that_use_docker = []
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+nanoid = { workspace = true }
+paddler_client = { workspace = true }
+paddler_cluster = { workspace = true }
+paddler_messaging = { workspace = true }
+testcontainers = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+paddler_client = { workspace = true }
+paddler_cluster = { workspace = true }
+paddler_messaging = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

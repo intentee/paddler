@@ -1,10 +1,10 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_client::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -13,14 +13,23 @@ async fn continuous_batch_serves_four_concurrent_requests() -> Result<()> {
 
     let prompts = ["The sky is", "Roses are", "Once upon", "In the year"];
 
-    let collected_results = futures_util::future::try_join_all(prompts.into_iter().map(|prompt| {
-        cluster.continue_from_raw_prompt(&ContinueFromRawPromptParams {
+    let request_params: Vec<ContinueFromRawPromptParams> = prompts
+        .into_iter()
+        .map(|prompt| ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 8,
             raw_prompt: prompt.to_owned(),
         })
-    }))
-    .await?;
+        .collect();
+
+    let collected_results =
+        futures_util::future::try_join_all(request_params.iter().map(|params| {
+            cluster
+                .inference_client
+                .http()
+                .continue_from_raw_prompt_collected(params)
+        }))
+        .await?;
 
     assert_eq!(collected_results.len(), 4);
 

@@ -15,7 +15,7 @@ pub fn url(input: Url) -> Result<Url> {
     let scheme = scheme.to_owned();
 
     url.set_scheme(&scheme)
-        .map_err(|()| Error::Other(format!("Failed to set URL scheme to '{scheme}'")))?;
+        .map_err(|()| Error::UrlScheme { scheme })?;
     url.set_path("/api/v1/inference_socket");
 
     Ok(url)

@@ -1,6 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_client::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -8,9 +10,7 @@ use paddler_messaging::conversation_message_content_part::ConversationMessageCon
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
@@ -68,8 +68,14 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
         tools: vec![],
     };
     let (collected_a, collected_b) = tokio::join!(
-        cluster.continue_from_conversation_history(&params_a),
-        cluster.continue_from_conversation_history(&params_b),
+        cluster
+            .inference_client
+            .http()
+            .continue_from_conversation_history_collected(&params_a),
+        cluster
+            .inference_client
+            .http()
+            .continue_from_conversation_history_collected(&params_b),
     );
 
     let collected_a = collected_a?;

@@ -5,16 +5,18 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_cluster::balancer_service_config::BalancerServiceConfig;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result<()> {
@@ -23,27 +25,33 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
         reference,
     } = qwen3_0_6b();
 
-    let mut cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        buffered_request_timeout: Duration::from_millis(50),
-        max_buffered_requests: 10,
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters {
-                n_gpu_layers: gpu_layer_count,
-                ..InferenceParameters::default()
-            },
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
+    let mut cluster = Cluster::start(
+        &InProcessClusterBackend::new(BalancerServiceConfig {
+            buffered_request_timeout: Duration::from_millis(50),
+            max_buffered_requests: 10,
+            ..Default::default()
         }),
-        ..ClusterParams::default()
-    })
+        ClusterParams {
+            agents: Vec::new(),
+            wait_for_slots_ready: false,
+            desired_state: Some(BalancerDesiredState {
+                chat_template_override: None,
+                inference_parameters: InferenceParameters {
+                    n_gpu_layers: gpu_layer_count,
+                    ..InferenceParameters::default()
+                },
+                model: AgentDesiredModel::HuggingFace(reference),
+                multimodal_projection: AgentDesiredModel::None,
+                use_chat_template_override: false,
+            }),
+        },
+    )
     .await?;
 
     let mut early_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),
@@ -64,10 +72,12 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
         }
     }
 
-    cluster.spawn_additional_agent(&AgentConfig {
-        name: "capacity-agent".to_owned(),
-        slot_count: 4,
-    })?;
+    cluster
+        .spawn_additional_agent(&AgentConfig {
+            name: "capacity-agent".to_owned(),
+            slot_count: 4,
+        })
+        .await?;
 
     cluster
         .agents_watcher
@@ -78,7 +88,9 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
         .context("agent should register with 4 slots")?;
 
     let mut later_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),

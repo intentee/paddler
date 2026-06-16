@@ -1,10 +1,11 @@
 use std::net::SocketAddr;
 
 use anyhow::Result;
+use async_trait::async_trait;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::agent_spawner::AgentSpawner;
-use paddler_test_cluster_harness::managed_process::ManagedProcess;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_cluster::agent_spawner::AgentSpawner;
+use paddler_cluster::managed_process::ManagedProcess;
 
 use crate::spawn_agent_subprocess::spawn_agent_subprocess;
 use crate::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
@@ -25,8 +26,9 @@ impl SubprocessAgentSpawner {
     }
 }
 
+#[async_trait]
 impl AgentSpawner for SubprocessAgentSpawner {
-    fn spawn(&self, config: &AgentConfig) -> Result<Box<dyn ManagedProcess>> {
+    async fn spawn(&self, config: &AgentConfig) -> Result<Box<dyn ManagedProcess>> {
         let child = spawn_agent_subprocess(SpawnAgentSubprocessParams {
             binary_path: self.binary_path.clone(),
             management_addr: self.management_addr,

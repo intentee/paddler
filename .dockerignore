@@ -1,0 +1,7 @@
+.git
+node_modules
+target
+**/target
+static
+esbuild-meta.json
+tsconfig.tsbuildinfo

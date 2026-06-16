@@ -67,8 +67,14 @@ target/vulkan/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 build.client.js: node_modules
 	npm --workspace @intentee/paddler-client run build
 
+.PHONY: clean.coverage
+clean.coverage:
+	cargo llvm-cov clean --workspace
+	rm -rf target/llvm-cov-target
+	rm -f target/llvm-cov.json target/lcov.info
+
 .PHONY: clean
-clean:
+clean: clean.coverage
 	rm -rf esbuild-meta.json
 	rm -rf node_modules
 	rm -rf static
@@ -77,6 +83,11 @@ clean:
 .PHONY: clippy
 clippy: esbuild-meta.json
 	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms
+
+.PHONY: docker.image
+docker.image: Dockerfile
+	git submodule update --init
+	docker build -t paddler:test .
 
 .PHONY: fmt
 fmt: node_modules
@@ -89,8 +100,12 @@ test: test.client.js test.unit test.integration
 test.client.js: node_modules
 	npm --workspace @intentee/paddler-client test
 
-.PHONY: test.coverage
-test.coverage: esbuild-meta.json node_modules
+.PHONY: test.containers
+test.containers: docker.image
+	PADDLER_TESTCONTAINER_IMAGE_NAME=paddler PADDLER_TESTCONTAINER_IMAGE_TAG=test cargo nextest run -p paddler_testcontainer --features tests_that_use_docker
+
+.PHONY: coverage
+coverage: esbuild-meta.json node_modules
 	cargo llvm-cov clean --profraw-only
 	cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
@@ -99,23 +114,16 @@ test.coverage: esbuild-meta.json node_modules
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated paddler_agent=96 \
-		--gated paddler_balancer=84 \
+		--gated paddler_balancer=97 \
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
-		--gated paddler_cli=83 \
-		--gated paddler_cli_tests=87 \
-		--gated paddler_client=41 \
+		--gated paddler_cli=87 \
+		--gated paddler_client=93 \
+		--gated paddler_cluster=93 \
 		--gated paddler_download_manager=99 \
 		--gated paddler_gui=13 \
 		--gated paddler_messaging=100 \
-		--gated paddler_openai_response_format_validator=99 \
-		--gated paddler_test_cluster_harness=67
-
-.PHONY: test.coverage-clean
-test.coverage-clean:
-	cargo llvm-cov clean --workspace
-	rm -rf target/llvm-cov-target
-	rm -f target/llvm-cov.json target/lcov.info
+		--gated paddler_openai_response_format_validator=99
 
 .PHONY: test.integration
 test.integration:

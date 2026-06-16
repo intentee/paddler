@@ -5,11 +5,11 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
@@ -38,7 +38,11 @@ async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
         normalization_method: EmbeddingNormalizationMethod::None,
     };
 
-    let collected = cluster.generate_embedding_batch(&params).await?;
+    let collected = cluster
+        .inference_client
+        .http()
+        .generate_embedding_batch_collected(&params)
+        .await?;
 
     assert_eq!(collected.embeddings.len(), 12);
     assert!(collected.saw_done);

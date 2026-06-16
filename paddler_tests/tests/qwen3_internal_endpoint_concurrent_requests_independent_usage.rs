@@ -3,13 +3,13 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::future;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -18,24 +18,29 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
 
     let prompts = ["Say hi.", "Count to three."];
 
+    let cluster_ref = &cluster;
     let futures = prompts.iter().map(|prompt| {
         let prompt = (*prompt).to_owned();
-        let generation =
-            cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-                add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(prompt),
-                    role: "user".to_owned(),
-                }]),
-                enable_thinking: false,
-                grammar: None,
-                max_tokens: 30,
-                parse_tool_calls: false,
-                tools: vec![],
-            });
 
         async move {
-            let collected = generation.await?;
+            let collected = cluster_ref
+                .inference_client
+                .http()
+                .continue_from_conversation_history_collected(
+                    &ContinueFromConversationHistoryParams {
+                        add_generation_prompt: true,
+                        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                            content: ConversationMessageContent::Text(prompt),
+                            role: "user".to_owned(),
+                        }]),
+                        enable_thinking: false,
+                        grammar: None,
+                        max_tokens: 30,
+                        parse_tool_calls: false,
+                        tools: vec![],
+                    },
+                )
+                .await?;
 
             let last = collected
                 .token_results

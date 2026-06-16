@@ -1,48 +1,19 @@
 pub mod agents_stream;
 pub mod buffered_requests_stream;
-pub mod client_inference;
-pub mod client_management;
+pub mod collect_embedding_results;
+pub mod collect_generated_tokens;
+pub mod collected_embedding_results;
+pub mod collected_generated_tokens;
+pub mod embedding_with_producer;
 pub mod error;
 mod format_api_url;
+pub mod inference_client;
+pub mod inference_client_http;
+pub mod inference_client_params;
+pub mod inference_client_socket;
 pub mod inference_message_stream;
 mod inference_socket;
+pub mod management_client;
+pub mod management_client_params;
 mod stream;
-
-use reqwest::Client;
-use url::Url;
-
-use crate::client_inference::ClientInference;
-use crate::client_management::ClientManagement;
-
-pub struct PaddlerClient {
-    inference_url: Url,
-    management_url: Url,
-    inference_socket_pool_size: usize,
-    http_client: Client,
-}
-
-impl PaddlerClient {
-    #[must_use]
-    pub fn new(inference_url: Url, management_url: Url, inference_socket_pool_size: usize) -> Self {
-        Self {
-            inference_url,
-            management_url,
-            inference_socket_pool_size,
-            http_client: Client::new(),
-        }
-    }
-
-    #[must_use]
-    pub const fn inference(&self) -> ClientInference<'_> {
-        ClientInference::new(
-            &self.inference_url,
-            &self.http_client,
-            self.inference_socket_pool_size,
-        )
-    }
-
-    #[must_use]
-    pub const fn management(&self) -> ClientManagement<'_> {
-        ClientManagement::new(&self.management_url, &self.http_client)
-    }
-}
+pub mod token_result_with_producer;

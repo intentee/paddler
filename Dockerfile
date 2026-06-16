@@ -1,16 +1,16 @@
-FROM node:latest
+FROM node:22-bookworm AS builder
 
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH
 
 RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    cmake \
     build-essential \
-    g++ \
     clang \
+    cmake \
+    curl \
+    g++ \
+    git \
     libssl-dev \
     pkg-config
 
@@ -19,10 +19,19 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path && \
 
 WORKDIR /app
 
-RUN git clone https://github.com/intentee/paddler.git .
+COPY . .
 
-RUN make
+RUN make target/release/paddler
 
-RUN mv target/release/paddler /usr/local/bin/paddler
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libgomp1 \
+    libssl3 \
+    libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/paddler /usr/local/bin/paddler
 
 ENTRYPOINT ["paddler"]

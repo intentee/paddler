@@ -8,11 +8,11 @@ use anyhow::Result;
 use futures_util::future;
 use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_embedding_burst_evenly_across_agents() -> Result<()> {
@@ -34,21 +34,30 @@ async fn balancer_distributes_embedding_burst_evenly_across_agents() -> Result<(
     )
     .await?;
 
-    let collection_futures = (0..CONCURRENT_REQUESTS).map(|request_index| {
-        let input_batch: Vec<EmbeddingInputDocument> = (0..4)
-            .map(|document_index| EmbeddingInputDocument {
-                content: format!(
-                    "Burst request {request_index}, document {document_index}: \
-                     provide an embedding for evaluation."
-                ),
-                id: format!("req-{request_index}-doc-{document_index}"),
-            })
-            .collect();
+    let request_params: Vec<GenerateEmbeddingBatchParams> = (0..CONCURRENT_REQUESTS)
+        .map(|request_index| {
+            let input_batch: Vec<EmbeddingInputDocument> = (0..4)
+                .map(|document_index| EmbeddingInputDocument {
+                    content: format!(
+                        "Burst request {request_index}, document {document_index}: \
+                         provide an embedding for evaluation."
+                    ),
+                    id: format!("req-{request_index}-doc-{document_index}"),
+                })
+                .collect();
 
-        cluster.generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch,
-            normalization_method: EmbeddingNormalizationMethod::None,
+            GenerateEmbeddingBatchParams {
+                input_batch,
+                normalization_method: EmbeddingNormalizationMethod::None,
+            }
         })
+        .collect();
+
+    let collection_futures = request_params.iter().map(|params| {
+        cluster
+            .inference_client
+            .http()
+            .generate_embedding_batch_collected(params)
     });
 
     let collected_streams = future::try_join_all(collection_futures).await?;

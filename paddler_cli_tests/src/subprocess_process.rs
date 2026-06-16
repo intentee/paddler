@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use log::warn;
 use tokio::process::Child;
 
-use paddler_test_cluster_harness::managed_process::ManagedProcess;
+use paddler_cluster::managed_process::ManagedProcess;
 
 use crate::terminate_child::terminate_child;
 

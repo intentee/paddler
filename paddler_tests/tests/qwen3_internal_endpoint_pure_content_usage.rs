@@ -2,12 +2,12 @@
 
 use anyhow::Result;
 use anyhow::anyhow;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -15,7 +15,9 @@ async fn qwen3_internal_endpoint_pure_content_usage_breakdown() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+        .inference_client
+        .http()
+        .continue_from_conversation_history_collected(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("Say hello.".to_owned()),

@@ -1,15 +1,19 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_inference_health_returns_ok() -> Result<()> {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            agents: Vec::new(),
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
+        },
+    )
     .await?;
 
     let inference_health_url = cluster

@@ -3,12 +3,12 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
+use crate::in_process_cluster_backend::InProcessClusterBackend;
 use crate::ministral_3_cluster_params::Ministral3ClusterParams;
 use crate::model_card::ModelCard;
 use crate::model_card::ministral_3_14b_reasoning::ministral_3_14b_reasoning;
-use crate::start_cluster::start_cluster;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
 
 pub async fn start_cluster_with_ministral_3(
     Ministral3ClusterParams {
@@ -33,17 +33,19 @@ pub async fn start_cluster_with_ministral_3(
         }
     };
 
-    start_cluster(ClusterParams {
-        agents,
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters,
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
-        wait_for_slots_ready: true,
-        ..ClusterParams::default()
-    })
+    Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            agents,
+            desired_state: Some(BalancerDesiredState {
+                chat_template_override: None,
+                inference_parameters,
+                model: AgentDesiredModel::HuggingFace(reference),
+                multimodal_projection: AgentDesiredModel::None,
+                use_chat_template_override: false,
+            }),
+            wait_for_slots_ready: true,
+        },
+    )
     .await
 }

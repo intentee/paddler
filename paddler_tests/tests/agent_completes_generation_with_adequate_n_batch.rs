@@ -1,20 +1,19 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use std::fs;
-use std::future::Future;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_cluster::cluster::Cluster;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 
 fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {
@@ -26,16 +25,17 @@ fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<Strin
     Ok(format!("data:{mime_type};base64,{encoded}"))
 }
 
-fn drive_normal_image_fixture(
+async fn drive_normal_image_fixture(
     cluster: &Cluster,
     fixture_name: &str,
     mime_type: &str,
-) -> Result<impl Future<Output = Result<()>> + Send + use<>> {
+) -> Result<()> {
     let image_data_uri = load_fixture_as_data_uri(fixture_name, mime_type)?;
-    let fixture_name = fixture_name.to_owned();
 
-    let generation =
-        cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+    let collected = cluster
+        .inference_client
+        .http()
+        .continue_from_conversation_history_collected(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Parts(vec![
@@ -55,36 +55,33 @@ fn drive_normal_image_fixture(
             max_tokens: 20,
             parse_tool_calls: false,
             tools: vec![],
-        });
+        })
+        .await?;
 
-    Ok(async move {
-        let collected = generation.await?;
+    let saw_token = collected
+        .token_results
+        .iter()
+        .any(|result| result.token_result.is_token());
 
-        let saw_token = collected
+    assert!(
+        saw_token,
+        "fixture {fixture_name} should produce at least one content/reasoning/tool-call token with adequate n_batch; got {:?}",
+        collected
             .token_results
             .iter()
-            .any(|result| result.token_result.is_token());
+            .map(|result| &result.token_result)
+            .collect::<Vec<_>>(),
+    );
 
-        assert!(
-            saw_token,
-            "fixture {fixture_name} should produce at least one content/reasoning/tool-call token with adequate n_batch; got {:?}",
-            collected
-                .token_results
-                .iter()
-                .map(|result| &result.token_result)
-                .collect::<Vec<_>>(),
-        );
-
-        Ok(())
-    })
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_completes_generation_with_adequate_n_batch() -> Result<()> {
     let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;
 
-    drive_normal_image_fixture(&cluster, "sarnow.jpeg", "image/jpeg")?.await?;
-    drive_normal_image_fixture(&cluster, "llamas.webp", "image/webp")?.await?;
+    drive_normal_image_fixture(&cluster, "sarnow.jpeg", "image/jpeg").await?;
+    drive_normal_image_fixture(&cluster, "llamas.webp", "image/webp").await?;
 
     cluster.shutdown().await?;
 

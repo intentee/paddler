@@ -12,6 +12,9 @@ pub enum Error {
     #[error("URL parse error: {0}")]
     Url(#[from] url::ParseError),
 
+    #[error("failed to set inference socket URL scheme to '{scheme}'")]
+    UrlScheme { scheme: String },
+
     #[error("Connection slot is empty after connection attempt")]
     ConnectionSlotEmpty,
 
@@ -20,9 +23,6 @@ pub enum Error {
 
     #[error("Server returned error: {message}")]
     Server { code: i32, message: String },
-
-    #[error("{0}")]
-    Other(String),
 }
 
 pub type Result<TValue> = std::result::Result<TValue, Error>;

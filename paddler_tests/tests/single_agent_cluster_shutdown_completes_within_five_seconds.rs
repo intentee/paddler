@@ -2,21 +2,25 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use tokio::time::timeout;
 
 const SHUTDOWN_BUDGET: Duration = Duration::from_secs(5);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn single_agent_cluster_shutdown_completes_within_five_seconds() -> Result<()> {
-    let cluster = start_cluster(ClusterParams {
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
+        },
+    )
     .await?;
 
-    assert_eq!(cluster.agent_ids.len(), 1);
+    assert_eq!(cluster.agents.len(), 1);
 
     timeout(SHUTDOWN_BUDGET, cluster.shutdown())
         .await

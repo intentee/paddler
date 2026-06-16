@@ -1,17 +1,28 @@
 use std::collections::HashSet;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
+use paddler_cluster::balancer_addresses::BalancerAddresses;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn picks_three_distinct_ports_per_invocation() -> Result<()> {
-    let addresses = BalancerAddresses::pick()?;
+fn distinct_ports(addresses: &BalancerAddresses) -> Result<HashSet<u16>> {
+    let compat_openai = addresses
+        .compat_openai
+        .context("pick must reserve a compat-openai port")?;
 
     let mut ports = HashSet::new();
 
-    ports.insert(addresses.compat_openai.port());
+    ports.insert(compat_openai.port());
     ports.insert(addresses.inference.port());
     ports.insert(addresses.management.port());
+
+    Ok(ports)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn picks_three_distinct_ports_per_invocation() -> Result<()> {
+    let addresses = BalancerAddresses::pick().await?;
+
+    let ports = distinct_ports(&addresses)?;
 
     assert_eq!(
         ports.len(),
@@ -29,17 +40,13 @@ async fn parallel_invocations_never_produce_internal_collisions() -> Result<()> 
     let mut handles = Vec::with_capacity(concurrent_picks);
 
     for _ in 0..concurrent_picks {
-        handles.push(tokio::task::spawn_blocking(BalancerAddresses::pick));
+        handles.push(tokio::spawn(BalancerAddresses::pick()));
     }
 
     for join_handle in handles {
         let addresses = join_handle.await??;
 
-        let mut ports = HashSet::new();
-
-        ports.insert(addresses.compat_openai.port());
-        ports.insert(addresses.inference.port());
-        ports.insert(addresses.management.port());
+        let ports = distinct_ports(&addresses)?;
 
         assert_eq!(
             ports.len(),

@@ -44,6 +44,19 @@ use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
+fn send_startup_signal_or_fail(
+    signal_tx: oneshot::Sender<()>,
+    failure_message: String,
+) -> Result<()> {
+    if signal_tx.send(()).is_err() {
+        error!("{failure_message}");
+
+        return Err(anyhow!(failure_message));
+    }
+
+    Ok(())
+}
+
 pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
     pub chat_template_override: Option<ChatTemplate>,
@@ -150,16 +163,13 @@ impl ContinuousBatchArbiter {
                 .context("Unable to load model from file")?,
             );
 
-            if model_loaded_tx.send(()).is_err() {
-                let message = format!(
+            send_startup_signal_or_fail(
+                model_loaded_tx,
+                format!(
                     "Failed to send model loaded signal for model at path: {}",
                     model_path.display()
-                );
-
-                error!("{message}");
-
-                return Err(anyhow!(message));
-            }
+                ),
+            )?;
 
             let mut model_metadata = ModelMetadata::default();
 
@@ -183,16 +193,13 @@ impl ContinuousBatchArbiter {
                     .to_string()?,
             };
 
-            if chat_template_loaded_tx.send(()).is_err() {
-                let message = format!(
+            send_startup_signal_or_fail(
+                chat_template_loaded_tx,
+                format!(
                     "Failed to send chat template loaded signal for model at path: {}",
                     model_path.display()
-                );
-
-                error!("{message}");
-
-                return Err(anyhow!(message));
-            }
+                ),
+            )?;
 
             let chat_template_renderer = Arc::new(
                 match ChatTemplateRenderer::new(ChatTemplate {
@@ -342,13 +349,10 @@ impl ContinuousBatchArbiter {
                 desired_slots_total,
             );
 
-            if agent_warm_and_scheduler_running_tx.send(()).is_err() {
-                let message = "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start";
-
-                error!("{message}");
-
-                return Err(anyhow!(message));
-            }
+            send_startup_signal_or_fail(
+                agent_warm_and_scheduler_running_tx,
+                "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start".to_owned(),
+            )?;
 
             scheduler.run();
 

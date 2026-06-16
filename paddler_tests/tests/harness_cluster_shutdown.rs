@@ -1,14 +1,18 @@
 use anyhow::Result;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn empty_cluster_starts_and_shuts_down_without_timeout() -> Result<()> {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            agents: Vec::new(),
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
+        },
+    )
     .await?;
 
     cluster.shutdown().await?;
@@ -18,13 +22,16 @@ async fn empty_cluster_starts_and_shuts_down_without_timeout() -> Result<()> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn single_agent_registers_and_shuts_down_without_timeout() -> Result<()> {
-    let cluster = start_cluster(ClusterParams {
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
+        },
+    )
     .await?;
 
-    assert_eq!(cluster.agent_ids.len(), 1);
+    assert_eq!(cluster.agents.len(), 1);
 
     cluster.shutdown().await?;
 

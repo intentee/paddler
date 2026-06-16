@@ -3,10 +3,10 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_client::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -14,7 +14,9 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
 
     let mut first_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 500,
             raw_prompt: "Write a long essay about photosynthesis".to_owned(),
@@ -29,7 +31,9 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<
     drop(first_stream);
 
     let second_collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt_collected(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello".to_owned(),

@@ -6,14 +6,16 @@ use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_cli_tests::model_card::ModelCard;
 use paddler_cli_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
+use paddler_cli_tests::subprocess_cluster_backend::SubprocessClusterBackend;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_cluster::balancer_service_config::BalancerServiceConfig;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()> {
@@ -22,8 +24,15 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
         reference,
     } = qwen3_0_6b();
 
-    let cluster = start_subprocess_cluster(
-        env!("CARGO_BIN_EXE_paddler_cluster_node"),
+    let cluster = Cluster::start(
+        &SubprocessClusterBackend::with_service_config(
+            env!("CARGO_BIN_EXE_paddler_cluster_node"),
+            BalancerServiceConfig {
+                buffered_request_timeout: Duration::from_mins(2),
+                max_buffered_requests: 10,
+                ..Default::default()
+            },
+        ),
         ClusterParams {
             agents: vec![
                 AgentConfig {
@@ -36,8 +45,6 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
                 },
             ],
             wait_for_slots_ready: true,
-            buffered_request_timeout: Duration::from_mins(2),
-            max_buffered_requests: 10,
             desired_state: Some(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters {
@@ -48,7 +55,6 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
                 multimodal_projection: AgentDesiredModel::None,
                 use_chat_template_override: false,
             }),
-            ..ClusterParams::default()
         },
     )
     .await?;
@@ -57,7 +63,9 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
 
     for _ in 0..5 {
         let stream = cluster
-            .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
+            .inference_client
+            .http()
+            .continue_from_raw_prompt(&ContinueFromRawPromptParams {
                 grammar: None,
                 max_tokens: 10,
                 raw_prompt: "Hello".to_owned(),

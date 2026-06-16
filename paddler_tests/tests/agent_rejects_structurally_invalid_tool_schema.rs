@@ -15,11 +15,12 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::cluster::Cluster;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 use serde_json::Map;
 use serde_json::json;
 
@@ -30,25 +31,27 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
         reference,
     } = qwen3_0_6b();
 
-    let cluster = start_cluster(ClusterParams {
-        agents: vec![AgentConfig {
-            name: "test-agent".to_owned(),
-            slot_count: 1,
-        }],
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters {
-                n_gpu_layers: gpu_layer_count,
-                temperature: 0.0,
-                ..InferenceParameters::default()
-            },
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
-        wait_for_slots_ready: true,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            agents: vec![AgentConfig {
+                name: "test-agent".to_owned(),
+                slot_count: 1,
+            }],
+            desired_state: Some(BalancerDesiredState {
+                chat_template_override: None,
+                inference_parameters: InferenceParameters {
+                    n_gpu_layers: gpu_layer_count,
+                    temperature: 0.0,
+                    ..InferenceParameters::default()
+                },
+                model: AgentDesiredModel::HuggingFace(reference),
+                multimodal_projection: AgentDesiredModel::None,
+                use_chat_template_override: false,
+            }),
+            wait_for_slots_ready: true,
+        },
+    )
     .await?;
 
     // `{"type": 123}` is a structurally well-formed JSON object (so it survives
@@ -60,7 +63,9 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
     invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+        .inference_client
+        .http()
+        .continue_from_conversation_history_collected(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text(

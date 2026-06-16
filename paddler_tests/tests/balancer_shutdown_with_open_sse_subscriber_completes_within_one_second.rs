@@ -3,23 +3,26 @@ use std::time::Duration;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use tokio::time::timeout;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_shutdown_with_open_sse_subscriber_completes_within_one_second() -> Result<()> {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            agents: Vec::new(),
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
+        },
+    )
     .await?;
 
     let mut sse_stream = cluster
-        .paddler_client
-        .management()
-        .get_buffered_requests_stream()
+        .management_client
+        .buffered_requests_stream()
         .await
         .map_err(anyhow::Error::new)?;
 

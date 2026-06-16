@@ -48,9 +48,7 @@ impl Pool {
 
                 let connection = self.get_connection(conn_idx).await?;
 
-                connection
-                    .send(request_id, json)
-                    .map_err(|reconnection_error| Error::Other(reconnection_error.to_string()))
+                connection.send(request_id, json)
             }
             Err(other_error) => Err(other_error),
         }

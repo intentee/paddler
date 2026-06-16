@@ -1,13 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_client::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 fn user_message(text: &str) -> ConversationMessage {
@@ -40,8 +40,14 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() ->
         tools: vec![],
     };
     let (results_a, results_b) = tokio::join!(
-        cluster.continue_from_conversation_history(&params_a),
-        cluster.continue_from_conversation_history(&params_b),
+        cluster
+            .inference_client
+            .http()
+            .continue_from_conversation_history_collected(&params_a),
+        cluster
+            .inference_client
+            .http()
+            .continue_from_conversation_history_collected(&params_b),
     );
 
     let collected_a = results_a?;

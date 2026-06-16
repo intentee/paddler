@@ -1,18 +1,25 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_cluster::balancer_service_config::BalancerServiceConfig;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_inference_service_replies_with_configured_cors_origin() -> Result<()> {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::new(BalancerServiceConfig {
+            inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
+            ..BalancerServiceConfig::default()
+        }),
+        ClusterParams {
+            agents: Vec::new(),
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
+        },
+    )
     .await?;
 
     let http_client = reqwest::Client::new();

@@ -15,7 +15,9 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
     let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default()).await?;
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+        .inference_client
+        .http()
+        .continue_from_conversation_history_collected(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text(

@@ -2,14 +2,16 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_cluster::balancer_service_config::BalancerServiceConfig;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_tests::state_database_file::StateDatabaseFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_model_switch_in_storage() -> Result<()> {
@@ -25,19 +27,22 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
         use_chat_template_override: false,
     };
 
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        state_database_url: database.url.clone(),
-        desired_state: Some(initial_state.clone()),
-        ..ClusterParams::default()
-    })
+    let cluster = Cluster::start(
+        &InProcessClusterBackend::new(BalancerServiceConfig {
+            state_database_url: database.url.clone(),
+            ..Default::default()
+        }),
+        ClusterParams {
+            agents: Vec::new(),
+            wait_for_slots_ready: false,
+            desired_state: Some(initial_state.clone()),
+        },
+    )
     .await?;
 
     let observed_initial = cluster
-        .paddler_client
-        .management()
-        .get_balancer_desired_state()
+        .management_client
+        .desired_state()
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read initial desired state")?;
@@ -53,17 +58,15 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
     };
 
     cluster
-        .paddler_client
-        .management()
-        .put_balancer_desired_state(&switched_state)
+        .management_client
+        .set_desired_state(&switched_state)
         .await
         .map_err(anyhow::Error::new)
         .context("failed to switch desired model")?;
 
     let observed_switched = cluster
-        .paddler_client
-        .management()
-        .get_balancer_desired_state()
+        .management_client
+        .desired_state()
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read switched desired state")?;

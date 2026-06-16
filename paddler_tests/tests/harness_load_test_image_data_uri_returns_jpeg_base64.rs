@@ -1,5 +1,5 @@
 use anyhow::Result;
-use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
+use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
 
 #[test]
 fn harness_load_test_image_data_uri_returns_jpeg_base64() -> Result<()> {

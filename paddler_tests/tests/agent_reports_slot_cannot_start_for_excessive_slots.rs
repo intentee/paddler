@@ -4,15 +4,16 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_cluster::cluster::Cluster;
+use paddler_cluster::cluster_params::ClusterParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_slot_cannot_start_for_excessive_slots() -> Result<()> {
@@ -26,21 +27,23 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots() -> Result<()> {
         ..InferenceParameters::default()
     };
 
-    let mut cluster = start_cluster(ClusterParams {
-        agents: vec![AgentConfig {
-            name: "test-agent".to_owned(),
-            slot_count: 257,
-        }],
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters,
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
+    let mut cluster = Cluster::start(
+        &InProcessClusterBackend::default(),
+        ClusterParams {
+            agents: vec![AgentConfig {
+                name: "test-agent".to_owned(),
+                slot_count: 257,
+            }],
+            desired_state: Some(BalancerDesiredState {
+                chat_template_override: None,
+                inference_parameters,
+                model: AgentDesiredModel::HuggingFace(reference),
+                multimodal_projection: AgentDesiredModel::None,
+                use_chat_template_override: false,
+            }),
+            wait_for_slots_ready: false,
+        },
+    )
     .await?;
 
     let snapshot = tokio::time::timeout(

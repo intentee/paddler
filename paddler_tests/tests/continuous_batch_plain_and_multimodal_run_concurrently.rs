@@ -1,6 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_client::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -9,9 +11,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
+use paddler_tests::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -63,8 +63,14 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> 
         tools: vec![],
     };
     let (plain_collected, multimodal_collected) = tokio::join!(
-        cluster.continue_from_raw_prompt(&plain_params),
-        cluster.continue_from_conversation_history(&multimodal_params),
+        cluster
+            .inference_client
+            .http()
+            .continue_from_raw_prompt_collected(&plain_params),
+        cluster
+            .inference_client
+            .http()
+            .continue_from_conversation_history_collected(&multimodal_params),
     );
 
     let plain_collected = plain_collected?;

@@ -2,10 +2,10 @@
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -13,8 +13,8 @@ async fn balancer_serves_inference_over_websocket() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
 
     let mut stream = cluster
-        .paddler_client
-        .inference()
+        .inference_client
+        .socket()
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 16,

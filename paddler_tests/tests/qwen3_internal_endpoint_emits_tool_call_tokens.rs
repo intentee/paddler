@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -29,7 +29,9 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
     );
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+        .inference_client
+        .http()
+        .continue_from_conversation_history_collected(&ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text(

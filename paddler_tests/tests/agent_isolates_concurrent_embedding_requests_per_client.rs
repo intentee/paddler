@@ -3,11 +3,11 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
@@ -26,21 +26,31 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()>
     })
     .await?;
 
-    let client_tasks = (0..client_count).map(|client_index| {
-        let input_batch: Vec<EmbeddingInputDocument> = (0..docs_per_client)
-            .map(|document_index| EmbeddingInputDocument {
-                content: format!("Content from client {client_index} document {document_index}."),
-                id: format!("client-{client_index}-doc-{document_index}"),
-            })
-            .collect();
+    let request_params: Vec<GenerateEmbeddingBatchParams> = (0..client_count)
+        .map(|client_index| {
+            let input_batch: Vec<EmbeddingInputDocument> = (0..docs_per_client)
+                .map(|document_index| EmbeddingInputDocument {
+                    content: format!(
+                        "Content from client {client_index} document {document_index}."
+                    ),
+                    id: format!("client-{client_index}-doc-{document_index}"),
+                })
+                .collect();
 
-        cluster.generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch,
-            normalization_method: EmbeddingNormalizationMethod::None,
+            GenerateEmbeddingBatchParams {
+                input_batch,
+                normalization_method: EmbeddingNormalizationMethod::None,
+            }
         })
-    });
+        .collect();
 
-    let per_client_results = futures_util::future::join_all(client_tasks).await;
+    let per_client_results = futures_util::future::join_all(request_params.iter().map(|params| {
+        cluster
+            .inference_client
+            .http()
+            .generate_embedding_batch_collected(params)
+    }))
+    .await;
 
     assert_eq!(per_client_results.len(), client_count);
 

@@ -3,6 +3,8 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_client::collect_generated_tokens::collect_generated_tokens;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
@@ -10,8 +12,6 @@ use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -21,7 +21,9 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
     let expected_output = "the quick brown fox jumps over the lazy dog";
 
     let mut stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
                 grammar: format!("root ::= \"{expected_output}\""),
                 root: "root".to_owned(),
@@ -63,9 +65,8 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
     };
 
     cluster
-        .paddler_client
-        .management()
-        .put_balancer_desired_state(&switch_state)
+        .management_client
+        .set_desired_state(&switch_state)
         .await
         .map_err(anyhow::Error::new)?;
 

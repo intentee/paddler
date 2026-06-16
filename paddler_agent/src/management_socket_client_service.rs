@@ -45,6 +45,29 @@ use paddler_messaging::management_socket::balancer::notification_params::update_
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
+fn send_notification_or_log_error(
+    message_tx: &mpsc::UnboundedSender<ManagementJsonRpcMessage>,
+    notification: ManagementJsonRpcMessage,
+    operation_name: &str,
+) {
+    message_tx.send(notification).unwrap_or_else(|err| {
+        error!("Failed to send {operation_name} notification: {err}");
+    });
+}
+
+async fn send_to_socket_or_log<TSink>(
+    socket_sink: &mut TSink,
+    message: Message,
+    operation_name: &str,
+) where
+    TSink: futures_util::Sink<Message> + Unpin,
+    <TSink as futures_util::Sink<Message>>::Error: std::fmt::Display,
+{
+    socket_sink.send(message).await.unwrap_or_else(|err| {
+        error!("Failed to send {operation_name}: {err}");
+    });
+}
+
 struct IncomingMessageContext {
     agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
     agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
@@ -335,19 +358,22 @@ impl ManagementSocketClientService {
                     () = forward_shutdown.cancelled() => {
                         info!("Shutdown signal received, deregistering agent");
 
-                        write.send(Message::Text(match serde_json::to_string(
-                            &ManagementJsonRpcMessage::Notification(
-                                ManagementJsonRpcNotification::DeregisterAgent,
-                            )
-                        ) {
-                            Ok(serialized_message) => serialized_message.into(),
-                            Err(err) => {
-                                error!("Failed to serialize deregister agent notification: {err}");
-                                return;
-                            }
-                        })).await.unwrap_or_else(|err| {
-                            error!("Failed to send deregister agent notification: {err}");
-                        });
+                        send_to_socket_or_log(
+                            &mut write,
+                            Message::Text(match serde_json::to_string(
+                                &ManagementJsonRpcMessage::Notification(
+                                    ManagementJsonRpcNotification::DeregisterAgent,
+                                )
+                            ) {
+                                Ok(serialized_message) => serialized_message.into(),
+                                Err(err) => {
+                                    error!("Failed to serialize deregister agent notification: {err}");
+                                    return;
+                                }
+                            }),
+                            "deregister agent notification",
+                        )
+                        .await;
 
                         break;
                     }
@@ -374,9 +400,7 @@ impl ManagementSocketClientService {
                     payload = pong_rx.recv() => {
                         match payload {
                             Some(payload) => {
-                                write.send(Message::Pong(payload)).await.unwrap_or_else(|err| {
-                                    error!("Failed to send pong message: {err}");
-                                });
+                                send_to_socket_or_log(&mut write, Message::Pong(payload), "pong message").await;
                             }
                             None => break,
                         }
@@ -387,16 +411,16 @@ impl ManagementSocketClientService {
 
         match self.slot_aggregated_status.make_snapshot() {
             Ok(slot_aggregated_status_snapshot) => {
-                message_tx
-                    .send(ManagementJsonRpcMessage::Notification(
+                send_notification_or_log_error(
+                    &message_tx,
+                    ManagementJsonRpcMessage::Notification(
                         ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
                             name: self.name.clone(),
                             slot_aggregated_status_snapshot,
                         }),
-                    ))
-                    .unwrap_or_else(|err| {
-                        error!("Failed to send register agent notification: {err}");
-                    });
+                    ),
+                    "register agent",
+                );
             }
             Err(err) => {
                 error!("Failed to create slot aggregated status snapshot: {err}");
@@ -407,15 +431,15 @@ impl ManagementSocketClientService {
 
         let do_send_status_update = || match self.slot_aggregated_status.make_snapshot() {
             Ok(slot_aggregated_status_snapshot) => {
-                message_tx
-                    .send(ManagementJsonRpcMessage::Notification(
+                send_notification_or_log_error(
+                    &message_tx,
+                    ManagementJsonRpcMessage::Notification(
                         ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
                             slot_aggregated_status_snapshot,
                         }),
-                    ))
-                    .unwrap_or_else(|err| {
-                        error!("Failed to send status update notification: {err}");
-                    });
+                    ),
+                    "status update",
+                );
             }
             Err(err) => error!("Failed to create slot aggregated status snapshot: {err}"),
         };

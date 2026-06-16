@@ -2,7 +2,8 @@
 
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_cluster::agent_config::AgentConfig;
+use paddler_tests::cluster_openai_compat::ClusterOpenAiCompat;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
 use serde_json::json;

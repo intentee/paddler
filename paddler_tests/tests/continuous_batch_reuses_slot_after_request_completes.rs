@@ -1,10 +1,10 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_client::token_result_with_producer::TokenResultWithProducer;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -12,7 +12,9 @@ async fn continuous_batch_reuses_slot_after_request_completes() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let first_collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt_collected(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Hello world".to_owned(),
@@ -28,7 +30,9 @@ async fn continuous_batch_reuses_slot_after_request_completes() -> Result<()> {
     ));
 
     let second_collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
+        .inference_client
+        .http()
+        .continue_from_raw_prompt_collected(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "Goodbye world".to_owned(),

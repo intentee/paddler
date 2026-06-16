@@ -16,6 +16,16 @@ use crate::decoded_image_error::DecodedImageError;
 use crate::prepared_conversation_history_request::PreparedConversationHistoryRequest;
 use crate::resolve_grammar::resolve_grammar;
 
+fn notify_failure_or_warn(
+    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    agent_name: Option<&str>,
+    failure: GeneratedTokenResult,
+) {
+    if generated_tokens_tx.send(failure).is_err() {
+        warn!("{agent_name:?}: failed to send result to client (receiver dropped)");
+    }
+}
+
 pub fn prepare_conversation_history_request(
     ContinueFromConversationHistoryParams {
         add_generation_prompt,
@@ -49,15 +59,11 @@ pub fn prepare_conversation_history_request(
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::ImageDecodingFailed(message.clone()))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    scheduler_context.agent_name
-                );
-            }
+            notify_failure_or_warn(
+                generated_tokens_tx,
+                scheduler_context.agent_name.as_deref(),
+                GeneratedTokenResult::ImageDecodingFailed(message.clone()),
+            );
 
             anyhow!(message)
         })?;
@@ -84,15 +90,11 @@ pub fn prepare_conversation_history_request(
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::ChatTemplateError(message.clone()))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    scheduler_context.agent_name
-                );
-            }
+            notify_failure_or_warn(
+                generated_tokens_tx,
+                scheduler_context.agent_name.as_deref(),
+                GeneratedTokenResult::ChatTemplateError(message.clone()),
+            );
 
             anyhow!(message)
         })?;
@@ -108,17 +110,11 @@ pub fn prepare_conversation_history_request(
 
         error!("{message}");
 
-        if generated_tokens_tx
-            .send(GeneratedTokenResult::MultimodalNotSupported(
-                message.clone(),
-            ))
-            .is_err()
-        {
-            warn!(
-                "{:?}: failed to send result to client (receiver dropped)",
-                scheduler_context.agent_name
-            );
-        }
+        notify_failure_or_warn(
+            generated_tokens_tx,
+            scheduler_context.agent_name.as_deref(),
+            GeneratedTokenResult::MultimodalNotSupported(message.clone()),
+        );
 
         return Err(anyhow!(message));
     }

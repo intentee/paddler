@@ -7,12 +7,13 @@ members = [
     "paddler_cli",
     "paddler_cli_tests",
     "paddler_client",
+    "paddler_cluster",
     "paddler_download_manager",
     "paddler_gui",
     "paddler_messaging",
     "paddler_openai_response_format_validator",
     "paddler_state_conversion",
-    "paddler_test_cluster_harness",
+    "paddler_testcontainer",
     "paddler_tests",
 ]
 resolver = "2"
@@ -82,6 +83,7 @@ iced = { version = "0.14", features = ["image", "svg", "tokio"] }
 if-addrs = "0.13"
 statum = "0.6"
 tempfile = "3.20.0"
+testcontainers = "0.27"
 tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-test = "0.4.4"
@@ -97,11 +99,12 @@ paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }
 paddler_cache_dir = { version = "4.0.0", path = "paddler_cache_dir" }
 paddler_cli = { version = "4.0.0", path = "paddler_cli" }
 paddler_client = { version = "4.0.0", path = "paddler_client" }
+paddler_cluster = { version = "4.0.0", path = "paddler_cluster" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
 paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
 paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }
 paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
-paddler_test_cluster_harness = { version = "4.0.0", path = "paddler_test_cluster_harness" }
+paddler_testcontainer = { version = "4.0.0", path = "paddler_testcontainer" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }
 
 [profile.release]

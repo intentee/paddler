@@ -1,11 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
@@ -28,7 +28,9 @@ async fn agent_embedding_batch_with_all_oversized_documents_reports_error() -> R
     let huge_content = "The quick brown fox jumps over the lazy dog. ".repeat(40);
 
     let collected = cluster
-        .generate_embedding_batch(&GenerateEmbeddingBatchParams {
+        .inference_client
+        .http()
+        .generate_embedding_batch_collected(&GenerateEmbeddingBatchParams {
             input_batch: vec![
                 EmbeddingInputDocument {
                     content: huge_content.clone(),
