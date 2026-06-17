@@ -4,3 +4,4 @@ pub mod container_cluster_backend;
 pub mod container_managed_process;
 pub mod host_huggingface_cache;
 pub mod image_reference;
+pub mod required_env;

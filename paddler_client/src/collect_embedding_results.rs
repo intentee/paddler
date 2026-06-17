@@ -271,10 +271,12 @@ mod tests {
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_embedding_results(stream(vec![Err(Error::ConnectionSlotEmpty)]))
-            .await
-            .err()
-            .unwrap();
+        let error = collect_embedding_results(stream(vec![Err(Error::ConnectionDropped {
+            request_id: "req".to_owned(),
+        })]))
+        .await
+        .err()
+        .unwrap();
 
         assert!(
             error

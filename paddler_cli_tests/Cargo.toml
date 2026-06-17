@@ -34,6 +34,7 @@ paddler_cli = { workspace = true }
 paddler_client = { workspace = true }
 paddler_cluster = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_model_card = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]

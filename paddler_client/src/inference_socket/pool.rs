@@ -7,7 +7,6 @@ use tokio::sync::Mutex;
 use tokio::sync::mpsc::UnboundedReceiver;
 use url::Url;
 
-use crate::error::Error;
 use crate::error::Result;
 use crate::inference_socket::connection::Connection;
 
@@ -36,28 +35,7 @@ impl Pool {
         let json = to_string(&message)?;
         let conn_idx = self.next_connection_index().await;
 
-        self.ensure_connection(conn_idx).await?;
-
-        let connection = self.get_connection(conn_idx).await?;
-        let send_result = connection.send(request_id.clone(), json.clone());
-
-        match send_result {
-            Ok(response_rx) => Ok(response_rx),
-            Err(Error::ConnectionDropped { .. }) => {
-                self.ensure_connection(conn_idx).await?;
-
-                let connection = self.get_connection(conn_idx).await?;
-
-                connection.send(request_id, json)
-            }
-            Err(other_error) => Err(other_error),
-        }
-    }
-
-    async fn get_connection(&self, index: usize) -> Result<Arc<Connection>> {
-        let connections = self.connections.lock().await;
-
-        connections[index].clone().ok_or(Error::ConnectionSlotEmpty)
+        self.connection(conn_idx).await?.send(request_id, json)
     }
 
     async fn next_connection_index(&self) -> usize {
@@ -68,28 +46,47 @@ impl Pool {
         conn_idx
     }
 
-    async fn ensure_connection(&self, index: usize) -> Result<()> {
-        let needs_connect = {
+    async fn connection(&self, index: usize) -> Result<Arc<Connection>> {
+        {
             let connections = self.connections.lock().await;
 
-            connections[index]
-                .as_ref()
-                .is_none_or(|connection| connection.is_disconnected())
-        };
-
-        if needs_connect {
-            let new_connection = Connection::connect(self.url.clone()).await?;
-            let mut connections = self.connections.lock().await;
-            connections[index] = Some(Arc::new(new_connection));
+            if let Some(connection) = &connections[index]
+                && !connection.is_disconnected()
+            {
+                return Ok(connection.clone());
+            }
         }
 
-        Ok(())
+        let connection = Arc::new(Connection::connect(self.url.clone()).await?);
+        let mut connections = self.connections.lock().await;
+
+        connections[index] = Some(connection.clone());
+
+        Ok(connection)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
+    use serde::Serializer;
+    use serde::ser::Error as _;
+
     use super::Pool;
+
+    struct UnserializableMessage;
+
+    impl Serialize for UnserializableMessage {
+        fn serialize<TSerializer>(
+            &self,
+            _serializer: TSerializer,
+        ) -> Result<TSerializer::Ok, TSerializer::Error>
+        where
+            TSerializer: Serializer,
+        {
+            Err(TSerializer::Error::custom("this message never serializes"))
+        }
+    }
 
     #[tokio::test]
     async fn round_robins_across_connection_slots() {
@@ -99,5 +96,12 @@ mod tests {
         assert_eq!(pool.next_connection_index().await, 1);
         assert_eq!(pool.next_connection_index().await, 2);
         assert_eq!(pool.next_connection_index().await, 0);
+    }
+
+    #[tokio::test]
+    async fn send_request_errors_when_the_message_cannot_be_serialized() {
+        let pool = Pool::new(url::Url::parse("http://127.0.0.1:1").unwrap(), 1);
+
+        assert!(pool.send_request("r1".to_owned(), UnserializableMessage).await.is_err());
     }
 }

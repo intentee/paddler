@@ -38,6 +38,7 @@ paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
 paddler_cluster = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_model_card = { workspace = true }
 parking_lot = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }
@@ -51,6 +52,7 @@ url = { workspace = true }
 
 [dev-dependencies]
 paddler_openai_response_format_validator = { workspace = true }
+paddler_test_fixture = { workspace = true }
 
 [lints]
 workspace = true

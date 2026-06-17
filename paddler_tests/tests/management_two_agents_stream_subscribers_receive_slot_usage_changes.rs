@@ -6,13 +6,14 @@ use paddler_client::collect_generated_tokens::collect_generated_tokens;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -> Result<()> {
@@ -39,7 +40,7 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
                 name: "test-agent".to_owned(),
                 slot_count: 1,
             }],
-            desired_state: Some(desired_state),
+            desired_state: DesiredStateInit::set(desired_state),
             wait_for_slots_ready: true,
         },
     )

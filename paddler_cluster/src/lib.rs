@@ -7,6 +7,7 @@ pub mod buffered_requests_stream_watcher;
 pub mod cluster;
 pub mod cluster_backend;
 pub mod cluster_params;
+pub mod desired_state_init;
 pub mod managed_process;
 pub mod next_matching_snapshot;
 pub mod provisioned_backend;

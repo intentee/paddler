@@ -5,12 +5,13 @@ use anyhow::Result;
 use paddler_cluster::balancer_service_config::BalancerServiceConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::state_database_file::StateDatabaseFile;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -28,14 +29,14 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
     };
 
     let first_cluster = Cluster::start(
-        &InProcessClusterBackend::new(BalancerServiceConfig {
+        &InProcessClusterBackend::default().with_service_config(BalancerServiceConfig {
             state_database_url: database.url.clone(),
             ..Default::default()
         }),
         ClusterParams {
             agents: Vec::new(),
             wait_for_slots_ready: false,
-            desired_state: Some(desired_state.clone()),
+            desired_state: DesiredStateInit::set(desired_state.clone()),
         },
     )
     .await?;
@@ -43,14 +44,14 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
     first_cluster.shutdown().await?;
 
     let second_cluster = Cluster::start(
-        &InProcessClusterBackend::new(BalancerServiceConfig {
+        &InProcessClusterBackend::default().with_service_config(BalancerServiceConfig {
             state_database_url: database.url.clone(),
             ..Default::default()
         }),
         ClusterParams {
             agents: Vec::new(),
             wait_for_slots_ready: false,
-            desired_state: None,
+            desired_state: DesiredStateInit::Inherit,
         },
     )
     .await?;

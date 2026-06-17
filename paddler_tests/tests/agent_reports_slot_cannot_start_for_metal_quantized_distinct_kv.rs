@@ -7,14 +7,15 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::kv_cache_dtype::KvCacheDtype;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_slot_cannot_start_for_metal_quantized_distinct_kv() -> Result<()> {
@@ -38,7 +39,7 @@ async fn agent_reports_slot_cannot_start_for_metal_quantized_distinct_kv() -> Re
                 name: "test-agent".to_owned(),
                 slot_count: 1,
             }],
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters,
                 model: AgentDesiredModel::HuggingFace(reference),

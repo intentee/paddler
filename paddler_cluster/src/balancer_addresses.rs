@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 use url::Url;
 
 pub struct BalancerAddresses {
-    pub compat_openai: Option<SocketAddr>,
+    pub compat_openai: SocketAddr,
     pub inference: SocketAddr,
     pub management: SocketAddr,
 }
@@ -40,18 +40,14 @@ impl BalancerAddresses {
         ));
 
         Ok(Self {
-            compat_openai: Some(compat_openai),
+            compat_openai,
             inference,
             management,
         })
     }
 
     pub fn compat_openai_base_url(&self) -> Result<Url> {
-        let compat_openai = self
-            .compat_openai
-            .context("OpenAI-compat service address is not configured for this balancer")?;
-
-        Self::base_url_for(compat_openai)
+        Self::base_url_for(self.compat_openai)
     }
 
     pub fn inference_base_url(&self) -> Result<Url> {
@@ -75,7 +71,7 @@ mod tests {
     #[tokio::test]
     async fn pick_reserves_three_distinct_loopback_ports() {
         let addresses = BalancerAddresses::pick().await.unwrap();
-        let compat_openai = addresses.compat_openai.unwrap();
+        let compat_openai = addresses.compat_openai;
 
         for address in [addresses.inference, addresses.management, compat_openai] {
             assert!(address.ip().is_loopback());
@@ -98,7 +94,7 @@ mod tests {
         );
         assert_eq!(
             addresses.compat_openai_base_url().unwrap().port(),
-            Some(addresses.compat_openai.unwrap().port())
+            Some(addresses.compat_openai.port())
         );
     }
 }

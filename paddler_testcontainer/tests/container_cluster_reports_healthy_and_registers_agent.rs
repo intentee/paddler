@@ -4,15 +4,16 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_testcontainer::container_cluster_backend::ContainerClusterBackend;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn container_cluster_reports_healthy_and_registers_agent() -> Result<()> {
     let cluster = Cluster::start(
-        &ContainerClusterBackend,
+        &ContainerClusterBackend::default(),
         ClusterParams {
             agents: vec![AgentConfig::single(2)],
-            desired_state: None,
+            desired_state: DesiredStateInit::Inherit,
             wait_for_slots_ready: false,
         },
     )

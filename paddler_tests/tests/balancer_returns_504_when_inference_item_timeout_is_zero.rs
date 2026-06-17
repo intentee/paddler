@@ -9,14 +9,15 @@ use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::balancer_service_config::BalancerServiceConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_inference_item_timeout_is_zero() -> Result<()> {
@@ -26,14 +27,14 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() -> Result<()
     } = qwen3_0_6b();
 
     let cluster = Cluster::start(
-        &InProcessClusterBackend::new(BalancerServiceConfig {
+        &InProcessClusterBackend::default().with_service_config(BalancerServiceConfig {
             inference_item_timeout: Duration::ZERO,
             ..Default::default()
         }),
         ClusterParams {
             agents: AgentConfig::uniform(1, 2),
             wait_for_slots_ready: true,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters {
                     n_gpu_layers: gpu_layer_count,

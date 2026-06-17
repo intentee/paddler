@@ -7,12 +7,15 @@ members = [
     "paddler_cli",
     "paddler_cli_tests",
     "paddler_client",
+    "paddler_client_tests",
     "paddler_cluster",
     "paddler_download_manager",
     "paddler_gui",
     "paddler_messaging",
+    "paddler_model_card",
     "paddler_openai_response_format_validator",
     "paddler_state_conversion",
+    "paddler_test_fixture",
     "paddler_testcontainer",
     "paddler_tests",
 ]
@@ -102,8 +105,10 @@ paddler_client = { version = "4.0.0", path = "paddler_client" }
 paddler_cluster = { version = "4.0.0", path = "paddler_cluster" }
 paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
 paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
+paddler_model_card = { version = "4.0.0", path = "paddler_model_card" }
 paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }
 paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
+paddler_test_fixture = { version = "4.0.0", path = "paddler_test_fixture" }
 paddler_testcontainer = { version = "4.0.0", path = "paddler_testcontainer" }
 paddler_tests = { version = "4.0.0", path = "paddler_tests" }
 

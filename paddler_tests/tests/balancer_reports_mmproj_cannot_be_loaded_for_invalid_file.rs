@@ -5,13 +5,14 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_mmproj_cannot_be_loaded_for_invalid_file() -> Result<()> {
@@ -27,7 +28,7 @@ async fn balancer_reports_mmproj_cannot_be_loaded_for_invalid_file() -> Result<(
         ClusterParams {
             agents: AgentConfig::uniform(1, 1),
             wait_for_slots_ready: false,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters::default(),
                 model: AgentDesiredModel::HuggingFace(reference),

@@ -5280,6 +5280,7 @@ dependencies = [
  "paddler_client",
  "paddler_cluster",
  "paddler_messaging",
+ "paddler_model_card",
  "reqwest 0.12.28",
  "serde_json",
  "tokio",
@@ -5293,6 +5294,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dashmap",
+ "env_logger",
  "futures-util",
  "http 1.4.0",
  "log",
@@ -5305,6 +5307,22 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-tungstenite",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
+name = "paddler_client_tests"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "paddler_client",
+ "paddler_messaging",
+ "paddler_test_fixture",
+ "serde",
+ "serde_json",
+ "tokio",
  "url",
 ]
 
@@ -5380,6 +5398,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_model_card"
+version = "4.0.0"
+dependencies = [
+ "paddler_cluster",
+ "paddler_messaging",
+]
+
+[[package]]
 name = "paddler_openai_response_format_validator"
 version = "4.0.0"
 dependencies = [
@@ -5399,16 +5425,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_test_fixture"
+version = "4.0.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "paddler_testcontainer"
 version = "4.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "futures-util",
+ "hf-hub",
  "nanoid",
  "paddler_client",
  "paddler_cluster",
  "paddler_messaging",
+ "paddler_model_card",
  "testcontainers",
  "tokio",
  "url",
@@ -5434,7 +5472,9 @@ dependencies = [
  "paddler_client",
  "paddler_cluster",
  "paddler_messaging",
+ "paddler_model_card",
  "paddler_openai_response_format_validator",
+ "paddler_test_fixture",
  "parking_lot",
  "reqwest 0.12.28",
  "serde",

@@ -1,20 +1,9 @@
-use std::env;
-use std::env::VarError;
-
 use anyhow::Result;
 
-const DEFAULT_IMAGE_NAME: &str = "ghcr.io/intentee/paddler";
+use crate::required_env::required_env;
+
 const IMAGE_NAME_ENV: &str = "PADDLER_TESTCONTAINER_IMAGE_NAME";
 const IMAGE_TAG_ENV: &str = "PADDLER_TESTCONTAINER_IMAGE_TAG";
-
-fn env_or(key: &str, default: &str) -> Result<String> {
-    match env::var(key) {
-        Ok(value) => Ok(value),
-        Err(VarError::NotPresent) => Ok(default.to_owned()),
-        Err(error @ VarError::NotUnicode(_)) => Err(anyhow::Error::new(error)
-            .context(format!("environment variable {key} is not valid unicode"))),
-    }
-}
 
 pub struct ImageReference {
     pub name: String,
@@ -23,9 +12,34 @@ pub struct ImageReference {
 
 impl ImageReference {
     pub fn resolve() -> Result<Self> {
+        Self::from_keys(IMAGE_NAME_ENV, IMAGE_TAG_ENV)
+    }
+
+    fn from_keys(name_key: &str, tag_key: &str) -> Result<Self> {
+        Self::with_name(required_env(name_key)?, tag_key)
+    }
+
+    fn with_name(name: String, tag_key: &str) -> Result<Self> {
         Ok(Self {
-            name: env_or(IMAGE_NAME_ENV, DEFAULT_IMAGE_NAME)?,
-            tag: env_or(IMAGE_TAG_ENV, env!("CARGO_PKG_VERSION"))?,
+            name,
+            tag: required_env(tag_key)?,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ImageReference;
+
+    const ABSENT_KEY: &str = "PADDLER_TESTCONTAINER_DELIBERATELY_ABSENT_VARIABLE";
+
+    #[test]
+    fn fails_when_image_name_is_absent() {
+        assert!(ImageReference::from_keys(ABSENT_KEY, ABSENT_KEY).is_err());
+    }
+
+    #[test]
+    fn fails_when_image_tag_is_absent() {
+        assert!(ImageReference::with_name("paddler".to_owned(), ABSENT_KEY).is_err());
     }
 }

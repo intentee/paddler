@@ -5,6 +5,7 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -21,7 +22,7 @@ async fn balancer_reports_download_url_is_malformed() -> Result<()> {
         ClusterParams {
             agents: AgentConfig::uniform(1, 1),
             wait_for_slots_ready: false,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters::default(),
                 model: AgentDesiredModel::Url(UrlModelReference {

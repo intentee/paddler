@@ -16,7 +16,7 @@ use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
     let mut cluster = Cluster::start(
-        &InProcessClusterBackend::new(BalancerServiceConfig {
+        &InProcessClusterBackend::default().with_service_config(BalancerServiceConfig {
             buffered_request_timeout: Duration::from_millis(50),
             max_buffered_requests: 0,
             ..Default::default()

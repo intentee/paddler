@@ -5,6 +5,7 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
@@ -13,9 +14,9 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 
 async fn run_inference_after_template_swap(cluster: &Cluster) -> Result<bool> {
     let collected = cluster
@@ -60,7 +61,7 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
         ClusterParams {
             agents: AgentConfig::uniform(1, 1),
             wait_for_slots_ready: true,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: Some(template_a.clone()),
                 inference_parameters: InferenceParameters {
                     n_gpu_layers: gpu_layer_count,

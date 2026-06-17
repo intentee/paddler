@@ -5,25 +5,27 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::local_http_fixture::LocalHttpFixture;
+use paddler_test_fixture::http_response_spec::HttpResponseSpec;
+use paddler_test_fixture::local_http_fixture::LocalHttpFixture;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_download_server_denied_access() -> Result<()> {
-    let fixture = LocalHttpFixture::start("HTTP/1.1 403 Forbidden", Vec::new()).await?;
-    let model_url = fixture.url("/private.gguf");
+    let fixture = LocalHttpFixture::start(HttpResponseSpec::status(403, "Forbidden")).await?;
+    let model_url = format!("{}/private.gguf", fixture.base_url());
 
     let mut cluster = Cluster::start(
         &InProcessClusterBackend::default(),
         ClusterParams {
             agents: AgentConfig::uniform(1, 1),
             wait_for_slots_ready: false,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters::default(),
                 model: AgentDesiredModel::Url(UrlModelReference {

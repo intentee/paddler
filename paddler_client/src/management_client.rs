@@ -13,6 +13,8 @@ use url::Url;
 
 use crate::agents_stream::AgentsStream;
 use crate::buffered_requests_stream::BufferedRequestsStream;
+use crate::cors_preflight::cors_preflight;
+use crate::cors_preflight_response::CorsPreflightResponse;
 use crate::error::Result;
 use crate::format_api_url::format_api_url;
 use crate::management_client_params::ManagementClientParams;
@@ -51,6 +53,10 @@ impl ManagementClient {
 
     pub async fn health(&self) -> Result<String> {
         self.get_text("/health").await
+    }
+
+    pub async fn cors_preflight(&self, origin: &str) -> Result<CorsPreflightResponse> {
+        cors_preflight(&self.http_client, &self.url, origin).await
     }
 
     pub async fn agents(&self) -> Result<AgentControllerPoolSnapshot> {

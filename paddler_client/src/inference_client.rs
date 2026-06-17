@@ -3,6 +3,8 @@ use std::sync::OnceLock;
 use reqwest::Client;
 use url::Url;
 
+use crate::cors_preflight::cors_preflight;
+use crate::cors_preflight_response::CorsPreflightResponse;
 use crate::error::Result;
 use crate::format_api_url::format_api_url;
 use crate::inference_client_http::InferenceClientHttp;
@@ -55,6 +57,10 @@ impl InferenceClient {
             .error_for_status()?;
 
         Ok(response.text().await?)
+    }
+
+    pub async fn cors_preflight(&self, origin: &str) -> Result<CorsPreflightResponse> {
+        cors_preflight(&self.http_client, &self.url, origin).await
     }
 }
 

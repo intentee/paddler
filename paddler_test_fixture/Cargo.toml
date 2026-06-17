@@ -1,0 +1,19 @@
+[package]
+name = "paddler_test_fixture"
+authors.workspace = true
+description = "Local HTTP server fixtures for exercising client error paths in tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+
+[lints]
+workspace = true

@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
@@ -19,7 +20,7 @@ async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
         ClusterParams {
             agents: Vec::new(),
             wait_for_slots_ready: false,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters::default(),
                 model: AgentDesiredModel::Url(UrlModelReference {

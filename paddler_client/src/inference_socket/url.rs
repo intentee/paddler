@@ -4,21 +4,22 @@ use crate::error::Error;
 use crate::error::Result;
 
 pub fn url(input: Url) -> Result<Url> {
-    let mut url = input;
+    let mut socket_url = input;
 
-    let scheme = match url.scheme() {
-        "http" => "ws",
-        "https" => "wss",
-        other => other,
+    let websocket_scheme = match socket_url.scheme() {
+        "http" | "ws" => "ws",
+        "https" | "wss" => "wss",
+        unsupported => {
+            return Err(Error::InferenceSocketUnsupportedScheme {
+                scheme: unsupported.to_owned(),
+            });
+        }
     };
 
-    let scheme = scheme.to_owned();
+    let _ = socket_url.set_scheme(websocket_scheme);
+    socket_url.set_path("/api/v1/inference_socket");
 
-    url.set_scheme(&scheme)
-        .map_err(|()| Error::UrlScheme { scheme })?;
-    url.set_path("/api/v1/inference_socket");
-
-    Ok(url)
+    Ok(socket_url)
 }
 
 #[cfg(test)]
@@ -26,6 +27,7 @@ mod tests {
     use url::Url;
 
     use super::url;
+    use crate::error::Error;
 
     #[test]
     fn http_becomes_ws() {
@@ -54,9 +56,27 @@ mod tests {
     }
 
     #[test]
+    fn wss_scheme_preserved() {
+        let result = url(Url::parse("wss://localhost:9090").unwrap()).unwrap();
+
+        assert_eq!(result.scheme(), "wss");
+        assert_eq!(result.path(), "/api/v1/inference_socket");
+    }
+
+    #[test]
     fn original_path_replaced() {
         let result = url(Url::parse("http://host/deeply/nested/path?query=1").unwrap()).unwrap();
 
         assert_eq!(result.path(), "/api/v1/inference_socket");
+    }
+
+    #[test]
+    fn rejects_an_unsupported_scheme() {
+        let error = url(Url::parse("ftp://host/model").unwrap()).unwrap_err();
+
+        assert!(matches!(
+            error,
+            Error::InferenceSocketUnsupportedScheme { scheme } if scheme == "ftp"
+        ));
     }
 }

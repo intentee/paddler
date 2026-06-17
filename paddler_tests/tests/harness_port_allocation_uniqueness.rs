@@ -1,28 +1,23 @@
 use std::collections::HashSet;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use paddler_cluster::balancer_addresses::BalancerAddresses;
 
-fn distinct_ports(addresses: &BalancerAddresses) -> Result<HashSet<u16>> {
-    let compat_openai = addresses
-        .compat_openai
-        .context("pick must reserve a compat-openai port")?;
-
+fn distinct_ports(addresses: &BalancerAddresses) -> HashSet<u16> {
     let mut ports = HashSet::new();
 
-    ports.insert(compat_openai.port());
+    ports.insert(addresses.compat_openai.port());
     ports.insert(addresses.inference.port());
     ports.insert(addresses.management.port());
 
-    Ok(ports)
+    ports
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn picks_three_distinct_ports_per_invocation() -> Result<()> {
     let addresses = BalancerAddresses::pick().await?;
 
-    let ports = distinct_ports(&addresses)?;
+    let ports = distinct_ports(&addresses);
 
     assert_eq!(
         ports.len(),
@@ -46,7 +41,7 @@ async fn parallel_invocations_never_produce_internal_collisions() -> Result<()> 
     for join_handle in handles {
         let addresses = join_handle.await??;
 
-        let ports = distinct_ports(&addresses)?;
+        let ports = distinct_ports(&addresses);
 
         assert_eq!(
             ports.len(),

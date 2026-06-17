@@ -15,6 +15,8 @@ TEST_DEVICE_FEATURE_SUFFIX := ,$(TEST_DEVICE)
 TEST_DEVICE_TARGET_DIR := --target-dir target/$(TEST_DEVICE)
 endif
 
+TESTCONTAINER_ENV := PADDLER_TESTCONTAINER_IMAGE_NAME=paddler PADDLER_TESTCONTAINER_IMAGE_TAG=test
+
 # -----------------------------------------------------------------------------
 # Real targets
 # -----------------------------------------------------------------------------
@@ -82,7 +84,7 @@ clean: clean.coverage
 
 .PHONY: clippy
 clippy: esbuild-meta.json
-	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms
+	cargo clippy --workspace --all-targets --features web_admin_panel,tests_that_use_llms,tests_that_use_docker
 
 .PHONY: docker.image
 docker.image: Dockerfile
@@ -102,12 +104,13 @@ test.client.js: node_modules
 
 .PHONY: test.containers
 test.containers: docker.image
-	PADDLER_TESTCONTAINER_IMAGE_NAME=paddler PADDLER_TESTCONTAINER_IMAGE_TAG=test cargo nextest run -p paddler_testcontainer --features tests_that_use_docker
+	$(TESTCONTAINER_ENV) cargo nextest run -p paddler_testcontainer --features tests_that_use_docker
 
 .PHONY: coverage
-coverage: esbuild-meta.json node_modules
+coverage: esbuild-meta.json node_modules docker.image
 	cargo llvm-cov clean --profraw-only
 	cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
+	$(TESTCONTAINER_ENV) cargo llvm-cov nextest -p paddler_testcontainer --features tests_that_use_docker --no-report
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
@@ -118,12 +121,14 @@ coverage: esbuild-meta.json node_modules
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
 		--gated paddler_cli=87 \
-		--gated paddler_client=93 \
+		--gated paddler_client=100 \
+		--gated paddler_client_tests=100 \
 		--gated paddler_cluster=93 \
 		--gated paddler_download_manager=99 \
 		--gated paddler_gui=13 \
 		--gated paddler_messaging=100 \
-		--gated paddler_openai_response_format_validator=99
+		--gated paddler_openai_response_format_validator=99 \
+		--gated paddler_testcontainer=100
 
 .PHONY: test.integration
 test.integration:

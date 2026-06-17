@@ -14,7 +14,7 @@ use crate::container_managed_process::ContainerManagedProcess;
 use crate::host_huggingface_cache::host_huggingface_cache;
 use crate::image_reference::ImageReference;
 
-const CONTAINER_HUGGINGFACE_CACHE: &str = "/hf_cache";
+const CONTAINER_HUGGINGFACE_HOME: &str = "/hf_cache";
 
 pub struct ContainerAgentSpawner {
     pub balancer_bridge_ip: IpAddr,
@@ -37,10 +37,10 @@ impl AgentSpawner for ContainerAgentSpawner {
             ])
             .with_network(self.network.clone())
             .with_mount(Mount::bind_mount(
-                host_huggingface_cache()?,
-                CONTAINER_HUGGINGFACE_CACHE,
+                host_huggingface_cache(),
+                format!("{CONTAINER_HUGGINGFACE_HOME}/hub"),
             ))
-            .with_env_var("HF_HOME", CONTAINER_HUGGINGFACE_CACHE)
+            .with_env_var("HF_HOME", CONTAINER_HUGGINGFACE_HOME)
             .start()
             .await?;
 

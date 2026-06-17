@@ -2,10 +2,13 @@ use std::net::IpAddr;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 
+use anyhow::Error;
 use anyhow::Result;
 use anyhow::anyhow;
 use paddler_cluster::balancer_addresses::BalancerAddresses;
+use paddler_cluster::balancer_service_config::BalancerServiceConfig;
 use paddler_cluster::running_balancer::RunningBalancer;
+use testcontainers::ContainerAsync;
 use testcontainers::GenericImage;
 use testcontainers::ImageExt;
 use testcontainers::core::IntoContainerPort;
@@ -15,6 +18,7 @@ use url::Host;
 use crate::container_managed_process::ContainerManagedProcess;
 use crate::image_reference::ImageReference;
 
+const COMPAT_OPENAI_PORT: u16 = 8062;
 const INFERENCE_PORT: u16 = 8061;
 const MANAGEMENT_PORT: u16 = 8060;
 
@@ -29,51 +33,77 @@ fn resolve_host(host: Host) -> Result<IpAddr> {
     }
 }
 
+fn balancer_command(service_config: &BalancerServiceConfig) -> Vec<String> {
+    let mut command = vec![
+        "balancer".to_owned(),
+        "--management-addr".to_owned(),
+        format!("0.0.0.0:{MANAGEMENT_PORT}"),
+        "--inference-addr".to_owned(),
+        format!("0.0.0.0:{INFERENCE_PORT}"),
+        "--compat-openai-addr".to_owned(),
+        format!("0.0.0.0:{COMPAT_OPENAI_PORT}"),
+    ];
+
+    command.extend(service_config.command_args());
+
+    command
+}
+
 pub struct StartedBalancer {
     pub balancer_bridge_ip: IpAddr,
     pub running_balancer: RunningBalancer,
 }
 
 impl StartedBalancer {
-    pub async fn start(network: &str, image: &ImageReference) -> Result<Self> {
+    pub async fn start(
+        network: &str,
+        image: &ImageReference,
+        service_config: &BalancerServiceConfig,
+    ) -> Result<Self> {
         let container = GenericImage::new(image.name.clone(), image.tag.clone())
             .with_exposed_port(MANAGEMENT_PORT.tcp())
             .with_exposed_port(INFERENCE_PORT.tcp())
-            .with_cmd([
-                "balancer",
-                "--management-addr",
-                "0.0.0.0:8060",
-                "--inference-addr",
-                "0.0.0.0:8061",
-            ])
+            .with_exposed_port(COMPAT_OPENAI_PORT.tcp())
+            .with_cmd(balancer_command(service_config))
             .with_network(network.to_owned())
             .start()
             .await?;
 
+        Self::from_container(container).await
+    }
+
+    pub async fn from_container(container: ContainerAsync<GenericImage>) -> Result<Self> {
         let balancer_bridge_ip = container.get_bridge_ip_address().await?;
-        let host = resolve_host(container.get_host().await?)?;
-        let management_port = container.get_host_port_ipv4(MANAGEMENT_PORT.tcp()).await?;
-        let inference_port = container.get_host_port_ipv4(INFERENCE_PORT.tcp()).await?;
 
-        let addresses = BalancerAddresses {
-            compat_openai: None,
-            inference: SocketAddr::new(host, inference_port),
-            management: SocketAddr::new(host, management_port),
-        };
+        let mut host_ports = Vec::with_capacity(3);
 
-        Ok(Self {
-            balancer_bridge_ip,
-            running_balancer: RunningBalancer::new(
-                addresses,
-                Box::new(ContainerManagedProcess::new(container)),
-            ),
-        })
+        for exposed_port in [MANAGEMENT_PORT, INFERENCE_PORT, COMPAT_OPENAI_PORT] {
+            host_ports.push(container.get_host_port_ipv4(exposed_port.tcp()).await?);
+        }
+
+        let docker_host = container.get_host().await;
+
+        docker_host
+            .map_err(Error::from)
+            .and_then(resolve_host)
+            .map(move |host| Self {
+                balancer_bridge_ip,
+                running_balancer: RunningBalancer::new(
+                    BalancerAddresses {
+                        compat_openai: SocketAddr::new(host, host_ports[2]),
+                        inference: SocketAddr::new(host, host_ports[1]),
+                        management: SocketAddr::new(host, host_ports[0]),
+                    },
+                    Box::new(ContainerManagedProcess::new(container)),
+                ),
+            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::net::Ipv4Addr;
+    use std::net::Ipv6Addr;
 
     use url::Host;
 
@@ -84,6 +114,14 @@ mod tests {
         let resolved = resolve_host(Host::Ipv4(Ipv4Addr::new(192, 168, 0, 5))).unwrap();
 
         assert_eq!(resolved.to_string(), "192.168.0.5");
+    }
+
+    #[test]
+    fn resolves_an_ipv6_host() {
+        let resolved =
+            resolve_host(Host::Ipv6(Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1))).unwrap();
+
+        assert_eq!(resolved.to_string(), "fe80::1");
     }
 
     #[test]

@@ -27,7 +27,7 @@ pub struct InProcessClusterBackend {
 
 impl InProcessClusterBackend {
     #[must_use]
-    pub const fn new(service_config: BalancerServiceConfig) -> Self {
+    pub fn with_service_config(self, service_config: BalancerServiceConfig) -> Self {
         Self { service_config }
     }
 }
@@ -63,9 +63,9 @@ impl ClusterBackend for InProcessClusterBackend {
                 cors_allowed_hosts: management_cors_allowed_hosts.clone(),
             },
             max_buffered_requests: *max_buffered_requests,
-            openai_service_configuration: addresses
-                .compat_openai
-                .map(|addr| OpenAIServiceConfiguration { addr }),
+            openai_service_configuration: Some(OpenAIServiceConfiguration {
+                addr: addresses.compat_openai,
+            }),
             cancellation_token: CancellationToken::new(),
             shutdown_options: ServiceShutdownOptions::default(),
             state_database_type,

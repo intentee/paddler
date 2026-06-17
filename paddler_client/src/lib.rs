@@ -4,6 +4,8 @@ pub mod collect_embedding_results;
 pub mod collect_generated_tokens;
 pub mod collected_embedding_results;
 pub mod collected_generated_tokens;
+pub mod cors_preflight;
+pub mod cors_preflight_response;
 pub mod embedding_with_producer;
 pub mod error;
 mod format_api_url;

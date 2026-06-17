@@ -5,13 +5,14 @@ use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> Result<()> {
@@ -22,7 +23,7 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> 
         ClusterParams {
             agents: AgentConfig::uniform(1, 1),
             wait_for_slots_ready: false,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters::default(),
                 model: AgentDesiredModel::HuggingFace(reference),

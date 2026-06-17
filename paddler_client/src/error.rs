@@ -9,20 +9,20 @@ pub enum Error {
     #[error("JSON serialization error: {0}")]
     Json(#[from] serde_json::Error),
 
-    #[error("URL parse error: {0}")]
-    Url(#[from] url::ParseError),
-
-    #[error("failed to set inference socket URL scheme to '{scheme}'")]
-    UrlScheme { scheme: String },
-
-    #[error("Connection slot is empty after connection attempt")]
-    ConnectionSlotEmpty,
+    #[error("inference URL scheme '{scheme}' is not supported; expected http, https, ws, or wss")]
+    InferenceSocketUnsupportedScheme { scheme: String },
 
     #[error("Request {request_id} failed: connection dropped")]
     ConnectionDropped { request_id: String },
 
-    #[error("Server returned error: {message}")]
-    Server { code: i32, message: String },
+    #[error("CORS preflight response did not include an Access-Control-Allow-Origin header")]
+    CorsAllowOriginMissing,
+
+    #[error("CORS Access-Control-Allow-Origin header was not valid ASCII: {source}")]
+    CorsAllowOriginNotAscii {
+        #[source]
+        source: reqwest::header::ToStrError,
+    },
 }
 
 pub type Result<TValue> = std::result::Result<TValue, Error>;

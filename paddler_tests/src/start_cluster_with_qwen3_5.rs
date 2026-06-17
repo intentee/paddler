@@ -4,12 +4,13 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::in_process_cluster_backend::InProcessClusterBackend;
-use crate::model_card::ModelCard;
-use crate::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use crate::model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
+use paddler_cluster::desired_state_init::DesiredStateInit;
+use paddler_model_card::model_card::ModelCard;
+use paddler_model_card::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 
 pub async fn start_cluster_with_qwen3_5(
     agents: Vec<AgentConfig>,
@@ -35,7 +36,7 @@ pub async fn start_cluster_with_qwen3_5(
         &InProcessClusterBackend::default(),
         ClusterParams {
             agents,
-            desired_state: Some(BalancerDesiredState {
+            desired_state: DesiredStateInit::set(BalancerDesiredState {
                 chat_template_override: None,
                 inference_parameters: InferenceParameters {
                     n_gpu_layers: gpu_layer_count,

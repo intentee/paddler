@@ -68,14 +68,62 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use dashmap::DashMap;
+    use tokio::sync::mpsc;
+    use tokio::sync::mpsc::UnboundedSender;
     use url::Url;
 
     use super::Connection;
+
+    impl Connection {
+        fn from_write_channel(write_tx: UnboundedSender<String>) -> Self {
+            Self {
+                write_tx,
+                pending: Arc::new(DashMap::new()),
+                _read_task: tokio::spawn(std::future::ready(())),
+                _write_task: tokio::spawn(std::future::ready(())),
+            }
+        }
+    }
 
     #[tokio::test]
     async fn connect_fails_for_an_unreachable_server() {
         let url = Url::parse("http://127.0.0.1:1").unwrap();
 
         assert!(Connection::connect(url).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn connect_rejects_an_unsupported_url_scheme() {
+        let url = Url::parse("ftp://host/model").unwrap();
+
+        assert!(Connection::connect(url).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn send_queues_the_request_and_returns_a_receiver() {
+        let (write_tx, mut write_rx) = mpsc::unbounded_channel::<String>();
+        let connection = Connection::from_write_channel(write_tx);
+
+        let _receiver = connection
+            .send("r1".to_owned(), "{}".to_owned())
+            .expect("send succeeds for a live connection");
+
+        assert!(!connection.is_disconnected());
+        assert_eq!(write_rx.recv().await, Some("{}".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn send_reports_connection_dropped_when_the_write_channel_is_closed() {
+        let (write_tx, write_rx) = mpsc::unbounded_channel::<String>();
+
+        drop(write_rx);
+
+        let connection = Connection::from_write_channel(write_tx);
+
+        assert!(connection.is_disconnected());
+        assert!(connection.send("r1".to_owned(), "{}".to_owned()).is_err());
     }
 }

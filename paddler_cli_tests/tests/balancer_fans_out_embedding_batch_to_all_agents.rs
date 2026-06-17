@@ -3,13 +3,13 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
-use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_model_card::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {

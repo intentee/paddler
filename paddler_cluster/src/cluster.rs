@@ -5,7 +5,6 @@ use paddler_client::inference_client_params::InferenceClientParams;
 use paddler_client::management_client::ManagementClient;
 use paddler_client::management_client_params::ManagementClientParams;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
 use crate::agent_config::AgentConfig;
@@ -14,6 +13,7 @@ use crate::agents_stream_watcher::AgentsStreamWatcher;
 use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
 use crate::cluster_backend::ClusterBackend;
 use crate::cluster_params::ClusterParams;
+use crate::desired_state_init::DesiredStateInit;
 use crate::provisioned_backend::ProvisionedBackend;
 use crate::registered_agent::RegisteredAgent;
 use crate::running_balancer::RunningBalancer;
@@ -44,8 +44,7 @@ impl Cluster {
             running_balancer,
         } = backend.provision().await?;
 
-        let mut cluster =
-            Self::connect(running_balancer, agent_spawner, desired_state.as_ref()).await?;
+        let mut cluster = Self::connect(running_balancer, agent_spawner, &desired_state).await?;
 
         for agent in &agents {
             cluster.spawn_additional_agent(agent).await?;
@@ -67,7 +66,7 @@ impl Cluster {
     async fn connect(
         balancer: RunningBalancer,
         agent_spawner: Box<dyn AgentSpawner>,
-        desired_state: Option<&BalancerDesiredState>,
+        desired_state: &DesiredStateInit,
     ) -> Result<Self> {
         let management_base_url = balancer.addresses.management_base_url()?;
         let inference_base_url = balancer.addresses.inference_base_url()?;
@@ -84,7 +83,7 @@ impl Cluster {
             url: management_base_url,
         });
 
-        if let Some(desired_state) = desired_state {
+        if let DesiredStateInit::Set(desired_state) = desired_state {
             management_client
                 .set_desired_state(desired_state)
                 .await

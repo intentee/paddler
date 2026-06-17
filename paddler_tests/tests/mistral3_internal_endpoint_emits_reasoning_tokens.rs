@@ -7,7 +7,7 @@ use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
+use paddler_model_card::ministral_3_cluster_params::Ministral3ClusterParams;
 use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
 
 #[tokio::test(flavor = "multi_thread")]

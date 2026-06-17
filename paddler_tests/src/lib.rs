@@ -4,13 +4,9 @@ pub mod in_process_agent_spawner;
 pub mod in_process_balancer;
 pub mod in_process_cluster_backend;
 pub mod load_test_image_data_uri;
-pub mod local_http_fixture;
 pub mod make_agent_controller_without_remote_agent;
-pub mod ministral_3_cluster_params;
-pub mod model_card;
 pub mod openai_chat_completions_client;
 pub mod openai_responses_client;
-pub mod qwen3_embedding_cluster_params;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot;
 #[cfg(any(target_os = "macos", target_os = "linux"))]

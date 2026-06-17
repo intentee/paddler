@@ -1,0 +1,17 @@
+[package]
+name = "paddler_model_card"
+authors.workspace = true
+description = "Shared Hugging Face model fixtures and per-model GPU offload counts for Paddler cluster tests"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+paddler_cluster = { workspace = true }
+paddler_messaging = { workspace = true }
+
+[lints]
+workspace = true
