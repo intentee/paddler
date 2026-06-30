@@ -24,7 +24,7 @@ This example sets up:
    ```
 
 3. **Access the services:**
-   * **Management dashboard:** <http://localhost:8062/dashboard>
+   * **Management dashboard:** <http://127.0.0.1:8062/dashboard>
 
 4. **Stop the cluster:**
 
