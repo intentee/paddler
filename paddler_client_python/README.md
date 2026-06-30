@@ -67,7 +67,7 @@ async with ClientInference(url="http://localhost:8061") as client:
 from paddler_client import ClientManagement
 
 
-async with ClientManagement(url="http://localhost:8062") as client:
+async with ClientManagement(url="http://localhost:8060") as client:
     snapshot = await client.get_agents()
 
     for agent in snapshot.agents:
