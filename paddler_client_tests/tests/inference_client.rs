@@ -33,7 +33,9 @@ fn generated_token_done(request_id: &str) -> InferenceMessage {
     InferenceMessage::Response(ResponseEnvelope {
         generated_by: None,
         request_id: request_id.to_owned(),
-        response: Response::GeneratedToken(GeneratedTokenResult::Done(GenerationSummary::default())),
+        response: Response::GeneratedToken(
+            GeneratedTokenResult::Done(GenerationSummary::default()),
+        ),
     })
 }
 
@@ -100,11 +102,16 @@ async fn health_errors_on_a_server_error_status() -> Result<()> {
 #[tokio::test]
 async fn raw_prompt_over_http_streams_server_messages() -> Result<()> {
     let fixture =
-        LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[generated_token_done("x")])?))
-            .await?;
+        LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[generated_token_done(
+            "x",
+        )])?))
+        .await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    let mut stream = client.http().continue_from_raw_prompt(&raw_prompt_params()).await?;
+    let mut stream = client
+        .http()
+        .continue_from_raw_prompt(&raw_prompt_params())
+        .await?;
     let message = stream.next().await.context("a streamed message")??;
 
     assert!(matches!(message, InferenceMessage::Response(_)));
@@ -118,7 +125,13 @@ async fn raw_prompt_over_http_errors_on_a_server_error_status() -> Result<()> {
         LocalHttpFixture::start(HttpResponseSpec::status(500, "Internal Server Error")).await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    assert!(client.http().continue_from_raw_prompt(&raw_prompt_params()).await.is_err());
+    assert!(
+        client
+            .http()
+            .continue_from_raw_prompt(&raw_prompt_params())
+            .await
+            .is_err()
+    );
 
     Ok(())
 }
@@ -126,11 +139,16 @@ async fn raw_prompt_over_http_errors_on_a_server_error_status() -> Result<()> {
 #[tokio::test]
 async fn raw_prompt_collected_drains_until_the_terminal_message() -> Result<()> {
     let fixture =
-        LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[generated_token_done("x")])?))
-            .await?;
+        LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[generated_token_done(
+            "x",
+        )])?))
+        .await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    let collected = client.http().continue_from_raw_prompt_collected(&raw_prompt_params()).await?;
+    let collected = client
+        .http()
+        .continue_from_raw_prompt_collected(&raw_prompt_params())
+        .await?;
 
     assert!(collected.text.is_empty());
 
@@ -140,8 +158,10 @@ async fn raw_prompt_collected_drains_until_the_terminal_message() -> Result<()> 
 #[tokio::test]
 async fn conversation_history_collected_drains_until_the_terminal_message() -> Result<()> {
     let fixture =
-        LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[generated_token_done("x")])?))
-            .await?;
+        LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[generated_token_done(
+            "x",
+        )])?))
+        .await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
     let collected = client
@@ -160,8 +180,10 @@ async fn embedding_batch_collected_drains_until_the_terminal_message() -> Result
         LocalHttpFixture::start(HttpResponseSpec::ok_body(ndjson(&[embedding_done("x")])?)).await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    let collected =
-        client.http().generate_embedding_batch_collected(&embedding_batch_params()).await?;
+    let collected = client
+        .http()
+        .generate_embedding_batch_collected(&embedding_batch_params())
+        .await?;
 
     assert!(collected.embeddings.is_empty());
 
@@ -183,7 +205,13 @@ async fn health_errors_when_the_server_is_unreachable() -> Result<()> {
 async fn raw_prompt_over_http_errors_when_the_server_is_unreachable() -> Result<()> {
     let client = inference_client_for(UNREACHABLE_URL.parse()?);
 
-    assert!(client.http().continue_from_raw_prompt(&raw_prompt_params()).await.is_err());
+    assert!(
+        client
+            .http()
+            .continue_from_raw_prompt(&raw_prompt_params())
+            .await
+            .is_err()
+    );
 
     Ok(())
 }
@@ -194,7 +222,13 @@ async fn raw_prompt_collected_errors_on_a_server_error_status() -> Result<()> {
         LocalHttpFixture::start(HttpResponseSpec::status(500, "Internal Server Error")).await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    assert!(client.http().continue_from_raw_prompt_collected(&raw_prompt_params()).await.is_err());
+    assert!(
+        client
+            .http()
+            .continue_from_raw_prompt_collected(&raw_prompt_params())
+            .await
+            .is_err()
+    );
 
     Ok(())
 }
@@ -223,7 +257,11 @@ async fn embedding_batch_collected_errors_on_a_server_error_status() -> Result<(
     let client = inference_client_for(fixture.base_url().parse()?);
 
     assert!(
-        client.http().generate_embedding_batch_collected(&embedding_batch_params()).await.is_err()
+        client
+            .http()
+            .generate_embedding_batch_collected(&embedding_batch_params())
+            .await
+            .is_err()
     );
 
     Ok(())

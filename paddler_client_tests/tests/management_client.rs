@@ -77,8 +77,7 @@ async fn agents_parses_the_pool_snapshot() -> Result<()> {
 
 #[tokio::test]
 async fn agents_errors_on_a_malformed_body() -> Result<()> {
-    let fixture =
-        LocalHttpFixture::start(HttpResponseSpec::ok_body(b"not json".to_vec())).await?;
+    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(b"not json".to_vec())).await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
     assert!(client.agents().await.is_err());
@@ -88,13 +87,16 @@ async fn agents_errors_on_a_malformed_body() -> Result<()> {
 
 #[tokio::test]
 async fn desired_state_parses_the_balancer_state() -> Result<()> {
-    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(
-        json_body(&BalancerDesiredState::default())?,
-    ))
+    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(json_body(
+        &BalancerDesiredState::default(),
+    )?))
     .await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
-    assert_eq!(client.desired_state().await?, BalancerDesiredState::default());
+    assert_eq!(
+        client.desired_state().await?,
+        BalancerDesiredState::default()
+    );
 
     Ok(())
 }
@@ -114,7 +116,9 @@ async fn set_desired_state_succeeds_on_a_success_status() -> Result<()> {
     let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(Vec::new())).await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
-    client.set_desired_state(&BalancerDesiredState::default()).await?;
+    client
+        .set_desired_state(&BalancerDesiredState::default())
+        .await?;
 
     Ok(())
 }
@@ -125,20 +129,28 @@ async fn set_desired_state_errors_on_a_server_error_status() -> Result<()> {
         LocalHttpFixture::start(HttpResponseSpec::status(500, "Internal Server Error")).await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
-    assert!(client.set_desired_state(&BalancerDesiredState::default()).await.is_err());
+    assert!(
+        client
+            .set_desired_state(&BalancerDesiredState::default())
+            .await
+            .is_err()
+    );
 
     Ok(())
 }
 
 #[tokio::test]
 async fn buffered_requests_parses_the_snapshot() -> Result<()> {
-    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(
-        json_body(&buffered_requests_snapshot())?,
-    ))
+    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(json_body(
+        &buffered_requests_snapshot(),
+    )?))
     .await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
-    assert_eq!(client.buffered_requests().await?.buffered_requests_current, 0);
+    assert_eq!(
+        client.buffered_requests().await?.buffered_requests_current,
+        0
+    );
 
     Ok(())
 }
@@ -165,9 +177,10 @@ async fn model_metadata_maps_null_to_none() -> Result<()> {
 
 #[tokio::test]
 async fn agents_stream_yields_parsed_snapshots() -> Result<()> {
-    let fixture =
-        LocalHttpFixture::start(HttpResponseSpec::ok_body(sse_event(&json_body(&empty_pool())?)))
-            .await?;
+    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(sse_event(&json_body(
+        &empty_pool(),
+    )?)))
+    .await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
     let mut stream = client.agents_stream().await?;
@@ -194,9 +207,9 @@ async fn agents_stream_surfaces_a_malformed_event() -> Result<()> {
 
 #[tokio::test]
 async fn buffered_requests_stream_yields_parsed_snapshots() -> Result<()> {
-    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(sse_event(
-        &json_body(&buffered_requests_snapshot())?,
-    )))
+    let fixture = LocalHttpFixture::start(HttpResponseSpec::ok_body(sse_event(&json_body(
+        &buffered_requests_snapshot(),
+    )?)))
     .await?;
     let client = management_client_for(fixture.base_url().parse()?);
 
@@ -223,7 +236,12 @@ async fn health_errors_when_the_server_is_unreachable() -> Result<()> {
 async fn set_desired_state_errors_when_the_server_is_unreachable() -> Result<()> {
     let client = management_client_for(UNREACHABLE_URL.parse()?);
 
-    assert!(client.set_desired_state(&BalancerDesiredState::default()).await.is_err());
+    assert!(
+        client
+            .set_desired_state(&BalancerDesiredState::default())
+            .await
+            .is_err()
+    );
 
     Ok(())
 }

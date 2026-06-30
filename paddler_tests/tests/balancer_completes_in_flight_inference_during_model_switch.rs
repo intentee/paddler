@@ -33,14 +33,6 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
         })
         .await?;
 
-    // Wait for the first generated-token message before triggering the model
-    // switch. This guarantees the agent has acquired its inference slot and
-    // entered the generating phase, so the agent's `drain_in_flight_requests`
-    // correctly waits for the in-flight request to finish before tearing
-    // down the arbiter. Without this wait, the model-switch can race the
-    // request through the scheduler queue: drain sees zero slots in use,
-    // returns immediately, the arbiter is shut down, and the queued request
-    // times out with no scheduler to process it.
     let mut buffered_text = String::new();
     loop {
         let next = stream

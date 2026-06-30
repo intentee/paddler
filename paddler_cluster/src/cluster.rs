@@ -14,6 +14,7 @@ use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
 use crate::cluster_backend::ClusterBackend;
 use crate::cluster_params::ClusterParams;
 use crate::desired_state_init::DesiredStateInit;
+use crate::error::ClusterError;
 use crate::provisioned_backend::ProvisionedBackend;
 use crate::registered_agent::RegisteredAgent;
 use crate::running_balancer::RunningBalancer;
@@ -51,7 +52,7 @@ impl Cluster {
 
             if wait_for_slots_ready {
                 cluster
-                    .wait_for_agent_ready(&agent.name, agent.slot_count)
+                    .wait_for_agent_ready(&agent.name, i32::from(agent.slot_count))
                     .await?;
             }
         }
@@ -109,7 +110,7 @@ impl Cluster {
     pub async fn wait_for_agent_count(
         &mut self,
         expected_count: usize,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> std::result::Result<AgentControllerPoolSnapshot, ClusterError> {
         self.agents_watcher
             .until(|snapshot| snapshot.agents.len() == expected_count)
             .await
@@ -119,7 +120,7 @@ impl Cluster {
         &mut self,
         agent_name: &str,
         expected_slot_count: i32,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> std::result::Result<AgentControllerPoolSnapshot, ClusterError> {
         self.agents_watcher
             .wait_for_agent_ready(agent_name, expected_slot_count)
             .await
@@ -129,7 +130,7 @@ impl Cluster {
         &mut self,
         agent_id: &str,
         expected_slots_processing: i32,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> std::result::Result<AgentControllerPoolSnapshot, ClusterError> {
         let agent_id = agent_id.to_owned();
 
         self.agents_watcher
@@ -144,7 +145,7 @@ impl Cluster {
     pub async fn wait_for_buffered_request_count(
         &mut self,
         expected_count: i32,
-    ) -> Result<BufferedRequestManagerSnapshot> {
+    ) -> std::result::Result<BufferedRequestManagerSnapshot, ClusterError> {
         self.buffered_requests_watcher
             .until(|snapshot| snapshot.buffered_requests_current == expected_count)
             .await

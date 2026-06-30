@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::SystemTime;
 
 use actix_web::Error;
 use actix_web::HttpResponse;
@@ -15,6 +14,8 @@ use tokio_stream::StreamExt as _;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::compatibility::openai_service::app_data::AppData;
 use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
+use crate::compatibility::openai_service::current_unix_timestamp::current_unix_timestamp;
+use crate::compatibility::openai_service::non_streaming_http_response::non_streaming_http_response;
 use crate::compatibility::openai_service::openai_completion_request_params::OpenAICompletionRequestParams;
 use crate::compatibility::openai_service::openai_error::OpenAIError;
 use crate::compatibility::openai_service::openai_message::OpenAIMessage;
@@ -22,7 +23,6 @@ use crate::compatibility::openai_service::openai_non_streaming_response_transfor
 use crate::compatibility::openai_service::openai_non_streaming_state::OpenAINonStreamingState;
 use crate::compatibility::openai_service::openai_streaming_response_transformer::OpenAIStreamingResponseTransformer;
 use crate::compatibility::openai_service::openai_streaming_state::OpenAIStreamingState;
-use crate::compatibility::openai_service::timestamp_from::timestamp_from;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
 
 #[post("/v1/chat/completions")]
@@ -70,8 +70,7 @@ async fn respond(
         tools: validated_tools,
     };
 
-    let created =
-        timestamp_from(SystemTime::now()).map_err(actix_web::error::ErrorInternalServerError)?;
+    let created = current_unix_timestamp();
 
     if openai_params.stream.unwrap_or(false) {
         let include_usage = openai_params
@@ -107,38 +106,9 @@ async fn respond(
         .collect()
         .await;
 
-        if let Some(TransformResult::Error(error_json)) = results
-            .iter()
-            .find(|result| matches!(result, TransformResult::Error(_)))
-        {
-            return Ok(HttpResponse::InternalServerError()
-                .content_type("application/json")
-                .body(error_json.clone()));
-        }
-
-        let body = results.into_iter().find_map(|result| match result {
-            TransformResult::Chunk(content) => Some(content),
-            TransformResult::Discard | TransformResult::Error(_) => None,
-        });
-
-        Ok(body.map_or_else(
-            || {
-                HttpResponse::InternalServerError()
-                    .content_type("application/json")
-                    .body(
-                        OpenAIError {
-                            error_type: "server_error",
-                            message: "no completion produced".to_owned(),
-                        }
-                        .to_envelope()
-                        .to_string(),
-                    )
-            },
-            |json_body| {
-                HttpResponse::Ok()
-                    .content_type("application/json")
-                    .body(json_body)
-            },
+        Ok(non_streaming_http_response(
+            results,
+            "no completion produced",
         ))
     }
 }

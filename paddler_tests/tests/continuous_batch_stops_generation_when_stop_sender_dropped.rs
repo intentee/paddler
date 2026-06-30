@@ -11,7 +11,13 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
+    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
+
+    let agent_id = cluster
+        .agents
+        .first()
+        .map(|agent| agent.id.clone())
+        .ok_or_else(|| anyhow!("cluster must have at least one registered agent"))?;
 
     let mut first_stream = cluster
         .inference_client
@@ -28,7 +34,11 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<
         .await
         .ok_or_else(|| anyhow!("first stream must yield at least one message"))?;
 
+    cluster.wait_for_slots_processing(&agent_id, 1).await?;
+
     drop(first_stream);
+
+    cluster.wait_for_slots_processing(&agent_id, 0).await?;
 
     let second_collected = cluster
         .inference_client

@@ -11,7 +11,7 @@ use crate::tool_call_pipeline::ToolCallPipeline;
 
 fn send_outcome_or_warn(
     agent_name: Option<&str>,
-    sequence_id: i32,
+    sequence_id: u16,
     generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
     outcome: GeneratedTokenResult,
 ) {

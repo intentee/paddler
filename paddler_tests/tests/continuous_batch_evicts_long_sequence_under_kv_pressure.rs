@@ -77,7 +77,10 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
     let short_collected = short_collected?;
 
     let long_was_evicted = long_collected.token_results.iter().any(|result| {
-        matches!(&result.token_result, GeneratedTokenResult::SamplerError(message) if message.contains("evicted"))
+        matches!(
+            &result.token_result,
+            GeneratedTokenResult::SequenceEvictedUnderKvCachePressure
+        )
     });
 
     assert!(

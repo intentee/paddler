@@ -4,6 +4,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::stream;
 use paddler_cluster::agents_stream_watcher::AgentsStreamWatcher;
+use paddler_cluster::error::ClusterError;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
@@ -65,17 +66,10 @@ async fn until_propagates_stream_error() {
 
     let outcome = watcher.until(|_| true).await;
 
-    assert!(outcome.is_err(), "expected watcher to surface stream error");
-
-    let error_chain = format!(
-        "{:#}",
-        outcome.err().unwrap_or_else(|| anyhow!("unreachable"))
-    );
-
-    assert!(
-        error_chain.contains("simulated SSE failure from upstream server"),
-        "expected original error message in chain, got: {error_chain}"
-    );
+    assert!(matches!(
+        outcome,
+        Err(ClusterError::SnapshotStreamYielded { .. })
+    ));
 }
 
 #[tokio::test]
@@ -93,14 +87,11 @@ async fn until_errors_when_stream_closes_before_match() {
         })
         .await;
 
-    assert!(
-        outcome.is_err(),
-        "expected error when stream closes without satisfying predicate"
-    );
+    assert!(matches!(outcome, Err(ClusterError::SnapshotStreamClosed)));
 }
 
 #[tokio::test]
-async fn wait_for_slots_ready_includes_agent_id_in_error() {
+async fn wait_for_slots_ready_includes_agent_id_in_error() -> Result<()> {
     let mut snapshot = make_snapshot("agent-x", 0);
     let mut issues = BTreeSet::new();
     issues.insert(AgentIssue::ModelFileDoesNotExist(ModelPath {
@@ -113,18 +104,12 @@ async fn wait_for_slots_ready_includes_agent_id_in_error() {
 
     let outcome = watcher.wait_for_slots_ready(&[1]).await;
 
-    assert!(
-        outcome.is_err(),
-        "expected error when an agent reports issues"
-    );
+    match outcome {
+        Err(ClusterError::AgentReportedIssues { agent_id, .. }) => {
+            assert_eq!(agent_id.as_str(), "agent-x");
 
-    let error_chain = format!(
-        "{:#}",
-        outcome.err().unwrap_or_else(|| anyhow!("unreachable"))
-    );
-
-    assert!(
-        error_chain.contains("agent-x"),
-        "expected agent id in error chain, got: {error_chain}"
-    );
+            Ok(())
+        }
+        other => Err(anyhow!("expected AgentReportedIssues, got {other:?}")),
+    }
 }

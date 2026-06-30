@@ -31,6 +31,7 @@ futures-util = { workspace = true }
 hf-hub = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
+minijinja = { workspace = true }
 nix = { workspace = true }
 paddler_agent = { workspace = true }
 paddler_balancer = { workspace = true }

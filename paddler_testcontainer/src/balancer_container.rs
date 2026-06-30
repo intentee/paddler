@@ -4,7 +4,6 @@ use std::net::SocketAddr;
 
 use anyhow::Error;
 use anyhow::Result;
-use anyhow::anyhow;
 use paddler_cluster::balancer_addresses::BalancerAddresses;
 use paddler_cluster::balancer_service_config::BalancerServiceConfig;
 use paddler_cluster::running_balancer::RunningBalancer;
@@ -16,20 +15,19 @@ use testcontainers::runners::AsyncRunner;
 use url::Host;
 
 use crate::container_managed_process::ContainerManagedProcess;
+use crate::error::TestcontainerError;
 use crate::image_reference::ImageReference;
 
 const COMPAT_OPENAI_PORT: u16 = 8062;
 const INFERENCE_PORT: u16 = 8061;
 const MANAGEMENT_PORT: u16 = 8060;
 
-fn resolve_host(host: Host) -> Result<IpAddr> {
+fn resolve_host(host: Host) -> std::result::Result<IpAddr, TestcontainerError> {
     match host {
         Host::Ipv4(ip) => Ok(IpAddr::V4(ip)),
         Host::Ipv6(ip) => Ok(IpAddr::V6(ip)),
         Host::Domain(domain) if domain == "localhost" => Ok(IpAddr::V4(Ipv4Addr::LOCALHOST)),
-        Host::Domain(domain) => Err(anyhow!(
-            "docker host {domain:?} is neither an IP address nor localhost; the balancer's mapped ports must be reachable directly from the test process"
-        )),
+        Host::Domain(domain) => Err(TestcontainerError::NonLocalDockerHost { domain }),
     }
 }
 
@@ -85,7 +83,7 @@ impl StartedBalancer {
 
         docker_host
             .map_err(Error::from)
-            .and_then(resolve_host)
+            .and_then(|host| resolve_host(host).map_err(Error::from))
             .map(move |host| Self {
                 balancer_bridge_ip,
                 running_balancer: RunningBalancer::new(
@@ -105,9 +103,12 @@ mod tests {
     use std::net::Ipv4Addr;
     use std::net::Ipv6Addr;
 
+    use anyhow::Result;
+    use anyhow::anyhow;
     use url::Host;
 
     use super::resolve_host;
+    use crate::error::TestcontainerError;
 
     #[test]
     fn resolves_an_ipv4_host() {
@@ -132,9 +133,16 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_non_local_domain() {
-        let error = resolve_host(Host::Domain("docker.example.com".to_owned())).unwrap_err();
+    fn rejects_a_non_local_domain() -> Result<()> {
+        let outcome = resolve_host(Host::Domain("docker.example.com".to_owned()));
 
-        assert!(error.to_string().contains("docker.example.com"));
+        match outcome {
+            Err(TestcontainerError::NonLocalDockerHost { domain }) => {
+                assert_eq!(domain, "docker.example.com");
+
+                Ok(())
+            }
+            other => Err(anyhow!("expected NonLocalDockerHost, got {other:?}")),
+        }
     }
 }

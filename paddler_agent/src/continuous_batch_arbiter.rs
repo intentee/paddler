@@ -1,26 +1,20 @@
-use core::num::NonZeroU32;
-use std::cmp::max;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::thread;
-use std::thread::available_parallelism;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
-use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::error;
 use log::info;
-use log::warn;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
@@ -32,16 +26,14 @@ use tokio::sync::oneshot;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
-use crate::agent_kv_cache_dtype::AgentKvCacheDtype;
-use crate::agent_pooling_type::AgentPoolingType;
+use crate::build_inference_context_params::build_inference_context_params;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
-use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
-use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::model_metadata_holder::ModelMetadataHolder;
+use crate::resolve_inference_thread_count::resolve_inference_thread_count;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
 fn send_startup_signal_or_fail(
@@ -60,7 +52,7 @@ fn send_startup_signal_or_fail(
 pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
     pub chat_template_override: Option<ChatTemplate>,
-    pub desired_slots_total: i32,
+    pub desired_slots_total: u16,
     pub inference_parameters: InferenceParameters,
     pub multimodal_projection_path: Option<PathBuf>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
@@ -74,7 +66,7 @@ impl ContinuousBatchArbiter {
     pub fn build_from_applicable_state(
         applicable_state: AgentApplicableState,
         agent_name: Option<String>,
-        desired_slots_total: i32,
+        desired_slots_total: u16,
         model_metadata_holder: Arc<ModelMetadataHolder>,
         slot_aggregated_status_manager: Arc<SlotAggregatedStatusManager>,
     ) -> ContinuousBatchArbiterBuildOutcome {
@@ -103,11 +95,11 @@ impl ContinuousBatchArbiter {
         let (agent_warm_and_scheduler_running_tx, agent_warm_and_scheduler_running_rx) =
             oneshot::channel::<()>();
 
-        let available_parallelism_value: i32 = available_parallelism()?.get().try_into()?;
-        let n_threads = max(2, available_parallelism_value / 2);
-        let n_threads_batch = max(2, available_parallelism_value / 2);
+        let inference_thread_count = resolve_inference_thread_count();
 
-        info!("Using threads for parallelism threads/batch: {n_threads}/{n_threads_batch}");
+        info!(
+            "Using threads for parallelism threads/batch: {inference_thread_count}/{inference_thread_count}"
+        );
 
         let (command_tx, command_rx) = std::sync::mpsc::channel();
 
@@ -126,32 +118,14 @@ impl ContinuousBatchArbiter {
             let llama_backend =
                 Arc::new(LlamaBackend::init().context("Unable to initialize llama.cpp backend")?);
 
-            let n_seq_max = u32::try_from(desired_slots_total)
-                .context("desired_slots_total does not fit in u32")?;
+            let n_seq_max = u32::from(desired_slots_total);
 
-            let inference_parameters_n_batch_u32 = u32::try_from(inference_parameters.n_batch)
-                .context("n_batch does not fit in u32")?;
-
-            let context_params = LlamaContextParams::default()
-                .with_embeddings(inference_parameters.enable_embeddings)
-                .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
-                .with_n_batch(inference_parameters_n_batch_u32)
-                .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_AUTO)
-                .with_n_seq_max(n_seq_max)
-                .with_n_threads(n_threads)
-                .with_n_threads_batch(n_threads_batch)
-                .with_pooling_type(
-                    AgentPoolingType(inference_parameters.pooling_type.clone())
-                        .to_llama_pooling_type(),
-                )
-                .with_type_k(
-                    AgentKvCacheDtype(inference_parameters.k_cache_dtype.clone())
-                        .to_llama_kv_cache_dtype(),
-                )
-                .with_type_v(
-                    AgentKvCacheDtype(inference_parameters.v_cache_dtype.clone())
-                        .to_llama_kv_cache_dtype(),
-                );
+            let context_params = build_inference_context_params(
+                &inference_parameters,
+                n_seq_max,
+                inference_thread_count,
+                inference_thread_count,
+            )?;
 
             let model = Arc::new(
                 LlamaModel::load_from_file(
@@ -340,7 +314,7 @@ impl ContinuousBatchArbiter {
                 &mut llama_context,
                 scheduler_context.inference_parameters.n_batch,
                 desired_slots_total,
-            );
+            )?;
 
             let mut scheduler = ContinuousBatchScheduler::new(
                 command_rx,
@@ -415,8 +389,7 @@ impl ContinuousBatchArbiter {
             "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
         )?;
 
-        let desired_slots_total_u32 = u32::try_from(self.desired_slots_total)
-            .context("desired_slots_total does not fit in u32")?;
+        let desired_slots_total_u32 = u32::from(self.desired_slots_total);
 
         for slot_index in 0..desired_slots_total_u32 {
             self.slot_aggregated_status_manager
@@ -434,33 +407,50 @@ impl ContinuousBatchArbiter {
         })
     }
 
-    fn run_warmup_decode(
+    pub fn run_warmup_decode(
         model: &LlamaModel,
         llama_context: &mut LlamaContext<'_>,
         n_batch: usize,
-        desired_slots_total: i32,
-    ) {
+        desired_slots_total: u16,
+    ) -> Result<()> {
         let warmup_tokens = vec![model.token_bos(); 4];
-        let mut warmup_batch = match LlamaBatch::new(n_batch, desired_slots_total) {
-            Ok(warmup_batch) => warmup_batch,
-            Err(err) => {
-                warn!("Warmup batch allocation failed: {err:#}");
-                return;
-            }
-        };
+        let mut warmup_batch = LlamaBatch::new(n_batch, i32::from(desired_slots_total))
+            .context("Failed to allocate warmup batch")?;
 
         for sequence_index in 0..desired_slots_total {
-            if let Err(err) = warmup_batch.add_sequence(&warmup_tokens, sequence_index, true) {
-                warn!("Warmup batch add_sequence failed: {err:#}");
-                return;
-            }
+            warmup_batch
+                .add_sequence(&warmup_tokens, i32::from(sequence_index), true)
+                .context("Failed to add warmup sequence to batch")?;
         }
 
         llama_context.clear_kv_cache();
-        if let Err(err) = llama_context.decode(&mut warmup_batch) {
-            warn!("Warmup decode failed: {err:#}");
-        }
+        llama_context
+            .decode(&mut warmup_batch)
+            .context("Failed to decode warmup batch")?;
         llama_context.synchronize();
         llama_context.clear_kv_cache();
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tokio::sync::oneshot;
+
+    use super::send_startup_signal_or_fail;
+
+    #[test]
+    fn signaling_startup_fails_when_the_receiver_was_dropped() {
+        let (signal_tx, signal_rx) = oneshot::channel::<()>();
+
+        drop(signal_rx);
+
+        let result = send_startup_signal_or_fail(
+            signal_tx,
+            "startup signal receiver was dropped".to_owned(),
+        );
+
+        assert!(result.is_err());
     }
 }

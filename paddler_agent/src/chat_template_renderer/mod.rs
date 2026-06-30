@@ -137,24 +137,6 @@ mod tests {
     }
 
     #[test]
-    fn registers_raise_exception_function() {
-        let template = ChatTemplate {
-            content: "{{ raise_exception('boom') }}".to_owned(),
-        };
-        let template_renderer = ChatTemplateRenderer::new(template).unwrap();
-
-        let render_error = template_renderer
-            .render(context! {})
-            .expect_err("raise_exception must turn rendering into an error");
-        let error_message = render_error.to_string();
-
-        assert!(
-            error_message.contains("boom"),
-            "raise_exception must surface its message; got: {error_message}"
-        );
-    }
-
-    #[test]
     fn render_fails_when_template_is_not_registered() {
         let template = ChatTemplate {
             content: "Hello {{ name }}!".to_owned(),

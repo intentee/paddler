@@ -109,6 +109,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use anyhow::Context as _;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
     use trzcina::ServiceShutdownOptions;
@@ -166,16 +167,23 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
+    async fn run_returns_error_when_address_is_already_in_use() -> anyhow::Result<()> {
+        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
+        let occupied_addr = occupied_listener.local_addr()?;
 
         let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
 
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
+        let error = service
+            .run(CancellationToken::new())
+            .await
+            .err()
+            .context("binding to an already-occupied address must fail")?;
+        let io_error = error
+            .downcast_ref::<std::io::Error>()
+            .context("the bind failure must surface as an I/O error")?;
 
-        assert!(error_message.contains(&expected_addr_fragment));
+        assert_eq!(io_error.kind(), std::io::ErrorKind::AddrInUse);
+
+        Ok(())
     }
 }

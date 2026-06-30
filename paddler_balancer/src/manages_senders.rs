@@ -39,7 +39,6 @@ pub trait ManagesSenders: Send + Sync {
 
     async fn forward_response_safe(&self, request_id: String, value: Self::Value) {
         if let Err(err) = self.forward_response(request_id, value).await {
-            // Metadata might come in after awaiting connection is closed
             warn!("Error forwarding response: {err}");
         }
     }

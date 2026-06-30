@@ -1,6 +1,5 @@
 use std::path::Path;
 use std::path::PathBuf;
-use std::path::absolute;
 use std::str::FromStr;
 
 use anyhow::Error;
@@ -34,12 +33,11 @@ impl FromStr for StateDatabaseType {
                 }
 
                 if !Path::new(path).is_absolute() {
-                    let absolute_path = absolute(shellexpand::tilde(path).to_string())?;
-                    let expanded_path = absolute_path.display();
+                    let expanded_path = shellexpand::tilde(path);
 
                     return Err(anyhow!(formatdoc! {"
                         To avoid ambiguity, needing to guess the full file path (and to stay safe overall), Paddler requires absolute paths.
-                        The path you wanted is *probably* '{expanded_path}'. If that is so, pass it as '--state-database file://{expanded_path}'.
+                        The path you provided, '{expanded_path}', is relative. Pass an absolute path instead, for example '--state-database file:///absolute/path/to/{expanded_path}'.
                     "}));
                 }
 

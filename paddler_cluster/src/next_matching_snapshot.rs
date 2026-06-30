@@ -1,27 +1,27 @@
 use std::pin::Pin;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use futures_util::Stream;
 use futures_util::StreamExt as _;
+
+use crate::error::ClusterError;
 
 pub async fn next_matching_snapshot<TSnapshot, TPredicate>(
     stream: &mut Pin<Box<dyn Stream<Item = Result<TSnapshot>> + Send>>,
     mut predicate: TPredicate,
-) -> Result<TSnapshot>
+) -> std::result::Result<TSnapshot, ClusterError>
 where
     TPredicate: FnMut(&TSnapshot) -> bool,
 {
     while let Some(item) = stream.next().await {
-        let snapshot = item.context("stream yielded an error")?;
+        let snapshot = item.map_err(|source| ClusterError::SnapshotStreamYielded { source })?;
 
         if predicate(&snapshot) {
             return Ok(snapshot);
         }
     }
 
-    Err(anyhow!("stream closed before predicate was satisfied"))
+    Err(ClusterError::SnapshotStreamClosed)
 }
 
 #[cfg(test)]
@@ -33,6 +33,7 @@ mod tests {
     use futures_util::Stream;
 
     use super::next_matching_snapshot;
+    use crate::error::ClusterError;
 
     fn stream(items: Vec<Result<i32>>) -> Pin<Box<dyn Stream<Item = Result<i32>> + Send>> {
         Box::pin(futures_util::stream::iter(items))
@@ -42,34 +43,29 @@ mod tests {
     async fn returns_the_first_snapshot_satisfying_the_predicate() {
         let mut source = stream(vec![Ok(5), Ok(0)]);
 
-        let matched = next_matching_snapshot(&mut source, |value| *value == 0)
-            .await
-            .unwrap();
+        let matched = next_matching_snapshot(&mut source, |value| *value == 0).await;
 
-        assert_eq!(matched, 0);
+        assert!(matches!(matched, Ok(0)));
     }
 
     #[tokio::test]
     async fn errors_when_the_stream_closes_before_the_predicate_is_satisfied() {
         let mut source = stream(vec![Ok(5)]);
 
-        let error = next_matching_snapshot(&mut source, |_| false)
-            .await
-            .err()
-            .unwrap();
+        let outcome = next_matching_snapshot(&mut source, |_| false).await;
 
-        assert!(error.to_string().contains("closed before predicate"));
+        assert!(matches!(outcome, Err(ClusterError::SnapshotStreamClosed)));
     }
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
         let mut source = stream(vec![Err(anyhow!("socket closed"))]);
 
-        let error = next_matching_snapshot(&mut source, |_| true)
-            .await
-            .err()
-            .unwrap();
+        let outcome = next_matching_snapshot(&mut source, |_| true).await;
 
-        assert!(error.to_string().contains("yielded an error"));
+        assert!(matches!(
+            outcome,
+            Err(ClusterError::SnapshotStreamYielded { .. })
+        ));
     }
 }

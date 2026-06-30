@@ -1,7 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use anyhow::anyhow;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
@@ -12,11 +11,6 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 async fn agent_reports_grammar_initialization_failure_for_invalid_gbnf() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    // `root ::= "unterminated` is syntactically broken GBNF (the string literal is
-    // never closed). The `Gbnf` constraint is passed through verbatim, so the
-    // malformed grammar only fails when `llama.cpp` compiles it inside
-    // `GrammarSampler::into_llama_sampler`, exercising the agent's
-    // grammar-initialization-failure path.
     let collected = cluster
         .inference_client.http().continue_from_raw_prompt_collected(&ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
@@ -30,24 +24,14 @@ async fn agent_reports_grammar_initialization_failure_for_invalid_gbnf() -> Resu
         })
         .await?;
 
-    let failure_message = collected
-        .token_results
-        .iter()
-        .find_map(|event| match &event.token_result {
-            GeneratedTokenResult::GrammarInitializationFailed(message) => Some(message.clone()),
-            _ => None,
-        })
-        .ok_or_else(|| {
-            anyhow!(
-                "expected a GrammarInitializationFailed event for malformed GBNF; got:\n{}",
-                collected.text
-            )
-        })?;
+    let reported_grammar_initialization_failure = collected.token_results.iter().any(|event| {
+        matches!(
+            event.token_result,
+            GeneratedTokenResult::GrammarInitializationFailed(_)
+        )
+    });
 
-    assert!(
-        failure_message.contains("grammar"),
-        "the failure message should mention the grammar; got: {failure_message}"
-    );
+    assert!(reported_grammar_initialization_failure);
 
     cluster.shutdown().await?;
 

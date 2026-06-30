@@ -1,12 +1,11 @@
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::anyhow;
 use futures_util::StreamExt as _;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
 use paddler_messaging::streamable_result::StreamableResult as _;
 
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
+use crate::error::Error;
+use crate::error::Result;
 use crate::inference_message_stream::InferenceMessageStream;
 use crate::token_result_with_producer::TokenResultWithProducer;
 
@@ -17,7 +16,7 @@ pub async fn collect_generated_tokens(
     let mut token_results: Vec<TokenResultWithProducer> = Vec::new();
 
     while let Some(item) = stream.next().await {
-        let message = item.context("inference stream yielded an error")?;
+        let message = item?;
 
         match message {
             InferenceMessage::Response(envelope) => {
@@ -41,24 +40,21 @@ pub async fn collect_generated_tokens(
                         }
                     }
                     InferenceResponse::Embedding(_) => {
-                        return Err(anyhow!(
-                            "unexpected embedding response on a token-generation stream"
-                        ));
+                        return Err(Error::UnexpectedEmbeddingOnTokenStream);
                     }
                     InferenceResponse::Timeout => {
-                        return Err(anyhow!("inference request timed out on balancer"));
+                        return Err(Error::InferenceTimedOut);
                     }
                     InferenceResponse::TooManyBufferedRequests => {
-                        return Err(anyhow!("balancer rejected request: too many buffered"));
+                        return Err(Error::TooManyBufferedRequests);
                     }
                 }
             }
             InferenceMessage::Error(error_envelope) => {
-                return Err(anyhow!(
-                    "inference stream returned JSON-RPC error code {} ({})",
-                    error_envelope.error.code,
-                    error_envelope.error.description
-                ));
+                return Err(Error::InferenceWireError {
+                    code: error_envelope.error.code,
+                    description: error_envelope.error.description,
+                });
             }
         }
     }
@@ -97,20 +93,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn accumulates_content_token_text() {
+    async fn accumulates_content_token_text() -> Result<()> {
         let collected = collect_generated_tokens(stream(vec![
             Ok(token(GeneratedTokenResult::ContentToken("hel".to_owned()))),
             Ok(token(GeneratedTokenResult::ContentToken("lo".to_owned()))),
         ]))
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(collected.text, "hello");
         assert_eq!(collected.token_results.len(), 2);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn stops_after_a_terminal_token() {
+    async fn stops_after_a_terminal_token() -> Result<()> {
         let collected = collect_generated_tokens(stream(vec![
             Ok(token(GeneratedTokenResult::ContentToken("hi".to_owned()))),
             Ok(token(GeneratedTokenResult::ImageDecodingFailed(
@@ -120,65 +117,62 @@ mod tests {
                 "IGNORED".to_owned(),
             ))),
         ]))
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(collected.token_results.len(), 2);
-        assert!(collected.text.starts_with("hi"));
-        assert!(!collected.text.contains("IGNORED"));
+        assert_eq!(collected.text, "hi");
+
+        Ok(())
     }
 
     #[tokio::test]
     async fn rejects_an_embedding_response() {
-        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
+        let outcome = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
             ResponseEnvelope {
                 generated_by: None,
                 request_id: "req".to_owned(),
                 response: InferenceResponse::Embedding(EmbeddingResult::Done),
             },
         ))]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(error.to_string().contains("unexpected embedding response"));
+        assert!(matches!(
+            outcome,
+            Err(Error::UnexpectedEmbeddingOnTokenStream)
+        ));
     }
 
     #[tokio::test]
     async fn rejects_a_timeout() {
-        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
+        let outcome = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
             ResponseEnvelope {
                 generated_by: None,
                 request_id: "req".to_owned(),
                 response: InferenceResponse::Timeout,
             },
         ))]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(error.to_string().contains("timed out"));
+        assert!(matches!(outcome, Err(Error::InferenceTimedOut)));
     }
 
     #[tokio::test]
     async fn rejects_too_many_buffered_requests() {
-        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
+        let outcome = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Response(
             ResponseEnvelope {
                 generated_by: None,
                 request_id: "req".to_owned(),
                 response: InferenceResponse::TooManyBufferedRequests,
             },
         ))]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(error.to_string().contains("too many buffered"));
+        assert!(matches!(outcome, Err(Error::TooManyBufferedRequests)));
     }
 
     #[tokio::test]
     async fn propagates_a_wire_error() {
-        let error =
+        let outcome =
             collect_generated_tokens(stream(vec![Ok(InferenceMessage::Error(ErrorEnvelope {
                 request_id: "req".to_owned(),
                 error: JsonRpcError {
@@ -186,26 +180,21 @@ mod tests {
                     description: "rpc failure".to_owned(),
                 },
             }))]))
-            .await
-            .err()
-            .unwrap();
+            .await;
 
-        assert!(error.to_string().contains("JSON-RPC error code -32001"));
+        assert!(matches!(
+            outcome,
+            Err(Error::InferenceWireError { code: -32001, .. })
+        ));
     }
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_generated_tokens(stream(vec![Err(Error::ConnectionDropped {
+        let outcome = collect_generated_tokens(stream(vec![Err(Error::ConnectionDropped {
             request_id: "req".to_owned(),
         })]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(
-            error
-                .to_string()
-                .contains("inference stream yielded an error")
-        );
+        assert!(matches!(outcome, Err(Error::ConnectionDropped { .. })));
     }
 }

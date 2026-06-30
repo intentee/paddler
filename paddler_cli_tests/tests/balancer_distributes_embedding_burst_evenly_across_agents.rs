@@ -17,7 +17,7 @@ use paddler_model_card::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterPar
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_embedding_burst_evenly_across_agents() -> Result<()> {
     const AGENT_COUNT: usize = 4;
-    const SLOTS_PER_AGENT: i32 = 2;
+    const SLOTS_PER_AGENT: u16 = 2;
     const CONCURRENT_REQUESTS: usize = 8;
 
     let cluster = start_subprocess_embedding_cluster(

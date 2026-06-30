@@ -1,24 +1,21 @@
-use actix_web::Error;
 use actix_web::HttpResponse;
-use actix_web::error::ErrorInternalServerError;
+use actix_web::Responder;
 use actix_web::get;
 use actix_web::web;
 
 use crate::management_service::app_data::AppData;
-use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
 }
 
 #[get("/api/v1/buffered_requests")]
-async fn respond(app_data: web::Data<AppData>) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().json(
+async fn respond(app_data: web::Data<AppData>) -> impl Responder {
+    HttpResponse::Ok().json(
         app_data
             .buffered_request_manager
-            .make_snapshot()
-            .map_err(ErrorInternalServerError)?,
-    ))
+            .buffered_request_manager_snapshot(),
+    )
 }
 
 #[cfg(test)]

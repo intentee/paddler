@@ -9,14 +9,14 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_model_card::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 
-const N_BATCH: u32 = 64;
+const N_BATCH: usize = 64;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_embedding_document_exceeds_n_batch() -> Result<()> {
     let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
         inference_parameters: InferenceParameters {
-            n_batch: N_BATCH as usize,
+            n_batch: N_BATCH,
             context_size: 4096,
             enable_embeddings: true,
             ..InferenceParameters::default()

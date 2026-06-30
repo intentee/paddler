@@ -72,7 +72,7 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
         .iter()
         .map(serde_json::to_value)
         .collect::<Result<_, _>>()?;
-    let mut pipeline = ToolCallPipeline::new(model, &tools_json, validator)?;
+    let mut pipeline = ToolCallPipeline::new(model, &tools_json, validator);
 
     pipeline.feed(QWEN_XML_PAYLOAD);
     let event = pipeline.finalize();

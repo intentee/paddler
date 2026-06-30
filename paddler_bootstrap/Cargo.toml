@@ -27,8 +27,10 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 
 [dev-dependencies]
-reqwest = { workspace = true }
+futures-util = { workspace = true }
+paddler_client = { workspace = true }
 tempfile = { workspace = true }
+url = { workspace = true }
 
 [lints]
 workspace = true

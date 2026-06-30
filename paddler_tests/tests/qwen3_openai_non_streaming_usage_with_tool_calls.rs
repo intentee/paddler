@@ -62,9 +62,6 @@ async fn qwen3_openai_non_streaming_usage_with_tool_calls() -> Result<()> {
         .ok_or_else(|| anyhow!("usage.total_tokens missing"))?;
 
     assert!(prompt_tokens > 0);
-    // A request that produced a tool call must have spent tokens generating
-    // the tool-call payload and any wrapping markers; completion_tokens
-    // therefore cannot be zero.
     assert!(
         completion_tokens > 0,
         "expected non-zero completion_tokens for a tool-call response (got {completion_tokens})"

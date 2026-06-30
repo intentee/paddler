@@ -84,7 +84,6 @@ impl ResponsesStreamEvent {
                 "delta": delta_event.delta,
                 "logprobs": [],
             }),
-            // Reasoning text events, unlike output-text events, do not carry a `logprobs` field.
             Self::ReasoningTextDelta(delta_event) => json!({
                 "type": event_type,
                 "sequence_number": delta_event.sequence_number,

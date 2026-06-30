@@ -32,8 +32,6 @@ mod tests {
         let embedding = vec![2.0, 2.0, 2.0, 2.0];
         let result = rms_norm(&embedding, 0.0).unwrap();
 
-        // mean_square = (4+4+4+4)/4 = 4, rms = 2.0
-        // each value / 2.0 = 1.0
         for val in &result {
             assert!((val - 1.0).abs() < 1e-6);
         }
@@ -44,7 +42,6 @@ mod tests {
         let embedding = vec![1.0, 3.0];
         let result = rms_norm(&embedding, 0.0).unwrap();
 
-        // mean_square = (1+9)/2 = 5, rms = sqrt(5)
         let expected_rms = 5.0_f32.sqrt();
 
         assert!((result[0] - 1.0 / expected_rms).abs() < 1e-6);
@@ -64,7 +61,6 @@ mod tests {
         let embedding = vec![0.0, 0.0];
         let result = rms_norm(&embedding, 1e-6).unwrap();
 
-        // mean_square = 0, rms = sqrt(1e-6), so values = 0 / rms = 0
         for val in &result {
             assert!(val.abs() < 1e-3);
         }
@@ -76,7 +72,6 @@ mod tests {
         let without_eps = rms_norm(&embedding, 0.0).unwrap();
         let with_eps = rms_norm(&embedding, 1e-6).unwrap();
 
-        // With epsilon, the denominator is larger, so normalized values are smaller
         assert!(with_eps[0].abs() < without_eps[0].abs());
     }
 
@@ -85,7 +80,6 @@ mod tests {
         let embedding = vec![5.0];
         let result = rms_norm(&embedding, 0.0).unwrap();
 
-        // mean_square = 25/1 = 25, rms = 5.0, result = 5/5 = 1.0
         assert!((result[0] - 1.0).abs() < 1e-6);
     }
 
@@ -110,7 +104,6 @@ mod tests {
         let embedding = vec![-3.0, 4.0];
         let result = rms_norm(&embedding, 0.0).unwrap();
 
-        // mean_square = (9+16)/2 = 12.5, rms = sqrt(12.5)
         let expected_rms = 12.5_f32.sqrt();
 
         assert!((result[0] - (-3.0 / expected_rms)).abs() < 1e-6);

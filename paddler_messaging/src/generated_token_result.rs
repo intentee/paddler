@@ -24,6 +24,7 @@ pub enum GeneratedTokenResult {
     MultimodalNotSupported(String),
     ReasoningToken(String),
     SamplerError(String),
+    SequenceEvictedUnderKvCachePressure,
     ToolCallParseFailed(String),
     ToolCallParsed(Vec<ParsedToolCall>),
     ToolCallToken(String),
@@ -85,6 +86,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::ImageExceedsBatchSize(_)
                 | Self::MultimodalNotSupported(_)
                 | Self::SamplerError(_)
+                | Self::SequenceEvictedUnderKvCachePressure
                 | Self::ToolSchemaInvalid(_)
         )
     }
@@ -154,6 +156,11 @@ mod tests {
     #[test]
     fn sampler_error_is_done() {
         assert!(GeneratedTokenResult::SamplerError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn sequence_evicted_under_kv_cache_pressure_is_done() {
+        assert!(GeneratedTokenResult::SequenceEvictedUnderKvCachePressure.is_done());
     }
 
     #[test]

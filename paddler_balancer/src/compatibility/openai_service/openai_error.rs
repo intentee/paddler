@@ -164,7 +164,7 @@ mod tests {
     fn validation_failure_message_falls_back_when_no_errors() {
         let message = validation_failure_message(&[]);
 
-        assert!(message.contains("validation"));
+        assert_eq!(message, "tool call failed validation");
     }
 
     #[test]
@@ -218,6 +218,17 @@ mod tests {
 
         assert_eq!(classified.error_type, "server_error");
         assert_eq!(classified.message, "missing field x");
+    }
+
+    #[test]
+    fn classifies_detokenization_failure_as_server_error() {
+        let classified = OpenAIError::classify(&token_message(
+            GeneratedTokenResult::DetokenizationFailed("could not detokenize".to_owned()),
+        ))
+        .unwrap();
+
+        assert_eq!(classified.error_type, "server_error");
+        assert_eq!(classified.message, "could not detokenize");
     }
 
     #[test]

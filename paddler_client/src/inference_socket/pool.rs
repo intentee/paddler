@@ -102,6 +102,10 @@ mod tests {
     async fn send_request_errors_when_the_message_cannot_be_serialized() {
         let pool = Pool::new(url::Url::parse("http://127.0.0.1:1").unwrap(), 1);
 
-        assert!(pool.send_request("r1".to_owned(), UnserializableMessage).await.is_err());
+        assert!(
+            pool.send_request("r1".to_owned(), UnserializableMessage)
+                .await
+                .is_err()
+        );
     }
 }

@@ -1,9 +1,12 @@
+pub mod build_active_request;
 pub mod cluster_openai_compat;
+pub mod embedding_processor_harness;
 pub mod in_process_agent;
 pub mod in_process_agent_spawner;
 pub mod in_process_balancer;
 pub mod in_process_cluster_backend;
 pub mod load_test_image_data_uri;
+pub mod loaded_test_model;
 pub mod make_agent_controller_without_remote_agent;
 pub mod openai_chat_completions_client;
 pub mod openai_responses_client;

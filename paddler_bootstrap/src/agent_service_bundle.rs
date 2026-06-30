@@ -27,7 +27,7 @@ pub struct AgentServiceBundle {
 
 impl AgentServiceBundle {
     #[must_use]
-    pub fn new(agent_name: Option<String>, management_address: &str, slots: i32) -> Self {
+    pub fn new(agent_name: Option<String>, management_address: &str, slots: u16) -> Self {
         let (agent_desired_state_tx, agent_desired_state_rx) =
             mpsc::unbounded_channel::<AgentDesiredState>();
         let (
@@ -41,7 +41,8 @@ impl AgentServiceBundle {
 
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
         let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
-        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(slots));
+        let slot_aggregated_status_manager =
+            Arc::new(SlotAggregatedStatusManager::new(i32::from(slots)));
         let slot_aggregated_status = slot_aggregated_status_manager
             .slot_aggregated_status
             .clone();

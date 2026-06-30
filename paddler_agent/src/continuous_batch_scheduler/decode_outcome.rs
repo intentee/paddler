@@ -1,6 +1,6 @@
 use llama_cpp_bindings::error::DecodeError;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum DecodeOutcome {
     Decoded,
     NeedsEviction,
@@ -22,8 +22,6 @@ impl DecodeOutcome {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
     use llama_cpp_bindings::error::DecodeError;
 
     use super::DecodeOutcome;
@@ -31,49 +29,40 @@ mod tests {
     #[test]
     fn ok_maps_to_decoded() {
         assert_eq!(
-            discriminant(&DecodeOutcome::from_decode_result(Ok(()))),
-            discriminant(&DecodeOutcome::Decoded)
+            DecodeOutcome::from_decode_result(Ok(())),
+            DecodeOutcome::Decoded
         );
     }
 
     #[test]
     fn no_kv_cache_slot_maps_to_needs_eviction() {
         assert_eq!(
-            discriminant(&DecodeOutcome::from_decode_result(Err(
-                DecodeError::NoKvCacheSlot
-            ))),
-            discriminant(&DecodeOutcome::NeedsEviction)
+            DecodeOutcome::from_decode_result(Err(DecodeError::NoKvCacheSlot)),
+            DecodeOutcome::NeedsEviction
         );
     }
 
     #[test]
     fn aborted_maps_to_aborted() {
         assert_eq!(
-            discriminant(&DecodeOutcome::from_decode_result(Err(
-                DecodeError::Aborted
-            ))),
-            discriminant(&DecodeOutcome::Aborted)
+            DecodeOutcome::from_decode_result(Err(DecodeError::Aborted)),
+            DecodeOutcome::Aborted
         );
     }
 
     #[test]
     fn batch_invalid_maps_to_aborted() {
         assert_eq!(
-            discriminant(&DecodeOutcome::from_decode_result(Err(
-                DecodeError::BatchInvalid
-            ))),
-            discriminant(&DecodeOutcome::Aborted)
+            DecodeOutcome::from_decode_result(Err(DecodeError::BatchInvalid)),
+            DecodeOutcome::Aborted
         );
     }
 
     #[test]
     fn other_error_is_forwarded_as_errored() {
-        let outcome =
-            DecodeOutcome::from_decode_result(Err(DecodeError::UnknownStatus { code: 42 }));
-
-        assert!(matches!(
-            outcome,
+        assert_eq!(
+            DecodeOutcome::from_decode_result(Err(DecodeError::UnknownStatus { code: 42 })),
             DecodeOutcome::Errored(DecodeError::UnknownStatus { code: 42 })
-        ));
+        );
     }
 }

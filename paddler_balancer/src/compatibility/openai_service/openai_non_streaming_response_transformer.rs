@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use llama_cpp_bindings_types::ParsedToolCall;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -36,7 +34,7 @@ impl OpenAINonStreamingResponseTransformer {
         self.state.lock().tool_calls.extend(parsed_calls);
     }
 
-    fn build_done_chunk(&self, request_id: &str, summary: &GenerationSummary) -> Result<String> {
+    fn build_done_chunk(&self, request_id: &str, summary: &GenerationSummary) -> String {
         let snapshot = self.snapshot_state();
 
         let has_tool_calls = !snapshot.tool_calls.is_empty();
@@ -46,53 +44,49 @@ impl OpenAINonStreamingResponseTransformer {
             .tool_calls
             .iter()
             .map(|call| {
-                arguments_to_tool_call_string(&call.arguments).map(|arguments| {
-                    json!({
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.name,
-                            "arguments": arguments,
-                        }
-                    })
+                json!({
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": arguments_to_tool_call_string(&call.arguments),
+                    }
                 })
             })
-            .collect::<Result<Vec<_>>>();
+            .collect::<Vec<_>>();
 
-        tool_calls_json.and_then(|tool_calls_json| {
-            let mut message_obj = json!({
-                "role": "assistant",
-                "content": if snapshot.content.is_empty() && has_tool_calls {
-                    serde_json::Value::Null
-                } else {
-                    json!(snapshot.content)
-                },
-                "refusal": null,
-                "annotations": []
-            });
+        let mut message_obj = json!({
+            "role": "assistant",
+            "content": if snapshot.content.is_empty() && has_tool_calls {
+                serde_json::Value::Null
+            } else {
+                json!(snapshot.content)
+            },
+            "refusal": null,
+            "annotations": []
+        });
 
-            if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
-                map.insert("tool_calls".to_owned(), json!(tool_calls_json));
-            }
+        if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
+            map.insert("tool_calls".to_owned(), json!(tool_calls_json));
+        }
 
-            serde_json::to_string(&json!({
-                "id": request_id,
-                "object": "chat.completion",
-                "created": self.created,
-                "model": self.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": message_obj,
-                        "logprobs": null,
-                        "finish_reason": finish_reason
-                    }
-                ],
-                "usage": openai_usage_json(&summary.usage),
-                "service_tier": "default"
-            }))
-            .context("serializing non-streaming completion")
+        json!({
+            "id": request_id,
+            "object": "chat.completion",
+            "created": self.created,
+            "model": self.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": message_obj,
+                    "logprobs": null,
+                    "finish_reason": finish_reason
+                }
+            ],
+            "usage": openai_usage_json(&summary.usage),
+            "service_tier": "default"
         })
+        .to_string()
     }
 
     fn snapshot_state(&self) -> OpenAINonStreamingState {
@@ -105,10 +99,6 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
     type Output = TransformResult;
 
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-        if let Some(error_chunk) = try_universal_error_chunk(&message) {
-            return Ok(vec![error_chunk]);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
@@ -142,11 +132,9 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
                 ..
             }) => Ok(vec![TransformResult::Chunk(
-                self.build_done_chunk(&request_id, &summary)?,
+                self.build_done_chunk(&request_id, &summary),
             )]),
-            other => Err(anyhow!(
-                "OpenAINonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-            )),
+            other => Ok(try_universal_error_chunk(&other).into_iter().collect()),
         }
     }
 }
@@ -155,7 +143,6 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
 mod tests {
     use std::sync::Arc;
 
-    use anyhow::Result;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
@@ -237,65 +224,35 @@ mod tests {
         )
     }
 
-    pub fn assert_chunk_contains(result: &TransformResult, expected: &str) -> Result<()> {
-        let TransformResult::Chunk(content) = result else {
-            anyhow::bail!("expected TransformResult::Chunk, got TransformResult::Error");
-        };
+    pub fn assert_chunk_contains(result: &TransformResult, expected: &str) {
+        let content = result.chunk_body().expect("expected a chunk");
 
         assert!(
             content.contains(expected),
             "chunk does not contain '{expected}': {content}"
         );
-
-        Ok(())
     }
 
-    pub fn assert_chunk_does_not_contain(result: &TransformResult, expected: &str) -> Result<()> {
-        let TransformResult::Chunk(content) = result else {
-            anyhow::bail!("expected TransformResult::Chunk, got TransformResult::Error");
-        };
+    pub fn assert_chunk_does_not_contain(result: &TransformResult, expected: &str) {
+        let content = result.chunk_body().expect("expected a chunk");
 
         assert!(
             !content.contains(expected),
             "chunk unexpectedly contains '{expected}': {content}"
         );
-
-        Ok(())
     }
 
-    pub fn assert_error_contains(result: &TransformResult, expected: &str) -> Result<()> {
-        let TransformResult::Error(content) = result else {
-            anyhow::bail!("expected TransformResult::Error, got TransformResult::Chunk");
-        };
+    pub fn assert_openai_error(
+        result: &TransformResult,
+        expected_type: &str,
+        expected_message: &str,
+    ) {
+        let body = result.error_body().expect("expected an error");
+        let envelope: serde_json::Value =
+            serde_json::from_str(body).expect("error body must be valid JSON");
 
-        assert!(
-            content.contains(expected),
-            "error does not contain '{expected}': {content}"
-        );
-
-        Ok(())
-    }
-
-    pub fn assert_chunk_body_contains(result: &TransformResult, expected: &str) {
-        let TransformResult::Chunk(content) = result else {
-            panic!("expected a chunk variant");
-        };
-
-        assert!(
-            content.contains(expected),
-            "chunk does not contain '{expected}': {content}"
-        );
-    }
-
-    pub fn assert_error_body_contains(result: &TransformResult, expected: &str) {
-        let TransformResult::Error(content) = result else {
-            panic!("expected an error variant");
-        };
-
-        assert!(
-            content.contains(expected),
-            "error does not contain '{expected}': {content}"
-        );
+        assert_eq!(envelope["error"]["type"], expected_type);
+        assert_eq!(envelope["error"]["message"], expected_message);
     }
 
     fn non_streaming_transformer() -> OpenAINonStreamingResponseTransformer {
@@ -307,145 +264,145 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_streaming_aggregates_content_only_when_no_reasoning() -> Result<()> {
+    async fn non_streaming_aggregates_content_only_when_no_reasoning() {
         let transformer = non_streaming_transformer();
 
         transformer
             .transform(token_message(GeneratedTokenResult::ContentToken(
                 "hel".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
         transformer
             .transform(token_message(GeneratedTokenResult::ContentToken(
                 "lo".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         let summary = summary_with_counts(4, 2, 0);
         let final_chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(final_chunks.len(), 1);
-        assert_chunk_contains(&final_chunks[0], "\"content\":\"hello\"")?;
-        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content")?;
-        assert_chunk_contains(&final_chunks[0], "\"prompt_tokens\":4")?;
-        assert_chunk_contains(&final_chunks[0], "\"completion_tokens\":2")?;
-
-        Ok(())
+        assert_chunk_contains(&final_chunks[0], "\"content\":\"hello\"");
+        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content");
+        assert_chunk_contains(&final_chunks[0], "\"prompt_tokens\":4");
+        assert_chunk_contains(&final_chunks[0], "\"completion_tokens\":2");
     }
 
     #[tokio::test]
-    async fn non_streaming_drops_reasoning_but_keeps_reasoning_token_count() -> Result<()> {
+    async fn non_streaming_drops_reasoning_but_keeps_reasoning_token_count() {
         let transformer = non_streaming_transformer();
 
         transformer
             .transform(token_message(GeneratedTokenResult::ReasoningToken(
                 "think".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
         transformer
             .transform(token_message(GeneratedTokenResult::ContentToken(
                 "answer".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         let summary = summary_with_counts(3, 1, 1);
         let final_chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(final_chunks.len(), 1);
-        assert_chunk_contains(&final_chunks[0], "\"content\":\"answer\"")?;
-        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content")?;
-        assert_chunk_contains(&final_chunks[0], "\"reasoning_tokens\":1")?;
-
-        Ok(())
+        assert_chunk_contains(&final_chunks[0], "\"content\":\"answer\"");
+        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content");
+        assert_chunk_contains(&final_chunks[0], "\"reasoning_tokens\":1");
     }
 
     #[tokio::test]
-    async fn non_streaming_undeterminable_routes_to_content() -> Result<()> {
+    async fn non_streaming_undeterminable_routes_to_content() {
         let transformer = non_streaming_transformer();
 
         transformer
             .transform(token_message(GeneratedTokenResult::UndeterminableToken(
                 "amb".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         let summary = summary_with_counts(2, 0, 0);
         let final_chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(final_chunks.len(), 1);
-        assert_chunk_contains(&final_chunks[0], "\"content\":\"amb\"")?;
-        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content")?;
-
-        Ok(())
+        assert_chunk_contains(&final_chunks[0], "\"content\":\"amb\"");
+        assert_chunk_does_not_contain(&final_chunks[0], "reasoning_content");
     }
 
     #[tokio::test]
-    async fn non_streaming_tool_call_parsed_populates_message_tool_calls() -> Result<()> {
+    async fn non_streaming_tool_call_parsed_populates_message_tool_calls() {
         let transformer = non_streaming_transformer();
 
         transformer
             .transform(token_message(GeneratedTokenResult::ToolCallParsed(vec![
                 weather_call(),
             ])))
-            .await?;
+            .await
+            .unwrap();
 
         let summary = summary_with_counts(4, 0, 0);
         let final_chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(final_chunks.len(), 1);
-        assert_chunk_contains(&final_chunks[0], "\"tool_calls\":")?;
-        assert_chunk_contains(&final_chunks[0], "\"name\":\"get_weather\"")?;
+        assert_chunk_contains(&final_chunks[0], "\"tool_calls\":");
+        assert_chunk_contains(&final_chunks[0], "\"name\":\"get_weather\"");
         assert_chunk_contains(
             &final_chunks[0],
             "\"arguments\":\"{\\\"location\\\":\\\"Paris\\\"}\"",
-        )?;
-        assert_chunk_contains(&final_chunks[0], "\"finish_reason\":\"tool_calls\"")?;
-
-        Ok(())
+        );
+        assert_chunk_contains(&final_chunks[0], "\"finish_reason\":\"tool_calls\"");
     }
 
     #[tokio::test]
-    async fn non_streaming_tool_call_parse_failed_emits_error() -> Result<()> {
+    async fn non_streaming_tool_call_parse_failed_emits_error() {
         let transformer = non_streaming_transformer();
 
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::ToolCallParseFailed(
                 "bad payload".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "bad payload")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "bad payload");
     }
 
     #[tokio::test]
-    async fn non_streaming_tool_call_validation_failed_emits_error() -> Result<()> {
+    async fn non_streaming_tool_call_validation_failed_emits_error() {
         let transformer = non_streaming_transformer();
 
         let chunks = transformer
             .transform(token_message(
                 GeneratedTokenResult::ToolCallValidationFailed(vec!["bad shape".to_owned()]),
             ))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "bad shape")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "bad shape");
     }
 
     #[tokio::test]
-    async fn non_streaming_unrecognized_tool_call_format_emits_server_error() -> Result<()> {
+    async fn non_streaming_unrecognized_tool_call_format_emits_server_error() {
         let transformer = non_streaming_transformer();
 
         let chunks = transformer
@@ -457,81 +414,73 @@ mod tests {
                     },
                 ),
             ))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "common_chat_parse failed: no parser")?;
-        assert_error_contains(&chunks[0], "<unknown_marker>blah</unknown_marker>")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(
+            &chunks[0],
+            "server_error",
+            "model produced output the parser did not recognise as any registered tool-call \
+             format; FFI error: common_chat_parse failed: no parser; raw text: \
+             <unknown_marker>blah</unknown_marker>",
+        );
     }
 
     #[tokio::test]
-    async fn non_streaming_error_message_returns_error_variant() -> Result<()> {
+    async fn non_streaming_error_message_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let chunks = transformer
             .transform(error_message(500, "internal server error"))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "internal server error")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "internal server error");
     }
 
     #[tokio::test]
-    async fn non_streaming_chat_template_error_returns_error_variant() -> Result<()> {
+    async fn non_streaming_chat_template_error_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let message = token_message(GeneratedTokenResult::ChatTemplateError(
             "bad template".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "bad template")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "bad template");
     }
 
     #[tokio::test]
-    async fn non_streaming_image_decoding_failed_returns_error_variant() -> Result<()> {
+    async fn non_streaming_image_decoding_failed_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let message = token_message(GeneratedTokenResult::ImageDecodingFailed(
             "unsupported format".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "unsupported format")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "unsupported format");
     }
 
     #[tokio::test]
-    async fn non_streaming_multimodal_not_supported_returns_error_variant() -> Result<()> {
+    async fn non_streaming_multimodal_not_supported_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let message = token_message(GeneratedTokenResult::MultimodalNotSupported(
             "model does not support images".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "model does not support images")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "model does not support images");
     }
 
     #[tokio::test]
-    async fn non_streaming_image_exceeds_batch_size_returns_error_variant() -> Result<()> {
+    async fn non_streaming_image_exceeds_batch_size_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let message = token_message(GeneratedTokenResult::ImageExceedsBatchSize(
@@ -540,42 +489,36 @@ mod tests {
                 n_batch: 100,
             },
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "368")?;
-        assert_error_contains(&chunks[0], "100")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(
+            &chunks[0],
+            "server_error",
+            "image required 368 tokens but agent n_batch is 100; rerun with a larger n_batch",
+        );
     }
 
     #[tokio::test]
-    async fn non_streaming_timeout_returns_error_variant() -> Result<()> {
+    async fn non_streaming_timeout_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let message = response_message(OutgoingResponse::Timeout);
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "request timed out")?;
-        assert_error_contains(&chunks[0], "timeout")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "timeout", "request timed out");
     }
 
     #[tokio::test]
-    async fn non_streaming_too_many_buffered_requests_returns_error_variant() -> Result<()> {
+    async fn non_streaming_too_many_buffered_requests_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
         let message = response_message(OutgoingResponse::TooManyBufferedRequests);
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "too many buffered requests")?;
-        assert_error_contains(&chunks[0], "rate_limit_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "rate_limit_error", "too many buffered requests");
     }
 
     #[tokio::test]
@@ -597,8 +540,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(final_chunks.len(), 1);
-        assert_chunk_body_contains(&final_chunks[0], "{not valid json");
-        assert_chunk_body_contains(&final_chunks[0], "\"name\":\"broken_tool\"");
+        assert_chunk_contains(&final_chunks[0], "{not valid json");
+        assert_chunk_contains(&final_chunks[0], "\"name\":\"broken_tool\"");
     }
 
     #[tokio::test]
@@ -611,9 +554,9 @@ mod tests {
         let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
-        assert_error_body_contains(
+        assert_openai_error(
             &chunks[0],
+            "invalid_request_error",
             "unexpected embedding response in chat completions",
         );
     }

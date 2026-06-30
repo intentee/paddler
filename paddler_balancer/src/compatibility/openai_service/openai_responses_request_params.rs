@@ -110,10 +110,7 @@ impl OpenAIResponsesRequestParams {
                 enable_thinking: reasoning
                     .as_ref()
                     .is_none_or(OpenAIResponsesReasoning::enables_thinking),
-                grammar: match text {
-                    Some(text_param) => text_param.into_grammar_constraint()?,
-                    None => None,
-                },
+                grammar: text.and_then(OpenAIResponsesTextParam::into_grammar_constraint),
                 max_tokens: max_output_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
                 parse_tool_calls,
                 tools: validated_tools,
@@ -222,12 +219,38 @@ mod tests {
             "text": { "format": { "type": "json_schema", "name": "out", "schema": { "type": "object" } } }
         }));
 
-        let Some(GrammarConstraint::JsonSchema { schema }) = &prepared.paddler_params.grammar
-        else {
-            panic!("expected a json schema grammar constraint");
-        };
+        assert!(matches!(
+            &prepared.paddler_params.grammar,
+            Some(GrammarConstraint::JsonSchema { schema }) if schema.contains("\"type\":\"object\"")
+        ));
+    }
 
-        assert!(schema.contains("\"type\":\"object\""));
+    #[test]
+    fn function_tool_with_invalid_parameters_schema_fails_preparation() {
+        let params: OpenAIResponsesRequestParams = serde_json::from_value(json!({
+            "model": "test",
+            "input": "hi",
+            "tools": [
+                {
+                    "type": "function",
+                    "name": "broken",
+                    "parameters": {
+                        "type": "object",
+                        "properties": { "present": { "type": "string" } },
+                        "required": ["absent"]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        let error_message = params
+            .into_prepared()
+            .err()
+            .map(|error| error.to_string())
+            .expect("expected preparation to fail for an invalid schema");
+
+        assert!(error_message.contains("absent"));
     }
 
     #[test]

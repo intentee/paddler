@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use futures_util::StreamExt as _;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::state_database::StateDatabase;
@@ -14,9 +15,14 @@ use paddler_bootstrap::agent_runner::AgentRunner;
 use paddler_bootstrap::agent_runner::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
+use paddler_client::inference_client::InferenceClient;
+use paddler_client::inference_client_params::InferenceClientParams;
+use paddler_client::management_client::ManagementClient;
+use paddler_client::management_client_params::ManagementClientParams;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use tempfile::NamedTempFile;
@@ -24,6 +30,7 @@ use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
+use url::Url;
 
 fn pick_free_loopback_addr() -> Result<SocketAddr> {
     let probe =
@@ -247,12 +254,7 @@ async fn in_flight_request_is_released_when_balancer_shuts_down() -> Result<()> 
     let mut params =
         make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
 
-    // The request never finds an agent, so it stays buffered (in flight) until this long
-    // timeout — which is far longer than the short shutdown deadline below.
     params.buffered_request_timeout = Duration::from_mins(1);
-
-    // A short, non-zero deadline: if the in-flight request fails to observe shutdown, actix
-    // runs its graceful drain to this deadline and trzcina aborts the service — the bug.
     params.shutdown_options = ServiceShutdownOptions {
         cooperative_deadline: Duration::from_secs(2),
         abort_deadline: Duration::from_secs(2),
@@ -261,38 +263,59 @@ async fn in_flight_request_is_released_when_balancer_shuts_down() -> Result<()> 
     let mut runner = BalancerRunner::start(params).await?;
 
     wait_until_bound(inference_addr).await?;
+    wait_until_bound(management_addr).await?;
 
-    // No agents are registered, so this request buffers and holds its streaming response open.
-    let held_response = reqwest::Client::new()
-        .post(format!(
-            "http://{inference_addr}/api/v1/continue_from_raw_prompt"
-        ))
-        .json(&ContinueFromRawPromptParams {
+    let inference_client = InferenceClient::new(InferenceClientParams {
+        socket_pool_size: 1,
+        url: Url::parse(&format!("http://{inference_addr}"))?,
+    });
+    let management_client = ManagementClient::new(ManagementClientParams {
+        url: Url::parse(&format!("http://{management_addr}"))?,
+    });
+
+    let mut held_stream = inference_client
+        .http()
+        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 10,
             raw_prompt: "hold the connection open during shutdown".to_owned(),
         })
-        .send()
         .await
+        .map_err(anyhow::Error::new)
         .context("inference request headers should be received")?;
+
+    let mut buffered_requests_stream = management_client
+        .buffered_requests_stream()
+        .await
+        .map_err(anyhow::Error::new)?;
+    loop {
+        let snapshot = buffered_requests_stream
+            .next()
+            .await
+            .context("buffered requests stream closed before the request was buffered")?
+            .map_err(anyhow::Error::new)
+            .context("buffered requests snapshot should deserialize")?;
+
+        if snapshot.buffered_requests_current == 1 {
+            break;
+        }
+    }
+
+    drop(buffered_requests_stream);
 
     runner.cancel();
 
-    let body = held_response
-        .text()
-        .await
-        .context("held in-flight response body should be readable")?;
+    let mut request_released_with_error = false;
+    while let Some(message) = held_stream.next().await {
+        if matches!(message, Ok(InferenceMessage::Error(_))) {
+            request_released_with_error = true;
+        }
+    }
 
     let shutdown_result = runner.wait_for_completion().await;
 
-    assert!(
-        body.contains("shutting down"),
-        "in-flight request must be released with a shutdown error, got body: {body:?}"
-    );
-    assert!(
-        shutdown_result.is_ok(),
-        "balancer shutdown must complete cleanly below the deadline, got: {shutdown_result:?}"
-    );
+    assert!(request_released_with_error);
+    assert!(shutdown_result.is_ok());
 
     Ok(())
 }

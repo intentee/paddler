@@ -18,6 +18,7 @@ async-stream = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 cadence = { workspace = true }
+chrono = { workspace = true }
 dashmap = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }

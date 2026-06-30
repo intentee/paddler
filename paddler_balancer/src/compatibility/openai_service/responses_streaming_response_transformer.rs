@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
@@ -73,51 +72,55 @@ impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
         let mut state = self.state.lock();
 
-        if let Some(error) = responses_error(&message) {
-            self.ensure_preamble(&mut state, &mut events);
-
-            let failed_sequence_number = state.next_sequence_number();
-            events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
-                sequence_number: failed_sequence_number,
-                response: self.builder.failed(&error),
-            }));
-
-            return Ok(events);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(token),
+                response:
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ContentToken(text)
+                        | GeneratedTokenResult::UndeterminableToken(text),
+                    ),
                 ..
-            }) => match token {
-                GeneratedTokenResult::ContentToken(text)
-                | GeneratedTokenResult::UndeterminableToken(text) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    state.handle_content(&mut events, &text);
-                }
-                GeneratedTokenResult::ReasoningToken(text) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    state.handle_reasoning(&mut events, &text);
-                }
-                GeneratedTokenResult::ToolCallToken(_) => {}
-                GeneratedTokenResult::ToolCallParsed(parsed_calls) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    state.handle_tool_calls(&mut events, &parsed_calls)?;
-                }
-                GeneratedTokenResult::Done(summary) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    self.handle_done(&mut state, &mut events, &summary);
-                }
-                other => {
-                    return Err(anyhow!(
-                        "ResponsesStreamingResponseTransformer received a token it does not know how to handle: {other:?}"
-                    ));
-                }
-            },
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                state.handle_content(&mut events, &text);
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                ..
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                state.handle_reasoning(&mut events, &text);
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
+                ..
+            }) => {}
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
+                ..
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                state.handle_tool_calls(&mut events, &parsed_calls);
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
+                ..
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                self.handle_done(&mut state, &mut events, &summary);
+            }
             other => {
-                return Err(anyhow!(
-                    "ResponsesStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-                ));
+                if let Some(error) = responses_error(&other) {
+                    self.ensure_preamble(&mut state, &mut events);
+
+                    let failed_sequence_number = state.next_sequence_number();
+                    events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
+                        sequence_number: failed_sequence_number,
+                        response: self.builder.failed(&error),
+                    }));
+                }
             }
         }
 
@@ -132,6 +135,7 @@ mod tests {
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
+    use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
@@ -320,7 +324,6 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        // reasoning item closed at output_index 0, message opened at output_index 1
         assert_eq!(events[1].to_json()["output_index"], 0);
         assert_eq!(events[2].to_json()["output_index"], 1);
         assert_eq!(events[1].to_json()["item"]["type"], "reasoning");
@@ -358,6 +361,35 @@ mod tests {
         );
         assert_eq!(events[4].to_json()["name"], "get_weather");
         assert_eq!(events[5].to_json()["item"]["call_id"], "call_x");
+    }
+
+    #[tokio::test]
+    async fn streaming_embedding_response_emits_preamble_then_failed() {
+        let transformer = streaming_transformer();
+
+        let message = OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "test-request".to_owned(),
+            response: OutgoingResponse::Embedding(EmbeddingResult::Done),
+        });
+        let events = transformer.transform(message).await.unwrap();
+
+        assert_eq!(
+            names(&events),
+            vec![
+                "response.created",
+                "response.in_progress",
+                "response.failed"
+            ]
+        );
+
+        let failed = events[2].to_json();
+
+        assert_eq!(failed["response"]["status"], "failed");
+        assert_eq!(
+            failed["response"]["error"]["message"],
+            "unexpected embedding response in responses"
+        );
     }
 
     #[tokio::test]

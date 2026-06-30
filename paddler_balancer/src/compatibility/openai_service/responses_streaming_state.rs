@@ -1,4 +1,3 @@
-use anyhow::Result;
 use llama_cpp_bindings_types::ParsedToolCall;
 use serde_json::Value;
 use serde_json::json;
@@ -203,13 +202,13 @@ impl ResponsesStreamingState {
         &mut self,
         events: &mut Vec<ResponsesStreamEvent>,
         parsed_calls: &[ParsedToolCall],
-    ) -> Result<()> {
+    ) {
         self.close_open_item(events);
 
         for call in parsed_calls {
             let output_index = self.output_index;
             let item_id = format!("fc_{output_index}");
-            let arguments = arguments_to_tool_call_string(&call.arguments)?;
+            let arguments = arguments_to_tool_call_string(&call.arguments);
 
             let added_sequence_number = self.next_sequence_number();
             events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
@@ -250,7 +249,5 @@ impl ResponsesStreamingState {
             self.finalized_output.push(item);
             self.output_index += 1;
         }
-
-        Ok(())
     }
 }

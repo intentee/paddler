@@ -11,9 +11,9 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::url_model_reference::UrlModelReference;
-use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 use paddler_test_fixture::http_response_spec::HttpResponseSpec;
 use paddler_test_fixture::local_http_fixture::LocalHttpFixture;
+use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_download_server_denied_access() -> Result<()> {

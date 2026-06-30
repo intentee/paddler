@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use log::error;
 use log::info;
 
 use crate::agent_controller_pool::AgentControllerPool;
@@ -22,12 +21,9 @@ pub struct AgentSocketControllerContext {
 
 impl Drop for AgentSocketControllerContext {
     fn drop(&mut self) {
-        if let Err(err) = self
+        let _agent_was_registered = self
             .agent_controller_pool
-            .remove_agent_controller(&self.agent_id)
-        {
-            error!("Failed to remove agent: {err}");
-        }
+            .remove_agent_controller(&self.agent_id);
 
         info!("Removed agent: {}", self.agent_id);
     }

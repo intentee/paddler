@@ -64,8 +64,6 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
         assert!(summary.usage.completion_tokens() > 0);
     }
 
-    // The two requests have different prompts and different generations;
-    // their usage breakdowns must not be byte-identical.
     assert_ne!(
         summaries[0].usage, summaries[1].usage,
         "concurrent requests reported identical usage; counters likely shared"

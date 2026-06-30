@@ -16,6 +16,7 @@ futures-util = { workspace = true }
 paddler_client = { workspace = true }
 paddler_messaging = { workspace = true }
 reqwest = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 

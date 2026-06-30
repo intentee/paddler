@@ -22,9 +22,7 @@ async fn serve_connection(stream: TcpStream, behavior: WebSocketBehavior) {
             let _first_request = read.next().await;
             let _ = write.close().await;
         }
-        WebSocketBehavior::KeepOpen => {
-            while read.next().await.is_some() {}
-        }
+        WebSocketBehavior::KeepOpen => while read.next().await.is_some() {},
     }
 }
 

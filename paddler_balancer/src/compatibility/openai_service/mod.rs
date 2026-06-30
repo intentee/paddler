@@ -3,11 +3,13 @@ pub mod arguments_to_tool_call_string;
 pub mod chat_completions_sse_response;
 pub mod configuration;
 pub mod content_part_event;
+pub mod current_unix_timestamp;
 pub mod function_call_arguments_delta_event;
 pub mod function_call_arguments_done_event;
 pub mod function_call_item;
 pub mod http_route;
 pub mod message_item_done;
+pub mod non_streaming_http_response;
 pub mod open_item;
 pub mod openai_completion_request_params;
 pub mod openai_error;
@@ -48,7 +50,6 @@ pub mod sse_response_from_agent;
 pub mod stream_options;
 pub mod text_delta_event;
 pub mod text_done_event;
-pub mod timestamp_from;
 pub mod try_universal_error_chunk;
 
 use std::sync::Arc;
@@ -67,7 +68,6 @@ use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::openai_service::app_data::AppData;
 use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use crate::create_cors_middleware::create_cors_middleware;
-use crate::http_route as common_http_route;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 
 const HTTP_WORKERS: usize = 16;
@@ -104,7 +104,6 @@ impl Service for OpenAIService {
             App::new()
                 .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                 .app_data(app_data.clone())
-                .configure(common_http_route::get_health::register)
                 .configure(http_route::post_chat_completions::register)
                 .configure(http_route::post_responses::register)
         })
@@ -130,6 +129,7 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
 
+    use anyhow::Context as _;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
     use trzcina::ServiceShutdownOptions;
@@ -160,16 +160,23 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
+    async fn run_returns_error_when_address_is_already_in_use() -> anyhow::Result<()> {
+        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
+        let occupied_addr = occupied_listener.local_addr()?;
 
         let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
 
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
+        let error = service
+            .run(CancellationToken::new())
+            .await
+            .err()
+            .context("binding to an already-occupied address must fail")?;
+        let io_error = error
+            .downcast_ref::<std::io::Error>()
+            .context("the bind failure must surface as an I/O error")?;
 
-        assert!(error_message.contains(&expected_addr_fragment));
+        assert_eq!(io_error.kind(), std::io::ErrorKind::AddrInUse);
+
+        Ok(())
     }
 }

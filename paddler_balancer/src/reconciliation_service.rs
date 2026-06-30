@@ -15,7 +15,6 @@ use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::balancer_desired_state_converter::BalancerDesiredStateConverter;
 use crate::sets_desired_state::SetsDesiredState as _;
-use paddler_state_conversion::converts_to_applicable_state::ConvertsToApplicableState as _;
 
 async fn convert_to_applicable_state(
     balancer_desired_state: &BalancerDesiredState,
@@ -23,9 +22,8 @@ async fn convert_to_applicable_state(
     balancer_applicable_state_holder: &BalancerApplicableStateHolder,
     is_converted_to_applicable_state: &mut bool,
 ) -> Result<()> {
-    let balancer_applicable_state = BalancerDesiredStateConverter
-        .to_applicable_state(balancer_desired_state.clone())
-        .await?;
+    let balancer_applicable_state =
+        BalancerDesiredStateConverter.to_balancer_applicable_state(balancer_desired_state.clone());
 
     agent_controller_pool
         .set_desired_state(balancer_applicable_state.agent_desired_state.clone())

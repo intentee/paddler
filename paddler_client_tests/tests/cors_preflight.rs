@@ -52,7 +52,10 @@ async fn cors_preflight_errors_when_the_allow_origin_header_is_not_ascii() -> Re
 
     let outcome = client.cors_preflight(ALLOWED_ORIGIN).await;
 
-    assert!(matches!(outcome, Err(Error::CorsAllowOriginNotAscii { .. })));
+    assert!(matches!(
+        outcome,
+        Err(Error::CorsAllowOriginNotAscii { .. })
+    ));
 
     Ok(())
 }

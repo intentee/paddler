@@ -1,20 +1,20 @@
 pub struct SequenceIdPool {
-    available_ids: Vec<i32>,
+    available_ids: Vec<u16>,
 }
 
 impl SequenceIdPool {
     #[must_use]
-    pub fn new(max_sequences: i32) -> Self {
+    pub fn new(max_sequences: u16) -> Self {
         let available_ids = (0..max_sequences).rev().collect();
 
         Self { available_ids }
     }
 
-    pub fn acquire(&mut self) -> Option<i32> {
+    pub fn acquire(&mut self) -> Option<u16> {
         self.available_ids.pop()
     }
 
-    pub fn release(&mut self, sequence_id: i32) {
+    pub fn release(&mut self, sequence_id: u16) {
         self.available_ids.push(sequence_id);
     }
 

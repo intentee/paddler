@@ -1,5 +1,6 @@
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::token::LlamaToken;
 use log::error;
 use log::warn;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -39,10 +40,25 @@ fn flush_tool_call_pipeline_on_completion(
     None
 }
 
-fn channel_dropped(agent_name: Option<&str>, sequence_id: i32) -> AdvanceOutcome {
+fn channel_dropped(agent_name: Option<&str>, sequence_id: u16) -> AdvanceOutcome {
     warn!("{agent_name:?}: sequence {sequence_id} client disconnected (receiver dropped)");
 
     AdvanceOutcome::ChannelDropped
+}
+
+pub fn completion_from_sample_outcome(
+    outcome: SampleOutcome,
+) -> Result<LlamaToken, GeneratedTokenResult> {
+    match outcome {
+        SampleOutcome::Sampled(token) => Ok(token),
+        SampleOutcome::AllCandidatesEliminated => Err(GeneratedTokenResult::SamplerError(
+            "all token candidates were eliminated during sampling".to_owned(),
+        )),
+        SampleOutcome::GrammarRejected(message) => {
+            Err(GeneratedTokenResult::GrammarRejectedModelOutput(message))
+        }
+        SampleOutcome::Failed(message) => Err(GeneratedTokenResult::SamplerError(message)),
+    }
 }
 
 pub struct AdvanceGeneratingPhase<'context> {
@@ -69,40 +85,18 @@ impl AdvanceGeneratingPhase<'_> {
 
         let batch_index = request.state.i_batch?;
 
-        let raw_token = match (SampleTokenPhase {
+        let sample_outcome = (SampleTokenPhase {
             context: self.llama_context,
         })
-        .run(request, batch_index)
-        {
-            SampleOutcome::Sampled(token) => token,
-            SampleOutcome::AllCandidatesEliminated => {
+        .run(request, batch_index);
+        let raw_token = match completion_from_sample_outcome(sample_outcome) {
+            Ok(token) => token,
+            Err(event) => {
                 error!(
-                    "{:?}: sequence {} sampling exhausted candidates",
+                    "{:?}: sequence {} sampling terminated early: {event:?}",
                     self.scheduler_context.agent_name, request.state.sequence_id
                 );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::SamplerError(
-                        "all token candidates were eliminated during sampling".to_owned(),
-                    ),
-                ));
-            }
-            SampleOutcome::GrammarRejected(message) => {
-                error!(
-                    "{:?}: sequence {} grammar rejected sampled token: {message}",
-                    self.scheduler_context.agent_name, request.state.sequence_id
-                );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::GrammarRejectedModelOutput(message),
-                ));
-            }
-            SampleOutcome::Failed(message) => {
-                error!(
-                    "{:?}: sequence {} sampling error: {message}",
-                    self.scheduler_context.agent_name, request.state.sequence_id
-                );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::SamplerError(message),
-                ));
+                return Some(AdvanceOutcome::Completed(event));
             }
         };
 
@@ -205,5 +199,68 @@ impl AdvanceGeneratingPhase<'_> {
                 request.state.mark_completed();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+
+    use llama_cpp_bindings::token::LlamaToken;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+
+    use super::channel_dropped;
+    use super::completion_from_sample_outcome;
+    use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
+    use crate::continuous_batch_scheduler::sample_outcome::SampleOutcome;
+
+    #[test]
+    fn channel_dropped_reports_the_dropped_channel_outcome() {
+        let outcome = channel_dropped(Some("agent"), 5);
+
+        assert_eq!(
+            discriminant(&outcome),
+            discriminant(&AdvanceOutcome::ChannelDropped)
+        );
+    }
+
+    #[test]
+    fn sampled_outcome_yields_the_token() {
+        let result = completion_from_sample_outcome(SampleOutcome::Sampled(LlamaToken::new(7)));
+
+        assert!(matches!(result, Ok(token) if token == LlamaToken::new(7)));
+    }
+
+    #[test]
+    fn all_candidates_eliminated_yields_sampler_error() {
+        let result = completion_from_sample_outcome(SampleOutcome::AllCandidatesEliminated);
+
+        assert!(matches!(
+            result,
+            Err(ref generated)
+                if discriminant(generated)
+                    == discriminant(&GeneratedTokenResult::SamplerError(String::new()))
+        ));
+    }
+
+    #[test]
+    fn grammar_rejected_yields_grammar_rejected_model_output() {
+        let result =
+            completion_from_sample_outcome(SampleOutcome::GrammarRejected("nope".to_owned()));
+
+        assert!(matches!(
+            result,
+            Err(GeneratedTokenResult::GrammarRejectedModelOutput(message)) if message == "nope"
+        ));
+    }
+
+    #[test]
+    fn failed_outcome_yields_sampler_error() {
+        let result = completion_from_sample_outcome(SampleOutcome::Failed("boom".to_owned()));
+
+        assert!(matches!(
+            result,
+            Err(GeneratedTokenResult::SamplerError(message)) if message == "boom"
+        ));
     }
 }

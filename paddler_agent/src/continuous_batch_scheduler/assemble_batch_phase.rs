@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
 
@@ -51,7 +50,7 @@ impl AssembleBatchPhase {
             pass.batch.add(
                 &pending_token,
                 request.state.current_token_position,
-                &[request.state.sequence_id],
+                &[i32::from(request.state.sequence_id)],
                 true,
             )?;
 
@@ -92,15 +91,15 @@ impl AssembleBatchPhase {
             let is_last_chunk = request.state.prompt_tokens_ingested + chunk_size
                 >= request.state.prompt_tokens.len();
 
-            for (offset, token) in chunk.iter().enumerate() {
-                let position = request.state.current_token_position
-                    + i32::try_from(offset).context("token offset does not fit in i32")?;
+            for (position, (offset, token)) in
+                (request.state.current_token_position..).zip(chunk.iter().enumerate())
+            {
                 let is_last_token_of_prompt = is_last_chunk && offset == chunk_size - 1;
 
                 pass.batch.add(
                     &SampledToken::Content(*token),
                     position,
-                    &[request.state.sequence_id],
+                    &[i32::from(request.state.sequence_id)],
                     is_last_token_of_prompt,
                 )?;
             }

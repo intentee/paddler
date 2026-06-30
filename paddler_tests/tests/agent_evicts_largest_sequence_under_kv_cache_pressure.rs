@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
+use log::LevelFilter;
 use paddler_cluster::agent_config::AgentConfig;
 use paddler_cluster::cluster::Cluster;
 use paddler_cluster::cluster_params::ClusterParams;
@@ -16,6 +17,8 @@ use paddler_tests::in_process_cluster_backend::InProcessClusterBackend;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_evicts_largest_sequence_under_kv_cache_pressure() -> Result<()> {
+    log::set_max_level(LevelFilter::Trace);
+
     let ModelCard {
         gpu_layer_count,
         reference,
@@ -61,7 +64,7 @@ async fn agent_evicts_largest_sequence_under_kv_cache_pressure() -> Result<()> {
     let evicted = collected.token_results.iter().any(|result| {
         matches!(
             &result.token_result,
-            GeneratedTokenResult::SamplerError(message) if message.contains("evicted")
+            GeneratedTokenResult::SequenceEvictedUnderKvCachePressure
         )
     });
 

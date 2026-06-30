@@ -68,14 +68,43 @@ mod tests {
     use std::time::Duration;
 
     use actix_web::body;
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use paddler_messaging::inference_client::message::Message as OutgoingMessage;
     use tokio_util::sync::CancellationToken;
 
     use super::chat_completions_sse_response;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
+    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
+    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+
+    #[derive(Clone)]
+    struct DiscardingTransformer;
+
+    #[async_trait]
+    impl TransformsOutgoingMessage for DiscardingTransformer {
+        type Output = TransformResult;
+
+        async fn transform(&self, _message: OutgoingMessage) -> Result<Vec<TransformResult>> {
+            Ok(vec![TransformResult::Discard])
+        }
+    }
+
+    #[derive(Clone)]
+    struct ErroringTransformer;
+
+    #[async_trait]
+    impl TransformsOutgoingMessage for ErroringTransformer {
+        type Output = TransformResult;
+
+        async fn transform(&self, _message: OutgoingMessage) -> Result<Vec<TransformResult>> {
+            Ok(vec![TransformResult::Error("error chunk".to_owned())])
+        }
+    }
 
     fn empty_pool_manager() -> Arc<BufferedRequestManager> {
         Arc::new(BufferedRequestManager::new(
@@ -133,6 +162,47 @@ mod tests {
         assert!(
             body_text.ends_with("data: [DONE]\n\n"),
             "the stream must terminate with the OpenAI [DONE] sentinel: {body_text:?}"
+        );
+    }
+
+    #[actix_web::test]
+    async fn discarded_chunks_are_not_framed_into_the_sse_body() {
+        let shutdown = CancellationToken::new();
+        shutdown.cancel();
+
+        let response = chat_completions_sse_response(
+            empty_pool_manager(),
+            inference_service_configuration(),
+            raw_prompt_params(),
+            DiscardingTransformer,
+            shutdown,
+        );
+
+        let body_bytes = body::to_bytes(response.into_body()).await.unwrap();
+        let body_text = String::from_utf8(body_bytes.to_vec()).unwrap();
+
+        assert_eq!(body_text, "data: [DONE]\n\n");
+    }
+
+    #[actix_web::test]
+    async fn error_results_are_framed_as_sse_data_events() {
+        let shutdown = CancellationToken::new();
+        shutdown.cancel();
+
+        let response = chat_completions_sse_response(
+            empty_pool_manager(),
+            inference_service_configuration(),
+            raw_prompt_params(),
+            ErroringTransformer,
+            shutdown,
+        );
+
+        let body_bytes = body::to_bytes(response.into_body()).await.unwrap();
+        let body_text = String::from_utf8(body_bytes.to_vec()).unwrap();
+
+        assert!(
+            body_text.contains("data: error chunk"),
+            "error results must be framed as SSE data events: {body_text}"
         );
     }
 }

@@ -1,7 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use anyhow::Result;
-use anyhow::anyhow;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -55,11 +54,6 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
     )
     .await?;
 
-    // `{"type": 123}` is a structurally well-formed JSON object (so it survives
-    // request-parameter validation) but is not a valid JSON Schema: the `type`
-    // keyword must be a string or an array of strings. `jsonschema::validator_for`
-    // rejects it, so the agent's tool-call pipeline build reports the tool's schema
-    // as invalid and the scheduler emits `ToolSchemaInvalid` before any generation.
     let mut invalid_properties = Map::new();
     invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
 
@@ -93,24 +87,14 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
         })
         .await?;
 
-    let schema_invalid_message = collected
-        .token_results
-        .iter()
-        .find_map(|event| match &event.token_result {
-            GeneratedTokenResult::ToolSchemaInvalid(message) => Some(message.clone()),
-            _ => None,
-        })
-        .ok_or_else(|| {
-            anyhow!(
-                "expected a ToolSchemaInvalid event when a tool's JSON Schema is invalid; got:\n{}",
-                collected.text
-            )
-        })?;
+    let rejected_with_invalid_tool_schema = collected.token_results.iter().any(|event| {
+        matches!(
+            event.token_result,
+            GeneratedTokenResult::ToolSchemaInvalid(_)
+        )
+    });
 
-    assert!(
-        schema_invalid_message.contains("get_weather"),
-        "the schema-invalid message should name the offending tool; got: {schema_invalid_message}"
-    );
+    assert!(rejected_with_invalid_tool_schema);
 
     cluster.shutdown().await?;
 

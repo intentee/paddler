@@ -49,7 +49,6 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             slot_guard,
         }: GenerateEmbeddingBatchRequest,
     ) -> Result<()> {
-        // Held until this function returns so the slot is released via `Drop`.
         let _slot_guard = slot_guard;
 
         if !self
@@ -87,9 +86,8 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
         for input in tokens_lines_list {
             if input.tokens.len() > n_batch {
                 let details = OversizedEmbeddingDocumentDetails {
-                    document_tokens: u32::try_from(input.tokens.len())
-                        .context("document token count does not fit in u32")?,
-                    n_batch: u32::try_from(n_batch).context("n_batch does not fit in u32")?,
+                    document_tokens: input.tokens.len(),
+                    n_batch,
                     source_document_id: input.id.clone(),
                 };
 
@@ -113,7 +111,7 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             .collect();
         let planned_batches =
             plan_embedding_batches(&token_counts, n_batch, max_sequences_per_batch);
-        let mut batch = LlamaBatch::new(n_batch, max_sequences_per_batch)?;
+        let mut batch = LlamaBatch::new(n_batch, i32::from(max_sequences_per_batch))?;
 
         let mut embeddings_emitted: usize = 0;
 
@@ -127,12 +125,8 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                 .iter()
                 .collect();
 
-            for (sequence_index, input) in batch_inputs.iter().enumerate() {
-                batch.add_sequence(
-                    &input.tokens,
-                    i32::try_from(sequence_index).context("sequence index does not fit in i32")?,
-                    true,
-                )?;
+            for (sequence_index, input) in (0_i32..).zip(batch_inputs.iter()) {
+                batch.add_sequence(&input.tokens, sequence_index, true)?;
             }
 
             self.embedding_batch_decode(
@@ -164,12 +158,10 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
         self.llama_context.clear_kv_cache();
         self.llama_context.decode(batch)?;
 
-        for (index, embedding_input_tokenized) in current_batch_embeddings.iter().enumerate() {
+        for (index, embedding_input_tokenized) in (0_i32..).zip(current_batch_embeddings.iter()) {
             let embedding = self
                 .llama_context
-                .embeddings_seq_ith(
-                    i32::try_from(index).context("embedding sequence index does not fit in i32")?,
-                )
+                .embeddings_seq_ith(index)
                 .context("Failed to get embeddings")?;
 
             generated_embedding_tx.send(EmbeddingResult::Embedding(normalize_embedding(

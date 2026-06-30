@@ -17,7 +17,7 @@ pub enum Action {
     ConnectAgent {
         agent_name: Option<String>,
         management_address: String,
-        slots: i32,
+        slots: u16,
     },
 }
 
@@ -63,7 +63,7 @@ impl JoinBalancerFormData {
             self.slots_error = Some("Number of slots is required.".to_owned());
             None
         } else {
-            match self.slots_count.parse::<i32>() {
+            match self.slots_count.parse::<u16>() {
                 Ok(slots) if slots > 0 => Some(slots),
                 Ok(non_positive_slots) => {
                     log::debug!("User entered non-positive slot count: {non_positive_slots}");

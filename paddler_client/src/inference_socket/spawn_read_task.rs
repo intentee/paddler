@@ -136,11 +136,17 @@ mod tests {
     }
 
     fn done_message(request_id: &str) -> InferenceMessage {
-        token_message(request_id, GeneratedTokenResult::Done(GenerationSummary::default()))
+        token_message(
+            request_id,
+            GeneratedTokenResult::Done(GenerationSummary::default()),
+        )
     }
 
     fn content_token_message(request_id: &str) -> InferenceMessage {
-        token_message(request_id, GeneratedTokenResult::ContentToken("hi".to_owned()))
+        token_message(
+            request_id,
+            GeneratedTokenResult::ContentToken("hi".to_owned()),
+        )
     }
 
     fn request_id_of(message: &InferenceMessage) -> &str {
@@ -180,14 +186,25 @@ mod tests {
         let mut responses = insert_request(&pending, "r1");
 
         spawn_read_task(
-            frames(vec![Ok(text(&content_token_message("r1"))), Ok(text(&error_message("r1")))]),
+            frames(vec![
+                Ok(text(&content_token_message("r1"))),
+                Ok(text(&error_message("r1"))),
+            ]),
             pending.clone(),
         )
         .await
         .expect("read task joins");
 
-        let first = responses.recv().await.expect("a message").expect("a success");
-        let second = responses.recv().await.expect("a message").expect("a success");
+        let first = responses
+            .recv()
+            .await
+            .expect("a message")
+            .expect("a success");
+        let second = responses
+            .recv()
+            .await
+            .expect("a message")
+            .expect("a success");
 
         assert_eq!(request_id_of(&first), "r1");
         assert_eq!(request_id_of(&second), "r1");
@@ -232,11 +249,18 @@ mod tests {
         enable_logging();
         let mut responses = insert_request(&pending, "r1");
 
-        spawn_read_task(frames(vec![Ok(text(&error_message("r1")))]), pending.clone())
-            .await
-            .expect("read task joins");
+        spawn_read_task(
+            frames(vec![Ok(text(&error_message("r1")))]),
+            pending.clone(),
+        )
+        .await
+        .expect("read task joins");
 
-        let delivered = responses.recv().await.expect("a message").expect("a success");
+        let delivered = responses
+            .recv()
+            .await
+            .expect("a message")
+            .expect("a success");
 
         assert_eq!(request_id_of(&delivered), "r1");
     }
@@ -257,7 +281,11 @@ mod tests {
         .await
         .expect("read task joins");
 
-        let delivered = responses.recv().await.expect("a message").expect("a success");
+        let delivered = responses
+            .recv()
+            .await
+            .expect("a message")
+            .expect("a success");
 
         assert_eq!(request_id_of(&delivered), "r1");
     }
@@ -278,7 +306,11 @@ mod tests {
         .await
         .expect("read task joins");
 
-        let delivered = responses.recv().await.expect("a message").expect("a success");
+        let delivered = responses
+            .recv()
+            .await
+            .expect("a message")
+            .expect("a success");
 
         assert_eq!(request_id_of(&delivered), "known");
     }
@@ -301,7 +333,11 @@ mod tests {
         .await
         .expect("read task joins");
 
-        let delivered = responses.recv().await.expect("a message").expect("a success");
+        let delivered = responses
+            .recv()
+            .await
+            .expect("a message")
+            .expect("a success");
 
         assert_eq!(request_id_of(&delivered), "r1");
     }
@@ -313,7 +349,10 @@ mod tests {
         let mut responses = insert_request(&pending, "r1");
 
         spawn_read_task(
-            frames(vec![Ok(WsMessage::Close(None)), Ok(text(&error_message("r1")))]),
+            frames(vec![
+                Ok(WsMessage::Close(None)),
+                Ok(text(&error_message("r1"))),
+            ]),
             pending.clone(),
         )
         .await
@@ -329,7 +368,10 @@ mod tests {
         let mut responses = insert_request(&pending, "r1");
 
         spawn_read_task(
-            frames(vec![Err(WsError::ConnectionClosed), Ok(text(&error_message("r1")))]),
+            frames(vec![
+                Err(WsError::ConnectionClosed),
+                Ok(text(&error_message("r1"))),
+            ]),
             pending.clone(),
         )
         .await

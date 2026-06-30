@@ -20,19 +20,20 @@ pub struct ToolCallPipeline {
 }
 
 impl ToolCallPipeline {
+    #[must_use]
     pub fn new(
         model: Arc<LlamaModel>,
         tools: &[serde_json::Value],
         validator: ToolCallValidator,
-    ) -> Result<Self, serde_json::Error> {
-        let tools_json = Arc::from(serde_json::to_string(tools)?);
+    ) -> Self {
+        let tools_json = Arc::from(serde_json::Value::Array(tools.to_vec()).to_string());
 
-        Ok(Self {
+        Self {
             buffer: ToolCallBuffer::new(),
             model,
             tools_json,
             validator,
-        })
+        }
     }
 
     pub fn feed(&mut self, fragment: &str) {

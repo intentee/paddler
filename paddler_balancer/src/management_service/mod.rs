@@ -137,12 +137,13 @@ impl Service for ManagementService {
 
 #[cfg(all(test, feature = "web_admin_panel"))]
 mod tests {
+    use std::net::Ipv4Addr;
     use std::net::SocketAddr;
     use std::net::TcpListener;
     use std::sync::Arc;
     use std::time::Duration;
 
-    use anyhow::Result;
+    use anyhow::Context as _;
     use tokio::sync::broadcast;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
@@ -198,40 +199,43 @@ mod tests {
         }
     }
 
-    fn make_resolved_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {
-        Ok(ResolvedSocketAddr {
-            input_addr: input_addr.to_owned(),
-            socket_addr: input_addr.parse()?,
-        })
+    fn make_resolved_socket_addr(socket_addr: SocketAddr) -> ResolvedSocketAddr {
+        ResolvedSocketAddr {
+            input_addr: socket_addr.to_string(),
+            socket_addr,
+        }
     }
 
-    fn make_web_admin_panel_configuration(
-        addr: SocketAddr,
-    ) -> Result<WebAdminPanelServiceConfiguration> {
-        Ok(WebAdminPanelServiceConfiguration {
+    fn make_web_admin_panel_configuration(addr: SocketAddr) -> WebAdminPanelServiceConfiguration {
+        WebAdminPanelServiceConfiguration {
             addr,
             template_data: TemplateData {
                 buffered_request_timeout: Duration::from_secs(1),
                 compat_openai_addr: None,
-                inference_addr: make_resolved_socket_addr("127.0.0.1:8081")?,
-                management_addr: make_resolved_socket_addr("127.0.0.1:8082")?,
+                inference_addr: make_resolved_socket_addr(SocketAddr::from((
+                    Ipv4Addr::LOCALHOST,
+                    8081,
+                ))),
+                management_addr: make_resolved_socket_addr(SocketAddr::from((
+                    Ipv4Addr::LOCALHOST,
+                    8082,
+                ))),
                 max_buffered_requests: 1,
                 statsd_addr: None,
                 statsd_prefix: "paddler".to_owned(),
                 statsd_reporting_interval: Duration::from_secs(1),
             },
-        })
+        }
     }
 
     #[test]
-    fn builds_http_origin_from_web_admin_panel_addr() -> Result<()> {
-        let configuration = make_web_admin_panel_configuration("127.0.0.1:9000".parse()?)?;
+    fn builds_http_origin_from_web_admin_panel_addr() {
+        let configuration =
+            make_web_admin_panel_configuration(SocketAddr::from((Ipv4Addr::LOCALHOST, 9000)));
 
         let allowed_hosts = collect_web_admin_panel_cors_allowed_hosts(Some(&configuration));
 
         assert_eq!(allowed_hosts, vec!["http://127.0.0.1:9000".to_owned()]);
-
-        Ok(())
     }
 
     #[test]
@@ -242,16 +246,23 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
+    async fn run_returns_error_when_address_is_already_in_use() -> anyhow::Result<()> {
+        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))?;
+        let occupied_addr = occupied_listener.local_addr()?;
 
         let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
 
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
+        let error = service
+            .run(CancellationToken::new())
+            .await
+            .err()
+            .context("binding to an already-occupied address must fail")?;
+        let io_error = error
+            .downcast_ref::<std::io::Error>()
+            .context("the bind failure must surface as an I/O error")?;
 
-        assert!(error_message.contains(&expected_addr_fragment));
+        assert_eq!(io_error.kind(), std::io::ErrorKind::AddrInUse);
+
+        Ok(())
     }
 }

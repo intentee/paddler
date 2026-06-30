@@ -117,7 +117,7 @@ coverage: esbuild-meta.json node_modules docker.image
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
 		--gated paddler_agent=96 \
-		--gated paddler_balancer=97 \
+		--gated paddler_balancer=100 \
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
 		--gated paddler_cli=87 \

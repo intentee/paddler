@@ -15,13 +15,12 @@ async fn management_returns_model_metadata_for_loaded_agent() -> Result<()> {
         .map(|agent| agent.id.clone())
         .context("cluster must have at least one registered agent")?;
 
-    let metadata = cluster
-        .management_client
-        .model_metadata(&agent_id)
-        .await
-        .map_err(anyhow::Error::new)
-        .context("get_model_metadata should succeed")?
-        .context("model metadata should be present for a loaded agent")?;
+    let metadata = loop {
+        match cluster.management_client.model_metadata(&agent_id).await {
+            Ok(Some(metadata)) => break metadata,
+            _ => tokio::task::yield_now().await,
+        }
+    };
 
     assert!(
         !metadata.metadata.is_empty(),

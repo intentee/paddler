@@ -10,6 +10,7 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
+use serde::Serialize;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
@@ -66,6 +67,83 @@ async fn send_to_socket_or_log<TSink>(
     socket_sink.send(message).await.unwrap_or_else(|err| {
         error!("Failed to send {operation_name}: {err}");
     });
+}
+
+fn serialize_management_message<TMessage>(
+    message: &TMessage,
+    operation_name: &str,
+) -> Option<Message>
+where
+    TMessage: Serialize,
+{
+    match serde_json::to_string(message) {
+        Ok(serialized_message) => Some(Message::Text(serialized_message.into())),
+        Err(err) => {
+            error!("Failed to serialize {operation_name}: {err}");
+
+            None
+        }
+    }
+}
+
+async fn run_message_forward_loop<TSink>(
+    mut socket_sink: TSink,
+    mut message_rx: mpsc::UnboundedReceiver<ManagementJsonRpcMessage>,
+    mut pong_rx: mpsc::UnboundedReceiver<Bytes>,
+    connection_close: CancellationToken,
+    shutdown: CancellationToken,
+) where
+    TSink: futures_util::Sink<Message> + Unpin,
+    <TSink as futures_util::Sink<Message>>::Error: std::fmt::Display,
+{
+    loop {
+        tokio::select! {
+            () = connection_close.cancelled() => {
+                break;
+            }
+            () = shutdown.cancelled() => {
+                info!("Shutdown signal received, deregistering agent");
+
+                if let Some(deregister_message) = serialize_management_message(
+                    &ManagementJsonRpcMessage::Notification(
+                        ManagementJsonRpcNotification::DeregisterAgent,
+                    ),
+                    "deregister agent notification",
+                ) {
+                    send_to_socket_or_log(
+                        &mut socket_sink,
+                        deregister_message,
+                        "deregister agent notification",
+                    )
+                    .await;
+                }
+
+                break;
+            }
+            message = message_rx.recv() => {
+                match message {
+                    Some(msg) => {
+                        if let Some(serialized_message) =
+                            serialize_management_message(&msg, "message")
+                            && let Err(err) = socket_sink.send(serialized_message).await
+                        {
+                            error!("Failed to send message: {err}");
+                            break;
+                        }
+                    }
+                    None => break,
+                }
+            }
+            payload = pong_rx.recv() => {
+                match payload {
+                    Some(payload) => {
+                        send_to_socket_or_log(&mut socket_sink, Message::Pong(payload), "pong message").await;
+                    }
+                    None => break,
+                }
+            }
+        }
+    }
 }
 
 struct IncomingMessageContext {
@@ -327,10 +405,7 @@ impl ManagementSocketClientService {
                 Ok(())
             }
             Message::Ping(payload) => Ok(pong_tx.send(payload)?),
-            Message::Pong(_) => {
-                // Pong received, no action needed
-                Ok(())
-            }
+            Message::Pong(_) => Ok(()),
         }
     }
 
@@ -342,72 +417,20 @@ impl ManagementSocketClientService {
         info!("Connected to management server");
 
         let connection_close = CancellationToken::new();
-        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (mut write, mut read) = ws_stream.split();
+        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let (write, read) = ws_stream.split();
 
         let forward_connection_close = connection_close.clone();
         let forward_shutdown = shutdown.clone();
 
-        let message_forward_handle = tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    () = forward_connection_close.cancelled() => {
-                        break;
-                    }
-                    () = forward_shutdown.cancelled() => {
-                        info!("Shutdown signal received, deregistering agent");
-
-                        send_to_socket_or_log(
-                            &mut write,
-                            Message::Text(match serde_json::to_string(
-                                &ManagementJsonRpcMessage::Notification(
-                                    ManagementJsonRpcNotification::DeregisterAgent,
-                                )
-                            ) {
-                                Ok(serialized_message) => serialized_message.into(),
-                                Err(err) => {
-                                    error!("Failed to serialize deregister agent notification: {err}");
-                                    return;
-                                }
-                            }),
-                            "deregister agent notification",
-                        )
-                        .await;
-
-                        break;
-                    }
-                    message = message_rx.recv() => {
-                        match message {
-                            Some(msg) => {
-                                match serde_json::to_string(&msg) {
-                                    Ok(serialized_message) => {
-                                        let message = Message::Text(serialized_message.into());
-
-                                        if let Err(err) = write.send(message).await {
-                                            error!("Failed to send message: {err}");
-                                            break;
-                                        }
-                                    },
-                                    Err(err) => {
-                                        error!("Failed to serialize message: {err}");
-                                    }
-                                }
-                            }
-                            None => break,
-                        }
-                    }
-                    payload = pong_rx.recv() => {
-                        match payload {
-                            Some(payload) => {
-                                send_to_socket_or_log(&mut write, Message::Pong(payload), "pong message").await;
-                            }
-                            None => break,
-                        }
-                    }
-                }
-            }
-        });
+        let message_forward_handle = tokio::spawn(run_message_forward_loop(
+            write,
+            message_rx,
+            pong_rx,
+            forward_connection_close,
+            forward_shutdown,
+        ));
 
         match self.slot_aggregated_status.make_snapshot() {
             Ok(slot_aggregated_status_snapshot) => {
@@ -429,6 +452,27 @@ impl ManagementSocketClientService {
             }
         }
 
+        self.run_connection_loop(read, message_tx, pong_tx, connection_close, shutdown)
+            .await;
+
+        message_forward_handle
+            .await
+            .context("Failed to join message forwarding task")?;
+
+        Ok(())
+    }
+
+    async fn run_connection_loop<TStream>(
+        &self,
+        mut read: TStream,
+        message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
+        pong_tx: mpsc::UnboundedSender<Bytes>,
+        connection_close: CancellationToken,
+        shutdown: CancellationToken,
+    ) where
+        TStream: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
+            + Unpin,
+    {
         let do_send_status_update = || match self.slot_aggregated_status.make_snapshot() {
             Ok(slot_aggregated_status_snapshot) => {
                 send_notification_or_log_error(
@@ -506,12 +550,6 @@ impl ManagementSocketClientService {
                 }
             }
         }
-
-        message_forward_handle
-            .await
-            .context("Failed to join message forwarding task")?;
-
-        Ok(())
     }
 }
 
@@ -547,6 +585,7 @@ impl Service for ManagementSocketClientService {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::mem::discriminant;
 
     use tokio_tungstenite::tungstenite::protocol::frame::Frame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::Data;
@@ -1208,5 +1247,415 @@ mod tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn send_notification_returns_without_panicking_when_the_balancer_receiver_is_dropped() {
+        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+
+        drop(message_rx);
+
+        send_notification_or_log_error(
+            &message_tx,
+            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::DeregisterAgent),
+            "deregister agent",
+        );
+
+        assert!(message_tx.is_closed());
+    }
+
+    #[test]
+    fn serialize_management_message_returns_none_when_serialization_fails() {
+        struct AlwaysFailsToSerialize;
+
+        impl Serialize for AlwaysFailsToSerialize {
+            fn serialize<TSerializer>(
+                &self,
+                _serializer: TSerializer,
+            ) -> Result<TSerializer::Ok, TSerializer::Error>
+            where
+                TSerializer: serde::Serializer,
+            {
+                use serde::ser::Error as _;
+
+                Err(TSerializer::Error::custom(
+                    "intentional serialization failure",
+                ))
+            }
+        }
+
+        assert!(serialize_management_message(&AlwaysFailsToSerialize, "test message").is_none());
+    }
+
+    #[tokio::test]
+    async fn send_to_socket_returns_without_panicking_when_the_sink_is_closed() {
+        let (socket_message_tx, socket_message_rx) = tokio::sync::mpsc::channel::<Message>(1);
+
+        drop(socket_message_rx);
+
+        let mut closed_socket_sink = tokio_util::sync::PollSender::new(socket_message_tx);
+
+        send_to_socket_or_log(
+            &mut closed_socket_sink,
+            Message::Pong(Vec::new().into()),
+            "pong message",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn incoming_text_with_invalid_json_is_dropped_without_sending_a_response() {
+        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (agent_desired_state_tx, _agent_desired_state_rx) =
+            mpsc::unbounded_channel::<AgentDesiredState>();
+        let context = build_incoming_message_context(
+            Arc::new(AgentApplicableStateHolder::default()),
+            agent_desired_state_tx,
+            CancellationToken::new(),
+            Arc::new(ModelMetadataHolder::new()),
+            Arc::new(ReceiveStreamStopperCollection::default()),
+            message_tx,
+            Arc::new(SlotAggregatedStatus::new(2)),
+        );
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+
+        let result = ManagementSocketClientService::handle_incoming_message(
+            context,
+            Message::Text("{ this is not valid json".to_owned().into()),
+            &pong_tx,
+        );
+
+        assert!(result.is_ok());
+
+        tokio::task::yield_now().await;
+
+        assert!(message_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn incoming_text_dispatch_failure_is_logged_in_the_spawned_task() {
+        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (agent_desired_state_tx, agent_desired_state_rx) =
+            mpsc::unbounded_channel::<AgentDesiredState>();
+
+        drop(agent_desired_state_rx);
+
+        let context = build_incoming_message_context(
+            Arc::new(AgentApplicableStateHolder::default()),
+            agent_desired_state_tx,
+            CancellationToken::new(),
+            Arc::new(ModelMetadataHolder::new()),
+            Arc::new(ReceiveStreamStopperCollection::default()),
+            message_tx,
+            Arc::new(SlotAggregatedStatus::new(2)),
+        );
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+
+        let set_state_message =
+            JsonRpcMessage::Notification(JsonRpcNotification::SetState(Box::new(SetStateParams {
+                desired_state: AgentDesiredState::default(),
+            })));
+        let serialized_set_state_message = serde_json::to_string(&set_state_message)
+            .expect("set state notification serializes to JSON");
+
+        let result = ManagementSocketClientService::handle_incoming_message(
+            context,
+            Message::Text(serialized_set_state_message.into()),
+            &pong_tx,
+        );
+
+        assert!(result.is_ok());
+
+        tokio::task::yield_now().await;
+    }
+
+    #[tokio::test]
+    async fn keep_connection_alive_errors_when_the_management_socket_is_unreachable() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let unreachable_port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let (agent_desired_state_tx, _agent_desired_state_rx) =
+            mpsc::unbounded_channel::<AgentDesiredState>();
+        let (continue_from_conversation_history_request_tx, _conversation_history_rx) =
+            mpsc::unbounded_channel::<ContinueFromConversationHistoryRequest>();
+        let (continue_from_raw_prompt_request_tx, _raw_prompt_rx) =
+            mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
+        let (generate_embedding_batch_request_tx, _embedding_batch_rx) =
+            mpsc::unbounded_channel::<GenerateEmbeddingBatchRequest>();
+
+        let service = ManagementSocketClientService {
+            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
+            agent_desired_state_tx,
+            continue_from_conversation_history_request_tx,
+            continue_from_raw_prompt_request_tx,
+            generate_embedding_batch_request_tx,
+            model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
+            name: None,
+            receive_stream_stopper_collection: Arc::new(ReceiveStreamStopperCollection::default()),
+            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(2)),
+            socket_url: format!("ws://127.0.0.1:{unreachable_port}"),
+        };
+
+        let result = service
+            .keep_connection_alive(CancellationToken::new())
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn message_forward_loop_breaks_when_connection_close_is_cancelled() {
+        let (sink_tx, _sink_rx) = mpsc::channel::<Message>(8);
+        let (_message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (_pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        connection_close.cancel();
+
+        run_message_forward_loop(
+            tokio_util::sync::PollSender::new(sink_tx),
+            message_rx,
+            pong_rx,
+            connection_close,
+            shutdown,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn message_forward_loop_deregisters_and_breaks_on_shutdown() {
+        let (sink_tx, mut sink_rx) = mpsc::channel::<Message>(8);
+        let (_message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (_pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        shutdown.cancel();
+
+        run_message_forward_loop(
+            tokio_util::sync::PollSender::new(sink_tx),
+            message_rx,
+            pong_rx,
+            connection_close,
+            shutdown,
+        )
+        .await;
+
+        let deregister_message = sink_rx.recv().await;
+
+        assert_eq!(
+            deregister_message.map(|message| discriminant(&message)),
+            Some(discriminant(&Message::Text(String::new().into()))),
+        );
+    }
+
+    #[tokio::test]
+    async fn message_forward_loop_breaks_when_socket_send_fails() {
+        let (sink_tx, sink_rx) = mpsc::channel::<Message>(8);
+        drop(sink_rx);
+        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (_pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        message_tx
+            .send(ManagementJsonRpcMessage::Notification(
+                ManagementJsonRpcNotification::DeregisterAgent,
+            ))
+            .unwrap();
+
+        run_message_forward_loop(
+            tokio_util::sync::PollSender::new(sink_tx),
+            message_rx,
+            pong_rx,
+            connection_close,
+            shutdown,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn message_forward_loop_breaks_when_message_channel_closes() {
+        let (sink_tx, _sink_rx) = mpsc::channel::<Message>(8);
+        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (_pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        drop(message_tx);
+
+        run_message_forward_loop(
+            tokio_util::sync::PollSender::new(sink_tx),
+            message_rx,
+            pong_rx,
+            connection_close,
+            shutdown,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn message_forward_loop_breaks_when_pong_channel_closes() {
+        let (sink_tx, _sink_rx) = mpsc::channel::<Message>(8);
+        let (_message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        drop(pong_tx);
+
+        run_message_forward_loop(
+            tokio_util::sync::PollSender::new(sink_tx),
+            message_rx,
+            pong_rx,
+            connection_close,
+            shutdown,
+        )
+        .await;
+    }
+
+    fn build_test_management_service() -> ManagementSocketClientService {
+        let (agent_desired_state_tx, _agent_desired_state_rx) =
+            mpsc::unbounded_channel::<AgentDesiredState>();
+        let (continue_from_conversation_history_request_tx, _conversation_history_rx) =
+            mpsc::unbounded_channel::<ContinueFromConversationHistoryRequest>();
+        let (continue_from_raw_prompt_request_tx, _raw_prompt_rx) =
+            mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
+        let (generate_embedding_batch_request_tx, _embedding_batch_rx) =
+            mpsc::unbounded_channel::<GenerateEmbeddingBatchRequest>();
+
+        ManagementSocketClientService {
+            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
+            agent_desired_state_tx,
+            continue_from_conversation_history_request_tx,
+            continue_from_raw_prompt_request_tx,
+            generate_embedding_batch_request_tx,
+            model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
+            name: None,
+            receive_stream_stopper_collection: Arc::new(ReceiveStreamStopperCollection::default()),
+            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(2)),
+            socket_url: String::new(),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_loop_closes_when_read_stream_ends() {
+        let service = build_test_management_service();
+        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+        let read = futures_util::stream::iter(Vec::<
+            Result<Message, tokio_tungstenite::tungstenite::Error>,
+        >::new());
+
+        service
+            .run_connection_loop(
+                read,
+                message_tx,
+                pong_tx,
+                connection_close.clone(),
+                shutdown,
+            )
+            .await;
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_loop_closes_when_read_stream_errors() {
+        let service = build_test_management_service();
+        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+        let read = futures_util::stream::iter(vec![Err::<Message, _>(
+            tokio_tungstenite::tungstenite::Error::ConnectionClosed,
+        )]);
+
+        service
+            .run_connection_loop(
+                read,
+                message_tx,
+                pong_tx,
+                connection_close.clone(),
+                shutdown,
+            )
+            .await;
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_loop_handles_incoming_message_then_closes() {
+        let service = build_test_management_service();
+        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+        let read =
+            futures_util::stream::iter(vec![Ok::<_, tokio_tungstenite::tungstenite::Error>(
+                Message::Text("not valid json".into()),
+            )]);
+
+        service
+            .run_connection_loop(
+                read,
+                message_tx,
+                pong_tx,
+                connection_close.clone(),
+                shutdown,
+            )
+            .await;
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_loop_breaks_when_connection_close_is_cancelled() {
+        let service = build_test_management_service();
+        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        connection_close.cancel();
+
+        service
+            .run_connection_loop(
+                futures_util::stream::pending::<
+                    Result<Message, tokio_tungstenite::tungstenite::Error>,
+                >(),
+                message_tx,
+                pong_tx,
+                connection_close,
+                shutdown,
+            )
+            .await;
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn connection_loop_breaks_when_shutdown_is_cancelled() {
+        let service = build_test_management_service();
+        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        shutdown.cancel();
+
+        service
+            .run_connection_loop(
+                futures_util::stream::pending::<
+                    Result<Message, tokio_tungstenite::tungstenite::Error>,
+                >(),
+                message_tx,
+                pong_tx,
+                connection_close,
+                shutdown,
+            )
+            .await;
     }
 }

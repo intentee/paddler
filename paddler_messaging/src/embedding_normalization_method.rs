@@ -101,7 +101,6 @@ mod tests {
         let rms_a = EmbeddingNormalizationMethod::RmsNorm { epsilon: 1e-6 };
         let rms_b = EmbeddingNormalizationMethod::RmsNorm { epsilon: 1e-3 };
 
-        // Same discriminant regardless of epsilon value
         assert!(!rms_a.needs_transformation_to(&rms_b));
     }
 }

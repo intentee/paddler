@@ -4,7 +4,6 @@ use std::sync::Arc;
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::http::header;
-use bytes::Bytes;
 use futures::stream::StreamExt;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::streamable_result::StreamableResult;
@@ -17,6 +16,7 @@ use crate::chunk_forwarding_session_controller::transforms_outgoing_message::Tra
 use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
+use crate::sse_line_bytes::sse_line_bytes;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 
@@ -41,15 +41,7 @@ where
         shutdown,
     )
     .filter_map(|transform_result| async move {
-        match transform_result {
-            TransformResult::Chunk(chunk) => {
-                Some(Ok::<_, Error>(Bytes::from(format!("{chunk}\n"))))
-            }
-            TransformResult::Error(error) => {
-                Some(Ok::<_, Error>(Bytes::from(format!("{error}\n"))))
-            }
-            TransformResult::Discard => None,
-        }
+        sse_line_bytes(transform_result).map(Ok::<_, Error>)
     });
 
     HttpResponse::Ok()

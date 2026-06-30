@@ -43,13 +43,7 @@ fn transform_object(object: &Map<String, Value>) -> Value {
     for (key, value) in object {
         match key.as_str() {
             "nullable" => nullable = matches!(value, Value::Bool(true)),
-            // Draft 2019-09 recursion keywords the OpenAI document still carries; Draft 2020-12
-            // replaced them with `$dynamicAnchor`/`$dynamicRef`. Drop them so the assembled schema
-            // passes 2020-12 meta-validation. The schemas that use them (recursive filters) are not
-            // part of any Paddler-emitted payload, so removing the recursion is inconsequential.
             "$recursiveAnchor" | "$recursiveRef" => {}
-            // OpenAPI 3.0 expressed exclusive bounds as booleans; Draft 2020-12 expects the bound to
-            // be the number itself. A boolean form is meaningless under 2020-12, so drop it.
             "exclusiveMinimum" | "exclusiveMaximum" if value.is_boolean() => {}
             "required" => {
                 if let Value::Array(entries) = value {

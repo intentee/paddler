@@ -368,7 +368,7 @@ impl App {
         screen: Screen<AgentRunning>,
         agent_name: Option<String>,
         management_address: String,
-        slots: i32,
+        slots: u16,
     ) -> Task<Message> {
         let cancel = self.shutdown.child_token();
         self.agent_cancel = Some(cancel.clone());

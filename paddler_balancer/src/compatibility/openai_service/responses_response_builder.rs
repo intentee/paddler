@@ -1,4 +1,5 @@
 use llama_cpp_bindings_types::TokenUsage;
+use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
 
@@ -23,55 +24,55 @@ pub struct ResponsesResponseBuilder {
 }
 
 impl ResponsesResponseBuilder {
-    fn base(&self, status: &str, output: &Value, error: &Value) -> Value {
+    fn base(&self, status: &str, output: Value, error: Value) -> Map<String, Value> {
         let instructions = self
             .instructions
             .as_ref()
             .map_or(Value::Null, |instructions| json!(instructions));
 
-        json!({
-            "id": self.id,
-            "object": "response",
-            "created_at": self.created_at,
-            "status": status,
-            "error": error,
-            "incomplete_details": null,
-            "instructions": instructions,
-            "model": self.model,
-            "tools": [],
-            "output": output,
-            "parallel_tool_calls": true,
-            "metadata": {},
-            "tool_choice": "auto",
-            "temperature": 1,
-            "top_p": 1,
-            "text": { "format": { "type": "text" } }
-        })
-    }
+        let mut response = Map::new();
 
-    #[must_use]
-    pub fn in_progress(&self) -> Value {
-        self.base("in_progress", &json!([]), &Value::Null)
-    }
-
-    #[must_use]
-    pub fn completed(&self, output: Vec<Value>, usage: &TokenUsage) -> Value {
-        let mut response = self.base("completed", &Value::Array(output), &Value::Null);
-
-        if let Some(object) = response.as_object_mut() {
-            object.insert("usage".to_owned(), responses_usage_json(usage));
-        }
+        response.insert("id".to_owned(), json!(self.id));
+        response.insert("object".to_owned(), json!("response"));
+        response.insert("created_at".to_owned(), json!(self.created_at));
+        response.insert("status".to_owned(), json!(status));
+        response.insert("error".to_owned(), error);
+        response.insert("incomplete_details".to_owned(), Value::Null);
+        response.insert("instructions".to_owned(), instructions);
+        response.insert("model".to_owned(), json!(self.model));
+        response.insert("tools".to_owned(), json!([]));
+        response.insert("output".to_owned(), output);
+        response.insert("parallel_tool_calls".to_owned(), json!(true));
+        response.insert("metadata".to_owned(), json!({}));
+        response.insert("tool_choice".to_owned(), json!("auto"));
+        response.insert("temperature".to_owned(), json!(1));
+        response.insert("top_p".to_owned(), json!(1));
+        response.insert("text".to_owned(), json!({ "format": { "type": "text" } }));
 
         response
     }
 
     #[must_use]
+    pub fn in_progress(&self) -> Value {
+        Value::Object(self.base("in_progress", json!([]), Value::Null))
+    }
+
+    #[must_use]
+    pub fn completed(&self, output: Vec<Value>, usage: &TokenUsage) -> Value {
+        let mut response = self.base("completed", Value::Array(output), Value::Null);
+
+        response.insert("usage".to_owned(), responses_usage_json(usage));
+
+        Value::Object(response)
+    }
+
+    #[must_use]
     pub fn failed(&self, error: &OpenAIError) -> Value {
-        self.base(
+        Value::Object(self.base(
             "failed",
-            &json!([]),
-            &json!({ "code": "server_error", "message": error.message }),
-        )
+            json!([]),
+            json!({ "code": "server_error", "message": error.message }),
+        ))
     }
 }
 
@@ -112,6 +113,19 @@ mod tests {
         assert_eq!(response["status"], "failed");
         assert_eq!(response["error"]["message"], "boom");
         assert!(response.get("usage").is_none());
+    }
+
+    #[test]
+    fn instructions_are_included_when_present() {
+        let response = ResponsesResponseBuilder {
+            id: "resp_test".to_owned(),
+            created_at: 1_234,
+            model: "test-model".to_owned(),
+            instructions: Some("be terse".to_owned()),
+        }
+        .in_progress();
+
+        assert_eq!(response["instructions"], "be terse");
     }
 
     #[test]

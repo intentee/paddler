@@ -138,3 +138,37 @@ pub fn prepare_conversation_history_request(
         tools,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use tokio::sync::mpsc;
+
+    use super::notify_failure_or_warn;
+
+    #[test]
+    fn notify_failure_delivers_to_a_live_receiver() {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+
+        notify_failure_or_warn(
+            &generated_tokens_tx,
+            None,
+            GeneratedTokenResult::SamplerError("boom".to_owned()),
+        );
+
+        assert!(generated_tokens_rx.try_recv().is_ok());
+    }
+
+    #[test]
+    fn notify_failure_warns_without_panicking_when_the_receiver_was_dropped() {
+        let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
+
+        drop(generated_tokens_rx);
+
+        notify_failure_or_warn(
+            &generated_tokens_tx,
+            Some("agent"),
+            GeneratedTokenResult::SamplerError("boom".to_owned()),
+        );
+    }
+}

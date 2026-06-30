@@ -9,8 +9,7 @@ use paddler_testcontainer::image_reference::ImageReference;
 async fn started_balancer_start_fails_when_the_container_has_no_bridge_network() -> Result<()> {
     let image = ImageReference::resolve()?;
 
-    let result =
-        StartedBalancer::start("none", &image, &BalancerServiceConfig::default()).await;
+    let result = StartedBalancer::start("none", &image, &BalancerServiceConfig::default()).await;
 
     assert!(result.is_err());
 

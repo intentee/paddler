@@ -24,3 +24,34 @@ impl OpenAIResponsesMessageContent {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use paddler_messaging::conversation_message_content::ConversationMessageContent;
+
+    use super::OpenAIResponsesMessageContent;
+    use crate::compatibility::openai_service::openai_responses_input_content_part::OpenAIResponsesInputContentPart;
+
+    #[test]
+    fn text_content_becomes_text() {
+        assert!(matches!(
+            OpenAIResponsesMessageContent::Text("hi".to_owned()).into_conversation_content(),
+            ConversationMessageContent::Text(text) if text == "hi"
+        ));
+    }
+
+    #[test]
+    fn parts_content_becomes_parts_dropping_unsupported() {
+        let content = OpenAIResponsesMessageContent::Parts(vec![
+            OpenAIResponsesInputContentPart::InputText {
+                text: "hello".to_owned(),
+            },
+            OpenAIResponsesInputContentPart::Unsupported,
+        ]);
+
+        assert!(matches!(
+            content.into_conversation_content(),
+            ConversationMessageContent::Parts(parts) if parts.len() == 1
+        ));
+    }
+}

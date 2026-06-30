@@ -22,6 +22,7 @@ paddler_client = { workspace = true }
 paddler_cluster = { workspace = true }
 paddler_messaging = { workspace = true }
 testcontainers = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 

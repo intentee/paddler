@@ -28,6 +28,7 @@ log = { workspace = true }
 minijinja = { workspace = true }
 minijinja-contrib = { workspace = true }
 nanoid = { workspace = true }
+num_cpus = { workspace = true }
 paddler_cache_dir = { workspace = true }
 paddler_download_manager = { workspace = true }
 paddler_messaging = { workspace = true }

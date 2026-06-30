@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
@@ -29,7 +27,7 @@ pub struct ResponsesNonStreamingResponseTransformer {
 }
 
 impl ResponsesNonStreamingResponseTransformer {
-    fn build_completed(&self, summary: &GenerationSummary) -> Result<String> {
+    fn build_completed(&self, summary: &GenerationSummary) -> String {
         let snapshot = self.state.lock().clone();
 
         let mut output: Vec<Value> = Vec::new();
@@ -51,7 +49,7 @@ impl ResponsesNonStreamingResponseTransformer {
         }
 
         for call in &snapshot.tool_calls {
-            let arguments = arguments_to_tool_call_string(&call.arguments)?;
+            let arguments = arguments_to_tool_call_string(&call.arguments);
 
             output.push(function_call_item(
                 &format!("fc_{}", output.len()),
@@ -62,8 +60,7 @@ impl ResponsesNonStreamingResponseTransformer {
             ));
         }
 
-        serde_json::to_string(&self.builder.completed(output, &summary.usage))
-            .context("serializing non-streaming responses completion")
+        self.builder.completed(output, &summary.usage).to_string()
     }
 }
 
@@ -72,41 +69,46 @@ impl TransformsOutgoingMessage for ResponsesNonStreamingResponseTransformer {
     type Output = TransformResult;
 
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-        if let Some(error) = responses_error(&message) {
-            return Ok(vec![TransformResult::Error(
-                error.to_envelope().to_string(),
-            )]);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(token),
+                response:
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ContentToken(text)
+                        | GeneratedTokenResult::UndeterminableToken(text),
+                    ),
                 ..
-            }) => match token {
-                GeneratedTokenResult::ContentToken(text)
-                | GeneratedTokenResult::UndeterminableToken(text) => {
-                    self.state.lock().content.push_str(&text);
-                    Ok(vec![])
-                }
-                GeneratedTokenResult::ReasoningToken(text) => {
-                    self.state.lock().reasoning.push_str(&text);
-                    Ok(vec![])
-                }
-                GeneratedTokenResult::ToolCallToken(_) => Ok(vec![]),
-                GeneratedTokenResult::ToolCallParsed(parsed_calls) => {
-                    self.state.lock().tool_calls.extend(parsed_calls);
-                    Ok(vec![])
-                }
-                GeneratedTokenResult::Done(summary) => Ok(vec![TransformResult::Chunk(
-                    self.build_completed(&summary)?,
-                )]),
-                other => Err(anyhow!(
-                    "ResponsesNonStreamingResponseTransformer received a token it does not know how to handle: {other:?}"
-                )),
-            },
-            other => Err(anyhow!(
-                "ResponsesNonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-            )),
+            }) => {
+                self.state.lock().content.push_str(&text);
+                Ok(vec![])
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                ..
+            }) => {
+                self.state.lock().reasoning.push_str(&text);
+                Ok(vec![])
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
+                ..
+            }) => Ok(vec![]),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
+                ..
+            }) => {
+                self.state.lock().tool_calls.extend(parsed_calls);
+                Ok(vec![])
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
+                ..
+            }) => Ok(vec![TransformResult::Chunk(self.build_completed(&summary))]),
+            other => Ok(responses_error(&other)
+                .into_iter()
+                .map(|error| TransformResult::Error(error.to_envelope().to_string()))
+                .collect()),
         }
     }
 }
@@ -118,6 +120,7 @@ mod tests {
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
+    use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
@@ -127,7 +130,6 @@ mod tests {
     use parking_lot::Mutex;
     use serde_json::json;
 
-    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
     use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
     use crate::compatibility::openai_service::responses_response_builder::ResponsesResponseBuilder;
 
@@ -208,9 +210,7 @@ mod tests {
             .await
             .unwrap();
 
-        let TransformResult::Chunk(body) = &chunks[0] else {
-            panic!("expected a chunk");
-        };
+        let body = chunks[0].chunk_body().expect("expected a chunk");
         let response: serde_json::Value = serde_json::from_str(body).unwrap();
 
         assert_eq!(response["object"], "response");
@@ -242,9 +242,7 @@ mod tests {
             .await
             .unwrap();
 
-        let TransformResult::Chunk(body) = &chunks[0] else {
-            panic!("expected a chunk");
-        };
+        let body = chunks[0].chunk_body().expect("expected a chunk");
         let response: serde_json::Value = serde_json::from_str(body).unwrap();
 
         assert_eq!(response["output"][0]["type"], "reasoning");
@@ -267,12 +265,36 @@ mod tests {
             .await
             .unwrap();
 
-        let TransformResult::Error(body) = &chunks[0] else {
-            panic!("expected an error");
-        };
+        let body = chunks[0].error_body().expect("expected an error");
+        let envelope: serde_json::Value =
+            serde_json::from_str(body).expect("error body must be valid JSON");
 
-        assert!(body.contains("sampler blew up"));
-        assert!(body.contains("server_error"));
+        assert_eq!(envelope["error"]["type"], "server_error");
+        assert_eq!(envelope["error"]["message"], "sampler blew up");
+    }
+
+    #[tokio::test]
+    async fn non_streaming_embedding_response_becomes_an_error() {
+        let transformer = non_streaming_transformer();
+
+        let message = OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "test-request".to_owned(),
+            response: OutgoingResponse::Embedding(EmbeddingResult::Done),
+        });
+        let chunks = transformer.transform(message).await.unwrap();
+
+        assert_eq!(chunks.len(), 1);
+
+        let body = chunks[0].error_body().expect("expected an error");
+        let envelope: serde_json::Value =
+            serde_json::from_str(body).expect("error body must be valid JSON");
+
+        assert_eq!(envelope["error"]["type"], "invalid_request_error");
+        assert_eq!(
+            envelope["error"]["message"],
+            "unexpected embedding response in responses"
+        );
     }
 
     #[tokio::test]
@@ -305,9 +327,7 @@ mod tests {
             .await
             .unwrap();
 
-        let TransformResult::Chunk(body) = &chunks[0] else {
-            panic!("expected a chunk");
-        };
+        let body = chunks[0].chunk_body().expect("expected a chunk");
         let response: serde_json::Value = serde_json::from_str(body).unwrap();
 
         validator.validate_responses_response(&response).unwrap();

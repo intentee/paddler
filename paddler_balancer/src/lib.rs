@@ -38,8 +38,10 @@ pub mod resolved_socket_addr;
 #[cfg(feature = "web_admin_panel")]
 mod response;
 pub mod sends_rpc_message;
+pub mod serialize_snapshot_event;
 pub mod sets_desired_state;
 pub mod snapshots_stream;
+pub mod sse_line_bytes;
 pub mod state_database;
 pub mod state_database_type;
 #[cfg(feature = "web_admin_panel")]

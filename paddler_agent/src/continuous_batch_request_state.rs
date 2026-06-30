@@ -13,7 +13,7 @@ pub struct ContinuousBatchRequestState {
     pub phase: ContinuousBatchRequestPhase,
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
-    pub sequence_id: i32,
+    pub sequence_id: u16,
 }
 
 impl ContinuousBatchRequestState {
@@ -107,10 +107,7 @@ mod tests {
         assert_eq!(state.prompt_tokens_ingested, 4);
         assert_eq!(state.current_token_position, 4);
         assert_eq!(state.i_batch, None);
-        assert!(matches!(
-            state.phase,
-            ContinuousBatchRequestPhase::Ingesting
-        ));
+        assert_eq!(state.phase, ContinuousBatchRequestPhase::Ingesting);
     }
 
     #[test]
@@ -124,10 +121,7 @@ mod tests {
         assert_eq!(state.prompt_tokens_ingested, 6);
         assert_eq!(state.current_token_position, 6);
         assert_eq!(state.i_batch, Some(41));
-        assert!(matches!(
-            state.phase,
-            ContinuousBatchRequestPhase::Generating
-        ));
+        assert_eq!(state.phase, ContinuousBatchRequestPhase::Generating);
     }
 
     #[test]
@@ -160,9 +154,6 @@ mod tests {
         state.mark_completed();
 
         assert_eq!(state.i_batch, None);
-        assert!(matches!(
-            state.phase,
-            ContinuousBatchRequestPhase::Completed
-        ));
+        assert_eq!(state.phase, ContinuousBatchRequestPhase::Completed);
     }
 }

@@ -778,4 +778,45 @@ mod tests {
         ));
         assert_eq!(read(&expected_path).await.unwrap(), body);
     }
+
+    async fn serve_single_not_found_response(listener: TcpListener) {
+        let (mut socket, _peer) = listener.accept().await.unwrap();
+        let (reader_half, mut writer_half) = socket.split();
+        let mut reader = BufReader::new(reader_half);
+
+        loop {
+            let mut header_line = String::new();
+            let bytes_read = reader.read_line(&mut header_line).await.unwrap();
+            if bytes_read == 0 || header_line == "\r\n" {
+                break;
+            }
+        }
+
+        let header = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+        writer_half.write_all(header.as_bytes()).await.unwrap();
+        writer_half.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn failed_download_resets_status_and_registers_model_does_not_exist_issue() {
+        let directory = TempDir::new().unwrap();
+        let cache_dir = cache_dir_at(directory.path());
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let url_string = format!("http://127.0.0.1:{port}/missing.gguf");
+        let server = tokio::spawn(serve_single_not_found_response(listener));
+
+        let status = fresh_status();
+        let result = resolve_url_into_cache(&url_string, &cache_dir, status.clone()).await;
+
+        server.await.unwrap();
+
+        assert!(result.is_err(), "a 404 download must produce an Err");
+        assert!(
+            status.has_issue(&AgentIssue::ModelDoesNotExistAtUrl(ModelPath {
+                model_path: url_string,
+            }))
+        );
+    }
 }

@@ -1,5 +1,3 @@
-use anyhow::Context as _;
-use anyhow::Result;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use serde::Deserialize;
 
@@ -12,16 +10,74 @@ pub struct OpenAIResponsesTextParam {
 }
 
 impl OpenAIResponsesTextParam {
-    pub fn into_grammar_constraint(self) -> Result<Option<GrammarConstraint>> {
+    #[must_use]
+    pub fn into_grammar_constraint(self) -> Option<GrammarConstraint> {
         match self.format {
             Some(OpenAIResponsesTextFormat::JsonSchema { schema }) => {
-                Ok(Some(GrammarConstraint::JsonSchema {
-                    schema: serde_json::to_string(&schema)
-                        .context("serializing responses text.format json schema")?,
-                }))
+                Some(GrammarConstraint::JsonSchema {
+                    schema: schema.to_string(),
+                })
             }
             Some(OpenAIResponsesTextFormat::Text | OpenAIResponsesTextFormat::Unsupported)
-            | None => Ok(None),
+            | None => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use paddler_messaging::grammar_constraint::GrammarConstraint;
+    use serde_json::json;
+
+    use super::OpenAIResponsesTextParam;
+    use crate::compatibility::openai_service::openai_responses_text_format::OpenAIResponsesTextFormat;
+
+    #[test]
+    fn no_format_yields_no_constraint() {
+        assert!(
+            OpenAIResponsesTextParam { format: None }
+                .into_grammar_constraint()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn text_format_yields_no_constraint() {
+        assert!(
+            OpenAIResponsesTextParam {
+                format: Some(OpenAIResponsesTextFormat::Text),
+            }
+            .into_grammar_constraint()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn unsupported_format_yields_no_constraint() {
+        assert!(
+            OpenAIResponsesTextParam {
+                format: Some(OpenAIResponsesTextFormat::Unsupported),
+            }
+            .into_grammar_constraint()
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn json_schema_format_yields_a_json_schema_constraint() {
+        let constraint = OpenAIResponsesTextParam {
+            format: Some(OpenAIResponsesTextFormat::JsonSchema {
+                schema: json!({ "type": "object" }),
+            }),
+        }
+        .into_grammar_constraint()
+        .expect("json_schema format yields a constraint");
+
+        assert_eq!(
+            constraint,
+            GrammarConstraint::JsonSchema {
+                schema: json!({ "type": "object" }).to_string(),
+            }
+        );
     }
 }

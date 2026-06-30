@@ -21,13 +21,6 @@ pub fn normalize_embedding(
         ));
     }
 
-    if !embedding
-        .normalization_method
-        .needs_transformation_to(normalization_method)
-    {
-        return Ok(embedding);
-    }
-
     let normalized = match normalization_method {
         EmbeddingNormalizationMethod::None => embedding.embedding,
         EmbeddingNormalizationMethod::L2 => l2(&embedding.embedding),

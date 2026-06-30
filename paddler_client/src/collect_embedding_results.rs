@@ -1,6 +1,3 @@
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::anyhow;
 use futures_util::StreamExt as _;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -8,6 +5,8 @@ use paddler_messaging::inference_client::response::Response as InferenceResponse
 
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::embedding_with_producer::EmbeddingWithProducer;
+use crate::error::Error;
+use crate::error::Result;
 use crate::inference_message_stream::InferenceMessageStream;
 
 pub async fn collect_embedding_results(
@@ -23,7 +22,7 @@ pub async fn collect_embedding_results(
     let mut wire_errors = Vec::new();
 
     while let Some(item) = stream.next().await {
-        let message = item.context("embedding stream yielded an error")?;
+        let message = item?;
 
         match message {
             InferenceMessage::Response(envelope) => {
@@ -61,17 +60,13 @@ pub async fn collect_embedding_results(
                         no_embeddings_produced_count += 1;
                     }
                     InferenceResponse::GeneratedToken(_) => {
-                        return Err(anyhow!(
-                            "unexpected generated-token response on an embedding stream"
-                        ));
+                        return Err(Error::UnexpectedTokenOnEmbeddingStream);
                     }
                     InferenceResponse::Timeout => {
-                        return Err(anyhow!("embedding request timed out on balancer"));
+                        return Err(Error::InferenceTimedOut);
                     }
                     InferenceResponse::TooManyBufferedRequests => {
-                        return Err(anyhow!(
-                            "balancer rejected embedding request: too many buffered"
-                        ));
+                        return Err(Error::TooManyBufferedRequests);
                     }
                 }
             }
@@ -134,7 +129,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn collects_embeddings_until_done() {
+    async fn collects_embeddings_until_done() -> Result<()> {
         let collected = collect_embedding_results(stream(vec![
             Ok(embedding_message(EmbeddingResult::Embedding(
                 sample_embedding(),
@@ -144,8 +139,7 @@ mod tests {
             ))),
             Ok(embedding_message(EmbeddingResult::Done)),
         ]))
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(collected.embeddings.len(), 2);
         assert!(collected.saw_done);
@@ -153,10 +147,12 @@ mod tests {
             collected.embeddings[0].generated_by.as_deref(),
             Some("agent-1")
         );
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn records_oversized_documents() {
+    async fn records_oversized_documents() -> Result<()> {
         let collected = collect_embedding_results(stream(vec![Ok(embedding_message(
             EmbeddingResult::DocumentExceedsBatchSize(OversizedEmbeddingDocumentDetails {
                 document_tokens: 5000,
@@ -164,26 +160,28 @@ mod tests {
                 source_document_id: "big".to_owned(),
             }),
         ))]))
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(collected.oversized_documents.len(), 1);
         assert_eq!(collected.oversized_documents[0].document_tokens, 5000);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn records_embeddings_disabled() {
+    async fn records_embeddings_disabled() -> Result<()> {
         let collected = collect_embedding_results(stream(vec![Ok(embedding_message(
             EmbeddingResult::EmbeddingsDisabled,
         ))]))
-        .await
-        .unwrap();
+        .await?;
 
         assert!(collected.embeddings_disabled);
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn records_errors_and_rejections() {
+    async fn records_errors_and_rejections() -> Result<()> {
         let collected = collect_embedding_results(stream(vec![
             Ok(embedding_message(EmbeddingResult::Error("boom".to_owned()))),
             Ok(embedding_message(
@@ -191,8 +189,7 @@ mod tests {
             )),
             Ok(embedding_message(EmbeddingResult::NoEmbeddingsProduced)),
         ]))
-        .await
-        .unwrap();
+        .await?;
 
         assert_eq!(collected.errors, vec!["boom".to_owned()]);
         assert_eq!(
@@ -200,11 +197,13 @@ mod tests {
             1
         );
         assert_eq!(collected.no_embeddings_produced_count, 1);
+
+        Ok(())
     }
 
     #[tokio::test]
     async fn rejects_a_generated_token_response() {
-        let error = collect_embedding_results(stream(vec![Ok(InferenceMessage::Response(
+        let outcome = collect_embedding_results(stream(vec![Ok(InferenceMessage::Response(
             ResponseEnvelope {
                 generated_by: None,
                 request_id: "req".to_owned(),
@@ -213,47 +212,44 @@ mod tests {
                 )),
             },
         ))]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(error.to_string().contains("unexpected generated-token"));
+        assert!(matches!(
+            outcome,
+            Err(Error::UnexpectedTokenOnEmbeddingStream)
+        ));
     }
 
     #[tokio::test]
     async fn rejects_a_timeout() {
-        let error = collect_embedding_results(stream(vec![Ok(InferenceMessage::Response(
+        let outcome = collect_embedding_results(stream(vec![Ok(InferenceMessage::Response(
             ResponseEnvelope {
                 generated_by: None,
                 request_id: "req".to_owned(),
                 response: InferenceResponse::Timeout,
             },
         ))]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(error.to_string().contains("timed out"));
+        assert!(matches!(outcome, Err(Error::InferenceTimedOut)));
     }
 
     #[tokio::test]
     async fn rejects_too_many_buffered_requests() {
-        let error = collect_embedding_results(stream(vec![Ok(InferenceMessage::Response(
+        let outcome = collect_embedding_results(stream(vec![Ok(InferenceMessage::Response(
             ResponseEnvelope {
                 generated_by: None,
                 request_id: "req".to_owned(),
                 response: InferenceResponse::TooManyBufferedRequests,
             },
         ))]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(error.to_string().contains("too many buffered"));
+        assert!(matches!(outcome, Err(Error::TooManyBufferedRequests)));
     }
 
     #[tokio::test]
-    async fn records_wire_errors() {
+    async fn records_wire_errors() -> Result<()> {
         let collected =
             collect_embedding_results(stream(vec![Ok(InferenceMessage::Error(ErrorEnvelope {
                 request_id: "req".to_owned(),
@@ -262,26 +258,21 @@ mod tests {
                     description: "wire failure".to_owned(),
                 },
             }))]))
-            .await
-            .unwrap();
+            .await?;
 
         assert_eq!(collected.wire_errors.len(), 1);
-        assert_eq!(collected.wire_errors[0].description, "wire failure");
+        assert_eq!(collected.wire_errors[0].code, -32000);
+
+        Ok(())
     }
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_embedding_results(stream(vec![Err(Error::ConnectionDropped {
+        let outcome = collect_embedding_results(stream(vec![Err(Error::ConnectionDropped {
             request_id: "req".to_owned(),
         })]))
-        .await
-        .err()
-        .unwrap();
+        .await;
 
-        assert!(
-            error
-                .to_string()
-                .contains("embedding stream yielded an error")
-        );
+        assert!(matches!(outcome, Err(Error::ConnectionDropped { .. })));
     }
 }

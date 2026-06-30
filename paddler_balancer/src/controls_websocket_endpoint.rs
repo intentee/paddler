@@ -32,6 +32,18 @@ const MAX_FRAME_SIZE: usize = 50 * 1024 * 1024;
 const MAX_CONTINUATION_SIZE: usize = 50 * 1024 * 1024;
 const PING_INTERVAL: Duration = Duration::from_secs(3);
 
+async fn close_session_logging_failure(
+    session: Session,
+    close_reason: Option<CloseReason>,
+    context_description: &str,
+) {
+    if let Err(close_err) = session.close(close_reason).await {
+        warn!(
+            "WebSocket session close failed after {context_description} (peer likely already disconnected): {close_err:?}"
+        );
+    }
+}
+
 #[async_trait]
 pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     type Context: Send + Sync + 'static;
@@ -73,10 +85,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
 
                 Ok(ContinuationDecision::Continue)
             }
-            Some(Ok(AggregatedMessage::Pong(_))) => {
-                // ignore pong messages
-                Ok(ContinuationDecision::Continue)
-            }
+            Some(Ok(AggregatedMessage::Pong(_))) => Ok(ContinuationDecision::Continue),
             Some(Ok(AggregatedMessage::Text(text))) => {
                 match Self::handle_text_message(
                     connection_close,
@@ -163,9 +172,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                     )
                     .await
                     {
-                        Ok(ContinuationDecision::Continue) => {
-                            // Continue processing messages
-                        }
+                        Ok(ContinuationDecision::Continue) => {}
                         Ok(ContinuationDecision::Stop(_)) => connection_close.cancel(),
                         Err(err) => {
                             error!("Error handling deserialized message: {err:?}");
@@ -230,24 +237,20 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             match Self::on_connection_start(context.clone(), &mut session).await {
                 Ok(ContinuationDecision::Continue) => {}
                 Ok(ContinuationDecision::Stop(stop_parameters)) => {
-                    close_reason = stop_parameters.close_reason;
-
-                    if let Err(close_err) = session.close(close_reason).await {
-                        warn!(
-                            "WebSocket session close failed after Stop decision (peer likely already disconnected): {close_err:?}"
-                        );
-                    }
+                    close_session_logging_failure(
+                        session,
+                        stop_parameters.close_reason,
+                        "Stop decision",
+                    )
+                    .await;
 
                     return;
                 }
                 Err(err) => {
                     error!("Error in connection start handler: {err:?}");
 
-                    if let Err(close_err) = session.close(close_reason).await {
-                        warn!(
-                            "WebSocket session close failed after start-handler error (peer likely already disconnected): {close_err:?}"
-                        );
-                    }
+                    close_session_logging_failure(session, close_reason, "start-handler error")
+                        .await;
 
                     return;
                 }
@@ -265,9 +268,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                             msg,
                             &mut session,
                         ).await {
-                            Ok(ContinuationDecision::Continue) => {
-                                // continue processing messages
-                            }
+                            Ok(ContinuationDecision::Continue) => {}
                             Ok(ContinuationDecision::Stop(stop_parameters)) => {
                                 close_reason = stop_parameters.close_reason;
 
@@ -327,6 +328,7 @@ mod tests {
     use super::ContinuationStopParameters;
     use super::ControlsWebSocketEndpoint;
     use super::WebSocketSessionController;
+    use super::close_session_logging_failure;
     use actix_ws::AggregatedMessage;
     use actix_ws::CloseCode;
     use actix_ws::CloseReason;
@@ -662,5 +664,24 @@ mod tests {
         let handshake_error = respond_result.err().unwrap();
 
         assert_eq!(handshake_error.error_response().status().as_u16(), 400);
+    }
+
+    #[actix_web::test]
+    async fn closing_a_session_whose_peer_disconnected_logs_the_failure() {
+        let (request, mut raw_payload) = TestRequest::default()
+            .insert_header(("upgrade", "websocket"))
+            .insert_header(("connection", "upgrade"))
+            .insert_header(("sec-websocket-version", "13"))
+            .insert_header(("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+
+        let (response, session, _message_stream) = actix_ws::handle(&request, payload).unwrap();
+
+        drop(response);
+
+        close_session_logging_failure(session, None, "the peer disconnected").await;
     }
 }

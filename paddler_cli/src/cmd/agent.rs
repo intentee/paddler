@@ -22,7 +22,7 @@ pub struct Agent {
 
     #[arg(long)]
     /// Number of parallel requests of any kind that the agent can handle at once
-    slots: i32,
+    slots: u16,
 }
 
 #[async_trait(?Send)]

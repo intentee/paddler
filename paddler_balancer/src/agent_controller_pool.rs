@@ -100,13 +100,14 @@ impl AgentControllerPool {
         }
     }
 
-    pub fn remove_agent_controller(&self, agent_id: &str) -> Result<bool> {
+    #[must_use]
+    pub fn remove_agent_controller(&self, agent_id: &str) -> bool {
         if self.agents.remove(agent_id).is_some() {
             self.update_tx.send_replace(());
 
-            Ok(true)
+            true
         } else {
-            Ok(false)
+            false
         }
     }
 
@@ -279,7 +280,7 @@ mod tests {
     fn remove_agent_controller_returns_false_for_unknown_id() {
         let pool = AgentControllerPool::default();
 
-        assert!(!pool.remove_agent_controller("never-registered").unwrap());
+        assert!(!pool.remove_agent_controller("never-registered"));
     }
 
     #[test]

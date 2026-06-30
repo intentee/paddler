@@ -2,12 +2,11 @@ use std::error::Error as _;
 use std::io::ErrorKind;
 use std::time::Duration;
 
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::anyhow;
 use reqwest::Client;
 use reqwest::StatusCode;
 use url::Url;
+
+use crate::error::ClusterError;
 
 const HEALTHCHECK_PROBE_INTERVAL: Duration = Duration::from_millis(20);
 
@@ -35,10 +34,18 @@ fn is_transient_probe_error(request_error: &reqwest::Error) -> bool {
     false
 }
 
-pub async fn wait_until_healthy(base_url: &Url, endpoint: &str) -> Result<()> {
-    let health_url = base_url
-        .join(endpoint)
-        .with_context(|| format!("failed to construct {endpoint} URL from {base_url}"))?;
+pub async fn wait_until_healthy(
+    base_url: &Url,
+    endpoint: &str,
+) -> std::result::Result<(), ClusterError> {
+    let health_url =
+        base_url
+            .join(endpoint)
+            .map_err(|source| ClusterError::ProbeUrlConstruction {
+                endpoint: endpoint.to_owned(),
+                base_url: base_url.clone(),
+                source,
+            })?;
     let client = Client::new();
 
     loop {
@@ -49,17 +56,20 @@ pub async fn wait_until_healthy(base_url: &Url, endpoint: &str) -> Result<()> {
                     tokio::time::sleep(HEALTHCHECK_PROBE_INTERVAL).await;
                 }
                 other => {
-                    return Err(anyhow!(
-                        "unexpected status {other} while probing {health_url}"
-                    ));
+                    return Err(ClusterError::ProbeUnexpectedStatus {
+                        status: other.as_u16(),
+                        url: health_url,
+                    });
                 }
             },
             Err(request_error) => {
                 if is_transient_probe_error(&request_error) {
                     tokio::time::sleep(HEALTHCHECK_PROBE_INTERVAL).await;
                 } else {
-                    return Err(anyhow::Error::new(request_error)
-                        .context(format!("failed to probe {health_url}")));
+                    return Err(ClusterError::ProbeFailed {
+                        url: health_url,
+                        source: request_error,
+                    });
                 }
             }
         }
@@ -68,19 +78,23 @@ pub async fn wait_until_healthy(base_url: &Url, endpoint: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Result;
     use url::Url;
 
     use super::wait_until_healthy;
+    use crate::error::ClusterError;
 
     #[tokio::test]
-    async fn fails_to_construct_the_probe_url_for_a_malformed_endpoint() {
-        let base_url = Url::parse("http://127.0.0.1:8080/").unwrap();
+    async fn fails_to_construct_the_probe_url_for_a_malformed_endpoint() -> Result<()> {
+        let base_url = Url::parse("http://127.0.0.1:8080/")?;
 
-        let error = wait_until_healthy(&base_url, "http://")
-            .await
-            .err()
-            .unwrap();
+        let outcome = wait_until_healthy(&base_url, "http://").await;
 
-        assert!(error.to_string().contains("failed to construct"));
+        assert!(matches!(
+            outcome,
+            Err(ClusterError::ProbeUrlConstruction { .. })
+        ));
+
+        Ok(())
     }
 }

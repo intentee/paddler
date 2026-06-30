@@ -12,7 +12,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
     const AGENT_COUNT: usize = 4;
-    const SLOTS_PER_AGENT: i32 = 1;
+    const SLOTS_PER_AGENT: u16 = 1;
 
     let cluster = start_subprocess_cluster_with_qwen3(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),

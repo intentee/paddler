@@ -23,6 +23,21 @@ pub enum Error {
         #[source]
         source: reqwest::header::ToStrError,
     },
+
+    #[error("unexpected embedding response on a token-generation stream")]
+    UnexpectedEmbeddingOnTokenStream,
+
+    #[error("unexpected generated-token response on an embedding stream")]
+    UnexpectedTokenOnEmbeddingStream,
+
+    #[error("the balancer timed out the inference request")]
+    InferenceTimedOut,
+
+    #[error("the balancer rejected the request because too many requests are buffered")]
+    TooManyBufferedRequests,
+
+    #[error("the inference stream returned JSON-RPC error code {code}: {description}")]
+    InferenceWireError { code: i32, description: String },
 }
 
 pub type Result<TValue> = std::result::Result<TValue, Error>;

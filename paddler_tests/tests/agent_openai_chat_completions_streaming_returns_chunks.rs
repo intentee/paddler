@@ -1,8 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Context as _;
 use anyhow::Result;
 use paddler_cluster::agent_config::AgentConfig;
+use paddler_tests::openai_chat_completions_client::OpenAIChatCompletionsClient;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
@@ -10,41 +10,19 @@ use serde_json::json;
 async fn agent_openai_chat_completions_streaming_returns_chunks() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    let openai_url = cluster
-        .balancer
-        .addresses
-        .compat_openai_base_url()?
-        .join("v1/chat/completions")?;
+    let openai_base_url = cluster.balancer.addresses.compat_openai_base_url()?;
+    let client = OpenAIChatCompletionsClient::new(&openai_base_url)?;
 
-    let response = reqwest::Client::new()
-        .post(openai_url)
-        .json(&json!({
+    let chunks = client
+        .post_streaming(&json!({
             "model": "test",
             "messages": [{"role": "user", "content": "Say hello"}],
             "max_completion_tokens": 10,
-            "stream": true,
         }))
-        .send()
-        .await
-        .context("OpenAI compat streaming request should succeed")?;
-
-    assert_eq!(response.status(), 200);
-
-    let body = response.text().await.context("should read response body")?;
-
-    let chunks: Vec<serde_json::Value> = body
-        .lines()
-        .filter_map(|line| line.strip_prefix("data: "))
-        .filter(|payload| *payload != "[DONE]")
-        .map(|payload| serde_json::from_str(payload).context("each chunk should be valid JSON"))
-        .collect::<Result<_>>()?;
+        .await?;
 
     assert!(!chunks.is_empty(), "should have received streaming chunks");
     assert_eq!(chunks[0]["object"], "chat.completion.chunk");
-    assert!(
-        body.trim_end().ends_with("data: [DONE]"),
-        "the OpenAI streaming response must terminate with the [DONE] sentinel: {body:?}"
-    );
 
     cluster.shutdown().await?;
 

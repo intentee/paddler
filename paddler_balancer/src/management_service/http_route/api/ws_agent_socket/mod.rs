@@ -22,6 +22,7 @@ use async_trait::async_trait;
 use log::error;
 use log::info;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+use paddler_messaging::rpc_message::RpcMessage;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use serde::Deserialize;
 use tokio::sync::mpsc;
@@ -56,6 +57,17 @@ use paddler_messaging::management_socket::balancer::notification_params::update_
 
 pub fn register(cfg: &mut ServiceConfig) {
     cfg.service(respond);
+}
+
+async fn forward_message_or_log_failure<TResponse>(
+    websocket_session_controller: &mut WebSocketSessionController<TResponse>,
+    message: TResponse,
+) where
+    TResponse: RpcMessage + Sync + 'static,
+{
+    if let Err(err) = websocket_session_controller.send_response(message).await {
+        error!("Error sending response: {err}");
+    }
 }
 
 struct AgentSocketController {
@@ -191,12 +203,11 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                             }
                             result = agent_message_rx.recv() => {
                                 if let Some(message) = result {
-                                    websocket_session_controller
-                                        .send_response(message)
-                                        .await
-                                        .unwrap_or_else(|err| {
-                                            error!("Error sending response: {err}");
-                                        });
+                                    forward_message_or_log_failure(
+                                        &mut websocket_session_controller,
+                                        message,
+                                    )
+                                    .await;
                                 } else {
                                     info!("Session channel closed for agent: {}", context.agent_id);
                                     break;
@@ -429,14 +440,43 @@ mod tests {
                 .is_some()
         );
 
-        assert!(
-            agent_controller_pool
-                .remove_agent_controller(&agent_id)
-                .unwrap()
-        );
+        assert!(agent_controller_pool.remove_agent_controller(&agent_id));
 
         let close_frame = to_bytes(response.into_body()).await.unwrap();
 
         assert!(close_frame.is_empty());
+    }
+
+    #[derive(serde::Serialize)]
+    struct ForwardableTestMessage;
+
+    impl paddler_messaging::rpc_message::RpcMessage for ForwardableTestMessage {}
+
+    #[actix_web::test]
+    async fn forwarding_to_a_disconnected_agent_logs_the_send_failure() {
+        log::set_max_level(log::LevelFilter::Trace);
+
+        let (request, mut raw_payload) = TestRequest::default()
+            .insert_header(("upgrade", "websocket"))
+            .insert_header(("connection", "upgrade"))
+            .insert_header(("sec-websocket-version", "13"))
+            .insert_header(("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+
+        let (response, session, _message_stream) = actix_ws::handle(&request, payload).unwrap();
+
+        drop(response);
+
+        let mut websocket_session_controller =
+            WebSocketSessionController::<ForwardableTestMessage>::new(session);
+
+        super::forward_message_or_log_failure(
+            &mut websocket_session_controller,
+            ForwardableTestMessage,
+        )
+        .await;
     }
 }

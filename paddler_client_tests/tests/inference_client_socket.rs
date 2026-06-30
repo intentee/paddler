@@ -35,8 +35,14 @@ async fn raw_prompt_over_socket_reuses_a_pooled_connection() -> Result<()> {
     let fixture = LocalWebSocketFixture::start(WebSocketBehavior::KeepOpen).await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    let _first = client.socket().continue_from_raw_prompt(raw_prompt_params()).await?;
-    let _second = client.socket().continue_from_raw_prompt(raw_prompt_params()).await?;
+    let _first = client
+        .socket()
+        .continue_from_raw_prompt(raw_prompt_params())
+        .await?;
+    let _second = client
+        .socket()
+        .continue_from_raw_prompt(raw_prompt_params())
+        .await?;
 
     Ok(())
 }
@@ -59,7 +65,10 @@ async fn raw_prompt_over_socket_reports_a_dropped_connection() -> Result<()> {
     let fixture = LocalWebSocketFixture::start(WebSocketBehavior::CloseAfterAccept).await?;
     let client = inference_client_for(fixture.base_url().parse()?);
 
-    let mut stream = client.socket().continue_from_raw_prompt(raw_prompt_params()).await?;
+    let mut stream = client
+        .socket()
+        .continue_from_raw_prompt(raw_prompt_params())
+        .await?;
     let outcome = stream.next().await.context("a streamed item")?;
 
     assert!(outcome.is_err());

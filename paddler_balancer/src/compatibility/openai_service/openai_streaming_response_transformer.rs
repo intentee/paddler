@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::TokenUsage;
@@ -31,8 +29,8 @@ pub struct OpenAIStreamingResponseTransformer {
 }
 
 impl OpenAIStreamingResponseTransformer {
-    fn content_chunk(&self, request_id: &str, text: &str) -> Result<String> {
-        serde_json::to_string(&json!({
+    fn content_chunk(&self, request_id: &str, text: &str) -> String {
+        json!({
             "id": request_id,
             "object": "chat.completion.chunk",
             "created": self.created,
@@ -49,57 +47,50 @@ impl OpenAIStreamingResponseTransformer {
                     "finish_reason": null
                 }
             ]
-        }))
-        .context("serializing content chunk")
+        })
+        .to_string()
     }
 
-    fn tool_calls_chunk(
-        &self,
-        request_id: &str,
-        parsed_calls: &[ParsedToolCall],
-    ) -> Result<String> {
-        parsed_calls
+    fn tool_calls_chunk(&self, request_id: &str, parsed_calls: &[ParsedToolCall]) -> String {
+        let tool_calls = parsed_calls
             .iter()
             .enumerate()
             .map(|(index, call)| {
-                arguments_to_tool_call_string(&call.arguments).map(|arguments| {
-                    json!({
-                        "index": index,
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.name,
-                            "arguments": arguments,
-                        }
-                    })
+                json!({
+                    "index": index,
+                    "id": call.id,
+                    "type": "function",
+                    "function": {
+                        "name": call.name,
+                        "arguments": arguments_to_tool_call_string(&call.arguments),
+                    }
                 })
             })
-            .collect::<Result<Vec<_>>>()
-            .and_then(|tool_calls| {
-                serde_json::to_string(&json!({
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": self.created,
-                    "model": self.model,
-                    "system_fingerprint": self.system_fingerprint,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant",
-                                "tool_calls": tool_calls,
-                            },
-                            "logprobs": null,
-                            "finish_reason": null
-                        }
-                    ]
-                }))
-                .context("serializing tool-calls chunk")
-            })
+            .collect::<Vec<_>>();
+
+        json!({
+            "id": request_id,
+            "object": "chat.completion.chunk",
+            "created": self.created,
+            "model": self.model,
+            "system_fingerprint": self.system_fingerprint,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "role": "assistant",
+                        "tool_calls": tool_calls,
+                    },
+                    "logprobs": null,
+                    "finish_reason": null
+                }
+            ]
+        })
+        .to_string()
     }
 
-    fn finish_chunk(&self, request_id: &str, finish_reason: &str) -> Result<String> {
-        serde_json::to_string(&json!({
+    fn finish_chunk(&self, request_id: &str, finish_reason: &str) -> String {
+        json!({
             "id": request_id,
             "object": "chat.completion.chunk",
             "created": self.created,
@@ -113,12 +104,12 @@ impl OpenAIStreamingResponseTransformer {
                     "finish_reason": finish_reason
                 }
             ]
-        }))
-        .context("serializing finish chunk")
+        })
+        .to_string()
     }
 
-    fn usage_chunk(&self, request_id: &str, usage: &TokenUsage) -> Result<String> {
-        serde_json::to_string(&json!({
+    fn usage_chunk(&self, request_id: &str, usage: &TokenUsage) -> String {
+        json!({
             "id": request_id,
             "object": "chat.completion.chunk",
             "created": self.created,
@@ -126,49 +117,44 @@ impl OpenAIStreamingResponseTransformer {
             "system_fingerprint": self.system_fingerprint,
             "choices": [],
             "usage": openai_usage_json(usage),
-        }))
-        .context("serializing usage chunk")
+        })
+        .to_string()
     }
 
-    fn handle_content(&self, request_id: &str, text: &str) -> Result<Vec<TransformResult>> {
-        self.content_chunk(request_id, text)
-            .map(|chunk| vec![TransformResult::Chunk(chunk)])
+    fn handle_content(&self, request_id: &str, text: &str) -> Vec<TransformResult> {
+        vec![TransformResult::Chunk(self.content_chunk(request_id, text))]
     }
 
     fn handle_tool_call_parsed(
         &self,
         request_id: &str,
         parsed_calls: &[ParsedToolCall],
-    ) -> Result<Vec<TransformResult>> {
+    ) -> Vec<TransformResult> {
         if parsed_calls.is_empty() {
-            return Ok(vec![]);
+            return vec![];
         }
 
         self.state.lock().saw_tool_call = true;
 
-        self.tool_calls_chunk(request_id, parsed_calls)
-            .map(|chunk| vec![TransformResult::Chunk(chunk)])
+        vec![TransformResult::Chunk(
+            self.tool_calls_chunk(request_id, parsed_calls),
+        )]
     }
 
-    fn handle_done(
-        &self,
-        request_id: &str,
-        summary: &GenerationSummary,
-    ) -> Result<Vec<TransformResult>> {
+    fn handle_done(&self, request_id: &str, summary: &GenerationSummary) -> Vec<TransformResult> {
         let saw_tool_call = self.state.lock().saw_tool_call;
         let finish_reason = if saw_tool_call { "tool_calls" } else { "stop" };
 
-        self.finish_chunk(request_id, finish_reason)
-            .and_then(|finish_chunk| {
-                let finish = TransformResult::Chunk(finish_chunk);
+        let finish = TransformResult::Chunk(self.finish_chunk(request_id, finish_reason));
 
-                if self.include_usage {
-                    self.usage_chunk(request_id, &summary.usage)
-                        .map(|usage_chunk| vec![finish, TransformResult::Chunk(usage_chunk)])
-                } else {
-                    Ok(vec![finish])
-                }
-            })
+        if self.include_usage {
+            vec![
+                finish,
+                TransformResult::Chunk(self.usage_chunk(request_id, &summary.usage)),
+            ]
+        } else {
+            vec![finish]
+        }
     }
 }
 
@@ -177,10 +163,6 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
     type Output = TransformResult;
 
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-        if let Some(error_chunk) = try_universal_error_chunk(&message) {
-            return Ok(vec![error_chunk]);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
@@ -190,7 +172,7 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                         | GeneratedTokenResult::UndeterminableToken(text),
                     ),
                 ..
-            }) => self.handle_content(&request_id, &text),
+            }) => Ok(self.handle_content(&request_id, &text)),
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
                     OutgoingResponse::GeneratedToken(
@@ -204,15 +186,13 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 response:
                     OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
                 ..
-            }) => self.handle_tool_call_parsed(&request_id, &parsed_calls),
+            }) => Ok(self.handle_tool_call_parsed(&request_id, &parsed_calls)),
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
                 ..
-            }) => self.handle_done(&request_id, &summary),
-            other => Err(anyhow!(
-                "OpenAIStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-            )),
+            }) => Ok(self.handle_done(&request_id, &summary)),
+            other => Ok(try_universal_error_chunk(&other).into_iter().collect()),
         }
     }
 }
@@ -221,10 +201,10 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
 mod tests {
     use std::sync::Arc;
 
-    use anyhow::Result;
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
+    use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
@@ -304,65 +284,35 @@ mod tests {
         )
     }
 
-    pub fn assert_chunk_contains(result: &TransformResult, expected: &str) -> Result<()> {
-        let TransformResult::Chunk(content) = result else {
-            anyhow::bail!("expected TransformResult::Chunk, got TransformResult::Error");
-        };
+    pub fn assert_chunk_contains(result: &TransformResult, expected: &str) {
+        let content = result.chunk_body().expect("expected a chunk");
 
         assert!(
             content.contains(expected),
             "chunk does not contain '{expected}': {content}"
         );
-
-        Ok(())
     }
 
-    pub fn assert_chunk_does_not_contain(result: &TransformResult, expected: &str) -> Result<()> {
-        let TransformResult::Chunk(content) = result else {
-            anyhow::bail!("expected TransformResult::Chunk, got TransformResult::Error");
-        };
+    pub fn assert_chunk_does_not_contain(result: &TransformResult, expected: &str) {
+        let content = result.chunk_body().expect("expected a chunk");
 
         assert!(
             !content.contains(expected),
             "chunk unexpectedly contains '{expected}': {content}"
         );
-
-        Ok(())
     }
 
-    pub fn assert_error_contains(result: &TransformResult, expected: &str) -> Result<()> {
-        let TransformResult::Error(content) = result else {
-            anyhow::bail!("expected TransformResult::Error, got TransformResult::Chunk");
-        };
+    pub fn assert_openai_error(
+        result: &TransformResult,
+        expected_type: &str,
+        expected_message: &str,
+    ) {
+        let body = result.error_body().expect("expected an error");
+        let envelope: serde_json::Value =
+            serde_json::from_str(body).expect("error body must be valid JSON");
 
-        assert!(
-            content.contains(expected),
-            "error does not contain '{expected}': {content}"
-        );
-
-        Ok(())
-    }
-
-    pub fn assert_chunk_body_contains(result: &TransformResult, expected: &str) {
-        let TransformResult::Chunk(content) = result else {
-            panic!("expected a chunk variant");
-        };
-
-        assert!(
-            content.contains(expected),
-            "chunk does not contain '{expected}': {content}"
-        );
-    }
-
-    pub fn assert_error_body_contains(result: &TransformResult, expected: &str) {
-        let TransformResult::Error(content) = result else {
-            panic!("expected an error variant");
-        };
-
-        assert!(
-            content.contains(expected),
-            "error does not contain '{expected}': {content}"
-        );
+        assert_eq!(envelope["error"]["type"], expected_type);
+        assert_eq!(envelope["error"]["message"], expected_message);
     }
 
     fn streaming_transformer(include_usage: bool) -> OpenAIStreamingResponseTransformer {
@@ -376,198 +326,206 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn streaming_content_token_emits_content_delta() -> Result<()> {
+    async fn streaming_embedding_response_becomes_an_error_chunk() {
+        let message = OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "test-request".to_owned(),
+            response: OutgoingResponse::Embedding(EmbeddingResult::Done),
+        });
+
+        let results = streaming_transformer(false)
+            .transform(message)
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_openai_error(
+            &results[0],
+            "invalid_request_error",
+            "unexpected embedding response in chat completions",
+        );
+    }
+
+    #[tokio::test]
+    async fn streaming_content_token_emits_content_delta() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ContentToken("hello".to_owned()));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"content\":\"hello\"")?;
-        assert_chunk_contains(&chunks[0], "\"role\":\"assistant\"")?;
-        assert_chunk_does_not_contain(&chunks[0], "reasoning_content")?;
-
-        Ok(())
+        assert_chunk_contains(&chunks[0], "\"content\":\"hello\"");
+        assert_chunk_contains(&chunks[0], "\"role\":\"assistant\"");
+        assert_chunk_does_not_contain(&chunks[0], "reasoning_content");
     }
 
     #[tokio::test]
-    async fn streaming_reasoning_token_is_dropped() -> Result<()> {
+    async fn streaming_reasoning_token_is_dropped() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ReasoningToken("thought".to_owned()));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 0);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn streaming_undeterminable_token_emits_content_delta() -> Result<()> {
+    async fn streaming_undeterminable_token_emits_content_delta() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::UndeterminableToken(
             "ambig".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"content\":\"ambig\"")?;
-        assert_chunk_does_not_contain(&chunks[0], "reasoning_content")?;
-
-        Ok(())
+        assert_chunk_contains(&chunks[0], "\"content\":\"ambig\"");
+        assert_chunk_does_not_contain(&chunks[0], "reasoning_content");
     }
 
     #[tokio::test]
-    async fn streaming_tool_call_token_is_silently_dropped() -> Result<()> {
+    async fn streaming_tool_call_token_is_silently_dropped() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::ToolCallToken(
                 "{".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 0);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn streaming_tool_call_parsed_emits_structured_tool_calls_chunk() -> Result<()> {
+    async fn streaming_tool_call_parsed_emits_structured_tool_calls_chunk() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::ToolCallParsed(vec![
                 weather_call(),
             ])))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"tool_calls\"")?;
-        assert_chunk_contains(&chunks[0], "\"id\":\"call_x\"")?;
-        assert_chunk_contains(&chunks[0], "\"name\":\"get_weather\"")?;
+        assert_chunk_contains(&chunks[0], "\"tool_calls\"");
+        assert_chunk_contains(&chunks[0], "\"id\":\"call_x\"");
+        assert_chunk_contains(&chunks[0], "\"name\":\"get_weather\"");
         assert_chunk_contains(
             &chunks[0],
             "\"arguments\":\"{\\\"location\\\":\\\"Paris\\\"}\"",
-        )?;
-
-        Ok(())
+        );
     }
 
     #[tokio::test]
-    async fn streaming_done_after_tool_call_uses_tool_calls_finish_reason() -> Result<()> {
+    async fn streaming_done_after_tool_call_uses_tool_calls_finish_reason() {
         let transformer = streaming_transformer(false);
 
         transformer
             .transform(token_message(GeneratedTokenResult::ToolCallParsed(vec![
                 weather_call(),
             ])))
-            .await?;
+            .await
+            .unwrap();
 
         let summary = summary_with_counts(2, 0, 0);
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"tool_calls\"")?;
-
-        Ok(())
+        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"tool_calls\"");
     }
 
     #[tokio::test]
-    async fn streaming_done_without_tool_call_uses_stop_finish_reason() -> Result<()> {
+    async fn streaming_done_without_tool_call_uses_stop_finish_reason() {
         let transformer = streaming_transformer(false);
 
         transformer
             .transform(token_message(GeneratedTokenResult::ContentToken(
                 "hi".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         let summary = summary_with_counts(2, 1, 0);
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"")?;
-
-        Ok(())
+        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"");
     }
 
     #[tokio::test]
-    async fn streaming_done_with_include_usage_emits_finish_then_usage_chunk() -> Result<()> {
+    async fn streaming_done_with_include_usage_emits_finish_then_usage_chunk() {
         let transformer = streaming_transformer(true);
         let summary = summary_with_counts(7, 4, 1);
 
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 2);
-        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"")?;
-        assert_chunk_does_not_contain(&chunks[0], "usage")?;
-        assert_chunk_contains(&chunks[1], "\"prompt_tokens\":7")?;
-        assert_chunk_contains(&chunks[1], "\"completion_tokens\":5")?;
-        assert_chunk_contains(&chunks[1], "\"total_tokens\":12")?;
-        assert_chunk_contains(&chunks[1], "\"choices\":[]")?;
-
-        Ok(())
+        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"");
+        assert_chunk_does_not_contain(&chunks[0], "usage");
+        assert_chunk_contains(&chunks[1], "\"prompt_tokens\":7");
+        assert_chunk_contains(&chunks[1], "\"completion_tokens\":5");
+        assert_chunk_contains(&chunks[1], "\"total_tokens\":12");
+        assert_chunk_contains(&chunks[1], "\"choices\":[]");
     }
 
     #[tokio::test]
-    async fn streaming_done_without_include_usage_emits_only_finish_chunk() -> Result<()> {
+    async fn streaming_done_without_include_usage_emits_only_finish_chunk() {
         let transformer = streaming_transformer(false);
         let summary = summary_with_counts(5, 3, 2);
 
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::Done(summary)))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"")?;
-        assert_chunk_does_not_contain(&chunks[0], "usage")?;
-
-        Ok(())
+        assert_chunk_contains(&chunks[0], "\"finish_reason\":\"stop\"");
+        assert_chunk_does_not_contain(&chunks[0], "usage");
     }
 
     #[tokio::test]
-    async fn streaming_tool_call_parse_failed_emits_server_error() -> Result<()> {
+    async fn streaming_tool_call_parse_failed_emits_server_error() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
             .transform(token_message(GeneratedTokenResult::ToolCallParseFailed(
                 "bad payload".to_owned(),
             )))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "bad payload")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "bad payload");
     }
 
     #[tokio::test]
-    async fn streaming_tool_call_validation_failed_emits_server_error() -> Result<()> {
+    async fn streaming_tool_call_validation_failed_emits_server_error() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
             .transform(token_message(
                 GeneratedTokenResult::ToolCallValidationFailed(vec!["missing field x".to_owned()]),
             ))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "missing field x")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "missing field x");
     }
 
     #[tokio::test]
-    async fn streaming_unrecognized_tool_call_format_emits_server_error() -> Result<()> {
+    async fn streaming_unrecognized_tool_call_format_emits_server_error() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
@@ -579,108 +537,93 @@ mod tests {
                     },
                 ),
             ))
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "common_chat_parse failed: no parser")?;
-        assert_error_contains(&chunks[0], "<unknown_marker>blah</unknown_marker>")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(
+            &chunks[0],
+            "server_error",
+            "model produced output the parser did not recognise as any registered tool-call \
+             format; FFI error: common_chat_parse failed: no parser; raw text: \
+             <unknown_marker>blah</unknown_marker>",
+        );
     }
 
     #[tokio::test]
-    async fn streaming_error_message_returns_error_variant() -> Result<()> {
+    async fn streaming_error_message_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = error_message(500, "internal server error");
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "internal server error")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "internal server error");
     }
 
     #[tokio::test]
-    async fn streaming_chat_template_error_returns_error_variant() -> Result<()> {
+    async fn streaming_chat_template_error_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ChatTemplateError(
             "bad template".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "bad template")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "bad template");
     }
 
     #[tokio::test]
-    async fn streaming_timeout_returns_error_variant() -> Result<()> {
+    async fn streaming_timeout_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = response_message(OutgoingResponse::Timeout);
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "request timed out")?;
-        assert_error_contains(&chunks[0], "timeout")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "timeout", "request timed out");
     }
 
     #[tokio::test]
-    async fn streaming_too_many_buffered_requests_returns_error_variant() -> Result<()> {
+    async fn streaming_too_many_buffered_requests_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = response_message(OutgoingResponse::TooManyBufferedRequests);
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "too many buffered requests")?;
-        assert_error_contains(&chunks[0], "rate_limit_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "rate_limit_error", "too many buffered requests");
     }
 
     #[tokio::test]
-    async fn streaming_image_decoding_failed_returns_error_variant() -> Result<()> {
+    async fn streaming_image_decoding_failed_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ImageDecodingFailed(
             "unsupported format".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "unsupported format")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "unsupported format");
     }
 
     #[tokio::test]
-    async fn streaming_multimodal_not_supported_returns_error_variant() -> Result<()> {
+    async fn streaming_multimodal_not_supported_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::MultimodalNotSupported(
             "model does not support images".to_owned(),
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "model does not support images")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(&chunks[0], "server_error", "model does not support images");
     }
 
     #[tokio::test]
-    async fn streaming_image_exceeds_batch_size_returns_error_variant() -> Result<()> {
+    async fn streaming_image_exceeds_batch_size_returns_error_variant() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ImageExceedsBatchSize(
@@ -689,14 +632,14 @@ mod tests {
                 n_batch: 100,
             },
         ));
-        let chunks = transformer.transform(message).await?;
+        let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "368")?;
-        assert_error_contains(&chunks[0], "100")?;
-        assert_error_contains(&chunks[0], "server_error")?;
-
-        Ok(())
+        assert_openai_error(
+            &chunks[0],
+            "server_error",
+            "image required 368 tokens but agent n_batch is 100; rerun with a larger n_batch",
+        );
     }
 
     #[tokio::test]
@@ -711,8 +654,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "{not valid json");
-        assert_chunk_body_contains(&chunks[0], "\"name\":\"broken_tool\"");
+        assert_chunk_contains(&chunks[0], "{not valid json");
+        assert_chunk_contains(&chunks[0], "\"name\":\"broken_tool\"");
     }
 
     #[tokio::test]
@@ -739,9 +682,9 @@ mod tests {
         let chunks = transformer.transform(message).await.unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
-        assert_error_body_contains(
+        assert_openai_error(
             &chunks[0],
+            "invalid_request_error",
             "unexpected embedding response in chat completions",
         );
     }
@@ -760,8 +703,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "grammar conflicts with thinking");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_openai_error(
+            &chunks[0],
+            "server_error",
+            "grammar conflicts with thinking",
+        );
     }
 
     #[tokio::test]
@@ -778,7 +724,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "output rejected by grammar");
+        assert_openai_error(&chunks[0], "server_error", "output rejected by grammar");
     }
 
     #[tokio::test]
@@ -795,7 +741,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "could not build grammar");
+        assert_openai_error(&chunks[0], "server_error", "could not build grammar");
     }
 
     #[tokio::test]
@@ -810,7 +756,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "bad grammar syntax");
+        assert_openai_error(&chunks[0], "server_error", "bad grammar syntax");
     }
 
     #[tokio::test]
@@ -825,7 +771,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "sampler blew up");
+        assert_openai_error(&chunks[0], "server_error", "sampler blew up");
     }
 
     #[tokio::test]
@@ -840,6 +786,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "schema is not valid");
+        assert_openai_error(&chunks[0], "server_error", "schema is not valid");
     }
 }

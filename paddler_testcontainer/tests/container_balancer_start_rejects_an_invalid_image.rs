@@ -12,9 +12,12 @@ async fn started_balancer_start_fails_for_an_invalid_image_reference() -> Result
         tag: "does-not-exist".to_owned(),
     };
 
-    let result =
-        StartedBalancer::start("paddler-test", &invalid_image, &BalancerServiceConfig::default())
-            .await;
+    let result = StartedBalancer::start(
+        "paddler-test",
+        &invalid_image,
+        &BalancerServiceConfig::default(),
+    )
+    .await;
 
     assert!(result.is_err());
 

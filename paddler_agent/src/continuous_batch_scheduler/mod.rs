@@ -14,6 +14,8 @@ pub mod emit_token_outcome;
 pub mod emit_token_phase;
 pub mod generating_contribution;
 pub mod ingesting_contribution;
+pub mod largest_evictable_sequence_index;
+pub mod multimodal_ingest_outcome;
 pub mod sample_outcome;
 pub mod sample_token_phase;
 pub mod tool_call_pass;
@@ -29,11 +31,9 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
-use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use log::debug;
@@ -43,7 +43,6 @@ use log::warn;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
-use paddler_messaging::oversized_image_details::OversizedImageDetails;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -52,9 +51,15 @@ use rand::rngs::ThreadRng;
 use tokio::sync::mpsc;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
+use self::advance_generating_phase::completion_from_sample_outcome;
 use self::assemble_batch_phase::AssembleBatchPhase;
 use self::batch_pass::BatchPass;
 use self::decode_outcome::DecodeOutcome;
+use self::largest_evictable_sequence_index::largest_evictable_sequence_index;
+use self::multimodal_ingest_outcome::MultimodalIngestOutcome;
+use self::multimodal_ingest_outcome::multimodal_ingest_outcome;
+use self::sample_outcome::SampleOutcome;
+use self::sample_token_phase::sample_outcome_from_sampling;
 use self::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
 use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
@@ -71,7 +76,6 @@ use crate::prepare_conversation_history_request::prepare_conversation_history_re
 use crate::prepared_conversation_history_request::PreparedConversationHistoryRequest;
 use crate::resolve_grammar::resolve_grammar;
 use crate::sample_token_at_batch_index::sample_token_at_batch_index;
-use crate::sampling_outcome::SamplingOutcome;
 use crate::sequence_id_pool::SequenceIdPool;
 use crate::slot_guard::SlotGuard;
 use crate::tool_call_pipeline::ToolCallPipeline;
@@ -109,7 +113,7 @@ impl ContinuousBatchScheduler {
         command_rx: Receiver<ContinuousBatchSchedulerCommand>,
         scheduler_context: Arc<ContinuousBatchSchedulerContext>,
         llama_context: LlamaContext,
-        max_concurrent_sequences: i32,
+        max_concurrent_sequences: u16,
     ) -> Self {
         let llama_context = unsafe {
             std::mem::transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context)
@@ -416,10 +420,6 @@ impl ContinuousBatchScheduler {
                     "tool {tool_name:?} parameters are not a valid JSON Schema: {message}"
                 )));
             }
-            Err(err @ ValidatorBuildError::SerializationFailed { .. }) => {
-                return Err(anyhow::Error::from(err))
-                    .context("failed to serialize tool parameters during validator build");
-            }
         };
 
         let tools_json: Vec<serde_json::Value> = tools
@@ -429,8 +429,7 @@ impl ContinuousBatchScheduler {
             .context("failed to serialize tools to JSON")?;
 
         let pipeline =
-            ToolCallPipeline::new(self.scheduler_context.model.clone(), &tools_json, validator)
-                .context("failed to serialize tools for tool-call pipeline")?;
+            ToolCallPipeline::new(self.scheduler_context.model.clone(), &tools_json, validator);
 
         Ok(ToolCallPipelineBuildOutcome::Ready(pipeline))
     }
@@ -683,54 +682,35 @@ impl ContinuousBatchScheduler {
 
         let mut token_classifier = self.build_token_classifier_for_active_request()?;
 
-        let batch_size_i32 = i32::try_from(batch_size).context("batch_size does not fit in i32")?;
+        let batch_size_i32 = i32::try_from(batch_size).unwrap_or(i32::MAX);
 
         let eval_outcome = token_classifier.eval_multimodal_chunks(
             &input_chunks,
             multimodal_context,
             &self.llama_context,
             0,
-            sequence_id,
+            i32::from(sequence_id),
             batch_size_i32,
             true,
         );
 
-        let tokens_ingested = match eval_outcome {
-            Ok(tokens_ingested) => tokens_ingested,
-            Err(EvalMultimodalChunksError::EvalFailed(
-                MtmdEvalError::ImageChunkExceedsBatchSize(mismatch),
-            )) => {
-                warn!(
-                    "{:?}: refused multimodal request: image chunk has {} tokens but n_batch is {}",
-                    self.scheduler_context.agent_name, mismatch.image_tokens, mismatch.n_batch,
-                );
-
-                self.sequence_id_pool.release(sequence_id);
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
-                        image_tokens: mismatch.image_tokens,
-                        n_batch: mismatch.n_batch,
-                    }),
-                );
-
-                return Ok(());
-            }
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to ingest multimodal prompt: {err}",
+        let tokens_ingested = match multimodal_ingest_outcome(
+            eval_outcome,
+            self.scheduler_context.agent_name.as_deref(),
+        ) {
+            MultimodalIngestOutcome::Ingested(tokens_ingested) => tokens_ingested,
+            MultimodalIngestOutcome::Rejected(event) => {
+                error!(
+                    "{:?}: rejected multimodal request: {event:?}",
                     self.scheduler_context.agent_name
                 );
 
-                error!("{message}");
                 self.sequence_id_pool.release(sequence_id);
 
                 send_generated_token_result_or_warn(
                     self.scheduler_context.agent_name.as_deref(),
                     &generated_tokens_tx,
-                    GeneratedTokenResult::SamplerError(message),
+                    event,
                 );
 
                 return Ok(());
@@ -794,18 +774,19 @@ impl ContinuousBatchScheduler {
                 continue;
             };
 
-            match sample_token_at_batch_index(
+            let sample_outcome = sample_token_at_batch_index(
                 &self.llama_context,
                 batch_index,
                 &mut active_request.chain,
                 &mut active_request.grammar_sampler,
-            ) {
-                Ok(SamplingOutcome::Token(raw_token)) => {
-                    // Update classifier state (section / usage counters) but drop the
-                    // outcomes — harvest-sampled tokens are funnelled into the next
-                    // batch via `pending_sampled_token`; their user-visible emission
-                    // happens in `advance_generating_phase` after the next decode,
-                    // not here.
+            )
+            .map_or_else(
+                |sampling_error| SampleOutcome::Failed(sampling_error.to_string()),
+                sample_outcome_from_sampling,
+            );
+
+            match completion_from_sample_outcome(sample_outcome) {
+                Ok(raw_token) => {
                     if let Err(error) = active_request.token_classifier.ingest(raw_token) {
                         error!(
                             "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
@@ -823,36 +804,14 @@ impl ContinuousBatchScheduler {
                         Some(llama_cpp_bindings::SampledToken::Content(raw_token));
                     active_request.state.i_batch = None;
                 }
-                Ok(SamplingOutcome::AllCandidatesEliminated) => {
+                Err(generated_token_result) => {
                     error!(
-                        "{:?}: sequence {} pre-eval harvest exhausted candidates",
+                        "{:?}: sequence {} pre-eval harvest completed early during sampling",
                         self.scheduler_context.agent_name, active_request.state.sequence_id
                     );
                     active_request.complete_with_outcome(
                         self.scheduler_context.agent_name.as_deref(),
-                        GeneratedTokenResult::SamplerError(
-                            "all token candidates were eliminated during sampling".to_owned(),
-                        ),
-                    );
-                }
-                Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest grammar rejected: {message}",
-                        self.scheduler_context.agent_name, active_request.state.sequence_id
-                    );
-                    active_request.complete_with_outcome(
-                        self.scheduler_context.agent_name.as_deref(),
-                        GeneratedTokenResult::GrammarRejectedModelOutput(message),
-                    );
-                }
-                Err(err) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest sampling error: {err:#}",
-                        self.scheduler_context.agent_name, active_request.state.sequence_id
-                    );
-                    active_request.complete_with_outcome(
-                        self.scheduler_context.agent_name.as_deref(),
-                        GeneratedTokenResult::SamplerError(err.to_string()),
+                        generated_token_result,
                     );
                 }
             }
@@ -922,8 +881,7 @@ impl ContinuousBatchScheduler {
         loop {
             let max_sequences = self.active_requests.len();
 
-            let max_sequences_i32 = i32::try_from(max_sequences.max(1))
-                .context("max sequence count does not fit in i32")?;
+            let max_sequences_i32 = i32::try_from(max_sequences.max(1)).unwrap_or(i32::MAX);
             let mut pass = BatchPass::new(n_batch, max_sequences_i32)?;
 
             assemble_phase.run(&mut pass, &mut self.active_requests)?;
@@ -941,7 +899,12 @@ impl ContinuousBatchScheduler {
 
             match decode_batch_phase::run(&mut pass, &mut self.llama_context) {
                 DecodeOutcome::Decoded => {
-                    commit_phase::run(pass, &mut self.active_requests)?;
+                    let mut request_states: Vec<&mut ContinuousBatchRequestState> = self
+                        .active_requests
+                        .iter_mut()
+                        .map(|request| &mut request.state)
+                        .collect();
+                    commit_phase::run(pass.contributions, &mut request_states)?;
 
                     return Ok(());
                 }
@@ -971,24 +934,17 @@ impl ContinuousBatchScheduler {
     }
 
     fn evict_largest_sequence(&mut self) {
-        let mut largest_seq_index: Option<usize> = None;
-        let mut largest_position: i32 = -1;
+        let eviction_index = {
+            let request_states: Vec<&ContinuousBatchRequestState> = self
+                .active_requests
+                .iter()
+                .map(|active_request| &active_request.state)
+                .collect();
 
-        for (index, active_request) in self.active_requests.iter().enumerate() {
-            if matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Completed
-            ) {
-                continue;
-            }
+            largest_evictable_sequence_index(&request_states)
+        };
 
-            if active_request.state.current_token_position > largest_position {
-                largest_position = active_request.state.current_token_position;
-                largest_seq_index = Some(index);
-            }
-        }
-
-        if let Some(eviction_index) = largest_seq_index {
+        if let Some(eviction_index) = eviction_index {
             let evicted_request = &mut self.active_requests[eviction_index];
 
             warn!(
@@ -1001,9 +957,7 @@ impl ContinuousBatchScheduler {
             send_generated_token_result_or_warn(
                 self.scheduler_context.agent_name.as_deref(),
                 &evicted_request.generated_tokens_tx,
-                GeneratedTokenResult::SamplerError(
-                    "Request evicted due to KV cache pressure".to_owned(),
-                ),
+                GeneratedTokenResult::SequenceEvictedUnderKvCachePressure,
             );
 
             evicted_request.state.phase = ContinuousBatchRequestPhase::Completed;
@@ -1027,28 +981,14 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn clear_kv_cache_for_sequence(&mut self, sequence_id: i32) {
-        let sequence_id_u32 = match u32::try_from(sequence_id) {
-            Ok(sequence_id_u32) => sequence_id_u32,
-            Err(err) => {
-                error!(
-                    "{:?}: sequence id {sequence_id} does not fit in u32: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                return;
-            }
-        };
-
-        if let Err(err) = self
-            .llama_context
-            .clear_kv_cache_seq(Some(sequence_id_u32), None, None)
-        {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
-                self.scheduler_context.agent_name
-            );
-        }
+    #[expect(
+        clippy::expect_used,
+        reason = "clearing the KV cache for a u16 sequence id is infallible: clear_kv_cache_seq's only error is i32::try_from overflow on the sequence id, which a u16 can never trigger; rust.md sanctions .expect() when integrating the llama.cpp C++ library"
+    )]
+    fn clear_kv_cache_for_sequence(&mut self, sequence_id: u16) {
+        self.llama_context
+            .clear_kv_cache_seq(Some(u32::from(sequence_id)), None, None)
+            .expect("clearing the KV cache for a u16 sequence id is infallible");
     }
 
     fn cleanup_completed_request(&mut self, index: usize) {

@@ -38,13 +38,8 @@ impl InferenceClientHttp {
     pub async fn continue_from_conversation_history_collected(
         self,
         params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    ) -> anyhow::Result<CollectedGeneratedTokens> {
-        collect_generated_tokens(
-            self.continue_from_conversation_history(params)
-                .await
-                .map_err(anyhow::Error::new)?,
-        )
-        .await
+    ) -> Result<CollectedGeneratedTokens> {
+        collect_generated_tokens(self.continue_from_conversation_history(params).await?).await
     }
 
     pub async fn continue_from_raw_prompt(
@@ -57,13 +52,8 @@ impl InferenceClientHttp {
     pub async fn continue_from_raw_prompt_collected(
         self,
         params: &ContinueFromRawPromptParams,
-    ) -> anyhow::Result<CollectedGeneratedTokens> {
-        collect_generated_tokens(
-            self.continue_from_raw_prompt(params)
-                .await
-                .map_err(anyhow::Error::new)?,
-        )
-        .await
+    ) -> Result<CollectedGeneratedTokens> {
+        collect_generated_tokens(self.continue_from_raw_prompt(params).await?).await
     }
 
     pub async fn generate_embedding_batch(
@@ -76,13 +66,8 @@ impl InferenceClientHttp {
     pub async fn generate_embedding_batch_collected(
         self,
         params: &GenerateEmbeddingBatchParams,
-    ) -> anyhow::Result<CollectedEmbeddingResults> {
-        collect_embedding_results(
-            self.generate_embedding_batch(params)
-                .await
-                .map_err(anyhow::Error::new)?,
-        )
-        .await
+    ) -> Result<CollectedEmbeddingResults> {
+        collect_embedding_results(self.generate_embedding_batch(params).await?).await
     }
 
     async fn post<TBody>(&self, path: &str, body: &TBody) -> Result<InferenceMessageStream>

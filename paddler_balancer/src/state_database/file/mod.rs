@@ -71,8 +71,7 @@ impl File {
         let balancer_desired_state = schema.balancer_desired_state.clone();
         let _lock = self.write_lock.write().await;
 
-        let serialized_schema = serde_json::to_string_pretty(schema)
-            .context("Failed to serialize the state database schema")?;
+        let serialized_schema = schema.to_json_string();
         let mut file = tokio::fs::File::create(&self.path).await?;
 
         file.write_all(serialized_schema.as_bytes()).await?;

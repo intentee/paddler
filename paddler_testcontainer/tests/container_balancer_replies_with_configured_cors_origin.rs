@@ -24,7 +24,10 @@ async fn container_balancer_replies_with_configured_cors_origin() -> Result<()> 
     )
     .await?;
 
-    let preflight = cluster.inference_client.cors_preflight(ALLOWED_ORIGIN).await?;
+    let preflight = cluster
+        .inference_client
+        .cors_preflight(ALLOWED_ORIGIN)
+        .await?;
 
     assert_eq!(preflight.status, 200);
     assert_eq!(preflight.allow_origin, ALLOWED_ORIGIN);

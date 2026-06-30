@@ -10,7 +10,6 @@ use actix_web::rt;
 use actix_web::web;
 use anyhow::Result;
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::stream::StreamExt;
 use nanoid::nanoid;
 use paddler_messaging::embedding_result::EmbeddingResult;
@@ -32,6 +31,7 @@ use crate::chunk_forwarding_session_controller::transforms_outgoing_message::Tra
 use crate::controls_session::ControlsSession as _;
 use crate::inference_service::app_data::AppData;
 use crate::request_from_agent::request_from_agent;
+use crate::sse_line_bytes::sse_line_bytes;
 
 #[derive(Clone)]
 struct EmbeddingChunkBodyTransformer;
@@ -154,12 +154,7 @@ async fn respond(
     let stream =
         CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
             .filter_map(|transform_result| async move {
-                match transform_result {
-                    TransformResult::Chunk(content) | TransformResult::Error(content) => {
-                        Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
-                    }
-                    TransformResult::Discard => None,
-                }
+                sse_line_bytes(transform_result).map(Ok::<_, Error>)
             });
 
     Ok(HttpResponse::Ok()

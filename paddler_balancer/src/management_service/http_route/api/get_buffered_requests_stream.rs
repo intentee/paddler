@@ -1,4 +1,3 @@
-use std::convert::Infallible;
 use std::time::Duration;
 
 use actix_web::Error;
@@ -7,9 +6,9 @@ use actix_web::get;
 use actix_web::web;
 use actix_web_lab::sse;
 use futures::StreamExt as _;
-use log::error;
 
 use crate::management_service::app_data::AppData;
+use crate::serialize_snapshot_event::serialize_snapshot_event;
 use crate::snapshots_stream::snapshots_stream;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -22,15 +21,7 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
         app_data.buffered_request_manager.clone(),
         app_data.shutdown.clone(),
     )
-    .filter_map(|snapshot| async move {
-        match serde_json::to_string(&snapshot) {
-            Ok(json) => Some(Ok::<_, Infallible>(sse::Event::Data(sse::Data::new(json)))),
-            Err(err) => {
-                error!("Failed to serialize buffered requests snapshot: {err}");
-                None
-            }
-        }
-    });
+    .filter_map(|snapshot| async move { serialize_snapshot_event(&snapshot) });
 
     Ok(sse::Sse::from_stream(event_stream).with_keep_alive(Duration::from_secs(10)))
 }

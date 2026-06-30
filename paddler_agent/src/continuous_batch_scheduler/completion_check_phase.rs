@@ -52,10 +52,10 @@ mod tests {
     fn negative_max_tokens_reaches_max_tokens() {
         let usage = TokenUsage::new();
 
-        assert!(matches!(
+        assert_eq!(
             max_tokens_outcome(-1, &usage),
             CompletionCheckOutcome::ReachedMaxTokens
-        ));
+        );
     }
 
     #[test]
@@ -65,10 +65,10 @@ mod tests {
             ..TokenUsage::new()
         };
 
-        assert!(matches!(
+        assert_eq!(
             max_tokens_outcome(4, &usage),
             CompletionCheckOutcome::ReachedMaxTokens
-        ));
+        );
     }
 
     #[test]
@@ -78,10 +78,10 @@ mod tests {
             ..TokenUsage::new()
         };
 
-        assert!(matches!(
+        assert_eq!(
             max_tokens_outcome(4, &usage),
             CompletionCheckOutcome::Continue
-        ));
+        );
     }
 
     #[test]

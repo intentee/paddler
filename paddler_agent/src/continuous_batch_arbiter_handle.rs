@@ -1,4 +1,3 @@
-use std::sync::mpsc::SendError;
 use std::sync::mpsc::Sender;
 use std::thread;
 
@@ -14,12 +13,9 @@ pub struct ContinuousBatchArbiterHandle {
 
 impl ContinuousBatchArbiterHandle {
     pub fn shutdown(self) -> Result<()> {
-        if let Err(SendError(_unsent_command)) = self
+        let _ = self
             .command_tx
-            .send(ContinuousBatchSchedulerCommand::Shutdown)
-        {
-            // Scheduler thread already dropped its receiver; join below is authoritative.
-        }
+            .send(ContinuousBatchSchedulerCommand::Shutdown);
 
         self.scheduler_thread_handle
             .join()

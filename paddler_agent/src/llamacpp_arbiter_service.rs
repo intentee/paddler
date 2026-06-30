@@ -31,7 +31,7 @@ async fn apply_state(
     shutdown: &CancellationToken,
     agent_applicable_state: Option<&AgentApplicableState>,
     agent_name: Option<&str>,
-    desired_slots_total: i32,
+    desired_slots_total: u16,
     model_metadata_holder: &Arc<ModelMetadataHolder>,
     slot_aggregated_status_manager: &Arc<SlotAggregatedStatusManager>,
     continuous_batch_arbiter_handle: &mut Option<ContinuousBatchArbiterHandle>,
@@ -101,7 +101,7 @@ async fn try_to_apply_state(
     shutdown: &CancellationToken,
     agent_applicable_state: Option<&AgentApplicableState>,
     agent_name: Option<&str>,
-    desired_slots_total: i32,
+    desired_slots_total: u16,
     model_metadata_holder: &Arc<ModelMetadataHolder>,
     slot_aggregated_status_manager: &Arc<SlotAggregatedStatusManager>,
     continuous_batch_arbiter_handle: &mut Option<ContinuousBatchArbiterHandle>,
@@ -140,7 +140,7 @@ pub struct LlamaCppArbiterService {
     pub continue_from_conversation_history_request_rx:
         mpsc::UnboundedReceiver<ContinueFromConversationHistoryRequest>,
     pub continue_from_raw_prompt_request_rx: mpsc::UnboundedReceiver<ContinueFromRawPromptRequest>,
-    pub desired_slots_total: i32,
+    pub desired_slots_total: u16,
     pub generate_embedding_batch_request_rx: mpsc::UnboundedReceiver<GenerateEmbeddingBatchRequest>,
     pub continuous_batch_arbiter_handle: Option<ContinuousBatchArbiterHandle>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
@@ -251,8 +251,6 @@ mod tests {
     use std::mem::discriminant;
     use std::sync::mpsc::channel as std_channel;
     use std::thread;
-
-    use anyhow::bail;
 
     use super::*;
 
@@ -392,7 +390,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn does_not_exit_when_request_channels_close_without_shutdown() -> Result<()> {
+    async fn does_not_exit_when_request_channels_close_without_shutdown() {
         let observation_window = Duration::from_millis(500);
         let shutdown_grace = Duration::from_secs(5);
 
@@ -421,29 +419,25 @@ mod tests {
         let shutdown = CancellationToken::new();
         let task_token = shutdown.clone();
 
-        let mut join_handle = tokio::spawn(async move { Box::new(service).run(task_token).await });
+        let join_handle = tokio::spawn(async move { Box::new(service).run(task_token).await });
 
         drop(continue_from_conversation_history_request_tx);
         drop(continue_from_raw_prompt_request_tx);
         drop(generate_embedding_batch_request_tx);
 
-        let exited_before_shutdown = tokio::select! {
-            join_result = &mut join_handle => Some(join_result),
-            () = tokio::time::sleep(observation_window) => None,
-        };
+        tokio::time::sleep(observation_window).await;
 
-        if let Some(join_result) = exited_before_shutdown {
-            let inner = join_result.context("service task panicked")?;
-            bail!("service exited on channel closure without shutdown: {inner:?}");
-        }
+        assert!(
+            !join_handle.is_finished(),
+            "service exited on channel closure without shutdown"
+        );
 
         shutdown.cancel();
 
         tokio::time::timeout(shutdown_grace, join_handle)
             .await
-            .context("service did not exit after shutdown")?
-            .context("service task panicked")??;
-
-        Ok(())
+            .expect("service did not exit after shutdown")
+            .expect("service task panicked")
+            .expect("service run returned an error");
     }
 }

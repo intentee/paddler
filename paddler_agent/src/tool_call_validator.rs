@@ -4,13 +4,40 @@ use jsonschema::Validator;
 use jsonschema::validator_for;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::ToolCallArguments;
+use serde_json::Map;
+use serde_json::Value;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-
 use paddler_messaging::tool_call_validation_error::ToolCallValidationError;
 
 use crate::validator_build_error::ValidatorBuildError;
+
+fn schema_to_json_value(schema: &ValidatedParametersSchema) -> Value {
+    let mut schema_object = Map::new();
+
+    schema_object.insert("type".to_owned(), Value::String(schema.schema_type.clone()));
+
+    if let Some(properties) = &schema.properties {
+        schema_object.insert("properties".to_owned(), Value::Object(properties.clone()));
+    }
+
+    if let Some(required) = &schema.required {
+        schema_object.insert(
+            "required".to_owned(),
+            Value::Array(required.iter().cloned().map(Value::String).collect()),
+        );
+    }
+
+    if let Some(additional_properties) = &schema.additional_properties {
+        schema_object.insert(
+            "additionalProperties".to_owned(),
+            additional_properties.clone(),
+        );
+    }
+
+    Value::Object(schema_object)
+}
 
 enum ValidationStrategy {
     JsonObjectOnly,
@@ -34,12 +61,7 @@ impl ToolCallValidator {
             let strategy = match &function.parameters {
                 Parameters::Empty => ValidationStrategy::JsonObjectOnly,
                 Parameters::Schema(schema) => {
-                    let schema_value = serde_json::to_value(schema).map_err(|err| {
-                        ValidatorBuildError::SerializationFailed {
-                            tool_name: function.name.clone(),
-                            message: err.to_string(),
-                        }
-                    })?;
+                    let schema_value = schema_to_json_value(schema);
                     let compiled = validator_for(&schema_value).map_err(|err| {
                         ValidatorBuildError::InvalidSchema {
                             tool_name: function.name.clone(),

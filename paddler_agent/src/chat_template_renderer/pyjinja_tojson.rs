@@ -5,7 +5,7 @@ use minijinja::filters::tojson;
 use minijinja::value::Kwargs;
 
 pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
-    let indent: Option<Value> = kwargs.get("indent")?;
+    let indent: Option<i64> = kwargs.get("indent")?;
 
     let ensure_ascii: Option<bool> = kwargs.get("ensure_ascii")?;
     if matches!(ensure_ascii, Some(true)) {
@@ -37,7 +37,7 @@ pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
 
     let forwarded_kwargs: Kwargs = Kwargs::from_iter(Vec::<(String, Value)>::new());
 
-    tojson(value, indent, forwarded_kwargs)
+    tojson(value, indent.map(Value::from), forwarded_kwargs)
 }
 
 #[cfg(test)]
@@ -206,5 +206,18 @@ mod tests {
         let result = render("{{ value | tojson }}", context! { value => "日本語" });
 
         assert_eq!(result, "\"日本語\"");
+    }
+
+    #[test]
+    fn non_numeric_indent_propagates_kwargs_get_error() {
+        let rendered = render_error_message(
+            "{{ value | tojson(indent='wide') }}",
+            context! { value => "x" },
+        );
+
+        assert!(
+            !rendered.is_empty(),
+            "a non-numeric indent kwarg must surface an error"
+        );
     }
 }

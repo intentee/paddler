@@ -1,15 +1,13 @@
 use std::pin::Pin;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
-use anyhow::bail;
 use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
 use paddler_client::management_client::ManagementClient;
 
+use crate::error::ClusterError;
 use crate::next_matching_snapshot::next_matching_snapshot;
 
 pub struct AgentsStreamWatcher {
@@ -17,12 +15,15 @@ pub struct AgentsStreamWatcher {
 }
 
 impl AgentsStreamWatcher {
-    pub async fn connect(management: &ManagementClient) -> Result<Self> {
-        let raw_stream = management
-            .agents_stream()
-            .await
-            .map_err(anyhow::Error::new)
-            .context("failed to open /api/v1/agents/stream")?;
+    pub async fn connect(management: &ManagementClient) -> std::result::Result<Self, ClusterError> {
+        let raw_stream =
+            management
+                .agents_stream()
+                .await
+                .map_err(|source| ClusterError::StreamOpenFailed {
+                    stream_path: "/api/v1/agents/stream",
+                    source: anyhow::Error::new(source),
+                })?;
 
         let stream = raw_stream.map(|item| item.map_err(anyhow::Error::new));
 
@@ -41,7 +42,7 @@ impl AgentsStreamWatcher {
     pub async fn until<TPredicate>(
         &mut self,
         predicate: TPredicate,
-    ) -> Result<AgentControllerPoolSnapshot>
+    ) -> std::result::Result<AgentControllerPoolSnapshot, ClusterError>
     where
         TPredicate: FnMut(&AgentControllerPoolSnapshot) -> bool,
     {
@@ -52,12 +53,12 @@ impl AgentsStreamWatcher {
         &mut self,
         agent_id: &str,
         mut predicate: TPredicate,
-    ) -> Result<AgentControllerPoolSnapshot>
+    ) -> std::result::Result<AgentControllerPoolSnapshot, ClusterError>
     where
         TPredicate: FnMut(&AgentControllerPoolSnapshot) -> bool,
     {
         while let Some(item) = self.stream.next().await {
-            let snapshot = item.context("agents stream yielded an error")?;
+            let snapshot = item.map_err(|source| ClusterError::SnapshotStreamYielded { source })?;
 
             let agent_present = snapshot
                 .agents
@@ -65,9 +66,9 @@ impl AgentsStreamWatcher {
                 .any(|registered_agent| registered_agent.id == agent_id);
 
             if !agent_present {
-                bail!(
-                    "agent {agent_id} disappeared from the balancer's agent pool before the predicate was satisfied; this means the agent subprocess died or its WebSocket dropped"
-                );
+                return Err(ClusterError::AgentDisappeared {
+                    agent_id: agent_id.to_owned(),
+                });
             }
 
             if predicate(&snapshot) {
@@ -75,16 +76,14 @@ impl AgentsStreamWatcher {
             }
         }
 
-        Err(anyhow!(
-            "agents stream closed before predicate was satisfied"
-        ))
+        Err(ClusterError::SnapshotStreamClosed)
     }
 
     pub async fn wait_for_agent_ready(
         &mut self,
         agent_name: &str,
         expected_slot_count: i32,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> std::result::Result<AgentControllerPoolSnapshot, ClusterError> {
         let predicate_name = agent_name.to_owned();
         let snapshot = self
             .until(move |snapshot| {
@@ -94,8 +93,7 @@ impl AgentsStreamWatcher {
                             || !registered_agent.issues.is_empty())
                 })
             })
-            .await
-            .with_context(|| format!("agent {agent_name:?} did not reach slot readiness"))?;
+            .await?;
 
         let agent_with_issues = snapshot.agents.iter().find(|registered_agent| {
             registered_agent.name.as_deref() == Some(agent_name)
@@ -103,16 +101,19 @@ impl AgentsStreamWatcher {
         });
 
         if let Some(failing_agent) = agent_with_issues {
-            bail!(
-                "agent {agent_name:?} reported issues during startup: {issues:?}",
-                issues = failing_agent.issues,
-            );
+            return Err(ClusterError::AgentReportedIssues {
+                agent_id: agent_name.to_owned(),
+                issues: failing_agent.issues.clone(),
+            });
         }
 
         Ok(snapshot)
     }
 
-    pub async fn wait_for_slots_ready(&mut self, expected_slot_counts: &[i32]) -> Result<()> {
+    pub async fn wait_for_slots_ready(
+        &mut self,
+        expected_slot_counts: &[i32],
+    ) -> std::result::Result<(), ClusterError> {
         let mut expected_sorted: Vec<i32> = expected_slot_counts.to_vec();
         expected_sorted.sort_unstable();
         let expected_agent_count = expected_sorted.len();
@@ -138,21 +139,17 @@ impl AgentsStreamWatcher {
 
                 observed_slot_counts == expected_sorted
             })
-            .await
-            .context("agents did not reach the requested slot counts")?;
+            .await?;
 
-        let agents_with_issues: Vec<String> = snapshot
+        if let Some(failing_agent) = snapshot
             .agents
             .iter()
-            .filter(|agent| !agent.issues.is_empty())
-            .map(|agent| format!("agent {}: {:?}", agent.id, agent.issues))
-            .collect();
-
-        if !agents_with_issues.is_empty() {
-            bail!(
-                "agents reported issues while waiting for slots: {}",
-                agents_with_issues.join("; ")
-            );
+            .find(|agent| !agent.issues.is_empty())
+        {
+            return Err(ClusterError::AgentReportedIssues {
+                agent_id: failing_agent.id.clone(),
+                issues: failing_agent.issues.clone(),
+            });
         }
 
         Ok(())
@@ -163,6 +160,8 @@ impl AgentsStreamWatcher {
 mod tests {
     use std::collections::BTreeSet;
 
+    use anyhow::Context as _;
+    use anyhow::anyhow;
     use futures_util::stream;
     use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
     use paddler_messaging::agent_issue::AgentIssue;
@@ -252,10 +251,10 @@ mod tests {
 
     #[tokio::test]
     async fn until_agent_errors_when_agent_disappears_mid_stream() -> Result<()> {
-        let agent_id = "agent-y";
+        let watched_agent_id = "agent-y";
         let snapshots = vec![
             AgentControllerPoolSnapshot {
-                agents: vec![snapshot_with_agent(agent_id, BTreeSet::new())],
+                agents: vec![snapshot_with_agent(watched_agent_id, BTreeSet::new())],
             },
             AgentControllerPoolSnapshot { agents: vec![] },
         ];
@@ -263,20 +262,17 @@ mod tests {
         let mut watcher = make_watcher(snapshots);
 
         let error = watcher
-            .until_agent(agent_id, |_snapshot| false)
+            .until_agent(watched_agent_id, |_snapshot| false)
             .await
             .err()
             .context("until_agent must surface the disappearance as an error")?;
-        let rendered = format!("{error:#}");
 
-        assert!(
-            rendered.contains("disappeared"),
-            "error must explicitly call out the disappearance, got: {rendered}"
-        );
-        assert!(
-            rendered.contains(agent_id),
-            "error must name the missing agent, got: {rendered}"
-        );
+        match error {
+            ClusterError::AgentDisappeared { agent_id } => {
+                assert_eq!(agent_id.as_str(), watched_agent_id);
+            }
+            other => return Err(anyhow!("expected AgentDisappeared, got {other:?}")),
+        }
 
         Ok(())
     }
@@ -295,12 +291,8 @@ mod tests {
             .await
             .err()
             .context("until_agent must error when the stream ends without a match")?;
-        let rendered = format!("{error:#}");
 
-        assert!(
-            rendered.contains("stream closed"),
-            "error must surface the stream-closed condition, got: {rendered}"
-        );
+        assert!(matches!(error, ClusterError::SnapshotStreamClosed));
 
         Ok(())
     }
@@ -335,10 +327,10 @@ mod tests {
 
     #[tokio::test]
     async fn wait_for_agent_ready_errors_when_named_agent_reports_issues() -> Result<()> {
-        let agent_id = "agent-warm-1";
+        let watched_agent_id = "agent-warm-1";
         let snapshots = vec![AgentControllerPoolSnapshot {
             agents: vec![snapshot_with_agent_and_slots(
-                agent_id,
+                watched_agent_id,
                 unable_to_find_chat_template_issue(),
                 0,
             )],
@@ -347,20 +339,23 @@ mod tests {
         let mut watcher = make_watcher(snapshots);
 
         let error = watcher
-            .wait_for_agent_ready(agent_id, 2)
+            .wait_for_agent_ready(watched_agent_id, 2)
             .await
             .err()
             .context("wait_for_agent_ready must surface agent-side issues as an error")?;
-        let rendered = format!("{error:#}");
 
-        assert!(
-            rendered.contains(agent_id),
-            "error must name the failing agent, got: {rendered}"
-        );
-        assert!(
-            rendered.contains("issues"),
-            "error must mention that issues were registered, got: {rendered}"
-        );
+        match error {
+            ClusterError::AgentReportedIssues { agent_id, issues } => {
+                assert_eq!(agent_id.as_str(), watched_agent_id);
+                assert!(
+                    issues
+                        .iter()
+                        .any(|issue| matches!(issue, AgentIssue::UnableToFindChatTemplate(_))),
+                    "the reported issues must carry the underlying agent issue"
+                );
+            }
+            other => return Err(anyhow!("expected AgentReportedIssues, got {other:?}")),
+        }
 
         Ok(())
     }
@@ -379,18 +374,14 @@ mod tests {
             .await
             .err()
             .context("wait_for_agent_ready must error when the stream ends without a match")?;
-        let rendered = format!("{error:#}");
 
-        assert!(
-            rendered.contains("slot readiness"),
-            "error must mention that slot readiness was not reached, got: {rendered}"
-        );
+        assert!(matches!(error, ClusterError::SnapshotStreamClosed));
 
         Ok(())
     }
 
     #[tokio::test]
-    async fn wait_for_slots_ready_completes_once_observed_counts_match_expected() {
+    async fn wait_for_slots_ready_completes_once_observed_counts_match_expected() -> Result<()> {
         let snapshots = vec![
             AgentControllerPoolSnapshot {
                 agents: vec![snapshot_with_agent_and_slots("a", BTreeSet::new(), 1)],
@@ -405,11 +396,13 @@ mod tests {
 
         let mut watcher = make_watcher(snapshots);
 
-        watcher.wait_for_slots_ready(&[2, 1]).await.unwrap();
+        watcher.wait_for_slots_ready(&[2, 1]).await?;
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn wait_for_slots_ready_errors_when_an_agent_reports_issues() {
+    async fn wait_for_slots_ready_errors_when_an_agent_reports_issues() -> Result<()> {
         let snapshots = vec![AgentControllerPoolSnapshot {
             agents: vec![
                 snapshot_with_agent_and_slots("a", unable_to_find_chat_template_issue(), 1),
@@ -419,8 +412,19 @@ mod tests {
 
         let mut watcher = make_watcher(snapshots);
 
-        let error = watcher.wait_for_slots_ready(&[1, 2]).await.err().unwrap();
+        let error = watcher
+            .wait_for_slots_ready(&[1, 2])
+            .await
+            .err()
+            .context("wait_for_slots_ready must surface agent issues as an error")?;
 
-        assert!(format!("{error:#}").contains("issues"));
+        match error {
+            ClusterError::AgentReportedIssues { agent_id, .. } => {
+                assert_eq!(agent_id.as_str(), "a");
+            }
+            other => return Err(anyhow!("expected AgentReportedIssues, got {other:?}")),
+        }
+
+        Ok(())
     }
 }

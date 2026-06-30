@@ -40,6 +40,16 @@ fn compute_target_dimension(svg_dim: f64, scale: f64) -> Result<u32, DecodedImag
     Ok(target as u32)
 }
 
+fn rgba_image_from_raw_buffer(
+    width: u32,
+    height: u32,
+    buffer: Vec<u8>,
+) -> Result<RgbaImage, DecodedImageError> {
+    RgbaImage::from_raw(width, height, buffer).ok_or_else(|| DecodedImageError::ConversionFailed {
+        message: "rasterized pixmap buffer length did not match target dimensions".to_owned(),
+    })
+}
+
 fn rasterize_svg_to_dynamic_image(
     data: &[u8],
     max_dimension: u32,
@@ -73,10 +83,7 @@ fn rasterize_svg_to_dynamic_image(
 
     render(&svg_tree, transform, &mut pixmap.as_mut());
 
-    let rgba = RgbaImage::from_raw(target_width, target_height, pixmap.data().to_vec())
-        .ok_or_else(|| DecodedImageError::ConversionFailed {
-            message: "rasterized pixmap buffer length did not match target dimensions".to_owned(),
-        })?;
+    let rgba = rgba_image_from_raw_buffer(target_width, target_height, pixmap.data().to_vec())?;
 
     Ok(DynamicImage::ImageRgba8(rgba))
 }
@@ -215,6 +222,7 @@ mod tests {
 
     use crate::decoded_image::DecodedImage;
     use crate::decoded_image::compute_target_dimension;
+    use crate::decoded_image::rgba_image_from_raw_buffer;
     use crate::decoded_image_error::DecodedImageError;
 
     fn create_test_jpeg(width: u32, height: u32) -> Vec<u8> {
@@ -579,6 +587,20 @@ mod tests {
         let decoded_image = DecodedImage { data: corrupt_png };
 
         let error = decoded_image.prepared_for_inference(1024).err().unwrap();
+
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::ConversionFailed {
+                message: String::new(),
+            }),
+        );
+    }
+
+    #[test]
+    fn rgba_image_from_raw_buffer_rejects_buffer_shorter_than_dimensions() {
+        let error = rgba_image_from_raw_buffer(2, 2, vec![0u8; 3])
+            .err()
+            .unwrap();
 
         assert_eq!(
             discriminant(&error),

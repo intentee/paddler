@@ -215,6 +215,7 @@ mod tests {
     use super::compile_strict_schema;
     use crate::openai_spec::OPENAPI_YAML;
     use crate::openai_spec::parse_components;
+    use crate::openai_validator_error::OpenAIValidatorError;
 
     fn validator() -> OpenAIValidator {
         OpenAIValidator::new().unwrap()
@@ -280,7 +281,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(error.to_string().contains("request does not conform"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::RequestDoesNotConform { .. }
+        ));
     }
 
     #[test]
@@ -300,7 +304,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(error.to_string().contains("response does not conform"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponseDoesNotConform { .. }
+        ));
     }
 
     #[test]
@@ -313,7 +320,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(error.to_string().contains("response does not conform"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponseDoesNotConform { .. }
+        ));
     }
 
     #[test]
@@ -333,7 +343,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(error.to_string().contains("stream chunk does not conform"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::StreamChunkDoesNotConform { .. }
+        ));
     }
 
     #[test]
@@ -476,11 +489,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(
-            error
-                .to_string()
-                .contains("responses response does not conform")
-        );
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { .. }
+        ));
     }
 
     #[test]
@@ -493,11 +505,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(
-            error
-                .to_string()
-                .contains("responses response does not conform")
-        );
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesResponseDoesNotConform { .. }
+        ));
     }
 
     #[test]
@@ -517,11 +528,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(
-            error
-                .to_string()
-                .contains("responses stream event does not conform")
-        );
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::ResponsesStreamEventDoesNotConform { .. }
+        ));
     }
 
     #[test]
