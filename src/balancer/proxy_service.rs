@@ -356,7 +356,11 @@ impl ProxyHttp for ProxyService {
             }
         };
 
-        Ok(HttpPeer::new(peer.status.external_llamacpp_addr, false, "".into()).into())
+        let mut http_peer = HttpPeer::new(peer.status.external_llamacpp_addr, false, "".into());
+        // Expire pooled upstream connections after 30s of inactivity to prevent
+        // stale connections from accumulating (idle_timeout was None by default).
+        http_peer.options.idle_timeout = Some(Duration::from_secs(30));
+        Ok(http_peer.into())
     }
 
     async fn upstream_request_filter(
