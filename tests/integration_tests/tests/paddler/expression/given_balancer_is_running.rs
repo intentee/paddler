@@ -12,7 +12,7 @@ pub async fn given_balancer_is_running(world: &mut PaddlerWorld) -> Result<()> {
         return Err(anyhow::anyhow!("Balancer is already running"));
     }
 
-    let mut command = Command::new("../target/debug/paddler");
+    let mut command = Command::new("../../target/debug/paddler");
 
     command
         .arg("balancer")

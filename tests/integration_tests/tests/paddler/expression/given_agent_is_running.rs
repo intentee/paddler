@@ -21,7 +21,7 @@ pub async fn given_agent_is_attached(
 
     world.agents.instances.insert(
         agent_name.clone(),
-        Command::new("../target/debug/paddler")
+        Command::new("../../target/debug/paddler")
             .arg("agent")
             .arg(format!("--name={agent_name}"))
             .arg(format!(
