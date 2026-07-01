@@ -12,7 +12,7 @@ server via `PADDLER_OPENAI_BASE_URL`; the suite fails if that variable is not se
 
 ```sh
 poetry install
-PADDLER_OPENAI_BASE_URL=http://127.0.0.1:8062/v1 poetry run pytest
+PADDLER_OPENAI_BASE_URL=http://127.0.0.1:8063/v1 poetry run pytest
 ```
 
 - `PADDLER_OPENAI_BASE_URL` (required): base URL of the running endpoint, ending in `/v1`.

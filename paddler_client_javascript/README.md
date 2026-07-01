@@ -65,7 +65,7 @@ import { streamEventSource } from "@intentee/paddler-client/streamEventSource";
 import { AgentsResponseSchema } from "@intentee/paddler-client/schemas/AgentsResponse";
 
 streamEventSource({
-  url: new URL("http://localhost:8062/api/v1/agents/stream"),
+  url: new URL("http://localhost:8060/api/v1/agents/stream"),
   schema: AgentsResponseSchema,
 }).subscribe((state) => {
   if (state.isOk) {

@@ -1,18 +1,17 @@
 x-paddler-common: &paddler-common
   image: paddler:v4.0.0
   build: ..
+  network_mode: host
 
 services:
   paddler-balancer:
     <<: *paddler-common
     container_name: paddler-balancer
-    ports:
-      - "8062:8062"  # Paddler management dashboard
     command: [
       "balancer",
-      "--management-addr", "0.0.0.0:8060",
-      "--inference-addr", "0.0.0.0:8061",
-      "--web-admin-panel-addr", "0.0.0.0:8062"
+      "--management-addr", "127.0.0.1:8060",
+      "--inference-addr", "127.0.0.1:8061",
+      "--web-admin-panel-addr", "127.0.0.1:8062"
     ]
 
   paddler-agent1:
@@ -23,7 +22,7 @@ services:
     command: [
       "agent",
       "--name", "llm-1",
-      "--management-addr", "paddler-balancer:8060"
+      "--management-addr", "127.0.0.1:8060"
     ]
 
   paddler-agent2:
@@ -34,7 +33,7 @@ services:
     command: [
       "agent",
       "--name", "llm-2",
-      "--management-addr", "paddler-balancer:8060"
+      "--management-addr", "127.0.0.1:8060"
     ]
 
 volumes:
