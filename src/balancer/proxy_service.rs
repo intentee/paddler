@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -17,6 +18,51 @@ use pingora::Result;
 
 use crate::balancer::request_context::RequestContext;
 use crate::balancer::upstream_peer_pool::UpstreamPeerPool;
+
+static MODEL_REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#""model"\s*:\s*"([^"]*)""#).expect("model regex is valid")
+});
+
+/// Extract the "model" field from a JSON request body.
+///
+/// Strategy:
+/// 1. If the body contains invalid UTF-8, truncate to the last valid boundary.
+/// 2. Try proper JSON parsing first (most reliable, no false positives).
+/// 3. If JSON parsing fails, try regex extraction as a fallback.
+fn extract_model_from_body(body_bytes: &Bytes) -> Option<String> {
+    // Handle invalid UTF-8 by truncating to the last valid boundary
+    let effective_bytes = match std::str::from_utf8(body_bytes) {
+        Ok(_) => body_bytes.clone(),
+        Err(e) => {
+            let valid_up_to = e.valid_up_to();
+            info!("Invalid UTF-8 in request body. Truncating from {} bytes to {} bytes for model extraction.", body_bytes.len(), valid_up_to);
+            body_bytes.slice(0..valid_up_to)
+        }
+    };
+
+    // Try proper JSON parsing first
+    if let Ok(json_value) = serde_json::from_slice::<serde_json::Value>(&effective_bytes) {
+        if let Some(model) = json_value.get("model").and_then(|v| v.as_str()) {
+            let model = model.to_string();
+            info!("Model in request: {:?}", model);
+            return Some(model);
+        }
+    }
+
+    // Fallback: regex extraction on the raw text
+    info!("Failed to parse JSON payload, trying regex extraction");
+    let body_str = String::from_utf8_lossy(&effective_bytes);
+    if let Some(caps) = MODEL_REGEX.captures(&body_str) {
+        if let Some(model_match) = caps.get(1) {
+            let model = model_match.as_str().to_string();
+            info!("Model via regex: {:?}", model);
+            return Some(model);
+        }
+    }
+
+    info!("Failed to extract model from request body");
+    None
+}
 
 struct RequestBufferGuard<'a>(&'a AtomicUsize);
 
@@ -77,7 +123,7 @@ impl ProxyHttp for ProxyService {
             slot_taken: false,
             upstream_peer_pool: self.upstream_peer_pool.clone(),
             uses_slots: false,
-            requested_model: Some("".to_string()),
+            requested_model: None,
         }
     }
 
@@ -195,7 +241,6 @@ impl ProxyHttp for ProxyService {
         // Check if the request method is POST and the content type is JSON
         if self.check_model && ctx.uses_slots {
             info!("Checking model...");
-            ctx.requested_model = None;
             if session.req_header().method == "POST" {
                 // Check if the content type is application/json
                 if let Some(content_type) = session.get_header("Content-Type") {
@@ -203,86 +248,62 @@ impl ProxyHttp for ProxyService {
                         if content_type_str.contains("application/json") {
                             // Enable retry buffering to preserve the request body, reference: https://github.com/cloudflare/pingora/issues/349#issuecomment-2377277028
                             session.enable_retry_buffering();
-                            session.read_body_or_idle(false).await.unwrap().unwrap();
-                            let request_body = session.get_retry_buffer();
 
-                            if let Some(body_bytes) = request_body {
-                                match std::str::from_utf8(&body_bytes) {
-                                    Ok(_) => {
-                                        // The bytes are valid UTF-8, proceed as normal
-                                        if let Ok(json_value) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                                            if let Some(model) = json_value.get("model").and_then(|v| v.as_str()) {
-                                                ctx.requested_model = Some(model.to_string());
-                                                info!("Model in request: {:?}", ctx.requested_model);
-                                            }
-                                        } else {
-                                            info!("Failed to parse JSON payload, trying regex extraction");
-                                            let body_str = String::from_utf8_lossy(&body_bytes).to_string();
-                                            let re = regex::Regex::new(r#""model"\s*:\s*["']([^"']*)["']"#).unwrap();
-                                            if let Some(caps) = re.captures(&body_str) {
-                                                if let Some(model) = caps.get(1) {
-                                                    ctx.requested_model = Some(model.as_str().to_string());
-                                                    info!("Model via regex: {:?}", ctx.requested_model);
-                                                }
-                                            } else {
-                                                info!("Failed to extract model using regex");
-                                            }
-                                        }
-                                    },
-                                    Err(e) => {
-                                        // Invalid UTF-8 detected. Truncate to the last valid UTF-8 boundary.
-                                        let valid_up_to = e.valid_up_to();
-                                        info!("Invalid UTF-8 detected. Truncating from {} bytes to {} bytes.", body_bytes.len(), valid_up_to);
+                            // Read one chunk from the body. The model field is typically
+                            // the first field in the JSON, so one read is sufficient.
+                            // The retry buffer (64KB) captures what was read.
+                            let read_result = session.read_body_or_idle(false).await;
+                            match read_result {
+                                Ok(Some(_)) => {
+                                    // Check if the retry buffer was truncated (body > 64KB).
+                                    // If truncated, get_retry_buffer() returns None, so we
+                                    // cannot extract the model and must reject the request.
+                                    if session.retry_buffer_truncated() {
+                                        error!("Request body exceeds 64KB retry buffer limit, cannot determine model");
+                                        session
+                                            .respond_error(pingora::http::StatusCode::BAD_REQUEST.as_u16())
+                                            .await?;
+                                        return Err(Error::new_down(pingora::ErrorType::ConnectRefused));
+                                    }
 
-                                        // Create a new `Bytes` slice containing only the valid UTF-8 part.
-                                        let valid_body_bytes = body_bytes.slice(0..valid_up_to);
-
-                                        // Now proceed with the (truncated) valid_body_bytes
-                                        if let Ok(json_value) = serde_json::from_slice::<serde_json::Value>(&valid_body_bytes) {
-                                            if let Some(model) = json_value.get("model").and_then(|v| v.as_str()) {
-                                                ctx.requested_model = Some(model.to_string());
-                                                info!("Model in request (after truncation): {:?}", ctx.requested_model);
-                                            }
-                                        } else {
-                                            info!("Failed to parse JSON payload (after truncation), trying regex extraction");
-                                            let body_str = String::from_utf8_lossy(&valid_body_bytes).to_string();
-                                            let re = regex::Regex::new(r#""model"\s*:\s*["']([^"']*)["']"#).unwrap();
-                                            if let Some(caps) = re.captures(&body_str) {
-                                                if let Some(model) = caps.get(1) {
-                                                    ctx.requested_model = Some(model.as_str().to_string());
-                                                    info!("Model via regex (after truncation): {:?}", ctx.requested_model);
-                                                }
-                                            } else {
-                                                info!("Failed to extract model using regex (after truncation)");
-                                            }
-                                        }
+                                    if let Some(body_bytes) = session.get_retry_buffer() {
+                                        ctx.requested_model = extract_model_from_body(&body_bytes);
+                                    } else {
+                                        info!("Retry buffer is empty after reading body chunk");
                                     }
                                 }
-                            } else {
-                                info!("Request body is None");
+                                Ok(None) => {
+                                    info!("Request body is empty");
+                                }
+                                Err(e) => {
+                                    error!("Failed to read request body: {e}");
+                                    session
+                                        .respond_error(pingora::http::StatusCode::BAD_REQUEST.as_u16())
+                                        .await?;
+                                    return Err(Error::new_down(pingora::ErrorType::ConnectRefused));
+                                }
                             }
                         }
                     }
                 }
             }
+
             // abort if model has not been set
-            if ctx.requested_model == None {
+            if ctx.requested_model.is_none() {
                 info!("Model missing in request");
                 session
                     .respond_error(pingora::http::StatusCode::BAD_REQUEST.as_u16())
                     .await?;
 
                 return Err(Error::new_down(pingora::ErrorType::ConnectRefused));
-            }
-            else if ctx.has_peer_supporting_model() == false {
+            } else if !ctx.has_peer_supporting_model() {
                 info!("Model {:?} not supported by upstream", ctx.requested_model);
                 session
                     .respond_error(pingora::http::StatusCode::NOT_FOUND.as_u16())
                     .await?;
 
                 return Err(Error::new_down(pingora::ErrorType::ConnectRefused));
-            }
-            else {
+            } else {
                 info!("Model {:?}", ctx.requested_model);
             }
         }
@@ -335,7 +356,11 @@ impl ProxyHttp for ProxyService {
             }
         };
 
-        Ok(HttpPeer::new(peer.status.external_llamacpp_addr, false, "".into()).into())
+        let mut http_peer = HttpPeer::new(peer.status.external_llamacpp_addr, false, "".into());
+        // Expire pooled upstream connections after 30s of inactivity to prevent
+        // stale connections from accumulating (idle_timeout was None by default).
+        http_peer.options.idle_timeout = Some(Duration::from_secs(30));
+        Ok(http_peer.into())
     }
 
     async fn upstream_request_filter(

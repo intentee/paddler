@@ -9,7 +9,7 @@ documentation = "https://github.com/distantmagic/paddler/blob/main/README.md"
 version = "1.2.1"
 
 [workspace]
-members = ["integration_tests"]
+members = ["tests/integration_tests"]
 
 [dependencies]
 actix = "0.13.5"
