@@ -9,7 +9,7 @@ use crate::chat_template_renderer::ChatTemplateRenderer;
 
 pub struct ContinuousBatchSchedulerContext {
     pub agent_name: Option<String>,
-    pub chat_template_renderer: Arc<ChatTemplateRenderer>,
+    pub chat_template_renderer: Option<Arc<ChatTemplateRenderer>>,
     pub desired_slots_total: i32,
     pub inference_parameters: InferenceParameters,
     pub model: Arc<LlamaModel>,

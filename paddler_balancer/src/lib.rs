@@ -34,6 +34,7 @@ pub mod manages_senders_controller;
 pub mod model_metadata_sender_collection;
 pub mod reconciliation_service;
 pub mod request_from_agent;
+pub mod require_token_generation_enabled;
 pub mod resolved_socket_addr;
 #[cfg(feature = "web_admin_panel")]
 mod response;

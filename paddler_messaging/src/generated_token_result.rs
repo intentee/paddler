@@ -24,6 +24,7 @@ pub enum GeneratedTokenResult {
     MultimodalNotSupported(String),
     ReasoningToken(String),
     SamplerError(String),
+    TokenGenerationDisabled(String),
     ToolCallParseFailed(String),
     ToolCallParsed(Vec<ParsedToolCall>),
     ToolCallToken(String),
@@ -85,6 +86,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::ImageExceedsBatchSize(_)
                 | Self::MultimodalNotSupported(_)
                 | Self::SamplerError(_)
+                | Self::TokenGenerationDisabled(_)
                 | Self::ToolSchemaInvalid(_)
         )
     }
@@ -154,6 +156,11 @@ mod tests {
     #[test]
     fn sampler_error_is_done() {
         assert!(GeneratedTokenResult::SamplerError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn token_generation_disabled_is_done() {
+        assert!(GeneratedTokenResult::TokenGenerationDisabled("err".to_owned()).is_done());
     }
 
     #[test]

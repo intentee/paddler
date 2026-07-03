@@ -30,6 +30,7 @@ use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::request_from_agent::request_from_agent;
+use crate::require_token_generation_enabled::require_token_generation_enabled;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
@@ -125,6 +126,8 @@ async fn respond(
     payload: Payload,
     http_request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
+    require_token_generation_enabled(&app_data.balancer_applicable_state_holder)?;
+
     let inference_socket_controller = InferenceSocketController {
         buffered_request_manager: app_data.buffered_request_manager.clone(),
         inference_service_configuration: app_data.inference_service_configuration.clone(),
@@ -164,6 +167,7 @@ mod tests {
 
     use crate::agent_controller::AgentController;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -173,9 +177,12 @@ mod tests {
     use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
     use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
     use crate::websocket_session_controller::WebSocketSessionController;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_messaging::atomic_value::AtomicValue;
     use paddler_messaging::conversation_history::ConversationHistory;
+    use paddler_messaging::inference_parameters::InferenceParameters;
     use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
@@ -334,6 +341,45 @@ mod tests {
         let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
+    }
+
+    #[actix_web::test]
+    async fn respond_rejects_when_embeddings_are_enabled() {
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
+            BalancerApplicableState {
+                agent_desired_state: AgentDesiredState {
+                    chat_template_override: None,
+                    inference_parameters: InferenceParameters {
+                        enable_embeddings: true,
+                        ..InferenceParameters::default()
+                    },
+                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                    multimodal_projection: AgentDesiredModel::None,
+                },
+            },
+        ));
+
+        let app_data = Data::new(AppData {
+            agent_controller_pool: Arc::new(AgentControllerPool::default()),
+            balancer_applicable_state_holder,
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                Arc::new(AgentControllerPool::default()),
+                Duration::from_mins(1),
+                10,
+            )),
+            inference_service_configuration: inference_service_configuration(),
+            shutdown: CancellationToken::new(),
+        });
+        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+
+        let request = TestRequest::get()
+            .uri("/api/v1/inference_socket")
+            .to_request();
+        let response = call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
     }
 
     #[actix_web::test]

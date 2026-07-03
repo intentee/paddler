@@ -140,6 +140,7 @@ impl BalancerServiceBundle {
 
         let openai_service =
             openai_service_configuration.map(|openai_service_configuration| OpenAIService {
+                balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
                 buffered_request_manager: buffered_request_manager.clone(),
                 inference_service_configuration,
                 openai_service_configuration,

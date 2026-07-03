@@ -34,6 +34,7 @@ use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::agent_kv_cache_dtype::AgentKvCacheDtype;
 use crate::agent_pooling_type::AgentPoolingType;
+use crate::chat_template_load_status::ChatTemplateLoadStatus;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
@@ -85,7 +86,8 @@ impl ContinuousBatchArbiter {
     }
 
     pub async fn spawn(&self) -> Result<ContinuousBatchArbiterHandle> {
-        let (chat_template_loaded_tx, chat_template_loaded_rx) = oneshot::channel::<()>();
+        let (chat_template_loaded_tx, chat_template_loaded_rx) =
+            oneshot::channel::<ChatTemplateLoadStatus>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
         let (agent_warm_and_scheduler_running_tx, agent_warm_and_scheduler_running_rx) =
             oneshot::channel::<()>();
@@ -172,60 +174,84 @@ impl ContinuousBatchArbiter {
 
             model_metadata_holder.set_model_metadata(model_metadata);
 
-            let llama_chat_template_string = match chat_template_override {
-                Some(chat_template) => chat_template.content,
-                None => model
-                    .chat_template(None)
-                    .context(format!(
-                        "Failed to load chat template for model at path: {}",
-                        model_path.display()
-                    ))?
-                    .to_string()?,
-            };
-
-            if chat_template_loaded_tx.send(()).is_err() {
-                let message = format!(
-                    "Failed to send chat template loaded signal for model at path: {}",
-                    model_path.display()
-                );
-
-                error!("{message}");
-
-                return Err(anyhow!(message));
-            }
-
-            let chat_template_renderer = Arc::new(
-                match ChatTemplateRenderer::new(ChatTemplate {
-                    content: llama_chat_template_string.clone(),
-                })
-                .context("Failed to create chat template renderer")
+            let chat_template_renderer: Option<Arc<ChatTemplateRenderer>> = if inference_parameters
+                .enable_embeddings
+                && chat_template_override.is_none()
+            {
+                if chat_template_loaded_tx
+                    .send(ChatTemplateLoadStatus::SkippedForEmbeddings)
+                    .is_err()
                 {
-                    Ok(renderer) => {
-                        slot_aggregated_status_manager
-                            .slot_aggregated_status
-                            .register_fix(&AgentIssueFix::ChatTemplateIsCompiled(ModelPath {
-                                model_path: model_path.display().to_string(),
-                            }));
+                    let message = format!(
+                        "Failed to send chat template skipped signal for model at path: {}",
+                        model_path.display()
+                    );
 
-                        renderer
-                    }
-                    Err(err) => {
-                        slot_aggregated_status_manager
-                            .slot_aggregated_status
-                            .register_issue(AgentIssue::ChatTemplateDoesNotCompile(
-                                ChatTemplateDoesNotCompileParams {
-                                    error: format!("{err}"),
-                                    model_path: ModelPath {
-                                        model_path: model_path.display().to_string(),
+                    error!("{message}");
+
+                    return Err(anyhow!(message));
+                }
+
+                None
+            } else {
+                let llama_chat_template_string = match chat_template_override {
+                    Some(chat_template) => chat_template.content,
+                    None => model
+                        .chat_template(None)
+                        .context(format!(
+                            "Failed to load chat template for model at path: {}",
+                            model_path.display()
+                        ))?
+                        .to_string()?,
+                };
+
+                if chat_template_loaded_tx
+                    .send(ChatTemplateLoadStatus::Loaded)
+                    .is_err()
+                {
+                    let message = format!(
+                        "Failed to send chat template loaded signal for model at path: {}",
+                        model_path.display()
+                    );
+
+                    error!("{message}");
+
+                    return Err(anyhow!(message));
+                }
+
+                Some(Arc::new(
+                    match ChatTemplateRenderer::new(ChatTemplate {
+                        content: llama_chat_template_string.clone(),
+                    })
+                    .context("Failed to create chat template renderer")
+                    {
+                        Ok(renderer) => {
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_fix(&AgentIssueFix::ChatTemplateIsCompiled(ModelPath {
+                                    model_path: model_path.display().to_string(),
+                                }));
+
+                            renderer
+                        }
+                        Err(err) => {
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_issue(AgentIssue::ChatTemplateDoesNotCompile(
+                                    ChatTemplateDoesNotCompileParams {
+                                        error: format!("{err}"),
+                                        model_path: ModelPath {
+                                            model_path: model_path.display().to_string(),
+                                        },
+                                        template_content: llama_chat_template_string,
                                     },
-                                    template_content: llama_chat_template_string,
-                                },
-                            ));
+                                ));
 
-                        return Err(err);
-                    }
-                },
-            );
+                            return Err(err);
+                        }
+                    },
+                ))
+            };
 
             slot_aggregated_status_manager
                 .slot_aggregated_status
@@ -381,13 +407,14 @@ impl ContinuousBatchArbiter {
             .await
             .context("Failed to receive chat template loaded signal")
         {
-            Ok(()) => {
+            Ok(ChatTemplateLoadStatus::Loaded) => {
                 self.slot_aggregated_status_manager
                     .slot_aggregated_status
                     .register_fix(&AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
                         model_path: model_path_string.clone(),
                     }));
             }
+            Ok(ChatTemplateLoadStatus::SkippedForEmbeddings) => {}
             Err(err) => {
                 error!("Failed to load chat template: {err}");
 

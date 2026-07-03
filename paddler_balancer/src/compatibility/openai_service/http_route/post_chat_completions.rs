@@ -23,6 +23,7 @@ use crate::compatibility::openai_service::openai_non_streaming_state::OpenAINonS
 use crate::compatibility::openai_service::openai_streaming_response_transformer::OpenAIStreamingResponseTransformer;
 use crate::compatibility::openai_service::openai_streaming_state::OpenAIStreamingState;
 use crate::compatibility::openai_service::timestamp_from::timestamp_from;
+use crate::require_token_generation_enabled::require_token_generation_enabled;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
 
 #[post("/v1/chat/completions")]
@@ -30,6 +31,8 @@ async fn respond(
     app_data: web::Data<AppData>,
     openai_params: web::Json<OpenAICompletionRequestParams>,
 ) -> Result<HttpResponse, Error> {
+    require_token_generation_enabled(&app_data.balancer_applicable_state_holder)?;
+
     let openai_params = openai_params.into_inner();
 
     let validated_tools = match openai_params
@@ -161,17 +164,23 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body;
     use actix_web::web::Data;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::inference_parameters::InferenceParameters;
     use serde_json::json;
     use tokio_util::sync::CancellationToken;
 
     use super::AppData;
     use super::register;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state::BalancerApplicableState;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 
     fn app_data_without_agents(max_buffered_requests: i32) -> AppData {
         AppData {
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 Arc::new(AgentControllerPool::default()),
                 Duration::ZERO,
@@ -184,6 +193,61 @@ mod tests {
             },
             shutdown: CancellationToken::new(),
         }
+    }
+
+    fn app_data_with_embeddings_enabled() -> AppData {
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
+            BalancerApplicableState {
+                agent_desired_state: AgentDesiredState {
+                    chat_template_override: None,
+                    inference_parameters: InferenceParameters {
+                        enable_embeddings: true,
+                        ..InferenceParameters::default()
+                    },
+                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                    multimodal_projection: AgentDesiredModel::None,
+                },
+            },
+        ));
+
+        AppData {
+            balancer_applicable_state_holder,
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                Arc::new(AgentControllerPool::default()),
+                Duration::ZERO,
+                0,
+            )),
+            inference_service_configuration: InferenceServiceConfiguration {
+                addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+                cors_allowed_hosts: Vec::new(),
+                inference_item_timeout: Duration::ZERO,
+            },
+            shutdown: CancellationToken::new(),
+        }
+    }
+
+    #[actix_web::test]
+    async fn rejects_chat_completion_when_embeddings_are_enabled() {
+        let app = init_service(
+            App::new()
+                .app_data(Data::new(app_data_with_embeddings_enabled()))
+                .configure(register),
+        )
+        .await;
+
+        let request = TestRequest::post()
+            .uri("/v1/chat/completions")
+            .set_json(json!({
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "hi"}]
+            }))
+            .to_request();
+
+        let response = call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
     }
 
     #[actix_web::test]

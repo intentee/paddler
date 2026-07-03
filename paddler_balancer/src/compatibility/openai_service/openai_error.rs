@@ -42,6 +42,7 @@ fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
         | GeneratedTokenResult::ImageDecodingFailed(description)
         | GeneratedTokenResult::MultimodalNotSupported(description)
         | GeneratedTokenResult::SamplerError(description)
+        | GeneratedTokenResult::TokenGenerationDisabled(description)
         | GeneratedTokenResult::ToolCallParseFailed(description)
         | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(description),
         _ => None,
