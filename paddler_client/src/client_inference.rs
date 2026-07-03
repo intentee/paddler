@@ -51,7 +51,7 @@ impl<'client> ClientInference<'client> {
     }
 
     #[must_use]
-    pub fn subscribe_to_prompting_mode(&self) -> broadcast::Receiver<Notification> {
+    pub fn subscribe_to_token_generation_mode(&self) -> broadcast::Receiver<Notification> {
         self.inference_socket_pool.subscribe_to_notifications()
     }
 

@@ -9,7 +9,7 @@ use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use tokio_util::sync::CancellationToken;
 
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use crate::cluster_prompting_mode::ClusterPromptingMode;
+use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
 use crate::controls_session::ControlsSession as _;
 use crate::websocket_session_controller::WebSocketSessionController;
 
@@ -23,14 +23,14 @@ async fn send_notification(
     {
         Ok(()) => true,
         Err(err) => {
-            error!("Failed to push prompting mode notification: {err}");
+            error!("Failed to push token generation mode notification: {err}");
 
             false
         }
     }
 }
 
-pub fn spawn_prompting_mode_watcher(
+pub fn spawn_token_generation_mode_watcher(
     balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     connection_close: CancellationToken,
     session: Session,
@@ -38,11 +38,16 @@ pub fn spawn_prompting_mode_watcher(
     rt::spawn(async move {
         let mut update_rx = balancer_applicable_state_holder.subscribe_to_updates();
         let mut session_controller = WebSocketSessionController::<OutgoingMessage>::new(session);
-        let mut last_mode =
-            ClusterPromptingMode::from_applicable_state_holder(&balancer_applicable_state_holder);
+        let mut last_mode = ClusterTokenGenerationMode::from_applicable_state_holder(
+            &balancer_applicable_state_holder,
+        );
 
-        if last_mode == ClusterPromptingMode::DisabledForEmbeddings
-            && !send_notification(&mut session_controller, Notification::PromptingDisabled).await
+        if last_mode == ClusterTokenGenerationMode::DisabledForEmbeddings
+            && !send_notification(
+                &mut session_controller,
+                Notification::TokenGenerationDisabled,
+            )
+            .await
         {
             return;
         }
@@ -55,7 +60,7 @@ pub fn spawn_prompting_mode_watcher(
                         break;
                     }
 
-                    let current_mode = ClusterPromptingMode::from_applicable_state_holder(
+                    let current_mode = ClusterTokenGenerationMode::from_applicable_state_holder(
                         &balancer_applicable_state_holder,
                     );
 
@@ -66,9 +71,9 @@ pub fn spawn_prompting_mode_watcher(
                     last_mode = current_mode;
 
                     let notification = match current_mode {
-                        ClusterPromptingMode::Enabled => Notification::PromptingEnabled,
-                        ClusterPromptingMode::DisabledForEmbeddings => {
-                            Notification::PromptingDisabled
+                        ClusterTokenGenerationMode::Enabled => Notification::TokenGenerationEnabled,
+                        ClusterTokenGenerationMode::DisabledForEmbeddings => {
+                            Notification::TokenGenerationDisabled
                         }
                     };
 

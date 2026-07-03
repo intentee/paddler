@@ -2,14 +2,15 @@ use actix_web::Error;
 use actix_web::error::ErrorNotImplemented;
 
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use crate::cluster_prompting_mode::ClusterPromptingMode;
+use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
 
 pub fn require_token_generation_enabled(
     balancer_applicable_state_holder: &BalancerApplicableStateHolder,
 ) -> Result<(), Error> {
-    match ClusterPromptingMode::from_applicable_state_holder(balancer_applicable_state_holder) {
-        ClusterPromptingMode::Enabled => Ok(()),
-        ClusterPromptingMode::DisabledForEmbeddings => Err(ErrorNotImplemented(
+    match ClusterTokenGenerationMode::from_applicable_state_holder(balancer_applicable_state_holder)
+    {
+        ClusterTokenGenerationMode::Enabled => Ok(()),
+        ClusterTokenGenerationMode::DisabledForEmbeddings => Err(ErrorNotImplemented(
             "Token generation is disabled while the cluster is configured for embeddings",
         )),
     }

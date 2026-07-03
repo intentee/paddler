@@ -12,7 +12,7 @@ import {
 import type { ConversationMessage } from "./schemas/ConversationMessage";
 
 export interface InferenceSocketClient {
-  clusterPromptingMode$: Observable<InferenceNotification>;
+  clusterTokenGenerationMode$: Observable<InferenceNotification>;
   continueConversation(params: {
     enableThinking: boolean;
     messages: ConversationMessage[];
@@ -47,7 +47,7 @@ export function inferenceSocketClient({
     }),
   );
 
-  const clusterPromptingMode$: Observable<InferenceNotification> =
+  const clusterTokenGenerationMode$: Observable<InferenceNotification> =
     parsedFrames$.pipe(
       filter(isNotificationFrame),
       map(function (parsedFrame: unknown): InferenceNotification {
@@ -110,7 +110,7 @@ export function inferenceSocketClient({
   }
 
   return Object.freeze({
-    clusterPromptingMode$,
+    clusterTokenGenerationMode$,
     continueConversation,
   });
 }

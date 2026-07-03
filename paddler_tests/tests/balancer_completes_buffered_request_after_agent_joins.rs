@@ -75,7 +75,7 @@ async fn balancer_completes_buffered_request_after_agent_joins() -> Result<()> {
             );
         }
         Message::Notification(_) => {
-            anyhow::bail!("unexpected prompting-mode notification");
+            anyhow::bail!("unexpected token-generation-mode notification");
         }
     }
 

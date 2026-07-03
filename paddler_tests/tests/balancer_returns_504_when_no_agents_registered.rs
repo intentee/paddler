@@ -56,7 +56,7 @@ async fn balancer_returns_504_when_no_agents_registered() -> Result<()> {
             anyhow::bail!("expected an error response, got success");
         }
         Message::Notification(_) => {
-            anyhow::bail!("unexpected prompting-mode notification");
+            anyhow::bail!("unexpected token-generation-mode notification");
         }
     }
 

@@ -2,32 +2,32 @@ import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { inferenceSocketClient } from "@intentee/paddler-client/inferenceSocketClient";
 import {
-  PromptingDisabledContext,
-  type PromptingDisabledContextValue,
-} from "../contexts/PromptingDisabledContext";
+  TokenGenerationDisabledContext,
+  type TokenGenerationDisabledContextValue,
+} from "../contexts/TokenGenerationDisabledContext";
 
-export function PromptingDisabledContextProvider({
+export function TokenGenerationDisabledContextProvider({
   children,
   webSocket,
 }: {
   children: ReactNode;
   webSocket: null | WebSocket;
 }) {
-  const [isPromptingDisabled, setIsPromptingDisabled] =
+  const [isTokenGenerationDisabled, setIsTokenGenerationDisabled] =
     useState<boolean>(false);
 
   useEffect(
     function () {
-      setIsPromptingDisabled(false);
+      setIsTokenGenerationDisabled(false);
 
       if (!webSocket) {
         return;
       }
 
       const socketClient = inferenceSocketClient({ webSocket });
-      const subscription = socketClient.clusterPromptingMode$.subscribe(
+      const subscription = socketClient.clusterTokenGenerationMode$.subscribe(
         function (notification) {
-          setIsPromptingDisabled("PromptingDisabled" === notification);
+          setIsTokenGenerationDisabled("TokenGenerationDisabled" === notification);
         },
       );
 
@@ -38,18 +38,18 @@ export function PromptingDisabledContextProvider({
     [webSocket],
   );
 
-  const value = useMemo<PromptingDisabledContextValue>(
+  const value = useMemo<TokenGenerationDisabledContextValue>(
     function () {
       return Object.freeze({
-        isPromptingDisabled,
+        isTokenGenerationDisabled,
       });
     },
-    [isPromptingDisabled],
+    [isTokenGenerationDisabled],
   );
 
   return (
-    <PromptingDisabledContext.Provider value={value}>
+    <TokenGenerationDisabledContext.Provider value={value}>
       {children}
-    </PromptingDisabledContext.Provider>
+    </TokenGenerationDisabledContext.Provider>
   );
 }

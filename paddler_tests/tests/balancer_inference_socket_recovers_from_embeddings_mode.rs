@@ -63,7 +63,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
     .await?;
 
     let inference = cluster.paddler_client.inference();
-    let mut prompting_mode_rx = inference.subscribe_to_prompting_mode();
+    let mut token_generation_mode_rx = inference.subscribe_to_token_generation_mode();
 
     let mut disabled_stream = inference
         .continue_from_raw_prompt(capital_of_france_prompt())
@@ -85,14 +85,14 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
         other => panic!("expected a token-generation-disabled reply, got {other:?}"),
     }
 
-    let connect_notification = prompting_mode_rx
+    let connect_notification = token_generation_mode_rx
         .recv()
         .await
-        .context("client must be told on connect that prompting is disabled")?;
+        .context("client must be told on connect that token generation is disabled")?;
 
     assert!(matches!(
         connect_notification,
-        Notification::PromptingDisabled
+        Notification::TokenGenerationDisabled
     ));
 
     let generation_state = BalancerDesiredState {
@@ -114,14 +114,13 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
         .await
         .map_err(anyhow::Error::new)?;
 
-    let recovery_notification = prompting_mode_rx
-        .recv()
-        .await
-        .context("client must be told over the open connection that prompting is enabled again")?;
+    let recovery_notification = token_generation_mode_rx.recv().await.context(
+        "client must be told over the open connection that token generation is enabled again",
+    )?;
 
     assert!(matches!(
         recovery_notification,
-        Notification::PromptingEnabled
+        Notification::TokenGenerationEnabled
     ));
 
     let mut recovered_stream = inference
@@ -151,7 +150,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
 
     assert!(
         generated_token_count > 0,
-        "the recovered connection must stream tokens once prompting is enabled again"
+        "the recovered connection must stream tokens once token generation is enabled again"
     );
 
     cluster.shutdown().await?;

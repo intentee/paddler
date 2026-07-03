@@ -1,12 +1,12 @@
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ClusterPromptingMode {
+pub enum ClusterTokenGenerationMode {
     Enabled,
     DisabledForEmbeddings,
 }
 
-impl ClusterPromptingMode {
+impl ClusterTokenGenerationMode {
     #[must_use]
     pub fn from_applicable_state_holder(
         balancer_applicable_state_holder: &BalancerApplicableStateHolder,
@@ -28,7 +28,7 @@ mod tests {
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::inference_parameters::InferenceParameters;
 
-    use super::ClusterPromptingMode;
+    use super::ClusterTokenGenerationMode;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 
@@ -57,24 +57,28 @@ mod tests {
         let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
 
         assert_eq!(
-            ClusterPromptingMode::from_applicable_state_holder(&balancer_applicable_state_holder),
-            ClusterPromptingMode::Enabled
+            ClusterTokenGenerationMode::from_applicable_state_holder(
+                &balancer_applicable_state_holder
+            ),
+            ClusterTokenGenerationMode::Enabled
         );
     }
 
     #[test]
     fn enabled_when_embeddings_are_disabled() {
         assert_eq!(
-            ClusterPromptingMode::from_applicable_state_holder(&holder_with_embeddings(false)),
-            ClusterPromptingMode::Enabled
+            ClusterTokenGenerationMode::from_applicable_state_holder(&holder_with_embeddings(
+                false
+            )),
+            ClusterTokenGenerationMode::Enabled
         );
     }
 
     #[test]
     fn disabled_for_embeddings_when_embeddings_are_enabled() {
         assert_eq!(
-            ClusterPromptingMode::from_applicable_state_holder(&holder_with_embeddings(true)),
-            ClusterPromptingMode::DisabledForEmbeddings
+            ClusterTokenGenerationMode::from_applicable_state_holder(&holder_with_embeddings(true)),
+            ClusterTokenGenerationMode::DisabledForEmbeddings
         );
     }
 }

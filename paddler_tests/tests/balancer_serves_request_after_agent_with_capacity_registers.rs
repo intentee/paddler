@@ -63,7 +63,7 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
             anyhow::bail!("expected timeout before agent registered");
         }
         Message::Notification(_) => {
-            anyhow::bail!("unexpected prompting-mode notification");
+            anyhow::bail!("unexpected token-generation-mode notification");
         }
     }
 
@@ -102,7 +102,7 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
         }
         Message::Response(_) => {}
         Message::Notification(_) => {
-            anyhow::bail!("unexpected prompting-mode notification");
+            anyhow::bail!("unexpected token-generation-mode notification");
         }
     }
 

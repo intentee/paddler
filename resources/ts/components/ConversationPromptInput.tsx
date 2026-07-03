@@ -13,7 +13,7 @@ import iconArrowUpward from "../../icons/arrow_upward.svg";
 
 import { PromptContext } from "../contexts/PromptContext";
 import { PromptImageContext } from "../contexts/PromptImageContext";
-import { PromptingDisabledContext } from "../contexts/PromptingDisabledContext";
+import { TokenGenerationDisabledContext } from "../contexts/TokenGenerationDisabledContext";
 import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
 import { ConversationPromptInputImageButton } from "./ConversationPromptInputImageButton";
 import { ConversationPromptInputImagePreview } from "./ConversationPromptInputImagePreview";
@@ -36,7 +36,7 @@ export function ConversationPromptInput() {
   const { isThinkingEnabled, setSubmittedIsThinkingEnabled } = useContext(
     PromptThinkingContext,
   );
-  const { isPromptingDisabled } = useContext(PromptingDisabledContext);
+  const { isTokenGenerationDisabled } = useContext(TokenGenerationDisabledContext);
 
   const onSubmit = useCallback(
     function (event: FormEvent<HTMLFormElement>) {
@@ -82,7 +82,7 @@ export function ConversationPromptInput() {
       <input
         autoFocus
         className={conversationPromptInput__textarea}
-        disabled={isPromptingDisabled}
+        disabled={isTokenGenerationDisabled}
         placeholder="Type your prompt here..."
         value={currentPrompt}
         onInput={onTextareaInput}
@@ -95,7 +95,7 @@ export function ConversationPromptInput() {
           <ConversationPromptInputImageButton />
           <button
             className={conversationPromptInput__button}
-            disabled={isCurrentPromptEmpty || isPromptingDisabled}
+            disabled={isCurrentPromptEmpty || isTokenGenerationDisabled}
           >
             <img src={iconArrowUpward} alt="Send" />
           </button>

@@ -1,5 +1,5 @@
 mod inference_socket_controller_context;
-mod spawn_prompting_mode_watcher;
+mod spawn_token_generation_mode_watcher;
 
 use std::sync::Arc;
 
@@ -29,10 +29,10 @@ use paddler_messaging::validates::Validates as _;
 use tokio_util::sync::CancellationToken;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
-use self::spawn_prompting_mode_watcher::spawn_prompting_mode_watcher;
+use self::spawn_token_generation_mode_watcher::spawn_token_generation_mode_watcher;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
-use crate::cluster_prompting_mode::ClusterPromptingMode;
+use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
@@ -44,10 +44,10 @@ use crate::websocket_session_controller::WebSocketSessionController;
 type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
 type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 
-const PROMPTING_DISABLED_MESSAGE: &str =
+const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
     "Token generation is disabled while the cluster is configured for embeddings";
 
-async fn send_prompting_disabled(
+async fn send_token_generation_disabled(
     request_id: String,
     websocket_session_controller: &mut WebSocketSessionController<OutgoingMessage>,
 ) {
@@ -57,13 +57,15 @@ async fn send_prompting_disabled(
             request_id: request_id.clone(),
             response: OutgoingResponse::GeneratedToken(
                 GeneratedTokenResult::TokenGenerationDisabled(
-                    PROMPTING_DISABLED_MESSAGE.to_owned(),
+                    TOKEN_GENERATION_DISABLED_MESSAGE.to_owned(),
                 ),
             ),
         }))
         .await
     {
-        error!("Failed to send prompting-disabled response for request {request_id:?}: {err}");
+        error!(
+            "Failed to send token-generation-disabled response for request {request_id:?}: {err}"
+        );
     }
 }
 
@@ -115,14 +117,17 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
             }) => {
                 let validated_params = conversation_history_params.validate()?;
 
-                match ClusterPromptingMode::from_applicable_state_holder(
+                match ClusterTokenGenerationMode::from_applicable_state_holder(
                     &context.balancer_applicable_state_holder,
                 ) {
-                    ClusterPromptingMode::DisabledForEmbeddings => {
-                        send_prompting_disabled(request_id, &mut websocket_session_controller)
-                            .await;
+                    ClusterTokenGenerationMode::DisabledForEmbeddings => {
+                        send_token_generation_disabled(
+                            request_id,
+                            &mut websocket_session_controller,
+                        )
+                        .await;
                     }
-                    ClusterPromptingMode::Enabled => {
+                    ClusterTokenGenerationMode::Enabled => {
                         rt::spawn(async move {
                             request_from_agent(
                                 context.buffered_request_manager.clone(),
@@ -144,14 +149,17 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 id: request_id,
                 request: InferenceJsonRpcRequest::ContinueFromRawPrompt(raw_prompt_params),
             }) => {
-                match ClusterPromptingMode::from_applicable_state_holder(
+                match ClusterTokenGenerationMode::from_applicable_state_holder(
                     &context.balancer_applicable_state_holder,
                 ) {
-                    ClusterPromptingMode::DisabledForEmbeddings => {
-                        send_prompting_disabled(request_id, &mut websocket_session_controller)
-                            .await;
+                    ClusterTokenGenerationMode::DisabledForEmbeddings => {
+                        send_token_generation_disabled(
+                            request_id,
+                            &mut websocket_session_controller,
+                        )
+                        .await;
                     }
-                    ClusterPromptingMode::Enabled => {
+                    ClusterTokenGenerationMode::Enabled => {
                         rt::spawn(async move {
                             request_from_agent(
                                 context.buffered_request_manager.clone(),
@@ -177,7 +185,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         context: Arc<Self::Context>,
         session: &mut Session,
     ) -> Result<ContinuationDecision> {
-        spawn_prompting_mode_watcher(
+        spawn_token_generation_mode_watcher(
             context.balancer_applicable_state_holder.clone(),
             connection_close,
             session.clone(),

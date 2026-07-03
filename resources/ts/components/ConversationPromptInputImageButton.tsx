@@ -6,7 +6,7 @@ import React, {
 } from "react";
 
 import { PromptImageContext } from "../contexts/PromptImageContext";
-import { PromptingDisabledContext } from "../contexts/PromptingDisabledContext";
+import { TokenGenerationDisabledContext } from "../contexts/TokenGenerationDisabledContext";
 
 import { conversationPromptInput__button } from "./ConversationPromptInput.module.css";
 import { conversationPromptInputImageButton__fileInput } from "./ConversationPromptInputImageButton.module.css";
@@ -35,7 +35,7 @@ function readFileAsDataUri(imageFile: File): Promise<string> {
 
 export function ConversationPromptInputImageButton() {
   const { setCurrentImageDataUri } = useContext(PromptImageContext);
-  const { isPromptingDisabled } = useContext(PromptingDisabledContext);
+  const { isTokenGenerationDisabled } = useContext(TokenGenerationDisabledContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onButtonClick = useCallback(function () {
@@ -62,14 +62,14 @@ export function ConversationPromptInputImageButton() {
       <input
         accept="image/*"
         className={conversationPromptInputImageButton__fileInput}
-        disabled={isPromptingDisabled}
+        disabled={isTokenGenerationDisabled}
         ref={fileInputRef}
         type="file"
         onChange={onFileSelected}
       />
       <button
         className={conversationPromptInput__button}
-        disabled={isPromptingDisabled}
+        disabled={isTokenGenerationDisabled}
         type="button"
         onClick={onButtonClick}
       >

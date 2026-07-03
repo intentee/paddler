@@ -62,7 +62,7 @@ pub async fn collect_generated_tokens(
             }
             InferenceMessage::Notification(notification) => {
                 return Err(anyhow!(
-                    "unexpected prompting-mode notification on a token-generation stream: {notification:?}"
+                    "unexpected token-generation-mode notification on a token-generation stream: {notification:?}"
                 ));
             }
         }
@@ -182,9 +182,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn rejects_a_prompting_mode_notification() {
+    async fn rejects_a_token_generation_mode_notification() {
         let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Notification(
-            Notification::PromptingEnabled,
+            Notification::TokenGenerationEnabled,
         ))]))
         .await
         .err()
@@ -193,7 +193,7 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("unexpected prompting-mode notification")
+                .contains("unexpected token-generation-mode notification")
         );
     }
 

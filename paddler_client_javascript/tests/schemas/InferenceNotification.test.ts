@@ -3,12 +3,12 @@ import { test } from "node:test";
 
 import { InferenceNotificationSchema } from "../../src/schemas/InferenceNotification";
 
-test("parses a cluster prompting-mode notification frame", function () {
+test("parses a cluster token-generation-mode notification frame", function () {
   const parsed = InferenceNotificationSchema.parse({
-    Notification: "PromptingEnabled",
+    Notification: "TokenGenerationEnabled",
   });
 
-  strictEqual(parsed.Notification, "PromptingEnabled");
+  strictEqual(parsed.Notification, "TokenGenerationEnabled");
 });
 
 test("rejects an unknown notification value", function () {

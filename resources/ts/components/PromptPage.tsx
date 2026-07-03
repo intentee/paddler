@@ -9,7 +9,7 @@ import { ConversationMessage } from "./ConversationMessage";
 import { ConversationMessagePromptGeneratedTokens } from "./ConversationMessagePromptGeneratedTokens";
 import { ConversationPromptInput } from "./ConversationPromptInput";
 import { FloatingStatus } from "./FloatingStatus";
-import { PromptingDisabledContextProvider } from "./PromptingDisabledContextProvider";
+import { TokenGenerationDisabledContextProvider } from "./TokenGenerationDisabledContextProvider";
 
 import {
   promptPage,
@@ -25,7 +25,7 @@ export function PromptPage() {
   });
 
   return (
-    <PromptingDisabledContextProvider webSocket={webSocket}>
+    <TokenGenerationDisabledContextProvider webSocket={webSocket}>
       {matchWebSocketState(socketState, {
         connected({ webSocket }) {
           return (
@@ -74,6 +74,6 @@ export function PromptPage() {
           );
         },
       })}
-    </PromptingDisabledContextProvider>
+    </TokenGenerationDisabledContextProvider>
   );
 }

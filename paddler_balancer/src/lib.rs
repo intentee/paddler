@@ -13,7 +13,7 @@ pub mod buffered_request_manager;
 pub mod cancellation_token_stream_guard;
 pub mod chat_template_override_sender_collection;
 pub mod chunk_forwarding_session_controller;
-pub mod cluster_prompting_mode;
+pub mod cluster_token_generation_mode;
 pub mod compatibility;
 pub mod continuation_decision;
 pub mod continuation_stop_parameters;
