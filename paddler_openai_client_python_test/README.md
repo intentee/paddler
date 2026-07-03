@@ -1,7 +1,7 @@
 # paddler_openai_client_python_test
 
-Verifies that the **official OpenAI Python client** works against Paddler's OpenAI-compatible
-endpoints (`/v1/chat/completions` and `/v1/responses`). It depends on the official `openai` package
+Verifies that the **OpenAI Python client** works against Paddler's OpenAI-compatible
+endpoints (`/v1/chat/completions` and `/v1/responses`). It depends on the `openai` package
 only — never on Paddler's own client — and exercises nothing but the OpenAI endpoints, so a passing
 run is objective evidence that a real OpenAI client is compatible with the server.
 
