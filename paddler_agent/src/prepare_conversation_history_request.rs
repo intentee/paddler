@@ -183,6 +183,7 @@ pub fn prepare_conversation_history_request(
 mod tests {
     use std::sync::Arc;
 
+    use anyhow::Result;
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use tokio::sync::mpsc;
@@ -191,25 +192,21 @@ mod tests {
     use crate::chat_template_renderer::ChatTemplateRenderer;
 
     #[test]
-    fn returns_the_renderer_when_one_is_present() {
-        let chat_template_renderer = Arc::new(
-            ChatTemplateRenderer::new(ChatTemplate {
-                content: "{{ messages }}".to_owned(),
-            })
-            .expect("trivial chat template compiles"),
-        );
+    fn returns_the_renderer_when_one_is_present() -> Result<()> {
+        let chat_template_renderer = Arc::new(ChatTemplateRenderer::new(ChatTemplate {
+            content: "{{ messages }}".to_owned(),
+        })?);
         let (generated_tokens_tx, _generated_tokens_rx) = mpsc::unbounded_channel();
 
-        match require_renderer_for_generation(
+        let returned_renderer = require_renderer_for_generation(
             Some(&chat_template_renderer),
             Some("agent"),
             &generated_tokens_tx,
-        ) {
-            Ok(returned_renderer) => {
-                assert!(Arc::ptr_eq(&returned_renderer, &chat_template_renderer));
-            }
-            Err(err) => panic!("expected the renderer to be returned, got error: {err}"),
-        }
+        )?;
+
+        assert!(Arc::ptr_eq(&returned_renderer, &chat_template_renderer));
+
+        Ok(())
     }
 
     #[test]

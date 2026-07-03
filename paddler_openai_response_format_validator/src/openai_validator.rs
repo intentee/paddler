@@ -63,6 +63,9 @@ const RESPONSES_EMITTED_EVENT_STRICT_POINTERS: &[&str] = &[
     "/$defs/ResponseFunctionCallArgumentsDoneEvent",
 ];
 
+const ERROR_RESPONSE_ROOT: &str = "ErrorResponse";
+const ERROR_RESPONSE_STRICT_POINTERS: &[&str] = &["/$defs/ErrorResponse", "/$defs/Error"];
+
 fn responses_stream_event_strict_pointers() -> Vec<&'static str> {
     let mut pointers = RESPONSES_EMITTED_EVENT_STRICT_POINTERS.to_vec();
 
@@ -96,6 +99,7 @@ pub struct OpenAIValidator {
     responses_request: Validator,
     responses_response: Validator,
     responses_stream_event: Validator,
+    error_response: Validator,
 }
 
 impl OpenAIValidator {
@@ -126,6 +130,11 @@ impl OpenAIValidator {
                 components,
                 RESPONSES_STREAM_EVENT_ROOT,
                 &responses_stream_event_strict_pointers(),
+            )?,
+            error_response: compile_strict_schema(
+                components,
+                ERROR_RESPONSE_ROOT,
+                ERROR_RESPONSE_STRICT_POINTERS,
             )?,
         })
     }
@@ -204,10 +213,22 @@ impl OpenAIValidator {
             Err(OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations })
         }
     }
+
+    pub fn validate_error_response(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
+        let violations = schema_violations(&self.error_response, instance);
+
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(OpenAIValidatorError::ErrorResponseDoesNotConform { violations })
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Context as _;
+    use anyhow::Result;
     use serde_json::Value;
     use serde_json::json;
 
@@ -555,5 +576,78 @@ mod tests {
         let error = OpenAIValidator::from_components(&components).err().unwrap();
 
         assert!(error.to_string().contains("ResponseStreamEvent"));
+    }
+
+    fn conformant_error_response() -> Value {
+        json!({
+            "error": {
+                "message": "boom",
+                "type": "server_error",
+                "param": null,
+                "code": null
+            }
+        })
+    }
+
+    #[test]
+    fn accepts_a_conformant_error_response() -> Result<()> {
+        OpenAIValidator::new()?.validate_error_response(&conformant_error_response())?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_error_response_with_an_extra_key() -> Result<()> {
+        let mut response = conformant_error_response();
+        response["error"]["paddler_extension"] = json!("nope");
+
+        match OpenAIValidator::new()?.validate_error_response(&response) {
+            Ok(()) => panic!("expected the error response to be rejected"),
+            Err(error) => assert!(
+                error
+                    .to_string()
+                    .contains("error response does not conform")
+            ),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_error_response_missing_a_required_field() -> Result<()> {
+        let response = json!({
+            "error": {
+                "message": "boom",
+                "param": null,
+                "code": null
+            }
+        });
+
+        match OpenAIValidator::new()?.validate_error_response(&response) {
+            Ok(()) => panic!("expected the error response to be rejected"),
+            Err(error) => assert!(
+                error
+                    .to_string()
+                    .contains("error response does not conform")
+            ),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn fails_when_error_response_schema_is_absent() -> Result<()> {
+        let mut components = parse_components(OPENAPI_YAML)?;
+        components
+            .as_object_mut()
+            .context("parsed components must be a JSON object")?
+            .remove("ErrorResponse");
+
+        match OpenAIValidator::from_components(&components) {
+            Ok(_) => panic!("expected schema compilation to fail without ErrorResponse"),
+            Err(error) => assert!(error.to_string().contains("ErrorResponse")),
+        }
+
+        Ok(())
     }
 }

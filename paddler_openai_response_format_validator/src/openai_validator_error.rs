@@ -20,4 +20,6 @@ pub enum OpenAIValidatorError {
         "responses stream event does not conform to the official OpenAI schema: {violations:?}"
     )]
     ResponsesStreamEventDoesNotConform { violations: Vec<String> },
+    #[error("error response does not conform to the OpenAI schema: {violations:?}")]
+    ErrorResponseDoesNotConform { violations: Vec<String> },
 }

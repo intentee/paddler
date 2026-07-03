@@ -31,7 +31,19 @@ async fn respond(
     app_data: web::Data<AppData>,
     openai_params: web::Json<OpenAICompletionRequestParams>,
 ) -> Result<HttpResponse, Error> {
-    require_token_generation_enabled(&app_data.balancer_applicable_state_holder)?;
+    if require_token_generation_enabled(&app_data.balancer_applicable_state_holder).is_err() {
+        return Ok(HttpResponse::NotImplemented()
+            .content_type("application/json")
+            .body(
+                OpenAIError {
+                    error_type: "server_error",
+                    message: "Chat completions are disabled while the cluster is configured for embeddings"
+                        .to_owned(),
+                }
+                .to_envelope()
+                .to_string(),
+            ));
+    }
 
     let openai_params = openai_params.into_inner();
 
@@ -164,9 +176,12 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body;
     use actix_web::web::Data;
+    use anyhow::Result;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::inference_parameters::InferenceParameters;
+    use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
+    use serde_json::Value;
     use serde_json::json;
     use tokio_util::sync::CancellationToken;
 
@@ -229,7 +244,7 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn rejects_chat_completion_when_embeddings_are_enabled() {
+    async fn rejects_chat_completion_when_embeddings_are_enabled() -> Result<()> {
         let app = init_service(
             App::new()
                 .app_data(Data::new(app_data_with_embeddings_enabled()))
@@ -248,6 +263,13 @@ mod tests {
         let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+
+        let body = read_body(response).await;
+        let envelope: Value = serde_json::from_slice(&body)?;
+
+        OpenAIValidator::new()?.validate_error_response(&envelope)?;
+
+        Ok(())
     }
 
     #[actix_web::test]

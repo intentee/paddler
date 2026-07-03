@@ -28,7 +28,20 @@ async fn respond(
     app_data: web::Data<AppData>,
     openai_params: web::Json<OpenAIResponsesRequestParams>,
 ) -> Result<HttpResponse, Error> {
-    require_token_generation_enabled(&app_data.balancer_applicable_state_holder)?;
+    if require_token_generation_enabled(&app_data.balancer_applicable_state_holder).is_err() {
+        return Ok(HttpResponse::NotImplemented()
+            .content_type("application/json")
+            .body(
+                OpenAIError {
+                    error_type: "server_error",
+                    message:
+                        "Responses are disabled while the cluster is configured for embeddings"
+                            .to_owned(),
+                }
+                .to_envelope()
+                .to_string(),
+            ));
+    }
 
     let prepared = match openai_params.into_inner().into_prepared() {
         Ok(prepared) => prepared,
