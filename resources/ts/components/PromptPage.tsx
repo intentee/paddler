@@ -10,6 +10,7 @@ import { ConversationMessagePromptGeneratedTokens } from "./ConversationMessageP
 import { ConversationPromptInput } from "./ConversationPromptInput";
 import { FloatingStatus } from "./FloatingStatus";
 import { TokenGenerationDisabledContextProvider } from "./TokenGenerationDisabledContextProvider";
+import { TokenGenerationDisabledNotice } from "./TokenGenerationDisabledNotice";
 
 import {
   promptPage,
@@ -45,6 +46,7 @@ export function PromptPage() {
                 />
               </div>
               <div className={promptPage__promptForm}>
+                <TokenGenerationDisabledNotice />
                 <ConversationPromptInput />
               </div>
             </div>
