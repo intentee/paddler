@@ -388,7 +388,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn every_emitted_streaming_event_conforms_to_the_official_schema() {
+    async fn every_emitted_streaming_event_conforms_to_the_schema() {
         let validator = OpenAIValidator::new().unwrap();
         let transformer = streaming_transformer();
 
@@ -413,7 +413,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_failed_streaming_event_conforms_to_the_official_schema() {
+    async fn the_failed_streaming_event_conforms_to_the_schema() {
         let validator = OpenAIValidator::new().unwrap();
         let transformer = streaming_transformer();
 

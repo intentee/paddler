@@ -7,22 +7,27 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn openai_responses_non_streaming_conforms_to_official_schema() -> Result<()> {
+async fn openai_chat_completion_streaming_conforms_to_schema() -> Result<()> {
     let validator = OpenAIValidator::new()?;
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let request = json!({
         "model": "qwen3-test",
-        "input": "Say hello.",
-        "max_output_tokens": 200,
-        "stream": false
+        "messages": [{"role": "user", "content": "Say hello."}],
+        "max_completion_tokens": 200,
+        "stream": true,
+        "stream_options": {"include_usage": true}
     });
 
-    validator.validate_responses_request(&request)?;
+    validator.validate_chat_completion_request(&request)?;
 
-    let response = cluster.openai_responses_non_streaming(&request).await?;
+    let chunks = cluster.openai_chat_completion_streaming(&request).await?;
 
-    validator.validate_responses_response(&response)?;
+    assert!(!chunks.is_empty(), "expected at least one streaming chunk");
+
+    for chunk in &chunks {
+        validator.validate_chat_completion_stream_chunk(chunk)?;
+    }
 
     cluster.shutdown().await?;
 
