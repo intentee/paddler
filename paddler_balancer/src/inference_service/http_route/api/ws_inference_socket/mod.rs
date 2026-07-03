@@ -1,4 +1,5 @@
 mod inference_socket_controller_context;
+mod spawn_prompting_mode_watcher;
 
 use std::sync::Arc;
 
@@ -10,33 +11,64 @@ use actix_web::get;
 use actix_web::web::Data;
 use actix_web::web::Payload;
 use actix_web::web::ServiceConfig;
+use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_messaging::validates::Validates as _;
 use tokio_util::sync::CancellationToken;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
+use self::spawn_prompting_mode_watcher::spawn_prompting_mode_watcher;
+use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
+use crate::cluster_prompting_mode::ClusterPromptingMode;
 use crate::continuation_decision::ContinuationDecision;
+use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::request_from_agent::request_from_agent;
-use crate::require_token_generation_enabled::require_token_generation_enabled;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
 type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 
+const PROMPTING_DISABLED_MESSAGE: &str =
+    "Token generation is disabled while the cluster is configured for embeddings";
+
+async fn send_prompting_disabled(
+    request_id: String,
+    websocket_session_controller: &mut WebSocketSessionController<OutgoingMessage>,
+) {
+    if let Err(err) = websocket_session_controller
+        .send_response(OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: request_id.clone(),
+            response: OutgoingResponse::GeneratedToken(
+                GeneratedTokenResult::TokenGenerationDisabled(
+                    PROMPTING_DISABLED_MESSAGE.to_owned(),
+                ),
+            ),
+        }))
+        .await
+    {
+        error!("Failed to send prompting-disabled response for request {request_id:?}: {err}");
+    }
+}
+
 struct InferenceSocketController {
+    balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     buffered_request_manager: Arc<BufferedRequestManager>,
     inference_service_configuration: InferenceServiceConfiguration,
     shutdown: CancellationToken,
@@ -50,6 +82,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 
     fn create_context(&self) -> Self::Context {
         InferenceSocketControllerContext {
+            balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.inference_service_configuration.clone(),
             shutdown: self.shutdown.clone(),
@@ -60,7 +93,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
-        websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
+        mut websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
     ) -> Result<ContinuationDecision> {
         match deserialized_message {
             InferenceJsonRpcMessage::Error(ErrorEnvelope {
@@ -82,18 +115,28 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
             }) => {
                 let validated_params = conversation_history_params.validate()?;
 
-                rt::spawn(async move {
-                    request_from_agent(
-                        context.buffered_request_manager.clone(),
-                        connection_close,
-                        context.inference_service_configuration.clone(),
-                        validated_params,
-                        request_id,
-                        websocket_session_controller,
-                        context.shutdown.clone(),
-                    )
-                    .await;
-                });
+                match ClusterPromptingMode::from_applicable_state_holder(
+                    &context.balancer_applicable_state_holder,
+                ) {
+                    ClusterPromptingMode::DisabledForEmbeddings => {
+                        send_prompting_disabled(request_id, &mut websocket_session_controller)
+                            .await;
+                    }
+                    ClusterPromptingMode::Enabled => {
+                        rt::spawn(async move {
+                            request_from_agent(
+                                context.buffered_request_manager.clone(),
+                                connection_close,
+                                context.inference_service_configuration.clone(),
+                                validated_params,
+                                request_id,
+                                websocket_session_controller,
+                                context.shutdown.clone(),
+                            )
+                            .await;
+                        });
+                    }
+                }
 
                 Ok(ContinuationDecision::Continue)
             }
@@ -101,22 +144,46 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
                 id: request_id,
                 request: InferenceJsonRpcRequest::ContinueFromRawPrompt(raw_prompt_params),
             }) => {
-                rt::spawn(async move {
-                    request_from_agent(
-                        context.buffered_request_manager.clone(),
-                        connection_close,
-                        context.inference_service_configuration.clone(),
-                        raw_prompt_params,
-                        request_id,
-                        websocket_session_controller,
-                        context.shutdown.clone(),
-                    )
-                    .await;
-                });
+                match ClusterPromptingMode::from_applicable_state_holder(
+                    &context.balancer_applicable_state_holder,
+                ) {
+                    ClusterPromptingMode::DisabledForEmbeddings => {
+                        send_prompting_disabled(request_id, &mut websocket_session_controller)
+                            .await;
+                    }
+                    ClusterPromptingMode::Enabled => {
+                        rt::spawn(async move {
+                            request_from_agent(
+                                context.buffered_request_manager.clone(),
+                                connection_close,
+                                context.inference_service_configuration.clone(),
+                                raw_prompt_params,
+                                request_id,
+                                websocket_session_controller,
+                                context.shutdown.clone(),
+                            )
+                            .await;
+                        });
+                    }
+                }
 
                 Ok(ContinuationDecision::Continue)
             }
         }
+    }
+
+    async fn on_connection_start(
+        connection_close: CancellationToken,
+        context: Arc<Self::Context>,
+        session: &mut Session,
+    ) -> Result<ContinuationDecision> {
+        spawn_prompting_mode_watcher(
+            context.balancer_applicable_state_holder.clone(),
+            connection_close,
+            session.clone(),
+        );
+
+        Ok(ContinuationDecision::Continue)
     }
 }
 
@@ -126,9 +193,8 @@ async fn respond(
     payload: Payload,
     http_request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
-    require_token_generation_enabled(&app_data.balancer_applicable_state_holder)?;
-
     let inference_socket_controller = InferenceSocketController {
+        balancer_applicable_state_holder: app_data.balancer_applicable_state_holder.clone(),
         buffered_request_manager: app_data.buffered_request_manager.clone(),
         inference_service_configuration: app_data.inference_service_configuration.clone(),
         shutdown: app_data.shutdown.clone(),
@@ -245,8 +311,12 @@ mod tests {
         }
     }
 
-    fn context_with_pool(pool: Arc<AgentControllerPool>) -> Arc<InferenceSocketControllerContext> {
+    fn context_with_pool(
+        pool: Arc<AgentControllerPool>,
+        balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    ) -> Arc<InferenceSocketControllerContext> {
         Arc::new(InferenceSocketControllerContext {
+            balancer_applicable_state_holder,
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 pool,
                 Duration::from_mins(1),
@@ -255,6 +325,26 @@ mod tests {
             inference_service_configuration: inference_service_configuration(),
             shutdown: CancellationToken::new(),
         })
+    }
+
+    fn embeddings_enabled_holder() -> Arc<BalancerApplicableStateHolder> {
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
+            BalancerApplicableState {
+                agent_desired_state: AgentDesiredState {
+                    chat_template_override: None,
+                    inference_parameters: InferenceParameters {
+                        enable_embeddings: true,
+                        ..InferenceParameters::default()
+                    },
+                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                    multimodal_projection: AgentDesiredModel::None,
+                },
+            },
+        ));
+
+        balancer_applicable_state_holder
     }
 
     async fn open_session_controller() -> WebSocketSessionController<OutgoingMessage> {
@@ -282,6 +372,7 @@ mod tests {
 
     #[actix_web::test]
     async fn create_context_copies_controller_state() {
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
             Arc::new(AgentControllerPool::default()),
             Duration::from_mins(1),
@@ -289,6 +380,7 @@ mod tests {
         ));
         let shutdown = CancellationToken::new();
         let controller = InferenceSocketController {
+            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
             buffered_request_manager: buffered_request_manager.clone(),
             inference_service_configuration: inference_service_configuration(),
             shutdown: shutdown.clone(),
@@ -296,6 +388,10 @@ mod tests {
 
         let context = controller.create_context();
 
+        assert!(Arc::ptr_eq(
+            &context.balancer_applicable_state_holder,
+            &balancer_applicable_state_holder
+        ));
         assert!(Arc::ptr_eq(
             &context.buffered_request_manager,
             &buffered_request_manager
@@ -344,26 +440,10 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn respond_rejects_when_embeddings_are_enabled() {
-        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
-
-        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
-            BalancerApplicableState {
-                agent_desired_state: AgentDesiredState {
-                    chat_template_override: None,
-                    inference_parameters: InferenceParameters {
-                        enable_embeddings: true,
-                        ..InferenceParameters::default()
-                    },
-                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                    multimodal_projection: AgentDesiredModel::None,
-                },
-            },
-        ));
-
+    async fn respond_upgrades_when_embeddings_are_enabled() {
         let app_data = Data::new(AppData {
             agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            balancer_applicable_state_holder,
+            balancer_applicable_state_holder: embeddings_enabled_holder(),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 Arc::new(AgentControllerPool::default()),
                 Duration::from_mins(1),
@@ -376,10 +456,85 @@ mod tests {
 
         let request = TestRequest::get()
             .uri("/api/v1/inference_socket")
+            .insert_header((header::UPGRADE, "websocket"))
+            .insert_header((header::CONNECTION, "Upgrade"))
+            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
+            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
             .to_request();
         let response = call_service(&app, request).await;
 
-        assert_eq!(response.status(), StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(response.status(), StatusCode::SWITCHING_PROTOCOLS);
+    }
+
+    #[actix_web::test]
+    async fn handle_raw_prompt_request_replies_disabled_without_dispatch_in_embeddings_mode() {
+        let RegisteredAgent {
+            pool,
+            mut agent_message_rx,
+        } = pool_with_one_free_slot("agent-raw-prompt-embeddings");
+        let session_controller = open_session_controller().await;
+
+        let continuation_decision = InferenceSocketController::handle_deserialized_message(
+            CancellationToken::new(),
+            context_with_pool(pool, embeddings_enabled_holder()),
+            InferenceJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-raw-prompt-embeddings".to_owned(),
+                request: InferenceJsonRpcRequest::ContinueFromRawPrompt(
+                    ContinueFromRawPromptParams {
+                        grammar: None,
+                        max_tokens: 1,
+                        raw_prompt: "fixture prompt".to_owned(),
+                    },
+                ),
+            }),
+            session_controller,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+        assert!(agent_message_rx.try_recv().is_err());
+    }
+
+    #[actix_web::test]
+    async fn handle_conversation_history_request_replies_disabled_without_dispatch_in_embeddings_mode()
+     {
+        let RegisteredAgent {
+            pool,
+            mut agent_message_rx,
+        } = pool_with_one_free_slot("agent-conversation-history-embeddings");
+        let session_controller = open_session_controller().await;
+
+        let continuation_decision = InferenceSocketController::handle_deserialized_message(
+            CancellationToken::new(),
+            context_with_pool(pool, embeddings_enabled_holder()),
+            InferenceJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-conversation-history-embeddings".to_owned(),
+                request: InferenceJsonRpcRequest::ContinueFromConversationHistory(
+                    ContinueFromConversationHistoryParams {
+                        add_generation_prompt: true,
+                        conversation_history: ConversationHistory::new(Vec::new()),
+                        enable_thinking: false,
+                        grammar: None,
+                        max_tokens: 1,
+                        parse_tool_calls: false,
+                        tools: Vec::new(),
+                    },
+                ),
+            }),
+            session_controller,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+        assert!(agent_message_rx.try_recv().is_err());
     }
 
     #[actix_web::test]
@@ -392,7 +547,7 @@ mod tests {
 
         let continuation_decision = InferenceSocketController::handle_deserialized_message(
             CancellationToken::new(),
-            context_with_pool(pool),
+            context_with_pool(pool, Arc::new(BalancerApplicableStateHolder::default())),
             InferenceJsonRpcMessage::Error(ErrorEnvelope {
                 request_id: "request-error".to_owned(),
                 error: JsonRpcError {
@@ -423,7 +578,7 @@ mod tests {
 
         let continuation_decision = InferenceSocketController::handle_deserialized_message(
             connection_close.clone(),
-            context_with_pool(pool),
+            context_with_pool(pool, Arc::new(BalancerApplicableStateHolder::default())),
             InferenceJsonRpcMessage::Request(RequestEnvelope {
                 id: "request-raw-prompt".to_owned(),
                 request: InferenceJsonRpcRequest::ContinueFromRawPrompt(
@@ -481,7 +636,7 @@ mod tests {
 
         let continuation_decision = InferenceSocketController::handle_deserialized_message(
             connection_close.clone(),
-            context_with_pool(pool),
+            context_with_pool(pool, Arc::new(BalancerApplicableStateHolder::default())),
             InferenceJsonRpcMessage::Request(RequestEnvelope {
                 id: "request-conversation-history".to_owned(),
                 request: InferenceJsonRpcRequest::ContinueFromConversationHistory(

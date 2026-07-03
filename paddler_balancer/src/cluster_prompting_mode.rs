@@ -1,17 +1,24 @@
-use actix_web::Error;
-use actix_web::error::ErrorNotImplemented;
-
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use crate::cluster_prompting_mode::ClusterPromptingMode;
 
-pub fn require_token_generation_enabled(
-    balancer_applicable_state_holder: &BalancerApplicableStateHolder,
-) -> Result<(), Error> {
-    match ClusterPromptingMode::from_applicable_state_holder(balancer_applicable_state_holder) {
-        ClusterPromptingMode::Enabled => Ok(()),
-        ClusterPromptingMode::DisabledForEmbeddings => Err(ErrorNotImplemented(
-            "Token generation is disabled while the cluster is configured for embeddings",
-        )),
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ClusterPromptingMode {
+    Enabled,
+    DisabledForEmbeddings,
+}
+
+impl ClusterPromptingMode {
+    #[must_use]
+    pub fn from_applicable_state_holder(
+        balancer_applicable_state_holder: &BalancerApplicableStateHolder,
+    ) -> Self {
+        if let Some(agent_desired_state) =
+            balancer_applicable_state_holder.get_agent_desired_state()
+            && agent_desired_state.inference_parameters.enable_embeddings
+        {
+            Self::DisabledForEmbeddings
+        } else {
+            Self::Enabled
+        }
     }
 }
 
@@ -21,7 +28,7 @@ mod tests {
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::inference_parameters::InferenceParameters;
 
-    use super::require_token_generation_enabled;
+    use super::ClusterPromptingMode;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 
@@ -46,19 +53,28 @@ mod tests {
     }
 
     #[test]
-    fn allows_generation_when_state_is_not_set() {
+    fn enabled_when_state_is_not_set() {
         let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
 
-        assert!(require_token_generation_enabled(&balancer_applicable_state_holder).is_ok());
+        assert_eq!(
+            ClusterPromptingMode::from_applicable_state_holder(&balancer_applicable_state_holder),
+            ClusterPromptingMode::Enabled
+        );
     }
 
     #[test]
-    fn allows_generation_when_embeddings_are_disabled() {
-        assert!(require_token_generation_enabled(&holder_with_embeddings(false)).is_ok());
+    fn enabled_when_embeddings_are_disabled() {
+        assert_eq!(
+            ClusterPromptingMode::from_applicable_state_holder(&holder_with_embeddings(false)),
+            ClusterPromptingMode::Enabled
+        );
     }
 
     #[test]
-    fn rejects_generation_when_embeddings_are_enabled() {
-        assert!(require_token_generation_enabled(&holder_with_embeddings(true)).is_err());
+    fn disabled_for_embeddings_when_embeddings_are_enabled() {
+        assert_eq!(
+            ClusterPromptingMode::from_applicable_state_holder(&holder_with_embeddings(true)),
+            ClusterPromptingMode::DisabledForEmbeddings
+        );
     }
 }

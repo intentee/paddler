@@ -123,6 +123,26 @@ test("UnrecognizedToolCallFormat preserves text and FFI error message", function
   });
 });
 
+test("TokenGenerationDisabled normalises to a terminal error", function () {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
+    Response: {
+      generated_by: null,
+      request_id: "req-8",
+      response: {
+        GeneratedToken: {
+          TokenGenerationDisabled: "cluster is configured for embeddings",
+        },
+      },
+    },
+  });
+
+  strictEqual(parsed.done, true);
+  deepStrictEqual(parsed.error, {
+    code: 501,
+    description: "cluster is configured for embeddings",
+  });
+});
+
 test("ImageExceedsBatchSize is terminal and describes token counts", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {

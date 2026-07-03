@@ -1,7 +1,6 @@
-use std::sync::OnceLock;
-
 use nanoid::nanoid;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
@@ -10,6 +9,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use reqwest::Client;
+use tokio::sync::broadcast;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use url::Url;
 
@@ -22,8 +22,7 @@ use crate::stream::ndjson::Ndjson;
 pub struct ClientInference<'client> {
     url: &'client Url,
     http_client: &'client Client,
-    inference_socket_pool: OnceLock<Pool>,
-    inference_socket_pool_size: usize,
+    inference_socket_pool: &'client Pool,
 }
 
 impl<'client> ClientInference<'client> {
@@ -31,13 +30,12 @@ impl<'client> ClientInference<'client> {
     pub const fn new(
         url: &'client Url,
         http_client: &'client Client,
-        inference_socket_pool_size: usize,
+        inference_socket_pool: &'client Pool,
     ) -> Self {
         Self {
             url,
             http_client,
-            inference_socket_pool: OnceLock::new(),
-            inference_socket_pool_size,
+            inference_socket_pool,
         }
     }
 
@@ -52,9 +50,9 @@ impl<'client> ClientInference<'client> {
         Ok(response.text().await?)
     }
 
-    fn get_inference_socket_pool(&self) -> &Pool {
-        self.inference_socket_pool
-            .get_or_init(|| Pool::new(self.url.clone(), self.inference_socket_pool_size))
+    #[must_use]
+    pub fn subscribe_to_prompting_mode(&self) -> broadcast::Receiver<Notification> {
+        self.inference_socket_pool.subscribe_to_notifications()
     }
 
     pub async fn continue_from_conversation_history(
@@ -68,7 +66,7 @@ impl<'client> ClientInference<'client> {
                 request: InferenceServerRequest::ContinueFromConversationHistory(params),
             });
         let rx = self
-            .get_inference_socket_pool()
+            .inference_socket_pool
             .send_request(request_id, message)
             .await?;
 
@@ -86,7 +84,7 @@ impl<'client> ClientInference<'client> {
                 request: InferenceServerRequest::ContinueFromRawPrompt(params),
             });
         let rx = self
-            .get_inference_socket_pool()
+            .inference_socket_pool
             .send_request(request_id, message)
             .await?;
 
@@ -158,6 +156,7 @@ mod tests {
     use url::Url;
 
     use super::ClientInference;
+    use crate::inference_socket::pool::Pool;
 
     fn raw_prompt_params() -> ContinueFromRawPromptParams {
         ContinueFromRawPromptParams {
@@ -184,7 +183,8 @@ mod tests {
     async fn continue_from_raw_prompt_errors_for_an_unreachable_server() {
         let url = Url::parse("http://127.0.0.1:1").unwrap();
         let http_client = Client::new();
-        let inference = ClientInference::new(&url, &http_client, 1);
+        let inference_socket_pool = Pool::new(url.clone(), 1);
+        let inference = ClientInference::new(&url, &http_client, &inference_socket_pool);
 
         assert!(
             inference
@@ -198,7 +198,8 @@ mod tests {
     async fn continue_from_conversation_history_errors_for_an_unreachable_server() {
         let url = Url::parse("http://127.0.0.1:1").unwrap();
         let http_client = Client::new();
-        let inference = ClientInference::new(&url, &http_client, 1);
+        let inference_socket_pool = Pool::new(url.clone(), 1);
+        let inference = ClientInference::new(&url, &http_client, &inference_socket_pool);
 
         assert!(
             inference

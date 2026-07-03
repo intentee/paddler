@@ -86,6 +86,7 @@ impl OpenAIError {
                 error_type: "server_error",
                 message: description.clone(),
             }),
+            OutgoingMessage::Notification(_) => None,
             OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
                 OutgoingResponse::GeneratedToken(token) => server_error_from_token(token),
                 OutgoingResponse::Timeout => Some(Self {

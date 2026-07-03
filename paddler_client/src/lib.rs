@@ -13,22 +13,25 @@ use url::Url;
 
 use crate::client_inference::ClientInference;
 use crate::client_management::ClientManagement;
+use crate::inference_socket::pool::Pool;
 
 pub struct PaddlerClient {
     inference_url: Url,
     management_url: Url,
-    inference_socket_pool_size: usize,
     http_client: Client,
+    inference_socket_pool: Pool,
 }
 
 impl PaddlerClient {
     #[must_use]
     pub fn new(inference_url: Url, management_url: Url, inference_socket_pool_size: usize) -> Self {
+        let inference_socket_pool = Pool::new(inference_url.clone(), inference_socket_pool_size);
+
         Self {
             inference_url,
             management_url,
-            inference_socket_pool_size,
             http_client: Client::new(),
+            inference_socket_pool,
         }
     }
 
@@ -37,7 +40,7 @@ impl PaddlerClient {
         ClientInference::new(
             &self.inference_url,
             &self.http_client,
-            self.inference_socket_pool_size,
+            &self.inference_socket_pool,
         )
     }
 

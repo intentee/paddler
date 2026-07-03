@@ -74,6 +74,9 @@ async fn balancer_completes_buffered_request_after_agent_joins() -> Result<()> {
                 envelope.error.description
             );
         }
+        Message::Notification(_) => {
+            anyhow::bail!("unexpected prompting-mode notification");
+        }
     }
 
     cluster.shutdown().await?;

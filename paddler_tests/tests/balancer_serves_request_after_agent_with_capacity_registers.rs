@@ -62,6 +62,9 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
         Message::Response(_) => {
             anyhow::bail!("expected timeout before agent registered");
         }
+        Message::Notification(_) => {
+            anyhow::bail!("unexpected prompting-mode notification");
+        }
     }
 
     cluster.spawn_additional_agent(&AgentConfig {
@@ -98,6 +101,9 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
             );
         }
         Message::Response(_) => {}
+        Message::Notification(_) => {
+            anyhow::bail!("unexpected prompting-mode notification");
+        }
     }
 
     cluster.shutdown().await?;

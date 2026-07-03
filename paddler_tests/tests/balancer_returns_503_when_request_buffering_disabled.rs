@@ -47,6 +47,9 @@ async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
         Message::Response(_) => {
             anyhow::bail!("expected buffer overflow error, got success");
         }
+        Message::Notification(_) => {
+            anyhow::bail!("unexpected prompting-mode notification");
+        }
     }
 
     cluster.shutdown().await?;

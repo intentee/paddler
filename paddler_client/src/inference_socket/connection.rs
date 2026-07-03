@@ -3,6 +3,8 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use futures_util::StreamExt;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
@@ -25,7 +27,10 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub async fn connect(connection_url: Url) -> Result<Self> {
+    pub async fn connect(
+        connection_url: Url,
+        notification_tx: broadcast::Sender<Notification>,
+    ) -> Result<Self> {
         let ws_url = url(connection_url)?;
         let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
         let (ws_write, ws_read) = ws_stream.split();
@@ -34,7 +39,7 @@ impl Connection {
         let (write_tx, write_rx) = mpsc::unbounded_channel::<String>();
 
         let write_task = spawn_write_task(ws_write, write_rx);
-        let read_task = spawn_read_task(ws_read, pending.clone());
+        let read_task = spawn_read_task(ws_read, pending.clone(), notification_tx);
 
         Ok(Self {
             write_tx,
@@ -68,6 +73,7 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
+    use tokio::sync::broadcast;
     use url::Url;
 
     use super::Connection;
@@ -75,7 +81,8 @@ mod tests {
     #[tokio::test]
     async fn connect_fails_for_an_unreachable_server() {
         let url = Url::parse("http://127.0.0.1:1").unwrap();
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
 
-        assert!(Connection::connect(url).await.is_err());
+        assert!(Connection::connect(url, notification_tx).await.is_err());
     }
 }

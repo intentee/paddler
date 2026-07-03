@@ -80,6 +80,9 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
                         envelope.error.description
                     );
                 }
+                Message::Notification(_) => {
+                    anyhow::bail!("unexpected prompting-mode notification");
+                }
             }
         }
     }

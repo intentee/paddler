@@ -78,6 +78,11 @@ pub async fn collect_embedding_results(
             InferenceMessage::Error(error_envelope) => {
                 wire_errors.push(error_envelope.error);
             }
+            InferenceMessage::Notification(notification) => {
+                return Err(anyhow!(
+                    "unexpected prompting-mode notification on an embedding stream: {notification:?}"
+                ));
+            }
         }
     }
 
@@ -100,6 +105,7 @@ mod tests {
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::notification::Notification;
     use paddler_messaging::inference_client::response::Response as InferenceResponse;
     use paddler_messaging::jsonrpc::error::Error;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
@@ -249,6 +255,22 @@ mod tests {
         .unwrap();
 
         assert!(error.to_string().contains("too many buffered"));
+    }
+
+    #[tokio::test]
+    async fn rejects_a_prompting_mode_notification() {
+        let error = collect_embedding_results(stream(vec![Ok(InferenceMessage::Notification(
+            Notification::PromptingEnabled,
+        ))]))
+        .await
+        .err()
+        .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("unexpected prompting-mode notification")
+        );
     }
 
     #[tokio::test]

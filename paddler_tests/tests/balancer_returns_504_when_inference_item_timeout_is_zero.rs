@@ -61,6 +61,9 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() -> Result<()
         Message::Response(_) => {
             anyhow::bail!("expected timeout error, got success");
         }
+        Message::Notification(_) => {
+            anyhow::bail!("unexpected prompting-mode notification");
+        }
     }
 
     cluster.shutdown().await?;
