@@ -24,7 +24,7 @@ edition = "2024"
 homepage = "https://paddler.intentee.com/"
 license = "Apache-2.0"
 repository = "https://github.com/intentee/paddler"
-version = "4.0.0"
+version = "4.0.1"
 
 [workspace.dependencies]
 actix = "0.13"
@@ -91,18 +91,18 @@ thiserror = "2"
 trzcina = "=0.3.0"
 url = { version = "2.5", features = ["serde"] }
 yaml-rust2 = "0.11"
-paddler_agent = { version = "4.0.0", path = "paddler_agent" }
-paddler_balancer = { version = "4.0.0", path = "paddler_balancer" }
-paddler_bootstrap = { version = "4.0.0", path = "paddler_bootstrap" }
-paddler_cache_dir = { version = "4.0.0", path = "paddler_cache_dir" }
-paddler_cli = { version = "4.0.0", path = "paddler_cli" }
-paddler_client = { version = "4.0.0", path = "paddler_client" }
-paddler_download_manager = { version = "4.0.0", path = "paddler_download_manager" }
-paddler_messaging = { version = "4.0.0", path = "paddler_messaging" }
+paddler_agent = { version = "4.0.1", path = "paddler_agent" }
+paddler_balancer = { version = "4.0.1", path = "paddler_balancer" }
+paddler_bootstrap = { version = "4.0.1", path = "paddler_bootstrap" }
+paddler_cache_dir = { version = "4.0.1", path = "paddler_cache_dir" }
+paddler_cli = { version = "4.0.1", path = "paddler_cli" }
+paddler_client = { version = "4.0.1", path = "paddler_client" }
+paddler_download_manager = { version = "4.0.1", path = "paddler_download_manager" }
+paddler_messaging = { version = "4.0.1", path = "paddler_messaging" }
 paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }
-paddler_state_conversion = { version = "4.0.0", path = "paddler_state_conversion" }
-paddler_test_cluster_harness = { version = "4.0.0", path = "paddler_test_cluster_harness" }
-paddler_tests = { version = "4.0.0", path = "paddler_tests" }
+paddler_state_conversion = { version = "4.0.1", path = "paddler_state_conversion" }
+paddler_test_cluster_harness = { version = "4.0.1", path = "paddler_test_cluster_harness" }
+paddler_tests = { version = "4.0.1", path = "paddler_tests" }
 
 [profile.release]
 lto = true

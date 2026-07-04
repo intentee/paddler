@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "paddler-openai-client-python-test"
-version = "4.0.0"
+version = "4.0.1"
 description = "Drives Paddler's OpenAI-compatible endpoints with the OpenAI client to verify real-client compatibility"
 authors = ["Intentee"]
 license = "Apache-2.0"

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "paddler-client"
-version = "4.0.0"
+version = "4.0.1"
 description = "Python client for Paddler LLM load balancer"
 authors = ["Intentee"]
 license = "Apache-2.0"
