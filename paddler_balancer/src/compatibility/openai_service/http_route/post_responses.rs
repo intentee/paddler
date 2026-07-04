@@ -20,6 +20,7 @@ use crate::compatibility::openai_service::responses_streaming_response_transform
 use crate::compatibility::openai_service::responses_streaming_state::ResponsesStreamingState;
 use crate::compatibility::openai_service::sse_response_from_agent::sse_response_from_agent;
 use crate::compatibility::openai_service::timestamp_from::timestamp_from;
+use crate::require_token_generation_enabled::require_token_generation_enabled;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
 
 #[post("/v1/responses")]
@@ -27,6 +28,21 @@ async fn respond(
     app_data: web::Data<AppData>,
     openai_params: web::Json<OpenAIResponsesRequestParams>,
 ) -> Result<HttpResponse, Error> {
+    if require_token_generation_enabled(&app_data.balancer_applicable_state_holder).is_err() {
+        return Ok(HttpResponse::NotImplemented()
+            .content_type("application/json")
+            .body(
+                OpenAIError {
+                    error_type: "server_error",
+                    message:
+                        "Responses are disabled while the cluster is configured for embeddings"
+                            .to_owned(),
+                }
+                .to_envelope()
+                .to_string(),
+            ));
+    }
+
     let prepared = match openai_params.into_inner().into_prepared() {
         Ok(prepared) => prepared,
         Err(err) => {

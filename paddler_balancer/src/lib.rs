@@ -13,6 +13,7 @@ pub mod buffered_request_manager;
 pub mod cancellation_token_stream_guard;
 pub mod chat_template_override_sender_collection;
 pub mod chunk_forwarding_session_controller;
+pub mod cluster_token_generation_mode;
 pub mod compatibility;
 pub mod continuation_decision;
 pub mod continuation_stop_parameters;
@@ -34,6 +35,7 @@ pub mod manages_senders_controller;
 pub mod model_metadata_sender_collection;
 pub mod reconciliation_service;
 pub mod request_from_agent;
+pub mod require_token_generation_enabled;
 pub mod resolved_socket_addr;
 #[cfg(feature = "web_admin_panel")]
 mod response;

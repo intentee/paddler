@@ -60,6 +60,11 @@ pub async fn collect_generated_tokens(
                     error_envelope.error.description
                 ));
             }
+            InferenceMessage::Notification(notification) => {
+                return Err(anyhow!(
+                    "unexpected token-generation-mode notification on a token-generation stream: {notification:?}"
+                ));
+            }
         }
     }
 
@@ -75,6 +80,7 @@ mod tests {
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::notification::Notification;
     use paddler_messaging::inference_client::response::Response as InferenceResponse;
     use paddler_messaging::jsonrpc::error::Error;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
@@ -173,6 +179,22 @@ mod tests {
         .unwrap();
 
         assert!(error.to_string().contains("too many buffered"));
+    }
+
+    #[tokio::test]
+    async fn rejects_a_token_generation_mode_notification() {
+        let error = collect_generated_tokens(stream(vec![Ok(InferenceMessage::Notification(
+            Notification::TokenGenerationEnabled,
+        ))]))
+        .await
+        .err()
+        .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("unexpected token-generation-mode notification")
+        );
     }
 
     #[tokio::test]

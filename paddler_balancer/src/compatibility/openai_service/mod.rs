@@ -63,6 +63,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
+use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::openai_service::app_data::AppData;
 use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
@@ -73,6 +74,7 @@ use crate::inference_service::configuration::Configuration as InferenceServiceCo
 const HTTP_WORKERS: usize = 16;
 
 pub struct OpenAIService {
+    pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub openai_service_configuration: OpenAIServiceConfiguration,
@@ -93,6 +95,7 @@ impl Service for OpenAIService {
         let cors_allowed_hosts_arc = Arc::new(cors_allowed_hosts);
 
         let app_data = Data::new(AppData {
+            balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.inference_service_configuration.clone(),
             shutdown: shutdown.clone(),
@@ -136,6 +139,7 @@ mod tests {
 
     use super::OpenAIService;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -144,6 +148,7 @@ mod tests {
         let agent_controller_pool = Arc::new(AgentControllerPool::default());
 
         OpenAIService {
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 agent_controller_pool,
                 Duration::from_secs(30),

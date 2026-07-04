@@ -63,6 +63,9 @@ const RESPONSES_EMITTED_EVENT_STRICT_POINTERS: &[&str] = &[
     "/$defs/ResponseFunctionCallArgumentsDoneEvent",
 ];
 
+const ERROR_RESPONSE_ROOT: &str = "ErrorResponse";
+const ERROR_RESPONSE_STRICT_POINTERS: &[&str] = &["/$defs/ErrorResponse", "/$defs/Error"];
+
 fn responses_stream_event_strict_pointers() -> Vec<&'static str> {
     let mut pointers = RESPONSES_EMITTED_EVENT_STRICT_POINTERS.to_vec();
 
@@ -96,6 +99,7 @@ pub struct OpenAIValidator {
     responses_request: Validator,
     responses_response: Validator,
     responses_stream_event: Validator,
+    error_response: Validator,
 }
 
 impl OpenAIValidator {
@@ -126,6 +130,11 @@ impl OpenAIValidator {
                 components,
                 RESPONSES_STREAM_EVENT_ROOT,
                 &responses_stream_event_strict_pointers(),
+            )?,
+            error_response: compile_strict_schema(
+                components,
+                ERROR_RESPONSE_ROOT,
+                ERROR_RESPONSE_STRICT_POINTERS,
             )?,
         })
     }
@@ -204,10 +213,22 @@ impl OpenAIValidator {
             Err(OpenAIValidatorError::ResponsesStreamEventDoesNotConform { violations })
         }
     }
+
+    pub fn validate_error_response(&self, instance: &Value) -> Result<(), OpenAIValidatorError> {
+        let violations = schema_violations(&self.error_response, instance);
+
+        if violations.is_empty() {
+            Ok(())
+        } else {
+            Err(OpenAIValidatorError::ErrorResponseDoesNotConform { violations })
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Context as _;
+    use anyhow::Result;
     use serde_json::Value;
     use serde_json::json;
 
@@ -220,14 +241,14 @@ mod tests {
         OpenAIValidator::new().unwrap()
     }
 
-    fn official_request() -> Value {
+    fn conformant_request() -> Value {
         json!({
             "model": "test",
             "messages": [{ "role": "user", "content": "Say hello" }]
         })
     }
 
-    fn official_response() -> Value {
+    fn conformant_response() -> Value {
         json!({
             "id": "chatcmpl-test",
             "object": "chat.completion",
@@ -249,7 +270,7 @@ mod tests {
         })
     }
 
-    fn official_stream_chunk() -> Value {
+    fn conformant_stream_chunk() -> Value {
         json!({
             "id": "chatcmpl-test",
             "object": "chat.completion.chunk",
@@ -264,15 +285,15 @@ mod tests {
     }
 
     #[test]
-    fn accepts_an_official_request() {
+    fn accepts_a_conformant_request() {
         validator()
-            .validate_chat_completion_request(&official_request())
+            .validate_chat_completion_request(&conformant_request())
             .unwrap();
     }
 
     #[test]
     fn rejects_request_with_chat_template_kwargs() {
-        let mut request = official_request();
+        let mut request = conformant_request();
         request["chat_template_kwargs"] = json!({ "enable_thinking": false });
 
         let error = validator()
@@ -284,15 +305,15 @@ mod tests {
     }
 
     #[test]
-    fn accepts_an_official_response() {
+    fn accepts_a_conformant_response() {
         validator()
-            .validate_chat_completion_response(&official_response())
+            .validate_chat_completion_response(&conformant_response())
             .unwrap();
     }
 
     #[test]
     fn rejects_response_with_reasoning_content() {
-        let mut response = official_response();
+        let mut response = conformant_response();
         response["choices"][0]["message"]["reasoning_content"] = json!("thinking");
 
         let error = validator()
@@ -305,7 +326,7 @@ mod tests {
 
     #[test]
     fn rejects_response_with_image_tokens() {
-        let mut response = official_response();
+        let mut response = conformant_response();
         response["usage"]["prompt_tokens_details"]["image_tokens"] = json!(3);
 
         let error = validator()
@@ -317,15 +338,15 @@ mod tests {
     }
 
     #[test]
-    fn accepts_an_official_stream_chunk() {
+    fn accepts_a_conformant_stream_chunk() {
         validator()
-            .validate_chat_completion_stream_chunk(&official_stream_chunk())
+            .validate_chat_completion_stream_chunk(&conformant_stream_chunk())
             .unwrap();
     }
 
     #[test]
     fn rejects_stream_chunk_with_reasoning_content() {
-        let mut chunk = official_stream_chunk();
+        let mut chunk = conformant_stream_chunk();
         chunk["choices"][0]["delta"]["reasoning_content"] = json!("thinking");
 
         let error = validator()
@@ -399,11 +420,11 @@ mod tests {
         assert!(error.to_string().contains("Broken"));
     }
 
-    fn official_responses_request() -> Value {
+    fn conformant_responses_request() -> Value {
         json!({ "model": "test", "input": "Say hello" })
     }
 
-    fn official_responses_response() -> Value {
+    fn conformant_responses_response() -> Value {
         json!({
             "id": "resp_test",
             "object": "response",
@@ -440,7 +461,7 @@ mod tests {
         })
     }
 
-    fn official_responses_stream_event() -> Value {
+    fn conformant_responses_stream_event() -> Value {
         json!({
             "type": "response.output_text.delta",
             "item_id": "msg_0",
@@ -453,22 +474,22 @@ mod tests {
     }
 
     #[test]
-    fn accepts_an_official_responses_request() {
+    fn accepts_a_conformant_responses_request() {
         validator()
-            .validate_responses_request(&official_responses_request())
+            .validate_responses_request(&conformant_responses_request())
             .unwrap();
     }
 
     #[test]
-    fn accepts_an_official_responses_response() {
+    fn accepts_a_conformant_responses_response() {
         validator()
-            .validate_responses_response(&official_responses_response())
+            .validate_responses_response(&conformant_responses_response())
             .unwrap();
     }
 
     #[test]
     fn rejects_responses_response_with_an_extra_top_level_key() {
-        let mut response = official_responses_response();
+        let mut response = conformant_responses_response();
         response["paddler_extension"] = json!("nope");
 
         let error = validator()
@@ -485,7 +506,7 @@ mod tests {
 
     #[test]
     fn rejects_responses_response_with_an_extra_output_text_field() {
-        let mut response = official_responses_response();
+        let mut response = conformant_responses_response();
         response["output"][0]["content"][0]["reasoning_content"] = json!("nope");
 
         let error = validator()
@@ -501,15 +522,15 @@ mod tests {
     }
 
     #[test]
-    fn accepts_an_official_responses_stream_event() {
+    fn accepts_a_conformant_responses_stream_event() {
         validator()
-            .validate_responses_stream_event(&official_responses_stream_event())
+            .validate_responses_stream_event(&conformant_responses_stream_event())
             .unwrap();
     }
 
     #[test]
     fn rejects_responses_stream_event_with_an_extra_key() {
-        let mut event = official_responses_stream_event();
+        let mut event = conformant_responses_stream_event();
         event["paddler_extension"] = json!("nope");
 
         let error = validator()
@@ -555,5 +576,78 @@ mod tests {
         let error = OpenAIValidator::from_components(&components).err().unwrap();
 
         assert!(error.to_string().contains("ResponseStreamEvent"));
+    }
+
+    fn conformant_error_response() -> Value {
+        json!({
+            "error": {
+                "message": "boom",
+                "type": "server_error",
+                "param": null,
+                "code": null
+            }
+        })
+    }
+
+    #[test]
+    fn accepts_a_conformant_error_response() -> Result<()> {
+        OpenAIValidator::new()?.validate_error_response(&conformant_error_response())?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_error_response_with_an_extra_key() -> Result<()> {
+        let mut response = conformant_error_response();
+        response["error"]["paddler_extension"] = json!("nope");
+
+        match OpenAIValidator::new()?.validate_error_response(&response) {
+            Ok(()) => panic!("expected the error response to be rejected"),
+            Err(error) => assert!(
+                error
+                    .to_string()
+                    .contains("error response does not conform")
+            ),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_error_response_missing_a_required_field() -> Result<()> {
+        let response = json!({
+            "error": {
+                "message": "boom",
+                "param": null,
+                "code": null
+            }
+        });
+
+        match OpenAIValidator::new()?.validate_error_response(&response) {
+            Ok(()) => panic!("expected the error response to be rejected"),
+            Err(error) => assert!(
+                error
+                    .to_string()
+                    .contains("error response does not conform")
+            ),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn fails_when_error_response_schema_is_absent() -> Result<()> {
+        let mut components = parse_components(OPENAPI_YAML)?;
+        components
+            .as_object_mut()
+            .context("parsed components must be a JSON object")?
+            .remove("ErrorResponse");
+
+        match OpenAIValidator::from_components(&components) {
+            Ok(_) => panic!("expected schema compilation to fail without ErrorResponse"),
+            Err(error) => assert!(error.to_string().contains("ErrorResponse")),
+        }
+
+        Ok(())
     }
 }

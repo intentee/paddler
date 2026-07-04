@@ -48,6 +48,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ ImageExceedsBatchSize: OversizedImageDetailsSchema }),
   z.object({ MultimodalNotSupported: z.string() }),
   z.object({ SamplerError: z.string() }),
+  z.object({ TokenGenerationDisabled: z.string() }),
   z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
@@ -365,6 +366,10 @@ export const InferenceServiceGenerateTokensResponseSchema = z
 
     if ("MultimodalNotSupported" in variant) {
       return terminalError(request_id, generated_by, 400, variant.MultimodalNotSupported);
+    }
+
+    if ("TokenGenerationDisabled" in variant) {
+      return terminalError(request_id, generated_by, 501, variant.TokenGenerationDisabled);
     }
 
     return terminalError(request_id, generated_by, 500, variant.SamplerError);

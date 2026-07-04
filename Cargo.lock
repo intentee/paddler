@@ -4796,7 +4796,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_agent"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -4842,7 +4842,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_balancer"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -4883,7 +4883,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_bootstrap"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -4902,7 +4902,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cache_dir"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "fslock",
@@ -4914,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cli"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "actix-rt",
  "actix-web",
@@ -4932,7 +4932,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cli_tests"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4952,7 +4952,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_client"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "dashmap",
@@ -4973,7 +4973,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_download_manager"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "bytes 1.11.1",
@@ -4988,7 +4988,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_gui"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "actix-web",
  "anyhow",
@@ -5013,7 +5013,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_messaging"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "base64",
@@ -5030,7 +5030,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_openai_response_format_validator"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "jsonschema",
@@ -5041,7 +5041,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_state_conversion"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5049,7 +5049,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_test_cluster_harness"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "async-openai",
@@ -5070,7 +5070,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_tests"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "anyhow",
  "async-stream",

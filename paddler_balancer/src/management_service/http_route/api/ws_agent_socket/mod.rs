@@ -283,6 +283,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
     }
 
     async fn on_connection_start(
+        _connection_close: CancellationToken,
         _context: Arc<Self::Context>,
         session: &mut Session,
     ) -> Result<ContinuationDecision> {

@@ -203,6 +203,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     }
 
     async fn on_connection_start(
+        _connection_close: CancellationToken,
         _context: Arc<Self::Context>,
         _session: &mut Session,
     ) -> Result<ContinuationDecision> {
@@ -227,10 +228,13 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         rt::spawn(async move {
             let mut close_reason: Option<CloseReason> = None;
 
-            match Self::on_connection_start(context.clone(), &mut session).await {
+            match Self::on_connection_start(connection_close.clone(), context.clone(), &mut session)
+                .await
+            {
                 Ok(ContinuationDecision::Continue) => {}
                 Ok(ContinuationDecision::Stop(stop_parameters)) => {
                     close_reason = stop_parameters.close_reason;
+                    connection_close.cancel();
 
                     if let Err(close_err) = session.close(close_reason).await {
                         warn!(
@@ -242,6 +246,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                 }
                 Err(err) => {
                     error!("Error in connection start handler: {err:?}");
+                    connection_close.cancel();
 
                     if let Err(close_err) = session.close(close_reason).await {
                         warn!(
@@ -419,6 +424,7 @@ mod tests {
         }
 
         async fn on_connection_start(
+            _connection_close: CancellationToken,
             context: Arc<Self::Context>,
             _session: &mut Session,
         ) -> Result<ContinuationDecision> {
@@ -506,6 +512,7 @@ mod tests {
     async fn default_on_connection_start_continues() {
         let mut session = open_session().await;
         let continuation_decision = ProbeEndpoint::on_connection_start(
+            CancellationToken::new(),
             Arc::new(DeserializedMessageOutcome::Continue),
             &mut session,
         )

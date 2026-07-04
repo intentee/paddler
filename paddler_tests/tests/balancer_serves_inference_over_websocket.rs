@@ -43,6 +43,9 @@ async fn balancer_serves_inference_over_websocket() -> Result<()> {
                     envelope.error.code, envelope.error.description
                 )
             }
+            InferenceMessage::Notification(_) => {
+                panic!("inference over websocket produced an unexpected notification")
+            }
         }
     }
 

@@ -7,7 +7,7 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn openai_responses_streaming_conforms_to_official_schema() -> Result<()> {
+async fn openai_responses_streaming_conforms_to_schema() -> Result<()> {
     let validator = OpenAIValidator::new()?;
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 

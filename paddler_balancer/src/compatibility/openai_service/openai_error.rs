@@ -42,6 +42,7 @@ fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
         | GeneratedTokenResult::ImageDecodingFailed(description)
         | GeneratedTokenResult::MultimodalNotSupported(description)
         | GeneratedTokenResult::SamplerError(description)
+        | GeneratedTokenResult::TokenGenerationDisabled(description)
         | GeneratedTokenResult::ToolCallParseFailed(description)
         | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(description),
         _ => None,
@@ -85,6 +86,7 @@ impl OpenAIError {
                 error_type: "server_error",
                 message: description.clone(),
             }),
+            OutgoingMessage::Notification(_) => None,
             OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
                 OutgoingResponse::GeneratedToken(token) => server_error_from_token(token),
                 OutgoingResponse::Timeout => Some(Self {

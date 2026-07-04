@@ -11,6 +11,7 @@ use paddler_messaging::validates::Validates as _;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::http_stream_from_agent::http_stream_from_agent;
 use crate::inference_service::app_data::AppData;
+use crate::require_token_generation_enabled::require_token_generation_enabled;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(respond);
@@ -21,6 +22,8 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<ContinueFromConversationHistoryParams<RawParametersSchema>>,
 ) -> Result<impl Responder, Error> {
+    require_token_generation_enabled(&app_data.balancer_applicable_state_holder)?;
+
     Ok(http_stream_from_agent(
         app_data.buffered_request_manager.clone(),
         app_data.inference_service_configuration.clone(),

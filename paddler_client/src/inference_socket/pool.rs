@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
 use serde::Serialize;
 use serde_json::to_string;
 use tokio::sync::Mutex;
+use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 use url::Url;
 
@@ -16,16 +18,24 @@ pub struct Pool {
     connections: Mutex<Vec<Option<Arc<Connection>>>>,
     capacity: usize,
     next_idx: Mutex<usize>,
+    notification_tx: broadcast::Sender<Notification>,
 }
 
 impl Pool {
     pub fn new(url: Url, capacity: usize) -> Self {
+        let (notification_tx, _initial_notification_rx) = broadcast::channel(capacity);
+
         Self {
             url,
             connections: Mutex::new((0..capacity).map(|_| None).collect()),
             capacity,
             next_idx: Mutex::new(0),
+            notification_tx,
         }
+    }
+
+    pub fn subscribe_to_notifications(&self) -> broadcast::Receiver<Notification> {
+        self.notification_tx.subscribe()
     }
 
     pub async fn send_request<TMessage: Serialize>(
@@ -80,7 +90,8 @@ impl Pool {
         };
 
         if needs_connect {
-            let new_connection = Connection::connect(self.url.clone()).await?;
+            let new_connection =
+                Connection::connect(self.url.clone(), self.notification_tx.clone()).await?;
             let mut connections = self.connections.lock().await;
             connections[index] = Some(Arc::new(new_connection));
         }
