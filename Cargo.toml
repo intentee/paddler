@@ -11,6 +11,7 @@ members = [
     "paddler_gui",
     "paddler_messaging",
     "paddler_openai_response_format_validator",
+    "paddler_opencode_tests",
     "paddler_state_conversion",
     "paddler_test_cluster_harness",
     "paddler_tests",

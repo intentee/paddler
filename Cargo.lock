@@ -5040,6 +5040,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_opencode_tests"
+version = "4.0.1"
+dependencies = [
+ "anyhow",
+ "paddler_test_cluster_harness",
+ "paddler_tests",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "paddler_state_conversion"
 version = "4.0.1"
 dependencies = [

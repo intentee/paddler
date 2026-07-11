@@ -1,0 +1,38 @@
+[package]
+name = "paddler_opencode_tests"
+autotests = false
+authors.workspace = true
+description = "Integration tests that drive the real OpenCode CLI against Paddler"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[features]
+default = []
+cuda = ["paddler_tests/cuda"]
+metal = ["paddler_tests/metal"]
+tests_that_use_llms = []
+tests_that_use_opencode = []
+web_admin_panel = ["paddler_tests/web_admin_panel"]
+
+[dependencies]
+paddler_tests = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+url = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
+
+[lints]
+workspace = true
