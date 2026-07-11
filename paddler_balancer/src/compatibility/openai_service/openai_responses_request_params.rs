@@ -92,7 +92,9 @@ impl OpenAIResponsesRequestParams {
                         function: Function {
                             name,
                             description: description.unwrap_or_default(),
-                            parameters: parameters.map_or(Parameters::Empty, Parameters::Schema),
+                            parameters: parameters.map_or(Parameters::Empty, |parameters| {
+                                Parameters::Schema(parameters.into_raw_parameters_schema())
+                            }),
                         },
                     }))
                 }

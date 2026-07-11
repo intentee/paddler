@@ -15,6 +15,7 @@ use tokio_stream::StreamExt as _;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::compatibility::openai_service::app_data::AppData;
 use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
+use crate::compatibility::openai_service::openai_chat_completion_tool::OpenAIChatCompletionTool;
 use crate::compatibility::openai_service::openai_completion_request_params::OpenAICompletionRequestParams;
 use crate::compatibility::openai_service::openai_error::OpenAIError;
 use crate::compatibility::openai_service::openai_message::OpenAIMessage;
@@ -50,6 +51,7 @@ async fn respond(
     let validated_tools = match openai_params
         .tools
         .into_iter()
+        .filter_map(OpenAIChatCompletionTool::into_tool)
         .map(Validates::validate)
         .collect::<Result<Vec<_>, _>>()
     {
@@ -317,6 +319,51 @@ mod tests {
                 .unwrap()
                 .contains("absent")
         );
+    }
+
+    #[actix_web::test]
+    async fn opencode_style_tools_are_accepted() {
+        let app = init_service(
+            App::new()
+                .app_data(Data::new(app_data_without_agents(0)))
+                .configure(register),
+        )
+        .await;
+
+        let request = TestRequest::post()
+            .uri("/v1/chat/completions")
+            .set_json(json!({
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "hi"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "glob",
+                            "description": "Fast file pattern matching tool",
+                            "parameters": {
+                                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                                "type": "object",
+                                "properties": {
+                                    "pattern": {"type": "string", "description": "The glob pattern"},
+                                    "path": {"type": "string", "description": "The directory to search in"}
+                                },
+                                "required": ["pattern"]
+                            }
+                        }
+                    }
+                ]
+            }))
+            .to_request();
+
+        let response = call_service(&app, request).await;
+
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        let body = read_body(response).await;
+        let parsed: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(parsed["error"]["type"], "server_error");
     }
 
     #[actix_web::test]

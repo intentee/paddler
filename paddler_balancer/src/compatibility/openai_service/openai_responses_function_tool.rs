@@ -1,5 +1,6 @@
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use serde::Deserialize;
+
+use crate::compatibility::openai_service::openai_tool_parameters_schema::OpenAIToolParametersSchema;
 
 #[derive(Deserialize)]
 pub struct OpenAIResponsesFunctionTool {
@@ -7,5 +8,5 @@ pub struct OpenAIResponsesFunctionTool {
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]
-    pub parameters: Option<RawParametersSchema>,
+    pub parameters: Option<OpenAIToolParametersSchema>,
 }
