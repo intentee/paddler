@@ -7,7 +7,7 @@ use paddler_opencode_tests::opencode_binary_path::opencode_binary_path;
 use paddler_opencode_tests::opencode_test_project::OpenCodeTestProject;
 use paddler_opencode_tests::run_opencode::run_opencode;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 const OPENCODE_RUN_TIMEOUT: Duration = Duration::from_mins(5);
 
@@ -15,7 +15,7 @@ const OPENCODE_RUN_TIMEOUT: Duration = Duration::from_mins(5);
 async fn opencode_completes_tool_enabled_chat_request() -> Result<()> {
     let binary_path = opencode_binary_path()?;
 
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
+    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false).await?;
 
     let api_base_url = cluster
         .balancer

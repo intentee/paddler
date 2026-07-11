@@ -27,7 +27,9 @@ export function TokenGenerationDisabledContextProvider({
       const socketClient = inferenceSocketClient({ webSocket });
       const subscription = socketClient.clusterTokenGenerationMode$.subscribe(
         function (notification) {
-          setIsTokenGenerationDisabled("TokenGenerationDisabled" === notification);
+          setIsTokenGenerationDisabled(
+            "TokenGenerationDisabled" === notification,
+          );
         },
       );
 
