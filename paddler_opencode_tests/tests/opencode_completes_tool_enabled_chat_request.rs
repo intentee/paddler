@@ -40,8 +40,9 @@ async fn opencode_completes_tool_enabled_chat_request() -> Result<()> {
         outcome.stdout, outcome.stderr
     );
     assert!(
-        !outcome.stdout.trim().is_empty(),
-        "OpenCode produced no output.\nstderr:\n{}",
+        outcome.stdout.contains(project.marker_contents()),
+        "OpenCode did not report the marker it was asked to read; the tool loop must complete.\nstdout:\n{}\nstderr:\n{}",
+        outcome.stdout,
         outcome.stderr
     );
 
