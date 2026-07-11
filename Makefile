@@ -109,6 +109,7 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_gui=13 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
+		--gated paddler_opencode_tests=93 \
 		--gated paddler_test_cluster_harness=67
 
 .PHONY: test.coverage-clean
@@ -120,6 +121,10 @@ test.coverage-clean:
 .PHONY: test.integration
 test.integration:
 	cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+
+.PHONY: test.integration.opencode
+test.integration.opencode:
+	cargo nextest run -p paddler_opencode_tests --features tests_that_use_llms,tests_that_use_opencode$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json

@@ -1,7 +1,6 @@
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use serde::Deserialize;
 
+use crate::compatibility::openai_service::openai_chat_completion_tool::OpenAIChatCompletionTool;
 use crate::compatibility::openai_service::openai_message::OpenAIMessage;
 use crate::compatibility::openai_service::stream_options::StreamOptions;
 
@@ -14,7 +13,7 @@ pub struct OpenAICompletionRequestParams {
     pub stream: Option<bool>,
     pub stream_options: Option<StreamOptions>,
     #[serde(default)]
-    pub tools: Vec<Tool<RawParametersSchema>>,
+    pub tools: Vec<OpenAIChatCompletionTool>,
 }
 
 #[cfg(test)]
@@ -113,5 +112,55 @@ mod tests {
         let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
 
         assert_eq!(params.messages.len(), 4);
+    }
+
+    #[test]
+    fn deserialize_request_with_opencode_style_tools() {
+        let input = json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hi"}],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "glob",
+                        "description": "Fast file pattern matching tool",
+                        "parameters": {
+                            "$schema": "https://json-schema.org/draft/2020-12/schema",
+                            "type": "object",
+                            "properties": {
+                                "pattern": {"type": "string", "description": "The glob pattern"},
+                                "path": {"type": "string", "description": "The directory to search in"}
+                            },
+                            "required": ["pattern"]
+                        }
+                    }
+                },
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "read",
+                        "description": "Read a file from the local filesystem",
+                        "parameters": {
+                            "$schema": "https://json-schema.org/draft/2020-12/schema",
+                            "type": "object",
+                            "properties": {
+                                "filePath": {"type": "string", "description": "The absolute path"},
+                                "offset": {
+                                    "minimum": 0,
+                                    "type": "integer",
+                                    "description": "The line number to start reading from"
+                                }
+                            },
+                            "required": ["filePath"]
+                        }
+                    }
+                }
+            ]
+        });
+
+        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+
+        assert_eq!(params.tools.len(), 2);
     }
 }

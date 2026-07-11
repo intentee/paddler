@@ -7,3 +7,8 @@ slow-timeout = { period = "10s", terminate-after = 3 }
 [[profile.default.overrides]]
 filter = '(package(=paddler_tests) | package(=paddler_cli_tests)) and kind(test)'
 test-group = 'serial'
+
+[[profile.default.overrides]]
+filter = 'package(=paddler_opencode_tests) and kind(test)'
+test-group = 'serial'
+slow-timeout = { period = "60s", terminate-after = 10 }

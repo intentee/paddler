@@ -1,0 +1,1 @@
+mod opencode_completes_tool_enabled_chat_request;

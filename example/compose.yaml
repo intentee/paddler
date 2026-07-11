@@ -1,5 +1,5 @@
 x-paddler-common: &paddler-common
-  image: paddler:v4.0.1
+  image: paddler:v4.1.0
   build: ..
   network_mode: host
 

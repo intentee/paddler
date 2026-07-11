@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import React, { useCallback, useContext } from "react";
 
-import { TokenGenerationDisabledContext } from "../contexts/TokenGenerationDisabledContext";
 import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
+import { TokenGenerationDisabledContext } from "../contexts/TokenGenerationDisabledContext";
 
 import { conversationPromptInput__button } from "./ConversationPromptInput.module.css";
 import { conversationPromptInputThinkingToggleActive } from "./ConversationPromptInputThinkingToggle.module.css";
@@ -14,7 +14,9 @@ export function ConversationPromptInputThinkingToggle() {
   const { isThinkingEnabled, setIsThinkingEnabled } = useContext(
     PromptThinkingContext,
   );
-  const { isTokenGenerationDisabled } = useContext(TokenGenerationDisabledContext);
+  const { isTokenGenerationDisabled } = useContext(
+    TokenGenerationDisabledContext,
+  );
 
   const onToggle = useCallback(
     function () {

@@ -13,8 +13,8 @@ import iconArrowUpward from "../../icons/arrow_upward.svg";
 
 import { PromptContext } from "../contexts/PromptContext";
 import { PromptImageContext } from "../contexts/PromptImageContext";
-import { TokenGenerationDisabledContext } from "../contexts/TokenGenerationDisabledContext";
 import { PromptThinkingContext } from "../contexts/PromptThinkingContext";
+import { TokenGenerationDisabledContext } from "../contexts/TokenGenerationDisabledContext";
 import { ConversationPromptInputImageButton } from "./ConversationPromptInputImageButton";
 import { ConversationPromptInputImagePreview } from "./ConversationPromptInputImagePreview";
 import { ConversationPromptInputThinkingToggle } from "./ConversationPromptInputThinkingToggle";
@@ -36,7 +36,9 @@ export function ConversationPromptInput() {
   const { isThinkingEnabled, setSubmittedIsThinkingEnabled } = useContext(
     PromptThinkingContext,
   );
-  const { isTokenGenerationDisabled } = useContext(TokenGenerationDisabledContext);
+  const { isTokenGenerationDisabled } = useContext(
+    TokenGenerationDisabledContext,
+  );
 
   const onSubmit = useCallback(
     function (event: FormEvent<HTMLFormElement>) {

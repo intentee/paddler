@@ -35,7 +35,9 @@ function readFileAsDataUri(imageFile: File): Promise<string> {
 
 export function ConversationPromptInputImageButton() {
   const { setCurrentImageDataUri } = useContext(PromptImageContext);
-  const { isTokenGenerationDisabled } = useContext(TokenGenerationDisabledContext);
+  const { isTokenGenerationDisabled } = useContext(
+    TokenGenerationDisabledContext,
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onButtonClick = useCallback(function () {
