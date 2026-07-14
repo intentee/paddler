@@ -46,3 +46,31 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::from_value;
+    use serde_json::json;
+
+    use super::ContinueFromConversationHistoryParams;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
+
+    #[test]
+    fn a_request_that_omits_the_grammar_field_keeps_working() {
+        let request_without_grammar = json!({
+            "add_generation_prompt": true,
+            "conversation_history": [
+                {"content": "Hello", "role": "user"}
+            ],
+            "enable_thinking": false,
+            "max_tokens": 10,
+            "tools": [],
+        });
+
+        let params: ContinueFromConversationHistoryParams<RawParametersSchema> =
+            from_value(request_without_grammar)
+                .expect("a request that omits the grammar field must deserialize");
+
+        assert_eq!(params.grammar, None);
+    }
+}

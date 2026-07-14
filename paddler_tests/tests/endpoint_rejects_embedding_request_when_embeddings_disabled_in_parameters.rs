@@ -1,6 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use anyhow::Context as _;
 use anyhow::Result;
+use paddler_client::error::Error as ClientError;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
@@ -12,8 +14,8 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
-use reqwest::Client;
-use reqwest::StatusCode;
+
+const NOT_IMPLEMENTED: u16 = 501;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn endpoint_rejects_embedding_request_when_embeddings_disabled_in_parameters() -> Result<()> {
@@ -36,26 +38,35 @@ async fn endpoint_rejects_embedding_request_when_embeddings_disabled_in_paramete
     })
     .await?;
 
-    let inference_base_url = cluster.balancer.addresses.inference_base_url()?;
-    let request_url = inference_base_url.join("api/v1/generate_embedding_batch")?;
-
-    let response = Client::new()
-        .post(request_url)
-        .json(&GenerateEmbeddingBatchParams {
+    let rejection = cluster
+        .client_inference
+        .post_generate_embedding_batch(&GenerateEmbeddingBatchParams {
             input_batch: vec![EmbeddingInputDocument {
                 content: "Hello world".to_owned(),
                 id: "doc-1".to_owned(),
             }],
             normalization_method: EmbeddingNormalizationMethod::None,
         })
-        .send()
-        .await?;
+        .await
+        .err()
+        .context("endpoint must reject embedding requests when embeddings are disabled")?;
 
-    assert_eq!(
-        response.status(),
-        StatusCode::NOT_IMPLEMENTED,
-        "endpoint must reject embedding requests with HTTP 501 when embeddings are disabled",
-    );
+    match rejection {
+        ClientError::UnexpectedResponseStatus {
+            message, status, ..
+        } => {
+            assert_eq!(
+                status.as_u16(),
+                NOT_IMPLEMENTED,
+                "endpoint must reject embedding requests with HTTP 501 when embeddings are disabled",
+            );
+            assert_eq!(
+                message, "Embedding generation is not enabled in the inference parameters",
+                "the rejection must carry the reason reported by the balancer",
+            );
+        }
+        other_error => panic!("expected an unexpected-status rejection, got: {other_error}"),
+    }
 
     cluster.shutdown().await?;
 

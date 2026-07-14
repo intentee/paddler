@@ -2,12 +2,12 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
 use paddler_messaging::streamable_result::StreamableResult as _;
 
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
-use crate::inference_message_stream::InferenceMessageStream;
 use crate::token_result_with_producer::TokenResultWithProducer;
 
 pub async fn collect_generated_tokens(
@@ -76,7 +76,6 @@ pub async fn collect_generated_tokens(
 
 #[cfg(test)]
 mod tests {
-    use anyhow::anyhow;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -86,11 +85,20 @@ mod tests {
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 
-    use super::collect_generated_tokens;
-    use crate::inference_message_stream::InferenceMessageStream;
+    use paddler_client::error::Error as ClientError;
+    use paddler_client::error::Result as ClientResult;
+    use paddler_client::inference_message_stream::InferenceMessageStream;
 
-    fn stream(items: Vec<anyhow::Result<InferenceMessage>>) -> InferenceMessageStream {
+    use super::collect_generated_tokens;
+
+    fn stream(items: Vec<ClientResult<InferenceMessage>>) -> InferenceMessageStream {
         Box::pin(futures_util::stream::iter(items))
+    }
+
+    fn connection_dropped() -> ClientError {
+        ClientError::ConnectionDropped {
+            request_id: "req".to_owned(),
+        }
     }
 
     fn token(result: GeneratedTokenResult) -> InferenceMessage {
@@ -216,7 +224,7 @@ mod tests {
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_generated_tokens(stream(vec![Err(anyhow!("socket closed"))]))
+        let error = collect_generated_tokens(stream(vec![Err(connection_dropped())]))
             .await
             .err()
             .unwrap();

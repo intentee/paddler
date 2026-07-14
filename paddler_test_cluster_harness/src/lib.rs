@@ -10,7 +10,6 @@ pub mod collect_generated_tokens;
 pub mod collected_embedding_results;
 pub mod collected_generated_tokens;
 pub mod embedding_with_producer;
-pub mod inference_message_stream;
 pub mod load_test_image_data_uri;
 pub mod managed_process;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -24,9 +23,6 @@ pub mod token_result_with_producer;
 
 mod agents_status;
 mod buffered_requests_status;
-mod inference_http_client;
-mod ndjson_lines_from_response;
 mod openai_chat_completions_client;
 mod openai_config_from_base_url;
 mod openai_responses_client;
-mod wait_until_healthy;

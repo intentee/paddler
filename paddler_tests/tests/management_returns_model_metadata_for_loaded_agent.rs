@@ -16,8 +16,7 @@ async fn management_returns_model_metadata_for_loaded_agent() -> Result<()> {
         .clone();
 
     let metadata = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_model_metadata(&agent_id)
         .await
         .map_err(anyhow::Error::new)

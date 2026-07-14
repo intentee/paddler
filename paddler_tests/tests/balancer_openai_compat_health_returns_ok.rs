@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_client::reports_health::ReportsHealth as _;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -12,24 +13,13 @@ async fn balancer_openai_compat_health_returns_ok() -> Result<()> {
     })
     .await?;
 
-    let openai_health_url = cluster
-        .balancer
-        .addresses
-        .compat_openai_base_url()?
-        .join("health")?;
-
-    let response = reqwest::get(openai_health_url)
+    let health = cluster
+        .client_compat_openai_health
+        .get_health()
         .await
         .context("failed to GET OpenAI compat /health")?;
 
-    assert_eq!(response.status(), 200);
-
-    let body = response
-        .text()
-        .await
-        .context("failed to read response body")?;
-
-    assert_eq!(body, "OK");
+    assert_eq!(health, "OK");
 
     cluster.shutdown().await?;
 

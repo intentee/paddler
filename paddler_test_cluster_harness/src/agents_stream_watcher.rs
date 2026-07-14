@@ -14,7 +14,7 @@ pub struct AgentsStreamWatcher {
 }
 
 impl AgentsStreamWatcher {
-    pub async fn connect(management: &ClientManagement<'_>) -> Result<Self> {
+    pub async fn connect(management: &ClientManagement) -> Result<Self> {
         let raw_stream = management
             .get_agents_stream()
             .await

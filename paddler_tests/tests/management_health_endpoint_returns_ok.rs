@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_client::reports_health::ReportsHealth as _;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -14,8 +15,7 @@ async fn management_health_endpoint_returns_ok() -> Result<()> {
     .context("failed to start subprocess cluster")?;
 
     let health = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_health()
         .await
         .map_err(anyhow::Error::new)

@@ -13,7 +13,7 @@ pub struct BufferedRequestsStreamWatcher {
 }
 
 impl BufferedRequestsStreamWatcher {
-    pub async fn connect(management: &ClientManagement<'_>) -> Result<Self> {
+    pub async fn connect(management: &ClientManagement) -> Result<Self> {
         let raw_stream = management
             .get_buffered_requests_stream()
             .await

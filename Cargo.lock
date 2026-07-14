@@ -4936,16 +4936,12 @@ version = "4.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "base64",
  "futures-util",
  "log",
  "nix",
  "paddler_cli",
- "paddler_client",
  "paddler_messaging",
  "paddler_test_cluster_harness",
- "reqwest 0.12.28",
- "serde_json",
  "tokio",
  "url",
 ]
@@ -4954,7 +4950,7 @@ dependencies = [
 name = "paddler_client"
 version = "4.1.0"
 dependencies = [
- "anyhow",
+ "bytes 1.11.1",
  "dashmap",
  "futures-util",
  "http 1.4.0",
@@ -5067,15 +5063,11 @@ version = "4.1.0"
 dependencies = [
  "anyhow",
  "async-openai",
- "async-stream",
  "async-trait",
  "base64",
  "futures-util",
- "http 1.4.0",
  "paddler_client",
  "paddler_messaging",
- "reqwest 0.12.28",
- "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -5094,7 +5086,6 @@ dependencies = [
  "hf-hub",
  "llama-cpp-bindings",
  "log",
- "nix",
  "paddler_agent",
  "paddler_balancer",
  "paddler_bootstrap",
@@ -5108,7 +5099,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
- "tokio-tungstenite",
  "tokio-util",
  "trzcina",
  "url",

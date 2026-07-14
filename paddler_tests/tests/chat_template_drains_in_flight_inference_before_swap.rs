@@ -83,8 +83,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
     };
 
     cluster
-        .paddler_client
-        .management()
+        .client_management
         .put_balancer_desired_state(&swap_state)
         .await
         .map_err(anyhow::Error::new)?;
@@ -116,8 +115,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
     ));
 
     let retrieved = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_chat_template_override(&agent_id)
         .await
         .map_err(anyhow::Error::new)?;

@@ -13,8 +13,7 @@ async fn balancer_serves_inference_over_websocket() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
 
     let mut stream = cluster
-        .paddler_client
-        .inference()
+        .client_inference
         .continue_from_raw_prompt(ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 16,

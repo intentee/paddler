@@ -63,8 +63,7 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
     };
 
     cluster
-        .paddler_client
-        .management()
+        .client_management
         .put_balancer_desired_state(&switch_state)
         .await
         .map_err(anyhow::Error::new)?;

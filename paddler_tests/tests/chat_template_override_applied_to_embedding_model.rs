@@ -41,8 +41,7 @@ async fn chat_template_override_applied_to_embedding_model() -> Result<()> {
         .clone();
 
     let retrieved = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_chat_template_override(&agent_id)
         .await
         .map_err(anyhow::Error::new)

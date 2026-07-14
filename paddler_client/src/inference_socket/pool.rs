@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -16,18 +17,18 @@ use crate::inference_socket::connection::Connection;
 pub struct Pool {
     url: Url,
     connections: Mutex<Vec<Option<Arc<Connection>>>>,
-    capacity: usize,
+    capacity: NonZeroUsize,
     next_idx: Mutex<usize>,
     notification_tx: broadcast::Sender<Notification>,
 }
 
 impl Pool {
-    pub fn new(url: Url, capacity: usize) -> Self {
-        let (notification_tx, _initial_notification_rx) = broadcast::channel(capacity);
+    pub fn new(url: Url, capacity: NonZeroUsize) -> Self {
+        let (notification_tx, _initial_notification_rx) = broadcast::channel(capacity.get());
 
         Self {
             url,
-            connections: Mutex::new((0..capacity).map(|_| None).collect()),
+            connections: Mutex::new((0..capacity.get()).map(|_| None).collect()),
             capacity,
             next_idx: Mutex::new(0),
             notification_tx,
@@ -57,10 +58,14 @@ impl Pool {
                 self.ensure_connection(conn_idx).await?;
 
                 let connection = self.get_connection(conn_idx).await?;
+                let reconnected_request_id = request_id.clone();
 
                 connection
                     .send(request_id, json)
-                    .map_err(|reconnection_error| Error::Other(reconnection_error.to_string()))
+                    .map_err(|reconnection_error| Error::ReconnectionFailed {
+                        request_id: reconnected_request_id,
+                        source: Box::new(reconnection_error),
+                    })
             }
             Err(other_error) => Err(other_error),
         }
@@ -74,7 +79,7 @@ impl Pool {
 
     async fn next_connection_index(&self) -> usize {
         let mut idx = self.next_idx.lock().await;
-        let conn_idx = *idx % self.capacity;
+        let conn_idx = *idx % self.capacity.get();
         *idx = idx.wrapping_add(1);
 
         conn_idx
@@ -102,11 +107,17 @@ impl Pool {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
+    use url::Url;
+
     use super::Pool;
 
     #[tokio::test]
     async fn round_robins_across_connection_slots() {
-        let pool = Pool::new(url::Url::parse("http://127.0.0.1:1").unwrap(), 3);
+        let url = Url::parse("http://127.0.0.1:1").expect("the test URL must be valid");
+        let capacity = NonZeroUsize::new(3).expect("3 is not zero");
+        let pool = Pool::new(url, capacity);
 
         assert_eq!(pool.next_connection_index().await, 0);
         assert_eq!(pool.next_connection_index().await, 1);
