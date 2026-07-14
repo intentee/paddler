@@ -47,6 +47,8 @@ pub mod resolved_grammar;
 pub mod resolves_model_source;
 pub mod sample_token_at_batch_index;
 pub mod sampling_outcome;
+pub mod send_generated_token_result_or_warn;
+pub mod send_startup_signal;
 pub mod sequence_id_pool;
 pub mod slot_aggregated_status;
 pub mod slot_aggregated_status_download_progress;

@@ -481,6 +481,23 @@ mod tests {
     }
 
     #[test]
+    fn rejects_responses_request_with_a_non_string_model() {
+        let mut request = conformant_responses_request();
+        request["model"] = json!(42);
+
+        let error = validator()
+            .validate_responses_request(&request)
+            .err()
+            .unwrap();
+
+        assert!(
+            error
+                .to_string()
+                .contains("responses request does not conform")
+        );
+    }
+
+    #[test]
     fn accepts_a_conformant_responses_response() {
         validator()
             .validate_responses_response(&conformant_responses_response())
@@ -601,14 +618,16 @@ mod tests {
         let mut response = conformant_error_response();
         response["error"]["paddler_extension"] = json!("nope");
 
-        match OpenAIValidator::new()?.validate_error_response(&response) {
-            Ok(()) => panic!("expected the error response to be rejected"),
-            Err(error) => assert!(
-                error
-                    .to_string()
-                    .contains("error response does not conform")
-            ),
-        }
+        let error = OpenAIValidator::new()?
+            .validate_error_response(&response)
+            .err()
+            .context("the error response must be rejected")?;
+
+        assert!(
+            error
+                .to_string()
+                .contains("error response does not conform")
+        );
 
         Ok(())
     }
@@ -623,14 +642,16 @@ mod tests {
             }
         });
 
-        match OpenAIValidator::new()?.validate_error_response(&response) {
-            Ok(()) => panic!("expected the error response to be rejected"),
-            Err(error) => assert!(
-                error
-                    .to_string()
-                    .contains("error response does not conform")
-            ),
-        }
+        let error = OpenAIValidator::new()?
+            .validate_error_response(&response)
+            .err()
+            .context("the error response must be rejected")?;
+
+        assert!(
+            error
+                .to_string()
+                .contains("error response does not conform")
+        );
 
         Ok(())
     }
@@ -643,10 +664,11 @@ mod tests {
             .context("parsed components must be a JSON object")?
             .remove("ErrorResponse");
 
-        match OpenAIValidator::from_components(&components) {
-            Ok(_) => panic!("expected schema compilation to fail without ErrorResponse"),
-            Err(error) => assert!(error.to_string().contains("ErrorResponse")),
-        }
+        let error = OpenAIValidator::from_components(&components)
+            .err()
+            .context("schema compilation must fail without ErrorResponse")?;
+
+        assert!(error.to_string().contains("ErrorResponse"));
 
         Ok(())
     }

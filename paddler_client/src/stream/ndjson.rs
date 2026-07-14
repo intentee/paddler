@@ -9,46 +9,73 @@ use reqwest::Response;
 use serde::de::DeserializeOwned;
 use serde_json::from_str;
 
+use crate::error::Error;
 use crate::error::Result;
+use crate::stream::line_buffer::LineBuffer;
+
+fn parse_line<TItem: DeserializeOwned>(line_result: Result<String>) -> Option<Result<TItem>> {
+    match line_result {
+        Ok(line) => {
+            let trimmed_line = line.trim();
+
+            if trimmed_line.is_empty() {
+                None
+            } else {
+                Some(
+                    from_str(trimmed_line).map_err(|source| Error::NdjsonLineParseFailed {
+                        line: trimmed_line.to_owned(),
+                        source,
+                    }),
+                )
+            }
+        }
+        Err(decoding_error) => Some(Err(decoding_error)),
+    }
+}
+
+struct StreamState<TItem> {
+    is_terminated: bool,
+    item_type_marker: PhantomData<TItem>,
+    line_buffer: LineBuffer,
+    response: Response,
+}
 
 fn make_stream<TItem: DeserializeOwned + Send + 'static>(
     response: Response,
 ) -> impl Stream<Item = Result<TItem>> + Send {
     unfold(
-        (response, String::new(), PhantomData::<TItem>),
-        |(mut response, mut buffer, _item_type_marker)| async move {
-            loop {
-                if let Some(line_end) = buffer.find('\n') {
-                    let line = buffer[..line_end].trim().to_owned();
-                    buffer = buffer[line_end + 1..].to_string();
+        StreamState {
+            is_terminated: false,
+            item_type_marker: PhantomData::<TItem>,
+            line_buffer: LineBuffer::new(),
+            response,
+        },
+        |mut state| async move {
+            if state.is_terminated {
+                return None;
+            }
 
-                    if line.is_empty() {
-                        continue;
+            loop {
+                if let Some(line_result) = state.line_buffer.take_line() {
+                    if let Some(item_result) = parse_line(line_result) {
+                        return Some((item_result, state));
                     }
 
-                    let result: Result<TItem> = from_str(&line).map_err(Into::into);
-
-                    return Some((result, (response, buffer, PhantomData)));
+                    continue;
                 }
 
-                match response.chunk().await {
-                    Ok(Some(chunk)) => {
-                        let text = String::from_utf8_lossy(&chunk);
-                        buffer.push_str(&text);
-                    }
+                match state.response.chunk().await {
+                    Ok(Some(chunk)) => state.line_buffer.push_chunk(&chunk),
                     Ok(None) => {
-                        let remaining = buffer.trim().to_owned();
-                        if !remaining.is_empty() {
-                            buffer.clear();
-                            let result: Result<TItem> = from_str(&remaining).map_err(Into::into);
+                        let remainder_result = state.line_buffer.take_remainder()?;
+                        let item_result = parse_line(remainder_result)?;
 
-                            return Some((result, (response, buffer, PhantomData)));
-                        }
-
-                        return None;
+                        return Some((item_result, state));
                     }
-                    Err(err) => {
-                        return Some((Err(err.into()), (response, buffer, PhantomData)));
+                    Err(transport_error) => {
+                        state.is_terminated = true;
+
+                        return Some((Err(transport_error.into()), state));
                     }
                 }
             }
@@ -88,22 +115,20 @@ mod tests {
     use serde_json::json;
 
     use super::Ndjson;
+    use crate::error::Error;
     use crate::error::Result;
 
     fn response_from_chunks(
-        chunks: Vec<core::result::Result<&'static str, IoError>>,
+        chunks: Vec<core::result::Result<&'static [u8], IoError>>,
     ) -> reqwest::Response {
-        let stream = futures_util::stream::iter(
-            chunks
-                .into_iter()
-                .map(|chunk| chunk.map(|text| text.as_bytes().to_vec())),
-        );
+        let stream =
+            futures_util::stream::iter(chunks.into_iter().map(|chunk| chunk.map(<[u8]>::to_vec)));
 
         reqwest::Response::from(http::Response::new(reqwest::Body::wrap_stream(stream)))
     }
 
     async fn collect_items(
-        chunks: Vec<core::result::Result<&'static str, IoError>>,
+        chunks: Vec<core::result::Result<&'static [u8], IoError>>,
     ) -> Vec<Result<Value>> {
         Ndjson::<Value>::from_response(response_from_chunks(chunks))
             .collect()
@@ -111,8 +136,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reassembles_a_multibyte_character_split_across_chunks() {
+        let items = collect_items(vec![Ok(b"{\"a\":\"\xf0\x9f"), Ok(b"\xa6\x86\"}\n")]).await;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": "🦆" }));
+    }
+
+    #[tokio::test]
+    async fn reassembles_a_multibyte_character_split_across_the_trailing_remainder() {
+        let items = collect_items(vec![Ok(b"{\"a\":\"\xf0\x9f"), Ok(b"\xa6\x86\"}")]).await;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": "🦆" }));
+    }
+
+    #[tokio::test]
+    async fn a_line_that_is_not_valid_utf8_yields_an_error() {
+        let items = collect_items(vec![Ok(b"{\"a\":\"\xf0\x9f\"}\n")]).await;
+
+        assert_eq!(items.len(), 1);
+        assert!(matches!(items[0], Err(Error::NonUtf8StreamLine { .. })));
+    }
+
+    #[tokio::test]
+    async fn a_trailing_remainder_that_is_not_valid_utf8_yields_an_error() {
+        let items = collect_items(vec![Ok(b"{\"a\":\"\xf0\x9f")]).await;
+
+        assert_eq!(items.len(), 1);
+        assert!(matches!(items[0], Err(Error::NonUtf8StreamLine { .. })));
+    }
+
+    #[tokio::test]
     async fn parses_multiple_lines_in_one_chunk() {
-        let items = collect_items(vec![Ok("{\"a\":1}\n{\"a\":2}\n")]).await;
+        let items = collect_items(vec![Ok(b"{\"a\":1}\n{\"a\":2}\n")]).await;
 
         assert_eq!(items.len(), 2);
         assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": 1 }));
@@ -121,7 +178,7 @@ mod tests {
 
     #[tokio::test]
     async fn reassembles_a_line_split_across_chunks() {
-        let items = collect_items(vec![Ok("{\"a\""), Ok(":1}\n")]).await;
+        let items = collect_items(vec![Ok(b"{\"a\""), Ok(b":1}\n")]).await;
 
         assert_eq!(items.len(), 1);
         assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": 1 }));
@@ -129,7 +186,7 @@ mod tests {
 
     #[tokio::test]
     async fn skips_blank_lines() {
-        let items = collect_items(vec![Ok("\n   \n{\"a\":1}\n")]).await;
+        let items = collect_items(vec![Ok(b"\n   \n{\"a\":1}\n")]).await;
 
         assert_eq!(items.len(), 1);
         assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": 1 }));
@@ -137,7 +194,15 @@ mod tests {
 
     #[tokio::test]
     async fn parses_trailing_remainder_without_newline() {
-        let items = collect_items(vec![Ok("{\"a\":1}")]).await;
+        let items = collect_items(vec![Ok(b"{\"a\":1}")]).await;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": 1 }));
+    }
+
+    #[tokio::test]
+    async fn skips_a_whitespace_only_trailing_remainder() {
+        let items = collect_items(vec![Ok(b"{\"a\":1}\n   ")]).await;
 
         assert_eq!(items.len(), 1);
         assert_eq!(*items[0].as_ref().unwrap(), json!({ "a": 1 }));
@@ -151,21 +216,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn malformed_line_yields_error() {
-        let items = collect_items(vec![Ok("not json\n")]).await;
+    async fn a_malformed_line_yields_an_error_carrying_the_offending_line() {
+        let items = collect_items(vec![Ok(b"not json\n")]).await;
 
         assert_eq!(items.len(), 1);
-        assert!(items[0].is_err());
+        assert!(matches!(
+            items[0],
+            Err(Error::NdjsonLineParseFailed { ref line, .. }) if line == "not json"
+        ));
     }
 
     #[tokio::test]
-    async fn stream_error_yields_error() {
+    async fn a_transport_error_ends_the_stream_after_a_single_error() {
         let items = collect_items(vec![
-            Ok("{\"a\""),
+            Ok(b"{\"a\""),
             Err(IoError::new(ErrorKind::ConnectionReset, "boom")),
         ])
         .await;
 
-        assert!(items.iter().any(Result::is_err));
+        assert_eq!(items.len(), 1);
+        assert!(matches!(items[0], Err(Error::Http(_))));
     }
 }

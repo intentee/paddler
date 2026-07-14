@@ -17,8 +17,7 @@ async fn balancer_shutdown_with_open_sse_subscriber_completes_within_one_second(
     .await?;
 
     let mut sse_stream = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_buffered_requests_stream()
         .await
         .map_err(anyhow::Error::new)?;

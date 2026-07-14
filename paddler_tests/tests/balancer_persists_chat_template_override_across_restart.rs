@@ -51,8 +51,7 @@ async fn balancer_persists_chat_template_override_across_restart() -> Result<()>
     .await?;
 
     let restored_state = second_cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_balancer_desired_state()
         .await
         .map_err(anyhow::Error::new)

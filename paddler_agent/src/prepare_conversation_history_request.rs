@@ -4,7 +4,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use log::error;
-use log::warn;
 use minijinja::context;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::media_marker::MediaMarker;
@@ -18,6 +17,7 @@ use crate::decoded_image::DecodedImage;
 use crate::decoded_image_error::DecodedImageError;
 use crate::prepared_conversation_history_request::PreparedConversationHistoryRequest;
 use crate::resolve_grammar::resolve_grammar;
+use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
 
 fn require_renderer_for_generation(
     chat_template_renderer: Option<&Arc<ChatTemplateRenderer>>,
@@ -32,14 +32,11 @@ fn require_renderer_for_generation(
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::TokenGenerationDisabled(
-                    message.clone(),
-                ))
-                .is_err()
-            {
-                warn!("{agent_name:?}: failed to send result to client (receiver dropped)");
-            }
+            send_generated_token_result_or_warn(
+                agent_name,
+                generated_tokens_tx,
+                GeneratedTokenResult::TokenGenerationDisabled(message.clone()),
+            );
 
             Err(anyhow!(message))
         },
@@ -80,15 +77,11 @@ pub fn prepare_conversation_history_request(
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::ImageDecodingFailed(message.clone()))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    scheduler_context.agent_name
-                );
-            }
+            send_generated_token_result_or_warn(
+                scheduler_context.agent_name.as_deref(),
+                generated_tokens_tx,
+                GeneratedTokenResult::ImageDecodingFailed(message.clone()),
+            );
 
             anyhow!(message)
         })?;
@@ -120,15 +113,11 @@ pub fn prepare_conversation_history_request(
 
             error!("{message}");
 
-            if generated_tokens_tx
-                .send(GeneratedTokenResult::ChatTemplateError(message.clone()))
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    scheduler_context.agent_name
-                );
-            }
+            send_generated_token_result_or_warn(
+                scheduler_context.agent_name.as_deref(),
+                generated_tokens_tx,
+                GeneratedTokenResult::ChatTemplateError(message.clone()),
+            );
 
             anyhow!(message)
         })?;
@@ -144,17 +133,11 @@ pub fn prepare_conversation_history_request(
 
         error!("{message}");
 
-        if generated_tokens_tx
-            .send(GeneratedTokenResult::MultimodalNotSupported(
-                message.clone(),
-            ))
-            .is_err()
-        {
-            warn!(
-                "{:?}: failed to send result to client (receiver dropped)",
-                scheduler_context.agent_name
-            );
-        }
+        send_generated_token_result_or_warn(
+            scheduler_context.agent_name.as_deref(),
+            generated_tokens_tx,
+            GeneratedTokenResult::MultimodalNotSupported(message.clone()),
+        );
 
         return Err(anyhow!(message));
     }

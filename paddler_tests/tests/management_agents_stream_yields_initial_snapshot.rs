@@ -11,8 +11,7 @@ async fn management_agents_stream_yields_initial_snapshot() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let mut stream = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_agents_stream()
         .await
         .map_err(anyhow::Error::new)

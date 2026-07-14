@@ -71,8 +71,7 @@ async fn balancer_reports_chat_template_does_not_compile_recovers_when_template_
     };
 
     cluster
-        .paddler_client
-        .management()
+        .client_management
         .put_balancer_desired_state(&recovered_state)
         .await
         .map_err(anyhow::Error::new)

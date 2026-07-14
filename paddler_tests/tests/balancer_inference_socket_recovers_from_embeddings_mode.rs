@@ -62,7 +62,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
     })
     .await?;
 
-    let inference = cluster.paddler_client.inference();
+    let inference = &cluster.client_inference;
     let mut token_generation_mode_rx = inference.subscribe_to_token_generation_mode();
 
     let mut disabled_stream = inference
@@ -108,8 +108,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
     };
 
     cluster
-        .paddler_client
-        .management()
+        .client_management
         .put_balancer_desired_state(&generation_state)
         .await
         .map_err(anyhow::Error::new)?;

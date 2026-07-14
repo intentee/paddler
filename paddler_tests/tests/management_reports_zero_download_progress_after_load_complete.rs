@@ -10,8 +10,7 @@ async fn management_reports_zero_download_progress_after_load_complete() -> Resu
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
     let snapshot = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_agents()
         .await
         .map_err(anyhow::Error::new)

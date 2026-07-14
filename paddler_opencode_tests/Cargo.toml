@@ -10,9 +10,17 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[[bin]]
+name = "opencode_stub"
+path = "src/bin/opencode_stub.rs"
+
 [[test]]
 name = "integration"
 path = "tests/main.rs"
+
+[[test]]
+name = "run_opencode"
+path = "tests/run_opencode.rs"
 
 [features]
 default = []

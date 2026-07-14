@@ -7,7 +7,6 @@ use std::thread::available_parallelism;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::params::LlamaContextParams;
@@ -43,6 +42,7 @@ use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::model_metadata_holder::ModelMetadataHolder;
+use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
 pub struct ContinuousBatchArbiter {
@@ -152,16 +152,14 @@ impl ContinuousBatchArbiter {
                 .context("Unable to load model from file")?,
             );
 
-            if model_loaded_tx.send(()).is_err() {
-                let message = format!(
+            send_startup_signal(
+                model_loaded_tx,
+                (),
+                format!(
                     "Failed to send model loaded signal for model at path: {}",
                     model_path.display()
-                );
-
-                error!("{message}");
-
-                return Err(anyhow!(message));
-            }
+                ),
+            )?;
 
             let mut model_metadata = ModelMetadata::default();
 
@@ -178,19 +176,14 @@ impl ContinuousBatchArbiter {
                 .enable_embeddings
                 && chat_template_override.is_none()
             {
-                if chat_template_loaded_tx
-                    .send(ChatTemplateLoadStatus::SkippedForEmbeddings)
-                    .is_err()
-                {
-                    let message = format!(
+                send_startup_signal(
+                    chat_template_loaded_tx,
+                    ChatTemplateLoadStatus::SkippedForEmbeddings,
+                    format!(
                         "Failed to send chat template skipped signal for model at path: {}",
                         model_path.display()
-                    );
-
-                    error!("{message}");
-
-                    return Err(anyhow!(message));
-                }
+                    ),
+                )?;
 
                 None
             } else {
@@ -205,19 +198,14 @@ impl ContinuousBatchArbiter {
                         .to_string()?,
                 };
 
-                if chat_template_loaded_tx
-                    .send(ChatTemplateLoadStatus::Loaded)
-                    .is_err()
-                {
-                    let message = format!(
+                send_startup_signal(
+                    chat_template_loaded_tx,
+                    ChatTemplateLoadStatus::Loaded,
+                    format!(
                         "Failed to send chat template loaded signal for model at path: {}",
                         model_path.display()
-                    );
-
-                    error!("{message}");
-
-                    return Err(anyhow!(message));
-                }
+                    ),
+                )?;
 
                 Some(Arc::new(
                     match ChatTemplateRenderer::new(ChatTemplate {
@@ -368,13 +356,11 @@ impl ContinuousBatchArbiter {
                 desired_slots_total,
             );
 
-            if agent_warm_and_scheduler_running_tx.send(()).is_err() {
-                let message = "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start";
-
-                error!("{message}");
-
-                return Err(anyhow!(message));
-            }
+            send_startup_signal(
+                agent_warm_and_scheduler_running_tx,
+                (),
+                "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start".to_owned(),
+            )?;
 
             scheduler.run();
 

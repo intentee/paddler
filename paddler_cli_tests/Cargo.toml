@@ -29,18 +29,16 @@ web_admin_panel = ["paddler_cli/web_admin_panel"]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 log = { workspace = true }
-nix = { workspace = true }
 paddler_cli = { workspace = true }
-paddler_client = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
 tokio = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true }
+
 [dev-dependencies]
-base64 = { workspace = true }
 futures-util = { workspace = true }
-reqwest = { workspace = true }
-serde_json = { workspace = true }
 url = { workspace = true }
 
 [lints]

@@ -14,8 +14,7 @@ async fn management_buffered_requests_stream_yields_initial_snapshot() -> Result
     .await?;
 
     let mut stream = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_buffered_requests_stream()
         .await
         .map_err(anyhow::Error::new)

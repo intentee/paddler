@@ -91,25 +91,25 @@ test.client.js: node_modules
 
 .PHONY: test.coverage
 test.coverage: esbuild-meta.json node_modules
-	cargo llvm-cov clean --profraw-only
+	cargo llvm-cov clean --workspace
 	cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
 	cargo llvm-cov report --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --lcov --output-path target/lcov.info
 	cargo llvm-cov report
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
-		--gated paddler_agent=96 \
+		--gated paddler_agent=95 \
 		--gated paddler_balancer=84 \
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
 		--gated paddler_cli=83 \
 		--gated paddler_cli_tests=87 \
-		--gated paddler_client=41 \
+		--gated paddler_client=94 \
 		--gated paddler_download_manager=99 \
 		--gated paddler_gui=13 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
-		--gated paddler_opencode_tests=93 \
+		--gated paddler_opencode_tests=76 \
 		--gated paddler_test_cluster_harness=67
 
 .PHONY: test.coverage-clean

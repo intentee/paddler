@@ -2,13 +2,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
 
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::embedding_with_producer::EmbeddingWithProducer;
-use crate::inference_message_stream::InferenceMessageStream;
 
 pub async fn collect_embedding_results(
     mut stream: InferenceMessageStream,
@@ -100,7 +100,6 @@ pub async fn collect_embedding_results(
 
 #[cfg(test)]
 mod tests {
-    use anyhow::anyhow;
     use paddler_messaging::embedding::Embedding;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -113,12 +112,21 @@ mod tests {
     use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
     use paddler_messaging::pooling_type::PoolingType;
 
+    use paddler_client::error::Error as ClientError;
+    use paddler_client::error::Result as ClientResult;
+    use paddler_client::inference_message_stream::InferenceMessageStream;
+
     use super::EmbeddingResult;
     use super::collect_embedding_results;
-    use crate::inference_message_stream::InferenceMessageStream;
 
-    fn stream(items: Vec<anyhow::Result<InferenceMessage>>) -> InferenceMessageStream {
+    fn stream(items: Vec<ClientResult<InferenceMessage>>) -> InferenceMessageStream {
         Box::pin(futures_util::stream::iter(items))
+    }
+
+    fn connection_dropped() -> ClientError {
+        ClientError::ConnectionDropped {
+            request_id: "req".to_owned(),
+        }
     }
 
     fn embedding_message(result: EmbeddingResult) -> InferenceMessage {
@@ -292,7 +300,7 @@ mod tests {
 
     #[tokio::test]
     async fn propagates_a_stream_error() {
-        let error = collect_embedding_results(stream(vec![Err(anyhow!("socket closed"))]))
+        let error = collect_embedding_results(stream(vec![Err(connection_dropped())]))
             .await
             .err()
             .unwrap();

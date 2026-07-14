@@ -35,8 +35,7 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
     .await?;
 
     let observed_initial = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_balancer_desired_state()
         .await
         .map_err(anyhow::Error::new)
@@ -53,16 +52,14 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
     };
 
     cluster
-        .paddler_client
-        .management()
+        .client_management
         .put_balancer_desired_state(&switched_state)
         .await
         .map_err(anyhow::Error::new)
         .context("failed to switch desired model")?;
 
     let observed_switched = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_balancer_desired_state()
         .await
         .map_err(anyhow::Error::new)

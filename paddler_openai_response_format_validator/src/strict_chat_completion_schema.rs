@@ -263,6 +263,13 @@ mod tests {
     }
 
     #[test]
+    fn passes_a_non_array_required_through_untouched() {
+        let transformed = transform_node(&json!({ "type": "object", "required": "id" }));
+
+        assert_eq!(transformed, json!({ "type": "object", "required": "id" }));
+    }
+
+    #[test]
     fn passes_scalars_through() {
         assert_eq!(transform_node(&json!(7)), json!(7));
     }

@@ -9,7 +9,6 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
 dashmap = { workspace = true }
 futures-util = { workspace = true }
 log = { workspace = true }

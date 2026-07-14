@@ -13,8 +13,7 @@ async fn management_metrics_endpoint_exposes_prometheus_gauges() -> Result<()> {
     .await?;
 
     let metrics = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_metrics()
         .await
         .map_err(anyhow::Error::new)

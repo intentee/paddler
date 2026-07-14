@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use nanoid::nanoid;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::notification::Notification;
@@ -8,46 +10,68 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use reqwest::Client;
+use serde::Serialize;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use url::Url;
 
+use crate::client_inference_params::ClientInferenceParams;
 use crate::error::Result;
-use crate::format_api_url::format_api_url;
+use crate::http_client::HttpClient;
 use crate::inference_message_stream::InferenceMessageStream;
 use crate::inference_socket::pool::Pool;
+use crate::reports_health::ReportsHealth;
 use crate::stream::ndjson::Ndjson;
 
-pub struct ClientInference<'client> {
-    url: &'client Url,
-    http_client: &'client Client,
-    inference_socket_pool: &'client Pool,
+#[derive(Clone)]
+pub struct ClientInference {
+    http_client: HttpClient,
+    inference_socket_pool: Arc<Pool>,
 }
 
-impl<'client> ClientInference<'client> {
+impl ClientInference {
     #[must_use]
-    pub const fn new(
-        url: &'client Url,
-        http_client: &'client Client,
-        inference_socket_pool: &'client Pool,
-    ) -> Self {
-        Self {
+    pub fn new(
+        ClientInferenceParams {
+            inference_socket_pool_size,
             url,
-            http_client,
-            inference_socket_pool,
+        }: ClientInferenceParams,
+    ) -> Self {
+        let inference_socket_pool = Pool::new(url.clone(), inference_socket_pool_size);
+
+        Self {
+            http_client: HttpClient::new(url),
+            inference_socket_pool: Arc::new(inference_socket_pool),
         }
     }
 
-    pub async fn get_health(&self) -> Result<String> {
-        let response = self
-            .http_client
-            .get(format_api_url(self.url, "/health"))
-            .send()
-            .await?
-            .error_for_status()?;
+    async fn post_streaming<TParams: Serialize + Sync + ?Sized>(
+        &self,
+        path: &str,
+        params: &TParams,
+    ) -> Result<InferenceMessageStream> {
+        let response = self.http_client.post_json(path, params).await?;
 
-        Ok(response.text().await?)
+        Ok(Box::pin(Ndjson::<InferenceMessage>::from_response(
+            response,
+        )))
+    }
+
+    async fn send_over_inference_socket(
+        &self,
+        request: InferenceServerRequest<ValidatedParametersSchema>,
+    ) -> Result<InferenceMessageStream> {
+        let request_id = nanoid!();
+        let message: InferenceServerMessage<ValidatedParametersSchema> =
+            InferenceServerMessage::Request(RequestEnvelope {
+                id: request_id.clone(),
+                request,
+            });
+        let response_rx = self
+            .inference_socket_pool
+            .send_request(request_id, message)
+            .await?;
+
+        Ok(Box::pin(UnboundedReceiverStream::new(response_rx)))
     }
 
     #[must_use]
@@ -59,104 +83,70 @@ impl<'client> ClientInference<'client> {
         &self,
         params: ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ) -> Result<InferenceMessageStream> {
-        let request_id = nanoid!();
-        let message: InferenceServerMessage<ValidatedParametersSchema> =
-            InferenceServerMessage::Request(RequestEnvelope {
-                id: request_id.clone(),
-                request: InferenceServerRequest::ContinueFromConversationHistory(params),
-            });
-        let rx = self
-            .inference_socket_pool
-            .send_request(request_id, message)
-            .await?;
-
-        Ok(Box::pin(UnboundedReceiverStream::new(rx)))
+        self.send_over_inference_socket(InferenceServerRequest::ContinueFromConversationHistory(
+            params,
+        ))
+        .await
     }
 
     pub async fn continue_from_raw_prompt(
         &self,
         params: ContinueFromRawPromptParams,
     ) -> Result<InferenceMessageStream> {
-        let request_id = nanoid!();
-        let message: InferenceServerMessage<ValidatedParametersSchema> =
-            InferenceServerMessage::Request(RequestEnvelope {
-                id: request_id.clone(),
-                request: InferenceServerRequest::ContinueFromRawPrompt(params),
-            });
-        let rx = self
-            .inference_socket_pool
-            .send_request(request_id, message)
-            .await?;
-
-        Ok(Box::pin(UnboundedReceiverStream::new(rx)))
+        self.send_over_inference_socket(InferenceServerRequest::ContinueFromRawPrompt(params))
+            .await
     }
 
     pub async fn post_continue_from_conversation_history(
         &self,
         params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ) -> Result<InferenceMessageStream> {
-        let response = self
-            .http_client
-            .post(format_api_url(
-                self.url,
-                "/api/v1/continue_from_conversation_history",
-            ))
-            .json(params)
-            .send()
-            .await?
-            .error_for_status()?;
-
-        let stream = Ndjson::<InferenceMessage>::from_response(response);
-
-        Ok(Box::pin(stream))
+        self.post_streaming("/api/v1/continue_from_conversation_history", params)
+            .await
     }
 
     pub async fn post_continue_from_raw_prompt(
         &self,
         params: &ContinueFromRawPromptParams,
     ) -> Result<InferenceMessageStream> {
-        let response = self
-            .http_client
-            .post(format_api_url(self.url, "/api/v1/continue_from_raw_prompt"))
-            .json(params)
-            .send()
-            .await?
-            .error_for_status()?;
-
-        let stream = Ndjson::<InferenceMessage>::from_response(response);
-
-        Ok(Box::pin(stream))
+        self.post_streaming("/api/v1/continue_from_raw_prompt", params)
+            .await
     }
 
-    pub async fn generate_embedding_batch(
+    pub async fn post_generate_embedding_batch(
         &self,
         params: &GenerateEmbeddingBatchParams,
     ) -> Result<InferenceMessageStream> {
-        let response = self
-            .http_client
-            .post(format_api_url(self.url, "/api/v1/generate_embedding_batch"))
-            .json(params)
-            .send()
-            .await?
-            .error_for_status()?;
+        self.post_streaming("/api/v1/generate_embedding_batch", params)
+            .await
+    }
+}
 
-        let stream = Ndjson::<InferenceMessage>::from_response(response);
-
-        Ok(Box::pin(stream))
+impl ReportsHealth for ClientInference {
+    fn http_client(&self) -> &HttpClient {
+        &self.http_client
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use paddler_messaging::conversation_history::ConversationHistory;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
     use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-    use reqwest::Client;
     use url::Url;
 
     use super::ClientInference;
-    use crate::inference_socket::pool::Pool;
+    use crate::client_inference_params::ClientInferenceParams;
+
+    fn unreachable_client() -> ClientInference {
+        ClientInference::new(ClientInferenceParams {
+            inference_socket_pool_size: NonZeroUsize::MIN,
+            url: Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"),
+        })
+    }
 
     fn raw_prompt_params() -> ContinueFromRawPromptParams {
         ContinueFromRawPromptParams {
@@ -181,13 +171,8 @@ mod tests {
 
     #[tokio::test]
     async fn continue_from_raw_prompt_errors_for_an_unreachable_server() {
-        let url = Url::parse("http://127.0.0.1:1").unwrap();
-        let http_client = Client::new();
-        let inference_socket_pool = Pool::new(url.clone(), 1);
-        let inference = ClientInference::new(&url, &http_client, &inference_socket_pool);
-
         assert!(
-            inference
+            unreachable_client()
                 .continue_from_raw_prompt(raw_prompt_params())
                 .await
                 .is_err()
@@ -196,13 +181,8 @@ mod tests {
 
     #[tokio::test]
     async fn continue_from_conversation_history_errors_for_an_unreachable_server() {
-        let url = Url::parse("http://127.0.0.1:1").unwrap();
-        let http_client = Client::new();
-        let inference_socket_pool = Pool::new(url.clone(), 1);
-        let inference = ClientInference::new(&url, &http_client, &inference_socket_pool);
-
         assert!(
-            inference
+            unreachable_client()
                 .continue_from_conversation_history(conversation_history_params())
                 .await
                 .is_err()

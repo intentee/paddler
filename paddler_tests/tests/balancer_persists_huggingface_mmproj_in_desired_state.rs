@@ -37,8 +37,7 @@ async fn balancer_persists_huggingface_mmproj_in_desired_state() -> Result<()> {
     .await?;
 
     let retrieved = cluster
-        .paddler_client
-        .management()
+        .client_management
         .get_balancer_desired_state()
         .await
         .map_err(anyhow::Error::new)

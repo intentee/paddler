@@ -10,12 +10,21 @@ pub fn url(input: Url) -> Result<Url> {
         "http" => "ws",
         "https" => "wss",
         other => other,
-    };
+    }
+    .to_owned();
 
-    let scheme = scheme.to_owned();
+    let original_url = url.as_str().to_owned();
 
-    url.set_scheme(&scheme)
-        .map_err(|()| Error::Other(format!("Failed to set URL scheme to '{scheme}'")))?;
+    match url.set_scheme(&scheme) {
+        Ok(()) => {}
+        Err(()) => {
+            return Err(Error::InferenceSocketUrlSchemeRejected {
+                scheme,
+                url: original_url,
+            });
+        }
+    }
+
     url.set_path("/api/v1/inference_socket");
 
     Ok(url)
