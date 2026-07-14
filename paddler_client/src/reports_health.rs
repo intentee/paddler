@@ -55,12 +55,14 @@ mod tests {
 
     fn service_unavailable() -> Error {
         Error::ServiceUnavailable {
+            message: "Balancer applicable state is not yet set".to_owned(),
             url: "http://127.0.0.1:1/health".to_owned(),
         }
     }
 
     fn not_found() -> Error {
         Error::UnexpectedResponseStatus {
+            message: "Not Found".to_owned(),
             status: StatusCode::NOT_FOUND,
             url: "http://127.0.0.1:1/health".to_owned(),
         }

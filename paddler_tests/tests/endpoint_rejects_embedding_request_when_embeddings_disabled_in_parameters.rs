@@ -52,11 +52,19 @@ async fn endpoint_rejects_embedding_request_when_embeddings_disabled_in_paramete
         .context("endpoint must reject embedding requests when embeddings are disabled")?;
 
     match rejection {
-        ClientError::UnexpectedResponseStatus { status, .. } => assert_eq!(
-            status.as_u16(),
-            NOT_IMPLEMENTED,
-            "endpoint must reject embedding requests with HTTP 501 when embeddings are disabled",
-        ),
+        ClientError::UnexpectedResponseStatus {
+            message, status, ..
+        } => {
+            assert_eq!(
+                status.as_u16(),
+                NOT_IMPLEMENTED,
+                "endpoint must reject embedding requests with HTTP 501 when embeddings are disabled",
+            );
+            assert_eq!(
+                message, "Embedding generation is not enabled in the inference parameters",
+                "the rejection must carry the reason reported by the balancer",
+            );
+        }
         other_error => panic!("expected an unexpected-status rejection, got: {other_error}"),
     }
 

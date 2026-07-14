@@ -32,13 +32,22 @@ pub enum Error {
         source: reqwest::Error,
     },
 
-    #[error("Service at {url} is unavailable")]
-    ServiceUnavailable { url: String },
+    #[error("Service at {url} is unavailable: {message}")]
+    ServiceUnavailable { message: String, url: String },
 
-    #[error("Request to {url} returned unexpected status {status}")]
+    #[error("Request to {url} returned unexpected status {status}: {message}")]
     UnexpectedResponseStatus {
+        message: String,
         status: reqwest::StatusCode,
         url: String,
+    },
+
+    #[error("Request to {url} returned status {status}; its error body could not be read")]
+    ErrorBodyUnreadable {
+        status: reqwest::StatusCode,
+        url: String,
+        #[source]
+        source: reqwest::Error,
     },
 
     #[error("Cannot use {url} as an inference socket URL: its scheme cannot be set to {scheme}")]

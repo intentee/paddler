@@ -14,11 +14,26 @@ pub async fn send_checked_request(
             let status = response.status();
 
             if status.is_success() {
-                Ok(response)
-            } else if status == StatusCode::SERVICE_UNAVAILABLE {
-                Err(Error::ServiceUnavailable { url })
+                return Ok(response);
+            }
+
+            let message = response
+                .text()
+                .await
+                .map_err(|source| Error::ErrorBodyUnreadable {
+                    source,
+                    status,
+                    url: url.clone(),
+                })?;
+
+            if status == StatusCode::SERVICE_UNAVAILABLE {
+                Err(Error::ServiceUnavailable { message, url })
             } else {
-                Err(Error::UnexpectedResponseStatus { status, url })
+                Err(Error::UnexpectedResponseStatus {
+                    message,
+                    status,
+                    url,
+                })
             }
         }
         Err(source) if source.is_connect() => Err(Error::Connect { url, source }),
@@ -89,27 +104,58 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn maps_service_unavailable_to_its_own_variant() {
-        let url =
-            serve_one_response("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n")
-                .await;
+    async fn maps_service_unavailable_to_its_own_variant_carrying_the_server_message() {
+        let url = serve_one_response(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 33\r\n\r\nNo agents are currently connected",
+        )
+        .await;
         let request_builder = Client::new().get(&url);
 
-        assert!(matches!(
-            send_checked_request(url, request_builder).await,
-            Err(Error::ServiceUnavailable { .. })
-        ));
+        match send_checked_request(url, request_builder).await {
+            Err(Error::ServiceUnavailable { message, .. }) => {
+                assert_eq!(message, "No agents are currently connected");
+            }
+            other_result => {
+                panic!("expected a service-unavailable rejection, got: {other_result:?}")
+            }
+        }
     }
 
     #[tokio::test]
-    async fn maps_any_other_failure_status_to_the_unexpected_status_variant() {
-        let url = serve_one_response("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await;
+    async fn maps_any_other_failure_status_to_the_unexpected_status_variant_carrying_the_server_message()
+     {
+        let url = serve_one_response(
+            "HTTP/1.1 404 Not Found\r\nContent-Length: 15\r\n\r\nAgent not found",
+        )
+        .await;
+        let request_builder = Client::new().get(&url);
+
+        match send_checked_request(url, request_builder).await {
+            Err(Error::UnexpectedResponseStatus {
+                message,
+                status: StatusCode::NOT_FOUND,
+                ..
+            }) => {
+                assert_eq!(message, "Agent not found");
+            }
+            other_result => {
+                panic!("expected an unexpected-status rejection, got: {other_result:?}")
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn reports_an_error_body_that_cannot_be_read() {
+        let url = serve_one_response(
+            "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 64\r\n\r\ntruncated",
+        )
+        .await;
         let request_builder = Client::new().get(&url);
 
         assert!(matches!(
             send_checked_request(url, request_builder).await,
-            Err(Error::UnexpectedResponseStatus {
-                status: StatusCode::NOT_FOUND,
+            Err(Error::ErrorBodyUnreadable {
+                status: StatusCode::SERVICE_UNAVAILABLE,
                 ..
             })
         ));
@@ -123,6 +169,17 @@ mod tests {
         assert!(matches!(
             send_checked_request(url, request_builder).await,
             Err(Error::Connect { .. })
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_transport_failure_that_is_not_a_connect_failure_maps_to_the_http_variant() {
+        let url = serve_one_response("this is not an HTTP response\r\n\r\n").await;
+        let request_builder = Client::new().get(&url);
+
+        assert!(matches!(
+            send_checked_request(url, request_builder).await,
+            Err(Error::Http(_))
         ));
     }
 }
