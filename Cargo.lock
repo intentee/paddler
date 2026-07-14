@@ -4950,6 +4950,7 @@ dependencies = [
 name = "paddler_client"
 version = "4.1.0"
 dependencies = [
+ "bytes 1.11.1",
  "dashmap",
  "futures-util",
  "http 1.4.0",
