@@ -26,9 +26,9 @@ mod tests {
 
     use super::serve_http_until_shutdown;
 
-    #[actix_web::test]
-    async fn a_forced_shutdown_stops_the_server() {
+    async fn serving_stops_when_the_token_is_cancelled(graceful: bool) {
         let server = HttpServer::new(App::new)
+            .workers(1)
             .disable_signals()
             .bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .expect("the server must bind a loopback port")
@@ -41,8 +41,18 @@ mod tests {
             requested_shutdown.cancel();
         });
 
-        serve_http_until_shutdown(server, shutdown, false)
+        serve_http_until_shutdown(server, shutdown, graceful)
             .await
             .expect("the server must stop without error");
+    }
+
+    #[actix_web::test]
+    async fn a_forced_shutdown_stops_the_server() {
+        serving_stops_when_the_token_is_cancelled(false).await;
+    }
+
+    #[actix_web::test]
+    async fn a_graceful_shutdown_stops_the_server() {
+        serving_stops_when_the_token_is_cancelled(true).await;
     }
 }
