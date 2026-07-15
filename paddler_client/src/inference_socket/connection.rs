@@ -26,8 +26,8 @@ use crate::inference_socket::url::url;
 pub struct Connection {
     write_tx: UnboundedSender<String>,
     pending: PendingRequests,
-    _read_task: JoinHandle<()>,
-    _write_task: JoinHandle<()>,
+    read_task: JoinHandle<()>,
+    write_task: JoinHandle<()>,
 }
 
 impl Connection {
@@ -48,8 +48,8 @@ impl Connection {
         Ok(Self {
             write_tx,
             pending,
-            _read_task: read_task,
-            _write_task: write_task,
+            read_task,
+            write_task,
         })
     }
 
@@ -93,15 +93,28 @@ impl Connection {
         Self {
             write_tx,
             pending: Arc::new(DashMap::new()),
-            _read_task: tokio::spawn(async {}),
-            _write_task: tokio::spawn(async {}),
+            read_task: tokio::spawn(async {}),
+            write_task: tokio::spawn(async {}),
         }
+    }
+}
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.read_task.abort();
+        self.write_task.abort();
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
+    use futures_util::StreamExt as _;
+    use tokio::net::TcpListener;
     use tokio::sync::broadcast;
+    use tokio::time::timeout;
+    use tokio_tungstenite::accept_async;
     use url::Url;
 
     use super::Connection;
@@ -112,5 +125,40 @@ mod tests {
         let (notification_tx, _notification_rx) = broadcast::channel(1);
 
         assert!(Connection::connect(url, notification_tx).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn dropping_the_connection_closes_the_websocket() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("the fixture server must bind a loopback port");
+        let address = listener
+            .local_addr()
+            .expect("the fixture server must report its address");
+
+        let server_task = tokio::spawn(async move {
+            let (tcp_stream, _peer_address) = listener
+                .accept()
+                .await
+                .expect("the fixture server must accept the connection");
+            let mut server_websocket = accept_async(tcp_stream)
+                .await
+                .expect("the fixture server must complete the websocket handshake");
+
+            while server_websocket.next().await.is_some() {}
+        });
+
+        let url = Url::parse(&format!("http://{address}")).expect("the fixture URL must be valid");
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
+        let connection = Connection::connect(url, notification_tx)
+            .await
+            .expect("the client must connect to the fixture server");
+
+        drop(connection);
+
+        timeout(Duration::from_secs(5), server_task)
+            .await
+            .expect("dropping the connection must close the websocket before the deadline")
+            .expect("the fixture server task must not panic");
     }
 }
