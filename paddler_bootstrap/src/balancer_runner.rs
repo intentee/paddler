@@ -64,6 +64,7 @@ impl BalancerRunner {
     ) -> Result<Self> {
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout,
+            graceful_http_shutdown: false,
             inference_service_configuration,
             management_service_configuration,
             max_buffered_requests,

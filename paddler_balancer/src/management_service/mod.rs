@@ -25,6 +25,7 @@ use crate::http_route as common_http_route;
 use crate::management_service::app_data::AppData;
 use crate::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
+use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 use crate::state_database::StateDatabase;
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
@@ -49,6 +50,7 @@ pub struct ManagementService {
     pub configuration: ManagementServiceConfiguration,
     pub embedding_sender_collection: Arc<EmbeddingSenderCollection>,
     pub generate_tokens_sender_collection: Arc<GenerateTokensSenderCollection>,
+    pub graceful_http_shutdown: bool,
     pub model_metadata_sender_collection: Arc<ModelMetadataSenderCollection>,
     pub shutdown_options: ServiceShutdownOptions,
     pub state_database: Arc<dyn StateDatabase>,
@@ -121,15 +123,13 @@ impl Service for ManagementService {
                 .configure(http_route::get_metrics::register)
         })
         .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer management service to {bind_addr}"))?;
+        .with_context(|| format!("Unable to bind balancer management service to {bind_addr}"))?
+        .run();
 
-        server.run().await?;
+        serve_http_until_shutdown(server, shutdown, self.graceful_http_shutdown).await?;
 
         Ok(())
     }
@@ -188,6 +188,7 @@ mod tests {
             embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
             generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
             model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            graceful_http_shutdown: true,
             shutdown_options: ServiceShutdownOptions::default(),
             state_database: Arc::new(Memory::new(
                 balancer_desired_state_notify_tx,

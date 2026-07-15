@@ -21,6 +21,7 @@ use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
@@ -31,6 +32,7 @@ pub struct InferenceService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
+    pub graceful_http_shutdown: bool,
     pub shutdown_options: ServiceShutdownOptions,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
@@ -88,15 +90,13 @@ impl Service for InferenceService {
                 .configure(http_route::api::ws_inference_socket::register)
         })
         .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer inference service to {bind_addr}"))?;
+        .with_context(|| format!("Unable to bind balancer inference service to {bind_addr}"))?
+        .run();
 
-        server.run().await?;
+        serve_http_until_shutdown(server, shutdown, self.graceful_http_shutdown).await?;
 
         Ok(())
     }
@@ -141,6 +141,7 @@ mod tests {
                 cors_allowed_hosts: vec!["http://127.0.0.1:8080".to_owned()],
                 inference_item_timeout: Duration::from_secs(30),
             },
+            graceful_http_shutdown: true,
             shutdown_options: ServiceShutdownOptions::default(),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {

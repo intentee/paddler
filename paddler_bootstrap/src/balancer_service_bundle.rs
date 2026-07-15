@@ -35,6 +35,7 @@ use trzcina::ServiceShutdownOptions;
 
 pub struct BalancerBootstrapConfig {
     pub buffered_request_timeout: Duration,
+    pub graceful_http_shutdown: bool,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub management_service_configuration: ManagementServiceConfiguration,
     pub max_buffered_requests: i32,
@@ -66,6 +67,7 @@ impl BalancerServiceBundle {
     pub async fn new(
         BalancerBootstrapConfig {
             buffered_request_timeout,
+            graceful_http_shutdown,
             inference_service_configuration,
             management_service_configuration,
             max_buffered_requests,
@@ -109,6 +111,7 @@ impl BalancerServiceBundle {
             balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
             buffered_request_manager: buffered_request_manager.clone(),
             configuration: inference_service_configuration.clone(),
+            graceful_http_shutdown,
             shutdown_options: shutdown_options.clone(),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: web_admin_panel_service_configuration.clone(),
@@ -122,6 +125,7 @@ impl BalancerServiceBundle {
             configuration: management_service_configuration,
             embedding_sender_collection,
             generate_tokens_sender_collection,
+            graceful_http_shutdown,
             model_metadata_sender_collection,
             shutdown_options: shutdown_options.clone(),
             state_database: state_database.clone(),
@@ -142,6 +146,7 @@ impl BalancerServiceBundle {
             openai_service_configuration.map(|openai_service_configuration| OpenAIService {
                 balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
                 buffered_request_manager: buffered_request_manager.clone(),
+                graceful_http_shutdown,
                 inference_service_configuration,
                 openai_service_configuration,
                 shutdown_options: shutdown_options.clone(),
@@ -227,6 +232,7 @@ mod tests {
     async fn services_includes_every_optional_service_when_configured() {
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout: Duration::from_secs(10),
+            graceful_http_shutdown: false,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: loopback_addr(),
                 cors_allowed_hosts: vec![],

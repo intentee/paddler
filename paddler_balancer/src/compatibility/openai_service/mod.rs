@@ -73,12 +73,14 @@ use crate::compatibility::openai_service::configuration::Configuration as OpenAI
 use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 
 const HTTP_WORKERS: usize = 16;
 
 pub struct OpenAIService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
+    pub graceful_http_shutdown: bool,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub openai_service_configuration: OpenAIServiceConfiguration,
     pub shutdown_options: ServiceShutdownOptions,
@@ -115,15 +117,13 @@ impl Service for OpenAIService {
                 .configure(http_route::post_responses::register)
         })
         .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer OpenAI-compat service to {bind_addr}"))?;
+        .with_context(|| format!("Unable to bind balancer OpenAI-compat service to {bind_addr}"))?
+        .run();
 
-        server.run().await?;
+        serve_http_until_shutdown(server, shutdown, self.graceful_http_shutdown).await?;
 
         Ok(())
     }
@@ -163,6 +163,7 @@ mod tests {
                 inference_item_timeout: Duration::from_secs(30),
             },
             openai_service_configuration: OpenAIServiceConfiguration { addr },
+            graceful_http_shutdown: true,
             shutdown_options: ServiceShutdownOptions::default(),
         }
     }
