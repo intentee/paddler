@@ -15,7 +15,6 @@ use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
 use crate::agent_controller_pool::AgentControllerPool;
-use crate::awaitable_counter::AwaitableCounter;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -26,7 +25,6 @@ use crate::http_route as common_http_route;
 use crate::management_service::app_data::AppData;
 use crate::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
-use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 use crate::state_database::StateDatabase;
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
@@ -123,15 +121,15 @@ impl Service for ManagementService {
                 .configure(http_route::get_metrics::register)
         })
         .workers(HTTP_WORKERS)
+        .shutdown_signal(async move {
+            shutdown.cancelled().await;
+        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer management service to {bind_addr}"))?
-        .run();
+        .with_context(|| format!("Unable to bind balancer management service to {bind_addr}"))?;
 
-        let drain_counter = Arc::new(AwaitableCounter::default());
-
-        serve_http_until_shutdown(server, shutdown, drain_counter).await?;
+        server.run().await?;
 
         Ok(())
     }

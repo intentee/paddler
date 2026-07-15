@@ -12,7 +12,6 @@ use paddler_messaging::streamable_result::StreamableResult;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_controller::AgentController;
-use crate::awaitable_counter::AwaitableCounter;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
@@ -31,7 +30,6 @@ pub fn sse_response_from_agent<TParams, TTransformsOutgoingMessage>(
     params: TParams,
     transformer: TTransformsOutgoingMessage,
     shutdown: CancellationToken,
-    drain_counter: Arc<AwaitableCounter>,
 ) -> HttpResponse
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
@@ -45,7 +43,6 @@ where
         params,
         transformer,
         shutdown,
-        drain_counter,
     )
     .map(|event| Ok::<sse::Event, Infallible>(sse::Event::Data(event_to_sse_data(&event))));
 
