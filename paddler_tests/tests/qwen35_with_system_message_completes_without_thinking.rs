@@ -9,6 +9,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_with_system_message_completes_without_thinking() -> Result<()> {
@@ -30,15 +31,18 @@ async fn qwen35_with_system_message_completes_without_thinking() -> Result<()> {
     ]);
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history,
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 512,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history,
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: 512,
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
         .await?;
 
     let token_count = collected

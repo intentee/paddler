@@ -12,6 +12,7 @@ use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithPro
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 const PARTIAL_GPU_LAYER_COUNT: i32 = 14;
 
@@ -42,11 +43,14 @@ async fn continuous_batch_generates_tokens_with_partial_layer_offload() -> Resul
     .await?;
 
     let collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 16,
-            raw_prompt: "Count from 1 to 5:".to_owned(),
-        })
+        .continue_from_raw_prompt(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 16,
+                raw_prompt: "Count from 1 to 5:".to_owned(),
+            },
+        )
         .await?;
 
     let token_count = collected

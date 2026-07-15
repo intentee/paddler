@@ -3,6 +3,7 @@ use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_buffered_requests_stream_yields_initial_snapshot() -> Result<()> {
@@ -15,7 +16,7 @@ async fn management_buffered_requests_stream_yields_initial_snapshot() -> Result
 
     let mut stream = cluster
         .client_management
-        .get_buffered_requests_stream()
+        .get_buffered_requests_stream(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("buffered requests stream should connect")?;

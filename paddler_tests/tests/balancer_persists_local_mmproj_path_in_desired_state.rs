@@ -9,6 +9,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_local_mmproj_path_in_desired_state() -> Result<()> {
@@ -32,7 +33,7 @@ async fn balancer_persists_local_mmproj_path_in_desired_state() -> Result<()> {
 
     let retrieved = cluster
         .client_management
-        .get_balancer_desired_state()
+        .get_balancer_desired_state(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read balancer desired state")?;

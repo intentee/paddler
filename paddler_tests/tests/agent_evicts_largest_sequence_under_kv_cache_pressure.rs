@@ -11,6 +11,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_evicts_largest_sequence_under_kv_cache_pressure() -> Result<()> {
@@ -45,7 +46,7 @@ async fn agent_evicts_largest_sequence_under_kv_cache_pressure() -> Result<()> {
     .await?;
 
     let collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
+        .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
             grammar: None,
             max_tokens: 4096,
             raw_prompt: "Write an exhaustive, never-ending encyclopedia entry that lists every fact about the natural world in extreme detail:".to_owned(),

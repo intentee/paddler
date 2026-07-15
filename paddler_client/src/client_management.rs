@@ -6,6 +6,7 @@ use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManager
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::model_metadata::ModelMetadata;
 use serde_json::from_str;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::agents_stream::AgentsStream;
@@ -28,69 +29,117 @@ impl ClientManagement {
         }
     }
 
-    pub async fn get_agents(&self) -> Result<AgentControllerPoolSnapshot> {
-        self.http_client.get_json("/api/v1/agents").await
-    }
-
-    pub async fn get_balancer_desired_state(&self) -> Result<BalancerDesiredState> {
+    pub async fn get_agents(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<AgentControllerPoolSnapshot> {
         self.http_client
-            .get_json("/api/v1/balancer_desired_state")
+            .get_json(cancellation_token, "/api/v1/agents")
             .await
     }
 
-    pub async fn get_balancer_applicable_state(&self) -> Result<Option<AgentDesiredState>> {
+    pub async fn get_balancer_desired_state(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<BalancerDesiredState> {
         self.http_client
-            .get_json("/api/v1/balancer_applicable_state")
+            .get_json(cancellation_token, "/api/v1/balancer_desired_state")
             .await
     }
 
-    pub async fn put_balancer_desired_state(&self, state: &BalancerDesiredState) -> Result<()> {
+    pub async fn get_balancer_applicable_state(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<Option<AgentDesiredState>> {
         self.http_client
-            .put_json("/api/v1/balancer_desired_state", state)
+            .get_json(cancellation_token, "/api/v1/balancer_applicable_state")
+            .await
+    }
+
+    pub async fn put_balancer_desired_state(
+        &self,
+        cancellation_token: CancellationToken,
+        state: &BalancerDesiredState,
+    ) -> Result<()> {
+        self.http_client
+            .put_json(cancellation_token, "/api/v1/balancer_desired_state", state)
             .await?;
 
         Ok(())
     }
 
-    pub async fn get_buffered_requests(&self) -> Result<BufferedRequestManagerSnapshot> {
-        self.http_client.get_json("/api/v1/buffered_requests").await
+    pub async fn get_buffered_requests(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<BufferedRequestManagerSnapshot> {
+        self.http_client
+            .get_json(cancellation_token, "/api/v1/buffered_requests")
+            .await
     }
 
-    pub async fn get_agents_stream(&self) -> Result<AgentsStream> {
-        let response = self.http_client.get("/api/v1/agents/stream").await?;
-
-        let stream = Sse::from_response(response)
-            .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
-
-        Ok(Box::pin(stream))
-    }
-
-    pub async fn get_buffered_requests_stream(&self) -> Result<BufferedRequestsStream> {
+    pub async fn get_agents_stream(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<AgentsStream> {
         let response = self
             .http_client
-            .get("/api/v1/buffered_requests/stream")
+            .get(cancellation_token.clone(), "/api/v1/agents/stream")
             .await?;
 
-        let stream = Sse::from_response(response)
+        let stream = Sse::from_response(cancellation_token, response)
             .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
 
         Ok(Box::pin(stream))
     }
 
-    pub async fn get_chat_template_override(&self, agent_id: &str) -> Result<Option<ChatTemplate>> {
+    pub async fn get_buffered_requests_stream(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<BufferedRequestsStream> {
+        let response = self
+            .http_client
+            .get(
+                cancellation_token.clone(),
+                "/api/v1/buffered_requests/stream",
+            )
+            .await?;
+
+        let stream = Sse::from_response(cancellation_token, response)
+            .map(|result| result.and_then(|data| from_str(&data).map_err(Into::into)));
+
+        Ok(Box::pin(stream))
+    }
+
+    pub async fn get_chat_template_override(
+        &self,
+        cancellation_token: CancellationToken,
+        agent_id: &str,
+    ) -> Result<Option<ChatTemplate>> {
         self.http_client
-            .get_json(&format!("/api/v1/agent/{agent_id}/chat_template_override"))
+            .get_json(
+                cancellation_token,
+                &format!("/api/v1/agent/{agent_id}/chat_template_override"),
+            )
             .await
     }
 
-    pub async fn get_model_metadata(&self, agent_id: &str) -> Result<Option<ModelMetadata>> {
+    pub async fn get_model_metadata(
+        &self,
+        cancellation_token: CancellationToken,
+        agent_id: &str,
+    ) -> Result<Option<ModelMetadata>> {
         self.http_client
-            .get_json(&format!("/api/v1/agent/{agent_id}/model_metadata"))
+            .get_json(
+                cancellation_token,
+                &format!("/api/v1/agent/{agent_id}/model_metadata"),
+            )
             .await
     }
 
-    pub async fn get_metrics(&self) -> Result<String> {
-        self.http_client.get_text("/metrics").await
+    pub async fn get_metrics(&self, cancellation_token: CancellationToken) -> Result<String> {
+        self.http_client
+            .get_text(cancellation_token, "/metrics")
+            .await
     }
 }
 

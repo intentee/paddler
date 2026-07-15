@@ -11,6 +11,7 @@ use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() -> Result<()> {
@@ -20,8 +21,9 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
 
     let futures = prompts.iter().map(|prompt| {
         let prompt = (*prompt).to_owned();
-        let generation =
-            cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+        let generation = cluster.continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
                 conversation_history: ConversationHistory::new(vec![ConversationMessage {
                     content: ConversationMessageContent::Text(prompt),
@@ -32,7 +34,8 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
                 max_tokens: 30,
                 parse_tool_calls: false,
                 tools: vec![],
-            });
+            },
+        );
 
         async move {
             let collected = generation.await?;

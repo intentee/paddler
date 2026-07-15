@@ -8,17 +8,21 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
 
     let mut first_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 500,
-            raw_prompt: "Write a long essay about photosynthesis".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 500,
+                raw_prompt: "Write a long essay about photosynthesis".to_owned(),
+            },
+        )
         .await?;
 
     let _first_token = first_stream
@@ -29,11 +33,14 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() -> Result<
     drop(first_stream);
 
     let second_collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 10,
-            raw_prompt: "Hello".to_owned(),
-        })
+        .continue_from_raw_prompt(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 10,
+                raw_prompt: "Hello".to_owned(),
+            },
+        )
         .await?;
 
     assert!(matches!(

@@ -9,6 +9,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_memory_storage_persists_desired_state() -> Result<()> {
@@ -33,7 +34,7 @@ async fn balancer_memory_storage_persists_desired_state() -> Result<()> {
 
     let observed = cluster
         .client_management
-        .get_balancer_desired_state()
+        .get_balancer_desired_state(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read desired state from memory backend")?;

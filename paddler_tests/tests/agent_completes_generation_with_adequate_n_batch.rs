@@ -16,6 +16,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
+use tokio_util::sync::CancellationToken;
 
 fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {
     let fixture_path = format!("{}/../fixtures/{fixture_name}", env!("CARGO_MANIFEST_DIR"));
@@ -34,8 +35,9 @@ fn drive_normal_image_fixture(
     let image_data_uri = load_fixture_as_data_uri(fixture_name, mime_type)?;
     let fixture_name = fixture_name.to_owned();
 
-    let generation =
-        cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+    let generation = cluster.continue_from_conversation_history(
+        CancellationToken::new(),
+        &ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Parts(vec![
@@ -55,7 +57,8 @@ fn drive_normal_image_fixture(
             max_tokens: 20,
             parse_tool_calls: false,
             tools: vec![],
-        });
+        },
+    );
 
     Ok(async move {
         let collected = generation.await?;

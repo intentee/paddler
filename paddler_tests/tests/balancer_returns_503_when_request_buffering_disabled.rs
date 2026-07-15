@@ -10,6 +10,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
@@ -28,11 +29,14 @@ async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
     })?;
 
     let mut stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 10,
-            raw_prompt: "Hello".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 10,
+                raw_prompt: "Hello".to_owned(),
+            },
+        )
         .await?;
 
     let message = stream

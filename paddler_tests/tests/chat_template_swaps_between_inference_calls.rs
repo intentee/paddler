@@ -18,12 +18,14 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 fn run_inference_after_template_swap(
     cluster: &Cluster,
 ) -> impl Future<Output = Result<bool>> + Send + use<> {
-    let generation =
-        cluster.continue_from_conversation_history(&ContinueFromConversationHistoryParams {
+    let generation = cluster.continue_from_conversation_history(
+        CancellationToken::new(),
+        &ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
             conversation_history: ConversationHistory::new(vec![ConversationMessage {
                 content: ConversationMessageContent::Text("The capital of France is".to_owned()),
@@ -34,7 +36,8 @@ fn run_inference_after_template_swap(
             max_tokens: 10,
             parse_tool_calls: false,
             tools: vec![],
-        });
+        },
+    );
 
     async move {
         let collected = generation.await?;
@@ -101,7 +104,7 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
 
     cluster
         .client_management
-        .put_balancer_desired_state(&swap_state)
+        .put_balancer_desired_state(CancellationToken::new(), &swap_state)
         .await
         .map_err(anyhow::Error::new)?;
 
@@ -112,7 +115,7 @@ async fn chat_template_swaps_between_inference_calls() -> Result<()> {
 
     let retrieved = cluster
         .client_management
-        .get_chat_template_override(&agent_id)
+        .get_chat_template_override(CancellationToken::new(), &agent_id)
         .await
         .map_err(anyhow::Error::new)?;
 

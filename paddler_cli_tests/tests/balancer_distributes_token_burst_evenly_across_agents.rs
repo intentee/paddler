@@ -8,6 +8,7 @@ use futures_util::future;
 use paddler_cli_tests::start_subprocess_cluster_with_qwen3::start_subprocess_cluster_with_qwen3;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
@@ -25,11 +26,14 @@ async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
         .collect();
 
     let collection_futures = prompts.iter().map(|prompt| {
-        cluster.continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 16,
-            raw_prompt: prompt.clone(),
-        })
+        cluster.continue_from_raw_prompt(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 16,
+                raw_prompt: prompt.clone(),
+            },
+        )
     });
 
     let collected_streams = future::try_join_all(collection_futures).await?;

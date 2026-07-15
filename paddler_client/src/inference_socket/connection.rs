@@ -4,6 +4,10 @@ use dashmap::DashMap;
 use futures_util::StreamExt;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::notification::Notification;
+use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
+use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use serde_json::to_string;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -68,6 +72,30 @@ impl Connection {
         }
 
         Ok(response_rx)
+    }
+
+    pub fn stop_responding_to(&self, request_id: String) -> Result<()> {
+        self.pending.remove(&request_id);
+
+        let stop_responding_to: InferenceServerMessage<ValidatedParametersSchema> =
+            InferenceServerMessage::Notification(InferenceServerNotification::StopRespondingTo(
+                request_id.clone(),
+            ));
+        let json = to_string(&stop_responding_to)?;
+
+        self.write_tx
+            .send(json)
+            .map_err(|_closed_channel| Error::ConnectionDropped { request_id })
+    }
+
+    #[cfg(test)]
+    pub fn from_write_sender(write_tx: UnboundedSender<String>) -> Self {
+        Self {
+            write_tx,
+            pending: Arc::new(DashMap::new()),
+            _read_task: tokio::spawn(async {}),
+            _write_task: tokio::spawn(async {}),
+        }
     }
 }
 

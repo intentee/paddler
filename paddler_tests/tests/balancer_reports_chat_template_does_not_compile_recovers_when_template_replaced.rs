@@ -14,6 +14,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_chat_template_does_not_compile_recovers_when_template_replaced()
@@ -72,7 +73,7 @@ async fn balancer_reports_chat_template_does_not_compile_recovers_when_template_
 
     cluster
         .client_management
-        .put_balancer_desired_state(&recovered_state)
+        .put_balancer_desired_state(CancellationToken::new(), &recovered_state)
         .await
         .map_err(anyhow::Error::new)
         .context("balancer should accept the recovered desired state")?;

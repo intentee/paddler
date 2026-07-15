@@ -8,6 +8,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_returns_rms_normalized_embeddings_when_requested() -> Result<()> {
@@ -22,13 +23,16 @@ async fn agent_returns_rms_normalized_embeddings_when_requested() -> Result<()> 
     .await?;
 
     let collected = cluster
-        .generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch: vec![EmbeddingInputDocument {
-                content: "Testing RMS normalization on embeddings".to_owned(),
-                id: "doc-rms".to_owned(),
-            }],
-            normalization_method: EmbeddingNormalizationMethod::RmsNorm { epsilon: 1e-6 },
-        })
+        .generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![EmbeddingInputDocument {
+                    content: "Testing RMS normalization on embeddings".to_owned(),
+                    id: "doc-rms".to_owned(),
+                }],
+                normalization_method: EmbeddingNormalizationMethod::RmsNorm { epsilon: 1e-6 },
+            },
+        )
         .await?;
 
     assert_eq!(collected.embeddings.len(), 1);

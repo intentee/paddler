@@ -5,6 +5,7 @@ use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_model_configured() -> Result<()> {
@@ -16,11 +17,14 @@ async fn balancer_returns_504_when_no_model_configured() -> Result<()> {
     .await?;
 
     let mut stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 10,
-            raw_prompt: "Hello".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 10,
+                raw_prompt: "Hello".to_owned(),
+            },
+        )
         .await?;
 
     let message = stream

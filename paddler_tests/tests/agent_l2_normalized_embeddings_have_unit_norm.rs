@@ -8,6 +8,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_l2_normalized_embeddings_have_unit_norm() -> Result<()> {
@@ -22,13 +23,16 @@ async fn agent_l2_normalized_embeddings_have_unit_norm() -> Result<()> {
     .await?;
 
     let collected = cluster
-        .generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch: vec![EmbeddingInputDocument {
-                content: "Testing L2 normalization on embeddings".to_owned(),
-                id: "doc-l2".to_owned(),
-            }],
-            normalization_method: EmbeddingNormalizationMethod::L2,
-        })
+        .generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![EmbeddingInputDocument {
+                    content: "Testing L2 normalization on embeddings".to_owned(),
+                    id: "doc-l2".to_owned(),
+                }],
+                normalization_method: EmbeddingNormalizationMethod::L2,
+            },
+        )
         .await?;
 
     assert_eq!(collected.embeddings.len(), 1);

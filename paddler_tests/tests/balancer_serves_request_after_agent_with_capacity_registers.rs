@@ -15,6 +15,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result<()> {
@@ -43,11 +44,14 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
     .await?;
 
     let mut early_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 10,
-            raw_prompt: "Hello".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 10,
+                raw_prompt: "Hello".to_owned(),
+            },
+        )
         .await?;
 
     let early_message = early_stream
@@ -81,11 +85,14 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
         .context("agent should register with 4 slots")?;
 
     let mut later_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 10,
-            raw_prompt: "Hello".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 10,
+                raw_prompt: "Hello".to_owned(),
+            },
+        )
         .await?;
 
     let later_message = later_stream

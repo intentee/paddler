@@ -8,15 +8,19 @@ use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_client::client_management::ClientManagement;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use tokio_util::sync::CancellationToken;
 
 pub struct AgentsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>,
 }
 
 impl AgentsStreamWatcher {
-    pub async fn connect(management: &ClientManagement) -> Result<Self> {
+    pub async fn connect(
+        cancellation_token: CancellationToken,
+        management: &ClientManagement,
+    ) -> Result<Self> {
         let raw_stream = management
-            .get_agents_stream()
+            .get_agents_stream(cancellation_token)
             .await
             .map_err(anyhow::Error::new)
             .context("failed to open /api/v1/agents/stream")?;

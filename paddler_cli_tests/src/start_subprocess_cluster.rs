@@ -8,6 +8,8 @@ use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::running_balancer::RunningBalancer;
 
+use tokio_util::sync::CancellationToken;
+
 use crate::paddler_command::paddler_command;
 use crate::subprocess_agent_spawner::SubprocessAgentSpawner;
 use crate::subprocess_process::SubprocessProcess;
@@ -72,6 +74,7 @@ pub async fn start_subprocess_cluster(
     );
 
     let mut cluster = Cluster::connect(
+        CancellationToken::new(),
         running_balancer,
         Box::new(SubprocessAgentSpawner::new(
             binary_path.to_owned(),

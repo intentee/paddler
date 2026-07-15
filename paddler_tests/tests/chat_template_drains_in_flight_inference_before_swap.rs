@@ -18,6 +18,7 @@ use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithPro
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
@@ -57,18 +58,23 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
         .clone();
 
     let in_flight_stream = cluster
-        .continue_from_conversation_history_stream(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("The capital of France is".to_owned()),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 10,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
+        .continue_from_conversation_history_stream(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text(
+                        "The capital of France is".to_owned(),
+                    ),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: 10,
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
         .await?;
 
     let swap_state = BalancerDesiredState {
@@ -84,7 +90,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
 
     cluster
         .client_management
-        .put_balancer_desired_state(&swap_state)
+        .put_balancer_desired_state(CancellationToken::new(), &swap_state)
         .await
         .map_err(anyhow::Error::new)?;
 
@@ -116,7 +122,7 @@ async fn chat_template_drains_in_flight_inference_before_swap() -> Result<()> {
 
     let retrieved = cluster
         .client_management
-        .get_chat_template_override(&agent_id)
+        .get_chat_template_override(CancellationToken::new(), &agent_id)
         .await
         .map_err(anyhow::Error::new)?;
 

@@ -1,15 +1,45 @@
 use reqwest::RequestBuilder;
 use reqwest::Response;
 use reqwest::StatusCode;
+use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 use crate::error::Result;
 
+async fn read_error_body(response: Response, status: StatusCode, url: String) -> Error {
+    match response.text().await {
+        Ok(message) => {
+            if status == StatusCode::SERVICE_UNAVAILABLE {
+                Error::ServiceUnavailable { message, url }
+            } else {
+                Error::UnexpectedResponseStatus {
+                    message,
+                    status,
+                    url,
+                }
+            }
+        }
+        Err(source) => Error::ErrorBodyUnreadable {
+            source,
+            status,
+            url,
+        },
+    }
+}
+
 pub async fn send_checked_request(
+    cancellation_token: CancellationToken,
     url: String,
     request_builder: RequestBuilder,
 ) -> Result<Response> {
-    match request_builder.send().await {
+    let Some(send_result) = cancellation_token
+        .run_until_cancelled(request_builder.send())
+        .await
+    else {
+        return Err(Error::RequestCancelled { url });
+    };
+
+    match send_result {
         Ok(response) => {
             let status = response.status();
 
@@ -17,24 +47,7 @@ pub async fn send_checked_request(
                 return Ok(response);
             }
 
-            let message = response
-                .text()
-                .await
-                .map_err(|source| Error::ErrorBodyUnreadable {
-                    source,
-                    status,
-                    url: url.clone(),
-                })?;
-
-            if status == StatusCode::SERVICE_UNAVAILABLE {
-                Err(Error::ServiceUnavailable { message, url })
-            } else {
-                Err(Error::UnexpectedResponseStatus {
-                    message,
-                    status,
-                    url,
-                })
-            }
+            Err(read_error_body(response, status, url).await)
         }
         Err(source) if source.is_connect() => Err(Error::Connect { url, source }),
         Err(source) => Err(Error::Http(source)),
@@ -48,6 +61,7 @@ mod tests {
     use tokio::io::AsyncReadExt as _;
     use tokio::io::AsyncWriteExt as _;
     use tokio::net::TcpListener;
+    use tokio_util::sync::CancellationToken;
 
     use super::send_checked_request;
     use crate::error::Error;
@@ -90,7 +104,7 @@ mod tests {
         let url = serve_one_response("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK").await;
         let request_builder = Client::new().get(&url);
 
-        let response = send_checked_request(url, request_builder)
+        let response = send_checked_request(CancellationToken::new(), url, request_builder)
             .await
             .expect("a success status must be returned to the caller");
 
@@ -111,7 +125,7 @@ mod tests {
         .await;
         let request_builder = Client::new().get(&url);
 
-        match send_checked_request(url, request_builder).await {
+        match send_checked_request(CancellationToken::new(), url, request_builder).await {
             Err(Error::ServiceUnavailable { message, .. }) => {
                 assert_eq!(message, "No agents are currently connected");
             }
@@ -130,7 +144,7 @@ mod tests {
         .await;
         let request_builder = Client::new().get(&url);
 
-        match send_checked_request(url, request_builder).await {
+        match send_checked_request(CancellationToken::new(), url, request_builder).await {
             Err(Error::UnexpectedResponseStatus {
                 message,
                 status: StatusCode::NOT_FOUND,
@@ -153,7 +167,7 @@ mod tests {
         let request_builder = Client::new().get(&url);
 
         assert!(matches!(
-            send_checked_request(url, request_builder).await,
+            send_checked_request(CancellationToken::new(), url, request_builder).await,
             Err(Error::ErrorBodyUnreadable {
                 status: StatusCode::SERVICE_UNAVAILABLE,
                 ..
@@ -167,7 +181,7 @@ mod tests {
         let request_builder = Client::new().get(&url);
 
         assert!(matches!(
-            send_checked_request(url, request_builder).await,
+            send_checked_request(CancellationToken::new(), url, request_builder).await,
             Err(Error::Connect { .. })
         ));
     }
@@ -178,8 +192,22 @@ mod tests {
         let request_builder = Client::new().get(&url);
 
         assert!(matches!(
-            send_checked_request(url, request_builder).await,
+            send_checked_request(CancellationToken::new(), url, request_builder).await,
             Err(Error::Http(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn an_already_cancelled_token_rejects_the_request_without_sending_it() {
+        let url = "http://127.0.0.1:1/health".to_owned();
+        let request_builder = Client::new().get(&url);
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        assert!(matches!(
+            send_checked_request(cancellation_token, url, request_builder).await,
+            Err(Error::RequestCancelled { .. })
         ));
     }
 }

@@ -33,6 +33,7 @@ paddler_cli = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true }

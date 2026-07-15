@@ -7,15 +7,19 @@ use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_client::client_management::ClientManagement;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use tokio_util::sync::CancellationToken;
 
 pub struct BufferedRequestsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>,
 }
 
 impl BufferedRequestsStreamWatcher {
-    pub async fn connect(management: &ClientManagement) -> Result<Self> {
+    pub async fn connect(
+        cancellation_token: CancellationToken,
+        management: &ClientManagement,
+    ) -> Result<Self> {
         let raw_stream = management
-            .get_buffered_requests_stream()
+            .get_buffered_requests_stream(cancellation_token)
             .await
             .map_err(anyhow::Error::new)
             .context("failed to open /api/v1/buffered_requests/stream")?;

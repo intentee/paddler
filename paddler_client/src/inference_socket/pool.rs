@@ -8,11 +8,19 @@ use serde_json::to_string;
 use tokio::sync::Mutex;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::error::Error;
 use crate::error::Result;
+use crate::inference_message_stream::InferenceMessageStream;
 use crate::inference_socket::connection::Connection;
+use crate::inference_socket::response_stream::response_stream;
+
+struct EstablishedRequest {
+    connection: Arc<Connection>,
+    response_rx: UnboundedReceiver<Result<InferenceMessage>>,
+}
 
 pub struct Pool {
     url: Url,
@@ -41,31 +49,64 @@ impl Pool {
 
     pub async fn send_request<TMessage: Serialize>(
         &self,
+        cancellation_token: CancellationToken,
         request_id: String,
         message: TMessage,
-    ) -> Result<UnboundedReceiver<Result<InferenceMessage>>> {
+    ) -> Result<InferenceMessageStream> {
         let json = to_string(&message)?;
         let conn_idx = self.next_connection_index().await;
 
+        let Some(established_request_result) = cancellation_token
+            .run_until_cancelled(self.establish_request(conn_idx, json, request_id.clone()))
+            .await
+        else {
+            return Err(Error::InferenceRequestCancelled { request_id });
+        };
+
+        let EstablishedRequest {
+            connection,
+            response_rx,
+        } = established_request_result?;
+
+        Ok(Box::pin(response_stream(
+            cancellation_token,
+            connection,
+            request_id,
+            response_rx,
+        )))
+    }
+
+    async fn establish_request(
+        &self,
+        conn_idx: usize,
+        json: String,
+        request_id: String,
+    ) -> Result<EstablishedRequest> {
         self.ensure_connection(conn_idx).await?;
 
         let connection = self.get_connection(conn_idx).await?;
-        let send_result = connection.send(request_id.clone(), json.clone());
 
-        match send_result {
-            Ok(response_rx) => Ok(response_rx),
+        match connection.send(request_id.clone(), json.clone()) {
+            Ok(response_rx) => Ok(EstablishedRequest {
+                connection,
+                response_rx,
+            }),
             Err(Error::ConnectionDropped { .. }) => {
                 self.ensure_connection(conn_idx).await?;
 
-                let connection = self.get_connection(conn_idx).await?;
+                let reconnected_connection = self.get_connection(conn_idx).await?;
                 let reconnected_request_id = request_id.clone();
 
-                connection
-                    .send(request_id, json)
-                    .map_err(|reconnection_error| Error::ReconnectionFailed {
+                match reconnected_connection.send(request_id, json) {
+                    Ok(response_rx) => Ok(EstablishedRequest {
+                        connection: reconnected_connection,
+                        response_rx,
+                    }),
+                    Err(reconnection_error) => Err(Error::ReconnectionFailed {
                         request_id: reconnected_request_id,
                         source: Box::new(reconnection_error),
-                    })
+                    }),
+                }
             }
             Err(other_error) => Err(other_error),
         }

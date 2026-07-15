@@ -9,6 +9,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 const MAX_TOKENS: i32 = 20;
 
@@ -17,18 +18,21 @@ async fn qwen3_internal_endpoint_max_tokens_usage_matches_streamed_count() -> Re
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("Tell me a long story.".to_owned()),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: MAX_TOKENS,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text("Tell me a long story.".to_owned()),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: MAX_TOKENS,
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
         .await?;
 
     let streamed_token_count = collected

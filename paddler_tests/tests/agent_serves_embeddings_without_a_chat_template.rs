@@ -12,6 +12,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_serves_embeddings_without_a_chat_template() -> Result<()> {
@@ -35,13 +36,16 @@ async fn agent_serves_embeddings_without_a_chat_template() -> Result<()> {
     .await?;
 
     let collected = cluster
-        .generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch: vec![EmbeddingInputDocument {
-                content: "the quick brown fox jumps over the lazy dog".to_owned(),
-                id: "doc-1".to_owned(),
-            }],
-            normalization_method: EmbeddingNormalizationMethod::None,
-        })
+        .generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![EmbeddingInputDocument {
+                    content: "the quick brown fox jumps over the lazy dog".to_owned(),
+                    id: "doc-1".to_owned(),
+                }],
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
         .await?;
 
     assert_eq!(collected.embeddings.len(), 1);

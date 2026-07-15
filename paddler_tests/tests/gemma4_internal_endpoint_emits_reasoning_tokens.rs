@@ -9,26 +9,30 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_gemma_4::start_cluster_with_gemma_4;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn gemma4_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
     let cluster = start_cluster_with_gemma_4(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text(
-                    "What is two plus two? Think step by step.".to_owned(),
-                ),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: true,
-            grammar: None,
-            max_tokens: 200,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text(
+                        "What is two plus two? Think step by step.".to_owned(),
+                    ),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: true,
+                grammar: None,
+                max_tokens: 200,
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
         .await?;
 
     let reasoning_count = collected

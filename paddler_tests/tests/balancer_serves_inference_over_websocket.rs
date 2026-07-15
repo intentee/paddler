@@ -7,6 +7,7 @@ use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_serves_inference_over_websocket() -> Result<()> {
@@ -14,11 +15,14 @@ async fn balancer_serves_inference_over_websocket() -> Result<()> {
 
     let mut stream = cluster
         .client_inference
-        .continue_from_raw_prompt(ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 16,
-            raw_prompt: "The capital of France is".to_owned(),
-        })
+        .continue_from_raw_prompt(
+            CancellationToken::new(),
+            ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 16,
+                raw_prompt: "The capital of France is".to_owned(),
+            },
+        )
         .await
         .map_err(anyhow::Error::new)?;
 

@@ -10,6 +10,7 @@ use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_model_switch_in_storage() -> Result<()> {
@@ -36,7 +37,7 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
 
     let observed_initial = cluster
         .client_management
-        .get_balancer_desired_state()
+        .get_balancer_desired_state(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read initial desired state")?;
@@ -53,14 +54,14 @@ async fn balancer_persists_model_switch_in_storage() -> Result<()> {
 
     cluster
         .client_management
-        .put_balancer_desired_state(&switched_state)
+        .put_balancer_desired_state(CancellationToken::new(), &switched_state)
         .await
         .map_err(anyhow::Error::new)
         .context("failed to switch desired model")?;
 
     let observed_switched = cluster
         .client_management
-        .get_balancer_desired_state()
+        .get_balancer_desired_state(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read switched desired state")?;

@@ -14,6 +14,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
 use serde_json::json;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
@@ -24,29 +25,32 @@ async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()
     name_properties.insert("name".to_owned(), json!({"type": "string"}));
 
     let outcome = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("Say hello".to_owned()),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: true,
-            grammar: None,
-            max_tokens: 10,
-            parse_tool_calls: true,
-            tools: vec![Tool::Function(FunctionCall {
-                function: Function {
-                    name: "test_fn".to_owned(),
-                    description: "test".to_owned(),
-                    parameters: Parameters::Schema(ValidatedParametersSchema {
-                        schema_type: "object".to_owned(),
-                        properties: Some(name_properties),
-                        required: Some(vec!["nonexistent_field".to_owned()]),
-                        additional_properties: None,
-                    }),
-                },
-            })],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text("Say hello".to_owned()),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: true,
+                grammar: None,
+                max_tokens: 10,
+                parse_tool_calls: true,
+                tools: vec![Tool::Function(FunctionCall {
+                    function: Function {
+                        name: "test_fn".to_owned(),
+                        description: "test".to_owned(),
+                        parameters: Parameters::Schema(ValidatedParametersSchema {
+                            schema_type: "object".to_owned(),
+                            properties: Some(name_properties),
+                            required: Some(vec!["nonexistent_field".to_owned()]),
+                            additional_properties: None,
+                        }),
+                    },
+                })],
+            },
+        )
         .await;
 
     assert!(

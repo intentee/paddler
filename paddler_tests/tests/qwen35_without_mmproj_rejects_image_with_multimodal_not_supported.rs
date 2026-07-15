@@ -11,6 +11,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() -> Result<()> {
@@ -33,15 +34,18 @@ async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() -> 
     }]);
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history,
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 100,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history,
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: 100,
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
         .await;
 
     if let Ok(collected) = collected {

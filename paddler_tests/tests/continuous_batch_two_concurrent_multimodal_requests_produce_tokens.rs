@@ -12,6 +12,7 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use tokio_util::sync::CancellationToken;
 
 fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
     ConversationHistory::new(vec![
@@ -68,8 +69,8 @@ async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() ->
         tools: vec![],
     };
     let (collected_a, collected_b) = tokio::join!(
-        cluster.continue_from_conversation_history(&params_a),
-        cluster.continue_from_conversation_history(&params_b),
+        cluster.continue_from_conversation_history(CancellationToken::new(), &params_a),
+        cluster.continue_from_conversation_history(CancellationToken::new(), &params_b),
     );
 
     let collected_a = collected_a?;

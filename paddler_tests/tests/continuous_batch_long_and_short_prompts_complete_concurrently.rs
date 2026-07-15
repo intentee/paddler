@@ -6,6 +6,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_long_and_short_prompts_complete_concurrently() -> Result<()> {
@@ -24,8 +25,8 @@ async fn continuous_batch_long_and_short_prompts_complete_concurrently() -> Resu
         raw_prompt: "Hi".to_owned(),
     };
     let (long_collected, short_collected) = tokio::join!(
-        cluster.continue_from_raw_prompt(&long_params),
-        cluster.continue_from_raw_prompt(&short_params),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &long_params),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &short_params),
     );
 
     let long_collected = long_collected?;

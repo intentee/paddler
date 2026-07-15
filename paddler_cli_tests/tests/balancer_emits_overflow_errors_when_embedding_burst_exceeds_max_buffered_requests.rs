@@ -12,6 +12,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use tokio::time::timeout;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffered_requests()
@@ -42,10 +43,13 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
 
     let collected = timeout(
         Duration::from_secs(15),
-        cluster.generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch,
-            normalization_method: EmbeddingNormalizationMethod::None,
-        }),
+        cluster.generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch,
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        ),
     )
     .await
     .map_err(|_| anyhow!("burst-overflow embedding stream did not finish within 15s"))??;

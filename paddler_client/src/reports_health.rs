@@ -2,6 +2,7 @@ use std::future::Future;
 use std::time::Duration;
 
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -12,14 +13,24 @@ const HEALTHCHECK_PROBE_INTERVAL: Duration = Duration::from_millis(20);
 pub trait ReportsHealth: Sync {
     fn http_client(&self) -> &HttpClient;
 
-    fn get_health(&self) -> impl Future<Output = Result<String>> + Send {
-        async move { self.http_client().get_text("/health").await }
+    fn get_health(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> impl Future<Output = Result<String>> + Send {
+        async move {
+            self.http_client()
+                .get_text(cancellation_token, "/health")
+                .await
+        }
     }
 
-    fn wait_until_healthy(&self) -> impl Future<Output = Result<()>> + Send {
+    fn wait_until_healthy(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> impl Future<Output = Result<()>> + Send {
         async move {
             loop {
-                match self.get_health().await {
+                match self.get_health(cancellation_token.clone()).await {
                     Ok(_health_body) => return Ok(()),
                     Err(Error::Connect { .. } | Error::ServiceUnavailable { .. }) => {
                         sleep(HEALTHCHECK_PROBE_INTERVAL).await;
@@ -39,6 +50,7 @@ mod tests {
 
     use reqwest::StatusCode;
     use tokio::time::timeout;
+    use tokio_util::sync::CancellationToken;
     use url::Url;
 
     use super::ReportsHealth;
@@ -94,7 +106,10 @@ mod tests {
             &self.http_client
         }
 
-        fn get_health(&self) -> impl Future<Output = Result<String>> + Send {
+        fn get_health(
+            &self,
+            _cancellation_token: CancellationToken,
+        ) -> impl Future<Output = Result<String>> + Send {
             let scripted_probe = self
                 .scripted_probes
                 .lock()
@@ -115,7 +130,7 @@ mod tests {
         ]);
 
         reporter
-            .wait_until_healthy()
+            .wait_until_healthy(CancellationToken::new())
             .await
             .expect("the reporter must become healthy once the service responds");
 
@@ -128,7 +143,7 @@ mod tests {
             ScriptedHealthReporter::new(vec![Err(not_found()), Ok("never reached".to_owned())]);
 
         assert!(matches!(
-            reporter.wait_until_healthy().await,
+            reporter.wait_until_healthy(CancellationToken::new()).await,
             Err(Error::UnexpectedResponseStatus { .. })
         ));
         assert_eq!(reporter.remaining_probe_count(), 1);
@@ -141,11 +156,24 @@ mod tests {
         assert!(
             timeout(
                 REFUSED_CONNECTION_PROBE_WINDOW,
-                client_health.wait_until_healthy(),
+                client_health.wait_until_healthy(CancellationToken::new()),
             )
             .await
             .is_err(),
             "a refused connection must keep the probe loop running"
         );
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_token_stops_the_probe_loop() {
+        let client_health = ClientHealth::new(unreachable_url());
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        assert!(matches!(
+            client_health.wait_until_healthy(cancellation_token).await,
+            Err(Error::RequestCancelled { .. })
+        ));
     }
 }

@@ -15,6 +15,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use serde_json::Map;
 use serde_json::json;
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
@@ -28,29 +29,32 @@ async fn agent_conversation_with_function_tool_succeeds() -> Result<()> {
     );
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("Say hello".to_owned()),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: true,
-            grammar: None,
-            max_tokens: 50,
-            parse_tool_calls: true,
-            tools: vec![Tool::Function(FunctionCall {
-                function: Function {
-                    name: "get_weather".to_owned(),
-                    description: "Get the current weather for a location".to_owned(),
-                    parameters: Parameters::Schema(ValidatedParametersSchema {
-                        schema_type: "object".to_owned(),
-                        properties: Some(location_properties),
-                        required: Some(vec!["location".to_owned()]),
-                        additional_properties: Some(Value::Bool(false)),
-                    }),
-                },
-            })],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text("Say hello".to_owned()),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: true,
+                grammar: None,
+                max_tokens: 50,
+                parse_tool_calls: true,
+                tools: vec![Tool::Function(FunctionCall {
+                    function: Function {
+                        name: "get_weather".to_owned(),
+                        description: "Get the current weather for a location".to_owned(),
+                        parameters: Parameters::Schema(ValidatedParametersSchema {
+                            schema_type: "object".to_owned(),
+                            properties: Some(location_properties),
+                            required: Some(vec!["location".to_owned()]),
+                            additional_properties: Some(Value::Bool(false)),
+                        }),
+                    },
+                })],
+            },
+        )
         .await?;
 
     assert!(
