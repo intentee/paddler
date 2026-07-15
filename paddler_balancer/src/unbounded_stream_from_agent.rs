@@ -11,10 +11,11 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_controller::AgentController;
+use crate::awaitable_counter::AwaitableCounter;
 use crate::buffered_request_manager::BufferedRequestManager;
-use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+use crate::guarded_stream::GuardedStream;
 use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
@@ -27,6 +28,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     params: TParams,
     transformer: TTransformsOutgoingMessage,
     shutdown: CancellationToken,
+    drain_counter: Arc<AwaitableCounter>,
 ) -> impl Stream<Item = TTransformsOutgoingMessage::Output>
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
@@ -57,7 +59,13 @@ where
         }
     });
 
-    CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
+    GuardedStream::new(
+        GuardedStream::new(
+            UnboundedReceiverStream::new(chunk_rx),
+            connection_close.drop_guard(),
+        ),
+        drain_counter.increment_with_guard(),
+    )
 }
 
 #[cfg(test)]
@@ -106,6 +114,7 @@ mod tests {
             },
             IdentityTransformer::new(),
             shutdown,
+            Arc::new(AwaitableCounter::default()),
         ));
 
         let shutdown_chunk = stream.next().await.unwrap();

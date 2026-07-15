@@ -1,16 +1,21 @@
+use std::sync::Arc;
+
 use actix_web::dev::Server;
 use tokio_util::sync::CancellationToken;
+
+use crate::awaitable_counter::AwaitableCounter;
 
 pub async fn serve_http_until_shutdown(
     server: Server,
     shutdown: CancellationToken,
-    graceful: bool,
+    drain_counter: Arc<AwaitableCounter>,
 ) -> std::io::Result<()> {
     let server_handle = server.handle();
 
     tokio::spawn(async move {
         shutdown.cancelled().await;
-        server_handle.stop(graceful).await;
+        drain_counter.wait_for_zero().await;
+        server_handle.stop(false).await;
     });
 
     server.await
@@ -24,9 +29,10 @@ mod tests {
     use actix_web::HttpServer;
     use tokio_util::sync::CancellationToken;
 
-    use super::serve_http_until_shutdown;
+    use super::*;
 
-    async fn serving_stops_when_the_token_is_cancelled(graceful: bool) {
+    #[actix_web::test]
+    async fn stops_after_the_token_is_cancelled_when_no_requests_are_in_flight() {
         let server = HttpServer::new(App::new)
             .workers(1)
             .disable_signals()
@@ -36,23 +42,14 @@ mod tests {
 
         let shutdown = CancellationToken::new();
         let requested_shutdown = shutdown.clone();
+        let drain_counter = Arc::new(AwaitableCounter::default());
 
         tokio::spawn(async move {
             requested_shutdown.cancel();
         });
 
-        serve_http_until_shutdown(server, shutdown, graceful)
+        serve_http_until_shutdown(server, shutdown, drain_counter)
             .await
             .expect("the server must stop without error");
-    }
-
-    #[actix_web::test]
-    async fn a_forced_shutdown_stops_the_server() {
-        serving_stops_when_the_token_is_cancelled(false).await;
-    }
-
-    #[actix_web::test]
-    async fn a_graceful_shutdown_stops_the_server() {
-        serving_stops_when_the_token_is_cancelled(true).await;
     }
 }

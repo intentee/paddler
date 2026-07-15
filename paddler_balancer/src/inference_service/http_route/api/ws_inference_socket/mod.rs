@@ -258,6 +258,7 @@ mod tests {
 
     use crate::agent_controller::AgentController;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::awaitable_counter::AwaitableCounter;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
@@ -449,6 +450,7 @@ mod tests {
                 Duration::from_mins(1),
                 10,
             )),
+            drain_counter: Arc::new(AwaitableCounter::default()),
             inference_service_configuration: inference_service_configuration(),
             shutdown: CancellationToken::new(),
         });
@@ -476,6 +478,7 @@ mod tests {
                 Duration::from_mins(1),
                 10,
             )),
+            drain_counter: Arc::new(AwaitableCounter::default()),
             inference_service_configuration: inference_service_configuration(),
             shutdown: CancellationToken::new(),
         });

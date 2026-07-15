@@ -15,6 +15,7 @@ use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
 use crate::agent_controller_pool::AgentControllerPool;
+use crate::awaitable_counter::AwaitableCounter;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::create_cors_middleware::create_cors_middleware;
@@ -32,7 +33,6 @@ pub struct InferenceService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
-    pub graceful_http_shutdown: bool,
     pub shutdown_options: ServiceShutdownOptions,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
@@ -69,10 +69,13 @@ impl Service for InferenceService {
                 .collect::<Vec<String>>(),
         );
 
+        let drain_counter = Arc::new(AwaitableCounter::default());
+
         let app_data = Data::new(AppData {
             agent_controller_pool: self.agent_controller_pool.clone(),
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
+            drain_counter: drain_counter.clone(),
             inference_service_configuration: self.configuration.clone(),
             shutdown: shutdown.clone(),
         });
@@ -96,7 +99,7 @@ impl Service for InferenceService {
         .with_context(|| format!("Unable to bind balancer inference service to {bind_addr}"))?
         .run();
 
-        serve_http_until_shutdown(server, shutdown, self.graceful_http_shutdown).await?;
+        serve_http_until_shutdown(server, shutdown, drain_counter).await?;
 
         Ok(())
     }
@@ -141,7 +144,6 @@ mod tests {
                 cors_allowed_hosts: vec!["http://127.0.0.1:8080".to_owned()],
                 inference_item_timeout: Duration::from_secs(30),
             },
-            graceful_http_shutdown: true,
             shutdown_options: ServiceShutdownOptions::default(),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {

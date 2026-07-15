@@ -117,7 +117,6 @@ impl Handler for Balancer {
 
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout: self.buffered_request_timeout,
-            graceful_http_shutdown: true,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: self.inference_addr.socket_addr,
                 cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),

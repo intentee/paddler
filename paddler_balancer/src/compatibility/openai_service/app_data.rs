@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use tokio_util::sync::CancellationToken;
 
+use crate::awaitable_counter::AwaitableCounter;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::inference_service::configuration::Configuration;
@@ -9,6 +10,7 @@ use crate::inference_service::configuration::Configuration;
 pub struct AppData {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
+    pub drain_counter: Arc<AwaitableCounter>,
     pub inference_service_configuration: Configuration,
     pub shutdown: CancellationToken,
 }

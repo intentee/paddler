@@ -26,5 +26,6 @@ async fn respond(
         params.into_inner(),
         IdentityTransformer::new(),
         app_data.shutdown.clone(),
+        app_data.drain_counter.clone(),
     ))
 }

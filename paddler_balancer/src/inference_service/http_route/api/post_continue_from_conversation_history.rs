@@ -37,5 +37,6 @@ async fn respond(
         },
         IdentityTransformer::new(),
         app_data.shutdown.clone(),
+        app_data.drain_counter.clone(),
     ))
 }

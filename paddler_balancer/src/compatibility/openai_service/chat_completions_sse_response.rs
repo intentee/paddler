@@ -13,6 +13,7 @@ use paddler_messaging::streamable_result::StreamableResult;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_controller::AgentController;
+use crate::awaitable_counter::AwaitableCounter;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
@@ -27,6 +28,7 @@ pub fn chat_completions_sse_response<TParams, TTransformsOutgoingMessage>(
     params: TParams,
     transformer: TTransformsOutgoingMessage,
     shutdown: CancellationToken,
+    drain_counter: Arc<AwaitableCounter>,
 ) -> HttpResponse
 where
     TParams: Debug + Into<AgentJsonRpcRequest> + Send + 'static,
@@ -40,6 +42,7 @@ where
         params,
         transformer,
         shutdown,
+        drain_counter,
     )
     .filter_map(|transform_result| async move {
         match transform_result {
@@ -72,6 +75,7 @@ mod tests {
 
     use super::chat_completions_sse_response;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::awaitable_counter::AwaitableCounter;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -112,6 +116,7 @@ mod tests {
             raw_prompt_params(),
             IdentityTransformer::new(),
             shutdown,
+            Arc::new(AwaitableCounter::default()),
         );
 
         assert_eq!(

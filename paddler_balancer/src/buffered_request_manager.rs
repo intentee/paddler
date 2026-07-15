@@ -7,17 +7,16 @@ use tokio::sync::watch;
 use tokio::time::timeout;
 
 use crate::agent_controller_pool::AgentControllerPool;
+use crate::awaitable_counter::AwaitableCounter;
 use crate::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
-use crate::buffered_request_counter::BufferedRequestCounter;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
 pub struct BufferedRequestManager {
     agent_controller_pool: Arc<AgentControllerPool>,
-    pub buffered_request_counter: Arc<BufferedRequestCounter>,
+    pub buffered_request_counter: Arc<AwaitableCounter>,
     buffered_request_timeout: Duration,
     max_buffered_requests: i32,
-    update_tx: watch::Sender<()>,
 }
 
 impl BufferedRequestManager {
@@ -27,14 +26,11 @@ impl BufferedRequestManager {
         buffered_request_timeout: Duration,
         max_buffered_requests: i32,
     ) -> Self {
-        let (update_tx, _initial_rx) = watch::channel(());
-
         Self {
             agent_controller_pool,
-            buffered_request_counter: Arc::new(BufferedRequestCounter::new(update_tx.clone())),
+            buffered_request_counter: Arc::new(AwaitableCounter::default()),
             buffered_request_timeout,
             max_buffered_requests,
-            update_tx,
         }
     }
 
@@ -90,7 +86,7 @@ impl ProducesSnapshot for BufferedRequestManager {
 
 impl SubscribesToUpdates for BufferedRequestManager {
     fn subscribe_to_updates(&self) -> watch::Receiver<()> {
-        self.update_tx.subscribe()
+        self.buffered_request_counter.subscribe()
     }
 }
 

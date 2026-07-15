@@ -79,6 +79,7 @@ async fn respond(
                 state: Arc::new(Mutex::new(ResponsesStreamingState::default())),
             },
             app_data.shutdown.clone(),
+            app_data.drain_counter.clone(),
         ))
     } else {
         let results: Vec<TransformResult> = unbounded_stream_from_agent(
@@ -90,6 +91,7 @@ async fn respond(
                 state: Arc::new(Mutex::new(ResponsesNonStreamingState::default())),
             },
             app_data.shutdown.clone(),
+            app_data.drain_counter.clone(),
         )
         .collect()
         .await;

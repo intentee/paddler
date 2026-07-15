@@ -66,6 +66,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
+use crate::awaitable_counter::AwaitableCounter;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::openai_service::app_data::AppData;
@@ -80,7 +81,6 @@ const HTTP_WORKERS: usize = 16;
 pub struct OpenAIService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
-    pub graceful_http_shutdown: bool,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub openai_service_configuration: OpenAIServiceConfiguration,
     pub shutdown_options: ServiceShutdownOptions,
@@ -99,9 +99,12 @@ impl Service for OpenAIService {
             .clone();
         let cors_allowed_hosts_arc = Arc::new(cors_allowed_hosts);
 
+        let drain_counter = Arc::new(AwaitableCounter::default());
+
         let app_data = Data::new(AppData {
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
+            drain_counter: drain_counter.clone(),
             inference_service_configuration: self.inference_service_configuration.clone(),
             shutdown: shutdown.clone(),
         });
@@ -123,7 +126,7 @@ impl Service for OpenAIService {
         .with_context(|| format!("Unable to bind balancer OpenAI-compat service to {bind_addr}"))?
         .run();
 
-        serve_http_until_shutdown(server, shutdown, self.graceful_http_shutdown).await?;
+        serve_http_until_shutdown(server, shutdown, drain_counter).await?;
 
         Ok(())
     }
@@ -163,7 +166,6 @@ mod tests {
                 inference_item_timeout: Duration::from_secs(30),
             },
             openai_service_configuration: OpenAIServiceConfiguration { addr },
-            graceful_http_shutdown: true,
             shutdown_options: ServiceShutdownOptions::default(),
         }
     }

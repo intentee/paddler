@@ -24,12 +24,12 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::controls_session::ControlsSession as _;
+use crate::guarded_stream::GuardedStream;
 use crate::inference_service::app_data::AppData;
 use crate::request_from_agent::request_from_agent;
 
@@ -151,16 +151,21 @@ async fn respond(
 
     drop(chunk_tx);
 
-    let stream =
-        CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
-            .filter_map(|transform_result| async move {
-                match transform_result {
-                    TransformResult::Chunk(content) | TransformResult::Error(content) => {
-                        Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
-                    }
-                    TransformResult::Discard => None,
-                }
-            });
+    let stream = GuardedStream::new(
+        GuardedStream::new(
+            UnboundedReceiverStream::new(chunk_rx),
+            connection_close.drop_guard(),
+        ),
+        app_data.drain_counter.increment_with_guard(),
+    )
+    .filter_map(|transform_result| async move {
+        match transform_result {
+            TransformResult::Chunk(content) | TransformResult::Error(content) => {
+                Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
+            }
+            TransformResult::Discard => None,
+        }
+    });
 
     Ok(HttpResponse::Ok()
         .insert_header(header::ContentType::json())
@@ -192,6 +197,7 @@ mod tests {
     use super::register;
     use crate::agent_controller::AgentController;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::awaitable_counter::AwaitableCounter;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
@@ -281,6 +287,7 @@ mod tests {
             )),
             agent_controller_pool,
             balancer_applicable_state_holder,
+            drain_counter: Arc::new(AwaitableCounter::default()),
             inference_service_configuration: Configuration {
                 addr: SocketAddr::from(([127, 0, 0, 1], 0)),
                 cors_allowed_hosts: Vec::new(),

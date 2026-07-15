@@ -108,6 +108,7 @@ async fn respond(
                 system_fingerprint: nanoid!(),
             },
             app_data.shutdown.clone(),
+            app_data.drain_counter.clone(),
         ))
     } else {
         let results: Vec<TransformResult> = unbounded_stream_from_agent(
@@ -120,6 +121,7 @@ async fn respond(
                 state: Arc::new(Mutex::new(OpenAINonStreamingState::default())),
             },
             app_data.shutdown.clone(),
+            app_data.drain_counter.clone(),
         )
         .collect()
         .await;
@@ -190,6 +192,7 @@ mod tests {
     use super::AppData;
     use super::register;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::awaitable_counter::AwaitableCounter;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
@@ -203,6 +206,7 @@ mod tests {
                 Duration::ZERO,
                 max_buffered_requests,
             )),
+            drain_counter: Arc::new(AwaitableCounter::default()),
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
                 cors_allowed_hosts: Vec::new(),
@@ -236,6 +240,7 @@ mod tests {
                 Duration::ZERO,
                 0,
             )),
+            drain_counter: Arc::new(AwaitableCounter::default()),
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
                 cors_allowed_hosts: Vec::new(),
