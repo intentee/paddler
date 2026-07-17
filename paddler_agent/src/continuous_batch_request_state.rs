@@ -4,6 +4,7 @@ use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;
 
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 
 pub struct ContinuousBatchRequestState {
     pub current_token_position: i32,
@@ -50,9 +51,19 @@ impl ContinuousBatchRequestState {
         self.pending_sampled_token = Some(token);
     }
 
-    pub const fn mark_completed(&mut self) {
+    pub fn mark_completed(&mut self, terminal_outcome: ContinuousBatchTerminalOutcome) {
         self.i_batch = None;
-        self.phase = ContinuousBatchRequestPhase::Completed;
+        self.phase = ContinuousBatchRequestPhase::Completed(terminal_outcome);
+    }
+
+    #[must_use]
+    pub fn into_terminal_outcome(self) -> ContinuousBatchTerminalOutcome {
+        match self.phase {
+            ContinuousBatchRequestPhase::Completed(terminal_outcome) => terminal_outcome,
+            ContinuousBatchRequestPhase::Generating | ContinuousBatchRequestPhase::Ingesting => {
+                ContinuousBatchTerminalOutcome::EmitNothing
+            }
+        }
     }
 }
 
@@ -60,9 +71,12 @@ impl ContinuousBatchRequestState {
 mod tests {
     use llama_cpp_bindings::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_summary::GenerationSummary;
 
     use super::ContinuousBatchRequestState;
     use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+    use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 
     fn ingesting_state(prompt_token_count: usize) -> ContinuousBatchRequestState {
         ContinuousBatchRequestState {
@@ -152,17 +166,29 @@ mod tests {
     }
 
     #[test]
-    fn marking_completed_clears_batch_index_and_sets_completed_phase() {
+    fn marking_completed_clears_batch_index_and_carries_the_terminal_outcome() {
         let mut state = ingesting_state(0);
         state.i_batch = Some(2);
         state.phase = ContinuousBatchRequestPhase::Generating;
 
-        state.mark_completed();
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
+            GeneratedTokenResult::Done(GenerationSummary::default()),
+        ));
 
         assert_eq!(state.i_batch, None);
         assert!(matches!(
-            state.phase,
-            ContinuousBatchRequestPhase::Completed
+            state.into_terminal_outcome(),
+            ContinuousBatchTerminalOutcome::EmitToClient(GeneratedTokenResult::Done(_))
+        ));
+    }
+
+    #[test]
+    fn a_request_torn_down_before_it_completed_reports_nothing_to_the_client() {
+        let state = ingesting_state(0);
+
+        assert!(matches!(
+            state.into_terminal_outcome(),
+            ContinuousBatchTerminalOutcome::EmitNothing
         ));
     }
 }

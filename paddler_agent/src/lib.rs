@@ -18,6 +18,8 @@ pub mod continuous_batch_request_state;
 pub mod continuous_batch_scheduler;
 pub mod continuous_batch_scheduler_command;
 pub mod continuous_batch_scheduler_context;
+pub mod continuous_batch_terminal_delivery;
+pub mod continuous_batch_terminal_outcome;
 pub mod converts_to_llama_kv_cache_dtype;
 pub mod converts_to_llama_pooling_type;
 pub mod decoded_image;

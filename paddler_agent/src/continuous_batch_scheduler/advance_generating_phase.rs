@@ -17,6 +17,7 @@ use crate::continuous_batch_scheduler::sample_outcome::SampleOutcome;
 use crate::continuous_batch_scheduler::sample_token_phase::SampleTokenPhase;
 use crate::continuous_batch_scheduler::tool_call_pass;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 
 pub struct AdvanceGeneratingPhase<'context> {
     pub scheduler_context: &'context ContinuousBatchSchedulerContext,
@@ -27,7 +28,8 @@ impl AdvanceGeneratingPhase<'_> {
     pub fn run(self, requests: &mut [ContinuousBatchActiveRequest]) {
         for request in requests {
             let outcome = self.advance_one(request);
-            self.apply_outcome(request, outcome);
+
+            Self::apply_outcome(request, outcome);
         }
     }
 
@@ -169,21 +171,19 @@ impl AdvanceGeneratingPhase<'_> {
         }
     }
 
-    fn apply_outcome(
-        &self,
-        request: &mut ContinuousBatchActiveRequest,
-        outcome: Option<AdvanceOutcome>,
-    ) {
+    fn apply_outcome(request: &mut ContinuousBatchActiveRequest, outcome: Option<AdvanceOutcome>) {
         match outcome {
             None => {}
             Some(AdvanceOutcome::SampledAndStored(token)) => {
                 request.state.store_pending_token(token);
             }
             Some(AdvanceOutcome::Completed(event)) => {
-                request.complete_with_outcome(self.scheduler_context.agent_name.as_deref(), event);
+                request.complete_with_outcome(event);
             }
             Some(AdvanceOutcome::ChannelDropped) => {
-                request.state.mark_completed();
+                request
+                    .state
+                    .mark_completed(ContinuousBatchTerminalOutcome::EmitNothing);
             }
         }
     }

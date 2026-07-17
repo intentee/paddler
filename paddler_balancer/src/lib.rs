@@ -3,6 +3,8 @@ pub mod agent_controller_pool;
 mod agent_controller_pool_total_slots;
 pub mod agent_controller_slot_guard;
 pub mod agent_controller_update_result;
+mod agent_response_forwarding_mode;
+mod agent_stop_outcome;
 pub mod balancer_applicable_state;
 pub mod balancer_applicable_state_holder;
 pub mod balancer_desired_state_converter;

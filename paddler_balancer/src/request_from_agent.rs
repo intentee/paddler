@@ -14,6 +14,8 @@ use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_controller::AgentController;
+use crate::agent_response_forwarding_mode::AgentResponseForwardingMode;
+use crate::agent_stop_outcome::AgentStopOutcome;
 use crate::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::controls_session::ControlsSession;
@@ -75,8 +77,8 @@ where
     };
 
     forward_responses_stream(
-        dispatched_agent.agent_controller.clone(),
         connection_close,
+        dispatched_agent,
         inference_service_configuration,
         receive_response_controller,
         request_id,
@@ -87,8 +89,8 @@ where
 }
 
 pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
-    agent_controller: Arc<AgentController>,
     connection_close: CancellationToken,
+    dispatched_agent: DispatchedAgent,
     inference_service_configuration: InferenceServiceConfiguration,
     mut receive_response_controller: ManagesSendersController<TManagesSenders>,
     request_id: String,
@@ -101,49 +103,69 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
 {
     debug!("Found available agent controller for request: {request_id:?}");
 
+    let agent_controller = dispatched_agent.agent_controller.clone();
     let agent_connection_close = agent_controller.connection_close.clone();
+    let inference_item_timeout = inference_service_configuration.inference_item_timeout;
+    let mut forwarding_mode = AgentResponseForwardingMode::ForwardingToClient;
 
     loop {
+        let is_forwarding_to_client = matches!(
+            forwarding_mode,
+            AgentResponseForwardingMode::ForwardingToClient
+        );
+
         tokio::select! {
             () = agent_connection_close.cancelled() => {
-                error!("Agent controller connection closed");
+                if is_forwarding_to_client {
+                    error!("Agent controller connection closed");
 
-                respond_with_error(
-                    JsonRpcError {
-                        code: 502,
-                        description: "Agent controller connection closed".to_owned(),
-                    },
-                    request_id,
-                    &mut session_controller,
-                ).await;
+                    respond_with_error(
+                        JsonRpcError {
+                            code: 502,
+                            description: "Agent controller connection closed".to_owned(),
+                        },
+                        request_id,
+                        &mut session_controller,
+                    ).await;
+                }
 
                 break;
             }
-            () = connection_close.cancelled() => {
-                agent_controller.stop_responding_to(request_id.clone()).await.unwrap_or_else(|err| {
-                    error!("Failed to stop request {request_id:?}: {err}");
-                });
-
-                break;
+            () = connection_close.cancelled(), if is_forwarding_to_client => {
+                match stop_responding_to(&agent_controller, request_id.clone()).await {
+                    AgentStopOutcome::AgentUnreachable => break,
+                    AgentStopOutcome::StopRequested => {
+                        forwarding_mode = AgentResponseForwardingMode::DrainingUntilAgentConfirms;
+                    }
+                }
             }
             () = shutdown.cancelled() => {
-                respond_with_error(
-                    JsonRpcError {
-                        code: 503,
-                        description: "balancer is shutting down".to_owned(),
-                    },
-                    request_id.clone(),
-                    &mut session_controller,
-                ).await;
+                if is_forwarding_to_client {
+                    respond_with_error(
+                        JsonRpcError {
+                            code: 503,
+                            description: "balancer is shutting down".to_owned(),
+                        },
+                        request_id.clone(),
+                        &mut session_controller,
+                    ).await;
 
-                agent_controller.stop_responding_to(request_id.clone()).await.unwrap_or_else(|err| {
-                    error!("Failed to stop request {request_id:?}: {err}");
-                });
+                    stop_responding_to(&agent_controller, request_id).await;
+                }
 
                 break;
             }
-            () = sleep(inference_service_configuration.inference_item_timeout) => {
-                let timeout_ms = inference_service_configuration.inference_item_timeout.as_millis();
+            () = sleep(inference_item_timeout) => {
+                let timeout_ms = inference_item_timeout.as_millis();
+
+                if !is_forwarding_to_client {
+                    warn!(
+                        "Timed out after {timeout_ms}ms waiting for the agent to confirm that it \
+                        stopped responding to request {request_id:?}. Releasing the slot anyway."
+                    );
+
+                    break;
+                }
 
                 warn!(
                     "Timed out after {timeout_ms}ms waiting for next token for request {request_id:?}. \
@@ -162,42 +184,63 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
                     &mut session_controller,
                 ).await;
 
-                agent_controller.stop_responding_to(request_id.clone()).await.unwrap_or_else(|err| {
-                    error!("Failed to stop responding to request {request_id:?}: {err}");
-                });
-
-                break;
+                match stop_responding_to(&agent_controller, request_id.clone()).await {
+                    AgentStopOutcome::AgentUnreachable => break,
+                    AgentStopOutcome::StopRequested => {
+                        forwarding_mode = AgentResponseForwardingMode::DrainingUntilAgentConfirms;
+                    }
+                }
             }
             response = receive_response_controller.response_rx.recv() => {
-                if let Some(response) = response {
-                    let is_done = response.is_done();
+                let Some(response) = response else {
+                    if is_forwarding_to_client {
+                        error!(
+                            "Response channel closed before terminator for request {request_id:?}"
+                        );
 
-                    let send_succeeded = send_response_to_client(
-                        agent_controller.clone(),
-                        response,
-                        request_id.clone(),
-                        &mut session_controller,
-                    ).await;
-
-                    if is_done || !send_succeeded {
-                        break;
+                        respond_with_error(
+                            JsonRpcError {
+                                code: 502,
+                                description:
+                                    "Response channel closed before terminator".to_owned(),
+                            },
+                            request_id,
+                            &mut session_controller,
+                        ).await;
                     }
-                } else {
-                    error!(
-                        "Response channel closed before terminator for request {request_id:?}"
-                    );
-
-                    respond_with_error(
-                        JsonRpcError {
-                            code: 502,
-                            description:
-                                "Response channel closed before terminator".to_owned(),
-                        },
-                        request_id,
-                        &mut session_controller,
-                    ).await;
 
                     break;
+                };
+
+                let is_done = response.is_done();
+
+                if !is_forwarding_to_client {
+                    if is_done {
+                        break;
+                    }
+
+                    continue;
+                }
+
+                let send_succeeded = send_response_to_client(
+                    agent_controller.name.clone(),
+                    response,
+                    request_id.clone(),
+                    &mut session_controller,
+                ).await;
+
+                if is_done {
+                    break;
+                }
+
+                if !send_succeeded {
+                    match stop_responding_to(&agent_controller, request_id.clone()).await {
+                        AgentStopOutcome::AgentUnreachable => break,
+                        AgentStopOutcome::StopRequested => {
+                            forwarding_mode =
+                                AgentResponseForwardingMode::DrainingUntilAgentConfirms;
+                        }
+                    }
                 }
             }
         }
@@ -223,7 +266,7 @@ pub async fn respond_with_error<TControlsSession>(
 }
 
 async fn send_response_to_client<TControlsSession, TResponse>(
-    agent_controller: Arc<AgentController>,
+    generated_by: Option<String>,
     response: TResponse,
     request_id: String,
     session_controller: &mut TControlsSession,
@@ -234,7 +277,7 @@ where
 {
     if let Err(err) = session_controller
         .send_response(OutgoingMessage::Response(ResponseEnvelope {
-            generated_by: agent_controller.name.clone(),
+            generated_by,
             request_id: request_id.clone(),
             response: response.into(),
         }))
@@ -242,17 +285,27 @@ where
     {
         error!("Failed to send response for request {request_id:?}: {err}");
 
-        agent_controller
-            .stop_responding_to(request_id.clone())
-            .await
-            .unwrap_or_else(|err| {
-                error!("Failed to stop responding to request {request_id:?}: {err}");
-            });
-
         return false;
     }
 
     true
+}
+
+async fn stop_responding_to(
+    agent_controller: &AgentController,
+    request_id: String,
+) -> AgentStopOutcome {
+    match agent_controller
+        .stop_responding_to(request_id.clone())
+        .await
+    {
+        Ok(()) => AgentStopOutcome::StopRequested,
+        Err(err) => {
+            error!("Failed to stop responding to request {request_id:?}: {err}");
+
+            AgentStopOutcome::AgentUnreachable
+        }
+    }
 }
 
 async fn wait_for_agent_controller<TControlsSession>(
@@ -359,6 +412,7 @@ mod tests {
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_messaging::atomic_value::AtomicValue;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
     use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -402,6 +456,14 @@ mod tests {
             agent_controller,
             agent_message_rx,
         }
+    }
+
+    fn claim_slot(agent_controller: Arc<AgentController>) -> DispatchedAgent {
+        let pool = AgentControllerPool::default();
+
+        pool.register_agent_controller(agent_controller.id.clone(), agent_controller)
+            .unwrap();
+        pool.take_least_busy_agent_controller().unwrap()
     }
 
     fn raw_prompt_params() -> ContinueFromRawPromptParams {
@@ -461,6 +523,280 @@ mod tests {
         assert_eq!(
             discriminant(&forwarded),
             discriminant(&TransformResult::Chunk(String::new()))
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn cancelled_request_holds_the_slot_until_the_agent_terminates_the_response_stream() {
+        let pool = Arc::new(AgentControllerPool::default());
+        let AgentControllerWithIncomingChannel {
+            agent_controller,
+            mut agent_message_rx,
+        } = agent_controller_with_one_free_slot("agent-cancel-confirm");
+
+        pool.register_agent_controller("agent-cancel-confirm".to_owned(), agent_controller.clone())
+            .unwrap();
+
+        let buffered_request_manager = Arc::new(BufferedRequestManager::new(
+            pool,
+            Duration::from_mins(1),
+            10,
+        ));
+
+        let (chunk_tx, _chunk_rx) = mpsc::unbounded_channel();
+        let session_controller =
+            ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+        let connection_close = CancellationToken::new();
+        let request_id = "request-cancel-confirm".to_owned();
+
+        let mut request_task = tokio_test::task::spawn(request_from_agent(
+            buffered_request_manager,
+            connection_close.clone(),
+            inference_service_configuration_with_long_timeout(),
+            raw_prompt_params(),
+            request_id.clone(),
+            session_controller,
+            CancellationToken::new(),
+        ));
+
+        assert!(request_task.poll().is_pending());
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            1,
+            "dispatching the request must claim the slot"
+        );
+        assert!(matches!(
+            agent_message_rx.try_recv(),
+            Ok(AgentJsonRpcMessage::Request(_))
+        ));
+
+        connection_close.cancel();
+
+        assert!(
+            request_task.poll().is_pending(),
+            "a cancelled request must keep running until the agent terminates its response stream"
+        );
+        assert!(matches!(
+            agent_message_rx.try_recv(),
+            Ok(AgentJsonRpcMessage::Notification(
+                AgentJsonRpcNotification::StopRespondingTo(_)
+            ))
+        ));
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            1,
+            "the slot must stay claimed while the agent still holds it"
+        );
+
+        agent_controller
+            .generate_tokens_sender_collection
+            .forward_response(
+                request_id,
+                GeneratedTokenResult::Done(GenerationSummary::default()),
+            )
+            .await
+            .unwrap();
+
+        assert!(request_task.poll().is_ready());
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            0,
+            "the slot must be released once the agent confirms it is free"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn cancelled_request_releases_the_slot_when_the_agent_never_terminates_the_response_stream()
+     {
+        let AgentControllerWithIncomingChannel {
+            agent_controller,
+            agent_message_rx: _agent_message_rx,
+        } = agent_controller_with_one_free_slot("agent-never-confirms");
+
+        let request_id = "request-never-confirmed".to_owned();
+        let receive_response_controller = ManagesSendersController::from_request_id(
+            request_id.clone(),
+            agent_controller.generate_tokens_sender_collection.clone(),
+        )
+        .unwrap();
+
+        let (chunk_tx, _chunk_rx) = mpsc::unbounded_channel();
+        let session_controller =
+            ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+        let connection_close = CancellationToken::new();
+
+        connection_close.cancel();
+
+        forward_responses_stream(
+            connection_close,
+            claim_slot(agent_controller.clone()),
+            inference_service_configuration_with_long_timeout(),
+            receive_response_controller,
+            request_id,
+            session_controller,
+            CancellationToken::new(),
+        )
+        .await;
+
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            0,
+            "an agent that never confirms must not hold the slot past the inference item timeout"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn draining_cancelled_request_releases_the_slot_when_the_balancer_shuts_down() {
+        let pool = Arc::new(AgentControllerPool::default());
+        let AgentControllerWithIncomingChannel {
+            agent_controller,
+            agent_message_rx: _agent_message_rx,
+        } = agent_controller_with_one_free_slot("agent-drain-shutdown");
+
+        pool.register_agent_controller("agent-drain-shutdown".to_owned(), agent_controller.clone())
+            .unwrap();
+
+        let buffered_request_manager = Arc::new(BufferedRequestManager::new(
+            pool,
+            Duration::from_mins(1),
+            10,
+        ));
+
+        let (chunk_tx, _chunk_rx) = mpsc::unbounded_channel();
+        let session_controller =
+            ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+        let connection_close = CancellationToken::new();
+        let shutdown = CancellationToken::new();
+
+        let mut request_task = tokio_test::task::spawn(request_from_agent(
+            buffered_request_manager,
+            connection_close.clone(),
+            inference_service_configuration_with_long_timeout(),
+            raw_prompt_params(),
+            "request-drain-shutdown".to_owned(),
+            session_controller,
+            shutdown.clone(),
+        ));
+
+        assert!(request_task.poll().is_pending());
+
+        connection_close.cancel();
+
+        assert!(
+            request_task.poll().is_pending(),
+            "the request must be draining while it waits for the agent to confirm"
+        );
+
+        shutdown.cancel();
+
+        assert!(
+            request_task.poll().is_ready(),
+            "a shutting down balancer must abandon the drain instead of holding the slot"
+        );
+        assert_eq!(agent_controller.slots_processing.get(), 0);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn draining_cancelled_request_releases_the_slot_when_the_response_channel_closes() {
+        let pool = Arc::new(AgentControllerPool::default());
+        let AgentControllerWithIncomingChannel {
+            agent_controller,
+            agent_message_rx: _agent_message_rx,
+        } = agent_controller_with_one_free_slot("agent-drain-channel-closed");
+
+        pool.register_agent_controller(
+            "agent-drain-channel-closed".to_owned(),
+            agent_controller.clone(),
+        )
+        .unwrap();
+
+        let buffered_request_manager = Arc::new(BufferedRequestManager::new(
+            pool,
+            Duration::from_mins(1),
+            10,
+        ));
+
+        let (chunk_tx, _chunk_rx) = mpsc::unbounded_channel();
+        let session_controller =
+            ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+        let connection_close = CancellationToken::new();
+        let request_id = "request-drain-channel-closed".to_owned();
+
+        let mut request_task = tokio_test::task::spawn(request_from_agent(
+            buffered_request_manager,
+            connection_close.clone(),
+            inference_service_configuration_with_long_timeout(),
+            raw_prompt_params(),
+            request_id.clone(),
+            session_controller,
+            CancellationToken::new(),
+        ));
+
+        assert!(request_task.poll().is_pending());
+
+        connection_close.cancel();
+
+        assert!(request_task.poll().is_pending());
+
+        agent_controller
+            .generate_tokens_sender_collection
+            .deregister_sender(request_id)
+            .unwrap();
+
+        assert!(
+            request_task.poll().is_ready(),
+            "a drained request whose response channel closed can never be confirmed"
+        );
+        assert_eq!(agent_controller.slots_processing.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn request_abandoned_by_the_client_releases_the_slot_when_the_agent_is_unreachable() {
+        let AgentControllerWithIncomingChannel {
+            agent_controller,
+            agent_message_rx,
+        } = agent_controller_with_one_free_slot("agent-send-fail-unreachable");
+
+        drop(agent_message_rx);
+
+        let request_id = "request-send-fail-unreachable".to_owned();
+        let sender_collection = agent_controller.generate_tokens_sender_collection.clone();
+        let receive_response_controller = ManagesSendersController::from_request_id(
+            request_id.clone(),
+            sender_collection.clone(),
+        )
+        .unwrap();
+
+        sender_collection
+            .forward_response(
+                request_id.clone(),
+                GeneratedTokenResult::ContentToken("token".to_owned()),
+            )
+            .await
+            .unwrap();
+
+        let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
+
+        drop(chunk_rx);
+
+        let session_controller =
+            ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+
+        forward_responses_stream(
+            CancellationToken::new(),
+            claim_slot(agent_controller.clone()),
+            inference_service_configuration_with_long_timeout(),
+            receive_response_controller,
+            request_id,
+            session_controller,
+            CancellationToken::new(),
+        )
+        .await;
+
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            0,
+            "an unreachable agent can never confirm, so the slot must not be held"
         );
     }
 
@@ -528,6 +864,13 @@ mod tests {
             )
             .await
             .unwrap();
+        sender_collection
+            .forward_response(
+                request_id.clone(),
+                GeneratedTokenResult::Done(GenerationSummary::default()),
+            )
+            .await
+            .unwrap();
 
         let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
@@ -537,8 +880,8 @@ mod tests {
             ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
 
         forward_responses_stream(
-            agent_controller,
             CancellationToken::new(),
+            claim_slot(agent_controller.clone()),
             inference_service_configuration_with_long_timeout(),
             receive_response_controller,
             request_id,
@@ -554,6 +897,11 @@ mod tests {
             discriminant(&AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::StopRespondingTo(String::new())
             ))
+        );
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            0,
+            "the slot must be released once the agent terminates the drained request"
         );
     }
 
@@ -688,8 +1036,8 @@ mod tests {
         connection_close.cancel();
 
         forward_responses_stream(
-            agent_controller,
             connection_close,
+            claim_slot(agent_controller),
             inference_service_configuration_with_long_timeout(),
             receive_response_controller,
             request_id,
@@ -726,8 +1074,8 @@ mod tests {
         shutdown.cancel();
 
         forward_responses_stream(
-            agent_controller,
             CancellationToken::new(),
+            claim_slot(agent_controller),
             inference_service_configuration_with_long_timeout(),
             receive_response_controller,
             request_id,
@@ -765,14 +1113,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_response_to_client_returns_false_and_logs_when_stop_fails() {
-        let AgentControllerWithIncomingChannel {
-            agent_controller,
-            agent_message_rx,
-        } = agent_controller_with_one_free_slot("agent-stop-fails");
-
-        drop(agent_message_rx);
-
+    async fn send_response_to_client_returns_false_when_the_client_send_fails() {
         let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
         drop(chunk_rx);
@@ -781,9 +1122,9 @@ mod tests {
             ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
 
         let send_succeeded = send_response_to_client(
-            agent_controller,
+            None,
             GeneratedTokenResult::ContentToken("token".to_owned()),
-            "request-stop-fails".to_owned(),
+            "request-send-fails".to_owned(),
             &mut session_controller,
         )
         .await;
