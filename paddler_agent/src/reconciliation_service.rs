@@ -63,7 +63,6 @@ async fn try_convert_to_applicable_state(
         is_converted_to_applicable_state,
     )
     .await
-        && !cancellation_token.is_cancelled()
     {
         error!("Failed to convert to applicable state: {err}");
     }

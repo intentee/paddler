@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::time::Duration;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
@@ -10,12 +8,12 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
-const BUFFERED_REQUEST_TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
 const CANCELLED_REQUEST_COUNT: usize = 2;
 const SLOT_COUNT: i32 = 4;
 const WAITING_REQUEST_COUNT: i32 = 4;
@@ -40,10 +38,9 @@ fn waiting_prompt() -> ContinueFromRawPromptParams {
 async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() -> Result<()> {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(SLOT_COUNT)],
-        buffered_request_timeout: BUFFERED_REQUEST_TIMEOUT_LONGER_THAN_ANY_TEST_RUN,
         desired_state: Some(qwen3_desired_state()),
         wait_for_slots_ready: true,
-        ..ClusterParams::default()
+        ..ClusterParams::without_request_expiry()
     })
     .await?;
     let agent_id = cluster
@@ -75,7 +72,7 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() -> 
     }
 
     cluster
-        .wait_for_slots_processing(&agent_id, SLOT_COUNT)
+        .wait_for_slots_processing(&agent_id, SLOT_COUNT, ObservationWindow::model_load())
         .await?;
 
     let mut waiting_streams = Vec::new();
@@ -91,7 +88,7 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() -> 
     }
 
     cluster
-        .wait_for_buffered_request_count(WAITING_REQUEST_COUNT)
+        .wait_for_buffered_request_count(WAITING_REQUEST_COUNT, ObservationWindow::model_load())
         .await?;
 
     for slot_filling_token in slot_filling_tokens.iter().take(CANCELLED_REQUEST_COUNT) {
@@ -137,6 +134,7 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() -> 
         .wait_for_slots_processing(
             &agent_id,
             SLOT_COUNT - i32::try_from(CANCELLED_REQUEST_COUNT)?,
+            ObservationWindow::model_load(),
         )
         .await?;
 
@@ -144,7 +142,9 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() -> 
         slot_filling_token.cancel();
     }
 
-    cluster.wait_for_slots_processing(&agent_id, 0).await?;
+    cluster
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
+        .await?;
     cluster.shutdown().await?;
 
     Ok(())

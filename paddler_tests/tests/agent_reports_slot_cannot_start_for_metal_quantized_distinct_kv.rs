@@ -11,6 +11,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::kv_cache_dtype::KvCacheDtype;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -49,14 +50,16 @@ async fn agent_reports_slot_cannot_start_for_metal_quantized_distinct_kv() -> Re
 
     let snapshot = tokio::time::timeout(
         Duration::from_secs(10),
-        cluster.agents_watcher.until(|snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent
-                    .issues
-                    .iter()
-                    .any(|issue| matches!(issue, AgentIssue::SlotCannotStart(_)))
-            })
-        }),
+        cluster
+            .agents_watcher
+            .until(ObservationWindow::model_load(), |snapshot| {
+                snapshot.agents.iter().any(|agent| {
+                    agent
+                        .issues
+                        .iter()
+                        .any(|issue| matches!(issue, AgentIssue::SlotCannotStart(_)))
+                })
+            }),
     )
     .await
     .context("agent did not report SlotCannotStart within 10s")??;

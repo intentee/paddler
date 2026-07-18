@@ -9,6 +9,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -61,14 +62,14 @@ async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() -
         .await?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1)
+        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
         .await
         .context("agents_stream must emit a snapshot showing slot usage")?;
 
     collect_generated_tokens(token_stream).await?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0)
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
         .await
         .context("agents_stream must emit a snapshot showing the slot was released")?;
 

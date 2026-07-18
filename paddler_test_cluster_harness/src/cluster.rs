@@ -1,6 +1,5 @@
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -18,7 +17,6 @@ use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use serde_json::Value;
-use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_config::AgentConfig;
@@ -33,6 +31,7 @@ use crate::collect_embedding_results::collect_embedding_results;
 use crate::collect_generated_tokens::collect_generated_tokens;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
+use crate::observation_window::ObservationWindow;
 use crate::openai_chat_completions_client::OpenAIChatCompletionsClient;
 use crate::openai_responses_client::OpenAIResponsesClient;
 use crate::running_agent::RunningAgent;
@@ -236,7 +235,10 @@ impl Cluster {
         expected_count: usize,
     ) -> Result<AgentControllerPoolSnapshot> {
         self.agents_watcher
-            .until(assert_agent_count(expected_count))
+            .until(
+                ObservationWindow::model_load(),
+                assert_agent_count(expected_count),
+            )
             .await
     }
 
@@ -260,30 +262,14 @@ impl Cluster {
         &mut self,
         agent_id: &str,
         expected_slots_processing: i32,
+        observation_window: ObservationWindow,
     ) -> Result<AgentControllerPoolSnapshot> {
         self.agents_watcher
-            .until(assert_slots_processing(agent_id, expected_slots_processing))
-            .await
-    }
-
-    pub async fn wait_for_slots_processing_within(
-        &mut self,
-        agent_id: &str,
-        expected_slots_processing: i32,
-        within: Duration,
-    ) -> Result<AgentControllerPoolSnapshot> {
-        timeout(
-            within,
-            self.agents_watcher
-                .until(assert_slots_processing(agent_id, expected_slots_processing)),
-        )
-        .await
-        .with_context(|| {
-            format!(
-                "agent {agent_id} still had slots processing other than \
-                 {expected_slots_processing} after {within:?}"
+            .until(
+                observation_window,
+                assert_slots_processing(agent_id, expected_slots_processing),
             )
-        })?
+            .await
     }
 
     pub async fn wait_for_slots_total_at_least(
@@ -292,16 +278,20 @@ impl Cluster {
         expected_slots_total: i32,
     ) -> Result<AgentControllerPoolSnapshot> {
         self.agents_watcher
-            .until(assert_slots_total_at_least(agent_id, expected_slots_total))
+            .until(
+                ObservationWindow::model_load(),
+                assert_slots_total_at_least(agent_id, expected_slots_total),
+            )
             .await
     }
 
     pub async fn wait_for_buffered_request_count(
         &mut self,
         expected_count: i32,
+        observation_window: ObservationWindow,
     ) -> Result<BufferedRequestManagerSnapshot> {
         self.buffered_requests_watcher
-            .until(assert_count(expected_count))
+            .until(observation_window, assert_count(expected_count))
             .await
     }
 

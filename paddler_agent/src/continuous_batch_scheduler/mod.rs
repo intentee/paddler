@@ -532,13 +532,13 @@ impl ContinuousBatchScheduler {
                 phase: ContinuousBatchRequestPhase::Ingesting,
                 prompt_tokens,
                 prompt_tokens_ingested: 0,
-                sequence_id: sequence_guard.commit(),
             },
             chain,
             token_classifier,
             grammar_sampler: llama_grammar_sampler,
             generated_tokens_tx,
             generate_tokens_stop_rx,
+            sequence_id_guard: sequence_guard,
             slot_guard,
             tool_call_pipeline,
         });
@@ -740,13 +740,13 @@ impl ContinuousBatchScheduler {
                 phase: ContinuousBatchRequestPhase::Generating,
                 prompt_tokens: Vec::new(),
                 prompt_tokens_ingested: 0,
-                sequence_id: sequence_guard.commit(),
             },
             chain,
             token_classifier,
             grammar_sampler: llama_grammar_sampler,
             generated_tokens_tx,
             generate_tokens_stop_rx,
+            sequence_id_guard: sequence_guard,
             slot_guard,
             tool_call_pipeline,
         });
@@ -786,7 +786,8 @@ impl ContinuousBatchScheduler {
                     if let Err(error) = active_request.token_classifier.ingest(raw_token) {
                         error!(
                             "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
-                            self.scheduler_context.agent_name, active_request.state.sequence_id
+                            self.scheduler_context.agent_name,
+                            active_request.sequence_id_guard.sequence_id()
                         );
                         active_request.complete_with_outcome(
                             GeneratedTokenResult::DetokenizationFailed(error.to_string()),
@@ -802,7 +803,8 @@ impl ContinuousBatchScheduler {
                 Ok(SamplingOutcome::AllCandidatesEliminated) => {
                     error!(
                         "{:?}: sequence {} pre-eval harvest exhausted candidates",
-                        self.scheduler_context.agent_name, active_request.state.sequence_id
+                        self.scheduler_context.agent_name,
+                        active_request.sequence_id_guard.sequence_id()
                     );
                     active_request.complete_with_outcome(GeneratedTokenResult::SamplerError(
                         "all token candidates were eliminated during sampling".to_owned(),
@@ -811,7 +813,8 @@ impl ContinuousBatchScheduler {
                 Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
                     error!(
                         "{:?}: sequence {} pre-eval harvest grammar rejected: {message}",
-                        self.scheduler_context.agent_name, active_request.state.sequence_id
+                        self.scheduler_context.agent_name,
+                        active_request.sequence_id_guard.sequence_id()
                     );
                     active_request.complete_with_outcome(
                         GeneratedTokenResult::GrammarRejectedModelOutput(message),
@@ -820,7 +823,8 @@ impl ContinuousBatchScheduler {
                 Err(err) => {
                     error!(
                         "{:?}: sequence {} pre-eval harvest sampling error: {err:#}",
-                        self.scheduler_context.agent_name, active_request.state.sequence_id
+                        self.scheduler_context.agent_name,
+                        active_request.sequence_id_guard.sequence_id()
                     );
                     active_request
                         .complete_with_outcome(GeneratedTokenResult::SamplerError(err.to_string()));
@@ -831,6 +835,13 @@ impl ContinuousBatchScheduler {
 
     fn check_stop_signals(&mut self) {
         for active_request in &mut self.active_requests {
+            if matches!(
+                active_request.state.phase,
+                ContinuousBatchRequestPhase::Completed(_)
+            ) {
+                continue;
+            }
+
             if active_request.is_stop_requested() {
                 let summary = GenerationSummary {
                     usage: *active_request.token_classifier.usage(),
@@ -964,7 +975,7 @@ impl ContinuousBatchScheduler {
             warn!(
                 "{:?}: evicting sequence {} (position {}) due to KV cache pressure",
                 self.scheduler_context.agent_name,
-                evicted_request.state.sequence_id,
+                evicted_request.sequence_id_guard.sequence_id(),
                 evicted_request.state.current_token_position
             );
 
@@ -1017,12 +1028,11 @@ impl ContinuousBatchScheduler {
 
     fn cleanup_completed_request(&mut self, index: usize) {
         let removed_request = self.active_requests.swap_remove(index);
-        let sequence_id = removed_request.state.sequence_id;
+        let sequence_id = removed_request.sequence_id_guard.sequence_id();
         let usage = *removed_request.token_classifier.usage();
         let terminal_delivery = removed_request.into_terminal_delivery();
 
         self.clear_kv_cache_for_sequence(sequence_id);
-        self.sequence_id_pool.release(sequence_id);
 
         debug!(
             "{:?}: cleaned up sequence {sequence_id} ({} completion tokens generated)",

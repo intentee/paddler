@@ -12,6 +12,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -78,7 +79,7 @@ async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result
 
     cluster
         .agents_watcher
-        .until(|snapshot| {
+        .until(ObservationWindow::model_load(), |snapshot| {
             snapshot.agents.len() == 1 && snapshot.agents.iter().any(|agent| agent.slots_total >= 4)
         })
         .await

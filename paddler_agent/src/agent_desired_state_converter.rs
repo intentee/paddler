@@ -28,7 +28,7 @@ where
 {
     match resolve_desired_model(cancellation_token, desired, slot_aggregated_status.clone()).await?
     {
-        DesiredModelResolution::NotConfigured => Ok(None),
+        DesiredModelResolution::Cancelled | DesiredModelResolution::NotConfigured => Ok(None),
         DesiredModelResolution::Resolved(path) => Ok(Some(path)),
         DesiredModelResolution::LocalFileMissing(path) => {
             let model_path_string = path.display().to_string();

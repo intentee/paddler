@@ -9,6 +9,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::local_http_fixture::LocalHttpFixture;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -41,7 +42,7 @@ async fn balancer_reports_download_server_errored() -> Result<()> {
 
     let snapshot = cluster
         .agents_watcher
-        .until(move |snapshot| {
+        .until(ObservationWindow::model_load(), move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == agent_id
                     && agent

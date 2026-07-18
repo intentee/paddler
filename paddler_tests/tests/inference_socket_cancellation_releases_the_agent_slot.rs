@@ -5,6 +5,7 @@ use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
@@ -40,7 +41,7 @@ async fn inference_socket_cancellation_releases_the_agent_slot() -> Result<()> {
         .map_err(anyhow::Error::new)?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1)
+        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
         .await
         .context("the request should occupy the only slot")?;
 
@@ -52,7 +53,7 @@ async fn inference_socket_cancellation_releases_the_agent_slot() -> Result<()> {
     );
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0)
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
         .await
         .context("the slot should be released after the request is cancelled")?;
 

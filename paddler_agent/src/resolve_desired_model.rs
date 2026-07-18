@@ -124,7 +124,10 @@ mod tests {
 
         let resolution = resolve_desired_model(&cancellation_token, &desired, status.clone()).await;
 
-        assert!(resolution.is_err());
+        assert!(
+            matches!(resolution, Ok(DesiredModelResolution::Cancelled)),
+            "a cancelled Hugging Face download must report cancellation as an outcome, not an error"
+        );
         assert!(
             status.make_snapshot().unwrap().issues.is_empty(),
             "a cancelled Hugging Face download must not register a slot issue"

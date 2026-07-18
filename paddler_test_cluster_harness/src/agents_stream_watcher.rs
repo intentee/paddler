@@ -8,7 +8,10 @@ use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_client::client_management::ClientManagement;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
+
+use crate::observation_window::ObservationWindow;
 
 pub struct AgentsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<AgentControllerPoolSnapshot>> + Send>>,
@@ -41,54 +44,78 @@ impl AgentsStreamWatcher {
 
     pub async fn until<TPredicate>(
         &mut self,
+        observation_window: ObservationWindow,
         mut predicate: TPredicate,
     ) -> Result<AgentControllerPoolSnapshot>
     where
         TPredicate: FnMut(&AgentControllerPoolSnapshot) -> bool,
     {
-        while let Some(item) = self.stream.next().await {
-            let snapshot = item.context("agents stream yielded an error")?;
+        let stream = &mut self.stream;
 
-            if predicate(&snapshot) {
-                return Ok(snapshot);
+        timeout(observation_window.duration(), async move {
+            while let Some(item) = stream.next().await {
+                let snapshot = item.context("agents stream yielded an error")?;
+
+                if predicate(&snapshot) {
+                    return Ok(snapshot);
+                }
             }
-        }
 
-        Err(anyhow!(
-            "agents stream closed before predicate was satisfied"
-        ))
+            Err(anyhow!(
+                "agents stream closed before predicate was satisfied"
+            ))
+        })
+        .await
+        .with_context(|| {
+            format!(
+                "agents stream did not satisfy the predicate within {:?}",
+                observation_window.duration()
+            )
+        })?
     }
 
     pub async fn until_agent<TPredicate>(
         &mut self,
         agent_id: &str,
+        observation_window: ObservationWindow,
         mut predicate: TPredicate,
     ) -> Result<AgentControllerPoolSnapshot>
     where
         TPredicate: FnMut(&AgentControllerPoolSnapshot) -> bool,
     {
-        while let Some(item) = self.stream.next().await {
-            let snapshot = item.context("agents stream yielded an error")?;
+        let stream = &mut self.stream;
 
-            let agent_present = snapshot
-                .agents
-                .iter()
-                .any(|registered_agent| registered_agent.id == agent_id);
+        timeout(observation_window.duration(), async move {
+            while let Some(item) = stream.next().await {
+                let snapshot = item.context("agents stream yielded an error")?;
 
-            if !agent_present {
-                bail!(
-                    "agent {agent_id} disappeared from the balancer's agent pool before the predicate was satisfied; this means the agent subprocess died or its WebSocket dropped"
-                );
+                let agent_present = snapshot
+                    .agents
+                    .iter()
+                    .any(|registered_agent| registered_agent.id == agent_id);
+
+                if !agent_present {
+                    bail!(
+                        "agent {agent_id} disappeared from the balancer's agent pool before the predicate was satisfied; this means the agent subprocess died or its WebSocket dropped"
+                    );
+                }
+
+                if predicate(&snapshot) {
+                    return Ok(snapshot);
+                }
             }
 
-            if predicate(&snapshot) {
-                return Ok(snapshot);
-            }
-        }
-
-        Err(anyhow!(
-            "agents stream closed before predicate was satisfied"
-        ))
+            Err(anyhow!(
+                "agents stream closed before predicate was satisfied"
+            ))
+        })
+        .await
+        .with_context(|| {
+            format!(
+                "agent {agent_id} did not satisfy the predicate within {:?}",
+                observation_window.duration()
+            )
+        })?
     }
 
     pub async fn wait_for_agent_ready(
@@ -98,7 +125,7 @@ impl AgentsStreamWatcher {
     ) -> Result<AgentControllerPoolSnapshot> {
         let predicate_name = agent_name.to_owned();
         let snapshot = self
-            .until(move |snapshot| {
+            .until(ObservationWindow::model_load(), move |snapshot| {
                 snapshot.agents.iter().any(|registered_agent| {
                     registered_agent.name.as_deref() == Some(predicate_name.as_str())
                         && (registered_agent.slots_total == expected_slot_count
@@ -129,7 +156,7 @@ impl AgentsStreamWatcher {
         let expected_agent_count = expected_sorted.len();
 
         let snapshot = self
-            .until(move |snapshot| {
+            .until(ObservationWindow::model_load(), move |snapshot| {
                 if snapshot.agents.len() < expected_agent_count {
                     return false;
                 }
@@ -242,7 +269,7 @@ mod tests {
 
         let predicate_agent_id = agent_id.to_owned();
         let observed = watcher
-            .until_agent(agent_id, move |snapshot| {
+            .until_agent(agent_id, ObservationWindow::model_load(), move |snapshot| {
                 snapshot.agents.iter().any(|agent| {
                     agent.id == predicate_agent_id
                         && agent
@@ -274,7 +301,7 @@ mod tests {
         let mut watcher = make_watcher(snapshots);
 
         let error = watcher
-            .until_agent(agent_id, |_snapshot| false)
+            .until_agent(agent_id, ObservationWindow::model_load(), |_snapshot| false)
             .await
             .err()
             .context("until_agent must surface the disappearance as an error")?;
@@ -302,7 +329,7 @@ mod tests {
         let mut watcher = make_watcher(snapshots);
 
         let error = watcher
-            .until_agent(agent_id, |_snapshot| false)
+            .until_agent(agent_id, ObservationWindow::model_load(), |_snapshot| false)
             .await
             .err()
             .context("until_agent must error when the stream ends without a match")?;

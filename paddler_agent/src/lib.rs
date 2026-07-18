@@ -40,6 +40,7 @@ pub mod normalization;
 pub mod plan_embedding_batches;
 pub mod prepare_conversation_history_request;
 pub mod prepared_conversation_history_request;
+pub mod receive_stream_stop_outcome;
 pub mod receive_stream_stopper_collection;
 mod receive_stream_stopper_drop_guard;
 pub mod reconciliation_service;

@@ -9,6 +9,7 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_test_cluster_harness::agents_stream_watcher::AgentsStreamWatcher;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 
 fn make_snapshot(agent_id: &str, slots_total: i32) -> AgentControllerPoolSnapshot {
     AgentControllerPoolSnapshot {
@@ -41,7 +42,7 @@ async fn until_returns_first_snapshot_matching_predicate() -> Result<()> {
     let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
 
     let snapshot = watcher
-        .until(|snapshot| {
+        .until(ObservationWindow::model_load(), |snapshot| {
             snapshot
                 .agents
                 .iter()
@@ -63,7 +64,9 @@ async fn until_propagates_stream_error() {
 
     let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
 
-    let outcome = watcher.until(|_| true).await;
+    let outcome = watcher
+        .until(ObservationWindow::model_load(), |_| true)
+        .await;
 
     assert!(outcome.is_err(), "expected watcher to surface stream error");
 
@@ -85,7 +88,7 @@ async fn until_errors_when_stream_closes_before_match() {
     let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(fixture));
 
     let outcome = watcher
-        .until(|snapshot| {
+        .until(ObservationWindow::model_load(), |snapshot| {
             snapshot
                 .agents
                 .iter()

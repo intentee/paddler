@@ -19,6 +19,7 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
+use crate::model_source::download_lock_retry_error::DownloadLockRetryError;
 use crate::model_source::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
@@ -74,9 +75,7 @@ impl ResolvesModelSource for HuggingFaceModelSource {
             ))
             .await
         else {
-            return Err(anyhow!(
-                "Hugging Face model download for '{model_path}' was cancelled"
-            ));
+            return Ok(DesiredModelResolution::Cancelled);
         };
 
         match download_result {
@@ -104,14 +103,21 @@ impl ResolvesModelSource for HuggingFaceModelSource {
                     LOCK_RETRY_TIMEOUT.as_secs()
                 );
 
-                Err(wait_for_download_lock_retry(
+                match wait_for_download_lock_retry(
                     cancellation_token,
                     LOCK_RETRY_TIMEOUT,
                     lock_path,
                     model_path,
                 )
                 .await
-                .into())
+                {
+                    DownloadLockRetryError::Cancelled { .. } => {
+                        Ok(DesiredModelResolution::Cancelled)
+                    }
+                    lock_still_unavailable @ DownloadLockRetryError::LockStillUnavailable {
+                        ..
+                    } => Err(lock_still_unavailable.into()),
+                }
             }
             Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {
                 Some(reqwest::StatusCode::NOT_FOUND) => {

@@ -53,7 +53,8 @@ impl AdvanceGeneratingPhase<'_> {
             SampleOutcome::AllCandidatesEliminated => {
                 error!(
                     "{:?}: sequence {} sampling exhausted candidates",
-                    self.scheduler_context.agent_name, request.state.sequence_id
+                    self.scheduler_context.agent_name,
+                    request.sequence_id_guard.sequence_id()
                 );
                 return Some(AdvanceOutcome::Completed(
                     GeneratedTokenResult::SamplerError(
@@ -64,7 +65,8 @@ impl AdvanceGeneratingPhase<'_> {
             SampleOutcome::GrammarRejected(message) => {
                 error!(
                     "{:?}: sequence {} grammar rejected sampled token: {message}",
-                    self.scheduler_context.agent_name, request.state.sequence_id
+                    self.scheduler_context.agent_name,
+                    request.sequence_id_guard.sequence_id()
                 );
                 return Some(AdvanceOutcome::Completed(
                     GeneratedTokenResult::GrammarRejectedModelOutput(message),
@@ -73,7 +75,8 @@ impl AdvanceGeneratingPhase<'_> {
             SampleOutcome::Failed(message) => {
                 error!(
                     "{:?}: sequence {} sampling error: {message}",
-                    self.scheduler_context.agent_name, request.state.sequence_id
+                    self.scheduler_context.agent_name,
+                    request.sequence_id_guard.sequence_id()
                 );
                 return Some(AdvanceOutcome::Completed(
                     GeneratedTokenResult::SamplerError(message),
@@ -86,7 +89,8 @@ impl AdvanceGeneratingPhase<'_> {
             Err(error) => {
                 error!(
                     "{:?}: sequence {} token classification failed: {error:#}",
-                    self.scheduler_context.agent_name, request.state.sequence_id
+                    self.scheduler_context.agent_name,
+                    request.sequence_id_guard.sequence_id()
                 );
 
                 return Some(AdvanceOutcome::Completed(
@@ -111,7 +115,8 @@ impl AdvanceGeneratingPhase<'_> {
             {
                 warn!(
                     "{:?}: sequence {} client disconnected (receiver dropped) during EOG tool-call flush",
-                    self.scheduler_context.agent_name, request.state.sequence_id
+                    self.scheduler_context.agent_name,
+                    request.sequence_id_guard.sequence_id()
                 );
                 return Some(AdvanceOutcome::ChannelDropped);
             }
@@ -128,7 +133,8 @@ impl AdvanceGeneratingPhase<'_> {
                 EmitTokenOutcome::ChannelDropped => {
                     warn!(
                         "{:?}: sequence {} client disconnected (receiver dropped)",
-                        self.scheduler_context.agent_name, request.state.sequence_id
+                        self.scheduler_context.agent_name,
+                        request.sequence_id_guard.sequence_id()
                     );
                     return Some(AdvanceOutcome::ChannelDropped);
                 }
@@ -140,7 +146,8 @@ impl AdvanceGeneratingPhase<'_> {
             {
                 warn!(
                     "{:?}: sequence {} client disconnected (receiver dropped)",
-                    self.scheduler_context.agent_name, request.state.sequence_id
+                    self.scheduler_context.agent_name,
+                    request.sequence_id_guard.sequence_id()
                 );
                 return Some(AdvanceOutcome::ChannelDropped);
             }
@@ -155,7 +162,8 @@ impl AdvanceGeneratingPhase<'_> {
                 {
                     warn!(
                         "{:?}: sequence {} client disconnected (receiver dropped) during tool-call EOG flush",
-                        self.scheduler_context.agent_name, request.state.sequence_id
+                        self.scheduler_context.agent_name,
+                        request.sequence_id_guard.sequence_id()
                     );
                     return Some(AdvanceOutcome::ChannelDropped);
                 }

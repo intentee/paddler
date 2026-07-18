@@ -216,9 +216,7 @@ async fn resolve_url_into_cache(
         Ok(DownloadOutcome::Completed) => {
             Ok(DesiredModelResolution::Resolved(cached.cache_file_path))
         }
-        Ok(DownloadOutcome::Cancelled) => Err(anyhow!(
-            "Download of URL model '{url_string}' was cancelled"
-        )),
+        Ok(DownloadOutcome::Cancelled) => Ok(DesiredModelResolution::Cancelled),
         Err(error) => {
             slot_aggregated_status.reset_download();
             slot_aggregated_status.register_issue(agent_issue_for(&error, url_string));
@@ -865,7 +863,10 @@ mod tests {
             resolve_url_into_cache(&cancellation_token, &url_string, &cache_dir, status.clone())
                 .await;
 
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Ok(DesiredModelResolution::Cancelled)),
+            "a cancelled download must report cancellation as an outcome, not an error"
+        );
         assert!(
             status.make_snapshot().unwrap().issues.is_empty(),
             "a cancelled download must not register a slot issue"

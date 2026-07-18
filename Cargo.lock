@@ -4845,9 +4845,6 @@ name = "paddler_balancer"
 version = "4.1.0"
 dependencies = [
  "actix-cors",
- "actix-http",
- "actix-server",
- "actix-service",
  "actix-web",
  "actix-web-lab",
  "actix-ws",

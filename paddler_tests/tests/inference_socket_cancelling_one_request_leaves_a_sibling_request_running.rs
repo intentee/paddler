@@ -6,6 +6,7 @@ use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
@@ -49,7 +50,7 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
         .map_err(anyhow::Error::new)?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 2)
+        .wait_for_slots_processing(&agent_id, 2, ObservationWindow::model_load())
         .await
         .context("both requests should occupy a slot")?;
 
@@ -74,7 +75,7 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
     );
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0)
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
         .await
         .context("both slots should be released once the sibling request completes")?;
 

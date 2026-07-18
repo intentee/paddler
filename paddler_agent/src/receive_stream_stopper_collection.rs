@@ -3,14 +3,13 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use dashmap::DashMap;
-use dashmap::DashSet;
 use dashmap::mapref::entry::Entry;
 use tokio::sync::mpsc;
 
+use crate::receive_stream_stop_outcome::ReceiveStreamStopOutcome;
 use crate::receive_stream_stopper_drop_guard::ReceiveStreamStopperDropGuard;
 
 pub struct ReceiveStreamStopperCollection {
-    pending_stops: DashSet<String>,
     receive_stoppers: DashMap<String, mpsc::UnboundedSender<()>>,
 }
 
@@ -37,10 +36,6 @@ impl ReceiveStreamStopperCollection {
                 occupied_stopper.key()
             )),
             Entry::Vacant(vacant_stopper) => {
-                if self.pending_stops.remove(vacant_stopper.key()).is_some() {
-                    stopper.send(())?;
-                }
-
                 vacant_stopper.insert(stopper);
 
                 Ok(())
@@ -61,21 +56,21 @@ impl ReceiveStreamStopperCollection {
         })
     }
 
-    pub fn stop(&self, request_id: &str) -> Result<()> {
-        if let Some(stopper) = self.receive_stoppers.get(request_id) {
-            stopper.send(())?;
-        } else {
-            self.pending_stops.insert(request_id.to_owned());
-        }
+    pub fn stop(&self, request_id: &str) -> Result<ReceiveStreamStopOutcome> {
+        match self.receive_stoppers.get(request_id) {
+            Some(stopper) => {
+                stopper.send(())?;
 
-        Ok(())
+                Ok(ReceiveStreamStopOutcome::StopSignalled)
+            }
+            None => Ok(ReceiveStreamStopOutcome::RequestAlreadyFinished),
+        }
     }
 }
 
 impl Default for ReceiveStreamStopperCollection {
     fn default() -> Self {
         Self {
-            pending_stops: DashSet::new(),
             receive_stoppers: DashMap::new(),
         }
     }
@@ -147,20 +142,17 @@ mod tests {
     }
 
     #[test]
-    fn stop_arriving_before_registration_is_applied_when_the_request_registers() {
+    fn stopping_an_unregistered_request_reports_it_already_finished_and_retains_nothing() {
         let collection = ReceiveStreamStopperCollection::default();
 
-        collection.stop("req_1").unwrap();
-
-        let (sender, mut receiver) = mpsc::unbounded_channel();
-
-        collection
-            .register_stopper("req_1".to_owned(), sender)
-            .unwrap();
-
+        assert_eq!(
+            collection.stop("already_finished").unwrap(),
+            ReceiveStreamStopOutcome::RequestAlreadyFinished
+        );
         assert!(
-            receiver.try_recv().is_ok(),
-            "a stop that races ahead of the request must not be lost"
+            collection.deregister_stopper("already_finished").is_err(),
+            "nothing may be retained for an unknown request; retaining it would leak one entry \
+             per cancelled request"
         );
     }
 

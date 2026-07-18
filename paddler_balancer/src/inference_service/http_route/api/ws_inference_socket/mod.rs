@@ -38,6 +38,7 @@ use crate::agent_controller::AgentController;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
+use crate::cluster_token_generation_mode::TOKEN_GENERATION_DISABLED_MESSAGE;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
@@ -45,16 +46,15 @@ use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
+use crate::request_cancellation_registration::RequestCancellationRegistration;
 use crate::request_cancellation_token_guard::RequestCancellationTokenGuard;
 use crate::request_cancellation_tokens::RequestCancellationTokens;
 use crate::request_from_agent::request_from_agent;
+use crate::request_from_agent::respond_with_error;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
 type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
-
-const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
-    "Token generation is disabled while the cluster is configured for embeddings";
 
 async fn send_token_generation_disabled(
     request_id: String,
@@ -101,7 +101,7 @@ async fn handle_inference_request<TParams>(
                 context.request_cancellation_tokens.clone(),
                 request_id.clone(),
             ) {
-                Ok(request_cancellation_token_guard) => {
+                RequestCancellationRegistration::Registered(request_cancellation_token_guard) => {
                     rt::spawn(async move {
                         request_from_agent(
                             context.buffered_request_manager.clone(),
@@ -115,8 +115,20 @@ async fn handle_inference_request<TParams>(
                         .await;
                     });
                 }
-                Err(err) => {
-                    error!("Rejecting duplicate inference request {request_id:?}: {err}");
+                RequestCancellationRegistration::DuplicateRequestId => {
+                    error!("Rejecting duplicate inference request {request_id:?}");
+
+                    respond_with_error(
+                        JsonRpcError {
+                            code: 400,
+                            description: format!(
+                                "Request id {request_id:?} is already in flight on this connection"
+                            ),
+                        },
+                        request_id,
+                        &mut websocket_session_controller,
+                    )
+                    .await;
                 }
             }
         }
@@ -667,10 +679,9 @@ mod tests {
         let connection_close = CancellationToken::new();
         let context = context_with_pool(pool, Arc::new(BalancerApplicableStateHolder::default()));
 
-        context
+        let _first_registration = context
             .request_cancellation_tokens
-            .register("request-duplicate".to_owned(), &connection_close)
-            .unwrap();
+            .register("request-duplicate".to_owned(), &connection_close);
 
         let continuation_decision = InferenceSocketController::handle_deserialized_message(
             connection_close.clone(),

@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
+use crate::request_cancellation_registration::RequestCancellationRegistration;
 use crate::request_cancellation_tokens::RequestCancellationTokens;
+use crate::request_registration::RequestRegistration;
 
 pub struct RequestCancellationTokenGuard {
     pub cancellation_token: CancellationToken,
@@ -12,19 +13,24 @@ pub struct RequestCancellationTokenGuard {
 }
 
 impl RequestCancellationTokenGuard {
+    #[must_use]
     pub fn register(
         connection_close: &CancellationToken,
         request_cancellation_tokens: Arc<RequestCancellationTokens>,
         request_id: String,
-    ) -> Result<Self> {
-        let cancellation_token =
-            request_cancellation_tokens.register(request_id.clone(), connection_close)?;
-
-        Ok(Self {
-            cancellation_token,
-            request_cancellation_tokens,
-            request_id,
-        })
+    ) -> RequestCancellationRegistration {
+        match request_cancellation_tokens.register(request_id.clone(), connection_close) {
+            RequestRegistration::DuplicateRequestId => {
+                RequestCancellationRegistration::DuplicateRequestId
+            }
+            RequestRegistration::Registered(cancellation_token) => {
+                RequestCancellationRegistration::Registered(Self {
+                    cancellation_token,
+                    request_cancellation_tokens,
+                    request_id,
+                })
+            }
+        }
     }
 }
 
@@ -42,6 +48,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use super::RequestCancellationTokenGuard;
+    use crate::request_cancellation_registration::RequestCancellationRegistration;
     use crate::request_cancellation_tokens::RequestCancellationTokens;
 
     #[test]
@@ -49,12 +56,15 @@ mod tests {
         let connection_close = CancellationToken::new();
         let request_cancellation_tokens = Arc::new(RequestCancellationTokens::default());
 
-        let guard = RequestCancellationTokenGuard::register(
-            &connection_close,
-            request_cancellation_tokens.clone(),
-            "finished".to_owned(),
-        )
-        .unwrap();
+        let RequestCancellationRegistration::Registered(guard) =
+            RequestCancellationTokenGuard::register(
+                &connection_close,
+                request_cancellation_tokens.clone(),
+                "finished".to_owned(),
+            )
+        else {
+            panic!("a fresh request id must register");
+        };
         let cancellation_token = guard.cancellation_token.clone();
 
         drop(guard);
@@ -69,12 +79,15 @@ mod tests {
         let connection_close = CancellationToken::new();
         let request_cancellation_tokens = Arc::new(RequestCancellationTokens::default());
 
-        let guard = RequestCancellationTokenGuard::register(
-            &connection_close,
-            request_cancellation_tokens.clone(),
-            "in_flight".to_owned(),
-        )
-        .unwrap();
+        let RequestCancellationRegistration::Registered(guard) =
+            RequestCancellationTokenGuard::register(
+                &connection_close,
+                request_cancellation_tokens.clone(),
+                "in_flight".to_owned(),
+            )
+        else {
+            panic!("a fresh request id must register");
+        };
 
         request_cancellation_tokens.cancel("in_flight");
 

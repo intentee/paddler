@@ -8,6 +8,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -40,7 +41,7 @@ async fn balancer_reports_multimodal_projection_cannot_be_loaded() -> Result<()>
 
     cluster
         .agents_watcher
-        .until(move |snapshot| {
+        .until(ObservationWindow::model_load(), move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == agent_id
                     && agent.issues.iter().any(|issue| {

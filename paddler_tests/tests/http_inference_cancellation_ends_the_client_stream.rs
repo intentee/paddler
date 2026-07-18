@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
@@ -29,7 +30,9 @@ async fn http_inference_cancellation_ends_the_client_stream() -> Result<()> {
         .await
         .map_err(anyhow::Error::new)?;
 
-    cluster.wait_for_buffered_request_count(1).await?;
+    cluster
+        .wait_for_buffered_request_count(1, ObservationWindow::model_load())
+        .await?;
 
     cancellation_token.cancel();
 

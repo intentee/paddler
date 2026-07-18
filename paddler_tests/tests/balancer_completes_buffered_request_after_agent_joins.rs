@@ -12,6 +12,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -55,7 +56,7 @@ async fn balancer_completes_buffered_request_after_agent_joins() -> Result<()> {
         .await?;
 
     cluster
-        .wait_for_buffered_request_count(1)
+        .wait_for_buffered_request_count(1, ObservationWindow::model_load())
         .await
         .context("balancer should buffer the request before any agent joins")?;
 

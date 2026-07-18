@@ -5,6 +5,7 @@ use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
@@ -35,14 +36,14 @@ async fn agent_releases_slot_when_websocket_client_disconnects() -> Result<()> {
         .context("stream must yield at least one message")?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1)
+        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
         .await
         .context("agent should report slot in use")?;
 
     drop(stream);
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0)
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
         .await
         .context("agent should release slot after the client disconnects")?;
 

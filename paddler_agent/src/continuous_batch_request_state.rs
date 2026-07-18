@@ -14,7 +14,6 @@ pub struct ContinuousBatchRequestState {
     pub phase: ContinuousBatchRequestPhase,
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
-    pub sequence_id: i32,
 }
 
 impl ContinuousBatchRequestState {
@@ -91,7 +90,6 @@ mod tests {
             phase: ContinuousBatchRequestPhase::Ingesting,
             prompt_tokens: vec![LlamaToken::new(1); prompt_token_count],
             prompt_tokens_ingested: 0,
-            sequence_id: 0,
         }
     }
 

@@ -9,6 +9,7 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -39,7 +40,7 @@ async fn balancer_reports_huggingface_model_does_not_exist() -> Result<()> {
 
     cluster
         .agents_watcher
-        .until(move |snapshot| {
+        .until(ObservationWindow::model_load(), move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == agent_id
                     && agent.issues.iter().any(|issue| {

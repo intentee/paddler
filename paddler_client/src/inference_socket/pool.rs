@@ -31,6 +31,7 @@ pub struct Pool {
 }
 
 impl Pool {
+    #[must_use]
     pub fn new(url: Url, capacity: NonZeroUsize) -> Self {
         let (notification_tx, _initial_notification_rx) = broadcast::channel(capacity.get());
 

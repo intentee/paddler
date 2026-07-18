@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -8,20 +6,16 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_tests::start_cluster::start_cluster;
-use tokio::time::timeout;
-
-const BUFFERED_REQUEST_TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
-const RELEASE_OBSERVATION_WINDOW: Duration = Duration::from_secs(5);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_http_client_releases_the_buffered_request() -> Result<()> {
     let mut cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
-        buffered_request_timeout: BUFFERED_REQUEST_TIMEOUT_LONGER_THAN_ANY_TEST_RUN,
         wait_for_slots_ready: false,
-        ..ClusterParams::default()
+        ..ClusterParams::without_request_expiry()
     })
     .await?;
 
@@ -47,21 +41,19 @@ async fn half_closed_http_client_releases_the_buffered_request() -> Result<()> {
     .await?;
 
     cluster
-        .wait_for_buffered_request_count(1)
+        .wait_for_buffered_request_count(1, ObservationWindow::model_load())
         .await
         .context("the request must be buffered while no agent is available")?;
 
     client.half_close().await?;
 
-    timeout(
-        RELEASE_OBSERVATION_WINDOW,
-        cluster.wait_for_buffered_request_count(0),
-    )
-    .await
-    .context(
-        "the balancer must notice the half-closed client and release the buffered request \
+    cluster
+        .wait_for_buffered_request_count(0, ObservationWindow::release())
+        .await
+        .context(
+            "the balancer must notice the half-closed client and release the buffered request \
          instead of holding it until buffered_request_timeout",
-    )??;
+        )?;
 
     drop(client);
 

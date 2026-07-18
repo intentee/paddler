@@ -61,6 +61,7 @@ impl Connection {
         })
     }
 
+    #[must_use]
     pub fn is_disconnected(&self) -> bool {
         self.write_tx.is_closed() || self.read_task.is_finished()
     }
@@ -110,6 +111,7 @@ impl Connection {
     }
 
     #[cfg(test)]
+    #[must_use]
     pub fn from_write_sender(write_tx: UnboundedSender<String>) -> Self {
         Self {
             write_tx,

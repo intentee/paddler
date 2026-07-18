@@ -17,6 +17,7 @@ use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
+use log::debug;
 use log::error;
 use log::info;
 use log::warn;
@@ -46,10 +47,6 @@ use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
-
-async fn abandon_loading_thread(scheduler_thread_handle: thread::JoinHandle<Result<()>>) {
-    let _reaped = tokio::task::spawn_blocking(move || scheduler_thread_handle.join()).await;
-}
 
 pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
@@ -385,7 +382,18 @@ impl ContinuousBatchArbiter {
             ))
             .await
         else {
-            abandon_loading_thread(scheduler_thread_handle).await;
+            if let Err(err) = tokio::task::spawn_blocking(move || {
+                ContinuousBatchArbiterHandle {
+                    command_tx,
+                    scheduler_thread_handle,
+                }
+                .shutdown()
+            })
+            .await
+            .context("Failed to join the scheduler shutdown task")?
+            {
+                debug!("Scheduler thread ended while its spawn was being cancelled: {err}");
+            }
 
             return Ok(ContinuousBatchArbiterSpawnOutcome::Cancelled);
         };

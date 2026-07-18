@@ -8,6 +8,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_cluster::start_cluster;
@@ -39,15 +40,19 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() -> 
     let predicate_agent_id = agent_id.clone();
     cluster
         .agents_watcher
-        .until_agent(&agent_id, move |snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.id == predicate_agent_id
-                    && agent
-                        .issues
-                        .iter()
-                        .any(|issue| matches!(issue, AgentIssue::UnableToFindChatTemplate(_)))
-            })
-        })
+        .until_agent(
+            &agent_id,
+            ObservationWindow::model_load(),
+            move |snapshot| {
+                snapshot.agents.iter().any(|agent| {
+                    agent.id == predicate_agent_id
+                        && agent
+                            .issues
+                            .iter()
+                            .any(|issue| matches!(issue, AgentIssue::UnableToFindChatTemplate(_)))
+                })
+            },
+        )
         .await
         .context("balancer should report UnableToFindChatTemplate for embedding-only model")?;
 

@@ -7,6 +7,7 @@ use tokio::sync::mpsc::error::TryRecvError;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_terminal_delivery::ContinuousBatchTerminalDelivery;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+use crate::sequence_id_guard::SequenceIdGuard;
 use crate::slot_guard::SlotGuard;
 use crate::tool_call_pipeline::ToolCallPipeline;
 
@@ -17,6 +18,7 @@ pub struct ContinuousBatchActiveRequest {
     pub grammar_sampler: Option<LlamaSampler>,
     pub generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
     pub generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
+    pub sequence_id_guard: SequenceIdGuard,
     pub slot_guard: SlotGuard,
     pub tool_call_pipeline: Option<ToolCallPipeline>,
 }
@@ -31,6 +33,7 @@ impl ContinuousBatchActiveRequest {
     pub fn into_terminal_delivery(self) -> ContinuousBatchTerminalDelivery {
         ContinuousBatchTerminalDelivery::new(
             self.generated_tokens_tx,
+            self.sequence_id_guard,
             self.state.into_terminal_outcome(),
         )
     }

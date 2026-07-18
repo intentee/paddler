@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::time::Duration;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
@@ -13,14 +11,13 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
-const INFERENCE_ITEM_TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);
-const SLOT_RELEASE_OBSERVATION_WINDOW: Duration = Duration::from_secs(5);
 const MAX_TOKENS_TOO_MANY_TO_FINISH_INSIDE_THE_OBSERVATION_WINDOW: i32 = 4096;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -33,7 +30,6 @@ async fn half_closed_client_stops_conversation_history_generation_before_max_tok
 
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(1)],
-        inference_item_timeout: INFERENCE_ITEM_TIMEOUT_LONGER_THAN_ANY_TEST_RUN,
         wait_for_slots_ready: true,
         desired_state: Some(BalancerDesiredState {
             chat_template_override: None,
@@ -45,7 +41,7 @@ async fn half_closed_client_stops_conversation_history_generation_before_max_tok
             multimodal_projection: AgentDesiredModel::None,
             use_chat_template_override: false,
         }),
-        ..ClusterParams::default()
+        ..ClusterParams::without_request_expiry()
     })
     .await?;
 
@@ -79,14 +75,14 @@ async fn half_closed_client_stops_conversation_history_generation_before_max_tok
     .await?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1)
+        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
         .await
         .context("the agent must start generating before the client goes away")?;
 
     client.half_close().await?;
 
     cluster
-        .wait_for_slots_processing_within(&agent_id, 0, SLOT_RELEASE_OBSERVATION_WINDOW)
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::release())
         .await
         .context(
             "a half-closed client must stop generation; with inference_item_timeout set to an \

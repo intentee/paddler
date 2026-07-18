@@ -7,6 +7,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
@@ -62,7 +63,7 @@ async fn inference_socket_burst_cancellation_serves_every_buffered_request() -> 
     }
 
     cluster
-        .wait_for_slots_processing(&agent_id, SLOT_COUNT)
+        .wait_for_slots_processing(&agent_id, SLOT_COUNT, ObservationWindow::model_load())
         .await?;
 
     let mut waiting_streams = Vec::new();
@@ -78,7 +79,7 @@ async fn inference_socket_burst_cancellation_serves_every_buffered_request() -> 
     }
 
     cluster
-        .wait_for_buffered_request_count(WAITING_REQUEST_COUNT)
+        .wait_for_buffered_request_count(WAITING_REQUEST_COUNT, ObservationWindow::model_load())
         .await?;
 
     for slot_filling_token in &slot_filling_tokens {
@@ -117,7 +118,9 @@ async fn inference_socket_burst_cancellation_serves_every_buffered_request() -> 
         );
     }
 
-    cluster.wait_for_slots_processing(&agent_id, 0).await?;
+    cluster
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
+        .await?;
     cluster.shutdown().await?;
 
     Ok(())

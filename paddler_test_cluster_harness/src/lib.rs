@@ -13,6 +13,7 @@ pub mod embedding_with_producer;
 pub mod half_closed_client;
 pub mod load_test_image_data_uri;
 pub mod managed_process;
+pub mod observation_window;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot;
 #[cfg(any(target_os = "macos", target_os = "linux"))]

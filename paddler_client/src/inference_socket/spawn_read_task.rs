@@ -70,6 +70,7 @@ struct RequestScopedMessage {
     request_id: String,
 }
 
+#[must_use]
 pub fn spawn_read_task(
     ws_read: WebSocketReadStream,
     pending: PendingRequests,
