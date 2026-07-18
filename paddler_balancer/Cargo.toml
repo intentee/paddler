@@ -11,6 +11,7 @@ version.workspace = true
 [dependencies]
 actix-cors = { workspace = true }
 actix-http = { workspace = true }
+actix-server = { workspace = true }
 actix-service = { workspace = true }
 actix-web = { workspace = true }
 actix-web-lab = { workspace = true }

@@ -52,6 +52,10 @@ impl ContinuousBatchRequestState {
     }
 
     pub fn mark_completed(&mut self, terminal_outcome: ContinuousBatchTerminalOutcome) {
+        if matches!(self.phase, ContinuousBatchRequestPhase::Completed(_)) {
+            return;
+        }
+
         self.i_batch = None;
         self.phase = ContinuousBatchRequestPhase::Completed(terminal_outcome);
     }
@@ -89,6 +93,30 @@ mod tests {
             prompt_tokens_ingested: 0,
             sequence_id: 0,
         }
+    }
+
+    #[test]
+    fn the_first_terminal_outcome_wins() {
+        let mut state = ingesting_state(0);
+
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
+            GeneratedTokenResult::SamplerError("sampler failed".to_owned()),
+        ));
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
+            GeneratedTokenResult::Done(GenerationSummary::default()),
+        ));
+
+        assert!(
+            matches!(
+                state.phase,
+                ContinuousBatchRequestPhase::Completed(
+                    ContinuousBatchTerminalOutcome::EmitToClient(
+                        GeneratedTokenResult::SamplerError(ref message)
+                    )
+                ) if message == "sampler failed"
+            ),
+            "a later stop must not overwrite the real failure that ended the request"
+        );
     }
 
     #[test]

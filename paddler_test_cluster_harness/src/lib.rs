@@ -10,6 +10,7 @@ pub mod collect_generated_tokens;
 pub mod collected_embedding_results;
 pub mod collected_generated_tokens;
 pub mod embedding_with_producer;
+pub mod half_closed_client;
 pub mod load_test_image_data_uri;
 pub mod managed_process;
 #[cfg(any(target_os = "macos", target_os = "linux"))]

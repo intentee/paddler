@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::num::NonZeroUsize;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -17,6 +18,7 @@ use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use serde_json::Value;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_config::AgentConfig;
@@ -262,6 +264,26 @@ impl Cluster {
         self.agents_watcher
             .until(assert_slots_processing(agent_id, expected_slots_processing))
             .await
+    }
+
+    pub async fn wait_for_slots_processing_within(
+        &mut self,
+        agent_id: &str,
+        expected_slots_processing: i32,
+        within: Duration,
+    ) -> Result<AgentControllerPoolSnapshot> {
+        timeout(
+            within,
+            self.agents_watcher
+                .until(assert_slots_processing(agent_id, expected_slots_processing)),
+        )
+        .await
+        .with_context(|| {
+            format!(
+                "agent {agent_id} still had slots processing other than \
+                 {expected_slots_processing} after {within:?}"
+            )
+        })?
     }
 
     pub async fn wait_for_slots_total_at_least(

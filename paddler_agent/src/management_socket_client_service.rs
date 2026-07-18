@@ -848,29 +848,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stop_responding_to_unknown_request_returns_error() {
+    async fn stop_responding_to_a_request_that_has_not_registered_yet_is_applied_on_registration() {
         let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let (agent_desired_state_tx, _agent_desired_state_rx) =
             mpsc::unbounded_channel::<AgentDesiredState>();
+        let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
         let context = build_incoming_message_context(
             Arc::new(AgentApplicableStateHolder::default()),
             agent_desired_state_tx,
             CancellationToken::new(),
             Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
+            receive_stream_stopper_collection.clone(),
             message_tx,
             Arc::new(SlotAggregatedStatus::new(2)),
         );
 
-        let result = ManagementSocketClientService::handle_deserialized_message(
+        ManagementSocketClientService::handle_deserialized_message(
             context,
             JsonRpcMessage::Notification(JsonRpcNotification::StopRespondingTo(
-                "missing_request".to_owned(),
+                "not_registered_yet".to_owned(),
             )),
         )
-        .await;
+        .await
+        .expect("a stop that races ahead of its request must be retained, not rejected");
 
-        assert!(result.is_err());
+        let (stopper_tx, mut stopper_rx) = mpsc::unbounded_channel();
+
+        receive_stream_stopper_collection
+            .register_stopper("not_registered_yet".to_owned(), stopper_tx)
+            .expect("the request must still be able to register");
+
+        assert!(
+            stopper_rx.try_recv().is_ok(),
+            "the retained stop must fire as soon as the request registers"
+        );
     }
 
     #[tokio::test]

@@ -17,6 +17,7 @@ base64 = { workspace = true }
 futures-util = { workspace = true }
 paddler_client = { workspace = true }
 paddler_messaging = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }

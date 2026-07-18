@@ -1,13 +1,15 @@
 use std::fmt::Debug;
 
+use actix_http::HttpService;
 use actix_http::Request;
 use actix_http::Response;
+use actix_http::body::BoxBody;
 use actix_http::body::MessageBody;
+use actix_server::Server;
 use actix_service::IntoServiceFactory;
 use actix_service::Service;
 use actix_service::ServiceFactory;
-use actix_web::Error;
-use actix_web::HttpServer;
+use actix_service::map_config;
 use actix_web::dev::AppConfig;
 use actix_web::http::KeepAlive;
 use anyhow::Context as _;
@@ -16,6 +18,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::serve_http_until_shutdown::serve_http_until_shutdown;
+
+const TREAT_HALF_CLOSED_CLIENT_AS_DISCONNECTED: bool = true;
 
 pub async fn run_http_service<TAppFactory, TServiceFactoryInput, TServiceFactory, TResponseBody>(
     cancellation_token: CancellationToken,
@@ -30,18 +34,25 @@ where
     TAppFactory: Fn() -> TServiceFactoryInput + Send + Clone + 'static,
     TServiceFactoryInput: IntoServiceFactory<TServiceFactory, Request>,
     TServiceFactory: ServiceFactory<Request, Config = AppConfig> + 'static,
-    TServiceFactory::Error: Into<Error> + 'static,
+    TServiceFactory::Error: Into<Response<BoxBody>> + 'static,
     TServiceFactory::InitError: Debug,
     TServiceFactory::Response: Into<Response<TResponseBody>> + 'static,
     TServiceFactory::Service: 'static,
     <TServiceFactory::Service as Service<Request>>::Future: 'static,
     TResponseBody: MessageBody + 'static,
 {
-    let server = HttpServer::new(app_factory)
+    let server = Server::build()
         .workers(worker_count)
-        .keep_alive(KeepAlive::Disabled)
         .disable_signals()
-        .bind(bind_addr)
+        .bind(service_name, bind_addr, move || {
+            HttpService::build()
+                .keep_alive(KeepAlive::Disabled)
+                .h1_allow_half_closed(!TREAT_HALF_CLOSED_CLIENT_AS_DISCONNECTED)
+                .finish(map_config(app_factory().into_factory(), |()| {
+                    AppConfig::default()
+                }))
+                .tcp()
+        })
         .with_context(|| format!("Unable to bind {service_name} to {bind_addr}"))?
         .run();
 

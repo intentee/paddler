@@ -3,12 +3,14 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use dashmap::DashMap;
+use dashmap::DashSet;
 use dashmap::mapref::entry::Entry;
 use tokio::sync::mpsc;
 
 use crate::receive_stream_stopper_drop_guard::ReceiveStreamStopperDropGuard;
 
 pub struct ReceiveStreamStopperCollection {
+    pending_stops: DashSet<String>,
     receive_stoppers: DashMap<String, mpsc::UnboundedSender<()>>,
 }
 
@@ -35,6 +37,10 @@ impl ReceiveStreamStopperCollection {
                 occupied_stopper.key()
             )),
             Entry::Vacant(vacant_stopper) => {
+                if self.pending_stops.remove(vacant_stopper.key()).is_some() {
+                    stopper.send(())?;
+                }
+
                 vacant_stopper.insert(stopper);
 
                 Ok(())
@@ -58,17 +64,18 @@ impl ReceiveStreamStopperCollection {
     pub fn stop(&self, request_id: &str) -> Result<()> {
         if let Some(stopper) = self.receive_stoppers.get(request_id) {
             stopper.send(())?;
-
-            Ok(())
         } else {
-            Err(anyhow!("No stopper found for request_id {request_id}"))
+            self.pending_stops.insert(request_id.to_owned());
         }
+
+        Ok(())
     }
 }
 
 impl Default for ReceiveStreamStopperCollection {
     fn default() -> Self {
         Self {
+            pending_stops: DashSet::new(),
             receive_stoppers: DashMap::new(),
         }
     }
@@ -140,10 +147,21 @@ mod tests {
     }
 
     #[test]
-    fn stop_missing_stopper_fails() {
+    fn stop_arriving_before_registration_is_applied_when_the_request_registers() {
         let collection = ReceiveStreamStopperCollection::default();
 
-        assert!(collection.stop("nonexistent").is_err());
+        collection.stop("req_1").unwrap();
+
+        let (sender, mut receiver) = mpsc::unbounded_channel();
+
+        collection
+            .register_stopper("req_1".to_owned(), sender)
+            .unwrap();
+
+        assert!(
+            receiver.try_recv().is_ok(),
+            "a stop that races ahead of the request must not be lost"
+        );
     }
 
     #[test]
