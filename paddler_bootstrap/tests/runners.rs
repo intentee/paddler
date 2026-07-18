@@ -20,6 +20,7 @@ use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use tempfile::NamedTempFile;
+use tokio::net::TcpListener as TokioTcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -332,6 +333,31 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() ->
     let start_result = BalancerRunner::start(params).await;
 
     assert!(start_result.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_runner_completes_after_cancel_when_management_server_is_unresponsive() -> Result<()> {
+    let unresponsive_management_server = TokioTcpListener::bind("127.0.0.1:0")
+        .await
+        .context("failed to bind the fixture management server")?;
+    let management_addr = unresponsive_management_server
+        .local_addr()
+        .context("failed to read the fixture management server address")?;
+
+    let mut runner = AgentRunner::start(make_agent_runner_params(
+        management_addr,
+        CancellationToken::new(),
+    ));
+
+    let (_held_connection, _peer) = unresponsive_management_server
+        .accept()
+        .await
+        .context("the agent should connect to the fixture management server")?;
+
+    runner.cancel();
+    runner.wait_for_completion().await?;
 
     Ok(())
 }
