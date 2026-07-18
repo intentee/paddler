@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 use tokio::sync::mpsc;
 
 use crate::receive_stream_stopper_drop_guard::ReceiveStreamStopperDropGuard;
@@ -28,15 +29,17 @@ impl ReceiveStreamStopperCollection {
         request_id: String,
         stopper: mpsc::UnboundedSender<()>,
     ) -> Result<()> {
-        if self.receive_stoppers.contains_key(&request_id) {
-            return Err(anyhow!(
-                "Stopper for request_id {request_id} already exists"
-            ));
+        match self.receive_stoppers.entry(request_id) {
+            Entry::Occupied(occupied_stopper) => Err(anyhow!(
+                "Stopper for request_id {} already exists",
+                occupied_stopper.key()
+            )),
+            Entry::Vacant(vacant_stopper) => {
+                vacant_stopper.insert(stopper);
+
+                Ok(())
+            }
         }
-
-        self.receive_stoppers.insert(request_id, stopper);
-
-        Ok(())
     }
 
     pub fn register_stopper_with_guard(

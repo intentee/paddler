@@ -1,6 +1,7 @@
 use anyhow::Result;
 use anyhow::anyhow;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 use log::debug;
 use tokio_util::sync::CancellationToken;
 
@@ -15,18 +16,19 @@ impl RequestCancellationTokens {
         request_id: String,
         connection_close: &CancellationToken,
     ) -> Result<CancellationToken> {
-        if self.cancellation_tokens.contains_key(&request_id) {
-            return Err(anyhow!(
-                "Cancellation token for request_id {request_id} already exists"
-            ));
+        match self.cancellation_tokens.entry(request_id) {
+            Entry::Occupied(occupied_request) => Err(anyhow!(
+                "Cancellation token for request_id {} already exists",
+                occupied_request.key()
+            )),
+            Entry::Vacant(vacant_request) => {
+                let request_close = connection_close.child_token();
+
+                vacant_request.insert(request_close.clone());
+
+                Ok(request_close)
+            }
         }
-
-        let request_close = connection_close.child_token();
-
-        self.cancellation_tokens
-            .insert(request_id, request_close.clone());
-
-        Ok(request_close)
     }
 
     pub fn cancel(&self, request_id: &str) {
