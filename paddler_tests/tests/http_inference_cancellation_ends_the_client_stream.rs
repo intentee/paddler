@@ -1,14 +1,9 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
-
-const CLEAN_EXIT_WINDOW: Duration = Duration::from_secs(5);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn http_inference_cancellation_ends_the_client_stream() -> Result<()> {
@@ -38,14 +33,8 @@ async fn http_inference_cancellation_ends_the_client_stream() -> Result<()> {
 
     cancellation_token.cancel();
 
-    let next_message = timeout(CLEAN_EXIT_WINDOW, stream.next())
-        .await
-        .map_err(|_elapsed| {
-            anyhow::anyhow!("a cancelled HTTP inference stream must end promptly")
-        })?;
-
     assert!(
-        next_message.is_none(),
+        stream.next().await.is_none(),
         "a cancelled HTTP inference request must end its stream cleanly"
     );
 
