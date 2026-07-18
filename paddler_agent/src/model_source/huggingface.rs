@@ -10,7 +10,6 @@ use hf_hub::api::tokio::ApiBuilder;
 use hf_hub::api::tokio::ApiError;
 use log::warn;
 use tokio::time::Duration;
-use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_issue::AgentIssue;
@@ -20,6 +19,7 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
+use crate::model_source::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::slot_aggregated_status_download_progress::SlotAggregatedStatusDownloadProgress;
@@ -88,27 +88,30 @@ impl ResolvesModelSource for HuggingFaceModelSource {
                 Ok(DesiredModelResolution::Resolved(resolved_filename))
             }
             Err(ApiError::LockAcquisition(lock_path)) => {
+                let lock_path = lock_path.display().to_string();
+
                 slot_aggregated_status.register_issue(AgentIssue::HuggingFaceCannotAcquireLock(
                     HuggingFaceDownloadLock {
-                        lock_path: lock_path.display().to_string(),
-                        model_path: ModelPath { model_path },
+                        lock_path: lock_path.clone(),
+                        model_path: ModelPath {
+                            model_path: model_path.clone(),
+                        },
                     },
                 ));
 
                 warn!(
-                    "Waiting to acquire download lock for '{}'. Sleeping for {} secs",
-                    lock_path.display(),
+                    "Waiting to acquire download lock for '{lock_path}'. Sleeping for {} secs",
                     LOCK_RETRY_TIMEOUT.as_secs()
                 );
 
-                cancellation_token
-                    .run_until_cancelled(sleep(LOCK_RETRY_TIMEOUT))
-                    .await;
-
-                Err(anyhow!(
-                    "Failed to acquire download lock '{}'. Is more than one agent running on this machine?",
-                    lock_path.display()
-                ))
+                Err(wait_for_download_lock_retry(
+                    cancellation_token,
+                    LOCK_RETRY_TIMEOUT,
+                    lock_path,
+                    model_path,
+                )
+                .await
+                .into())
             }
             Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {
                 Some(reqwest::StatusCode::NOT_FOUND) => {
