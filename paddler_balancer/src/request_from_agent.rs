@@ -115,6 +115,24 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
         );
 
         tokio::select! {
+            biased;
+
+            () = shutdown.cancelled() => {
+                if is_forwarding_to_client {
+                    respond_with_error(
+                        JsonRpcError {
+                            code: 503,
+                            description: "balancer is shutting down".to_owned(),
+                        },
+                        request_id.clone(),
+                        &mut session_controller,
+                    ).await;
+
+                    stop_responding_to(&agent_controller, request_id).await;
+                }
+
+                break;
+            }
             () = agent_connection_close.cancelled() => {
                 if is_forwarding_to_client {
                     error!("Agent controller connection closed");
@@ -138,22 +156,6 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
                         forwarding_mode = AgentResponseForwardingMode::DrainingUntilAgentConfirms;
                     }
                 }
-            }
-            () = shutdown.cancelled() => {
-                if is_forwarding_to_client {
-                    respond_with_error(
-                        JsonRpcError {
-                            code: 503,
-                            description: "balancer is shutting down".to_owned(),
-                        },
-                        request_id.clone(),
-                        &mut session_controller,
-                    ).await;
-
-                    stop_responding_to(&agent_controller, request_id).await;
-                }
-
-                break;
             }
             () = sleep(inference_item_timeout) => {
                 let timeout_ms = inference_item_timeout.as_millis();
@@ -321,11 +323,8 @@ where
     let buffered_request_manager = buffered_request_manager.clone();
 
     tokio::select! {
-        () = connection_close.cancelled() => {
-            debug!("Connection close signal received, stopping GenerateTokens loop.");
+        biased;
 
-            None
-        },
         () = shutdown.cancelled() => {
             respond_with_error(
                 JsonRpcError {
@@ -335,6 +334,11 @@ where
                 request_id.clone(),
                 session_controller,
             ).await;
+
+            None
+        },
+        () = connection_close.cancelled() => {
+            debug!("Connection close signal received, stopping GenerateTokens loop.");
 
             None
         },
@@ -988,6 +992,46 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_from_agent_reports_shutdown_when_the_client_disconnects_simultaneously() {
+        const SIMULTANEOUS_CANCELLATION_ATTEMPTS: usize = 32;
+
+        for _attempt in 0..SIMULTANEOUS_CANCELLATION_ATTEMPTS {
+            let pool = Arc::new(AgentControllerPool::default());
+            let buffered_request_manager = Arc::new(BufferedRequestManager::new(
+                pool,
+                Duration::from_secs(1),
+                10,
+            ));
+
+            let (chunk_tx, mut chunk_rx) = mpsc::unbounded_channel();
+            let session_controller =
+                ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+
+            let connection_close = CancellationToken::new();
+            let shutdown = CancellationToken::new();
+
+            connection_close.cancel();
+            shutdown.cancel();
+
+            request_from_agent(
+                buffered_request_manager,
+                connection_close,
+                inference_service_configuration_with_long_timeout(),
+                raw_prompt_params(),
+                "request-simultaneous-shutdown".to_owned(),
+                session_controller,
+                shutdown,
+            )
+            .await;
+
+            assert!(
+                chunk_rx.recv().await.is_some(),
+                "a shutdown racing the client disconnect must still report the shutdown error"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn request_from_agent_responds_with_error_on_buffer_overflow() {
         let pool = Arc::new(AgentControllerPool::default());
         let AgentControllerWithIncomingChannel {
@@ -1093,6 +1137,54 @@ mod tests {
         .await;
 
         assert!(chunk_rx.recv().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn forward_responses_stream_reports_shutdown_when_the_client_disconnects_simultaneously()
+    {
+        const SIMULTANEOUS_CANCELLATION_ATTEMPTS: usize = 32;
+
+        for attempt in 0..SIMULTANEOUS_CANCELLATION_ATTEMPTS {
+            let AgentControllerWithIncomingChannel {
+                agent_controller,
+                agent_message_rx,
+            } = agent_controller_with_one_free_slot("agent-simultaneous-stream-shutdown");
+
+            drop(agent_message_rx);
+
+            let request_id = format!("request-stream-simultaneous-{attempt}");
+            let receive_response_controller = ManagesSendersController::from_request_id(
+                request_id.clone(),
+                agent_controller.generate_tokens_sender_collection.clone(),
+            )
+            .unwrap();
+
+            let (chunk_tx, mut chunk_rx) = mpsc::unbounded_channel();
+            let session_controller =
+                ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+
+            let connection_close = CancellationToken::new();
+            let shutdown = CancellationToken::new();
+
+            connection_close.cancel();
+            shutdown.cancel();
+
+            forward_responses_stream(
+                connection_close,
+                claim_slot(agent_controller),
+                inference_service_configuration_with_long_timeout(),
+                receive_response_controller,
+                request_id,
+                session_controller,
+                shutdown,
+            )
+            .await;
+
+            assert!(
+                chunk_rx.recv().await.is_some(),
+                "a shutdown racing the client disconnect must still report the shutdown error"
+            );
+        }
     }
 
     #[tokio::test]
