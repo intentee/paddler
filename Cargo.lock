@@ -7206,14 +7206,15 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "trzcina"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c58d685f2fd0c04ea9c0dcff193161de5aebf1eba5e1267807e5ae2a8562cd93"
+checksum = "0105cd7bb068e2c2befb3910c55ccf33b07b7ce0592161be5044cc6233366d4f"
 dependencies = [
  "anyhow",
  "async-trait",
  "futures-util",
  "log",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
 ]

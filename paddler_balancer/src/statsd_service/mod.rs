@@ -2,6 +2,7 @@ pub mod configuration;
 
 use std::net::UdpSocket;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -11,10 +12,9 @@ use cadence::MetricError;
 use cadence::StatsdClient;
 use cadence::UdpMetricSink;
 use log::error;
-use tokio::time::MissedTickBehavior;
-use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
-use trzcina::Service;
+use trzcina::TickContext;
+use trzcina::Ticker;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
@@ -55,33 +55,27 @@ impl StatsdService {
 }
 
 #[async_trait]
-impl Service for StatsdService {
-    fn name(&self) -> &'static str {
-        "balancer::statsd_service"
+impl Ticker for StatsdService {
+    fn tick_interval(&self) -> Duration {
+        self.configuration.statsd_reporting_interval
     }
 
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+    async fn handle_tick(
+        &mut self,
+        _cancellation_token: CancellationToken,
+        _tick_context: TickContext,
+    ) -> Result<()> {
         let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
         let statsd_sink = UdpMetricSink::from(self.configuration.statsd_addr, statsd_sink_socket)?;
-
-        let client = StatsdClient::builder(&self.configuration.statsd_prefix.clone(), statsd_sink)
+        let client = StatsdClient::builder(&self.configuration.statsd_prefix, statsd_sink)
             .with_error_handler(log_statsd_error)
             .build();
 
-        let mut ticker = interval(self.configuration.statsd_reporting_interval);
-
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
-
-        loop {
-            tokio::select! {
-                () = shutdown.cancelled() => break Ok(()),
-                _ = ticker.tick() => {
-                    if let Err(err) = self.report_metrics(&client) {
-                        error!("Failed to report metrics: {err}");
-                    }
-                }
-            }
+        if let Err(err) = self.report_metrics(&client) {
+            error!("Failed to report metrics: {err}");
         }
+
+        Ok(())
     }
 }
 
@@ -101,6 +95,7 @@ mod tests {
     use parking_lot::RwLock;
     use tokio::net::UdpSocket as TokioUdpSocket;
     use tokio::sync::mpsc;
+    use trzcina::Service as _;
 
     use super::*;
     use crate::agent_controller::AgentController;
@@ -175,13 +170,6 @@ mod tests {
                 statsd_reporting_interval: REPORTING_INTERVAL,
             },
         }
-    }
-
-    #[test]
-    fn name_identifies_the_statsd_service() {
-        let service = build_service(SocketAddr::from(([127, 0, 0, 1], 0)));
-
-        assert_eq!(service.name(), "balancer::statsd_service");
     }
 
     #[tokio::test]

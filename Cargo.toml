@@ -89,7 +89,7 @@ tokio-test = "0.4.4"
 tokio-tungstenite = "0.28"
 tokio-util = "0.7"
 thiserror = "2"
-trzcina = "=0.3.0"
+trzcina = "=0.4.0"
 url = { version = "2.5", features = ["serde"] }
 yaml-rust2 = "0.11"
 paddler_agent = { version = "4.1.0", path = "paddler_agent" }
