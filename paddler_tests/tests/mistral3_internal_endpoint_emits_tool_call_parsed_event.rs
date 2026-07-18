@@ -21,11 +21,7 @@ use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn mistral3_internal_endpoint_emits_tool_call_parsed_event() -> Result<()> {
-    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams {
-        deterministic_sampling: true,
-        ..Ministral3ClusterParams::default()
-    })
-    .await?;
+    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default()).await?;
 
     let mut location_properties = Map::new();
     location_properties.insert(
