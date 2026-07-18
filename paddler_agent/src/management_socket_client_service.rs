@@ -314,7 +314,13 @@ impl ManagementSocketClientService {
     async fn keep_connection_alive(&self, shutdown: CancellationToken) -> Result<()> {
         info!("Connecting to management server at {}", self.socket_url);
 
-        let (ws_stream, _response) = connect_async(self.socket_url.clone()).await?;
+        let (ws_stream, _response) = match shutdown
+            .run_until_cancelled(connect_async(self.socket_url.clone()))
+            .await
+        {
+            Some(connect_outcome) => connect_outcome?,
+            None => return Ok(()),
+        };
 
         info!("Connected to management server");
 
@@ -324,31 +330,11 @@ impl ManagementSocketClientService {
         let (mut write, mut read) = ws_stream.split();
 
         let forward_connection_close = connection_close.clone();
-        let forward_shutdown = shutdown.clone();
 
         let message_forward_handle = tokio::spawn(async move {
             loop {
                 tokio::select! {
                     () = forward_connection_close.cancelled() => {
-                        break;
-                    }
-                    () = forward_shutdown.cancelled() => {
-                        info!("Shutdown signal received, deregistering agent");
-
-                        write.send(Message::Text(match serde_json::to_string(
-                            &ManagementJsonRpcMessage::Notification(
-                                ManagementJsonRpcNotification::DeregisterAgent,
-                            )
-                        ) {
-                            Ok(serialized_message) => serialized_message.into(),
-                            Err(err) => {
-                                error!("Failed to serialize deregister agent notification: {err}");
-                                return;
-                            }
-                        })).await.unwrap_or_else(|err| {
-                            error!("Failed to send deregister agent notification: {err}");
-                        });
-
                         break;
                     }
                     message = message_rx.recv() => {
@@ -483,6 +469,8 @@ impl ManagementSocketClientService {
             }
         }
 
+        connection_close.cancel();
+
         message_forward_handle
             .await
             .context("Failed to join message forwarding task")?;
@@ -511,7 +499,7 @@ impl Service for ManagementSocketClientService {
                             error!("Failed to keep the connection alive: {err:?}");
                         }
                         Ok(()) => {
-                            info!("Gracefully closed connection to management server");
+                            info!("Management server connection closed");
                         }
                     }
                 }
@@ -524,6 +512,9 @@ impl Service for ManagementSocketClientService {
 mod tests {
     use std::collections::BTreeMap;
 
+    use tokio::net::TcpListener;
+    use tokio::sync::oneshot;
+    use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::protocol::frame::Frame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::Data;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
@@ -533,6 +524,207 @@ mod tests {
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     use super::*;
+
+    const SHUTDOWN_BUDGET: Duration = Duration::from_secs(5);
+
+    fn service_with_socket_url(socket_url: String) -> ManagementSocketClientService {
+        let (agent_desired_state_tx, _agent_desired_state_rx) = mpsc::unbounded_channel();
+        let (continue_from_conversation_history_request_tx, _continue_history_rx) =
+            mpsc::unbounded_channel();
+        let (continue_from_raw_prompt_request_tx, _continue_raw_rx) = mpsc::unbounded_channel();
+        let (generate_embedding_batch_request_tx, _embedding_rx) = mpsc::unbounded_channel();
+
+        ManagementSocketClientService {
+            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
+            agent_desired_state_tx,
+            continue_from_conversation_history_request_tx,
+            continue_from_raw_prompt_request_tx,
+            generate_embedding_batch_request_tx,
+            model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
+            name: None,
+            receive_stream_stopper_collection: Arc::new(ReceiveStreamStopperCollection::default()),
+            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(2)),
+            socket_url,
+        }
+    }
+
+    struct StalledHandshakeFixture {
+        accepted_rx: oneshot::Receiver<()>,
+        server: tokio::task::JoinHandle<()>,
+        shutdown: CancellationToken,
+    }
+
+    fn spawn_stalled_handshake_fixture(listener: TcpListener) -> StalledHandshakeFixture {
+        let (accepted_tx, accepted_rx) = oneshot::channel::<()>();
+        let shutdown = CancellationToken::new();
+        let server_shutdown = shutdown.clone();
+
+        let server = tokio::spawn(async move {
+            let (_stream, _peer_addr) = listener
+                .accept()
+                .await
+                .expect("the fixture balancer must accept the agent connection");
+
+            accepted_tx
+                .send(())
+                .expect("the test must still be waiting for the accept signal");
+
+            server_shutdown.cancelled().await;
+        });
+
+        StalledHandshakeFixture {
+            accepted_rx,
+            server,
+            shutdown,
+        }
+    }
+
+    #[tokio::test]
+    async fn keep_connection_alive_returns_when_shutdown_arrives_during_a_stalled_handshake() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let StalledHandshakeFixture {
+            accepted_rx,
+            server,
+            shutdown: fixture_shutdown,
+        } = spawn_stalled_handshake_fixture(listener);
+
+        let service =
+            service_with_socket_url(format!("ws://{addr}/api/v1/agent_socket/test-agent"));
+        let shutdown = CancellationToken::new();
+        let keep_alive_shutdown = shutdown.clone();
+        let keep_alive_handle =
+            tokio::spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
+
+        accepted_rx
+            .await
+            .expect("the agent's connect must reach the fixture balancer before shutdown");
+
+        shutdown.cancel();
+
+        let keep_alive_result = tokio::time::timeout(SHUTDOWN_BUDGET, keep_alive_handle)
+            .await
+            .expect(
+                "keep_connection_alive must abandon a stalled connect handshake when shutdown \
+                 arrives instead of blocking until trzcina force-aborts it",
+            )
+            .expect("the keep_connection_alive task must not panic");
+
+        assert!(keep_alive_result.is_ok());
+
+        fixture_shutdown.cancel();
+        server
+            .await
+            .expect("the fixture balancer task must not panic");
+    }
+
+    #[tokio::test]
+    async fn keep_connection_alive_errors_when_the_balancer_refuses_the_connection() {
+        let probe = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let refused_addr = probe.local_addr().unwrap();
+
+        drop(probe);
+
+        let service = service_with_socket_url(format!(
+            "ws://{refused_addr}/api/v1/agent_socket/test-agent"
+        ));
+        let shutdown = CancellationToken::new();
+
+        let keep_alive_result =
+            tokio::time::timeout(SHUTDOWN_BUDGET, service.keep_connection_alive(shutdown))
+                .await
+                .expect("connecting to a refused port must fail fast instead of blocking");
+
+        assert!(keep_alive_result.is_err());
+    }
+
+    #[tokio::test]
+    async fn keep_connection_alive_returns_when_shutdown_arrives_while_connected() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (registered_tx, registered_rx) = oneshot::channel::<()>();
+
+        let server = tokio::spawn(async move {
+            let (stream, _peer_addr) = listener
+                .accept()
+                .await
+                .expect("the fixture balancer must accept the agent connection");
+            let mut server_socket = accept_async(stream)
+                .await
+                .expect("the fixture balancer must complete the websocket handshake");
+
+            let _register_message = server_socket.next().await;
+
+            registered_tx
+                .send(())
+                .expect("the test must still be waiting for the registration signal");
+
+            while let Some(Ok(_incoming)) = server_socket.next().await {}
+        });
+
+        let service =
+            service_with_socket_url(format!("ws://{addr}/api/v1/agent_socket/test-agent"));
+        let shutdown = CancellationToken::new();
+        let keep_alive_shutdown = shutdown.clone();
+        let keep_alive_handle =
+            tokio::spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
+
+        registered_rx
+            .await
+            .expect("the agent must connect and register before shutdown is requested");
+
+        shutdown.cancel();
+
+        let keep_alive_result = tokio::time::timeout(SHUTDOWN_BUDGET, keep_alive_handle)
+            .await
+            .expect("keep_connection_alive must return promptly after shutdown while connected")
+            .expect("the keep_connection_alive task must not panic");
+
+        assert!(keep_alive_result.is_ok());
+
+        tokio::time::timeout(SHUTDOWN_BUDGET, server)
+            .await
+            .expect("the fixture balancer must observe the closed connection promptly")
+            .expect("the fixture balancer task must not panic");
+    }
+
+    #[tokio::test]
+    async fn run_returns_when_shutdown_arrives_during_a_stalled_handshake() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let StalledHandshakeFixture {
+            accepted_rx,
+            server,
+            shutdown: fixture_shutdown,
+        } = spawn_stalled_handshake_fixture(listener);
+
+        let service =
+            service_with_socket_url(format!("ws://{addr}/api/v1/agent_socket/test-agent"));
+        let shutdown = CancellationToken::new();
+        let run_shutdown = shutdown.clone();
+        let run_handle = tokio::spawn(async move { Box::new(service).run(run_shutdown).await });
+
+        accepted_rx
+            .await
+            .expect("the agent's connect must reach the fixture balancer before shutdown");
+
+        shutdown.cancel();
+
+        let run_result = tokio::time::timeout(SHUTDOWN_BUDGET, run_handle)
+            .await
+            .expect(
+                "run must return promptly on shutdown even while a connect handshake is stalled, \
+                 instead of blocking until trzcina force-aborts the service",
+            )
+            .expect("the run task must not panic");
+
+        assert!(run_result.is_ok());
+
+        fixture_shutdown.cancel();
+        server
+            .await
+            .expect("the fixture balancer task must not panic");
+    }
 
     fn build_incoming_message_context(
         agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,

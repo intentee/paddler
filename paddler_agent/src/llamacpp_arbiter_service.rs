@@ -21,6 +21,7 @@ use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_arbiter::ContinuousBatchArbiter;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
+use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::drain_in_flight_requests::drain_in_flight_requests;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
@@ -55,8 +56,15 @@ async fn apply_state(
             slot_aggregated_status_manager.clone(),
         ) {
             ContinuousBatchArbiterBuildOutcome::ReadyToSpawn(arbiter) => {
-                *continuous_batch_arbiter_handle = Some(arbiter.spawn().await?);
-                info!("Reconciled state change applied successfully");
+                match arbiter.spawn(shutdown).await? {
+                    ContinuousBatchArbiterSpawnOutcome::Ready(handle) => {
+                        *continuous_batch_arbiter_handle = Some(handle);
+                        info!("Reconciled state change applied successfully");
+                    }
+                    ContinuousBatchArbiterSpawnOutcome::Cancelled => {
+                        info!("Model load was cancelled by shutdown before it finished");
+                    }
+                }
             }
             ContinuousBatchArbiterBuildOutcome::NoModelConfigured => {
                 warn!("No model configured in applicable state; skipping llama.cpp initialization");

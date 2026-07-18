@@ -11,6 +11,7 @@ use hf_hub::api::tokio::ApiError;
 use log::warn;
 use tokio::time::Duration;
 use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
@@ -32,6 +33,7 @@ impl ResolvesModelSource for HuggingFaceModelSource {
     async fn resolve(
         &self,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
+        cancellation_token: &CancellationToken,
     ) -> Result<DesiredModelResolution> {
         let HuggingFaceModelReference {
             filename,
@@ -65,13 +67,19 @@ impl ResolvesModelSource for HuggingFaceModelSource {
             return Ok(DesiredModelResolution::Resolved(cached_path));
         }
 
-        match hf_repo
-            .download_with_progress(
+        let Some(download_result) = cancellation_token
+            .run_until_cancelled(hf_repo.download_with_progress(
                 filename,
                 SlotAggregatedStatusDownloadProgress::new(slot_aggregated_status.clone()),
-            )
+            ))
             .await
-        {
+        else {
+            return Err(anyhow!(
+                "Hugging Face model download for '{model_path}' was cancelled"
+            ));
+        };
+
+        match download_result {
             Ok(resolved_filename) => {
                 slot_aggregated_status.register_fix(&AgentIssueFix::HuggingFaceDownloadedModel(
                     ModelPath { model_path },
@@ -93,7 +101,9 @@ impl ResolvesModelSource for HuggingFaceModelSource {
                     LOCK_RETRY_TIMEOUT.as_secs()
                 );
 
-                sleep(LOCK_RETRY_TIMEOUT).await;
+                cancellation_token
+                    .run_until_cancelled(sleep(LOCK_RETRY_TIMEOUT))
+                    .await;
 
                 Err(anyhow!(
                     "Failed to acquire download lock '{}'. Is more than one agent running on this machine?",

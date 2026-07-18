@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
+use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use paddler_cache_dir::cache_dir::CacheDir;
@@ -11,6 +12,7 @@ use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
 use paddler_cache_dir::download_lock_acquisition_error::DownloadLockAcquisitionError;
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
+use paddler_download_manager::download_outcome::DownloadOutcome;
 use paddler_download_manager::progress_sink::ProgressSink;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
@@ -115,6 +117,7 @@ async fn resolve_url_into_cache(
     url_string: &str,
     cache_dir: &CacheDir,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
+    cancellation_token: &CancellationToken,
 ) -> Result<DesiredModelResolution> {
     let parsed_url = match Url::parse(url_string) {
         Ok(url) => url,
@@ -202,10 +205,20 @@ async fn resolve_url_into_cache(
     });
 
     match DownloadManager::new()?
-        .download(url_string, &cached.cache_file_path, sink)
+        .download(
+            url_string,
+            &cached.cache_file_path,
+            sink,
+            cancellation_token,
+        )
         .await
     {
-        Ok(()) => Ok(DesiredModelResolution::Resolved(cached.cache_file_path)),
+        Ok(DownloadOutcome::Completed) => {
+            Ok(DesiredModelResolution::Resolved(cached.cache_file_path))
+        }
+        Ok(DownloadOutcome::Cancelled) => Err(anyhow!(
+            "Download of URL model '{url_string}' was cancelled"
+        )),
         Err(error) => {
             slot_aggregated_status.reset_download();
             slot_aggregated_status.register_issue(agent_issue_for(&error, url_string));
@@ -222,10 +235,17 @@ impl ResolvesModelSource for UrlModelSource {
     async fn resolve(
         &self,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
+        cancellation_token: &CancellationToken,
     ) -> Result<DesiredModelResolution> {
         let cache_dir = CacheDir::from_process_env();
 
-        resolve_url_into_cache(&self.0.url, &cache_dir, slot_aggregated_status).await
+        resolve_url_into_cache(
+            &self.0.url,
+            &cache_dir,
+            slot_aggregated_status,
+            cancellation_token,
+        )
+        .await
     }
 }
 
@@ -249,6 +269,7 @@ mod tests {
     use tokio::io::AsyncWriteExt as _;
     use tokio::io::BufReader;
     use tokio::net::TcpListener;
+    use tokio_util::sync::CancellationToken;
     use url::Url;
 
     use crate::desired_model_resolution::DesiredModelResolution;
@@ -297,9 +318,14 @@ mod tests {
             .await
             .unwrap();
 
-        let resolution = resolve_url_into_cache(url_string, &cache_dir, fresh_status())
-            .await
-            .unwrap();
+        let resolution = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            fresh_status(),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
 
         assert!(matches!(
             resolution,
@@ -314,7 +340,13 @@ mod tests {
         let url_string = "not a url";
 
         let status = fresh_status();
-        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            status.clone(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(result.is_err(), "malformed URL must produce an Err");
         assert!(
@@ -331,7 +363,13 @@ mod tests {
         let url_string = "ftp://example.invalid/m.gguf";
 
         let status = fresh_status();
-        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            status.clone(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(result.is_err(), "unsupported scheme must produce an Err");
         assert!(
@@ -356,7 +394,13 @@ mod tests {
         let _blocker = cached.try_acquire_download_lock().unwrap();
 
         let status = fresh_status();
-        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            status.clone(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(result.is_err(), "lock contention must produce an Err");
         assert!(
@@ -378,7 +422,13 @@ mod tests {
         symlink(directory.path().join("missing-target"), &subdir_path).unwrap();
 
         let status = fresh_status();
-        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            status.clone(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(
             result.is_err(),
@@ -400,7 +450,13 @@ mod tests {
         create_dir(&cached.lock_file_path).await.unwrap();
 
         let status = fresh_status();
-        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            status.clone(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(
             result.is_err(),
@@ -618,7 +674,13 @@ mod tests {
         let url_string = "https://host.example/blocked.gguf";
 
         let status = fresh_status();
-        let result = resolve_url_into_cache(url_string, &cache_dir, status.clone()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &cache_dir,
+            status.clone(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(result.is_err(), "blocked cache subdir must produce an Err");
         assert!(
@@ -721,8 +783,13 @@ mod tests {
     async fn cache_path_resolution_failure_propagates_error() {
         let url_string = "https://host.example/unresolvable.gguf";
 
-        let result =
-            resolve_url_into_cache(url_string, &unresolvable_cache_dir(), fresh_status()).await;
+        let result = resolve_url_into_cache(
+            url_string,
+            &unresolvable_cache_dir(),
+            fresh_status(),
+            &CancellationToken::new(),
+        )
+        .await;
 
         assert!(
             result.is_err(),
@@ -766,9 +833,14 @@ mod tests {
         let cached = CachedDownloadedModel::new(&cache_dir, &url_string).unwrap();
         let expected_path = cached.cache_file_path.clone();
 
-        let resolution = resolve_url_into_cache(&url_string, &cache_dir, fresh_status())
-            .await
-            .unwrap();
+        let resolution = resolve_url_into_cache(
+            &url_string,
+            &cache_dir,
+            fresh_status(),
+            &CancellationToken::new(),
+        )
+        .await
+        .unwrap();
 
         server.await.unwrap();
 
@@ -777,5 +849,26 @@ mod tests {
             DesiredModelResolution::Resolved(resolved_path) if resolved_path == expected_path
         ));
         assert_eq!(read(&expected_path).await.unwrap(), body);
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_token_makes_the_url_download_error_without_registering_an_issue() {
+        let directory = TempDir::new().unwrap();
+        let cache_dir = cache_dir_at(directory.path());
+        let url_string = "http://127.0.0.1:1/model.gguf".to_owned();
+        let status = fresh_status();
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        let result =
+            resolve_url_into_cache(&url_string, &cache_dir, status.clone(), &cancellation_token)
+                .await;
+
+        assert!(result.is_err());
+        assert!(
+            status.make_snapshot().unwrap().issues.is_empty(),
+            "a cancelled download must not register a slot issue"
+        );
     }
 }

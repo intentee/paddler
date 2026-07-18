@@ -28,6 +28,7 @@ use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
@@ -37,6 +38,7 @@ use crate::chat_template_load_status::ChatTemplateLoadStatus;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
+use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
@@ -44,6 +46,10 @@ use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+
+async fn abandon_loading_thread(scheduler_thread_handle: thread::JoinHandle<Result<()>>) {
+    let _reaped = tokio::task::spawn_blocking(move || scheduler_thread_handle.join()).await;
+}
 
 pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
@@ -85,7 +91,10 @@ impl ContinuousBatchArbiter {
         }))
     }
 
-    pub async fn spawn(&self) -> Result<ContinuousBatchArbiterHandle> {
+    pub async fn spawn(
+        &self,
+        cancellation_token: &CancellationToken,
+    ) -> Result<ContinuousBatchArbiterSpawnOutcome> {
         let (chat_template_loaded_tx, chat_template_loaded_rx) =
             oneshot::channel::<ChatTemplateLoadStatus>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
@@ -367,62 +376,21 @@ impl ContinuousBatchArbiter {
             Ok(())
         });
 
-        match model_loaded_rx
+        let Some(startup_result) = cancellation_token
+            .run_until_cancelled(self.await_startup_signals(
+                model_loaded_rx,
+                chat_template_loaded_rx,
+                agent_warm_and_scheduler_running_rx,
+                &model_path_string,
+            ))
             .await
-            .context("Failed to receive model loaded signal")
-        {
-            Ok(()) => {
-                self.slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .register_fix(&AgentIssueFix::ModelIsLoaded(ModelPath {
-                        model_path: model_path_string.clone(),
-                    }));
-            }
-            Err(err) => {
-                error!("Failed to load model: {err}");
+        else {
+            abandon_loading_thread(scheduler_thread_handle).await;
 
-                self.slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .register_issue(AgentIssue::ModelCannotBeLoaded(ModelPath {
-                        model_path: model_path_string.clone(),
-                    }));
-            }
-        }
+            return Ok(ContinuousBatchArbiterSpawnOutcome::Cancelled);
+        };
 
-        match chat_template_loaded_rx
-            .await
-            .context("Failed to receive chat template loaded signal")
-        {
-            Ok(ChatTemplateLoadStatus::Loaded) => {
-                self.slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .register_fix(&AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
-                        model_path: model_path_string.clone(),
-                    }));
-            }
-            Ok(ChatTemplateLoadStatus::SkippedForEmbeddings) => {}
-            Err(err) => {
-                error!("Failed to load chat template: {err}");
-
-                if !self
-                    .slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .has_issue(&AgentIssue::ModelCannotBeLoaded(ModelPath {
-                        model_path: model_path_string.clone(),
-                    }))
-                {
-                    self.slot_aggregated_status_manager
-                        .slot_aggregated_status
-                        .register_issue(AgentIssue::UnableToFindChatTemplate(ModelPath {
-                            model_path: model_path_string.clone(),
-                        }));
-                }
-            }
-        }
-
-        agent_warm_and_scheduler_running_rx.await.context(
-            "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
-        )?;
+        startup_result?;
 
         let desired_slots_total_u32 = u32::try_from(self.desired_slots_total)
             .context("desired_slots_total does not fit in u32")?;
@@ -437,10 +405,79 @@ impl ContinuousBatchArbiter {
                 .register_fix(&AgentIssueFix::SlotStarted(slot_index));
         }
 
-        Ok(ContinuousBatchArbiterHandle {
-            command_tx,
-            scheduler_thread_handle,
-        })
+        Ok(ContinuousBatchArbiterSpawnOutcome::Ready(
+            ContinuousBatchArbiterHandle {
+                command_tx,
+                scheduler_thread_handle,
+            },
+        ))
+    }
+
+    async fn await_startup_signals(
+        &self,
+        model_loaded_rx: oneshot::Receiver<()>,
+        chat_template_loaded_rx: oneshot::Receiver<ChatTemplateLoadStatus>,
+        agent_warm_and_scheduler_running_rx: oneshot::Receiver<()>,
+        model_path_string: &str,
+    ) -> Result<()> {
+        match model_loaded_rx
+            .await
+            .context("Failed to receive model loaded signal")
+        {
+            Ok(()) => {
+                self.slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .register_fix(&AgentIssueFix::ModelIsLoaded(ModelPath {
+                        model_path: model_path_string.to_owned(),
+                    }));
+            }
+            Err(err) => {
+                error!("Failed to load model: {err}");
+
+                self.slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .register_issue(AgentIssue::ModelCannotBeLoaded(ModelPath {
+                        model_path: model_path_string.to_owned(),
+                    }));
+            }
+        }
+
+        match chat_template_loaded_rx
+            .await
+            .context("Failed to receive chat template loaded signal")
+        {
+            Ok(ChatTemplateLoadStatus::Loaded) => {
+                self.slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .register_fix(&AgentIssueFix::ModelChatTemplateIsLoaded(ModelPath {
+                        model_path: model_path_string.to_owned(),
+                    }));
+            }
+            Ok(ChatTemplateLoadStatus::SkippedForEmbeddings) => {}
+            Err(err) => {
+                error!("Failed to load chat template: {err}");
+
+                if !self
+                    .slot_aggregated_status_manager
+                    .slot_aggregated_status
+                    .has_issue(&AgentIssue::ModelCannotBeLoaded(ModelPath {
+                        model_path: model_path_string.to_owned(),
+                    }))
+                {
+                    self.slot_aggregated_status_manager
+                        .slot_aggregated_status
+                        .register_issue(AgentIssue::UnableToFindChatTemplate(ModelPath {
+                            model_path: model_path_string.to_owned(),
+                        }));
+                }
+            }
+        }
+
+        agent_warm_and_scheduler_running_rx.await.context(
+            "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
+        )?;
+
+        Ok(())
     }
 
     fn run_warmup_decode(

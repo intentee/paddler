@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
+use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
@@ -20,11 +21,13 @@ async fn resolve_into_optional_path<TLocalMissingIssue>(
     desired: &AgentDesiredModel,
     slot_aggregated_status: &Arc<SlotAggregatedStatus>,
     on_local_missing: TLocalMissingIssue,
+    cancellation_token: &CancellationToken,
 ) -> Result<Option<PathBuf>>
 where
     TLocalMissingIssue: FnOnce(ModelPath) -> AgentIssue,
 {
-    match resolve_desired_model(desired, slot_aggregated_status.clone()).await? {
+    match resolve_desired_model(desired, slot_aggregated_status.clone(), cancellation_token).await?
+    {
         DesiredModelResolution::NotConfigured => Ok(None),
         DesiredModelResolution::Resolved(path) => Ok(Some(path)),
         DesiredModelResolution::LocalFileMissing(path) => {
@@ -40,6 +43,7 @@ where
 }
 
 pub struct AgentDesiredStateConverter {
+    pub cancellation_token: CancellationToken,
     pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
@@ -56,6 +60,7 @@ impl ConvertsToApplicableState for AgentDesiredStateConverter {
             &desired_state.model,
             &self.slot_aggregated_status,
             AgentIssue::ModelFileDoesNotExist,
+            &self.cancellation_token,
         )
         .await?;
 
@@ -63,6 +68,7 @@ impl ConvertsToApplicableState for AgentDesiredStateConverter {
             &desired_state.multimodal_projection,
             &self.slot_aggregated_status,
             AgentIssue::MultimodalProjectionCannotBeLoaded,
+            &self.cancellation_token,
         )
         .await?;
 
@@ -81,6 +87,7 @@ mod tests {
     use std::sync::Arc;
 
     use tempfile::TempDir;
+    use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
@@ -135,6 +142,7 @@ mod tests {
             AgentDesiredModel::None,
         );
         let converter = AgentDesiredStateConverter {
+            cancellation_token: CancellationToken::new(),
             slot_aggregated_status: status.clone(),
         };
 
@@ -171,6 +179,7 @@ mod tests {
             AgentDesiredModel::LocalToAgent(missing_path.display().to_string()),
         );
         let converter = AgentDesiredStateConverter {
+            cancellation_token: CancellationToken::new(),
             slot_aggregated_status: status.clone(),
         };
 

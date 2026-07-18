@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio::fs::try_exists;
+use tokio_util::sync::CancellationToken;
 
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::resolves_model_source::ResolvesModelSource;
@@ -25,6 +26,7 @@ impl ResolvesModelSource for LocalModelPath {
     async fn resolve(
         &self,
         _slot_aggregated_status: Arc<SlotAggregatedStatus>,
+        _cancellation_token: &CancellationToken,
     ) -> Result<DesiredModelResolution> {
         let local_path = PathBuf::from(&self.path);
 

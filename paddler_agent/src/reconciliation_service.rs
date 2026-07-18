@@ -18,6 +18,7 @@ use crate::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_state_conversion::converts_to_applicable_state::ConvertsToApplicableState as _;
 
 async fn convert_to_applicable_state(
+    cancellation_token: &CancellationToken,
     agent_desired_state: Option<&AgentDesiredState>,
     slot_aggregated_status: &Arc<SlotAggregatedStatus>,
     agent_applicable_state_holder: &AgentApplicableStateHolder,
@@ -27,6 +28,7 @@ async fn convert_to_applicable_state(
         None => None,
         Some(agent_desired_state) => Some(
             AgentDesiredStateConverter {
+                cancellation_token: cancellation_token.clone(),
                 slot_aggregated_status: slot_aggregated_status.clone(),
             }
             .to_applicable_state(agent_desired_state.clone())
@@ -47,18 +49,21 @@ async fn convert_to_applicable_state(
 }
 
 async fn try_convert_to_applicable_state(
+    cancellation_token: &CancellationToken,
     agent_desired_state: Option<&AgentDesiredState>,
     slot_aggregated_status: &Arc<SlotAggregatedStatus>,
     agent_applicable_state_holder: &AgentApplicableStateHolder,
     is_converted_to_applicable_state: &mut bool,
 ) {
     if let Err(err) = convert_to_applicable_state(
+        cancellation_token,
         agent_desired_state,
         slot_aggregated_status,
         agent_applicable_state_holder,
         is_converted_to_applicable_state,
     )
     .await
+        && !cancellation_token.is_cancelled()
     {
         error!("Failed to convert to applicable state: {err}");
     }
@@ -97,6 +102,7 @@ impl Service for ReconciliationService {
                 _ = ticker.tick() => {
                     if !is_converted_to_applicable_state {
                         try_convert_to_applicable_state(
+                            &shutdown,
                             agent_desired_state.as_ref(),
                             &slot_aggregated_status,
                             &agent_applicable_state_holder,
@@ -113,6 +119,7 @@ impl Service for ReconciliationService {
                         break Ok(())
                     };
                     try_convert_to_applicable_state(
+                        &shutdown,
                         agent_desired_state.as_ref(),
                         &slot_aggregated_status,
                         &agent_applicable_state_holder,
@@ -126,7 +133,41 @@ impl Service for ReconciliationService {
 
 #[cfg(test)]
 mod tests {
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::inference_parameters::InferenceParameters;
+
     use super::*;
+
+    #[tokio::test]
+    async fn a_cancelled_conversion_leaves_the_state_unconverted() {
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
+        let agent_applicable_state_holder = AgentApplicableStateHolder::default();
+        let mut is_converted_to_applicable_state = false;
+
+        let desired_state = AgentDesiredState {
+            chat_template_override: None,
+            inference_parameters: InferenceParameters::default(),
+            model: AgentDesiredModel::LocalToAgent(
+                "/paddler-nonexistent-model-for-cancellation.gguf".to_owned(),
+            ),
+            multimodal_projection: AgentDesiredModel::None,
+        };
+
+        try_convert_to_applicable_state(
+            &cancellation_token,
+            Some(&desired_state),
+            &slot_aggregated_status,
+            &agent_applicable_state_holder,
+            &mut is_converted_to_applicable_state,
+        )
+        .await;
+
+        assert!(!is_converted_to_applicable_state);
+    }
 
     #[tokio::test]
     async fn flag_stays_false_when_set_agent_applicable_state_fails() {
@@ -135,6 +176,7 @@ mod tests {
         let mut is_converted_to_applicable_state = false;
 
         let result = convert_to_applicable_state(
+            &CancellationToken::new(),
             None,
             &slot_aggregated_status,
             &holder,

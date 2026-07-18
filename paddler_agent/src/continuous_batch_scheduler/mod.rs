@@ -73,6 +73,7 @@ use crate::resolve_grammar::resolve_grammar;
 use crate::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::sampling_outcome::SamplingOutcome;
 use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
+use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
 use crate::slot_guard::SlotGuard;
 use crate::tool_call_pipeline::ToolCallPipeline;
@@ -459,14 +460,7 @@ impl ContinuousBatchScheduler {
             }
         };
 
-        let mut sequence_id_option = self.sequence_id_pool.acquire();
-
-        if sequence_id_option.is_none() {
-            self.remove_completed_requests();
-            sequence_id_option = self.sequence_id_pool.acquire();
-        }
-
-        let Some(sequence_id) = sequence_id_option else {
+        let Some(sequence_guard) = SequenceIdGuard::acquire(&self.sequence_id_pool) else {
             let message = format!(
                 "{:?}: no available sequence slots, all slots are busy",
                 self.scheduler_context.agent_name
@@ -496,7 +490,6 @@ impl ContinuousBatchScheduler {
                 );
 
                 error!("{message}");
-                self.sequence_id_pool.release(sequence_id);
 
                 send_generated_token_result_or_warn(
                     self.scheduler_context.agent_name.as_deref(),
@@ -511,8 +504,6 @@ impl ContinuousBatchScheduler {
         let Ok(llama_grammar_sampler) =
             self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
         else {
-            self.sequence_id_pool.release(sequence_id);
-
             return Ok(());
         };
 
@@ -523,11 +514,12 @@ impl ContinuousBatchScheduler {
         token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
         token_classifier.ingest_prompt_tokens(&prompt_tokens);
 
-        self.clear_kv_cache_for_sequence(sequence_id);
+        self.clear_kv_cache_for_sequence(sequence_guard.sequence_id());
 
         debug!(
-            "{:?}: accepted text prompt request on sequence {sequence_id} ({} tokens)",
+            "{:?}: accepted text prompt request on sequence {} ({} tokens)",
             self.scheduler_context.agent_name,
+            sequence_guard.sequence_id(),
             prompt_tokens.len()
         );
 
@@ -540,7 +532,7 @@ impl ContinuousBatchScheduler {
                 phase: ContinuousBatchRequestPhase::Ingesting,
                 prompt_tokens,
                 prompt_tokens_ingested: 0,
-                sequence_id,
+                sequence_id: sequence_guard.commit(),
             },
             chain,
             token_classifier,
@@ -589,7 +581,7 @@ impl ContinuousBatchScheduler {
             }
         };
 
-        let Some(sequence_id) = self.sequence_id_pool.acquire() else {
+        let Some(sequence_guard) = SequenceIdGuard::acquire(&self.sequence_id_pool) else {
             let message = format!(
                 "{:?}: no available sequence slots for multimodal request",
                 self.scheduler_context.agent_name
@@ -622,7 +614,6 @@ impl ContinuousBatchScheduler {
                 );
 
                 error!("{message}");
-                self.sequence_id_pool.release(sequence_id);
 
                 send_generated_token_result_or_warn(
                     self.scheduler_context.agent_name.as_deref(),
@@ -654,7 +645,6 @@ impl ContinuousBatchScheduler {
                 );
 
                 error!("{message}");
-                self.sequence_id_pool.release(sequence_id);
 
                 send_generated_token_result_or_warn(
                     self.scheduler_context.agent_name.as_deref(),
@@ -668,7 +658,7 @@ impl ContinuousBatchScheduler {
 
         let batch_size = self.scheduler_context.inference_parameters.n_batch;
 
-        self.clear_kv_cache_for_sequence(sequence_id);
+        self.clear_kv_cache_for_sequence(sequence_guard.sequence_id());
 
         self.harvest_pending_samples_before_external_decode();
 
@@ -681,7 +671,7 @@ impl ContinuousBatchScheduler {
             multimodal_context,
             &self.llama_context,
             0,
-            sequence_id,
+            sequence_guard.sequence_id(),
             batch_size_i32,
             true,
         );
@@ -695,8 +685,6 @@ impl ContinuousBatchScheduler {
                     "{:?}: refused multimodal request: image chunk has {} tokens but n_batch is {}",
                     self.scheduler_context.agent_name, mismatch.image_tokens, mismatch.n_batch,
                 );
-
-                self.sequence_id_pool.release(sequence_id);
 
                 send_generated_token_result_or_warn(
                     self.scheduler_context.agent_name.as_deref(),
@@ -716,7 +704,6 @@ impl ContinuousBatchScheduler {
                 );
 
                 error!("{message}");
-                self.sequence_id_pool.release(sequence_id);
 
                 send_generated_token_result_or_warn(
                     self.scheduler_context.agent_name.as_deref(),
@@ -733,16 +720,15 @@ impl ContinuousBatchScheduler {
         let Ok(llama_grammar_sampler) =
             self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
         else {
-            self.sequence_id_pool.release(sequence_id);
-
             return Ok(());
         };
 
         let chain = self.create_sampler_chain();
 
         debug!(
-            "{:?}: accepted multimodal request on sequence {sequence_id} ({tokens_ingested} tokens ingested)",
-            self.scheduler_context.agent_name
+            "{:?}: accepted multimodal request on sequence {} ({tokens_ingested} tokens ingested)",
+            self.scheduler_context.agent_name,
+            sequence_guard.sequence_id()
         );
 
         self.active_requests.push(ContinuousBatchActiveRequest {
@@ -754,7 +740,7 @@ impl ContinuousBatchScheduler {
                 phase: ContinuousBatchRequestPhase::Generating,
                 prompt_tokens: Vec::new(),
                 prompt_tokens_ingested: 0,
-                sequence_id,
+                sequence_id: sequence_guard.commit(),
             },
             chain,
             token_classifier,
