@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 use trzcina::ServiceShutdownOptions;
 
+use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 use crate::web_admin_panel_service::app_data::AppData;
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
@@ -44,9 +45,6 @@ impl Service for WebAdminPanelService {
                 .configure(http_route::home::register)
         })
         .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
@@ -54,7 +52,7 @@ impl Service for WebAdminPanelService {
             format!("Unable to bind balancer web admin panel service to {bind_addr}")
         })?;
 
-        server.run().await?;
+        serve_http_until_shutdown(shutdown, server.run()).await?;
 
         Ok(())
     }

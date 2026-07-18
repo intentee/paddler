@@ -21,6 +21,7 @@ use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
@@ -88,15 +89,12 @@ impl Service for InferenceService {
                 .configure(http_route::api::ws_inference_socket::register)
         })
         .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
         .with_context(|| format!("Unable to bind balancer inference service to {bind_addr}"))?;
 
-        server.run().await?;
+        serve_http_until_shutdown(shutdown, server.run()).await?;
 
         Ok(())
     }

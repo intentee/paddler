@@ -73,6 +73,7 @@ use crate::compatibility::openai_service::configuration::Configuration as OpenAI
 use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 
 const HTTP_WORKERS: usize = 16;
 
@@ -115,15 +116,12 @@ impl Service for OpenAIService {
                 .configure(http_route::post_responses::register)
         })
         .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
         .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
         .disable_signals()
         .bind(bind_addr)
         .with_context(|| format!("Unable to bind balancer OpenAI-compat service to {bind_addr}"))?;
 
-        server.run().await?;
+        serve_http_until_shutdown(shutdown, server.run()).await?;
 
         Ok(())
     }

@@ -44,6 +44,7 @@ pub mod resolved_socket_addr;
 #[cfg(feature = "web_admin_panel")]
 mod response;
 pub mod sends_rpc_message;
+pub mod serve_http_until_shutdown;
 pub mod sets_desired_state;
 pub mod snapshots_stream;
 pub mod state_database;
