@@ -25,6 +25,7 @@ impl ReportsHealth for ClientHealth {
 
 #[cfg(test)]
 mod tests {
+    use tokio_util::sync::CancellationToken;
     use url::Url;
 
     use super::ClientHealth;
@@ -38,7 +39,7 @@ mod tests {
         );
 
         assert!(matches!(
-            client_health.get_health().await,
+            client_health.get_health(CancellationToken::new()).await,
             Err(Error::Connect { .. })
         ));
     }

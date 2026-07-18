@@ -2,6 +2,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 use log::warn;
 use serde::Serialize;
 use tokio::sync::mpsc;
@@ -49,15 +50,17 @@ pub trait ManagesSenders: Send + Sync {
         request_id: String,
         sender: mpsc::UnboundedSender<Self::Value>,
     ) -> Result<()> {
-        let senders = self.get_sender_collection();
+        match self.get_sender_collection().entry(request_id) {
+            Entry::Occupied(occupied_sender) => Err(anyhow!(
+                "Sender for request_id {} already exists",
+                occupied_sender.key()
+            )),
+            Entry::Vacant(vacant_sender) => {
+                vacant_sender.insert(sender);
 
-        if senders.contains_key(&request_id) {
-            return Err(anyhow!("Sender for request_id {request_id} already exists"));
+                Ok(())
+            }
         }
-
-        senders.insert(request_id, sender);
-
-        Ok(())
     }
 }
 

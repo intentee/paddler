@@ -6,12 +6,13 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 async fn get_balancer_desired_state(
     client_management: &ClientManagement,
 ) -> Result<BalancerDesiredState> {
     client_management
-        .get_balancer_desired_state()
+        .get_balancer_desired_state(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("failed to GET /api/v1/balancer_desired_state")
@@ -41,7 +42,7 @@ async fn management_returns_balancer_desired_state_that_was_put() -> Result<()> 
 
     cluster
         .client_management
-        .put_balancer_desired_state(&desired_state)
+        .put_balancer_desired_state(CancellationToken::new(), &desired_state)
         .await
         .map_err(anyhow::Error::new)
         .context("failed to PUT /api/v1/balancer_desired_state")?;

@@ -9,9 +9,11 @@ use headers::HeaderMapExt as _;
 use reqwest::Client;
 use reqwest::Url;
 use reqwest::header::RANGE;
+use tokio_util::sync::CancellationToken;
 
 use crate::download_attempt_error::DownloadAttemptError;
 use crate::download_error::DownloadError;
+use crate::download_outcome::DownloadOutcome;
 use crate::partial_file::PartialFile;
 use crate::progress_sink::ProgressSink;
 use crate::response_classification::ResponseClassification;
@@ -54,10 +56,11 @@ impl DownloadManager {
 
     pub async fn download(
         &self,
+        cancellation_token: &CancellationToken,
         url: &str,
         final_path: &Path,
         progress_sink: Arc<dyn ProgressSink>,
-    ) -> Result<(), DownloadError> {
+    ) -> Result<DownloadOutcome, DownloadError> {
         let parsed_url = Url::parse(url).map_err(|parse_error| DownloadError::InvalidUrl {
             url: url.to_owned(),
             source: parse_error,
@@ -72,8 +75,11 @@ impl DownloadManager {
 
         let partial = PartialFile::new(final_path.to_path_buf());
 
-        match self.attempt_download(url, &partial, &progress_sink).await {
-            Ok(()) => Ok(()),
+        match self
+            .attempt_download(cancellation_token, url, &partial, &progress_sink)
+            .await
+        {
+            Ok(outcome) => Ok(outcome),
             Err(DownloadAttemptError::Unreachable(source)) => {
                 Err(DownloadError::DownloadServerIsUnreachable {
                     url: url.to_owned(),
@@ -120,10 +126,11 @@ impl DownloadManager {
 
     async fn attempt_download(
         &self,
+        cancellation_token: &CancellationToken,
         url: &str,
         partial: &PartialFile,
         progress_sink: &Arc<dyn ProgressSink>,
-    ) -> Result<(), DownloadAttemptError> {
+    ) -> Result<DownloadOutcome, DownloadAttemptError> {
         let mut offset = partial.current_size().await?;
         let sent_range_header = offset > 0;
 
@@ -132,9 +139,10 @@ impl DownloadManager {
             request = request.header(RANGE, format!("bytes={offset}-"));
         }
 
-        let response = match request.send().await {
-            Ok(response) => response,
-            Err(send_error) => {
+        let response = match cancellation_token.run_until_cancelled(request.send()).await {
+            None => return Ok(DownloadOutcome::Cancelled),
+            Some(Ok(response)) => response,
+            Some(Err(send_error)) => {
                 return Err(DownloadAttemptError::Unreachable(anyhow::Error::new(
                     send_error,
                 )));
@@ -191,8 +199,15 @@ impl DownloadManager {
 
         let mut file = partial.open_for_append().await?;
 
-        match stream_to_partial_file(response.bytes_stream(), &mut file, progress_sink).await {
-            Ok(()) => {}
+        let stream_outcome = match stream_to_partial_file(
+            cancellation_token,
+            response.bytes_stream(),
+            &mut file,
+            progress_sink,
+        )
+        .await
+        {
+            Ok(stream_outcome) => stream_outcome,
             Err(StreamToPartialFileError::Stream(stream_error)) => {
                 return Err(DownloadAttemptError::Interrupted(anyhow::Error::new(
                     stream_error,
@@ -201,13 +216,18 @@ impl DownloadManager {
             Err(StreamToPartialFileError::Write(write_error)) => {
                 return Err(DownloadAttemptError::Io(write_error));
             }
-        }
+        };
 
         drop(file);
 
-        partial.finalize().await?;
-        progress_sink.on_finished();
+        match stream_outcome {
+            DownloadOutcome::Cancelled => Ok(DownloadOutcome::Cancelled),
+            DownloadOutcome::Completed => {
+                partial.finalize().await?;
+                progress_sink.on_finished();
 
-        Ok(())
+                Ok(DownloadOutcome::Completed)
+            }
+        }
     }
 }

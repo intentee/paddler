@@ -8,6 +8,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
@@ -31,7 +32,7 @@ async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
 
     let retrieved = cluster
         .client_management
-        .get_balancer_desired_state()
+        .get_balancer_desired_state(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read balancer desired state")?;

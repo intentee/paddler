@@ -5,13 +5,14 @@ use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_gbnf_grammar_constrains_output_to_yes_or_no() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
+        .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
                 grammar: r#"root ::= "yes" | "no""#.to_owned(),
                 root: "root".to_owned(),

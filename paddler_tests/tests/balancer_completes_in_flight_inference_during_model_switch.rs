@@ -13,6 +13,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<()> {
@@ -21,14 +22,18 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
     let expected_output = "the quick brown fox jumps over the lazy dog";
 
     let mut stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: Some(GrammarConstraint::Gbnf {
-                grammar: format!("root ::= \"{expected_output}\""),
-                root: "root".to_owned(),
-            }),
-            max_tokens: 200,
-            raw_prompt: "Say the following: the quick brown fox jumps over the lazy dog".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: Some(GrammarConstraint::Gbnf {
+                    grammar: format!("root ::= \"{expected_output}\""),
+                    root: "root".to_owned(),
+                }),
+                max_tokens: 200,
+                raw_prompt: "Say the following: the quick brown fox jumps over the lazy dog"
+                    .to_owned(),
+            },
+        )
         .await?;
 
     // Wait for the first generated-token message before triggering the model
@@ -64,7 +69,7 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
 
     cluster
         .client_management
-        .put_balancer_desired_state(&switch_state)
+        .put_balancer_desired_state(CancellationToken::new(), &switch_state)
         .await
         .map_err(anyhow::Error::new)?;
 

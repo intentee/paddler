@@ -5,14 +5,11 @@ pub mod http_route;
 use std::sync::Arc;
 
 use actix_web::App;
-use actix_web::HttpServer;
 use actix_web::web::Data;
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
-use trzcina::ServiceShutdownOptions;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -21,17 +18,16 @@ use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use crate::run_http_service::run_http_service;
+use crate::run_http_service_parameters::RunHttpServiceParameters;
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-
-const HTTP_WORKERS: usize = 16;
 
 pub struct InferenceService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
-    pub shutdown_options: ServiceShutdownOptions,
     #[cfg(feature = "web_admin_panel")]
     pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
@@ -43,6 +39,7 @@ impl Service for InferenceService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        let service_name = self.name();
         let web_admin_panel_cors_allowed_hosts: Vec<String> = {
             #[cfg(feature = "web_admin_panel")]
             {
@@ -75,30 +72,27 @@ impl Service for InferenceService {
             shutdown: shutdown.clone(),
         });
 
-        let bind_addr = self.configuration.addr;
-
-        let server = HttpServer::new(move || {
-            App::new()
-                .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
-                .app_data(app_data.clone())
-                .configure(common_http_route::get_health::register)
-                .configure(http_route::api::post_continue_from_conversation_history::register)
-                .configure(http_route::api::post_continue_from_raw_prompt::register)
-                .configure(http_route::api::post_generate_embedding_batch::register)
-                .configure(http_route::api::ws_inference_socket::register)
-        })
-        .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
-        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
-        .disable_signals()
-        .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer inference service to {bind_addr}"))?;
-
-        server.run().await?;
-
-        Ok(())
+        run_http_service(
+            shutdown,
+            RunHttpServiceParameters {
+                app_factory: move || {
+                    App::new()
+                        .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
+                        .app_data(app_data.clone())
+                        .configure(common_http_route::get_health::register)
+                        .configure(
+                            http_route::api::post_continue_from_conversation_history::register,
+                        )
+                        .configure(http_route::api::post_continue_from_raw_prompt::register)
+                        .configure(http_route::api::post_generate_embedding_batch::register)
+                        .configure(http_route::api::ws_inference_socket::register)
+                },
+                bind_addr: self.configuration.addr,
+                service_name,
+                worker_count: 16,
+            },
+        )
+        .await
     }
 }
 
@@ -111,7 +105,6 @@ mod tests {
 
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
-    use trzcina::ServiceShutdownOptions;
 
     use super::InferenceService;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -141,7 +134,6 @@ mod tests {
                 cors_allowed_hosts: vec!["http://127.0.0.1:8080".to_owned()],
                 inference_item_timeout: Duration::from_secs(30),
             },
-            shutdown_options: ServiceShutdownOptions::default(),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
                 addr: SocketAddr::from(([127, 0, 0, 1], 8081)),

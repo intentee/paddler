@@ -10,7 +10,7 @@ use hf_hub::api::tokio::ApiBuilder;
 use hf_hub::api::tokio::ApiError;
 use log::warn;
 use tokio::time::Duration;
-use tokio::time::sleep;
+use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
@@ -19,6 +19,8 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
+use crate::model_source::download_lock_retry_error::DownloadLockRetryError;
+use crate::model_source::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::slot_aggregated_status_download_progress::SlotAggregatedStatusDownloadProgress;
@@ -31,6 +33,7 @@ pub struct HuggingFaceModelSource(pub HuggingFaceModelReference);
 impl ResolvesModelSource for HuggingFaceModelSource {
     async fn resolve(
         &self,
+        cancellation_token: &CancellationToken,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution> {
         let HuggingFaceModelReference {
@@ -65,13 +68,17 @@ impl ResolvesModelSource for HuggingFaceModelSource {
             return Ok(DesiredModelResolution::Resolved(cached_path));
         }
 
-        match hf_repo
-            .download_with_progress(
+        let Some(download_result) = cancellation_token
+            .run_until_cancelled(hf_repo.download_with_progress(
                 filename,
                 SlotAggregatedStatusDownloadProgress::new(slot_aggregated_status.clone()),
-            )
+            ))
             .await
-        {
+        else {
+            return Ok(DesiredModelResolution::Cancelled);
+        };
+
+        match download_result {
             Ok(resolved_filename) => {
                 slot_aggregated_status.register_fix(&AgentIssueFix::HuggingFaceDownloadedModel(
                     ModelPath { model_path },
@@ -80,25 +87,37 @@ impl ResolvesModelSource for HuggingFaceModelSource {
                 Ok(DesiredModelResolution::Resolved(resolved_filename))
             }
             Err(ApiError::LockAcquisition(lock_path)) => {
+                let lock_path = lock_path.display().to_string();
+
                 slot_aggregated_status.register_issue(AgentIssue::HuggingFaceCannotAcquireLock(
                     HuggingFaceDownloadLock {
-                        lock_path: lock_path.display().to_string(),
-                        model_path: ModelPath { model_path },
+                        lock_path: lock_path.clone(),
+                        model_path: ModelPath {
+                            model_path: model_path.clone(),
+                        },
                     },
                 ));
 
                 warn!(
-                    "Waiting to acquire download lock for '{}'. Sleeping for {} secs",
-                    lock_path.display(),
+                    "Waiting to acquire download lock for '{lock_path}'. Sleeping for {} secs",
                     LOCK_RETRY_TIMEOUT.as_secs()
                 );
 
-                sleep(LOCK_RETRY_TIMEOUT).await;
-
-                Err(anyhow!(
-                    "Failed to acquire download lock '{}'. Is more than one agent running on this machine?",
-                    lock_path.display()
-                ))
+                match wait_for_download_lock_retry(
+                    cancellation_token,
+                    LOCK_RETRY_TIMEOUT,
+                    lock_path,
+                    model_path,
+                )
+                .await
+                {
+                    DownloadLockRetryError::Cancelled { .. } => {
+                        Ok(DesiredModelResolution::Cancelled)
+                    }
+                    lock_still_unavailable @ DownloadLockRetryError::LockStillUnavailable {
+                        ..
+                    } => Err(lock_still_unavailable.into()),
+                }
             }
             Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {
                 Some(reqwest::StatusCode::NOT_FOUND) => {

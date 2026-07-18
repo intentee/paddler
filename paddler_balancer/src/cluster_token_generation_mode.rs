@@ -6,6 +6,9 @@ pub enum ClusterTokenGenerationMode {
     DisabledForEmbeddings,
 }
 
+pub const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
+    "Token generation is disabled while the cluster is configured for embeddings";
+
 impl ClusterTokenGenerationMode {
     #[must_use]
     pub fn from_applicable_state_holder(

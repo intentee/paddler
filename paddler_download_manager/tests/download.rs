@@ -8,6 +8,7 @@ use anyhow::anyhow;
 use anyhow::bail;
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
+use paddler_download_manager::download_outcome::DownloadOutcome;
 use paddler_download_manager::progress_sink::ProgressSink;
 
 use tempfile::TempDir;
@@ -19,6 +20,7 @@ use tokio::fs::remove_file;
 use tokio::fs::set_permissions;
 use tokio::fs::try_exists;
 use tokio::fs::write;
+use tokio_util::sync::CancellationToken;
 
 use crate::local_http_fixture::FixtureResponse;
 use crate::local_http_fixture::LocalHttpFixture;
@@ -83,7 +85,12 @@ async fn streams_200_response_to_disk_and_calls_progress_sink_per_chunk() -> Res
     let dest = directory.path().join("model.gguf");
 
     DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, progress_sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            progress_sink,
+        )
         .await?;
 
     assert_eq!(read(&dest).await?, body);
@@ -119,7 +126,12 @@ async fn resumes_from_existing_partial_file_with_range_request() -> Result<()> {
     let progress_sink: Arc<dyn ProgressSink> = sink.clone();
 
     DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, progress_sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            progress_sink,
+        )
         .await?;
 
     assert_eq!(read(&dest).await?, b"first half second half");
@@ -148,7 +160,12 @@ async fn starts_over_when_server_returns_200_to_range_request() -> Result<()> {
     let progress_sink: Arc<dyn ProgressSink> = sink.clone();
 
     DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, progress_sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            progress_sink,
+        )
         .await?;
 
     assert_eq!(read(&dest).await?, body);
@@ -164,7 +181,12 @@ async fn returns_not_found_on_404_without_retrying() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/missing.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/missing.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(result, Err(DownloadError::NotFound { .. })));
@@ -181,7 +203,12 @@ async fn returns_permission_denied_on_401_without_retrying() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/private.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/private.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -201,7 +228,12 @@ async fn returns_permission_denied_on_403_without_retrying() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/forbidden.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/forbidden.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -224,7 +256,12 @@ async fn returns_partial_file_stale_on_416_and_removes_partial() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -246,7 +283,12 @@ async fn returns_partial_file_stale_on_416_even_when_no_partial_existed() -> Res
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -277,7 +319,12 @@ async fn mismatched_content_range_is_treated_as_partial_file_stale() -> Result<(
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -297,7 +344,12 @@ async fn four_hundred_status_returns_download_server_rejected_request() -> Resul
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     let Err(DownloadError::DownloadServerRejectedRequest { status, .. }) = result else {
@@ -317,7 +369,12 @@ async fn five_hundred_status_returns_download_server_errored() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     let Err(DownloadError::DownloadServerErrored { status, .. }) = result else {
@@ -342,7 +399,12 @@ async fn stream_drop_after_partial_body_returns_download_stream_interrupted() ->
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/model.gguf"), &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -364,7 +426,12 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
     let sink_success = Arc::new(RecordingSink::new());
     let progress_success: Arc<dyn ProgressSink> = sink_success.clone();
     DownloadManager::new()?
-        .download(&fixture_success.url("/x"), &dest, progress_success)
+        .download(
+            &CancellationToken::new(),
+            &fixture_success.url("/x"),
+            &dest,
+            progress_success,
+        )
         .await?;
     assert_eq!(sink_success.finished_count.load(Ordering::Relaxed), 1);
 
@@ -375,7 +442,12 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
     let sink_404 = Arc::new(RecordingSink::new());
     let progress_404: Arc<dyn ProgressSink> = sink_404.clone();
     let _ = DownloadManager::new()?
-        .download(&fixture_404.url("/x"), &dest, progress_404)
+        .download(
+            &CancellationToken::new(),
+            &fixture_404.url("/x"),
+            &dest,
+            progress_404,
+        )
         .await;
     assert_eq!(sink_404.finished_count.load(Ordering::Relaxed), 0);
 
@@ -384,7 +456,12 @@ async fn progress_sink_on_finished_fires_only_on_success() -> Result<()> {
     let sink_500 = Arc::new(RecordingSink::new());
     let progress_500: Arc<dyn ProgressSink> = sink_500.clone();
     let _ = DownloadManager::new()?
-        .download(&fixture_500.url("/x"), &dest, progress_500)
+        .download(
+            &CancellationToken::new(),
+            &fixture_500.url("/x"),
+            &dest,
+            progress_500,
+        )
         .await;
     assert_eq!(sink_500.finished_count.load(Ordering::Relaxed), 0);
 
@@ -398,7 +475,12 @@ async fn unsupported_url_scheme_returns_invalid_url_error_without_network_call()
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download("ftp://example.invalid/model.gguf", &dest, sink)
+        .download(
+            &CancellationToken::new(),
+            "ftp://example.invalid/model.gguf",
+            &dest,
+            sink,
+        )
         .await;
 
     assert!(matches!(
@@ -416,7 +498,7 @@ async fn invalid_url_returns_invalid_url_error_without_network_call() -> Result<
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download("not a valid url", &dest, sink)
+        .download(&CancellationToken::new(), "not a valid url", &dest, sink)
         .await;
 
     assert!(matches!(result, Err(DownloadError::InvalidUrl { .. })));
@@ -492,7 +574,7 @@ async fn returns_io_error_when_destination_directory_does_not_exist_and_cannot_b
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     assert!(matches!(result, Err(DownloadError::Io { .. })));
@@ -509,7 +591,7 @@ async fn last_recorded_range_header_returns_none_when_no_range_was_sent() -> Res
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await?;
 
     assert!(fixture.last_recorded_range_header().is_none());
@@ -529,7 +611,12 @@ async fn read_timeout_fires_when_server_stalls_before_headers() -> Result<()> {
 
     let outcome = tokio::time::timeout(
         Duration::from_secs(20),
-        DownloadManager::new()?.download(&fixture.url("/model.gguf"), &dest, sink),
+        DownloadManager::new()?.download(
+            &CancellationToken::new(),
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        ),
     )
     .await;
 
@@ -552,7 +639,9 @@ async fn send_error_returns_download_server_is_unreachable() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let url = "http://127.0.0.1:1/never-listens".to_owned();
-    let result = DownloadManager::new()?.download(&url, &dest, sink).await;
+    let result = DownloadManager::new()?
+        .download(&CancellationToken::new(), &url, &dest, sink)
+        .await;
 
     let Err(DownloadError::DownloadServerIsUnreachable { url: error_url, .. }) = result else {
         bail!("expected DownloadServerIsUnreachable, got {result:?}");
@@ -575,7 +664,7 @@ async fn open_for_append_error_returns_io_when_partial_path_is_a_directory() -> 
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     assert!(matches!(result, Err(DownloadError::Io { .. })));
@@ -602,7 +691,7 @@ async fn download_returns_cache_permission_denied_when_dir_is_read_only() -> Res
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     let mut restore = metadata(&readonly_parent).await?.permissions();
@@ -630,7 +719,7 @@ async fn finalize_error_returns_io_when_destination_is_a_non_empty_directory() -
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     assert!(matches!(result, Err(DownloadError::Io { .. })));
@@ -658,7 +747,7 @@ async fn partial_file_stale_with_unremovable_partial_returns_cache_permission_de
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     let mut restore = metadata(&locked_parent).await?.permissions();
@@ -686,7 +775,7 @@ async fn truncate_error_during_ignore_range_returns_io() -> Result<()> {
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     assert!(matches!(result, Err(DownloadError::Io { .. })));
@@ -709,7 +798,7 @@ async fn download_returns_cache_disk_full_when_target_is_dev_full() -> Result<()
     let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
 
     let result = DownloadManager::new()?
-        .download(&fixture.url("/x"), &dest, sink)
+        .download(&CancellationToken::new(), &fixture.url("/x"), &dest, sink)
         .await;
 
     let Err(DownloadError::CacheDiskFull { source, .. }) = result else {
@@ -733,6 +822,7 @@ async fn download_succeeds_after_cache_dir_was_deleted_between_calls() -> Result
 
     DownloadManager::new()?
         .download(
+            &CancellationToken::new(),
             &url,
             &dest,
             Arc::new(RecordingSink::new()) as Arc<dyn ProgressSink>,
@@ -744,12 +834,84 @@ async fn download_succeeds_after_cache_dir_was_deleted_between_calls() -> Result
 
     DownloadManager::new()?
         .download(
+            &CancellationToken::new(),
             &url,
             &dest,
             Arc::new(RecordingSink::new()) as Arc<dyn ProgressSink>,
         )
         .await?;
     assert_eq!(read(&dest).await?, body);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_pre_cancelled_token_returns_cancelled_without_sending_the_request() -> Result<()> {
+    let directory = TempDir::new()?;
+    let dest = directory.path().join("model.gguf");
+    let fixture =
+        LocalHttpFixture::start(Scenario::always(FixtureResponse::ok(b"body".to_vec()))).await?;
+    let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
+    let cancellation_token = CancellationToken::new();
+
+    cancellation_token.cancel();
+
+    let outcome = DownloadManager::new()?
+        .download(
+            &cancellation_token,
+            &fixture.url("/model.gguf"),
+            &dest,
+            sink,
+        )
+        .await?;
+
+    assert_eq!(outcome, DownloadOutcome::Cancelled);
+    assert!(!try_exists(&dest).await?);
+    assert_eq!(fixture.request_count(), 0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn cancelling_mid_stream_leaves_a_resumable_partial_and_does_not_finalize() -> Result<()> {
+    let directory = TempDir::new()?;
+    let dest = directory.path().join("model.gguf");
+    let partial_path = dest.with_extension("partial");
+    let fixture = LocalHttpFixture::start(Scenario::always(FixtureResponse::ok_stall_after(
+        vec![7_u8; 8192],
+        16,
+    )))
+    .await?;
+    let url = fixture.url("/model.gguf");
+    let sink: Arc<dyn ProgressSink> = Arc::new(RecordingSink::new());
+    let cancellation_token = CancellationToken::new();
+
+    let download_token = cancellation_token.clone();
+    let dest_for_download = dest.clone();
+    let download_handle = tokio::spawn(async move {
+        DownloadManager::new()
+            .unwrap()
+            .download(&download_token, &url, &dest_for_download, sink)
+            .await
+    });
+
+    while !try_exists(&partial_path).await? {
+        tokio::task::yield_now().await;
+    }
+
+    cancellation_token.cancel();
+
+    let outcome = download_handle.await??;
+
+    assert_eq!(outcome, DownloadOutcome::Cancelled);
+    assert!(
+        try_exists(&partial_path).await?,
+        "a cancelled download must leave a resumable .partial file"
+    );
+    assert!(
+        !try_exists(&dest).await?,
+        "a cancelled download must not finalize the target file"
+    );
 
     Ok(())
 }

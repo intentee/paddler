@@ -1,6 +1,7 @@
 pub mod download_attempt_error;
 pub mod download_error;
 pub mod download_manager;
+pub mod download_outcome;
 pub mod partial_file;
 pub mod progress_sink;
 pub mod response_classification;

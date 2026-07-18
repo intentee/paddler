@@ -65,6 +65,12 @@ pub enum Error {
         #[source]
         source: Box<Self>,
     },
+
+    #[error("Request to {url} was cancelled before the server responded")]
+    RequestCancelled { url: String },
+
+    #[error("Inference request {request_id} was cancelled before it reached the server")]
+    InferenceRequestCancelled { request_id: String },
 }
 
 pub type Result<TValue> = std::result::Result<TValue, Error>;

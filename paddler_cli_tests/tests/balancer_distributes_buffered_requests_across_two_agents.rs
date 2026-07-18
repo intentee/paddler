@@ -14,6 +14,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()> {
@@ -57,11 +58,14 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
 
     for _ in 0..5 {
         let stream = cluster
-            .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: 10,
-                raw_prompt: "Hello".to_owned(),
-            })
+            .continue_from_raw_prompt_stream(
+                CancellationToken::new(),
+                &ContinueFromRawPromptParams {
+                    grammar: None,
+                    max_tokens: 10,
+                    raw_prompt: "Hello".to_owned(),
+                },
+            )
             .await?;
 
         streams.push(stream);

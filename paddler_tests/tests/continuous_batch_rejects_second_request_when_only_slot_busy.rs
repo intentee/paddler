@@ -9,9 +9,11 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result<()> {
@@ -48,11 +50,14 @@ async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result
         .clone();
 
     let mut first_stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 100,
-            raw_prompt: "Tell me a long story about an explorer".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 100,
+                raw_prompt: "Tell me a long story about an explorer".to_owned(),
+            },
+        )
         .await?;
 
     let _first_message = first_stream
@@ -61,16 +66,19 @@ async fn continuous_batch_rejects_second_request_when_only_slot_busy() -> Result
         .context("first stream must yield at least one message")?;
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1)
+        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
         .await
         .context("first request should occupy the only slot")?;
 
     let second_failed = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 10,
-            raw_prompt: "Hello".to_owned(),
-        })
+        .continue_from_raw_prompt(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 10,
+                raw_prompt: "Hello".to_owned(),
+            },
+        )
         .await
         .is_err();
 

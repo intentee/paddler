@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_reports_zero_download_progress_after_load_complete() -> Result<()> {
@@ -11,7 +12,7 @@ async fn management_reports_zero_download_progress_after_load_complete() -> Resu
 
     let snapshot = cluster
         .client_management
-        .get_agents()
+        .get_agents(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)
         .context("get_agents should succeed")?;

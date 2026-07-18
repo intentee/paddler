@@ -9,6 +9,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -39,7 +40,7 @@ async fn balancer_reports_download_url_is_malformed() -> Result<()> {
 
     let snapshot = cluster
         .agents_watcher
-        .until(move |snapshot| {
+        .until(ObservationWindow::model_load(), move |snapshot| {
             snapshot.agents.iter().any(|agent| {
                 agent.id == agent_id
                     && agent

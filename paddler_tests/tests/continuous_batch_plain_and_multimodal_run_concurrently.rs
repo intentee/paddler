@@ -13,6 +13,7 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> {
@@ -63,8 +64,8 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> 
         tools: vec![],
     };
     let (plain_collected, multimodal_collected) = tokio::join!(
-        cluster.continue_from_raw_prompt(&plain_params),
-        cluster.continue_from_conversation_history(&multimodal_params),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &plain_params),
+        cluster.continue_from_conversation_history(CancellationToken::new(), &multimodal_params),
     );
 
     let plain_collected = plain_collected?;

@@ -10,6 +10,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()> {
@@ -34,10 +35,13 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()>
             })
             .collect();
 
-        cluster.generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch,
-            normalization_method: EmbeddingNormalizationMethod::None,
-        })
+        cluster.generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch,
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
     });
 
     let per_client_results = futures_util::future::join_all(client_tasks).await;

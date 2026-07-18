@@ -10,6 +10,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn two_concurrent_prompts_produce_distinct_outputs() -> Result<()> {
@@ -51,8 +52,8 @@ async fn two_concurrent_prompts_produce_distinct_outputs() -> Result<()> {
         raw_prompt: "The capital of France is".to_owned(),
     };
     let (collected_a, collected_b) = tokio::join!(
-        cluster.continue_from_raw_prompt(&params_a),
-        cluster.continue_from_raw_prompt(&params_b),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &params_a),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &params_b),
     );
 
     let collected_a = collected_a?;

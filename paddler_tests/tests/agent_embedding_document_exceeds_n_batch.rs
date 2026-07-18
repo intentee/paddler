@@ -8,6 +8,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use tokio_util::sync::CancellationToken;
 
 const N_BATCH: u32 = 64;
 
@@ -28,19 +29,22 @@ async fn agent_embedding_document_exceeds_n_batch() -> Result<()> {
     let huge_content = "The quick brown fox jumps over the lazy dog. ".repeat(40);
 
     let collected = cluster
-        .generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch: vec![
-                EmbeddingInputDocument {
-                    content: "ok".to_owned(),
-                    id: "tiny".to_owned(),
-                },
-                EmbeddingInputDocument {
-                    content: huge_content,
-                    id: "huge".to_owned(),
-                },
-            ],
-            normalization_method: EmbeddingNormalizationMethod::None,
-        })
+        .generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![
+                    EmbeddingInputDocument {
+                        content: "ok".to_owned(),
+                        id: "tiny".to_owned(),
+                    },
+                    EmbeddingInputDocument {
+                        content: huge_content,
+                        id: "huge".to_owned(),
+                    },
+                ],
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
         .await?;
 
     assert!(

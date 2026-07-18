@@ -7,15 +7,22 @@ use futures_util::Stream;
 use futures_util::StreamExt as _;
 use paddler_client::client_management::ClientManagement;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use tokio::time::timeout;
+use tokio_util::sync::CancellationToken;
+
+use crate::observation_window::ObservationWindow;
 
 pub struct BufferedRequestsStreamWatcher {
     stream: Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>,
 }
 
 impl BufferedRequestsStreamWatcher {
-    pub async fn connect(management: &ClientManagement) -> Result<Self> {
+    pub async fn connect(
+        cancellation_token: CancellationToken,
+        management: &ClientManagement,
+    ) -> Result<Self> {
         let raw_stream = management
-            .get_buffered_requests_stream()
+            .get_buffered_requests_stream(cancellation_token)
             .await
             .map_err(anyhow::Error::new)
             .context("failed to open /api/v1/buffered_requests/stream")?;
@@ -36,22 +43,34 @@ impl BufferedRequestsStreamWatcher {
 
     pub async fn until<TPredicate>(
         &mut self,
+        observation_window: ObservationWindow,
         mut predicate: TPredicate,
     ) -> Result<BufferedRequestManagerSnapshot>
     where
         TPredicate: FnMut(&BufferedRequestManagerSnapshot) -> bool,
     {
-        while let Some(item) = self.stream.next().await {
-            let snapshot = item.context("buffered requests stream yielded an error")?;
+        let stream = &mut self.stream;
 
-            if predicate(&snapshot) {
-                return Ok(snapshot);
+        timeout(observation_window.duration(), async move {
+            while let Some(item) = stream.next().await {
+                let snapshot = item.context("buffered requests stream yielded an error")?;
+
+                if predicate(&snapshot) {
+                    return Ok(snapshot);
+                }
             }
-        }
 
-        Err(anyhow!(
-            "buffered requests stream closed before predicate was satisfied"
-        ))
+            Err(anyhow!(
+                "buffered requests stream closed before predicate was satisfied"
+            ))
+        })
+        .await
+        .with_context(|| {
+            format!(
+                "buffered requests stream did not satisfy the predicate within {:?}",
+                observation_window.duration()
+            )
+        })?
     }
 }
 
@@ -61,6 +80,7 @@ mod tests {
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
     use super::BufferedRequestsStreamWatcher;
+    use crate::observation_window::ObservationWindow;
 
     fn watcher(
         items: Vec<anyhow::Result<BufferedRequestManagerSnapshot>>,
@@ -79,7 +99,9 @@ mod tests {
         let mut watcher = watcher(vec![Ok(snapshot(5)), Ok(snapshot(0))]);
 
         let matched = watcher
-            .until(|snapshot| snapshot.buffered_requests_current == 0)
+            .until(ObservationWindow::release(), |snapshot| {
+                snapshot.buffered_requests_current == 0
+            })
             .await
             .unwrap();
 
@@ -90,7 +112,11 @@ mod tests {
     async fn errors_when_the_stream_closes_before_the_predicate_is_satisfied() {
         let mut watcher = watcher(vec![Ok(snapshot(5))]);
 
-        let error = watcher.until(|_| false).await.err().unwrap();
+        let error = watcher
+            .until(ObservationWindow::release(), |_| false)
+            .await
+            .err()
+            .unwrap();
 
         assert!(error.to_string().contains("closed before predicate"));
     }
@@ -99,7 +125,11 @@ mod tests {
     async fn propagates_a_stream_error() {
         let mut watcher = watcher(vec![Err(anyhow!("socket closed"))]);
 
-        let error = watcher.until(|_| true).await.err().unwrap();
+        let error = watcher
+            .until(ObservationWindow::release(), |_| true)
+            .await
+            .err()
+            .unwrap();
 
         assert!(error.to_string().contains("yielded an error"));
     }

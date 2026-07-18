@@ -20,6 +20,7 @@ use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use tempfile::NamedTempFile;
+use tokio::net::TcpListener as TokioTcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -47,9 +48,9 @@ async fn wait_until_bound(addr: SocketAddr) -> Result<()> {
 }
 
 fn make_balancer_runner_params(
+    cancellation_token: CancellationToken,
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
-    cancellation_token: CancellationToken,
 ) -> BalancerRunnerParams {
     BalancerRunnerParams {
         buffered_request_timeout: Duration::from_secs(10),
@@ -75,8 +76,8 @@ fn make_balancer_runner_params(
 }
 
 fn make_agent_runner_params(
-    management_addr: SocketAddr,
     cancellation_token: CancellationToken,
+    management_addr: SocketAddr,
 ) -> AgentRunnerParams {
     AgentRunnerParams {
         agent_name: Some("test-agent".to_owned()),
@@ -92,9 +93,9 @@ async fn balancer_runner_exits_when_dropped() -> Result<()> {
     let inference_addr = pick_free_loopback_addr()?;
 
     let runner = BalancerRunner::start(make_balancer_runner_params(
+        CancellationToken::new(),
         management_addr,
         inference_addr,
-        CancellationToken::new(),
     ))
     .await?;
 
@@ -117,9 +118,9 @@ async fn balancer_runner_exits_on_explicit_cancel() -> Result<()> {
     let inference_addr = pick_free_loopback_addr()?;
 
     let runner = BalancerRunner::start(make_balancer_runner_params(
+        CancellationToken::new(),
         management_addr,
         inference_addr,
-        CancellationToken::new(),
     ))
     .await?;
 
@@ -143,9 +144,9 @@ async fn balancer_runner_cancels_from_parent_token() -> Result<()> {
     let parent = CancellationToken::new();
 
     let runner = BalancerRunner::start(make_balancer_runner_params(
+        parent.clone(),
         management_addr,
         inference_addr,
-        parent.clone(),
     ))
     .await?;
 
@@ -189,7 +190,7 @@ async fn balancer_runner_preserves_persisted_desired_state() -> Result<()> {
     let inference_addr = pick_free_loopback_addr()?;
 
     let mut params =
-        make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
+        make_balancer_runner_params(CancellationToken::new(), management_addr, inference_addr);
 
     params.state_database_type = StateDatabaseType::File(state_db_path.clone());
 
@@ -216,8 +217,8 @@ async fn agent_runner_exits_when_dropped() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
 
     let runner = AgentRunner::start(make_agent_runner_params(
-        management_addr,
         CancellationToken::new(),
+        management_addr,
     ));
 
     drop(runner);
@@ -231,7 +232,7 @@ async fn agent_runner_cancels_from_parent_token() -> Result<()> {
 
     let parent = CancellationToken::new();
 
-    let runner = AgentRunner::start(make_agent_runner_params(management_addr, parent.clone()));
+    let runner = AgentRunner::start(make_agent_runner_params(parent.clone(), management_addr));
 
     parent.cancel();
     drop(runner);
@@ -245,7 +246,7 @@ async fn in_flight_request_is_released_when_balancer_shuts_down() -> Result<()> 
     let inference_addr = pick_free_loopback_addr()?;
 
     let mut params =
-        make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
+        make_balancer_runner_params(CancellationToken::new(), management_addr, inference_addr);
 
     // The request never finds an agent, so it stays buffered (in flight) until this long
     // timeout — which is far longer than the short shutdown deadline below.
@@ -302,8 +303,8 @@ async fn agent_runner_completes_after_explicit_cancel() -> Result<()> {
     let management_addr = pick_free_loopback_addr()?;
 
     let mut runner = AgentRunner::start(make_agent_runner_params(
-        management_addr,
         CancellationToken::new(),
+        management_addr,
     ));
 
     runner.cancel();
@@ -324,7 +325,7 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() ->
     let inference_addr = pick_free_loopback_addr()?;
 
     let mut params =
-        make_balancer_runner_params(management_addr, inference_addr, CancellationToken::new());
+        make_balancer_runner_params(CancellationToken::new(), management_addr, inference_addr);
 
     params.state_database_type =
         StateDatabaseType::File(corrupt_state_database.path().to_path_buf());
@@ -332,6 +333,32 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() ->
     let start_result = BalancerRunner::start(params).await;
 
     assert!(start_result.is_err());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn agent_runner_completes_after_cancel_when_management_server_is_unresponsive() -> Result<()>
+{
+    let unresponsive_management_server = TokioTcpListener::bind("127.0.0.1:0")
+        .await
+        .context("failed to bind the fixture management server")?;
+    let management_addr = unresponsive_management_server
+        .local_addr()
+        .context("failed to read the fixture management server address")?;
+
+    let mut runner = AgentRunner::start(make_agent_runner_params(
+        CancellationToken::new(),
+        management_addr,
+    ));
+
+    let (_held_connection, _peer) = unresponsive_management_server
+        .accept()
+        .await
+        .context("the agent should connect to the fixture management server")?;
+
+    runner.cancel();
+    runner.wait_for_completion().await?;
 
     Ok(())
 }

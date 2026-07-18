@@ -1,26 +1,31 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+#[derive(Clone)]
 pub struct SequenceIdPool {
-    available_ids: Vec<i32>,
+    available_ids: Rc<RefCell<Vec<i32>>>,
 }
 
 impl SequenceIdPool {
     #[must_use]
     pub fn new(max_sequences: i32) -> Self {
-        let available_ids = (0..max_sequences).rev().collect();
-
-        Self { available_ids }
-    }
-
-    pub fn acquire(&mut self) -> Option<i32> {
-        self.available_ids.pop()
-    }
-
-    pub fn release(&mut self, sequence_id: i32) {
-        self.available_ids.push(sequence_id);
+        Self {
+            available_ids: Rc::new(RefCell::new((0..max_sequences).rev().collect())),
+        }
     }
 
     #[must_use]
-    pub const fn available_count(&self) -> usize {
-        self.available_ids.len()
+    pub fn acquire(&self) -> Option<i32> {
+        self.available_ids.borrow_mut().pop()
+    }
+
+    pub fn release(&self, sequence_id: i32) {
+        self.available_ids.borrow_mut().push(sequence_id);
+    }
+
+    #[must_use]
+    pub fn available_count(&self) -> usize {
+        self.available_ids.borrow().len()
     }
 }
 
@@ -30,7 +35,7 @@ mod tests {
 
     #[test]
     fn acquire_returns_sequential_ids() {
-        let mut pool = SequenceIdPool::new(4);
+        let pool = SequenceIdPool::new(4);
 
         assert_eq!(pool.acquire(), Some(0));
         assert_eq!(pool.acquire(), Some(1));
@@ -40,7 +45,7 @@ mod tests {
 
     #[test]
     fn release_makes_id_available_again() {
-        let mut pool = SequenceIdPool::new(2);
+        let pool = SequenceIdPool::new(2);
 
         let first_id = pool.acquire();
         assert_eq!(first_id, Some(0));
@@ -53,7 +58,7 @@ mod tests {
 
     #[test]
     fn acquire_returns_none_when_exhausted() {
-        let mut pool = SequenceIdPool::new(2);
+        let pool = SequenceIdPool::new(2);
 
         assert_eq!(pool.acquire(), Some(0));
         assert_eq!(pool.acquire(), Some(1));
@@ -62,17 +67,29 @@ mod tests {
 
     #[test]
     fn available_count_tracks_pool_size() {
-        let mut pool = SequenceIdPool::new(3);
+        let pool = SequenceIdPool::new(3);
 
         assert_eq!(pool.available_count(), 3);
 
-        pool.acquire();
+        assert!(pool.acquire().is_some());
         assert_eq!(pool.available_count(), 2);
 
-        pool.acquire();
+        assert!(pool.acquire().is_some());
         assert_eq!(pool.available_count(), 1);
 
         pool.release(0);
+        assert_eq!(pool.available_count(), 2);
+    }
+
+    #[test]
+    fn cloned_handles_share_the_same_available_ids() {
+        let pool = SequenceIdPool::new(2);
+        let cloned_pool = pool.clone();
+
+        assert_eq!(pool.acquire(), Some(0));
+        assert_eq!(cloned_pool.available_count(), 1);
+
+        cloned_pool.release(0);
         assert_eq!(pool.available_count(), 2);
     }
 }

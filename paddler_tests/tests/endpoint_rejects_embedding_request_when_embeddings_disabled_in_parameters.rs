@@ -14,6 +14,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 const NOT_IMPLEMENTED: u16 = 501;
 
@@ -40,13 +41,16 @@ async fn endpoint_rejects_embedding_request_when_embeddings_disabled_in_paramete
 
     let rejection = cluster
         .client_inference
-        .post_generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch: vec![EmbeddingInputDocument {
-                content: "Hello world".to_owned(),
-                id: "doc-1".to_owned(),
-            }],
-            normalization_method: EmbeddingNormalizationMethod::None,
-        })
+        .post_generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![EmbeddingInputDocument {
+                    content: "Hello world".to_owned(),
+                    id: "doc-1".to_owned(),
+                }],
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
         .await
         .err()
         .context("endpoint must reject embedding requests when embeddings are disabled")?;

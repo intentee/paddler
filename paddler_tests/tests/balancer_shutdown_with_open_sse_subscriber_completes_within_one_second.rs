@@ -6,6 +6,7 @@ use futures_util::StreamExt as _;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use tokio::time::timeout;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_shutdown_with_open_sse_subscriber_completes_within_one_second() -> Result<()> {
@@ -18,7 +19,7 @@ async fn balancer_shutdown_with_open_sse_subscriber_completes_within_one_second(
 
     let mut sse_stream = cluster
         .client_management
-        .get_buffered_requests_stream()
+        .get_buffered_requests_stream(CancellationToken::new())
         .await
         .map_err(anyhow::Error::new)?;
 

@@ -5,14 +5,11 @@ pub mod http_route;
 use std::sync::Arc;
 
 use actix_web::App;
-use actix_web::HttpServer;
 use actix_web::web::Data;
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
-use trzcina::ServiceShutdownOptions;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -25,6 +22,8 @@ use crate::http_route as common_http_route;
 use crate::management_service::app_data::AppData;
 use crate::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
+use crate::run_http_service::run_http_service;
+use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::state_database::StateDatabase;
 #[cfg(feature = "web_admin_panel")]
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
@@ -39,8 +38,6 @@ fn collect_web_admin_panel_cors_allowed_hosts(
         .collect()
 }
 
-const HTTP_WORKERS: usize = 2;
-
 pub struct ManagementService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
@@ -50,7 +47,6 @@ pub struct ManagementService {
     pub embedding_sender_collection: Arc<EmbeddingSenderCollection>,
     pub generate_tokens_sender_collection: Arc<GenerateTokensSenderCollection>,
     pub model_metadata_sender_collection: Arc<ModelMetadataSenderCollection>,
-    pub shutdown_options: ServiceShutdownOptions,
     pub state_database: Arc<dyn StateDatabase>,
     pub statsd_prefix: String,
     #[cfg(feature = "web_admin_panel")]
@@ -64,6 +60,7 @@ impl Service for ManagementService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        let service_name = self.name();
         let web_admin_panel_cors_allowed_hosts: Vec<String> = {
             #[cfg(feature = "web_admin_panel")]
             {
@@ -101,37 +98,32 @@ impl Service for ManagementService {
             statsd_prefix: self.statsd_prefix.clone(),
         });
 
-        let bind_addr = self.configuration.addr;
-
-        let server = HttpServer::new(move || {
-            App::new()
-                .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
-                .app_data(app_data.clone())
-                .configure(common_http_route::get_health::register)
-                .configure(http_route::api::get_agents::register)
-                .configure(http_route::api::get_agents_stream::register)
-                .configure(http_route::api::get_balancer_applicable_state::register)
-                .configure(http_route::api::get_balancer_desired_state::register)
-                .configure(http_route::api::get_buffered_requests::register)
-                .configure(http_route::api::get_buffered_requests_stream::register)
-                .configure(http_route::api::get_chat_template_override::register)
-                .configure(http_route::api::get_model_metadata::register)
-                .configure(http_route::api::put_balancer_desired_state::register)
-                .configure(http_route::api::ws_agent_socket::register)
-                .configure(http_route::get_metrics::register)
-        })
-        .workers(HTTP_WORKERS)
-        .shutdown_signal(async move {
-            shutdown.cancelled().await;
-        })
-        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
-        .disable_signals()
-        .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer management service to {bind_addr}"))?;
-
-        server.run().await?;
-
-        Ok(())
+        run_http_service(
+            shutdown,
+            RunHttpServiceParameters {
+                app_factory: move || {
+                    App::new()
+                        .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
+                        .app_data(app_data.clone())
+                        .configure(common_http_route::get_health::register)
+                        .configure(http_route::api::get_agents::register)
+                        .configure(http_route::api::get_agents_stream::register)
+                        .configure(http_route::api::get_balancer_applicable_state::register)
+                        .configure(http_route::api::get_balancer_desired_state::register)
+                        .configure(http_route::api::get_buffered_requests::register)
+                        .configure(http_route::api::get_buffered_requests_stream::register)
+                        .configure(http_route::api::get_chat_template_override::register)
+                        .configure(http_route::api::get_model_metadata::register)
+                        .configure(http_route::api::put_balancer_desired_state::register)
+                        .configure(http_route::api::ws_agent_socket::register)
+                        .configure(http_route::get_metrics::register)
+                },
+                bind_addr: self.configuration.addr,
+                service_name,
+                worker_count: 2,
+            },
+        )
+        .await
     }
 }
 
@@ -146,7 +138,6 @@ mod tests {
     use tokio::sync::broadcast;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
-    use trzcina::ServiceShutdownOptions;
 
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -188,7 +179,6 @@ mod tests {
             embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
             generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
             model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
-            shutdown_options: ServiceShutdownOptions::default(),
             state_database: Arc::new(Memory::new(
                 balancer_desired_state_notify_tx,
                 BalancerDesiredState::default(),

@@ -6,6 +6,7 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_serves_four_concurrent_requests() -> Result<()> {
@@ -14,11 +15,14 @@ async fn continuous_batch_serves_four_concurrent_requests() -> Result<()> {
     let prompts = ["The sky is", "Roses are", "Once upon", "In the year"];
 
     let collected_results = futures_util::future::try_join_all(prompts.into_iter().map(|prompt| {
-        cluster.continue_from_raw_prompt(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 8,
-            raw_prompt: prompt.to_owned(),
-        })
+        cluster.continue_from_raw_prompt(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 8,
+                raw_prompt: prompt.to_owned(),
+            },
+        )
     }))
     .await?;
 

@@ -22,6 +22,7 @@ use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use serde_json::Map;
 use serde_json::json;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
@@ -60,31 +61,34 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
     invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text(
-                    "What is the weather in Paris?".to_owned(),
-                ),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 64,
-            parse_tool_calls: true,
-            tools: vec![Tool::Function(FunctionCall {
-                function: Function {
-                    name: "get_weather".to_owned(),
-                    description: "Get the current weather for a location".to_owned(),
-                    parameters: Parameters::Schema(ValidatedParametersSchema {
-                        schema_type: "object".to_owned(),
-                        properties: Some(invalid_properties),
-                        required: None,
-                        additional_properties: None,
-                    }),
-                },
-            })],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text(
+                        "What is the weather in Paris?".to_owned(),
+                    ),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: 64,
+                parse_tool_calls: true,
+                tools: vec![Tool::Function(FunctionCall {
+                    function: Function {
+                        name: "get_weather".to_owned(),
+                        description: "Get the current weather for a location".to_owned(),
+                        parameters: Parameters::Schema(ValidatedParametersSchema {
+                            schema_type: "object".to_owned(),
+                            properties: Some(invalid_properties),
+                            required: None,
+                            additional_properties: None,
+                        }),
+                    },
+                })],
+            },
+        )
         .await?;
 
     let schema_invalid_message = collected

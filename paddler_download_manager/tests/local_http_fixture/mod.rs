@@ -27,6 +27,10 @@ pub enum FixtureResponse {
         body: Vec<u8>,
         bytes_before_drop: usize,
     },
+    OkStallAfter {
+        body: Vec<u8>,
+        bytes_before_stall: usize,
+    },
     StallBeforeHeaders,
 }
 
@@ -50,6 +54,13 @@ impl FixtureResponse {
         Self::OkDropAfter {
             body,
             bytes_before_drop,
+        }
+    }
+
+    pub const fn ok_stall_after(body: Vec<u8>, bytes_before_stall: usize) -> Self {
+        Self::OkStallAfter {
+            body,
+            bytes_before_stall,
         }
     }
 
@@ -262,6 +273,21 @@ where
             writer.write_all(header.as_bytes()).await?;
             let truncated_len = bytes_before_drop.min(body.len());
             writer.write_all(&body[..truncated_len]).await?;
+        }
+        FixtureResponse::OkStallAfter {
+            body,
+            bytes_before_stall,
+        } => {
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            writer.write_all(header.as_bytes()).await?;
+            let streamed_len = bytes_before_stall.min(body.len());
+            writer.write_all(&body[..streamed_len]).await?;
+            writer.flush().await?;
+
+            std::future::pending::<()>().await;
         }
         FixtureResponse::StallBeforeHeaders => {
             std::future::pending::<()>().await;

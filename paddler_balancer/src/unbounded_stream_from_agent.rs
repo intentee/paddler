@@ -57,7 +57,7 @@ where
         }
     });
 
-    CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
+    CancellationTokenStreamGuard::new(connection_close, UnboundedReceiverStream::new(chunk_rx))
 }
 
 #[cfg(test)]

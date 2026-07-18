@@ -7,6 +7,7 @@ use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_grammar_initialization_failure_for_invalid_gbnf() -> Result<()> {
@@ -18,7 +19,7 @@ async fn agent_reports_grammar_initialization_failure_for_invalid_gbnf() -> Resu
     // `GrammarSampler::into_llama_sampler`, exercising the agent's
     // grammar-initialization-failure path.
     let collected = cluster
-        .continue_from_raw_prompt(&ContinueFromRawPromptParams {
+        .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {
                 grammar: r#"root ::= "unterminated"#.to_owned(),
                 root: "root".to_owned(),

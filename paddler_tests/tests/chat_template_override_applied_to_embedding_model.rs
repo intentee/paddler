@@ -11,6 +11,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn chat_template_override_applied_to_embedding_model() -> Result<()> {
@@ -42,7 +43,7 @@ async fn chat_template_override_applied_to_embedding_model() -> Result<()> {
 
     let retrieved = cluster
         .client_management
-        .get_chat_template_override(&agent_id)
+        .get_chat_template_override(CancellationToken::new(), &agent_id)
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read chat template override")?;

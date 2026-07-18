@@ -10,6 +10,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {
@@ -40,7 +41,9 @@ async fn balancer_fans_out_embedding_batch_to_all_agents() -> Result<()> {
         normalization_method: EmbeddingNormalizationMethod::None,
     };
 
-    let collected = cluster.generate_embedding_batch(&params).await?;
+    let collected = cluster
+        .generate_embedding_batch(CancellationToken::new(), &params)
+        .await?;
 
     assert_eq!(collected.embeddings.len(), 16);
     assert!(collected.saw_done);

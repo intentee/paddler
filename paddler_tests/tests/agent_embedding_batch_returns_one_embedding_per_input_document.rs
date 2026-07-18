@@ -10,6 +10,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_embedding_batch_returns_one_embedding_per_input_document() -> Result<()> {
@@ -24,19 +25,23 @@ async fn agent_embedding_batch_returns_one_embedding_per_input_document() -> Res
     .await?;
 
     let collected = cluster
-        .generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch: vec![
-                EmbeddingInputDocument {
-                    content: "The quick brown fox jumps over the lazy dog".to_owned(),
-                    id: "doc-alpha".to_owned(),
-                },
-                EmbeddingInputDocument {
-                    content: "Machine learning is a subset of artificial intelligence".to_owned(),
-                    id: "doc-beta".to_owned(),
-                },
-            ],
-            normalization_method: EmbeddingNormalizationMethod::None,
-        })
+        .generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![
+                    EmbeddingInputDocument {
+                        content: "The quick brown fox jumps over the lazy dog".to_owned(),
+                        id: "doc-alpha".to_owned(),
+                    },
+                    EmbeddingInputDocument {
+                        content: "Machine learning is a subset of artificial intelligence"
+                            .to_owned(),
+                        id: "doc-beta".to_owned(),
+                    },
+                ],
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
         .await?;
 
     assert_eq!(collected.embeddings.len(), 2);

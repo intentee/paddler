@@ -3,6 +3,7 @@ use actix_web::error::ErrorNotImplemented;
 
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
+use crate::cluster_token_generation_mode::TOKEN_GENERATION_DISABLED_MESSAGE;
 
 pub fn require_token_generation_enabled(
     balancer_applicable_state_holder: &BalancerApplicableStateHolder,
@@ -10,9 +11,9 @@ pub fn require_token_generation_enabled(
     match ClusterTokenGenerationMode::from_applicable_state_holder(balancer_applicable_state_holder)
     {
         ClusterTokenGenerationMode::Enabled => Ok(()),
-        ClusterTokenGenerationMode::DisabledForEmbeddings => Err(ErrorNotImplemented(
-            "Token generation is disabled while the cluster is configured for embeddings",
-        )),
+        ClusterTokenGenerationMode::DisabledForEmbeddings => {
+            Err(ErrorNotImplemented(TOKEN_GENERATION_DISABLED_MESSAGE))
+        }
     }
 }
 

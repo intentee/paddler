@@ -31,7 +31,7 @@ version = "4.1.0"
 actix = "0.13"
 actix-cors = "0.7"
 actix-rt = "2.11"
-actix-web = "4"
+actix-web = "=4.13.0"
 actix-web-lab = "0.26"
 actix-ws = "0.3"
 anyhow = { version = "1", features = ["backtrace"] }

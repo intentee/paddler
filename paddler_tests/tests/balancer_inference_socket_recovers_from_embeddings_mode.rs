@@ -18,6 +18,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 // Failure ceiling for the agent to reload out of embeddings mode into token
 // generation: teardown of the embeddings context, reload of the 0.6B weights
@@ -66,7 +67,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
     let mut token_generation_mode_rx = inference.subscribe_to_token_generation_mode();
 
     let mut disabled_stream = inference
-        .continue_from_raw_prompt(capital_of_france_prompt())
+        .continue_from_raw_prompt(CancellationToken::new(), capital_of_france_prompt())
         .await
         .map_err(anyhow::Error::new)?;
 
@@ -109,7 +110,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
 
     cluster
         .client_management
-        .put_balancer_desired_state(&generation_state)
+        .put_balancer_desired_state(CancellationToken::new(), &generation_state)
         .await
         .map_err(anyhow::Error::new)?;
 
@@ -123,7 +124,7 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
     ));
 
     let mut recovered_stream = inference
-        .continue_from_raw_prompt(capital_of_france_prompt())
+        .continue_from_raw_prompt(CancellationToken::new(), capital_of_france_prompt())
         .await
         .map_err(anyhow::Error::new)?;
 

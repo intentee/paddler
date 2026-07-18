@@ -15,6 +15,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn chat_template_override_replaces_model_builtin() -> Result<()> {
@@ -52,7 +53,7 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
 
     let retrieved = cluster
         .client_management
-        .get_chat_template_override(&agent_id)
+        .get_chat_template_override(CancellationToken::new(), &agent_id)
         .await
         .map_err(anyhow::Error::new)
         .context("failed to read chat template override")?;
@@ -60,18 +61,23 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
     assert_eq!(retrieved, Some(chat_template));
 
     let collected = cluster
-        .continue_from_conversation_history(&ContinueFromConversationHistoryParams {
-            add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Text("The capital of France is".to_owned()),
-                role: "user".to_owned(),
-            }]),
-            enable_thinking: false,
-            grammar: None,
-            max_tokens: 10,
-            parse_tool_calls: false,
-            tools: vec![],
-        })
+        .continue_from_conversation_history(
+            CancellationToken::new(),
+            &ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(vec![ConversationMessage {
+                    content: ConversationMessageContent::Text(
+                        "The capital of France is".to_owned(),
+                    ),
+                    role: "user".to_owned(),
+                }]),
+                enable_thinking: false,
+                grammar: None,
+                max_tokens: 10,
+                parse_tool_calls: false,
+                tools: vec![],
+            },
+        )
         .await?;
 
     let received_tokens = collected

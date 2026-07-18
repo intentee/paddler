@@ -8,6 +8,7 @@ use futures_util::stream::unfold;
 use reqwest::Response;
 use serde::de::DeserializeOwned;
 use serde_json::from_str;
+use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -34,6 +35,7 @@ fn parse_line<TItem: DeserializeOwned>(line_result: Result<String>) -> Option<Re
 }
 
 struct StreamState<TItem> {
+    cancellation_token: CancellationToken,
     is_terminated: bool,
     item_type_marker: PhantomData<TItem>,
     line_buffer: LineBuffer,
@@ -41,17 +43,19 @@ struct StreamState<TItem> {
 }
 
 fn make_stream<TItem: DeserializeOwned + Send + 'static>(
+    cancellation_token: CancellationToken,
     response: Response,
 ) -> impl Stream<Item = Result<TItem>> + Send {
     unfold(
         StreamState {
+            cancellation_token,
             is_terminated: false,
             item_type_marker: PhantomData::<TItem>,
             line_buffer: LineBuffer::new(),
             response,
         },
         |mut state| async move {
-            if state.is_terminated {
+            if state.is_terminated || state.cancellation_token.is_cancelled() {
                 return None;
             }
 
@@ -64,7 +68,12 @@ fn make_stream<TItem: DeserializeOwned + Send + 'static>(
                     continue;
                 }
 
-                match state.response.chunk().await {
+                let chunk_result = state
+                    .cancellation_token
+                    .run_until_cancelled(state.response.chunk())
+                    .await?;
+
+                match chunk_result {
                     Ok(Some(chunk)) => state.line_buffer.push_chunk(&chunk),
                     Ok(None) => {
                         let remainder_result = state.line_buffer.take_remainder()?;
@@ -88,8 +97,8 @@ pub struct Ndjson<TItem> {
 }
 
 impl<TItem: DeserializeOwned + Send + 'static> Ndjson<TItem> {
-    pub fn from_response(response: Response) -> Self {
-        let stream = make_stream::<TItem>(response);
+    pub fn from_response(cancellation_token: CancellationToken, response: Response) -> Self {
+        let stream = make_stream::<TItem>(cancellation_token, response);
 
         Self {
             inner: Box::pin(stream),
@@ -113,6 +122,9 @@ mod tests {
     use futures_util::StreamExt as _;
     use serde_json::Value;
     use serde_json::json;
+    use tokio::sync::mpsc;
+    use tokio_stream::wrappers::UnboundedReceiverStream;
+    use tokio_util::sync::CancellationToken;
 
     use super::Ndjson;
     use crate::error::Error;
@@ -130,7 +142,7 @@ mod tests {
     async fn collect_items(
         chunks: Vec<core::result::Result<&'static [u8], IoError>>,
     ) -> Vec<Result<Value>> {
-        Ndjson::<Value>::from_response(response_from_chunks(chunks))
+        Ndjson::<Value>::from_response(CancellationToken::new(), response_from_chunks(chunks))
             .collect()
             .await
     }
@@ -236,5 +248,47 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert!(matches!(items[0], Err(Error::Http(_))));
+    }
+
+    #[tokio::test]
+    async fn cancelling_the_token_ends_the_stream_without_yielding_buffered_items() {
+        let cancellation_token = CancellationToken::new();
+        let mut stream = Ndjson::<Value>::from_response(
+            cancellation_token.clone(),
+            response_from_chunks(vec![Ok(b"{\"a\":1}\n{\"a\":2}\n")]),
+        );
+
+        let first_item = stream
+            .next()
+            .await
+            .expect("the first item must be produced")
+            .expect("the first item must parse");
+
+        assert_eq!(first_item, json!({ "a": 1 }));
+
+        cancellation_token.cancel();
+
+        assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn cancelling_the_token_while_awaiting_a_chunk_ends_the_stream() {
+        let (chunk_tx, chunk_rx) =
+            mpsc::unbounded_channel::<core::result::Result<Vec<u8>, IoError>>();
+        let response = reqwest::Response::from(http::Response::new(reqwest::Body::wrap_stream(
+            UnboundedReceiverStream::new(chunk_rx),
+        )));
+        let cancellation_token = CancellationToken::new();
+        let mut stream = Ndjson::<Value>::from_response(cancellation_token.clone(), response);
+
+        let cancelling_token = cancellation_token.clone();
+
+        tokio::spawn(async move {
+            cancelling_token.cancel();
+        });
+
+        assert!(stream.next().await.is_none());
+
+        drop(chunk_tx);
     }
 }

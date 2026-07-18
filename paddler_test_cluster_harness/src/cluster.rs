@@ -17,6 +17,7 @@ use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use serde_json::Value;
+use tokio_util::sync::CancellationToken;
 
 use crate::agent_config::AgentConfig;
 use crate::agent_spawner::AgentSpawner;
@@ -30,6 +31,7 @@ use crate::collect_embedding_results::collect_embedding_results;
 use crate::collect_generated_tokens::collect_generated_tokens;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
+use crate::observation_window::ObservationWindow;
 use crate::openai_chat_completions_client::OpenAIChatCompletionsClient;
 use crate::openai_responses_client::OpenAIResponsesClient;
 use crate::running_agent::RunningAgent;
@@ -53,6 +55,7 @@ pub struct Cluster {
 
 impl Cluster {
     pub async fn connect(
+        cancellation_token: CancellationToken,
         balancer: RunningBalancer,
         agent_spawner: Box<dyn AgentSpawner>,
         desired_state: Option<&BalancerDesiredState>,
@@ -69,20 +72,21 @@ impl Cluster {
         let client_compat_openai_health = ClientHealth::new(openai_base_url.clone());
 
         client_management
-            .wait_until_healthy()
+            .wait_until_healthy(cancellation_token.clone())
             .await
             .context("balancer did not become healthy")?;
 
         if let Some(desired_state) = desired_state {
             client_management
-                .put_balancer_desired_state(desired_state)
+                .put_balancer_desired_state(cancellation_token.clone(), desired_state)
                 .await
                 .context("failed to PUT balancer desired state")?;
         }
 
-        let agents_watcher = AgentsStreamWatcher::connect(&client_management).await?;
+        let agents_watcher =
+            AgentsStreamWatcher::connect(cancellation_token.clone(), &client_management).await?;
         let buffered_requests_watcher =
-            BufferedRequestsStreamWatcher::connect(&client_management).await?;
+            BufferedRequestsStreamWatcher::connect(cancellation_token, &client_management).await?;
 
         let openai_client = OpenAIChatCompletionsClient::new(&openai_base_url)?;
         let openai_responses_client = OpenAIResponsesClient::new(&openai_base_url)?;
@@ -104,6 +108,7 @@ impl Cluster {
 
     pub fn continue_from_raw_prompt(
         &self,
+        cancellation_token: CancellationToken,
         params: &ContinueFromRawPromptParams,
     ) -> impl Future<Output = Result<CollectedGeneratedTokens>> + Send + use<> {
         let client_inference = self.client_inference.clone();
@@ -112,7 +117,7 @@ impl Cluster {
         async move {
             collect_generated_tokens(
                 client_inference
-                    .post_continue_from_raw_prompt(&params)
+                    .post_continue_from_raw_prompt(cancellation_token, &params)
                     .await?,
             )
             .await
@@ -121,6 +126,7 @@ impl Cluster {
 
     pub fn continue_from_raw_prompt_stream(
         &self,
+        cancellation_token: CancellationToken,
         params: &ContinueFromRawPromptParams,
     ) -> impl Future<Output = Result<InferenceMessageStream>> + Send + use<> {
         let client_inference = self.client_inference.clone();
@@ -128,13 +134,14 @@ impl Cluster {
 
         async move {
             Ok(client_inference
-                .post_continue_from_raw_prompt(&params)
+                .post_continue_from_raw_prompt(cancellation_token, &params)
                 .await?)
         }
     }
 
     pub fn continue_from_conversation_history(
         &self,
+        cancellation_token: CancellationToken,
         params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ) -> impl Future<Output = Result<CollectedGeneratedTokens>> + Send + use<> {
         let client_inference = self.client_inference.clone();
@@ -143,7 +150,7 @@ impl Cluster {
         async move {
             collect_generated_tokens(
                 client_inference
-                    .post_continue_from_conversation_history(&params)
+                    .post_continue_from_conversation_history(cancellation_token, &params)
                     .await?,
             )
             .await
@@ -152,6 +159,7 @@ impl Cluster {
 
     pub fn continue_from_conversation_history_stream(
         &self,
+        cancellation_token: CancellationToken,
         params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ) -> impl Future<Output = Result<InferenceMessageStream>> + Send + use<> {
         let client_inference = self.client_inference.clone();
@@ -159,13 +167,14 @@ impl Cluster {
 
         async move {
             Ok(client_inference
-                .post_continue_from_conversation_history(&params)
+                .post_continue_from_conversation_history(cancellation_token, &params)
                 .await?)
         }
     }
 
     pub fn generate_embedding_batch(
         &self,
+        cancellation_token: CancellationToken,
         params: &GenerateEmbeddingBatchParams,
     ) -> impl Future<Output = Result<CollectedEmbeddingResults>> + Send + use<> {
         let client_inference = self.client_inference.clone();
@@ -174,24 +183,10 @@ impl Cluster {
         async move {
             collect_embedding_results(
                 client_inference
-                    .post_generate_embedding_batch(&params)
+                    .post_generate_embedding_batch(cancellation_token, &params)
                     .await?,
             )
             .await
-        }
-    }
-
-    pub fn generate_embedding_batch_stream(
-        &self,
-        params: &GenerateEmbeddingBatchParams,
-    ) -> impl Future<Output = Result<InferenceMessageStream>> + Send + use<> {
-        let client_inference = self.client_inference.clone();
-        let params = params.clone();
-
-        async move {
-            Ok(client_inference
-                .post_generate_embedding_batch(&params)
-                .await?)
         }
     }
 
@@ -240,7 +235,10 @@ impl Cluster {
         expected_count: usize,
     ) -> Result<AgentControllerPoolSnapshot> {
         self.agents_watcher
-            .until(assert_agent_count(expected_count))
+            .until(
+                ObservationWindow::model_load(),
+                assert_agent_count(expected_count),
+            )
             .await
     }
 
@@ -264,9 +262,13 @@ impl Cluster {
         &mut self,
         agent_id: &str,
         expected_slots_processing: i32,
+        observation_window: ObservationWindow,
     ) -> Result<AgentControllerPoolSnapshot> {
         self.agents_watcher
-            .until(assert_slots_processing(agent_id, expected_slots_processing))
+            .until(
+                observation_window,
+                assert_slots_processing(agent_id, expected_slots_processing),
+            )
             .await
     }
 
@@ -276,16 +278,20 @@ impl Cluster {
         expected_slots_total: i32,
     ) -> Result<AgentControllerPoolSnapshot> {
         self.agents_watcher
-            .until(assert_slots_total_at_least(agent_id, expected_slots_total))
+            .until(
+                ObservationWindow::model_load(),
+                assert_slots_total_at_least(agent_id, expected_slots_total),
+            )
             .await
     }
 
     pub async fn wait_for_buffered_request_count(
         &mut self,
         expected_count: i32,
+        observation_window: ObservationWindow,
     ) -> Result<BufferedRequestManagerSnapshot> {
         self.buffered_requests_watcher
-            .until(assert_count(expected_count))
+            .until(observation_window, assert_count(expected_count))
             .await
     }
 

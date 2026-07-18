@@ -5,7 +5,9 @@ use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_releases_slot_when_client_disconnects() -> Result<()> {
@@ -18,11 +20,14 @@ async fn continuous_batch_releases_slot_when_client_disconnects() -> Result<()> 
         .clone();
 
     let mut stream = cluster
-        .continue_from_raw_prompt_stream(&ContinueFromRawPromptParams {
-            grammar: None,
-            max_tokens: 500,
-            raw_prompt: "Write a long story about an explorer".to_owned(),
-        })
+        .continue_from_raw_prompt_stream(
+            CancellationToken::new(),
+            &ContinueFromRawPromptParams {
+                grammar: None,
+                max_tokens: 500,
+                raw_prompt: "Write a long story about an explorer".to_owned(),
+            },
+        )
         .await?;
 
     let first_message = stream
@@ -33,14 +38,14 @@ async fn continuous_batch_releases_slot_when_client_disconnects() -> Result<()> 
     drop(first_message);
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1)
+        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
         .await
         .context("first request should occupy the only slot")?;
 
     drop(stream);
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0)
+        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
         .await
         .context("slot should be released after the HTTP client disconnects")?;
 

@@ -8,7 +8,7 @@ pub mod error;
 mod format_api_url;
 pub mod http_client;
 pub mod inference_message_stream;
-mod inference_socket;
+pub mod inference_socket;
 pub mod reports_health;
 mod send_checked_request;
 mod stream;

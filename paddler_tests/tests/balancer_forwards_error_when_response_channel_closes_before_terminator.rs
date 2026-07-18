@@ -16,6 +16,7 @@ use paddler_balancer::request_from_agent::forward_responses_stream;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_tests::make_agent_controller_without_remote_agent::make_agent_controller_without_remote_agent;
+use paddler_tests::make_dispatched_agent_without_remote_agent::make_dispatched_agent_without_remote_agent;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -41,12 +42,12 @@ async fn forward_responses_stream_emits_error_envelope_when_response_channel_clo
         inference_item_timeout: Duration::from_secs(30),
     };
 
-    let agent_controller_clone = agent_controller.clone();
+    let dispatched_agent = make_dispatched_agent_without_remote_agent(agent_controller.clone())?;
     let request_id_clone = request_id.clone();
     let forward_handle: tokio::task::JoinHandle<()> = tokio::spawn(async move {
         forward_responses_stream::<_, EmbeddingSenderCollection>(
-            agent_controller_clone,
             connection_close,
+            dispatched_agent,
             configuration,
             receive_response_controller,
             request_id_clone,

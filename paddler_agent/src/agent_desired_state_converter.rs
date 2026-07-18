@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
+use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
@@ -17,6 +18,7 @@ use crate::resolve_desired_model::resolve_desired_model;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 async fn resolve_into_optional_path<TLocalMissingIssue>(
+    cancellation_token: &CancellationToken,
     desired: &AgentDesiredModel,
     slot_aggregated_status: &Arc<SlotAggregatedStatus>,
     on_local_missing: TLocalMissingIssue,
@@ -24,8 +26,9 @@ async fn resolve_into_optional_path<TLocalMissingIssue>(
 where
     TLocalMissingIssue: FnOnce(ModelPath) -> AgentIssue,
 {
-    match resolve_desired_model(desired, slot_aggregated_status.clone()).await? {
-        DesiredModelResolution::NotConfigured => Ok(None),
+    match resolve_desired_model(cancellation_token, desired, slot_aggregated_status.clone()).await?
+    {
+        DesiredModelResolution::Cancelled | DesiredModelResolution::NotConfigured => Ok(None),
         DesiredModelResolution::Resolved(path) => Ok(Some(path)),
         DesiredModelResolution::LocalFileMissing(path) => {
             let model_path_string = path.display().to_string();
@@ -40,6 +43,7 @@ where
 }
 
 pub struct AgentDesiredStateConverter {
+    pub cancellation_token: CancellationToken,
     pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
@@ -53,6 +57,7 @@ impl ConvertsToApplicableState for AgentDesiredStateConverter {
         desired_state: AgentDesiredState,
     ) -> Result<AgentApplicableState> {
         let model_path = resolve_into_optional_path(
+            &self.cancellation_token,
             &desired_state.model,
             &self.slot_aggregated_status,
             AgentIssue::ModelFileDoesNotExist,
@@ -60,6 +65,7 @@ impl ConvertsToApplicableState for AgentDesiredStateConverter {
         .await?;
 
         let multimodal_projection_path = resolve_into_optional_path(
+            &self.cancellation_token,
             &desired_state.multimodal_projection,
             &self.slot_aggregated_status,
             AgentIssue::MultimodalProjectionCannotBeLoaded,
@@ -81,6 +87,7 @@ mod tests {
     use std::sync::Arc;
 
     use tempfile::TempDir;
+    use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
@@ -135,6 +142,7 @@ mod tests {
             AgentDesiredModel::None,
         );
         let converter = AgentDesiredStateConverter {
+            cancellation_token: CancellationToken::new(),
             slot_aggregated_status: status.clone(),
         };
 
@@ -171,6 +179,7 @@ mod tests {
             AgentDesiredModel::LocalToAgent(missing_path.display().to_string()),
         );
         let converter = AgentDesiredStateConverter {
+            cancellation_token: CancellationToken::new(),
             slot_aggregated_status: status.clone(),
         };
 

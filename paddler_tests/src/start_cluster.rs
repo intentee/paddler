@@ -68,6 +68,7 @@ pub async fn start_cluster(
         RunningBalancer::new(addresses, Box::new(InProcessBalancer::new(balancer_runner)));
 
     let mut cluster = Cluster::connect(
+        CancellationToken::new(),
         running_balancer,
         Box::new(InProcessAgentSpawner::new(management_address)),
         desired_state.as_ref(),

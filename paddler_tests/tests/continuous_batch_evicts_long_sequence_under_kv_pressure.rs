@@ -12,6 +12,7 @@ use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithPro
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()> {
@@ -59,8 +60,8 @@ async fn continuous_batch_evicts_long_sequence_under_kv_pressure() -> Result<()>
         raw_prompt: "Hi".to_owned(),
     };
     let (long_collected, short_collected) = tokio::join!(
-        cluster.continue_from_raw_prompt(&long_params),
-        cluster.continue_from_raw_prompt(&short_params),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &long_params),
+        cluster.continue_from_raw_prompt(CancellationToken::new(), &short_params),
     );
 
     let long_collected = long_collected?;

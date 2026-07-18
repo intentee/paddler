@@ -3,8 +3,10 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 use tokio::sync::mpsc;
 
+use crate::receive_stream_stop_outcome::ReceiveStreamStopOutcome;
 use crate::receive_stream_stopper_drop_guard::ReceiveStreamStopperDropGuard;
 
 pub struct ReceiveStreamStopperCollection {
@@ -28,15 +30,17 @@ impl ReceiveStreamStopperCollection {
         request_id: String,
         stopper: mpsc::UnboundedSender<()>,
     ) -> Result<()> {
-        if self.receive_stoppers.contains_key(&request_id) {
-            return Err(anyhow!(
-                "Stopper for request_id {request_id} already exists"
-            ));
+        match self.receive_stoppers.entry(request_id) {
+            Entry::Occupied(occupied_stopper) => Err(anyhow!(
+                "Stopper for request_id {} already exists",
+                occupied_stopper.key()
+            )),
+            Entry::Vacant(vacant_stopper) => {
+                vacant_stopper.insert(stopper);
+
+                Ok(())
+            }
         }
-
-        self.receive_stoppers.insert(request_id, stopper);
-
-        Ok(())
     }
 
     pub fn register_stopper_with_guard(
@@ -52,13 +56,14 @@ impl ReceiveStreamStopperCollection {
         })
     }
 
-    pub fn stop(&self, request_id: &str) -> Result<()> {
-        if let Some(stopper) = self.receive_stoppers.get(request_id) {
-            stopper.send(())?;
+    pub fn stop(&self, request_id: &str) -> Result<ReceiveStreamStopOutcome> {
+        match self.receive_stoppers.get(request_id) {
+            Some(stopper) => {
+                stopper.send(())?;
 
-            Ok(())
-        } else {
-            Err(anyhow!("No stopper found for request_id {request_id}"))
+                Ok(ReceiveStreamStopOutcome::StopSignalled)
+            }
+            None => Ok(ReceiveStreamStopOutcome::RequestAlreadyFinished),
         }
     }
 }
@@ -137,10 +142,18 @@ mod tests {
     }
 
     #[test]
-    fn stop_missing_stopper_fails() {
+    fn stopping_an_unregistered_request_reports_it_already_finished_and_retains_nothing() {
         let collection = ReceiveStreamStopperCollection::default();
 
-        assert!(collection.stop("nonexistent").is_err());
+        assert_eq!(
+            collection.stop("already_finished").unwrap(),
+            ReceiveStreamStopOutcome::RequestAlreadyFinished
+        );
+        assert!(
+            collection.deregister_stopper("already_finished").is_err(),
+            "nothing may be retained for an unknown request; retaining it would leak one entry \
+             per cancelled request"
+        );
     }
 
     #[test]

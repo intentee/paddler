@@ -5,36 +5,48 @@ use futures_util::Stream;
 use futures_util::StreamExt as _;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt as _;
+use tokio_util::sync::CancellationToken;
 
+use crate::download_outcome::DownloadOutcome;
 use crate::progress_sink::ProgressSink;
 use crate::stream_to_partial_file_error::StreamToPartialFileError;
 
 pub async fn stream_to_partial_file<TStream, TWriter>(
+    cancellation_token: &CancellationToken,
     mut body_stream: TStream,
     writer: &mut TWriter,
     progress_sink: &Arc<dyn ProgressSink>,
-) -> Result<(), StreamToPartialFileError>
+) -> Result<DownloadOutcome, StreamToPartialFileError>
 where
     TStream: Stream<Item = Result<Bytes, reqwest::Error>> + Unpin,
     TWriter: AsyncWrite + Unpin,
 {
-    while let Some(next_chunk) = body_stream.next().await {
-        let bytes = next_chunk.map_err(StreamToPartialFileError::Stream)?;
-
-        writer
-            .write_all(&bytes)
+    let outcome = loop {
+        match cancellation_token
+            .run_until_cancelled(body_stream.next())
             .await
-            .map_err(StreamToPartialFileError::Write)?;
+        {
+            None => break DownloadOutcome::Cancelled,
+            Some(None) => break DownloadOutcome::Completed,
+            Some(Some(next_chunk)) => {
+                let bytes = next_chunk.map_err(StreamToPartialFileError::Stream)?;
 
-        progress_sink.on_chunk(bytes.len() as u64);
-    }
+                writer
+                    .write_all(&bytes)
+                    .await
+                    .map_err(StreamToPartialFileError::Write)?;
+
+                progress_sink.on_chunk(bytes.len() as u64);
+            }
+        }
+    };
 
     writer
         .flush()
         .await
         .map_err(StreamToPartialFileError::Write)?;
 
-    Ok(())
+    Ok(outcome)
 }
 
 #[cfg(test)]
@@ -50,7 +62,9 @@ mod tests {
     use tokio::fs::read;
     use tokio::fs::write;
     use tokio::io::duplex;
+    use tokio_util::sync::CancellationToken;
 
+    use crate::download_outcome::DownloadOutcome;
     use crate::progress_sink::ProgressSink;
     use crate::stream_to_partial_file::stream_to_partial_file;
 
@@ -105,9 +119,12 @@ mod tests {
             .unwrap();
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
-        stream_to_partial_file(body_stream, &mut file, &sink)
-            .await
-            .unwrap();
+        let outcome =
+            stream_to_partial_file(&CancellationToken::new(), body_stream, &mut file, &sink)
+                .await
+                .unwrap();
+
+        assert_eq!(outcome, DownloadOutcome::Completed);
 
         let bytes = read(&path).await.unwrap();
         assert_eq!(bytes, b"firstsecond");
@@ -132,10 +149,12 @@ mod tests {
         let counting = Arc::new(CountingSink::new());
         let sink: Arc<dyn ProgressSink> = counting.clone();
 
-        stream_to_partial_file(body_stream, &mut file, &sink)
-            .await
-            .unwrap();
+        let outcome =
+            stream_to_partial_file(&CancellationToken::new(), body_stream, &mut file, &sink)
+                .await
+                .unwrap();
 
+        assert_eq!(outcome, DownloadOutcome::Completed);
         assert_eq!(counting.chunks.load(Ordering::Relaxed), 3);
         assert_eq!(counting.bytes.load(Ordering::Relaxed), 6);
     }
@@ -150,7 +169,13 @@ mod tests {
         let body_stream = stream::iter(chunks);
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
-        let result = stream_to_partial_file(body_stream, &mut writer_half, &sink).await;
+        let result = stream_to_partial_file(
+            &CancellationToken::new(),
+            body_stream,
+            &mut writer_half,
+            &sink,
+        )
+        .await;
 
         assert!(result.is_err());
     }
@@ -167,8 +192,38 @@ mod tests {
         let mut read_only_file = OpenOptions::new().read(true).open(&path).await.unwrap();
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
-        let result = stream_to_partial_file(body_stream, &mut read_only_file, &sink).await;
+        let result = stream_to_partial_file(
+            &CancellationToken::new(),
+            body_stream,
+            &mut read_only_file,
+            &sink,
+        )
+        .await;
 
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_token_stops_streaming_and_reports_cancelled() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("dest.bin");
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&path)
+            .await
+            .unwrap();
+        let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        let body_stream = stream::pending::<Result<Bytes, reqwest::Error>>();
+
+        let outcome = stream_to_partial_file(&cancellation_token, body_stream, &mut file, &sink)
+            .await
+            .unwrap();
+
+        assert_eq!(outcome, DownloadOutcome::Cancelled);
     }
 }

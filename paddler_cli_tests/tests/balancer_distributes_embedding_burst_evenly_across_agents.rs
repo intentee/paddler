@@ -13,6 +13,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_embedding_burst_evenly_across_agents() -> Result<()> {
@@ -45,10 +46,13 @@ async fn balancer_distributes_embedding_burst_evenly_across_agents() -> Result<(
             })
             .collect();
 
-        cluster.generate_embedding_batch(&GenerateEmbeddingBatchParams {
-            input_batch,
-            normalization_method: EmbeddingNormalizationMethod::None,
-        })
+        cluster.generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch,
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
     });
 
     let collected_streams = future::try_join_all(collection_futures).await?;
