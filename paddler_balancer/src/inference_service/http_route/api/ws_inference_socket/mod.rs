@@ -96,24 +96,29 @@ async fn handle_inference_request<TParams>(
             send_token_generation_disabled(request_id, &mut websocket_session_controller).await;
         }
         ClusterTokenGenerationMode::Enabled => {
-            let request_cancellation_token_guard = RequestCancellationTokenGuard::register(
+            match RequestCancellationTokenGuard::register(
                 connection_close,
                 context.request_cancellation_tokens.clone(),
                 request_id.clone(),
-            );
-
-            rt::spawn(async move {
-                request_from_agent(
-                    context.buffered_request_manager.clone(),
-                    request_cancellation_token_guard.cancellation_token.clone(),
-                    context.inference_service_configuration.clone(),
-                    params,
-                    request_id,
-                    websocket_session_controller,
-                    context.shutdown.clone(),
-                )
-                .await;
-            });
+            ) {
+                Ok(request_cancellation_token_guard) => {
+                    rt::spawn(async move {
+                        request_from_agent(
+                            context.buffered_request_manager.clone(),
+                            request_cancellation_token_guard.cancellation_token.clone(),
+                            context.inference_service_configuration.clone(),
+                            params,
+                            request_id,
+                            websocket_session_controller,
+                            context.shutdown.clone(),
+                        )
+                        .await;
+                    });
+                }
+                Err(err) => {
+                    error!("Rejecting duplicate inference request {request_id:?}: {err}");
+                }
+            }
         }
     }
 }
@@ -650,6 +655,47 @@ mod tests {
                 AgentJsonRpcNotification::StopRespondingTo("request-raw-prompt".to_owned())
             )),
         );
+    }
+
+    #[actix_web::test]
+    async fn handle_raw_prompt_request_rejects_a_duplicate_request_id_without_dispatch() {
+        let RegisteredAgent {
+            pool,
+            mut agent_message_rx,
+        } = pool_with_one_free_slot("agent-duplicate");
+        let session_controller = open_session_controller().await;
+        let connection_close = CancellationToken::new();
+        let context = context_with_pool(pool, Arc::new(BalancerApplicableStateHolder::default()));
+
+        context
+            .request_cancellation_tokens
+            .register("request-duplicate".to_owned(), &connection_close)
+            .unwrap();
+
+        let continuation_decision = InferenceSocketController::handle_deserialized_message(
+            connection_close.clone(),
+            context.clone(),
+            InferenceJsonRpcMessage::Request(RequestEnvelope {
+                id: "request-duplicate".to_owned(),
+                request: InferenceJsonRpcRequest::ContinueFromRawPrompt(
+                    ContinueFromRawPromptParams {
+                        grammar: None,
+                        max_tokens: 1,
+                        raw_prompt: "fixture prompt".to_owned(),
+                    },
+                ),
+            }),
+            session_controller,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            discriminant(&continuation_decision),
+            discriminant(&ContinuationDecision::Continue)
+        );
+
+        assert!(agent_message_rx.try_recv().is_err());
     }
 
     #[actix_web::test]

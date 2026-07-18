@@ -440,4 +440,50 @@ mod tests {
 
         assert!(close_frame.is_empty());
     }
+
+    #[actix_web::test]
+    async fn deregister_agent_notification_cancels_the_connection_and_stops() {
+        let context = Arc::new(AgentSocketControllerContext {
+            agent_controller_pool: Arc::new(AgentControllerPool::default()),
+            agent_id: "agent-deregister".to_owned(),
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
+            chat_template_override_sender_collection: Arc::new(
+                ChatTemplateOverrideSenderCollection::default(),
+            ),
+            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
+            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
+            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+        });
+
+        let (request, mut raw_payload) = TestRequest::get()
+            .insert_header((header::CONNECTION, "upgrade"))
+            .insert_header((header::UPGRADE, "websocket"))
+            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
+            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
+            .to_http_parts();
+        let payload = Payload::from_request(&request, &mut raw_payload)
+            .await
+            .unwrap();
+        let (_response, session, _msg_stream) = actix_ws::handle(&request, payload).unwrap();
+
+        let connection_close = CancellationToken::new();
+
+        let continuation_decision = AgentSocketController::handle_deserialized_message(
+            connection_close.clone(),
+            context,
+            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::DeregisterAgent),
+            WebSocketSessionController::new(session),
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            connection_close.is_cancelled(),
+            "DeregisterAgent must cancel the agent connection so it is torn down"
+        );
+        assert!(matches!(
+            continuation_decision,
+            ContinuationDecision::Stop(_)
+        ));
+    }
 }

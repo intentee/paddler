@@ -1,3 +1,5 @@
+use anyhow::Result;
+use anyhow::anyhow;
 use dashmap::DashMap;
 use log::debug;
 use tokio_util::sync::CancellationToken;
@@ -8,18 +10,23 @@ pub struct RequestCancellationTokens {
 }
 
 impl RequestCancellationTokens {
-    #[must_use]
     pub fn register(
         &self,
         request_id: String,
         connection_close: &CancellationToken,
-    ) -> CancellationToken {
+    ) -> Result<CancellationToken> {
+        if self.cancellation_tokens.contains_key(&request_id) {
+            return Err(anyhow!(
+                "Cancellation token for request_id {request_id} already exists"
+            ));
+        }
+
         let request_close = connection_close.child_token();
 
         self.cancellation_tokens
             .insert(request_id, request_close.clone());
 
-        request_close
+        Ok(request_close)
     }
 
     pub fn cancel(&self, request_id: &str) {
@@ -46,10 +53,12 @@ mod tests {
         let connection_close = CancellationToken::new();
         let request_cancellation_tokens = RequestCancellationTokens::default();
 
-        let cancelled_request =
-            request_cancellation_tokens.register("cancelled".to_owned(), &connection_close);
-        let kept_request =
-            request_cancellation_tokens.register("kept".to_owned(), &connection_close);
+        let cancelled_request = request_cancellation_tokens
+            .register("cancelled".to_owned(), &connection_close)
+            .unwrap();
+        let kept_request = request_cancellation_tokens
+            .register("kept".to_owned(), &connection_close)
+            .unwrap();
 
         request_cancellation_tokens.cancel("cancelled");
 
@@ -62,10 +71,12 @@ mod tests {
         let connection_close = CancellationToken::new();
         let request_cancellation_tokens = RequestCancellationTokens::default();
 
-        let first_request =
-            request_cancellation_tokens.register("first".to_owned(), &connection_close);
-        let second_request =
-            request_cancellation_tokens.register("second".to_owned(), &connection_close);
+        let first_request = request_cancellation_tokens
+            .register("first".to_owned(), &connection_close)
+            .unwrap();
+        let second_request = request_cancellation_tokens
+            .register("second".to_owned(), &connection_close)
+            .unwrap();
 
         connection_close.cancel();
 
@@ -83,8 +94,29 @@ mod tests {
         assert!(
             request_cancellation_tokens
                 .register("late".to_owned(), &connection_close)
+                .unwrap()
                 .is_cancelled()
         );
+    }
+
+    #[test]
+    fn registering_a_duplicate_request_id_is_rejected_and_leaves_the_original_cancellable() {
+        let connection_close = CancellationToken::new();
+        let request_cancellation_tokens = RequestCancellationTokens::default();
+
+        let original_request = request_cancellation_tokens
+            .register("in_flight".to_owned(), &connection_close)
+            .unwrap();
+
+        assert!(
+            request_cancellation_tokens
+                .register("in_flight".to_owned(), &connection_close)
+                .is_err()
+        );
+
+        request_cancellation_tokens.cancel("in_flight");
+
+        assert!(original_request.is_cancelled());
     }
 
     #[test]
@@ -92,8 +124,9 @@ mod tests {
         let connection_close = CancellationToken::new();
         let request_cancellation_tokens = RequestCancellationTokens::default();
 
-        let finished_request =
-            request_cancellation_tokens.register("finished".to_owned(), &connection_close);
+        let finished_request = request_cancellation_tokens
+            .register("finished".to_owned(), &connection_close)
+            .unwrap();
 
         request_cancellation_tokens.deregister("finished");
         request_cancellation_tokens.cancel("finished");

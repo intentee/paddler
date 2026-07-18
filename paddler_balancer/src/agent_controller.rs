@@ -213,17 +213,12 @@ impl AgentController {
         sender_collection: Arc<TManagesSenders>,
         message: AgentJsonRpcMessage,
     ) -> Result<ManagesSendersController<TManagesSenders>> {
-        let (response_tx, response_rx) = mpsc::unbounded_channel();
-
-        sender_collection.register_sender(request_id.clone(), response_tx)?;
+        let receive_response_controller =
+            ManagesSendersController::from_request_id(request_id, sender_collection)?;
 
         self.send_rpc_message(message).await?;
 
-        Ok(ManagesSendersController {
-            request_id,
-            response_rx,
-            response_sender_collection: sender_collection.clone(),
-        })
+        Ok(receive_response_controller)
     }
 }
 
@@ -613,5 +608,38 @@ mod tests {
         let result = agent_controller.get_chat_template_override().await;
 
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn handle_streaming_response_does_not_leak_sender_when_the_agent_dispatch_fails() {
+        let (agent_message_tx, agent_message_rx) = mpsc::unbounded_channel();
+
+        drop(agent_message_rx);
+
+        let agent_controller = AgentController {
+            agent_message_tx,
+            ..fresh_agent_controller()
+        };
+
+        let result =
+            HandlesAgentStreamingResponse::<ContinueFromRawPromptParams>::handle_streaming_response(
+                &agent_controller,
+                "unreachable-request".to_owned(),
+                ContinueFromRawPromptParams {
+                    grammar: None,
+                    max_tokens: 16,
+                    raw_prompt: "hello".to_owned(),
+                },
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(
+            !agent_controller
+                .generate_tokens_sender_collection
+                .get_sender_collection()
+                .contains_key("unreachable-request"),
+            "a dispatch that fails to reach the agent must not leave the response sender registered"
+        );
     }
 }

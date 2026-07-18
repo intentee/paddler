@@ -645,6 +645,52 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn forward_responses_stream_reports_error_when_the_agent_connection_closes_mid_forward() {
+        let AgentControllerWithIncomingChannel {
+            agent_controller,
+            agent_message_rx: _agent_message_rx,
+        } = agent_controller_with_one_free_slot("agent-mid-forward-close");
+
+        let request_id = "request-mid-forward-close".to_owned();
+        let receive_response_controller = ManagesSendersController::from_request_id(
+            request_id.clone(),
+            agent_controller.generate_tokens_sender_collection.clone(),
+        )
+        .unwrap();
+
+        let (chunk_tx, mut chunk_rx) = mpsc::unbounded_channel();
+        let session_controller =
+            ChunkForwardingSessionController::new(chunk_tx, IdentityTransformer::new());
+        let dispatched_agent = claim_slot(agent_controller.clone());
+
+        agent_controller.connection_close.cancel();
+
+        forward_responses_stream(
+            CancellationToken::new(),
+            dispatched_agent,
+            inference_service_configuration_with_long_timeout(),
+            receive_response_controller,
+            request_id,
+            session_controller,
+            CancellationToken::new(),
+        )
+        .await;
+
+        let forwarded = chunk_rx.recv().await.unwrap();
+
+        assert_eq!(
+            discriminant(&forwarded),
+            discriminant(&TransformResult::Chunk(String::new())),
+            "the client must be told the agent connection closed"
+        );
+        assert_eq!(
+            agent_controller.slots_processing.get(),
+            0,
+            "the slot must be released once the agent connection closes mid-forward"
+        );
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn draining_cancelled_request_releases_the_slot_when_the_balancer_shuts_down() {
         let pool = Arc::new(AgentControllerPool::default());
