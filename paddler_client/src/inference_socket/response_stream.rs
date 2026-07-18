@@ -13,8 +13,30 @@ use crate::inference_socket::connection::Connection;
 struct StreamState {
     cancellation_token: CancellationToken,
     connection: Arc<Connection>,
+    is_complete: bool,
     request_id: String,
     response_rx: UnboundedReceiver<Result<InferenceMessage>>,
+}
+
+impl StreamState {
+    const fn mark_complete(&mut self) {
+        self.is_complete = true;
+    }
+}
+
+impl Drop for StreamState {
+    fn drop(&mut self) {
+        if self.is_complete {
+            return;
+        }
+
+        if let Err(stop_error) = self.connection.stop_responding_to(self.request_id.clone()) {
+            debug!(
+                "Could not ask the balancer to stop responding to request {}: {stop_error}",
+                self.request_id
+            );
+        }
+    }
 }
 
 pub fn response_stream(
@@ -27,6 +49,7 @@ pub fn response_stream(
         StreamState {
             cancellation_token,
             connection,
+            is_complete: false,
             request_id,
             response_rx,
         },
@@ -37,20 +60,12 @@ pub fn response_stream(
                 .await;
 
             match received_message {
-                None => {
-                    if let Err(stop_error) = state
-                        .connection
-                        .stop_responding_to(state.request_id.clone())
-                    {
-                        debug!(
-                            "Could not ask the balancer to stop responding to request {}: {stop_error}",
-                            state.request_id
-                        );
-                    }
+                None => None,
+                Some(None) => {
+                    state.mark_complete();
 
                     None
                 }
-                Some(None) => None,
                 Some(Some(message)) => Some((message, state)),
             }
         },
@@ -154,5 +169,33 @@ mod tests {
             )))
         ));
         assert!(stream.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn dropping_an_in_flight_request_without_polling_asks_the_balancer_to_stop() {
+        let (write_tx, mut write_rx) = mpsc::unbounded_channel::<String>();
+        let (_response_tx, response_rx) = mpsc::unbounded_channel();
+
+        let stream = Box::pin(response_stream(
+            CancellationToken::new(),
+            Arc::new(Connection::from_write_sender(write_tx)),
+            "abandoned_request".to_owned(),
+            response_rx,
+        ));
+
+        drop(stream);
+
+        let sent_json = write_rx
+            .try_recv()
+            .expect("dropping an in-flight request must send a stop message");
+
+        match from_str::<InferenceServerMessage<ValidatedParametersSchema>>(&sent_json)
+            .expect("the stop message must be valid JSON-RPC")
+        {
+            InferenceServerMessage::Notification(
+                InferenceServerNotification::StopRespondingTo(request_id),
+            ) => assert_eq!(request_id, "abandoned_request"),
+            _other_message => panic!("dropping a request must send a stop notification"),
+        }
     }
 }
