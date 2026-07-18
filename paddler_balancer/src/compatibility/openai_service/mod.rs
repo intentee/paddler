@@ -57,14 +57,11 @@ pub mod try_universal_error_chunk;
 use std::sync::Arc;
 
 use actix_web::App;
-use actix_web::HttpServer;
 use actix_web::web::Data;
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
-use trzcina::ServiceShutdownOptions;
 
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
@@ -73,16 +70,14 @@ use crate::compatibility::openai_service::configuration::Configuration as OpenAI
 use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_route as common_http_route;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use crate::serve_http_until_shutdown::serve_http_until_shutdown;
-
-const HTTP_WORKERS: usize = 16;
+use crate::run_http_service::run_http_service;
+use crate::run_http_service_parameters::RunHttpServiceParameters;
 
 pub struct OpenAIService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub inference_service_configuration: InferenceServiceConfiguration,
     pub openai_service_configuration: OpenAIServiceConfiguration,
-    pub shutdown_options: ServiceShutdownOptions,
 }
 
 #[async_trait]
@@ -92,11 +87,12 @@ impl Service for OpenAIService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        let cors_allowed_hosts = self
-            .inference_service_configuration
-            .cors_allowed_hosts
-            .clone();
-        let cors_allowed_hosts_arc = Arc::new(cors_allowed_hosts);
+        let service_name = self.name();
+        let cors_allowed_hosts_arc = Arc::new(
+            self.inference_service_configuration
+                .cors_allowed_hosts
+                .clone(),
+        );
 
         let app_data = Data::new(AppData {
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
@@ -105,25 +101,23 @@ impl Service for OpenAIService {
             shutdown: shutdown.clone(),
         });
 
-        let bind_addr = self.openai_service_configuration.addr;
-
-        let server = HttpServer::new(move || {
-            App::new()
-                .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
-                .app_data(app_data.clone())
-                .configure(common_http_route::get_health::register)
-                .configure(http_route::post_chat_completions::register)
-                .configure(http_route::post_responses::register)
-        })
-        .workers(HTTP_WORKERS)
-        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
-        .disable_signals()
-        .bind(bind_addr)
-        .with_context(|| format!("Unable to bind balancer OpenAI-compat service to {bind_addr}"))?;
-
-        serve_http_until_shutdown(shutdown, server.run()).await?;
-
-        Ok(())
+        run_http_service(
+            shutdown,
+            RunHttpServiceParameters {
+                app_factory: move || {
+                    App::new()
+                        .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
+                        .app_data(app_data.clone())
+                        .configure(common_http_route::get_health::register)
+                        .configure(http_route::post_chat_completions::register)
+                        .configure(http_route::post_responses::register)
+                },
+                bind_addr: self.openai_service_configuration.addr,
+                service_name,
+                worker_count: 16,
+            },
+        )
+        .await
     }
 }
 
@@ -136,7 +130,6 @@ mod tests {
 
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
-    use trzcina::ServiceShutdownOptions;
 
     use super::OpenAIService;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -161,7 +154,6 @@ mod tests {
                 inference_item_timeout: Duration::from_secs(30),
             },
             openai_service_configuration: OpenAIServiceConfiguration { addr },
-            shutdown_options: ServiceShutdownOptions::default(),
         }
     }
 

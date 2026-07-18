@@ -68,7 +68,6 @@ impl BalancerRunner {
             management_service_configuration,
             max_buffered_requests,
             openai_service_configuration,
-            shutdown_options: shutdown_options.clone(),
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,

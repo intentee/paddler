@@ -4,24 +4,19 @@ pub mod http_route;
 pub mod template_data;
 
 use actix_web::App;
-use actix_web::HttpServer;
 use actix_web::web::Data;
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
-use trzcina::ServiceShutdownOptions;
 
-use crate::serve_http_until_shutdown::serve_http_until_shutdown;
+use crate::run_http_service::run_http_service;
+use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::web_admin_panel_service::app_data::AppData;
 use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
-const HTTP_WORKERS: usize = 2;
-
 pub struct WebAdminPanelService {
     pub configuration: WebAdminPanelServiceConfiguration,
-    pub shutdown_options: ServiceShutdownOptions,
 }
 
 #[async_trait]
@@ -31,30 +26,27 @@ impl Service for WebAdminPanelService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        let service_name = self.name();
         let app_data: Data<AppData> = Data::new(AppData {
             template_data: self.configuration.template_data.clone(),
         });
 
-        let bind_addr = self.configuration.addr;
-
-        let server = HttpServer::new(move || {
-            App::new()
-                .app_data(app_data.clone())
-                .configure(http_route::favicon::register)
-                .configure(http_route::static_files::register)
-                .configure(http_route::home::register)
-        })
-        .workers(HTTP_WORKERS)
-        .shutdown_timeout(self.shutdown_options.cooperative_deadline.as_secs())
-        .disable_signals()
-        .bind(bind_addr)
-        .with_context(|| {
-            format!("Unable to bind balancer web admin panel service to {bind_addr}")
-        })?;
-
-        serve_http_until_shutdown(shutdown, server.run()).await?;
-
-        Ok(())
+        run_http_service(
+            shutdown,
+            RunHttpServiceParameters {
+                app_factory: move || {
+                    App::new()
+                        .app_data(app_data.clone())
+                        .configure(http_route::favicon::register)
+                        .configure(http_route::static_files::register)
+                        .configure(http_route::home::register)
+                },
+                bind_addr: self.configuration.addr,
+                service_name,
+                worker_count: 2,
+            },
+        )
+        .await
     }
 }
 
@@ -64,9 +56,9 @@ mod tests {
     use std::net::TcpListener;
     use std::time::Duration;
 
+    use anyhow::Result;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
-    use trzcina::ServiceShutdownOptions;
 
     use super::WebAdminPanelService;
     use crate::resolved_socket_addr::ResolvedSocketAddr;
@@ -93,7 +85,6 @@ mod tests {
                     statsd_reporting_interval: Duration::from_secs(10),
                 },
             },
-            shutdown_options: ServiceShutdownOptions::default(),
         }
     }
 
@@ -102,6 +93,21 @@ mod tests {
         let service = build_service(SocketAddr::from(([127, 0, 0, 1], 0)));
 
         assert_eq!(service.name(), "balancer::web_admin_panel_service");
+    }
+
+    #[actix_web::test]
+    async fn run_serves_until_shutdown_is_requested() -> Result<()> {
+        let service = Box::new(build_service(SocketAddr::from(([127, 0, 0, 1], 0))));
+        let shutdown = CancellationToken::new();
+        let requested_shutdown = shutdown.clone();
+
+        let (run_result, ()) =
+            tokio::join!(
+                service.run(shutdown),
+                async move { requested_shutdown.cancel() }
+            );
+
+        run_result
     }
 
     #[actix_web::test]

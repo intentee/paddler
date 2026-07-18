@@ -43,6 +43,8 @@ pub mod require_token_generation_enabled;
 pub mod resolved_socket_addr;
 #[cfg(feature = "web_admin_panel")]
 mod response;
+pub mod run_http_service;
+pub mod run_http_service_parameters;
 pub mod sends_rpc_message;
 pub mod serve_http_until_shutdown;
 pub mod sets_desired_state;
