@@ -59,13 +59,6 @@ pub enum Error {
     #[error("Request {request_id} failed: connection dropped")]
     ConnectionDropped { request_id: String },
 
-    #[error("Request {request_id} failed to send after reconnecting")]
-    ReconnectionFailed {
-        request_id: String,
-        #[source]
-        source: Box<Self>,
-    },
-
     #[error("Request to {url} was cancelled before the server responded")]
     RequestCancelled { url: String },
 

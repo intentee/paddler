@@ -85,31 +85,12 @@ impl Pool {
         self.ensure_connection(conn_idx).await?;
 
         let connection = self.get_connection(conn_idx).await?;
+        let response_rx = connection.send(request_id, json)?;
 
-        match connection.send(request_id.clone(), json.clone()) {
-            Ok(response_rx) => Ok(EstablishedRequest {
-                connection,
-                response_rx,
-            }),
-            Err(Error::ConnectionDropped { .. }) => {
-                self.ensure_connection(conn_idx).await?;
-
-                let reconnected_connection = self.get_connection(conn_idx).await?;
-                let reconnected_request_id = request_id.clone();
-
-                match reconnected_connection.send(request_id, json) {
-                    Ok(response_rx) => Ok(EstablishedRequest {
-                        connection: reconnected_connection,
-                        response_rx,
-                    }),
-                    Err(reconnection_error) => Err(Error::ReconnectionFailed {
-                        request_id: reconnected_request_id,
-                        source: Box::new(reconnection_error),
-                    }),
-                }
-            }
-            Err(other_error) => Err(other_error),
-        }
+        Ok(EstablishedRequest {
+            connection,
+            response_rx,
+        })
     }
 
     async fn get_connection(&self, index: usize) -> Result<Arc<Connection>> {
