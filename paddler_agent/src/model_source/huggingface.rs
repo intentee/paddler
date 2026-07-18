@@ -32,8 +32,8 @@ pub struct HuggingFaceModelSource(pub HuggingFaceModelReference);
 impl ResolvesModelSource for HuggingFaceModelSource {
     async fn resolve(
         &self,
-        slot_aggregated_status: Arc<SlotAggregatedStatus>,
         cancellation_token: &CancellationToken,
+        slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution> {
         let HuggingFaceModelReference {
             filename,

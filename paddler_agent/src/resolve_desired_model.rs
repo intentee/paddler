@@ -12,24 +12,24 @@ use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 pub async fn resolve_desired_model(
+    cancellation_token: &CancellationToken,
     desired: &AgentDesiredModel,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
-    cancellation_token: &CancellationToken,
 ) -> Result<DesiredModelResolution> {
     match desired {
         AgentDesiredModel::HuggingFace(reference) => {
             HuggingFaceModelSource(reference.clone())
-                .resolve(slot_aggregated_status, cancellation_token)
+                .resolve(cancellation_token, slot_aggregated_status)
                 .await
         }
         AgentDesiredModel::LocalToAgent(path) => {
             LocalModelPath::new(path.clone())
-                .resolve(slot_aggregated_status, cancellation_token)
+                .resolve(cancellation_token, slot_aggregated_status)
                 .await
         }
         AgentDesiredModel::Url(reference) => {
             UrlModelSource(reference.clone())
-                .resolve(slot_aggregated_status, cancellation_token)
+                .resolve(cancellation_token, slot_aggregated_status)
                 .await
         }
         AgentDesiredModel::None => Ok(DesiredModelResolution::NotConfigured),
@@ -64,7 +64,7 @@ mod tests {
         let path = temp_file.path().to_path_buf();
         let desired = AgentDesiredModel::LocalToAgent(path.display().to_string());
 
-        let resolution = resolve_desired_model(&desired, status, &CancellationToken::new())
+        let resolution = resolve_desired_model(&CancellationToken::new(), &desired, status)
             .await
             .unwrap();
 
@@ -81,7 +81,7 @@ mod tests {
         let path = temp_dir.path().join("missing-desired.gguf");
         let desired = AgentDesiredModel::LocalToAgent(path.display().to_string());
 
-        let resolution = resolve_desired_model(&desired, status, &CancellationToken::new())
+        let resolution = resolve_desired_model(&CancellationToken::new(), &desired, status)
             .await
             .unwrap();
 
@@ -104,7 +104,7 @@ mod tests {
         }));
         let desired = AgentDesiredModel::HuggingFace(reference);
 
-        let resolution = resolve_desired_model(&desired, status, &CancellationToken::new()).await;
+        let resolution = resolve_desired_model(&CancellationToken::new(), &desired, status).await;
 
         assert!(resolution.is_err());
     }
@@ -122,7 +122,7 @@ mod tests {
 
         cancellation_token.cancel();
 
-        let resolution = resolve_desired_model(&desired, status.clone(), &cancellation_token).await;
+        let resolution = resolve_desired_model(&cancellation_token, &desired, status.clone()).await;
 
         assert!(resolution.is_err());
         assert!(
@@ -136,7 +136,7 @@ mod tests {
         let status = fresh_status();
         let desired = AgentDesiredModel::None;
 
-        let resolution = resolve_desired_model(&desired, status, &CancellationToken::new())
+        let resolution = resolve_desired_model(&CancellationToken::new(), &desired, status)
             .await
             .unwrap();
 

@@ -27,9 +27,9 @@ async fn arbiter_spawn_is_cancelled_when_shutdown_fires_before_the_model_loads()
     } = qwen3_0_6b();
 
     let model_path = match resolve_desired_model(
+        &CancellationToken::new(),
         &AgentDesiredModel::HuggingFace(reference),
         Arc::new(SlotAggregatedStatus::new(1)),
-        &CancellationToken::new(),
     )
     .await?
     {

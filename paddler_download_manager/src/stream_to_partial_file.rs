@@ -12,10 +12,10 @@ use crate::progress_sink::ProgressSink;
 use crate::stream_to_partial_file_error::StreamToPartialFileError;
 
 pub async fn stream_to_partial_file<TStream, TWriter>(
+    cancellation_token: &CancellationToken,
     mut body_stream: TStream,
     writer: &mut TWriter,
     progress_sink: &Arc<dyn ProgressSink>,
-    cancellation_token: &CancellationToken,
 ) -> Result<DownloadOutcome, StreamToPartialFileError>
 where
     TStream: Stream<Item = Result<Bytes, reqwest::Error>> + Unpin,
@@ -120,7 +120,7 @@ mod tests {
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
         let outcome =
-            stream_to_partial_file(body_stream, &mut file, &sink, &CancellationToken::new())
+            stream_to_partial_file(&CancellationToken::new(), body_stream, &mut file, &sink)
                 .await
                 .unwrap();
 
@@ -150,7 +150,7 @@ mod tests {
         let sink: Arc<dyn ProgressSink> = counting.clone();
 
         let outcome =
-            stream_to_partial_file(body_stream, &mut file, &sink, &CancellationToken::new())
+            stream_to_partial_file(&CancellationToken::new(), body_stream, &mut file, &sink)
                 .await
                 .unwrap();
 
@@ -170,10 +170,10 @@ mod tests {
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
         let result = stream_to_partial_file(
+            &CancellationToken::new(),
             body_stream,
             &mut writer_half,
             &sink,
-            &CancellationToken::new(),
         )
         .await;
 
@@ -193,10 +193,10 @@ mod tests {
         let sink: Arc<dyn ProgressSink> = Arc::new(CountingSink::new());
 
         let result = stream_to_partial_file(
+            &CancellationToken::new(),
             body_stream,
             &mut read_only_file,
             &sink,
-            &CancellationToken::new(),
         )
         .await;
 
@@ -220,7 +220,7 @@ mod tests {
 
         let body_stream = stream::pending::<Result<Bytes, reqwest::Error>>();
 
-        let outcome = stream_to_partial_file(body_stream, &mut file, &sink, &cancellation_token)
+        let outcome = stream_to_partial_file(&cancellation_token, body_stream, &mut file, &sink)
             .await
             .unwrap();
 

@@ -152,7 +152,7 @@ async fn respond(
     drop(chunk_tx);
 
     let stream =
-        CancellationTokenStreamGuard::new(UnboundedReceiverStream::new(chunk_rx), connection_close)
+        CancellationTokenStreamGuard::new(connection_close, UnboundedReceiverStream::new(chunk_rx))
             .filter_map(|transform_result| async move {
                 match transform_result {
                     TransformResult::Chunk(content) | TransformResult::Error(content) => {

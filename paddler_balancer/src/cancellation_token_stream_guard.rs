@@ -11,7 +11,7 @@ pub struct CancellationTokenStreamGuard<TStream> {
 }
 
 impl<TStream> CancellationTokenStreamGuard<TStream> {
-    pub const fn new(stream: TStream, cancellation_token: CancellationToken) -> Self {
+    pub const fn new(cancellation_token: CancellationToken, stream: TStream) -> Self {
         Self {
             cancellation_token,
             stream,
@@ -49,7 +49,7 @@ mod tests {
     fn dropping_wrapper_cancels_token() {
         let cancellation_token = CancellationToken::new();
         let stream = stream::empty::<()>();
-        let wrapped = CancellationTokenStreamGuard::new(stream, cancellation_token.clone());
+        let wrapped = CancellationTokenStreamGuard::new(cancellation_token.clone(), stream);
 
         assert!(!cancellation_token.is_cancelled());
         drop(wrapped);
@@ -61,7 +61,7 @@ mod tests {
         let cancellation_token = CancellationToken::new();
         let (sender, receiver) = mpsc::unbounded_channel::<i32>();
         let stream = UnboundedReceiverStream::new(receiver);
-        let mut wrapped = CancellationTokenStreamGuard::new(stream, cancellation_token.clone());
+        let mut wrapped = CancellationTokenStreamGuard::new(cancellation_token.clone(), stream);
 
         assert!(sender.send(7).is_ok());
         assert!(sender.send(11).is_ok());

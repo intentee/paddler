@@ -11,7 +11,7 @@ use crate::slot_aggregated_status::SlotAggregatedStatus;
 pub trait ResolvesModelSource {
     async fn resolve(
         &self,
-        slot_aggregated_status: Arc<SlotAggregatedStatus>,
         cancellation_token: &CancellationToken,
+        slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution>;
 }

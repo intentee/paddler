@@ -25,8 +25,8 @@ impl LocalModelPath {
 impl ResolvesModelSource for LocalModelPath {
     async fn resolve(
         &self,
-        _slot_aggregated_status: Arc<SlotAggregatedStatus>,
         _cancellation_token: &CancellationToken,
+        _slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution> {
         let local_path = PathBuf::from(&self.path);
 

@@ -56,10 +56,10 @@ impl DownloadManager {
 
     pub async fn download(
         &self,
+        cancellation_token: &CancellationToken,
         url: &str,
         final_path: &Path,
         progress_sink: Arc<dyn ProgressSink>,
-        cancellation_token: &CancellationToken,
     ) -> Result<DownloadOutcome, DownloadError> {
         let parsed_url = Url::parse(url).map_err(|parse_error| DownloadError::InvalidUrl {
             url: url.to_owned(),
@@ -76,7 +76,7 @@ impl DownloadManager {
         let partial = PartialFile::new(final_path.to_path_buf());
 
         match self
-            .attempt_download(url, &partial, &progress_sink, cancellation_token)
+            .attempt_download(cancellation_token, url, &partial, &progress_sink)
             .await
         {
             Ok(outcome) => Ok(outcome),
@@ -126,10 +126,10 @@ impl DownloadManager {
 
     async fn attempt_download(
         &self,
+        cancellation_token: &CancellationToken,
         url: &str,
         partial: &PartialFile,
         progress_sink: &Arc<dyn ProgressSink>,
-        cancellation_token: &CancellationToken,
     ) -> Result<DownloadOutcome, DownloadAttemptError> {
         let mut offset = partial.current_size().await?;
         let sent_range_header = offset > 0;
@@ -200,10 +200,10 @@ impl DownloadManager {
         let mut file = partial.open_for_append().await?;
 
         let stream_outcome = match stream_to_partial_file(
+            cancellation_token,
             response.bytes_stream(),
             &mut file,
             progress_sink,
-            cancellation_token,
         )
         .await
         {

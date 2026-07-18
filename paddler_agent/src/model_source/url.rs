@@ -114,10 +114,10 @@ impl ProgressSink for SlotAggregatedStatusSink {
 }
 
 async fn resolve_url_into_cache(
+    cancellation_token: &CancellationToken,
     url_string: &str,
     cache_dir: &CacheDir,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
-    cancellation_token: &CancellationToken,
 ) -> Result<DesiredModelResolution> {
     let parsed_url = match Url::parse(url_string) {
         Ok(url) => url,
@@ -206,10 +206,10 @@ async fn resolve_url_into_cache(
 
     match DownloadManager::new()?
         .download(
+            cancellation_token,
             url_string,
             &cached.cache_file_path,
             sink,
-            cancellation_token,
         )
         .await
     {
@@ -234,16 +234,16 @@ pub struct UrlModelSource(pub UrlModelReference);
 impl ResolvesModelSource for UrlModelSource {
     async fn resolve(
         &self,
-        slot_aggregated_status: Arc<SlotAggregatedStatus>,
         cancellation_token: &CancellationToken,
+        slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution> {
         let cache_dir = CacheDir::from_process_env();
 
         resolve_url_into_cache(
+            cancellation_token,
             &self.0.url,
             &cache_dir,
             slot_aggregated_status,
-            cancellation_token,
         )
         .await
     }
@@ -319,10 +319,10 @@ mod tests {
             .unwrap();
 
         let resolution = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             fresh_status(),
-            &CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -341,10 +341,10 @@ mod tests {
 
         let status = fresh_status();
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             status.clone(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -364,10 +364,10 @@ mod tests {
 
         let status = fresh_status();
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             status.clone(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -395,10 +395,10 @@ mod tests {
 
         let status = fresh_status();
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             status.clone(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -423,10 +423,10 @@ mod tests {
 
         let status = fresh_status();
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             status.clone(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -451,10 +451,10 @@ mod tests {
 
         let status = fresh_status();
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             status.clone(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -675,10 +675,10 @@ mod tests {
 
         let status = fresh_status();
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &cache_dir,
             status.clone(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -784,10 +784,10 @@ mod tests {
         let url_string = "https://host.example/unresolvable.gguf";
 
         let result = resolve_url_into_cache(
+            &CancellationToken::new(),
             url_string,
             &unresolvable_cache_dir(),
             fresh_status(),
-            &CancellationToken::new(),
         )
         .await;
 
@@ -834,10 +834,10 @@ mod tests {
         let expected_path = cached.cache_file_path.clone();
 
         let resolution = resolve_url_into_cache(
+            &CancellationToken::new(),
             &url_string,
             &cache_dir,
             fresh_status(),
-            &CancellationToken::new(),
         )
         .await
         .unwrap();
@@ -862,7 +862,7 @@ mod tests {
         cancellation_token.cancel();
 
         let result =
-            resolve_url_into_cache(&url_string, &cache_dir, status.clone(), &cancellation_token)
+            resolve_url_into_cache(&cancellation_token, &url_string, &cache_dir, status.clone())
                 .await;
 
         assert!(result.is_err());

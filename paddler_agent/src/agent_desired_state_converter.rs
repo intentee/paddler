@@ -18,15 +18,15 @@ use crate::resolve_desired_model::resolve_desired_model;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 async fn resolve_into_optional_path<TLocalMissingIssue>(
+    cancellation_token: &CancellationToken,
     desired: &AgentDesiredModel,
     slot_aggregated_status: &Arc<SlotAggregatedStatus>,
     on_local_missing: TLocalMissingIssue,
-    cancellation_token: &CancellationToken,
 ) -> Result<Option<PathBuf>>
 where
     TLocalMissingIssue: FnOnce(ModelPath) -> AgentIssue,
 {
-    match resolve_desired_model(desired, slot_aggregated_status.clone(), cancellation_token).await?
+    match resolve_desired_model(cancellation_token, desired, slot_aggregated_status.clone()).await?
     {
         DesiredModelResolution::NotConfigured => Ok(None),
         DesiredModelResolution::Resolved(path) => Ok(Some(path)),
@@ -57,18 +57,18 @@ impl ConvertsToApplicableState for AgentDesiredStateConverter {
         desired_state: AgentDesiredState,
     ) -> Result<AgentApplicableState> {
         let model_path = resolve_into_optional_path(
+            &self.cancellation_token,
             &desired_state.model,
             &self.slot_aggregated_status,
             AgentIssue::ModelFileDoesNotExist,
-            &self.cancellation_token,
         )
         .await?;
 
         let multimodal_projection_path = resolve_into_optional_path(
+            &self.cancellation_token,
             &desired_state.multimodal_projection,
             &self.slot_aggregated_status,
             AgentIssue::MultimodalProjectionCannotBeLoaded,
-            &self.cancellation_token,
         )
         .await?;
 
