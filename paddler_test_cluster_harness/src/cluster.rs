@@ -189,21 +189,6 @@ impl Cluster {
         }
     }
 
-    pub fn generate_embedding_batch_stream(
-        &self,
-        cancellation_token: CancellationToken,
-        params: &GenerateEmbeddingBatchParams,
-    ) -> impl Future<Output = Result<InferenceMessageStream>> + Send + use<> {
-        let client_inference = self.client_inference.clone();
-        let params = params.clone();
-
-        async move {
-            Ok(client_inference
-                .post_generate_embedding_batch(cancellation_token, &params)
-                .await?)
-        }
-    }
-
     pub fn openai_chat_completion_streaming(
         &self,
         body: &Value,
