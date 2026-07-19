@@ -28,6 +28,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::model::AddBos;
@@ -670,10 +671,12 @@ impl ContinuousBatchScheduler {
             &input_chunks,
             multimodal_context,
             &self.llama_context,
-            0,
-            sequence_guard.sequence_id(),
-            batch_size_i32,
-            true,
+            EvalMultimodalChunksParams {
+                start_position: 0,
+                seq_id: sequence_guard.sequence_id(),
+                n_batch: batch_size_i32,
+                logits_last: true,
+            },
         );
 
         let tokens_ingested = match eval_outcome {
