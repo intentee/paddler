@@ -342,30 +342,20 @@
                   managementAddr = lib.mkOption {
                     type = socketAddrType;
                     default = "127.0.0.1:8060";
-                    description = ''
-                      Address of the management server. Agents connect here and the web admin
-                      panel calls it directly from the browser, so if the panel is used remotely
-                      this must be an address the browser can actually reach.
-                    '';
+                    description = "Address of the management server.";
                   };
 
                   inferenceAddr = lib.mkOption {
                     type = socketAddrType;
                     default = "127.0.0.1:8061";
-                    description = ''
-                      Address of the inference server. The web admin panel calls it directly from
-                      the browser, so if the panel is used remotely this must be browser-reachable.
-                    '';
+                    description = "Address of the inference server.";
                   };
 
                   webAdminPanelAddr = lib.mkOption {
                     type = lib.types.nullOr socketAddrType;
                     default = null;
                     example = "127.0.0.1:8062";
-                    description = ''
-                      Address of the web admin panel. When null the panel is disabled. Requires a
-                      package built with the web admin panel feature (the default package).
-                    '';
+                    description = "Address of the web admin panel. Disabled when null.";
                   };
 
                   openaiCompatAddr = lib.mkOption {
@@ -377,10 +367,7 @@
                   stateDatabase = lib.mkOption {
                     type = lib.types.str;
                     default = "file:///var/lib/paddler/state.db";
-                    description = ''
-                      Balancer state database URL. Either memory:// or file:///absolute/path.
-                      A file database persists the runtime model assignment across restarts.
-                    '';
+                    description = "Balancer state database URL: memory:// or file:///absolute/path.";
                   };
 
                   managementCorsAllowedHosts = lib.mkOption {
@@ -409,59 +396,34 @@
                 };
 
                 agent = {
-                  enable = lib.mkEnableOption ''
-                    the Paddler agent service. Run a single agent per host: one agent already
-                    saturates the host's inference hardware with its slots, so additional agents
-                    on the same host would contend for the same GPU or CPU
-                  '';
+                  enable = lib.mkEnableOption "the Paddler agent service";
 
                   package = lib.mkOption {
                     type = lib.types.package;
                     default = agentPackage;
                     defaultText = lib.literalExpression "the paddler build selected by the agent's cuda/metal options";
-                    description = ''
-                      The paddler package used for the agent. Defaults to a build matching the
-                      agent's acceleration options (cuda, metal, otherwise CPU).
-                    '';
+                    description = "The paddler package used for the agent.";
                   };
 
                   cuda = {
-                    enable = lib.mkEnableOption ''
-                      CUDA acceleration for the agent (NVIDIA GPUs). Builds paddler with the cuda
-                      feature; the unfree license and cudaSupport are scoped to paddler's own build
-                      and do not affect the rest of the system
-                    '';
+                    enable = lib.mkEnableOption "CUDA acceleration for the agent";
 
                     capabilities = lib.mkOption {
                       type = lib.types.listOf lib.types.str;
                       default = [ ];
                       example = [ "12.0" ];
-                      description = ''
-                        CUDA compute capabilities to build kernels for, matching the target GPU
-                        (e.g. "8.9", "9.0", "12.0"). Required when cuda.enable is set: only the
-                        listed architectures are compiled.
-                        Building for the wrong or for many architectures is what makes the CUDA compile
-                        enormous, so there is no default fallback.
-                      '';
+                      description = "CUDA compute capabilities to build kernels for. Required when cuda.enable is set.";
                     };
 
                     buildParallelism = lib.mkOption {
                       type = lib.types.ints.positive;
                       default = 4;
-                      description = ''
-                        Maximum number of CUDA compiler (nvcc) and rustc jobs run in parallel while
-                        building the agent. The CUDA kernels are memory-heavy to compile (~2-2.5GB
-                        each), so this bounds peak build RAM independently of the build host's core
-                        count. The default of 4 keeps the build under 16GB; lower it on a tighter box.
-                      '';
+                      description = "Maximum number of parallel nvcc and rustc jobs while building the agent.";
                     };
                   };
 
                   metal = {
-                    enable = lib.mkEnableOption ''
-                      Metal acceleration for the agent (Apple GPUs). Only supported when building for
-                      a Darwin host
-                    '';
+                    enable = lib.mkEnableOption "Metal acceleration for the agent (Darwin only)";
                   };
 
                   managementAddr = lib.mkOption {
@@ -486,12 +448,7 @@
                     type = lib.types.nullOr lib.types.path;
                     default = null;
                     example = "/run/secrets/paddler-hf-token";
-                    description = ''
-                      Path to a file containing a HuggingFace access token (the raw token on a
-                      single line), used to download gated repositories. It is loaded as a
-                      systemd credential and installed into the agent's HuggingFace cache
-                      (HF_HOME/token) before the agent starts.
-                    '';
+                    description = "Path to a file containing a HuggingFace access token for downloading gated repositories.";
                   };
 
                   environment = lib.mkOption {
