@@ -25,15 +25,20 @@
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [
         "x86_64-linux"
+        "aarch64-linux"
         "aarch64-darwin"
       ];
 
       perSystem =
         { system, ... }:
         let
+          allowUnfree = builtins.getEnv "NIXPKGS_ALLOW_UNFREE" == "1";
+          cudaSupport = builtins.getEnv "PADDLER_ENABLE_CUDA" == "1";
+
           pkgs = import nixpkgs {
             inherit system;
             overlays = [ (import rust-overlay) ];
+            config = { inherit allowUnfree cudaSupport; };
           };
           lib = pkgs.lib;
 
@@ -175,13 +180,13 @@
               // lib.optionalAttrs webAdminPanel { preBuild = injectWebAdminPanelAssets; }
             );
 
-          allowUnfree = (pkgs.config.allowUnfree or false) || (builtins.getEnv "NIXPKGS_ALLOW_UNFREE" == "1");
+          enableCuda = system == "x86_64-linux" && allowUnfree && cudaSupport;
 
           linuxPackages = {
             paddler = mkPaddler { };
             paddler-headless = mkPaddler { webAdminPanel = false; };
           }
-          // lib.optionalAttrs allowUnfree {
+          // lib.optionalAttrs enableCuda {
             paddler-cuda = mkPaddler { accelerator = "cuda"; };
             paddler-cuda-headless = mkPaddler {
               accelerator = "cuda";
