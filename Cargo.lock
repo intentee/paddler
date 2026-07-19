@@ -3728,9 +3728,9 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25b3e674002002689fae8b895a8efdf1e851f46b657c32325473f375d0286b9b"
+checksum = "dd2ca73bb0bda4720b8eceb8932605730f4abf7a91bdcb9c708eabb5708b94fd"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -3748,9 +3748,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bef3ed70c4633858122ca28bdb683b28b6d036a5c2b9cdc6aab976f39a19441"
+checksum = "b09a396d180c93d56342594f60b3fae78d2a517a9ed0be02d36f33c3db65e507"
 dependencies = [
  "bindgen",
  "cc",
@@ -3763,18 +3763,18 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aaf63ee8a9808ee4adf3ae5cc0da3105c3d91e53fcee8894f8254c5b5d03ab3e"
+checksum = "24867ff3fe6a53c3aa2e5f47273abda1b3ffd1676fdd2785b544376609e3bdd0"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e764c657a21c313bee323869ccb0039f40f877128a6d9ecc7e2f23103a7a5d3"
+checksum = "59bfea302da4827659a9eaadb587f2bbaf30b47294bf3331502bf0ca952c3b57"
 dependencies = [
  "serde",
  "serde_json",
@@ -3783,15 +3783,15 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-error-recorder"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f454fc2ae5ca82d66bf1e22050fc25796ea1675536d1784ced70fc754458fc01"
+checksum = "15b606bbd0c9ed0a82420441cab10fc9818fda77626daf488154102b4a4cf0ad"
 
 [[package]]
 name = "llama-cpp-log-decoder"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2508cccd00a43f0cdc0bf0904ecf7ac6ab0aa3f85b4729b1c5c97ca6ac89deb3"
+checksum = "18699860211dd95bcf6752a89b637c764029be383e487112b6a64bd200609988"
 
 [[package]]
 name = "llguidance"
