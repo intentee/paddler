@@ -22,35 +22,56 @@
       rust-overlay,
       crane,
     }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "aarch64-darwin"
-      ];
+    let
+      version = "4.1.0";
 
-      perSystem =
-        { system, ... }:
+      paddlerPkgs =
+        {
+          system,
+          allowUnfree ? false,
+          cudaSupport ? false,
+          cudaCapabilities ? [ ],
+        }:
+        import nixpkgs {
+          inherit system;
+          overlays = [ (import rust-overlay) ];
+          config = {
+            inherit allowUnfree cudaSupport;
+          }
+          // (if cudaCapabilities == [ ] then { } else { inherit cudaCapabilities; });
+        };
+
+      craneLibFor = pkgs: (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml);
+
+      defaultAccelerator =
+        pkgs:
+        if pkgs.stdenv.hostPlatform.isDarwin then
+          "metal"
+        else if (pkgs.config.cudaSupport or false) then
+          "cuda"
+        else
+          "cpu";
+
+      buildPaddler =
+        pkgs:
+        {
+          accelerator ? defaultAccelerator pkgs,
+          webAdminPanel ? true,
+          cudaBuildParallelism ? 4,
+        }:
         let
-          allowUnfree = builtins.getEnv "NIXPKGS_ALLOW_UNFREE" == "1";
-          cudaSupport = builtins.getEnv "PADDLER_ENABLE_CUDA" == "1";
-
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ (import rust-overlay) ];
-            config = { inherit allowUnfree cudaSupport; };
-          };
           lib = pkgs.lib;
 
-          rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-          craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
-          craneLibCuda = craneLib.overrideScope (
-            _final: _prev: {
-              stdenvSelector = eachPkgs: eachPkgs.cudaPackages.backendStdenv;
-            }
-          );
-
-          version = "4.1.0";
+          craneLib = craneLibFor pkgs;
+          craneLibEff =
+            if accelerator == "cuda" then
+              craneLib.overrideScope (
+                _final: _prev: {
+                  stdenvSelector = eachPkgs: eachPkgs.cudaPackages.backendStdenv;
+                }
+              )
+            else
+              craneLib;
 
           webAdminPanelAssets = pkgs.buildNpmPackage {
             pname = "paddler-web-admin-panel";
@@ -78,8 +99,7 @@
             cp --no-preserve=mode,ownership ${webAdminPanelAssets}/esbuild-meta.json ./esbuild-meta.json
           '';
 
-          acceleratorInputs =
-            accelerator:
+          accel =
             if accelerator == "cpu" then
               {
                 cargoFeatures = [ ];
@@ -102,6 +122,8 @@
                 ];
                 env = {
                   CMAKE_CUDA_ARCHITECTURES = pkgs.cudaPackages.flags.cmakeCudaArchitecturesString;
+                  CMAKE_BUILD_PARALLEL_LEVEL = toString cudaBuildParallelism;
+                  CARGO_BUILD_JOBS = toString cudaBuildParallelism;
                   CARGO_BUILD_RUSTFLAGS = lib.concatStringsSep " " [
                     "-L native=${pkgs.cudaPackages.cuda_cudart}/lib"
                     "-L native=${pkgs.cudaPackages.cuda_cudart}/lib/stubs"
@@ -119,107 +141,91 @@
             else
               throw "paddler: unsupported accelerator '${accelerator}'";
 
-          mkPaddler =
-            {
-              accelerator ? "cpu",
-              webAdminPanel ? true,
-            }:
-            let
-              accel = acceleratorInputs accelerator;
-              craneLibEff = if accelerator == "cuda" then craneLibCuda else craneLib;
-              features = accel.cargoFeatures ++ lib.optional webAdminPanel "web_admin_panel";
-              featureFlags = lib.optionals (features != [ ]) [
-                "--features"
-                (lib.concatStringsSep "," features)
-              ];
-              cargoExtraArgs = lib.escapeShellArgs (
-                [
-                  "-p"
-                  "paddler_cli"
-                ]
-                ++ featureFlags
-              );
+          features = accel.cargoFeatures ++ lib.optional webAdminPanel "web_admin_panel";
+          featureFlags = lib.optionals (features != [ ]) [
+            "--features"
+            (lib.concatStringsSep "," features)
+          ];
+          cargoExtraArgs = lib.escapeShellArgs (
+            [
+              "-p"
+              "paddler_cli"
+            ]
+            ++ featureFlags
+          );
 
-              pname = "paddler${lib.optionalString (accelerator != "cpu") "-${accelerator}"}${
-                lib.optionalString (!webAdminPanel) "-headless"
-              }";
+          pname = "paddler${lib.optionalString (accelerator != "cpu") "-${accelerator}"}${
+            lib.optionalString (!webAdminPanel) "-headless"
+          }";
 
-              commonArgs = {
-                inherit cargoExtraArgs version pname;
-                src = self;
-                strictDeps = true;
-                doCheck = false;
-                nativeBuildInputs = [
-                  pkgs.cmake
-                  pkgs.pkg-config
-                  pkgs.llvmPackages.clang
-                ]
-                ++ accel.nativeBuildInputs;
-                buildInputs = [ pkgs.openssl ] ++ accel.buildInputs;
-                LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
-              }
-              // accel.env;
-
-              cargoArtifacts = craneLibEff.buildDepsOnly (
-                commonArgs // { src = craneLibEff.cleanCargoSource self; }
-              );
-            in
-            craneLibEff.buildPackage (
-              commonArgs
-              // {
-                inherit cargoArtifacts;
-                meta = {
-                  description = "Paddler ${accelerator} build (web admin panel ${
-                    if webAdminPanel then "enabled" else "disabled"
-                  })";
-                  homepage = "https://paddler.intentee.com/";
-                  license = lib.licenses.asl20;
-                  mainProgram = "paddler";
-                };
-              }
-              // lib.optionalAttrs webAdminPanel { preBuild = injectWebAdminPanelAssets; }
-            );
-
-          enableCuda = system == "x86_64-linux" && allowUnfree && cudaSupport;
-
-          linuxPackages = {
-            paddler = mkPaddler { };
-            paddler-headless = mkPaddler { webAdminPanel = false; };
+          commonArgs = {
+            inherit cargoExtraArgs version pname;
+            src = self;
+            strictDeps = true;
+            doCheck = false;
+            nativeBuildInputs = [
+              pkgs.cmake
+              pkgs.pkg-config
+              pkgs.llvmPackages.clang
+            ]
+            ++ accel.nativeBuildInputs;
+            buildInputs = [ pkgs.openssl ] ++ accel.buildInputs;
+            LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           }
-          // lib.optionalAttrs enableCuda {
-            paddler-cuda = mkPaddler { accelerator = "cuda"; };
-            paddler-cuda-headless = mkPaddler {
-              accelerator = "cuda";
-              webAdminPanel = false;
-            };
-          };
+          // accel.env;
 
-          darwinPackages = {
-            paddler = mkPaddler { accelerator = "metal"; };
-            paddler-headless = mkPaddler {
-              accelerator = "metal";
-              webAdminPanel = false;
+          cargoArtifacts = craneLibEff.buildDepsOnly (
+            commonArgs // { src = craneLibEff.cleanCargoSource self; }
+          );
+        in
+        craneLibEff.buildPackage (
+          commonArgs
+          // {
+            inherit cargoArtifacts;
+            meta = {
+              description = "Paddler ${accelerator} build (web admin panel ${
+                if webAdminPanel then "enabled" else "disabled"
+              })";
+              homepage = "https://paddler.intentee.com/";
+              license = lib.licenses.asl20;
+              mainProgram = "paddler";
             };
-          };
+          }
+          // lib.optionalAttrs webAdminPanel { preBuild = injectWebAdminPanelAssets; }
+        );
+    in
+    flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "aarch64-darwin"
+      ];
 
-          accelPackages = if pkgs.stdenv.hostPlatform.isDarwin then darwinPackages else linuxPackages;
+      perSystem =
+        { system, ... }:
+        let
+          pkgs = paddlerPkgs { inherit system; };
+          lib = pkgs.lib;
+
+          paddler = buildPaddler pkgs { };
+          paddler-headless = buildPaddler pkgs { webAdminPanel = false; };
         in
         {
-          packages = accelPackages // {
-            default = accelPackages.paddler;
+          packages = {
+            default = paddler;
+            inherit paddler paddler-headless;
           };
 
           apps.default = {
             type = "app";
-            program = "${lib.getExe accelPackages.paddler}";
+            program = "${lib.getExe paddler}";
           };
 
           checks = {
-            paddler = accelPackages.paddler;
-            paddler-headless = accelPackages.paddler-headless;
+            inherit paddler paddler-headless;
           };
 
-          devShells.default = craneLib.devShell {
+          devShells.default = (craneLibFor pkgs).devShell {
             packages = [
               pkgs.nodejs
               pkgs.cmake
@@ -246,7 +252,30 @@
             let
               cfg = config.services.paddler;
 
-              defaultPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.paddler;
+              boxSystem = pkgs.stdenv.hostPlatform.system;
+
+              balancerPackage = buildPaddler (paddlerPkgs { system = boxSystem; }) { };
+
+              agentPackage =
+                let
+                  agentCuda = cfg.agent.cuda;
+                in
+                if agentCuda.enable then
+                  buildPaddler
+                    (paddlerPkgs {
+                      system = boxSystem;
+                      allowUnfree = true;
+                      cudaSupport = true;
+                      cudaCapabilities = agentCuda.capabilities;
+                    })
+                    {
+                      accelerator = "cuda";
+                      cudaBuildParallelism = agentCuda.buildParallelism;
+                    }
+                else if cfg.agent.metal.enable then
+                  buildPaddler (paddlerPkgs { system = boxSystem; }) { accelerator = "metal"; }
+                else
+                  buildPaddler (paddlerPkgs { system = boxSystem; }) { accelerator = "cpu"; };
 
               socketAddrType = lib.types.str;
 
@@ -305,8 +334,8 @@
 
                   package = lib.mkOption {
                     type = lib.types.package;
-                    default = defaultPackage;
-                    defaultText = lib.literalExpression "paddler.packages.\${system}.paddler";
+                    default = balancerPackage;
+                    defaultText = lib.literalExpression "the CPU paddler build for this host";
                     description = "The paddler package used for the balancer.";
                   };
 
@@ -388,9 +417,51 @@
 
                   package = lib.mkOption {
                     type = lib.types.package;
-                    default = defaultPackage;
-                    defaultText = lib.literalExpression "paddler.packages.\${system}.paddler";
-                    description = "The paddler package used for the agent (e.g. paddler-cuda for GPU).";
+                    default = agentPackage;
+                    defaultText = lib.literalExpression "the paddler build selected by the agent's cuda/metal options";
+                    description = ''
+                      The paddler package used for the agent. Defaults to a build matching the
+                      agent's acceleration options (cuda, metal, otherwise CPU).
+                    '';
+                  };
+
+                  cuda = {
+                    enable = lib.mkEnableOption ''
+                      CUDA acceleration for the agent (NVIDIA GPUs). Builds paddler with the cuda
+                      feature; the unfree license and cudaSupport are scoped to paddler's own build
+                      and do not affect the rest of the system
+                    '';
+
+                    capabilities = lib.mkOption {
+                      type = lib.types.listOf lib.types.str;
+                      default = [ ];
+                      example = [ "12.0" ];
+                      description = ''
+                        CUDA compute capabilities to build kernels for, matching the target GPU
+                        (e.g. "8.9", "9.0", "12.0"). Required when cuda.enable is set: only the
+                        listed architectures are compiled.
+                        Building for the wrong or for many architectures is what makes the CUDA compile
+                        enormous, so there is no default fallback.
+                      '';
+                    };
+
+                    buildParallelism = lib.mkOption {
+                      type = lib.types.ints.positive;
+                      default = 4;
+                      description = ''
+                        Maximum number of CUDA compiler (nvcc) and rustc jobs run in parallel while
+                        building the agent. The CUDA kernels are memory-heavy to compile (~2-2.5GB
+                        each), so this bounds peak build RAM independently of the build host's core
+                        count. The default of 4 keeps the build under 16GB; lower it on a tighter box.
+                      '';
+                    };
+                  };
+
+                  metal = {
+                    enable = lib.mkEnableOption ''
+                      Metal acceleration for the agent (Apple GPUs). Only supported when building for
+                      a Darwin host
+                    '';
                   };
 
                   managementAddr = lib.mkOption {
@@ -438,6 +509,23 @@
               };
 
               config = lib.mkMerge [
+                (lib.mkIf cfg.agent.enable {
+                  assertions = [
+                    {
+                      assertion = !(cfg.agent.cuda.enable && cfg.agent.metal.enable);
+                      message = "services.paddler.agent: cuda and metal acceleration cannot both be enabled.";
+                    }
+                    {
+                      assertion = cfg.agent.cuda.enable -> cfg.agent.cuda.capabilities != [ ];
+                      message = "services.paddler.agent.cuda.capabilities must list the target GPU's compute capabilities (e.g. [ \"12.0\" ]) when cuda.enable is set.";
+                    }
+                    {
+                      assertion = cfg.agent.metal.enable -> pkgs.stdenv.hostPlatform.isDarwin;
+                      message = "services.paddler.agent.metal is only supported on Darwin hosts.";
+                    }
+                  ];
+                })
+
                 (lib.mkIf cfg.balancer.enable {
                   systemd.services.paddler-balancer = {
                     description = "Paddler balancer";
