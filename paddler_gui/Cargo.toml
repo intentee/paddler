@@ -39,6 +39,7 @@ workspace = true
 default = []
 cuda = ["paddler_bootstrap/cuda"]
 metal = ["paddler_bootstrap/metal"]
+vulkan = ["paddler_bootstrap/vulkan"]
 web_admin_panel = [
     "dep:esbuild-metafile",
     "paddler_balancer/web_admin_panel",
