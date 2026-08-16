@@ -49,7 +49,13 @@ impl AdvanceGeneratingPhase<'_> {
         })
         .run(request, batch_index)
         {
-            SampleOutcome::Sampled(token) => token,
+            SampleOutcome::Sampled(token) => {
+                self.scheduler_context
+                    .slot_aggregated_status
+                    .record_generated_token();
+
+                token
+            }
             SampleOutcome::AllCandidatesEliminated => {
                 error!(
                     "{:?}: sequence {} sampling exhausted candidates",

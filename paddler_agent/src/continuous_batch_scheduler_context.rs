@@ -6,6 +6,7 @@ use llama_cpp_bindings::mtmd::MtmdContext;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::chat_template_renderer::ChatTemplateRenderer;
+use crate::slot_aggregated_status::SlotAggregatedStatus;
 
 pub struct ContinuousBatchSchedulerContext {
     pub agent_name: Option<String>,
@@ -15,6 +16,7 @@ pub struct ContinuousBatchSchedulerContext {
     pub model: Arc<LlamaModel>,
     pub model_path: PathBuf,
     pub multimodal_context: Option<Arc<MtmdContext>>,
+    pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
     pub token_bos_str: String,
     pub token_eos_str: String,
     pub token_nl_str: String,

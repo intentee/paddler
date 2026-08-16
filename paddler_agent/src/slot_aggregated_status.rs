@@ -12,6 +12,7 @@ use tokio::sync::watch;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::dispenses_slots::DispensesSlots;
+use crate::token_throughput_meter::TokenThroughputMeter;
 use paddler_messaging::atomic_value::AtomicValue;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
@@ -27,6 +28,7 @@ pub struct SlotAggregatedStatus {
     slots_processing: AtomicValue<AtomicI32>,
     slots_total: AtomicValue<AtomicI32>,
     state_application_status_code: AtomicValue<AtomicI32>,
+    token_throughput_meter: TokenThroughputMeter,
     update_tx: watch::Sender<()>,
     uses_chat_template_override: AtomicValue<AtomicBool>,
     version: AtomicValue<AtomicI32>,
@@ -50,6 +52,7 @@ impl SlotAggregatedStatus {
             ),
             slots_processing: AtomicValue::<AtomicI32>::new(0),
             slots_total: AtomicValue::<AtomicI32>::new(0),
+            token_throughput_meter: TokenThroughputMeter::new(),
             update_tx,
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
             version: AtomicValue::<AtomicI32>::new(0),
@@ -174,6 +177,21 @@ impl SlotAggregatedStatus {
     pub fn slots_processing_count(&self) -> i32 {
         self.slots_processing.get()
     }
+
+    /// Records that this agent has just generated one token, contributing to
+    /// the tokens-per-second rate reported in status snapshots.
+    ///
+    /// This does not bump `version` or notify subscribers: it happens once
+    /// per generated token, far too often to treat as a state change worth
+    /// pushing immediately. The periodic status update (sent once a second
+    /// regardless of `version`) is what picks the latest rate up.
+    pub fn record_generated_token(&self) {
+        self.token_throughput_meter.record_token();
+    }
+
+    pub fn tokens_per_second(&self) -> f64 {
+        self.token_throughput_meter.tokens_per_second()
+    }
 }
 
 impl DispensesSlots for SlotAggregatedStatus {
@@ -211,6 +229,7 @@ impl ProducesSnapshot for SlotAggregatedStatus {
             slots_processing: self.slots_processing.get(),
             slots_total: self.slots_total.get(),
             state_application_status: self.state_application_status_code.get().try_into()?,
+            tokens_per_second: self.tokens_per_second(),
             uses_chat_template_override: self.uses_chat_template_override.get(),
             version: self.version.get(),
         })
@@ -338,6 +357,37 @@ mod tests {
         assert_eq!(
             snapshot.state_application_status,
             AgentStateApplicationStatus::Fresh
+        );
+    }
+
+    #[test]
+    fn make_snapshot_reports_zero_tokens_per_second_before_any_generation() {
+        let status = SlotAggregatedStatus::new(1);
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        let actual = snapshot.tokens_per_second;
+        assert!((actual - 0.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn record_generated_token_is_reflected_in_snapshot_after_a_window_closes() {
+        let status = SlotAggregatedStatus::new(1);
+
+        for _ in 0..5 {
+            status.record_generated_token();
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(1050));
+
+        status.record_generated_token();
+
+        let snapshot = status.make_snapshot().unwrap();
+
+        assert!(
+            snapshot.tokens_per_second > 0.0,
+            "expected a positive tokens_per_second, got {}",
+            snapshot.tokens_per_second
         );
     }
 

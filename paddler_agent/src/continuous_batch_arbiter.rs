@@ -306,6 +306,7 @@ impl ContinuousBatchArbiter {
                 inference_parameters,
                 model_path: model_path.clone(),
                 multimodal_context,
+                slot_aggregated_status: slot_aggregated_status_manager.slot_aggregated_status.clone(),
                 token_bos_str: model.token_to_piece(
                     &SampledToken::Content(model.token_bos()),
                     &mut special_token_decoder,

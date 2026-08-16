@@ -59,6 +59,7 @@ pub mod slot_aggregated_status;
 pub mod slot_aggregated_status_download_progress;
 pub mod slot_aggregated_status_manager;
 pub mod slot_guard;
+pub mod token_throughput_meter;
 pub mod tool_call_buffer;
 pub mod tool_call_event;
 pub mod tool_call_pipeline;

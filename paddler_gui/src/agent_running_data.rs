@@ -23,6 +23,7 @@ impl AgentRunningData {
             slots_processing: status.slots_processing,
             slots_total: status.slots_total,
             state_application_status: status.state_application_status,
+            tokens_per_second: status.tokens_per_second,
             uses_chat_template_override: status.uses_chat_template_override,
         };
     }

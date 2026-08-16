@@ -17,6 +17,7 @@ test("parses a fully populated agent payload", function () {
     slots_processing: 1,
     slots_total: 4,
     state_application_status: "Applied",
+    tokens_per_second: 12.5,
     uses_chat_template_override: false,
   });
 
@@ -39,6 +40,7 @@ test("rejects an unknown state_application_status", function () {
       slots_processing: 0,
       slots_total: 1,
       state_application_status: "Unknown",
+      tokens_per_second: 0,
       uses_chat_template_override: false,
     });
   });

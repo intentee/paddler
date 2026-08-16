@@ -38,16 +38,24 @@ impl StatsdService {
             slots_total,
         } = self.agent_controller_pool.total_slots();
         let requests_buffered = self.buffered_request_manager.buffered_request_counter.get();
+        let tokens_per_second = self.agent_controller_pool.total_tokens_per_second();
 
         let slots_processing =
             u64::try_from(slots_processing).context("slots_processing count is negative")?;
         let slots_total = u64::try_from(slots_total).context("slots_total count is negative")?;
         let requests_buffered =
             u64::try_from(requests_buffered).context("requests_buffered count is negative")?;
+        #[expect(
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss,
+            reason = "StatsD gauges are unsigned integers; sub-token precision is not meaningful"
+        )]
+        let tokens_per_second = tokens_per_second.round() as u64;
 
         client.gauge("slots_processing", slots_processing)?;
         client.gauge("slots_total", slots_total)?;
         client.gauge("requests_buffered", requests_buffered)?;
+        client.gauge("tokens_per_second", tokens_per_second)?;
         client.flush()?;
 
         Ok(())
@@ -152,6 +160,7 @@ mod tests {
                 state_application_status_code: AtomicValue::<AtomicI32>::new(
                     AgentStateApplicationStatus::Fresh as i32,
                 ),
+                tokens_per_second: RwLock::new(0.0),
                 uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
             }),
         )
@@ -199,7 +208,7 @@ mod tests {
         let mut received_lines: Vec<String> = Vec::new();
         let mut datagram = [0_u8; 1024];
 
-        for _ in 0..3 {
+        for _ in 0..4 {
             let byte_count = receiver.recv(&mut datagram).await.unwrap();
 
             received_lines.push(String::from_utf8(datagram[..byte_count].to_vec()).unwrap());
@@ -208,6 +217,7 @@ mod tests {
         assert!(received_lines.contains(&"paddler.slots_processing:0|g".to_owned()));
         assert!(received_lines.contains(&"paddler.slots_total:0|g".to_owned()));
         assert!(received_lines.contains(&"paddler.requests_buffered:0|g".to_owned()));
+        assert!(received_lines.contains(&"paddler.tokens_per_second:0|g".to_owned()));
     }
 
     #[tokio::test]
@@ -227,6 +237,7 @@ mod tests {
             "paddler.slots_processing:0|g".to_owned(),
             "paddler.slots_total:0|g".to_owned(),
             "paddler.requests_buffered:0|g".to_owned(),
+            "paddler.tokens_per_second:0|g".to_owned(),
         ];
 
         assert!(expected_first_tick_lines.contains(&first_line));

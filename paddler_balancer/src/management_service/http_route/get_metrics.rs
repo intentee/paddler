@@ -24,6 +24,7 @@ async fn respond(app_data: Data<AppData>) -> Result<impl Responder, Box<dyn Erro
         .buffered_request_manager
         .buffered_request_counter
         .get();
+    let tokens_per_second = app_data.agent_controller_pool.total_tokens_per_second();
     let statsd_prefix = app_data.statsd_prefix.clone();
 
     let metrics_response = formatdoc! {"
@@ -38,6 +39,10 @@ async fn respond(app_data: Data<AppData>) -> Result<impl Responder, Box<dyn Erro
         # HELP {statsd_prefix}requests_buffered Number of buffered requests
         # TYPE {statsd_prefix}requests_buffered gauge
         {statsd_prefix}requests_buffered {buffered_requests_count}
+
+        # HELP {statsd_prefix}tokens_per_second Combined generation throughput across all agents
+        # TYPE {statsd_prefix}tokens_per_second gauge
+        {statsd_prefix}tokens_per_second {tokens_per_second}
     "};
 
     Ok(HttpResponse::Ok()

@@ -21,5 +21,6 @@ pub struct AgentControllerSnapshot {
     pub slots_processing: i32,
     pub slots_total: i32,
     pub state_application_status: AgentStateApplicationStatus,
+    pub tokens_per_second: f64,
     pub uses_chat_template_override: bool,
 }

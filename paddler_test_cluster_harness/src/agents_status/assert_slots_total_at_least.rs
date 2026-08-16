@@ -39,6 +39,7 @@ mod tests {
                 slots_processing: 0,
                 slots_total,
                 state_application_status: AgentStateApplicationStatus::Applied,
+                tokens_per_second: 0.0,
                 uses_chat_template_override: false,
             }],
         }

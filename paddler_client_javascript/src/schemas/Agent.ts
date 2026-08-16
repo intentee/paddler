@@ -22,6 +22,7 @@ export const AgentSchema = z
       "Fresh",
       "Stuck",
     ]),
+    tokens_per_second: z.number(),
     uses_chat_template_override: z.boolean(),
   })
   .strict();

@@ -96,9 +96,20 @@ pub fn view_agent_card<TMessage: 'static>(
         snapshot.slots_processing, snapshot.slots_total, snapshot.desired_slots_total,
     );
 
+    let mut status_row_right = column![].spacing(SPACING_HALF);
+
+    status_row_right =
+        status_row_right.push(text(format!("Slots: {slots_label}")).font(REGULAR));
+
+    if snapshot.tokens_per_second > 0.0 {
+        status_row_right = status_row_right.push(
+            text(format!("{:.1} tok/s", snapshot.tokens_per_second)).font(REGULAR),
+        );
+    }
+
     let status_row_content = row![
         container(status_row_left).width(Fill),
-        text(format!("Slots: {slots_label}")).font(REGULAR),
+        status_row_right,
     ];
 
     let card_content = column![name_row, status_row_content,].spacing(SPACING_BASE);

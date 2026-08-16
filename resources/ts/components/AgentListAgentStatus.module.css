@@ -2,7 +2,7 @@
   align-items: center;
   display: grid;
   gap: var(--spacing-half);
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   justify-items: flex-start;
   overflow: hidden;
   text-overflow: ellipsis;

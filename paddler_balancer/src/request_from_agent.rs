@@ -453,6 +453,7 @@ mod tests {
             state_application_status_code: AtomicValue::<AtomicI32>::new(
                 AgentStateApplicationStatus::Fresh as i32,
             ),
+            tokens_per_second: RwLock::new(0.0),
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
         });
 

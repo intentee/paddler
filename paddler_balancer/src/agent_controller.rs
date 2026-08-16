@@ -59,6 +59,7 @@ pub struct AgentController {
     pub slots_processing: AtomicValue<AtomicI32>,
     pub slots_total: AtomicValue<AtomicI32>,
     pub state_application_status_code: AtomicValue<AtomicI32>,
+    pub tokens_per_second: RwLock<f64>,
     pub uses_chat_template_override: AtomicValue<AtomicBool>,
 }
 
@@ -95,6 +96,10 @@ impl AgentController {
         self.model_path.read().clone()
     }
 
+    pub fn get_tokens_per_second(&self) -> f64 {
+        *self.tokens_per_second.read()
+    }
+
     pub fn set_download_filename(&self, filename: Option<String>) {
         let mut locked_filename = self.download_filename.write();
 
@@ -111,6 +116,12 @@ impl AgentController {
         let mut locked_path = self.model_path.write();
 
         *locked_path = model_path;
+    }
+
+    pub fn set_tokens_per_second(&self, tokens_per_second: f64) {
+        let mut locked_tokens_per_second = self.tokens_per_second.write();
+
+        *locked_tokens_per_second = tokens_per_second;
     }
 
     pub async fn stop_responding_to(&self, request_id: String) -> Result<()> {
@@ -134,6 +145,7 @@ impl AgentController {
             model_path,
             slots_total,
             state_application_status,
+            tokens_per_second,
             uses_chat_template_override,
             version,
             ..
@@ -182,6 +194,12 @@ impl AgentController {
             changed = true;
 
             self.set_model_path(model_path);
+        }
+
+        if (tokens_per_second - self.get_tokens_per_second()).abs() > 0.01 {
+            changed = true;
+
+            self.set_tokens_per_second(tokens_per_second);
         }
 
         if changed {
@@ -304,6 +322,7 @@ impl ProducesSnapshot for AgentController {
             slots_processing: self.slots_processing.get(),
             slots_total: self.slots_total.get(),
             state_application_status: self.state_application_status_code.get().try_into()?,
+            tokens_per_second: self.get_tokens_per_second(),
             uses_chat_template_override: self.uses_chat_template_override.get(),
         })
     }
@@ -368,6 +387,7 @@ mod tests {
             state_application_status_code: AtomicValue::<AtomicI32>::new(
                 AgentStateApplicationStatus::Fresh as i32,
             ),
+            tokens_per_second: RwLock::new(0.0),
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
         }
     }
@@ -387,6 +407,7 @@ mod tests {
             slots_processing: 0,
             slots_total: 4,
             state_application_status: AgentStateApplicationStatus::Fresh,
+            tokens_per_second: 0.0,
             uses_chat_template_override: true,
             version: 1,
         };
@@ -418,6 +439,7 @@ mod tests {
             slots_processing: 0,
             slots_total: 0,
             state_application_status: AgentStateApplicationStatus::Fresh,
+            tokens_per_second: 0.0,
             uses_chat_template_override: false,
             version: 1,
         };
@@ -448,6 +470,7 @@ mod tests {
             slots_processing: 0,
             slots_total: 0,
             state_application_status: AgentStateApplicationStatus::Fresh,
+            tokens_per_second: 0.0,
             uses_chat_template_override: false,
             version: 1,
         };
@@ -481,6 +504,7 @@ mod tests {
             slots_processing: 0,
             slots_total: 0,
             state_application_status: AgentStateApplicationStatus::Fresh,
+            tokens_per_second: 0.0,
             uses_chat_template_override: false,
             version: 1,
         };

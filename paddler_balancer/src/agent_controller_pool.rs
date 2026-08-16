@@ -131,6 +131,16 @@ impl AgentControllerPool {
             slots_total,
         }
     }
+
+    /// Sums the most recently reported tokens-per-second rate across every
+    /// registered agent, giving the balancer's overall generation throughput.
+    #[must_use]
+    pub fn total_tokens_per_second(&self) -> f64 {
+        self.agents
+            .iter()
+            .map(|entry| entry.value().get_tokens_per_second())
+            .sum()
+    }
 }
 
 impl Default for AgentControllerPool {
@@ -236,6 +246,7 @@ mod tests {
             state_application_status_code: AtomicValue::<AtomicI32>::new(
                 AgentStateApplicationStatus::Fresh as i32,
             ),
+            tokens_per_second: RwLock::new(0.0),
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
         })
     }
@@ -295,6 +306,25 @@ mod tests {
 
         assert_eq!(total_slots.slots_processing, 3);
         assert_eq!(total_slots.slots_total, 12);
+    }
+
+    #[test]
+    fn total_tokens_per_second_sums_rate_across_agents() {
+        let pool = AgentControllerPool::default();
+
+        let first = agent_controller_with_slots(1, 4);
+        first.set_tokens_per_second(12.5);
+
+        let second = agent_controller_with_slots(2, 8);
+        second.set_tokens_per_second(7.5);
+
+        pool.register_agent_controller("first".to_owned(), first)
+            .unwrap();
+        pool.register_agent_controller("second".to_owned(), second)
+            .unwrap();
+
+        let actual = pool.total_tokens_per_second();
+        assert!((actual - 20.0).abs() < 0.0001);
     }
 
     #[test]

@@ -83,6 +83,7 @@ mod tests {
             slots_processing: AtomicValue::<AtomicI32>::new(0),
             slots_total: AtomicValue::<AtomicI32>::new(0),
             state_application_status_code: AtomicValue::<AtomicI32>::new(status_code),
+            tokens_per_second: RwLock::new(0.0),
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
         })
     }

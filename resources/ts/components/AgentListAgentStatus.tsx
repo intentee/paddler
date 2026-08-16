@@ -10,6 +10,7 @@ export function AgentListAgentStatus({
     slots_processing,
     slots_total,
     state_application_status,
+    tokens_per_second,
   },
 }: {
   agent: Agent;
@@ -33,6 +34,11 @@ export function AgentListAgentStatus({
           <abbr title="Slots processing / total / desired total">
             {slots_processing}/{slots_total}/{desired_slots_total}
           </abbr>
+          {tokens_per_second > 0 && (
+            <abbr title="Tokens generated per second, averaged over the last second">
+              {tokens_per_second.toFixed(1)} tok/s
+            </abbr>
+          )}
         </div>
       );
     case "AttemptedAndNotAppliable":

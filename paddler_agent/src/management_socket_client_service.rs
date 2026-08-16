@@ -652,14 +652,31 @@ mod tests {
         let service = service_with_socket_url(format!(
             "ws://{refused_addr}/api/v1/agent_socket/test-agent"
         ));
-        let shutdown = CancellationToken::new();
 
-        let keep_alive_result =
-            tokio::time::timeout(SHUTDOWN_BUDGET, service.keep_connection_alive(shutdown))
-                .await
-                .expect("connecting to a refused port must fail fast instead of blocking");
+        // The kernel may take ~1s before it answers a connect to a just-closed
+        // port with ECONNREFUSED, so a single attempt could time out. Retry
+        // within the budget instead of assuming the refusal is immediate.
+        let deadline = tokio::time::Instant::now() + SHUTDOWN_BUDGET;
 
-        assert!(keep_alive_result.is_err());
+        loop {
+            let shutdown = CancellationToken::new();
+
+            let keep_alive_result = tokio::select! {
+                keep_alive_result = service.keep_connection_alive(shutdown) => keep_alive_result,
+                () = tokio::time::sleep_until(deadline) => {
+                    panic!("connecting to a refused port must fail within the shutdown budget");
+                }
+            };
+
+            if let Err(err) = keep_alive_result {
+                assert!(
+                    err.to_string().contains("Connection refused"),
+                    "expected a connection refusal, got: {err}"
+                );
+
+                return;
+            }
+        }
     }
 
     #[tokio::test]

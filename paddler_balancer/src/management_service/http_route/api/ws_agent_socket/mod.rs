@@ -124,6 +124,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                             slots_processing,
                             slots_total,
                             state_application_status,
+                            tokens_per_second,
                             uses_chat_template_override,
                             version,
                         },
@@ -159,6 +160,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     state_application_status_code: AtomicValue::<AtomicI32>::new(
                         state_application_status as i32,
                     ),
+                    tokens_per_second: RwLock::new(tokens_per_second),
                     uses_chat_template_override: AtomicValue::<AtomicBool>::new(
                         uses_chat_template_override,
                     ),
@@ -409,6 +411,7 @@ mod tests {
                         slots_processing: 0,
                         slots_total: 1,
                         state_application_status: AgentStateApplicationStatus::Fresh,
+                        tokens_per_second: 0.0,
                         uses_chat_template_override: false,
                         version: 0,
                     },
