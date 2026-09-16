@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use log::error;
 use minijinja::context;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use tokio::sync::mpsc;
@@ -86,14 +84,19 @@ pub fn prepare_conversation_history_request(
             anyhow!(message)
         })?;
 
-    let media_marker = MediaMarker::new(mtmd_default_marker()?.to_owned());
-    let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
+    let chat_template_messages =
+        conversation_history.replace_images_with_marker(&scheduler_context.media_marker);
 
     let chat_template_renderer = require_renderer_for_generation(
         scheduler_context.chat_template_renderer.as_ref(),
         scheduler_context.agent_name.as_deref(),
         generated_tokens_tx,
     )?;
+
+    let tools = tools
+        .into_iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()?;
 
     let raw_prompt = chat_template_renderer
         .render(context! {
@@ -103,7 +106,7 @@ pub fn prepare_conversation_history_request(
             eos_token => scheduler_context.token_eos_str,
             messages => chat_template_messages.messages,
             nl_token => scheduler_context.token_nl_str,
-            tools => tools,
+            tools => &tools,
         })
         .map_err(|err| {
             let message = format!(

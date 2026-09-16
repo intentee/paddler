@@ -54,7 +54,7 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
         "location".to_owned(),
         json!({"type": "string", "description": "The city name"}),
     );
-    let tools = vec![Tool::Function(FunctionCall {
+    let tools = [Tool::Function(FunctionCall {
         function: Function {
             name: "get_weather".to_owned(),
             description: "Get the current weather for a location".to_owned(),
@@ -67,11 +67,11 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
         },
     })];
 
-    let validator = ToolCallValidator::from_tools(&tools)?;
     let tools_json: Vec<serde_json::Value> = tools
         .iter()
         .map(serde_json::to_value)
         .collect::<Result<_, _>>()?;
+    let validator = ToolCallValidator::from_tools(&tools_json)?;
     let mut pipeline = ToolCallPipeline::new(model, &tools_json, validator)?;
 
     pipeline.feed(QWEN_XML_PAYLOAD);

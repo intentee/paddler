@@ -4,11 +4,8 @@ use jsonschema::Validator;
 use jsonschema::validator_for;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::ToolCallArguments;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-
 use paddler_messaging::tool_call_validation_error::ToolCallValidationError;
+use serde_json::Value;
 
 use crate::validator_build_error::ValidatorBuildError;
 
@@ -22,27 +19,29 @@ pub struct ToolCallValidator {
 }
 
 impl ToolCallValidator {
-    pub fn from_tools(
-        tools: &[Tool<ValidatedParametersSchema>],
-    ) -> Result<Self, ValidatorBuildError> {
+    pub fn from_tools(tools: &[Value]) -> Result<Self, ValidatorBuildError> {
         let mut strategies = HashMap::with_capacity(tools.len());
 
-        for tool in tools {
-            let Tool::Function(function_call) = tool;
-            let function = &function_call.function;
+        for (tool_index, tool) in tools.iter().enumerate() {
+            let function = tool.get("function").and_then(Value::as_object).ok_or(
+                ValidatorBuildError::InvalidSerializedTool {
+                    tool_index,
+                    message: "function must be an object",
+                },
+            )?;
+            let name = function.get("name").and_then(Value::as_str).ok_or(
+                ValidatorBuildError::InvalidSerializedTool {
+                    tool_index,
+                    message: "function.name must be a string",
+                },
+            )?;
 
-            let strategy = match &function.parameters {
-                Parameters::Empty => ValidationStrategy::JsonObjectOnly,
-                Parameters::Schema(schema) => {
-                    let schema_value = serde_json::to_value(schema).map_err(|err| {
-                        ValidatorBuildError::SerializationFailed {
-                            tool_name: function.name.clone(),
-                            message: err.to_string(),
-                        }
-                    })?;
-                    let compiled = validator_for(&schema_value).map_err(|err| {
+            let strategy = match function.get("parameters") {
+                None => ValidationStrategy::JsonObjectOnly,
+                Some(schema) => {
+                    let compiled = validator_for(schema).map_err(|err| {
                         ValidatorBuildError::InvalidSchema {
-                            tool_name: function.name.clone(),
+                            tool_name: name.to_owned(),
                             message: err.to_string(),
                         }
                     })?;
@@ -50,7 +49,7 @@ impl ToolCallValidator {
                 }
             };
 
-            strategies.insert(function.name.clone(), strategy);
+            strategies.insert(name.to_owned(), strategy);
         }
 
         Ok(Self { strategies })
@@ -97,12 +96,6 @@ impl ToolCallValidator {
 mod tests {
     use llama_cpp_bindings::ParsedToolCall;
     use llama_cpp_bindings::ToolCallArguments;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-    use serde_json::Map;
     use serde_json::Value;
     use serde_json::json;
 
@@ -114,34 +107,31 @@ mod tests {
         ToolCallArguments::ValidJson(value)
     }
 
-    fn weather_tool_with_schema() -> Tool<ValidatedParametersSchema> {
-        let mut properties = Map::new();
-        properties.insert(
-            "location".to_owned(),
-            json!({"type": "string", "description": "city"}),
-        );
-
-        Tool::Function(FunctionCall {
-            function: Function {
-                name: "get_weather".to_owned(),
-                description: "fetch weather".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: Some(properties),
-                    required: Some(vec!["location".to_owned()]),
-                    additional_properties: Some(Value::Bool(false)),
-                }),
-            },
+    fn weather_tool_with_schema() -> Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "fetch weather",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "location": {"type": "string", "description": "city"}
+                    },
+                    "required": ["location"],
+                    "additionalProperties": false
+                }
+            }
         })
     }
 
-    fn schemaless_tool() -> Tool<ValidatedParametersSchema> {
-        Tool::Function(FunctionCall {
-            function: Function {
-                name: "freeform".to_owned(),
-                description: "tool with no schema".to_owned(),
-                parameters: Parameters::Empty,
-            },
+    fn schemaless_tool() -> Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": "freeform",
+                "description": "tool with no schema"
+            }
         })
     }
 
@@ -261,21 +251,17 @@ mod tests {
         ));
     }
 
-    fn tool_with_invalid_property_schema() -> Tool<ValidatedParametersSchema> {
-        let mut properties = Map::new();
-        properties.insert("location".to_owned(), json!({"type": 42}));
-
-        Tool::Function(FunctionCall {
-            function: Function {
-                name: "broken_tool".to_owned(),
-                description: "tool whose property schema is not valid JSON Schema".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: Some(properties),
-                    required: None,
-                    additional_properties: None,
-                }),
-            },
+    fn tool_with_invalid_property_schema() -> Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": "broken_tool",
+                "description": "tool whose property schema is not valid JSON Schema",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"location": {"type": 42}}
+                }
+            }
         })
     }
 
@@ -291,18 +277,17 @@ mod tests {
         ));
     }
 
-    fn tool_with_invalid_additional_properties_schema() -> Tool<ValidatedParametersSchema> {
-        Tool::Function(FunctionCall {
-            function: Function {
-                name: "broken_additional".to_owned(),
-                description: "tool whose additionalProperties schema is invalid".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: None,
-                    required: None,
-                    additional_properties: Some(json!({"type": "not_a_type"})),
-                }),
-            },
+    fn tool_with_invalid_additional_properties_schema() -> Value {
+        json!({
+            "type": "function",
+            "function": {
+                "name": "broken_additional",
+                "description": "tool whose additionalProperties schema is invalid",
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": {"type": "not_a_type"}
+                }
+            }
         })
     }
 
@@ -316,6 +301,39 @@ mod tests {
         assert!(matches!(
             build_error,
             ValidatorBuildError::InvalidSchema { tool_name, .. } if tool_name == "broken_additional"
+        ));
+    }
+
+    #[test]
+    fn missing_function_object_rejects_validator_build() {
+        let build_error = ToolCallValidator::from_tools(&[json!({"type": "function"})])
+            .err()
+            .unwrap();
+
+        assert!(matches!(
+            build_error,
+            ValidatorBuildError::InvalidSerializedTool {
+                tool_index: 0,
+                message: "function must be an object"
+            }
+        ));
+    }
+
+    #[test]
+    fn non_string_function_name_rejects_validator_build() {
+        let build_error = ToolCallValidator::from_tools(&[json!({
+            "type": "function",
+            "function": {"name": 42}
+        })])
+        .err()
+        .unwrap();
+
+        assert!(matches!(
+            build_error,
+            ValidatorBuildError::InvalidSerializedTool {
+                tool_index: 0,
+                message: "function.name must be a string"
+            }
         ));
     }
 }

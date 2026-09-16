@@ -1,5 +1,4 @@
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use serde_json::Value;
 
 use crate::decoded_image::DecodedImage;
 use crate::grammar_sampler::GrammarSampler;
@@ -10,7 +9,7 @@ pub enum PreparedConversationHistoryRequest {
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
         parse_tool_calls: bool,
-        tools: Vec<Tool<ValidatedParametersSchema>>,
+        tools: Vec<Value>,
     },
     MultimodalPrompt {
         raw_prompt: String,
@@ -18,6 +17,6 @@ pub enum PreparedConversationHistoryRequest {
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
         parse_tool_calls: bool,
-        tools: Vec<Tool<ValidatedParametersSchema>>,
+        tools: Vec<Value>,
     },
 }
