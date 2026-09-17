@@ -17,6 +17,13 @@ pub fn run(
     Ok(classify_ingest_outcomes(outcomes, section_before_ingest))
 }
 
+pub fn flush(request: &mut ContinuousBatchActiveRequest) -> Vec<ClassifiedToken> {
+    let section_before_flush = request.token_classifier.current_section();
+    let outcomes = request.token_classifier.flush();
+
+    classify_ingest_outcomes(outcomes, section_before_flush)
+}
+
 fn classify_ingest_outcomes(
     outcomes: Vec<IngestOutcome>,
     section_before: SampledTokenSection,

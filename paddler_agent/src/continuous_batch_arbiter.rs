@@ -43,6 +43,7 @@ use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
+use crate::kv_cache_dtype_pair::KvCacheDtypePair;
 use crate::model_constants::ModelConstants;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::send_startup_signal::send_startup_signal;
@@ -312,26 +313,30 @@ impl ContinuousBatchArbiter {
                 model: model.clone(),
             });
 
-            let mut llama_context =
-                match LlamaContext::from_model(&model, &llama_backend, context_params)
+            let mut llama_context = match (KvCacheDtypePair {
+                k_cache_dtype: scheduler_context.inference_parameters.k_cache_dtype.clone(),
+                v_cache_dtype: scheduler_context.inference_parameters.v_cache_dtype.clone(),
+            })
+            .validate()
+            .context("The requested KV cache configuration cannot run attention on this backend")
+            .and_then(|()| {
+                LlamaContext::from_model(&model, &llama_backend, context_params)
                     .context("Unable to create llama.cpp context")
-                {
-                    Ok(context) => context,
-                    Err(err) => {
-                        for slot_index in 0..n_seq_max {
-                            slot_aggregated_status_manager
-                                .slot_aggregated_status
-                                .register_issue(AgentIssue::SlotCannotStart(
-                                    SlotCannotStartParams {
-                                        error: format!("{err:#}"),
-                                        slot_index,
-                                    },
-                                ));
-                        }
-
-                        return Err(err);
+            }) {
+                Ok(context) => context,
+                Err(err) => {
+                    for slot_index in 0..n_seq_max {
+                        slot_aggregated_status_manager
+                            .slot_aggregated_status
+                            .register_issue(AgentIssue::SlotCannotStart(SlotCannotStartParams {
+                                error: format!("{err:#}"),
+                                slot_index,
+                            }));
                     }
-                };
+
+                    return Err(err);
+                }
+            };
 
             Self::run_warmup_decode(
                 &model,

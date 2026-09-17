@@ -4,12 +4,14 @@ pub mod assemble_batch_phase;
 pub mod batch_pass;
 pub mod classified_token;
 pub mod classify_token_phase;
+pub mod client_stream_status;
 pub mod commit_phase;
 pub mod completion_check_outcome;
 pub mod completion_check_phase;
 pub mod contributions;
 pub mod decode_batch_phase;
 pub mod decode_outcome;
+pub mod emit_classified_tokens;
 pub mod emit_token_outcome;
 pub mod emit_token_phase;
 pub mod generating_contribution;
@@ -58,6 +60,7 @@ use tokio::sync::mpsc;
 use self::advance_generating_phase::AdvanceGeneratingPhase;
 use self::assemble_batch_phase::AssembleBatchPhase;
 use self::batch_pass::BatchPass;
+use self::client_stream_status::ClientStreamStatus;
 use self::decode_outcome::DecodeOutcome;
 use self::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
 use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
@@ -68,6 +71,7 @@ use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use crate::decoded_image::DecodedImage;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::grammar_sampler::GrammarSampler;
@@ -791,20 +795,36 @@ impl ContinuousBatchScheduler {
 
             match active_request.sample_next_token(&self.llama_context, batch_index) {
                 Ok(SamplingOutcome::Token(raw_token)) => {
-                    // Update classifier state (section / usage counters) but drop the
-                    // outcomes — harvest-sampled tokens are funnelled into the next
-                    // batch via `pending_sampled_token`; their user-visible emission
-                    // happens in `advance_generating_phase` after the next decode,
-                    // not here.
-                    if let Err(error) = active_request.token_classifier.ingest(raw_token) {
-                        error!(
-                            "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
+                    let classified_tokens = match classify_token_phase::run(
+                        active_request,
+                        raw_token,
+                    ) {
+                        Ok(classified_tokens) => classified_tokens,
+                        Err(error) => {
+                            error!(
+                                "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
+                                self.scheduler_context.agent_name,
+                                active_request.sequence_id_guard.sequence_id()
+                            );
+                            active_request.complete_with_outcome(
+                                GeneratedTokenResult::DetokenizationFailed(error.to_string()),
+                            );
+
+                            continue;
+                        }
+                    };
+
+                    if emit_classified_tokens::run(active_request, &classified_tokens)
+                        == ClientStreamStatus::Dropped
+                    {
+                        warn!(
+                            "{:?}: sequence {} client disconnected (receiver dropped) during pre-eval harvest",
                             self.scheduler_context.agent_name,
                             active_request.sequence_id_guard.sequence_id()
                         );
-                        active_request.complete_with_outcome(
-                            GeneratedTokenResult::DetokenizationFailed(error.to_string()),
-                        );
+                        active_request
+                            .state
+                            .mark_completed(ContinuousBatchTerminalOutcome::EmitNothing);
 
                         continue;
                     }
@@ -856,6 +876,18 @@ impl ContinuousBatchScheduler {
             }
 
             if active_request.is_stop_requested() {
+                let flushed_tokens = classify_token_phase::flush(active_request);
+
+                if emit_classified_tokens::run(active_request, &flushed_tokens)
+                    == ClientStreamStatus::Dropped
+                {
+                    active_request
+                        .state
+                        .mark_completed(ContinuousBatchTerminalOutcome::EmitNothing);
+
+                    continue;
+                }
+
                 let summary = GenerationSummary {
                     usage: *active_request.token_classifier.usage(),
                 };

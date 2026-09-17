@@ -33,6 +33,8 @@ mod from_request_params;
 pub mod generate_embedding_batch_request;
 pub mod grammar_engagement;
 pub mod grammar_sampler;
+pub mod kv_cache_dtype_pair;
+pub mod kv_cache_dtype_pair_error;
 pub mod llamacpp_arbiter_service;
 pub mod management_socket_client_service;
 pub mod model_constants;
