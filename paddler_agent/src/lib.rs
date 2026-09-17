@@ -4,6 +4,8 @@ pub mod agent_desired_state_converter;
 pub mod agent_issue_fix;
 pub mod agent_kv_cache_dtype;
 pub mod agent_pooling_type;
+pub mod batch_capacity;
+pub mod batch_capacity_error;
 pub mod chat_template_load_status;
 pub mod chat_template_renderer;
 pub mod continue_from_conversation_history_request;

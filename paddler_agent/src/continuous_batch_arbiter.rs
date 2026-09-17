@@ -34,6 +34,7 @@ use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::agent_kv_cache_dtype::AgentKvCacheDtype;
 use crate::agent_pooling_type::AgentPoolingType;
+use crate::batch_capacity::BatchCapacity;
 use crate::chat_template_load_status::ChatTemplateLoadStatus;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
@@ -313,12 +314,22 @@ impl ContinuousBatchArbiter {
                 model: model.clone(),
             });
 
-            let mut llama_context = match (KvCacheDtypePair {
-                k_cache_dtype: scheduler_context.inference_parameters.k_cache_dtype.clone(),
-                v_cache_dtype: scheduler_context.inference_parameters.v_cache_dtype.clone(),
+            let mut llama_context = match (BatchCapacity {
+                n_batch: scheduler_context.inference_parameters.n_batch,
+                slot_count: desired_slots_total,
             })
             .validate()
-            .context("The requested KV cache configuration cannot run attention on this backend")
+            .context("The requested batch size cannot serve the configured slots")
+            .and_then(|()| {
+                (KvCacheDtypePair {
+                    k_cache_dtype: scheduler_context.inference_parameters.k_cache_dtype.clone(),
+                    v_cache_dtype: scheduler_context.inference_parameters.v_cache_dtype.clone(),
+                })
+                .validate()
+                .context(
+                    "The requested KV cache configuration cannot run attention on this backend",
+                )
+            })
             .and_then(|()| {
                 LlamaContext::from_model(&model, &llama_backend, context_params)
                     .context("Unable to create llama.cpp context")
