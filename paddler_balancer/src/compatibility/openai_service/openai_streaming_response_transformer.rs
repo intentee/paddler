@@ -574,8 +574,10 @@ mod tests {
             .transform(token_message(
                 GeneratedTokenResult::UnrecognizedToolCallFormat(
                     paddler_messaging::raw_tool_call_tokens::RawToolCallTokens {
-                        text: "<unknown_marker>blah</unknown_marker>".to_owned(),
                         ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
+                        synthetic_render_with_tools: "<tool_call>".to_owned(),
+                        synthetic_render_without_tools: String::new(),
+                        text: "<unknown_marker>blah</unknown_marker>".to_owned(),
                     },
                 ),
             ))
@@ -752,7 +754,7 @@ mod tests {
 
         let chunks = transformer
             .transform(token_message(
-                GeneratedTokenResult::GrammarIncompatibleWithThinking(
+                GeneratedTokenResult::GrammarRequiresReasoningCloseMarker(
                     "grammar conflicts with thinking".to_owned(),
                 ),
             ))

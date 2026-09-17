@@ -23,7 +23,7 @@ class InferenceMessageKind(StrEnum):
         "embedding_rejected_due_to_active_token_generation"
     )
     EMBEDDING_NO_EMBEDDINGS_PRODUCED = "embedding_no_embeddings_produced"
-    GRAMMAR_INCOMPATIBLE_WITH_THINKING = "grammar_incompatible_with_thinking"
+    GRAMMAR_REQUIRES_REASONING_CLOSE_MARKER = "grammar_requires_reasoning_close_marker"
     GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
     GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
     GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
@@ -210,8 +210,8 @@ def _parse_response(
 
 _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ChatTemplateError": InferenceMessageKind.CHAT_TEMPLATE_ERROR,
-    "GrammarIncompatibleWithThinking": (
-        InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
+    "GrammarRequiresReasoningCloseMarker": (
+        InferenceMessageKind.GRAMMAR_REQUIRES_REASONING_CLOSE_MARKER
     ),
     "GrammarInitializationFailed": InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,
     "GrammarRejectedModelOutput": InferenceMessageKind.GRAMMAR_REJECTED_MODEL_OUTPUT,

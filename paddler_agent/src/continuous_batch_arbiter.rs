@@ -7,7 +7,6 @@ use std::thread::available_parallelism;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
@@ -44,9 +43,12 @@ use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
+use crate::model_constants::ModelConstants;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+
+const DISABLE_CONTEXT_PERF_TRACKING: bool = true;
 
 pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
@@ -146,7 +148,8 @@ impl ContinuousBatchArbiter {
                 .with_type_v(
                     AgentKvCacheDtype(inference_parameters.v_cache_dtype.clone())
                         .to_llama_kv_cache_dtype(),
-                );
+                )
+                .with_no_perf(DISABLE_CONTEXT_PERF_TRACKING);
 
             let model = Arc::new(
                 LlamaModel::load_from_file(
@@ -297,33 +300,15 @@ impl ContinuousBatchArbiter {
                 None => None,
             };
 
-            let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
-
             let scheduler_context = Arc::new(ContinuousBatchSchedulerContext {
                 agent_name: agent_name_clone,
                 chat_template_renderer,
                 desired_slots_total,
                 inference_parameters,
+                model_constants: ModelConstants::from_model(&model)
+                    .context("Unable to resolve the model's constants")?,
                 model_path: model_path.clone(),
                 multimodal_context,
-                token_bos_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_bos()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                token_nl_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_nl()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                token_eos_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_eos()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
                 model: model.clone(),
             });
 

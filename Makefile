@@ -110,7 +110,8 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
 		--gated paddler_opencode_tests=76 \
-		--gated paddler_test_cluster_harness=67
+		--gated paddler_test_cluster_harness=67 \
+		--gated paddler_tests=89
 
 .PHONY: test.coverage-clean
 test.coverage-clean:

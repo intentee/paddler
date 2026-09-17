@@ -30,13 +30,14 @@ impl ContinuousBatchRequestState {
 
     pub fn apply_ingesting_contribution(
         &mut self,
-        chunk_size: usize,
+        committed_prompt_tokens: u64,
         is_last_chunk: bool,
         last_batch_position: i32,
     ) -> Result<()> {
-        self.prompt_tokens_ingested += chunk_size;
-        self.current_token_position +=
-            i32::try_from(chunk_size).context("chunk size does not fit in i32")?;
+        self.prompt_tokens_ingested += usize::try_from(committed_prompt_tokens)
+            .context("committed prompt token count does not fit in usize")?;
+        self.current_token_position += i32::try_from(committed_prompt_tokens)
+            .context("committed prompt token count does not fit in i32")?;
 
         if is_last_chunk {
             self.i_batch = Some(last_batch_position);
@@ -171,10 +172,10 @@ mod tests {
     }
 
     #[test]
-    fn applying_an_ingesting_chunk_too_large_for_i32_is_an_error() {
+    fn applying_more_committed_prompt_tokens_than_fit_in_i32_is_an_error() {
         let mut state = ingesting_state(0);
 
-        let result = state.apply_ingesting_contribution(usize::MAX, false, 0);
+        let result = state.apply_ingesting_contribution(u64::MAX, false, 0);
 
         assert!(result.is_err());
     }

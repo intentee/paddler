@@ -105,6 +105,8 @@ test("UnrecognizedToolCallFormat preserves text and FFI error message", function
           UnrecognizedToolCallFormat: {
             text: "<unknown>raw</unknown>",
             ffi_error_message: "common_chat_parse failed: no parser",
+            synthetic_render_with_tools: "<tool_call>{}</tool_call>",
+            synthetic_render_without_tools: "",
           },
         },
       },
@@ -120,6 +122,8 @@ test("UnrecognizedToolCallFormat preserves text and FFI error message", function
   deepStrictEqual(parsed.rawToolCallTokens, {
     text: "<unknown>raw</unknown>",
     ffi_error_message: "common_chat_parse failed: no parser",
+    synthetic_render_with_tools: "<tool_call>{}</tool_call>",
+    synthetic_render_without_tools: "",
   });
 });
 

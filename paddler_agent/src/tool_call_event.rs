@@ -161,8 +161,10 @@ mod tests {
     #[test]
     fn unrecognized_format_classifies_as_neither_resolved_nor_failure_nor_pending() {
         let event = ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
-            text: "raw".to_owned(),
             ffi_error_message: "bailed".to_owned(),
+            synthetic_render_with_tools: "<tool_call>".to_owned(),
+            synthetic_render_without_tools: String::new(),
+            text: "raw".to_owned(),
         });
 
         assert!(!event.is_pending());
@@ -173,8 +175,10 @@ mod tests {
     #[test]
     fn unrecognized_format_converts_to_unrecognized_tool_call_format_preserving_payload() {
         let event = ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
-            text: "raw output".to_owned(),
             ffi_error_message: "parser bailed".to_owned(),
+            synthetic_render_with_tools: "<tool_call>".to_owned(),
+            synthetic_render_without_tools: String::new(),
+            text: "raw output".to_owned(),
         });
 
         let result = event

@@ -45,7 +45,6 @@ mod tests {
         let mut contributions = Contributions::default();
         contributions.ingesting.push(IngestingContribution {
             request_index: 0,
-            chunk_size: 4,
             is_last_chunk: false,
             last_batch_position: 3,
         });

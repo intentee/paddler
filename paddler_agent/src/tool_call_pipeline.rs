@@ -3,6 +3,7 @@ use std::sync::Arc;
 use llama_cpp_bindings::ChatMessageParseOutcome;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::RawChatMessage;
+use llama_cpp_bindings::SyntheticToolCallRenders;
 use llama_cpp_bindings::model::LlamaModel;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
@@ -56,10 +57,20 @@ impl ToolCallPipeline {
                 text,
                 ffi_error_message,
                 ..
-            })) => ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
-                text,
-                ffi_error_message,
-            }),
+            })) => match self.model.diagnose_tool_call_synthetic_renders() {
+                Ok(SyntheticToolCallRenders {
+                    with_tools,
+                    without_tools,
+                }) => ToolCallEvent::UnrecognizedFormat(RawToolCallTokens {
+                    ffi_error_message,
+                    synthetic_render_with_tools: with_tools,
+                    synthetic_render_without_tools: without_tools,
+                    text,
+                }),
+                Err(err) => ToolCallEvent::ParseFailed(
+                    ToolCallPipelineError::SyntheticRenderDiagnosisFailed(err),
+                ),
+            },
             Err(err) => ToolCallEvent::ParseFailed(ToolCallPipelineError::Bindings(err)),
         }
     }

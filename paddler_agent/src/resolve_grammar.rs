@@ -4,30 +4,35 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use tokio::sync::mpsc;
 
+use crate::grammar_engagement::GrammarEngagement;
 use crate::grammar_sampler::GrammarSampler;
+use crate::model_constants::ModelConstants;
 
 pub fn resolve_grammar(
     grammar: Option<&GrammarConstraint>,
     enable_thinking: bool,
+    model_constants: &ModelConstants,
     generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
 ) -> Result<Option<GrammarSampler>> {
     let Some(grammar_constraint) = grammar else {
         return Ok(None);
     };
 
-    if enable_thinking {
-        let message = "Grammar constraints are incompatible with thinking mode".to_owned();
+    let engagement = GrammarEngagement::for_thinking(enable_thinking);
+
+    if engagement == GrammarEngagement::AfterReasoning && !model_constants.closes_reasoning() {
+        let message = "Grammar constraints require thinking mode to end with a reasoning-close marker, which this model does not expose".to_owned();
 
         generated_tokens_tx
-            .send(GeneratedTokenResult::GrammarIncompatibleWithThinking(
+            .send(GeneratedTokenResult::GrammarRequiresReasoningCloseMarker(
                 message.clone(),
             ))
-            .map_err(|err| anyhow!("Failed to send grammar incompatibility error: {err}"))?;
+            .map_err(|err| anyhow!("Failed to send missing reasoning-close marker error: {err}"))?;
 
         return Err(anyhow!(message));
     }
 
-    match GrammarSampler::new(grammar_constraint) {
+    match GrammarSampler::new(grammar_constraint, engagement) {
         Ok(sampler) => Ok(Some(sampler)),
         Err(err) => {
             let message = format!("Failed to create grammar sampler: {err}");
@@ -43,68 +48,128 @@ pub fn resolve_grammar(
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::MarkerRole;
+    use llama_cpp_bindings::MarkerRoleCandidate;
+    use llama_cpp_bindings::StreamingMarkers;
+    use llama_cpp_bindings::token::LlamaToken;
+
     use super::*;
+
+    fn model_constants(roles: Vec<MarkerRole>) -> ModelConstants {
+        let candidates = roles
+            .into_iter()
+            .enumerate()
+            .map(|(index, role)| MarkerRoleCandidate {
+                tokens: vec![LlamaToken::new(i32::try_from(index).unwrap() + 1)],
+                role,
+            })
+            .collect::<Vec<_>>();
+
+        ModelConstants {
+            n_vocab: 32,
+            streaming_markers: StreamingMarkers::from_candidates(candidates).unwrap(),
+            token_bos_str: String::new(),
+            token_eos_str: String::new(),
+            token_nl_str: String::new(),
+        }
+    }
+
+    fn reasoning_model() -> ModelConstants {
+        model_constants(vec![MarkerRole::ReasoningOpen, MarkerRole::ReasoningClose])
+    }
+
+    fn markerless_model() -> ModelConstants {
+        model_constants(Vec::new())
+    }
+
+    fn gbnf_grammar() -> GrammarConstraint {
+        GrammarConstraint::Gbnf {
+            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
+            root: "root".to_owned(),
+        }
+    }
 
     #[test]
     fn returns_none_when_grammar_is_absent() {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
 
-        let resolved = resolve_grammar(None, false, &generated_tokens_tx).unwrap();
+        let resolved =
+            resolve_grammar(None, false, &reasoning_model(), &generated_tokens_tx).unwrap();
 
         assert!(resolved.is_none());
         assert!(generated_tokens_rx.try_recv().is_err());
     }
 
     #[test]
-    fn emits_incompatibility_event_and_errors_when_thinking_is_enabled() {
+    fn returns_sampler_for_valid_grammar() {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-        let grammar = GrammarConstraint::Gbnf {
-            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
-            root: "root".to_owned(),
-        };
 
-        let result = resolve_grammar(Some(&grammar), true, &generated_tokens_tx);
+        let resolved = resolve_grammar(
+            Some(&gbnf_grammar()),
+            false,
+            &reasoning_model(),
+            &generated_tokens_tx,
+        )
+        .unwrap();
+
+        assert!(resolved.is_some());
+        assert!(generated_tokens_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn thinking_is_allowed_when_the_model_closes_reasoning() {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+
+        let resolved = resolve_grammar(
+            Some(&gbnf_grammar()),
+            true,
+            &reasoning_model(),
+            &generated_tokens_tx,
+        )
+        .unwrap();
+
+        assert!(resolved.is_some());
+        assert!(generated_tokens_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn thinking_is_rejected_when_the_model_never_closes_reasoning() {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+
+        let result = resolve_grammar(
+            Some(&gbnf_grammar()),
+            true,
+            &markerless_model(),
+            &generated_tokens_tx,
+        );
 
         assert!(result.is_err());
 
         let event = generated_tokens_rx.try_recv().unwrap();
 
-        assert!(
-            matches!(event, GeneratedTokenResult::GrammarIncompatibleWithThinking(message) if message == "Grammar constraints are incompatible with thinking mode")
-        );
+        assert!(matches!(
+            event,
+            GeneratedTokenResult::GrammarRequiresReasoningCloseMarker(_)
+        ));
     }
 
     #[test]
-    fn errors_when_incompatibility_event_cannot_be_sent() {
+    fn errors_when_the_missing_reasoning_close_marker_event_cannot_be_sent() {
         let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
 
         drop(generated_tokens_rx);
 
-        let grammar = GrammarConstraint::Gbnf {
-            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
-            root: "root".to_owned(),
-        };
-
-        let result = resolve_grammar(Some(&grammar), true, &generated_tokens_tx);
+        let result = resolve_grammar(
+            Some(&gbnf_grammar()),
+            true,
+            &markerless_model(),
+            &generated_tokens_tx,
+        );
 
         assert_eq!(
             result.err().unwrap().to_string(),
-            "Failed to send grammar incompatibility error: channel closed"
+            "Failed to send missing reasoning-close marker error: channel closed"
         );
-    }
-
-    #[test]
-    fn returns_sampler_for_valid_grammar() {
-        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-        let grammar = GrammarConstraint::Gbnf {
-            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
-            root: "root".to_owned(),
-        };
-
-        let resolved = resolve_grammar(Some(&grammar), false, &generated_tokens_tx).unwrap();
-
-        assert!(resolved.is_some());
-        assert!(generated_tokens_rx.try_recv().is_err());
     }
 
     #[test]
@@ -114,7 +179,12 @@ mod tests {
             schema: "not valid json at all".to_owned(),
         };
 
-        let result = resolve_grammar(Some(&grammar), false, &generated_tokens_tx);
+        let result = resolve_grammar(
+            Some(&grammar),
+            false,
+            &reasoning_model(),
+            &generated_tokens_tx,
+        );
 
         assert!(result.is_err());
         assert!(
@@ -142,7 +212,12 @@ mod tests {
             schema: "not valid json at all".to_owned(),
         };
 
-        let result = resolve_grammar(Some(&grammar), false, &generated_tokens_tx);
+        let result = resolve_grammar(
+            Some(&grammar),
+            false,
+            &reasoning_model(),
+            &generated_tokens_tx,
+        );
 
         assert_eq!(
             result.err().unwrap().to_string(),

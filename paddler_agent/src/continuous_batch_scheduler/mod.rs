@@ -14,6 +14,7 @@ pub mod emit_token_outcome;
 pub mod emit_token_phase;
 pub mod generating_contribution;
 pub mod ingesting_contribution;
+pub mod rollback_phase;
 pub mod sample_outcome;
 pub mod sample_token_phase;
 pub mod tool_call_pass;
@@ -29,8 +30,10 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
+use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
+use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdContext;
@@ -70,8 +73,8 @@ use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::grammar_sampler::GrammarSampler;
 use crate::prepare_conversation_history_request::prepare_conversation_history_request;
 use crate::prepared_conversation_history_request::PreparedConversationHistoryRequest;
+use crate::request_grammar::RequestGrammar;
 use crate::resolve_grammar::resolve_grammar;
-use crate::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::sampling_outcome::SamplingOutcome;
 use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
 use crate::sequence_id_guard::SequenceIdGuard;
@@ -80,6 +83,8 @@ use crate::slot_guard::SlotGuard;
 use crate::tool_call_pipeline::ToolCallPipeline;
 use crate::tool_call_validator::ToolCallValidator;
 use crate::validator_build_error::ValidatorBuildError;
+
+const DISABLE_SAMPLER_PERF_TRACKING: bool = true;
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
@@ -294,7 +299,12 @@ impl ContinuousBatchScheduler {
             slot_guard,
         }: ContinueFromRawPromptRequest,
     ) {
-        let grammar_sampler = match resolve_grammar(grammar.as_ref(), false, &generated_tokens_tx) {
+        let grammar_sampler = match resolve_grammar(
+            grammar.as_ref(),
+            false,
+            &self.scheduler_context.model_constants,
+            &generated_tokens_tx,
+        ) {
             Ok(sampler) => sampler,
             Err(err) => {
                 error!(
@@ -323,33 +333,38 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn create_sampler_chain(&mut self) -> LlamaSampler {
-        LlamaSampler::chain_simple([
-            LlamaSampler::penalties(
-                self.scheduler_context.inference_parameters.penalty_last_n,
-                self.scheduler_context.inference_parameters.penalty_repeat,
-                self.scheduler_context
-                    .inference_parameters
-                    .penalty_frequency,
-                self.scheduler_context.inference_parameters.penalty_presence,
-            ),
-            LlamaSampler::top_k(self.scheduler_context.inference_parameters.top_k),
-            LlamaSampler::top_p(self.scheduler_context.inference_parameters.top_p, 0),
-            LlamaSampler::min_p(self.scheduler_context.inference_parameters.min_p, 0),
-            LlamaSampler::temp(self.scheduler_context.inference_parameters.temperature),
-            LlamaSampler::dist(self.rng.random::<u32>()),
-        ])
+    fn create_sampler_chain(&mut self) -> Result<LlamaSampler, SamplingError> {
+        let seed = self.rng.random::<u32>();
+        let inference_parameters = &self.scheduler_context.inference_parameters;
+
+        LlamaSampler::chain(
+            [
+                LlamaSampler::penalties(
+                    self.scheduler_context.model_constants.n_vocab,
+                    inference_parameters.penalty_last_n,
+                    inference_parameters.penalty_repeat,
+                    inference_parameters.penalty_frequency,
+                    inference_parameters.penalty_presence,
+                )?,
+                LlamaSampler::top_k(inference_parameters.top_k)?,
+                LlamaSampler::top_p(inference_parameters.top_p, 0)?,
+                LlamaSampler::min_p(inference_parameters.min_p, 0)?,
+                LlamaSampler::temp(inference_parameters.temperature)?,
+                LlamaSampler::dist(seed)?,
+            ],
+            DISABLE_SAMPLER_PERF_TRACKING,
+        )
     }
 
-    fn create_grammar_llama_sampler(
+    fn create_request_grammar(
         &self,
         grammar_sampler: Option<GrammarSampler>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ) -> Result<Option<LlamaSampler>> {
+    ) -> Result<Option<RequestGrammar>> {
         grammar_sampler.map_or_else(
             || Ok(None),
             |grammar_sampler| match grammar_sampler
-                .into_llama_sampler(&self.scheduler_context.model)
+                .into_request_grammar(&self.scheduler_context.model)
             {
                 Ok(sampler) => Ok(Some(sampler)),
                 Err(err) => {
@@ -376,21 +391,20 @@ impl ContinuousBatchScheduler {
         unsafe_code,
         reason = "the SchedulerContext owns the LlamaModel for the lifetime of the active_requests vec — same pattern as LlamaContext<'static> above"
     )]
-    fn build_token_classifier_for_active_request(
-        &self,
-    ) -> Result<llama_cpp_bindings::SampledTokenClassifier<'static>> {
-        let classifier = self
-            .scheduler_context
-            .model
-            .sampled_token_classifier()
-            .context("failed to build the sampled token classifier")?;
+    fn build_token_classifier_for_active_request(&self) -> SampledTokenClassifier<'static> {
+        let classifier = SampledTokenClassifier::new(
+            &self.scheduler_context.model,
+            self.scheduler_context
+                .model_constants
+                .streaming_markers
+                .clone(),
+        );
 
-        Ok(unsafe {
-            std::mem::transmute::<
-                llama_cpp_bindings::SampledTokenClassifier<'_>,
-                llama_cpp_bindings::SampledTokenClassifier<'static>,
-            >(classifier)
-        })
+        unsafe {
+            std::mem::transmute::<SampledTokenClassifier<'_>, SampledTokenClassifier<'static>>(
+                classifier,
+            )
+        }
     }
 
     fn build_tool_call_pipeline(
@@ -502,18 +516,17 @@ impl ContinuousBatchScheduler {
             }
         };
 
-        let Ok(llama_grammar_sampler) =
-            self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
+        let Ok(request_grammar) =
+            self.create_request_grammar(grammar_sampler, &generated_tokens_tx)
         else {
             return Ok(());
         };
 
-        let chain = self.create_sampler_chain();
+        let chain = self
+            .create_sampler_chain()
+            .context("failed to build the sampler chain")?;
 
-        let mut token_classifier = self.build_token_classifier_for_active_request()?;
-
-        token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
-        token_classifier.ingest_prompt_tokens(&prompt_tokens);
+        let token_classifier = self.build_token_classifier_for_active_request();
 
         self.clear_kv_cache_for_sequence(sequence_guard.sequence_id());
 
@@ -536,7 +549,7 @@ impl ContinuousBatchScheduler {
             },
             chain,
             token_classifier,
-            grammar_sampler: llama_grammar_sampler,
+            grammar: request_grammar,
             generated_tokens_tx,
             generate_tokens_stop_rx,
             sequence_id_guard: sequence_guard,
@@ -663,7 +676,7 @@ impl ContinuousBatchScheduler {
 
         self.harvest_pending_samples_before_external_decode();
 
-        let mut token_classifier = self.build_token_classifier_for_active_request()?;
+        let mut token_classifier = self.build_token_classifier_for_active_request();
 
         let batch_size_i32 = i32::try_from(batch_size).context("batch_size does not fit in i32")?;
 
@@ -720,13 +733,15 @@ impl ContinuousBatchScheduler {
 
         self.llama_context.mark_logits_initialized(-1);
 
-        let Ok(llama_grammar_sampler) =
-            self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
+        let Ok(request_grammar) =
+            self.create_request_grammar(grammar_sampler, &generated_tokens_tx)
         else {
             return Ok(());
         };
 
-        let chain = self.create_sampler_chain();
+        let chain = self
+            .create_sampler_chain()
+            .context("failed to build the sampler chain")?;
 
         debug!(
             "{:?}: accepted multimodal request on sequence {} ({tokens_ingested} tokens ingested)",
@@ -746,7 +761,7 @@ impl ContinuousBatchScheduler {
             },
             chain,
             token_classifier,
-            grammar_sampler: llama_grammar_sampler,
+            grammar: request_grammar,
             generated_tokens_tx,
             generate_tokens_stop_rx,
             sequence_id_guard: sequence_guard,
@@ -774,12 +789,7 @@ impl ContinuousBatchScheduler {
                 continue;
             };
 
-            match sample_token_at_batch_index(
-                &self.llama_context,
-                batch_index,
-                &mut active_request.chain,
-                &mut active_request.grammar_sampler,
-            ) {
+            match active_request.sample_next_token(&self.llama_context, batch_index) {
                 Ok(SamplingOutcome::Token(raw_token)) => {
                     // Update classifier state (section / usage counters) but drop the
                     // outcomes — harvest-sampled tokens are funnelled into the next
@@ -930,6 +940,7 @@ impl ContinuousBatchScheduler {
                     return Ok(());
                 }
                 DecodeOutcome::NeedsEviction => {
+                    rollback_phase::run(&pass, &mut self.active_requests);
                     self.evict_largest_sequence();
 
                     if self.active_requests.is_empty() {
@@ -937,9 +948,13 @@ impl ContinuousBatchScheduler {
                     }
                 }
                 DecodeOutcome::Aborted => {
+                    rollback_phase::run(&pass, &mut self.active_requests);
+
                     return Ok(());
                 }
                 DecodeOutcome::Errored(decode_error) => {
+                    rollback_phase::run(&pass, &mut self.active_requests);
+
                     return Err(anyhow::Error::new(decode_error).context("decode failed"));
                 }
             }
