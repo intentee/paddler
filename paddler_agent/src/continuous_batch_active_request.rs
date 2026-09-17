@@ -1,4 +1,6 @@
+use anyhow::Result;
 use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
@@ -7,6 +9,9 @@ use tokio::sync::mpsc::error::TryRecvError;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_terminal_delivery::ContinuousBatchTerminalDelivery;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+use crate::request_grammar::RequestGrammar;
+use crate::sample_token_at_batch_index::sample_token_at_batch_index;
+use crate::sampling_outcome::SamplingOutcome;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::slot_guard::SlotGuard;
 use crate::tool_call_pipeline::ToolCallPipeline;
@@ -15,7 +20,7 @@ pub struct ContinuousBatchActiveRequest {
     pub state: ContinuousBatchRequestState,
     pub chain: LlamaSampler,
     pub token_classifier: SampledTokenClassifier<'static>,
-    pub grammar_sampler: Option<LlamaSampler>,
+    pub grammar: Option<RequestGrammar>,
     pub generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
     pub generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
     pub sequence_id_guard: SequenceIdGuard,
@@ -24,6 +29,20 @@ pub struct ContinuousBatchActiveRequest {
 }
 
 impl ContinuousBatchActiveRequest {
+    pub fn sample_next_token(
+        &mut self,
+        llama_context: &LlamaContext,
+        batch_index: i32,
+    ) -> Result<SamplingOutcome> {
+        let current_section = self.token_classifier.current_section();
+        let grammar_sampler = self
+            .grammar
+            .as_mut()
+            .and_then(|grammar| grammar.sampler_for(current_section));
+
+        sample_token_at_batch_index(llama_context, batch_index, &mut self.chain, grammar_sampler)
+    }
+
     pub fn complete_with_outcome(&mut self, outcome: GeneratedTokenResult) {
         self.state
             .mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(outcome));

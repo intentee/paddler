@@ -98,7 +98,7 @@ test.coverage: esbuild-meta.json node_modules
 	cargo llvm-cov report
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
-		--gated paddler_agent=95 \
+		--gated paddler_agent=96 \
 		--gated paddler_balancer=84 \
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
@@ -110,7 +110,8 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
 		--gated paddler_opencode_tests=76 \
-		--gated paddler_test_cluster_harness=67
+		--gated paddler_test_cluster_harness=67 \
+		--gated paddler_tests=89
 
 .PHONY: test.coverage-clean
 test.coverage-clean:

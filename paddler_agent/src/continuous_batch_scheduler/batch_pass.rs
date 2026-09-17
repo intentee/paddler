@@ -26,6 +26,8 @@ impl BatchPass<'_> {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::batch_add_error::BatchAddError;
+
     use super::BatchPass;
 
     #[test]
@@ -38,10 +40,15 @@ mod tests {
 
     #[test]
     fn new_forwards_llama_batch_error_for_oversized_n_batch() {
-        let result = BatchPass::new(usize::MAX, 1);
+        let error = BatchPass::new(usize::MAX, 1).err().unwrap();
 
-        let error = result.err().unwrap();
-
-        assert!(error.to_string().contains("overflow"));
+        assert!(matches!(
+            error.downcast_ref::<BatchAddError>(),
+            Some(BatchAddError::IntegerOverflow {
+                value_description: "n_tokens",
+                target_type: "i32",
+                ..
+            })
+        ));
     }
 }

@@ -152,6 +152,8 @@ def test_parse_unrecognized_tool_call_format_response_carries_text_and_ffi_error
                     "UnrecognizedToolCallFormat": {
                         "text": "<unknown_marker>blah</unknown_marker>",
                         "ffi_error_message": "common_chat_parse failed: no parser",
+                        "synthetic_render_with_tools": "<tool_call>{}</tool_call>",
+                        "synthetic_render_without_tools": "",
                     },
                 },
             },
@@ -166,6 +168,11 @@ def test_parse_unrecognized_tool_call_format_response_carries_text_and_ffi_error
         message.raw_tool_call_tokens.ffi_error_message
         == "common_chat_parse failed: no parser"
     )
+    assert (
+        message.raw_tool_call_tokens.synthetic_render_with_tools
+        == "<tool_call>{}</tool_call>"
+    )
+    assert message.raw_tool_call_tokens.synthetic_render_without_tools == ""
     assert not message.is_token
 
 
@@ -330,16 +337,18 @@ def test_parse_chat_template_error() -> None:
     assert message.is_terminal
 
 
-def test_parse_grammar_incompatible_with_thinking() -> None:
+def test_parse_grammar_requires_reasoning_close_marker() -> None:
     data = {
         "Response": {
             "request_id": "req-1",
-            "response": {"GeneratedToken": {"GrammarIncompatibleWithThinking": "err"}},
+            "response": {
+                "GeneratedToken": {"GrammarRequiresReasoningCloseMarker": "err"},
+            },
         }
     }
     message = parse_inference_client_message(data)
 
-    assert message.kind == InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
+    assert message.kind == InferenceMessageKind.GRAMMAR_REQUIRES_REASONING_CLOSE_MARKER
     assert message.error_message == "err"
     assert message.is_terminal
 

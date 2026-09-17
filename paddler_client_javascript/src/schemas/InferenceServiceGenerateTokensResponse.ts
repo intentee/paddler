@@ -26,6 +26,8 @@ const GenerationSummarySchema = z.object({
 const RawToolCallTokensSchema = z.object({
   text: z.string(),
   ffi_error_message: z.string(),
+  synthetic_render_with_tools: z.string(),
+  synthetic_render_without_tools: z.string(),
 });
 
 const OversizedImageDetailsSchema = z.object({
@@ -40,7 +42,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ UndeterminableToken: z.string() }),
   z.object({ Done: GenerationSummarySchema }),
   z.object({ ChatTemplateError: z.string() }),
-  z.object({ GrammarIncompatibleWithThinking: z.string() }),
+  z.object({ GrammarRequiresReasoningCloseMarker: z.string() }),
   z.object({ GrammarInitializationFailed: z.string() }),
   z.object({ GrammarRejectedModelOutput: z.string() }),
   z.object({ GrammarSyntaxError: z.string() }),
@@ -245,15 +247,30 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     const variant = data.Response.response.GeneratedToken;
 
     if ("ContentToken" in variant) {
-      return streamingToken(request_id, generated_by, variant.ContentToken, "content");
+      return streamingToken(
+        request_id,
+        generated_by,
+        variant.ContentToken,
+        "content",
+      );
     }
 
     if ("ReasoningToken" in variant) {
-      return streamingToken(request_id, generated_by, variant.ReasoningToken, "reasoning");
+      return streamingToken(
+        request_id,
+        generated_by,
+        variant.ReasoningToken,
+        "reasoning",
+      );
     }
 
     if ("ToolCallToken" in variant) {
-      return streamingToken(request_id, generated_by, variant.ToolCallToken, "tool_call");
+      return streamingToken(
+        request_id,
+        generated_by,
+        variant.ToolCallToken,
+        "tool_call",
+      );
     }
 
     if ("UndeterminableToken" in variant) {
@@ -304,7 +321,12 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }
 
     if ("ToolCallParseFailed" in variant) {
-      return nonTerminalError(request_id, generated_by, 422, variant.ToolCallParseFailed);
+      return nonTerminalError(
+        request_id,
+        generated_by,
+        422,
+        variant.ToolCallParseFailed,
+      );
     }
 
     if ("ToolCallValidationFailed" in variant) {
@@ -326,32 +348,57 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }
 
     if ("ChatTemplateError" in variant) {
-      return terminalError(request_id, generated_by, 500, variant.ChatTemplateError);
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.ChatTemplateError,
+      );
     }
 
-    if ("GrammarIncompatibleWithThinking" in variant) {
+    if ("GrammarRequiresReasoningCloseMarker" in variant) {
       return terminalError(
         request_id,
         generated_by,
         400,
-        variant.GrammarIncompatibleWithThinking,
+        variant.GrammarRequiresReasoningCloseMarker,
       );
     }
 
     if ("GrammarInitializationFailed" in variant) {
-      return terminalError(request_id, generated_by, 500, variant.GrammarInitializationFailed);
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.GrammarInitializationFailed,
+      );
     }
 
     if ("GrammarRejectedModelOutput" in variant) {
-      return terminalError(request_id, generated_by, 500, variant.GrammarRejectedModelOutput);
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.GrammarRejectedModelOutput,
+      );
     }
 
     if ("GrammarSyntaxError" in variant) {
-      return terminalError(request_id, generated_by, 400, variant.GrammarSyntaxError);
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.GrammarSyntaxError,
+      );
     }
 
     if ("ImageDecodingFailed" in variant) {
-      return terminalError(request_id, generated_by, 400, variant.ImageDecodingFailed);
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.ImageDecodingFailed,
+      );
     }
 
     if ("ImageExceedsBatchSize" in variant) {
@@ -365,11 +412,21 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }
 
     if ("MultimodalNotSupported" in variant) {
-      return terminalError(request_id, generated_by, 400, variant.MultimodalNotSupported);
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.MultimodalNotSupported,
+      );
     }
 
     if ("TokenGenerationDisabled" in variant) {
-      return terminalError(request_id, generated_by, 501, variant.TokenGenerationDisabled);
+      return terminalError(
+        request_id,
+        generated_by,
+        501,
+        variant.TokenGenerationDisabled,
+      );
     }
 
     return terminalError(request_id, generated_by, 500, variant.SamplerError);

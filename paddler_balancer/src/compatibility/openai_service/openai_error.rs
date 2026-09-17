@@ -35,7 +35,7 @@ fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
     match token {
         GeneratedTokenResult::ChatTemplateError(description)
         | GeneratedTokenResult::DetokenizationFailed(description)
-        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+        | GeneratedTokenResult::GrammarRequiresReasoningCloseMarker(description)
         | GeneratedTokenResult::GrammarRejectedModelOutput(description)
         | GeneratedTokenResult::GrammarInitializationFailed(description)
         | GeneratedTokenResult::GrammarSyntaxError(description)

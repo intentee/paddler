@@ -11,16 +11,16 @@ pub struct CompletionCheckPhase<'model> {
 
 impl CompletionCheckPhase<'_> {
     #[must_use]
-    pub fn run(
-        &self,
-        request: &ContinuousBatchActiveRequest,
-        sampled_token: &SampledToken,
-    ) -> CompletionCheckOutcome {
-        if self.model.is_eog_token(sampled_token) {
-            return CompletionCheckOutcome::ReachedEog;
-        }
+    pub fn reached_eog(&self, sampled_token: &SampledToken) -> bool {
+        self.model.is_eog_token(sampled_token)
+    }
 
-        max_tokens_outcome(request.state.max_tokens, request.token_classifier.usage())
+    #[must_use]
+    pub fn reached_max_tokens(&self, request: &ContinuousBatchActiveRequest) -> bool {
+        matches!(
+            max_tokens_outcome(request.state.max_tokens, request.token_classifier.usage()),
+            CompletionCheckOutcome::ReachedMaxTokens
+        )
     }
 }
 

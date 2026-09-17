@@ -2,7 +2,6 @@ use llama_cpp_bindings::context::LlamaContext;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_scheduler::sample_outcome::SampleOutcome;
-use crate::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::sampling_outcome::SamplingOutcome;
 
 pub struct SampleTokenPhase<'context> {
@@ -15,12 +14,7 @@ impl SampleTokenPhase<'_> {
         request: &mut ContinuousBatchActiveRequest,
         batch_index: i32,
     ) -> SampleOutcome {
-        match sample_token_at_batch_index(
-            self.context,
-            batch_index,
-            &mut request.chain,
-            &mut request.grammar_sampler,
-        ) {
+        match request.sample_next_token(self.context, batch_index) {
             Ok(SamplingOutcome::Token(token)) => SampleOutcome::Sampled(token),
             Ok(SamplingOutcome::AllCandidatesEliminated) => SampleOutcome::AllCandidatesEliminated,
             Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {

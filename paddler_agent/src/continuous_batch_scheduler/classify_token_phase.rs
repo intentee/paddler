@@ -1,6 +1,6 @@
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::sampled_token_classifier::IngestOutcome;
+use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::sampled_token_classifier::SampledTokenSection;
 use llama_cpp_bindings::token::LlamaToken;
 
@@ -15,6 +15,13 @@ pub fn run(
     let outcomes = request.token_classifier.ingest(raw_token)?;
 
     Ok(classify_ingest_outcomes(outcomes, section_before_ingest))
+}
+
+pub fn flush(request: &mut ContinuousBatchActiveRequest) -> Vec<ClassifiedToken> {
+    let section_before_flush = request.token_classifier.current_section();
+    let outcomes = request.token_classifier.flush();
+
+    classify_ingest_outcomes(outcomes, section_before_flush)
 }
 
 fn classify_ingest_outcomes(
@@ -51,7 +58,7 @@ const fn section_of(token: SampledToken) -> SampledTokenSection {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::SampledToken;
-    use llama_cpp_bindings::sampled_token_classifier::IngestOutcome;
+    use llama_cpp_bindings::ingest_outcome::IngestOutcome;
     use llama_cpp_bindings::sampled_token_classifier::SampledTokenSection;
     use llama_cpp_bindings::token::LlamaToken;
 
