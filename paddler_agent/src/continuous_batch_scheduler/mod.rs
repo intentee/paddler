@@ -15,6 +15,7 @@ pub mod emit_classified_tokens;
 pub mod emit_token_outcome;
 pub mod emit_token_phase;
 pub mod generating_contribution;
+pub mod generating_slot;
 pub mod ingesting_contribution;
 pub mod rollback_phase;
 pub mod sample_outcome;

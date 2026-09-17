@@ -315,6 +315,7 @@ impl ContinuousBatchArbiter {
             });
 
             let mut llama_context = match (BatchCapacity {
+                context_size: scheduler_context.inference_parameters.context_size,
                 n_batch: scheduler_context.inference_parameters.n_batch,
                 slot_count: desired_slots_total,
             })
