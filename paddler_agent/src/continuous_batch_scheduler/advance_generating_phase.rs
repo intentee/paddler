@@ -6,6 +6,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
+use crate::continuous_batch_generating_state::ContinuousBatchGeneratingState;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
 use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
@@ -78,15 +79,13 @@ impl AdvanceGeneratingPhase<'_> {
     }
 
     fn advance_one(&self, request: &mut ContinuousBatchActiveRequest) -> Option<AdvanceOutcome> {
-        if !matches!(request.state.phase, ContinuousBatchRequestPhase::Generating) {
+        let ContinuousBatchRequestPhase::Generating(
+            ContinuousBatchGeneratingState::AwaitingSample { batch_index },
+        ) = &request.state.phase
+        else {
             return None;
-        }
-
-        if request.state.pending_sampled_token.is_some() {
-            return None;
-        }
-
-        let batch_index = request.state.i_batch?;
+        };
+        let batch_index = *batch_index;
 
         let raw_token = match (SampleTokenPhase {
             context: self.llama_context,

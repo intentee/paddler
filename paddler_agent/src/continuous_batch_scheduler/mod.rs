@@ -67,6 +67,8 @@ use crate::continue_from_conversation_history_request::ContinueFromConversationH
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_embedding_processor::ContinuousBatchEmbeddingProcessor;
+use crate::continuous_batch_generating_state::ContinuousBatchGeneratingState;
+use crate::continuous_batch_ingesting_state::ContinuousBatchIngestingState;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
@@ -544,12 +546,10 @@ impl ContinuousBatchScheduler {
         self.active_requests.push(ContinuousBatchActiveRequest {
             state: ContinuousBatchRequestState {
                 current_token_position: 0,
-                i_batch: None,
                 max_tokens,
-                pending_sampled_token: None,
-                phase: ContinuousBatchRequestPhase::Ingesting,
-                prompt_tokens,
-                prompt_tokens_ingested: 0,
+                phase: ContinuousBatchRequestPhase::Ingesting(ContinuousBatchIngestingState::new(
+                    prompt_tokens,
+                )),
             },
             chain,
             token_classifier,
@@ -756,12 +756,10 @@ impl ContinuousBatchScheduler {
         self.active_requests.push(ContinuousBatchActiveRequest {
             state: ContinuousBatchRequestState {
                 current_token_position: tokens_ingested,
-                i_batch: Some(-1),
                 max_tokens,
-                pending_sampled_token: None,
-                phase: ContinuousBatchRequestPhase::Generating,
-                prompt_tokens: Vec::new(),
-                prompt_tokens_ingested: 0,
+                phase: ContinuousBatchRequestPhase::Generating(
+                    ContinuousBatchGeneratingState::AwaitingSample { batch_index: -1 },
+                ),
             },
             chain,
             token_classifier,
@@ -778,20 +776,13 @@ impl ContinuousBatchScheduler {
 
     fn harvest_pending_samples_before_external_decode(&mut self) {
         for active_request in &mut self.active_requests {
-            if !matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Generating
-            ) {
-                continue;
-            }
-
-            if active_request.state.pending_sampled_token.is_some() {
-                continue;
-            }
-
-            let Some(batch_index) = active_request.state.i_batch else {
+            let ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGeneratingState::AwaitingSample { batch_index },
+            ) = &active_request.state.phase
+            else {
                 continue;
             };
+            let batch_index = *batch_index;
 
             match active_request.sample_next_token(&self.llama_context, batch_index) {
                 Ok(SamplingOutcome::Token(raw_token)) => {
@@ -829,9 +820,9 @@ impl ContinuousBatchScheduler {
                         continue;
                     }
 
-                    active_request.state.pending_sampled_token =
-                        Some(llama_cpp_bindings::SampledToken::Content(raw_token));
-                    active_request.state.i_batch = None;
+                    active_request
+                        .state
+                        .store_pending_token(llama_cpp_bindings::SampledToken::Content(raw_token));
                 }
                 Ok(SamplingOutcome::AllCandidatesEliminated) => {
                     error!(
@@ -952,7 +943,12 @@ impl ContinuousBatchScheduler {
                 .context("max sequence count does not fit in i32")?;
             let mut pass = BatchPass::new(n_batch, max_sequences_i32)?;
 
-            assemble_phase.run(&mut pass, &mut self.active_requests)?;
+            if let Err(assemble_error) = assemble_phase.run(&mut pass, &mut self.active_requests)
+            {
+                rollback_phase::run(&mut self.active_requests);
+
+                return Err(assemble_error).context("failed to assemble the batch");
+            }
 
             if pass.is_empty() {
                 return Ok(());
@@ -972,7 +968,7 @@ impl ContinuousBatchScheduler {
                     return Ok(());
                 }
                 DecodeOutcome::NeedsEviction => {
-                    rollback_phase::run(&pass, &mut self.active_requests);
+                    rollback_phase::run(&mut self.active_requests);
                     self.evict_largest_sequence();
 
                     if self.active_requests.is_empty() {
@@ -980,12 +976,12 @@ impl ContinuousBatchScheduler {
                     }
                 }
                 DecodeOutcome::Aborted => {
-                    rollback_phase::run(&pass, &mut self.active_requests);
+                    rollback_phase::run(&mut self.active_requests);
 
                     return Ok(());
                 }
                 DecodeOutcome::Errored(decode_error) => {
-                    rollback_phase::run(&pass, &mut self.active_requests);
+                    rollback_phase::run(&mut self.active_requests);
 
                     return Err(anyhow::Error::new(decode_error).context("decode failed"));
                 }
