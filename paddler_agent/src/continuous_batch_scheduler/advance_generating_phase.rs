@@ -8,13 +8,13 @@ use paddler_messaging::generation_summary::GenerationSummary;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_generating_state::ContinuousBatchGeneratingState;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
 use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::classify_token_phase;
 use crate::continuous_batch_scheduler::client_stream_status::ClientStreamStatus;
 use crate::continuous_batch_scheduler::completion_check_phase::CompletionCheckPhase;
 use crate::continuous_batch_scheduler::emit_classified_tokens;
-use crate::continuous_batch_scheduler::sample_outcome::SampleOutcome;
 use crate::continuous_batch_scheduler::sample_token_phase::SampleTokenPhase;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
@@ -29,7 +29,7 @@ impl AdvanceGeneratingPhase<'_> {
         for request in requests {
             let outcome = self.advance_one(request);
 
-            Self::apply_outcome(request, outcome);
+            apply_outcome(&mut request.state, outcome);
         }
     }
 
@@ -91,43 +91,21 @@ impl AdvanceGeneratingPhase<'_> {
         };
         let batch_index = *batch_index;
 
-        let raw_token = match (SampleTokenPhase {
+        let sample_outcome = (SampleTokenPhase {
             context: self.llama_context,
         })
-        .run(request, batch_index)
-        {
-            SampleOutcome::Sampled(token) => token,
-            SampleOutcome::AllCandidatesEliminated => {
+        .run(request, batch_index);
+
+        let raw_token = match sample_outcome.into_sampled_token() {
+            Ok(token) => token,
+            Err(failure_result) => {
                 error!(
-                    "{:?}: sequence {} sampling exhausted candidates",
+                    "{:?}: sequence {} sampling failed: {failure_result:?}",
                     self.scheduler_context.agent_name,
                     request.sequence_id_guard.sequence_id()
                 );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::SamplerError(
-                        "all token candidates were eliminated during sampling".to_owned(),
-                    ),
-                ));
-            }
-            SampleOutcome::GrammarRejected(message) => {
-                error!(
-                    "{:?}: sequence {} grammar rejected sampled token: {message}",
-                    self.scheduler_context.agent_name,
-                    request.sequence_id_guard.sequence_id()
-                );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::GrammarRejectedModelOutput(message),
-                ));
-            }
-            SampleOutcome::Failed(message) => {
-                error!(
-                    "{:?}: sequence {} sampling error: {message}",
-                    self.scheduler_context.agent_name,
-                    request.sequence_id_guard.sequence_id()
-                );
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::SamplerError(message),
-                ));
+
+                return Some(AdvanceOutcome::Completed(failure_result));
             }
         };
 
@@ -165,21 +143,114 @@ impl AdvanceGeneratingPhase<'_> {
 
         Some(AdvanceOutcome::SampledAndStored(raw_as_sampled))
     }
+}
 
-    fn apply_outcome(request: &mut ContinuousBatchActiveRequest, outcome: Option<AdvanceOutcome>) {
-        match outcome {
-            None => {}
-            Some(AdvanceOutcome::SampledAndStored(token)) => {
-                request.state.store_pending_token(token);
-            }
-            Some(AdvanceOutcome::Completed(event)) => {
-                request.complete_with_outcome(event);
-            }
-            Some(AdvanceOutcome::ChannelDropped) => {
-                request
-                    .state
-                    .mark_completed(ContinuousBatchTerminalOutcome::EmitNothing);
-            }
+fn apply_outcome(state: &mut ContinuousBatchRequestState, outcome: Option<AdvanceOutcome>) {
+    match outcome {
+        None => {}
+        Some(AdvanceOutcome::SampledAndStored(sampled_token)) => {
+            state.store_pending_token(sampled_token);
         }
+        Some(AdvanceOutcome::Completed(event)) => {
+            state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(event));
+        }
+        Some(AdvanceOutcome::ChannelDropped) => {
+            state.mark_completed(ContinuousBatchTerminalOutcome::EmitNothing);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use llama_cpp_bindings::SampledToken;
+    use llama_cpp_bindings::token::LlamaToken;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+
+    use super::apply_outcome;
+    use crate::continuous_batch_generating_state::ContinuousBatchGeneratingState;
+    use crate::continuous_batch_ingesting_state::ContinuousBatchIngestingState;
+    use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+    use crate::continuous_batch_request_state::ContinuousBatchRequestState;
+    use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
+    use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+
+    fn generating_state() -> ContinuousBatchRequestState {
+        ContinuousBatchRequestState {
+            current_token_position: 0,
+            max_tokens: 8,
+            phase: ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGeneratingState::AwaitingSample { batch_index: 0 },
+            ),
+        }
+    }
+
+    #[test]
+    fn a_request_that_did_not_advance_keeps_waiting_for_its_sample() {
+        let mut state = generating_state();
+
+        apply_outcome(&mut state, None);
+
+        assert!(matches!(
+            state.phase,
+            ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGeneratingState::AwaitingSample { batch_index: 0 }
+            )
+        ));
+    }
+
+    #[test]
+    fn a_sampled_token_waits_for_a_slot_in_the_next_batch() {
+        let mut state = generating_state();
+
+        apply_outcome(
+            &mut state,
+            Some(AdvanceOutcome::SampledAndStored(SampledToken::Content(
+                LlamaToken::new(7),
+            ))),
+        );
+
+        assert!(matches!(
+            state.phase,
+            ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGeneratingState::AwaitingBatchSlot { .. }
+            )
+        ));
+    }
+
+    #[test]
+    fn a_completed_request_delivers_its_event_to_the_client() {
+        let mut state = generating_state();
+
+        apply_outcome(
+            &mut state,
+            Some(AdvanceOutcome::Completed(
+                GeneratedTokenResult::SamplerError("boom".to_owned()),
+            )),
+        );
+
+        assert!(matches!(
+            state.into_terminal_outcome(),
+            ContinuousBatchTerminalOutcome::EmitToClient(GeneratedTokenResult::SamplerError(
+                message
+            )) if message == "boom"
+        ));
+    }
+
+    #[test]
+    fn a_dropped_client_stream_ends_the_request_without_emitting_anything() {
+        let mut state = ContinuousBatchRequestState {
+            current_token_position: 0,
+            max_tokens: 8,
+            phase: ContinuousBatchRequestPhase::Ingesting(ContinuousBatchIngestingState::new(
+                Vec::new(),
+            )),
+        };
+
+        apply_outcome(&mut state, Some(AdvanceOutcome::ChannelDropped));
+
+        assert!(matches!(
+            state.into_terminal_outcome(),
+            ContinuousBatchTerminalOutcome::EmitNothing
+        ));
     }
 }

@@ -15,7 +15,14 @@ fn decode_special_token(
     model.token_to_piece(&SampledToken::Content(token), decoder, true, None)
 }
 
+fn closes_reasoning(streaming_markers: &StreamingMarkers) -> bool {
+    streaming_markers
+        .iter()
+        .any(|marker| marker.roles().contains(&MarkerRole::ReasoningClose))
+}
+
 pub struct ModelConstants {
+    pub closes_reasoning: bool,
     pub n_vocab: i32,
     pub streaming_markers: StreamingMarkers,
     pub token_bos_str: String,
@@ -26,12 +33,14 @@ pub struct ModelConstants {
 impl ModelConstants {
     pub fn from_model(model: &LlamaModel) -> Result<Self, ModelConstantsError> {
         let mut decoder = encoding_rs::UTF_8.new_decoder();
+        let streaming_markers = model
+            .streaming_markers()
+            .map_err(ModelConstantsError::StreamingMarkersNotDetectable)?;
 
         Ok(Self {
+            closes_reasoning: closes_reasoning(&streaming_markers),
             n_vocab: model.n_vocab(),
-            streaming_markers: model
-                .streaming_markers()
-                .map_err(ModelConstantsError::StreamingMarkersNotDetectable)?,
+            streaming_markers,
             token_bos_str: decode_special_token(model, &mut decoder, model.token_bos())
                 .map_err(ModelConstantsError::BosTokenNotDecodable)?,
             token_eos_str: decode_special_token(model, &mut decoder, model.token_eos())
@@ -39,13 +48,6 @@ impl ModelConstants {
             token_nl_str: decode_special_token(model, &mut decoder, model.token_nl())
                 .map_err(ModelConstantsError::NewlineTokenNotDecodable)?,
         })
-    }
-
-    #[must_use]
-    pub fn closes_reasoning(&self) -> bool {
-        self.streaming_markers
-            .iter()
-            .any(|marker| marker.roles().contains(&MarkerRole::ReasoningClose))
     }
 }
 
@@ -68,9 +70,12 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
+        let streaming_markers = StreamingMarkers::from_candidates(candidates).unwrap();
+
         ModelConstants {
+            closes_reasoning: super::closes_reasoning(&streaming_markers),
             n_vocab: 32,
-            streaming_markers: StreamingMarkers::from_candidates(candidates).unwrap(),
+            streaming_markers,
             token_bos_str: String::new(),
             token_eos_str: String::new(),
             token_nl_str: String::new(),
@@ -82,7 +87,7 @@ mod tests {
         let constants =
             constants_with_roles(vec![MarkerRole::ReasoningOpen, MarkerRole::ReasoningClose]);
 
-        assert!(constants.closes_reasoning());
+        assert!(constants.closes_reasoning);
     }
 
     #[test]
@@ -90,13 +95,13 @@ mod tests {
         let constants =
             constants_with_roles(vec![MarkerRole::ToolCallOpen, MarkerRole::ToolCallClose]);
 
-        assert!(!constants.closes_reasoning());
+        assert!(!constants.closes_reasoning);
     }
 
     #[test]
     fn a_model_without_any_markers_does_not_close_reasoning() {
         let constants = constants_with_roles(Vec::new());
 
-        assert!(!constants.closes_reasoning());
+        assert!(!constants.closes_reasoning);
     }
 }

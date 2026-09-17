@@ -20,7 +20,7 @@ pub fn resolve_grammar(
 
     let engagement = GrammarEngagement::for_thinking(enable_thinking);
 
-    if engagement == GrammarEngagement::AfterReasoning && !model_constants.closes_reasoning() {
+    if engagement == GrammarEngagement::AfterReasoning && !model_constants.closes_reasoning {
         let message = "Grammar constraints require thinking mode to end with a reasoning-close marker, which this model does not expose".to_owned();
 
         generated_tokens_tx
@@ -65,9 +65,16 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
+        let streaming_markers = StreamingMarkers::from_candidates(candidates).unwrap();
+
+        let closes_reasoning = streaming_markers
+            .iter()
+            .any(|marker| marker.roles().contains(&MarkerRole::ReasoningClose));
+
         ModelConstants {
+            closes_reasoning,
             n_vocab: 32,
-            streaming_markers: StreamingMarkers::from_candidates(candidates).unwrap(),
+            streaming_markers,
             token_bos_str: String::new(),
             token_eos_str: String::new(),
             token_nl_str: String::new(),

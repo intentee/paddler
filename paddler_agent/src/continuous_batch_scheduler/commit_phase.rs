@@ -12,24 +12,27 @@ const fn restaged_prompt_token_count(chunk_size: u64, newly_staged_prompt_tokens
     chunk_size.saturating_sub(newly_staged_prompt_tokens)
 }
 
+/// # Errors
+/// Fails when the request is no longer ingesting, or when the chunk size cannot be counted.
+fn validated_chunk_size(phase: &ContinuousBatchRequestPhase, chunk_size: usize) -> Result<u64> {
+    if !matches!(phase, ContinuousBatchRequestPhase::Ingesting(_)) {
+        return Err(anyhow!(
+            "an ingesting contribution was committed for a request that is not ingesting"
+        ));
+    }
+
+    u64::try_from(chunk_size).context("ingested chunk size does not fit in u64")
+}
+
 pub fn run(pass: BatchPass, requests: &mut [ContinuousBatchActiveRequest]) -> Result<()> {
     let mut committed_chunk_sizes: Vec<u64> =
         Vec::with_capacity(pass.contributions.ingesting.len());
 
     for contribution in &pass.contributions.ingesting {
-        if !matches!(
-            requests[contribution.request_index].state.phase,
-            ContinuousBatchRequestPhase::Ingesting(_)
-        ) {
-            return Err(anyhow!(
-                "an ingesting contribution was committed for a request that is not ingesting"
-            ));
-        }
-
-        committed_chunk_sizes.push(
-            u64::try_from(contribution.chunk_size)
-                .context("ingested chunk size does not fit in u64")?,
-        );
+        committed_chunk_sizes.push(validated_chunk_size(
+            &requests[contribution.request_index].state.phase,
+            contribution.chunk_size,
+        )?);
     }
 
     for contribution in pass.contributions.generating {
@@ -66,7 +69,40 @@ pub fn run(pass: BatchPass, requests: &mut [ContinuousBatchActiveRequest]) -> Re
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::token::LlamaToken;
+
     use super::restaged_prompt_token_count;
+    use super::validated_chunk_size;
+    use crate::continuous_batch_generating_state::ContinuousBatchGeneratingState;
+    use crate::continuous_batch_ingesting_state::ContinuousBatchIngestingState;
+    use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+    use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+
+    #[test]
+    fn an_ingesting_request_reports_its_chunk_size() {
+        let phase = ContinuousBatchRequestPhase::Ingesting(ContinuousBatchIngestingState::new(
+            vec![LlamaToken::new(1); 4],
+        ));
+
+        assert_eq!(validated_chunk_size(&phase, 4).unwrap(), 4);
+    }
+
+    #[test]
+    fn a_generating_request_cannot_commit_an_ingesting_chunk() {
+        let phase = ContinuousBatchRequestPhase::Generating(
+            ContinuousBatchGeneratingState::AwaitingSample { batch_index: 0 },
+        );
+
+        assert!(validated_chunk_size(&phase, 4).is_err());
+    }
+
+    #[test]
+    fn a_completed_request_cannot_commit_an_ingesting_chunk() {
+        let phase =
+            ContinuousBatchRequestPhase::Completed(ContinuousBatchTerminalOutcome::EmitNothing);
+
+        assert!(validated_chunk_size(&phase, 4).is_err());
+    }
 
     #[test]
     fn a_chunk_staged_entirely_by_this_pass_needs_no_extra_recording() {
