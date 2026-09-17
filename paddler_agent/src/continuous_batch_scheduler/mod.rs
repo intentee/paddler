@@ -245,6 +245,7 @@ impl ContinuousBatchScheduler {
             } => {
                 if let Err(err) = self.accept_text_prompt(
                     &raw_prompt,
+                    AddBos::Never,
                     max_tokens,
                     grammar_sampler,
                     parse_tool_calls,
@@ -325,6 +326,7 @@ impl ContinuousBatchScheduler {
 
         if let Err(err) = self.accept_text_prompt(
             &raw_prompt,
+            AddBos::Always,
             max_tokens,
             grammar_sampler,
             false,
@@ -452,6 +454,7 @@ impl ContinuousBatchScheduler {
     fn accept_text_prompt(
         &mut self,
         prompt: &str,
+        add_bos: AddBos,
         max_tokens: i32,
         grammar_sampler: Option<GrammarSampler>,
         parse_tool_calls: bool,
@@ -499,11 +502,7 @@ impl ContinuousBatchScheduler {
             return Ok(());
         };
 
-        let prompt_tokens = match self
-            .scheduler_context
-            .model
-            .str_to_token(prompt, AddBos::Always)
-        {
+        let prompt_tokens = match self.scheduler_context.model.str_to_token(prompt, add_bos) {
             Ok(tokens) => tokens,
             Err(err) => {
                 let message = format!(

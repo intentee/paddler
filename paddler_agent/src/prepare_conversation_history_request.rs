@@ -57,13 +57,6 @@ pub fn prepare_conversation_history_request(
     generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
     scheduler_context: &ContinuousBatchSchedulerContext,
 ) -> Result<PreparedConversationHistoryRequest> {
-    let grammar_sampler = resolve_grammar(
-        grammar.as_ref(),
-        enable_thinking,
-        &scheduler_context.model_constants,
-        generated_tokens_tx,
-    )?;
-
     let image_resize_to_fit = scheduler_context.inference_parameters.image_resize_to_fit;
 
     let images = conversation_history
@@ -146,6 +139,13 @@ pub fn prepare_conversation_history_request(
 
         return Err(anyhow!(message));
     }
+
+    let grammar_sampler = resolve_grammar(
+        grammar.as_ref(),
+        enable_thinking,
+        &scheduler_context.model_constants,
+        generated_tokens_tx,
+    )?;
 
     if has_images {
         return Ok(PreparedConversationHistoryRequest::MultimodalPrompt {
