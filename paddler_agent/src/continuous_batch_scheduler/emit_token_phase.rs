@@ -2,18 +2,11 @@ use llama_cpp_bindings::SampledToken;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
-use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
+#[must_use]
 pub fn run(
-    request: &mut ContinuousBatchActiveRequest,
-    classified: &ClassifiedToken,
-) -> EmitTokenOutcome {
-    emit_classified(classified, &request.generated_tokens_tx)
-}
-
-fn emit_classified(
     classified: &ClassifiedToken,
     tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
 ) -> EmitTokenOutcome {
@@ -48,7 +41,7 @@ mod tests {
     use llama_cpp_bindings::token::LlamaToken;
     use tokio::sync::mpsc;
 
-    use super::emit_classified;
+    use super::run;
     use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
     use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -68,7 +61,7 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(1)), "");
 
-        let outcome = emit_classified(&classified, &tx);
+        let outcome = run(&classified, &tx);
 
         assert_eq!(
             discriminant(&outcome),
@@ -88,7 +81,7 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(2)), "hi");
 
-        let outcome = emit_classified(&classified, &tx);
+        let outcome = run(&classified, &tx);
 
         assert_eq!(
             discriminant(&outcome),
@@ -110,7 +103,10 @@ mod tests {
         let classified =
             classified_with_piece(SampledToken::Reasoning(LlamaToken::new(3)), "think");
 
-        emit_classified(&classified, &tx);
+        assert_eq!(
+            discriminant(&run(&classified, &tx)),
+            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+        );
 
         let event = rx.try_recv().unwrap();
 
@@ -126,7 +122,10 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
         let classified = classified_with_piece(SampledToken::ToolCall(LlamaToken::new(4)), "{");
 
-        emit_classified(&classified, &tx);
+        assert_eq!(
+            discriminant(&run(&classified, &tx)),
+            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+        );
 
         let event = rx.try_recv().unwrap();
 
@@ -143,7 +142,10 @@ mod tests {
         let classified =
             classified_with_piece(SampledToken::Undeterminable(LlamaToken::new(5)), "?");
 
-        emit_classified(&classified, &tx);
+        assert_eq!(
+            discriminant(&run(&classified, &tx)),
+            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+        );
 
         let event = rx.try_recv().unwrap();
 
@@ -160,7 +162,7 @@ mod tests {
         drop(rx);
         let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(6)), "hi");
 
-        let outcome = emit_classified(&classified, &tx);
+        let outcome = run(&classified, &tx);
 
         assert_eq!(
             discriminant(&outcome),

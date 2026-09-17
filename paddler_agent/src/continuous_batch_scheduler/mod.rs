@@ -805,8 +805,11 @@ impl ContinuousBatchScheduler {
                         }
                     };
 
-                    if emit_classified_tokens::run(active_request, &classified_tokens)
-                        == ClientStreamStatus::Dropped
+                    if emit_classified_tokens::run(
+                        active_request.tool_call_pipeline.as_mut(),
+                        &active_request.generated_tokens_tx,
+                        &classified_tokens,
+                    ) == ClientStreamStatus::Dropped
                     {
                         warn!(
                             "{:?}: sequence {} client disconnected (receiver dropped) during pre-eval harvest",
@@ -869,8 +872,11 @@ impl ContinuousBatchScheduler {
             if active_request.is_stop_requested() {
                 let flushed_tokens = classify_token_phase::flush(active_request);
 
-                if emit_classified_tokens::run(active_request, &flushed_tokens)
-                    == ClientStreamStatus::Dropped
+                if emit_classified_tokens::run(
+                    active_request.tool_call_pipeline.as_mut(),
+                    &active_request.generated_tokens_tx,
+                    &flushed_tokens,
+                ) == ClientStreamStatus::Dropped
                 {
                     active_request
                         .state
@@ -943,8 +949,7 @@ impl ContinuousBatchScheduler {
                 .context("max sequence count does not fit in i32")?;
             let mut pass = BatchPass::new(n_batch, max_sequences_i32)?;
 
-            if let Err(assemble_error) = assemble_phase.run(&mut pass, &mut self.active_requests)
-            {
+            if let Err(assemble_error) = assemble_phase.run(&mut pass, &mut self.active_requests) {
                 rollback_phase::run(&mut self.active_requests);
 
                 return Err(assemble_error).context("failed to assemble the batch");

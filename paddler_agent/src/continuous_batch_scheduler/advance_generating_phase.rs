@@ -46,7 +46,11 @@ impl AdvanceGeneratingPhase<'_> {
         request: &mut ContinuousBatchActiveRequest,
         classified_tokens: &[ClassifiedToken],
     ) -> Option<AdvanceOutcome> {
-        match emit_classified_tokens::run(request, classified_tokens) {
+        match emit_classified_tokens::run(
+            request.tool_call_pipeline.as_mut(),
+            &request.generated_tokens_tx,
+            classified_tokens,
+        ) {
             ClientStreamStatus::Open => None,
             ClientStreamStatus::Dropped => {
                 self.warn_channel_dropped(request);
