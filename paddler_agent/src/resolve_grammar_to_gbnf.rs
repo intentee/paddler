@@ -1,25 +1,21 @@
-use anyhow::Result;
-use anyhow::anyhow;
+use llama_cpp_bindings::error::JsonSchemaToGrammarError;
 use llama_cpp_bindings::json_schema_to_grammar;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 
 use crate::resolved_grammar::ResolvedGrammar;
 
-pub fn resolve_grammar_to_gbnf(grammar_constraint: &GrammarConstraint) -> Result<ResolvedGrammar> {
+pub fn resolve_grammar_to_gbnf(
+    grammar_constraint: &GrammarConstraint,
+) -> Result<ResolvedGrammar, JsonSchemaToGrammarError> {
     match grammar_constraint {
         GrammarConstraint::Gbnf { grammar, root } => Ok(ResolvedGrammar {
             grammar_string: grammar.clone(),
             root_rule: root.clone(),
         }),
-        GrammarConstraint::JsonSchema { schema } => {
-            let grammar_string = json_schema_to_grammar(schema)
-                .map_err(|err| anyhow!("Failed to convert JSON schema to grammar: {err}"))?;
-
-            Ok(ResolvedGrammar {
-                grammar_string,
-                root_rule: "root".to_owned(),
-            })
-        }
+        GrammarConstraint::JsonSchema { schema } => Ok(ResolvedGrammar {
+            grammar_string: json_schema_to_grammar(schema)?,
+            root_rule: "root".to_owned(),
+        }),
     }
 }
 

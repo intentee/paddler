@@ -5,6 +5,7 @@ use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::oversized_image_details::OversizedImageDetails;
+use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 use serde_json::Value;
 use serde_json::json;
@@ -31,6 +32,13 @@ fn image_exceeds_batch_size_message(details: &OversizedImageDetails) -> String {
     )
 }
 
+fn prompt_exceeds_context_size_message(details: &OversizedPromptDetails) -> String {
+    format!(
+        "prompt has {} tokens but each agent sequence holds {} tokens; shorten the prompt or raise context_size",
+        details.prompt_tokens, details.sequence_context_size,
+    )
+}
+
 fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
     match token {
         GeneratedTokenResult::ChatTemplateError(description)
@@ -54,6 +62,10 @@ fn server_error_from_token(token: &GeneratedTokenResult) -> Option<OpenAIError> 
         GeneratedTokenResult::ImageExceedsBatchSize(details) => Some(OpenAIError {
             error_type: "server_error",
             message: image_exceeds_batch_size_message(details),
+        }),
+        GeneratedTokenResult::PromptExceedsContextSize(details) => Some(OpenAIError {
+            error_type: "invalid_request_error",
+            message: prompt_exceeds_context_size_message(details),
         }),
         GeneratedTokenResult::ToolCallValidationFailed(errors) => Some(OpenAIError {
             error_type: "server_error",
@@ -131,6 +143,7 @@ mod tests {
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
+    use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 
     fn token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
         OutgoingMessage::Response(ResponseEnvelope {
@@ -183,6 +196,23 @@ mod tests {
 
         assert_eq!(classified.error_type, "server_error");
         assert_eq!(classified.message, "internal failure");
+    }
+
+    #[test]
+    fn classifies_oversized_prompt_as_invalid_request() {
+        let error = OpenAIError::classify(&token_message(
+            GeneratedTokenResult::PromptExceedsContextSize(OversizedPromptDetails {
+                prompt_tokens: 9895,
+                sequence_context_size: 8192,
+            }),
+        ))
+        .unwrap();
+
+        assert_eq!(error.error_type, "invalid_request_error");
+        assert_eq!(
+            error.message,
+            "prompt has 9895 tokens but each agent sequence holds 8192 tokens; shorten the prompt or raise context_size"
+        );
     }
 
     #[test]

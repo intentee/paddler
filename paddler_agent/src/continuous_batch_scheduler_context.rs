@@ -15,6 +15,7 @@ pub struct ContinuousBatchSchedulerContext {
     pub model: Arc<LlamaModel>,
     pub model_path: PathBuf,
     pub multimodal_context: Option<Arc<MtmdContext>>,
+    pub sequence_context_size: u32,
     pub token_bos_str: String,
     pub token_eos_str: String,
     pub token_nl_str: String,

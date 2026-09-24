@@ -5,6 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
+use llama_cpp_bindings::ChatTools;
 use llama_cpp_bindings::ToolCallArguments;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use llama_cpp_bindings::model::LlamaModel;
@@ -68,11 +69,11 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
     })];
 
     let validator = ToolCallValidator::from_tools(&tools)?;
-    let tools_json: Vec<serde_json::Value> = tools
-        .iter()
-        .map(serde_json::to_value)
-        .collect::<Result<_, _>>()?;
-    let mut pipeline = ToolCallPipeline::new(model, &tools_json, validator)?;
+    let mut pipeline = ToolCallPipeline::new(
+        model,
+        ChatTools::from_json(serde_json::to_string(&tools)?)?,
+        validator,
+    );
 
     pipeline.feed(QWEN_XML_PAYLOAD);
     let event = pipeline.finalize();

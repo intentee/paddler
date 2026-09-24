@@ -28,6 +28,7 @@ use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotS
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::model_metadata::ModelMetadata;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -40,10 +41,12 @@ use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
+use crate::continuous_batch_request_preparer::ContinuousBatchRequestPreparer;
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
+use crate::join_scheduler_thread::join_scheduler_thread;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
@@ -96,7 +99,7 @@ impl ContinuousBatchArbiter {
             oneshot::channel::<ChatTemplateLoadStatus>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
         let (agent_warm_and_scheduler_running_tx, agent_warm_and_scheduler_running_rx) =
-            oneshot::channel::<()>();
+            oneshot::channel::<Arc<ContinuousBatchSchedulerContext>>();
 
         let available_parallelism_value: i32 = available_parallelism()?.get().try_into()?;
         let n_threads = max(2, available_parallelism_value / 2);
@@ -104,7 +107,7 @@ impl ContinuousBatchArbiter {
 
         info!("Using threads for parallelism threads/batch: {n_threads}/{n_threads_batch}");
 
-        let (command_tx, command_rx) = std::sync::mpsc::channel();
+        let (scheduler_command_tx, scheduler_command_rx) = std::sync::mpsc::channel();
 
         let agent_name_clone = self.agent_name.clone();
         let desired_slots_total = self.desired_slots_total;
@@ -297,36 +300,6 @@ impl ContinuousBatchArbiter {
                 None => None,
             };
 
-            let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
-
-            let scheduler_context = Arc::new(ContinuousBatchSchedulerContext {
-                agent_name: agent_name_clone,
-                chat_template_renderer,
-                desired_slots_total,
-                inference_parameters,
-                model_path: model_path.clone(),
-                multimodal_context,
-                token_bos_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_bos()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                token_nl_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_nl()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                token_eos_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_eos()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                model: model.clone(),
-            });
-
             let mut llama_context =
                 match LlamaContext::from_model(&model, &llama_backend, context_params)
                     .context("Unable to create llama.cpp context")
@@ -348,23 +321,53 @@ impl ContinuousBatchArbiter {
                     }
                 };
 
-            Self::run_warmup_decode(
-                &model,
-                &mut llama_context,
-                scheduler_context.inference_parameters.n_batch,
+            let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
+
+            let scheduler_context = Arc::new(ContinuousBatchSchedulerContext {
+                agent_name: agent_name_clone,
+                chat_template_renderer,
                 desired_slots_total,
-            );
+                inference_parameters,
+                model_path: model_path.clone(),
+                multimodal_context,
+                sequence_context_size: llama_context.n_ctx_seq(),
+                token_bos_str: model.token_to_piece(
+                    &SampledToken::Content(model.token_bos()),
+                    &mut special_token_decoder,
+                    true,
+                    None,
+                )?,
+                token_nl_str: model.token_to_piece(
+                    &SampledToken::Content(model.token_nl()),
+                    &mut special_token_decoder,
+                    true,
+                    None,
+                )?,
+                token_eos_str: model.token_to_piece(
+                    &SampledToken::Content(model.token_eos()),
+                    &mut special_token_decoder,
+                    true,
+                    None,
+                )?,
+                model: model.clone(),
+            });
+
+            let n_batch = scheduler_context.inference_parameters.n_batch;
+            let mut batch = LlamaBatch::new(n_batch, desired_slots_total)?;
+
+            Self::run_warmup_decode(&model, &mut llama_context, &mut batch, desired_slots_total);
 
             let mut scheduler = ContinuousBatchScheduler::new(
-                command_rx,
-                scheduler_context,
+                scheduler_command_rx,
+                scheduler_context.clone(),
                 llama_context,
+                batch,
                 desired_slots_total,
             );
 
             send_startup_signal(
                 agent_warm_and_scheduler_running_tx,
-                (),
+                scheduler_context,
                 "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start".to_owned(),
             )?;
 
@@ -382,15 +385,12 @@ impl ContinuousBatchArbiter {
             ))
             .await
         else {
-            if let Err(err) = tokio::task::spawn_blocking(move || {
-                ContinuousBatchArbiterHandle {
-                    command_tx,
-                    scheduler_thread_handle,
-                }
-                .shutdown()
-            })
-            .await
-            .context("Failed to join the scheduler shutdown task")?
+            drop(scheduler_command_tx);
+
+            if let Err(err) =
+                tokio::task::spawn_blocking(move || join_scheduler_thread(scheduler_thread_handle))
+                    .await
+                    .context("Failed to join the scheduler shutdown task")?
             {
                 debug!("Scheduler thread ended while its spawn was being cancelled: {err}");
             }
@@ -398,7 +398,16 @@ impl ContinuousBatchArbiter {
             return Ok(ContinuousBatchArbiterSpawnOutcome::Cancelled);
         };
 
-        startup_result?;
+        let scheduler_context = startup_result?;
+        let (arbiter_command_tx, arbiter_command_rx) = mpsc::unbounded_channel();
+
+        tokio::spawn(
+            ContinuousBatchRequestPreparer {
+                scheduler_command_tx,
+                scheduler_context,
+            }
+            .run(arbiter_command_rx),
+        );
 
         let desired_slots_total_u32 = u32::try_from(self.desired_slots_total)
             .context("desired_slots_total does not fit in u32")?;
@@ -415,7 +424,7 @@ impl ContinuousBatchArbiter {
 
         Ok(ContinuousBatchArbiterSpawnOutcome::Ready(
             ContinuousBatchArbiterHandle {
-                command_tx,
+                command_tx: arbiter_command_tx,
                 scheduler_thread_handle,
             },
         ))
@@ -425,9 +434,11 @@ impl ContinuousBatchArbiter {
         &self,
         model_loaded_rx: oneshot::Receiver<()>,
         chat_template_loaded_rx: oneshot::Receiver<ChatTemplateLoadStatus>,
-        agent_warm_and_scheduler_running_rx: oneshot::Receiver<()>,
+        agent_warm_and_scheduler_running_rx: oneshot::Receiver<
+            Arc<ContinuousBatchSchedulerContext>,
+        >,
         model_path_string: &str,
-    ) -> Result<()> {
+    ) -> Result<Arc<ContinuousBatchSchedulerContext>> {
         match model_loaded_rx
             .await
             .context("Failed to receive model loaded signal")
@@ -483,25 +494,16 @@ impl ContinuousBatchArbiter {
 
         agent_warm_and_scheduler_running_rx.await.context(
             "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
-        )?;
-
-        Ok(())
+        )
     }
 
     fn run_warmup_decode(
         model: &LlamaModel,
         llama_context: &mut LlamaContext<'_>,
-        n_batch: usize,
+        warmup_batch: &mut LlamaBatch<'static>,
         desired_slots_total: i32,
     ) {
         let warmup_tokens = vec![model.token_bos(); 4];
-        let mut warmup_batch = match LlamaBatch::new(n_batch, desired_slots_total) {
-            Ok(warmup_batch) => warmup_batch,
-            Err(err) => {
-                warn!("Warmup batch allocation failed: {err:#}");
-                return;
-            }
-        };
 
         for sequence_index in 0..desired_slots_total {
             if let Err(err) = warmup_batch.add_sequence(&warmup_tokens, sequence_index, true) {
@@ -511,7 +513,7 @@ impl ContinuousBatchArbiter {
         }
 
         llama_context.clear_kv_cache();
-        if let Err(err) = llama_context.decode(&mut warmup_batch) {
+        if let Err(err) = llama_context.decode(warmup_batch) {
             warn!("Warmup decode failed: {err:#}");
         }
         llama_context.synchronize();

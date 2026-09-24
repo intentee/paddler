@@ -143,6 +143,30 @@ test("TokenGenerationDisabled normalises to a terminal error", function () {
   });
 });
 
+test("PromptExceedsContextSize is terminal and describes token counts", function () {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
+    Response: {
+      generated_by: null,
+      request_id: "req-8",
+      response: {
+        GeneratedToken: {
+          PromptExceedsContextSize: {
+            prompt_tokens: 9895,
+            sequence_context_size: 8192,
+          },
+        },
+      },
+    },
+  });
+
+  strictEqual(parsed.done, true);
+  strictEqual(parsed.ok, false);
+  notStrictEqual(parsed.error, null);
+  strictEqual(parsed.error?.code, 400);
+  ok(parsed.error?.description.includes("9895"));
+  ok(parsed.error?.description.includes("8192"));
+});
+
 test("ImageExceedsBatchSize is terminal and describes token counts", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {

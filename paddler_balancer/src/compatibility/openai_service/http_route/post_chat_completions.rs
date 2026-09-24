@@ -47,6 +47,7 @@ async fn respond(
     }
 
     let openai_params = openai_params.into_inner();
+    let max_tokens = openai_params.requested_max_tokens().unwrap_or(2000);
 
     let validated_tools = match openai_params
         .tools
@@ -82,7 +83,7 @@ async fn respond(
         ),
         enable_thinking: true,
         grammar: None,
-        max_tokens: openai_params.max_completion_tokens.unwrap_or(2000),
+        max_tokens,
         parse_tool_calls,
         tools: validated_tools,
     };

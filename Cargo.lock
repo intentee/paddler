@@ -3728,19 +3728,20 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd2ca73bb0bda4720b8eceb8932605730f4abf7a91bdcb9c708eabb5708b94fd"
+version = "0.15.0"
 dependencies = [
  "encoding_rs",
  "enumflags2",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
  "llama-cpp-error-recorder",
+ "llama-cpp-ffi-status",
+ "llama-cpp-gbnf",
  "llama-cpp-log-decoder",
  "llguidance",
  "log",
  "nom 8.0.0",
+ "once_cell",
  "serde_json",
  "thiserror 2.0.18",
  "toktrie",
@@ -3748,33 +3749,26 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b09a396d180c93d56342594f60b3fae78d2a517a9ed0be02d36f33c3db65e507"
+version = "0.15.0"
 dependencies = [
  "bindgen",
  "cc",
  "cmake",
  "find_cuda_helper",
- "glob",
+ "llama-cpp-wrapper-sources",
  "thiserror 2.0.18",
- "walkdir",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24867ff3fe6a53c3aa2e5f47273abda1b3ffd1676fdd2785b544376609e3bdd0"
+version = "0.15.0"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59bfea302da4827659a9eaadb587f2bbaf30b47294bf3331502bf0ca952c3b57"
+version = "0.15.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3783,15 +3777,40 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-error-recorder"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15b606bbd0c9ed0a82420441cab10fc9818fda77626daf488154102b4a4cf0ad"
+version = "0.15.0"
+dependencies = [
+ "log",
+]
+
+[[package]]
+name = "llama-cpp-ffi-status"
+version = "0.15.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "llama-cpp-gbnf"
+version = "0.15.0"
+dependencies = [
+ "llama-cpp-bindings-sys",
+ "llama-cpp-ffi-status",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "llama-cpp-log-decoder"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18699860211dd95bcf6752a89b637c764029be383e487112b6a64bd200609988"
+version = "0.15.0"
+
+[[package]]
+name = "llama-cpp-wrapper-sources"
+version = "0.15.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
 
 [[package]]
 name = "llguidance"

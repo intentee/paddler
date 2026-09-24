@@ -1,7 +1,7 @@
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::sampled_token_classifier::IngestOutcome;
-use llama_cpp_bindings::sampled_token_classifier::SampledTokenSection;
+use llama_cpp_bindings::SampledTokenSection;
+use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::token::LlamaToken;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
@@ -51,8 +51,8 @@ const fn section_of(token: SampledToken) -> SampledTokenSection {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::SampledToken;
-    use llama_cpp_bindings::sampled_token_classifier::IngestOutcome;
-    use llama_cpp_bindings::sampled_token_classifier::SampledTokenSection;
+    use llama_cpp_bindings::SampledTokenSection;
+    use llama_cpp_bindings::ingest_outcome::IngestOutcome;
     use llama_cpp_bindings::token::LlamaToken;
 
     use super::classify_ingest_outcomes;

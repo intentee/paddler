@@ -36,6 +36,7 @@ pub mod media_marker;
 pub mod model_metadata;
 pub mod oversized_embedding_document_details;
 pub mod oversized_image_details;
+pub mod oversized_prompt_details;
 pub mod pooling_type;
 pub mod produces_snapshot;
 pub mod raw_tool_call_tokens;

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use llama_cpp_bindings::ChatMessageParseOutcome;
+use llama_cpp_bindings::ChatTools;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::RawChatMessage;
 use llama_cpp_bindings::model::LlamaModel;
@@ -15,24 +16,23 @@ use crate::tool_call_validator::ToolCallValidator;
 pub struct ToolCallPipeline {
     buffer: ToolCallBuffer,
     model: Arc<LlamaModel>,
-    tools_json: Arc<str>,
+    tools: ChatTools,
     validator: ToolCallValidator,
 }
 
 impl ToolCallPipeline {
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         model: Arc<LlamaModel>,
-        tools: &[serde_json::Value],
+        tools: ChatTools,
         validator: ToolCallValidator,
-    ) -> Result<Self, serde_json::Error> {
-        let tools_json = Arc::from(serde_json::to_string(tools)?);
-
-        Ok(Self {
+    ) -> Self {
+        Self {
             buffer: ToolCallBuffer::new(),
             model,
-            tools_json,
+            tools,
             validator,
-        })
+        }
     }
 
     pub fn feed(&mut self, fragment: &str) {
@@ -45,10 +45,7 @@ impl ToolCallPipeline {
             return ToolCallEvent::Resolved(Vec::new());
         }
 
-        match self
-            .model
-            .parse_chat_message(&self.tools_json, &input, false)
-        {
+        match self.model.parse_chat_message(&self.tools, &input, false) {
             Ok(ChatMessageParseOutcome::Recognized(parsed)) => {
                 self.validate_resolved(parsed.tool_calls)
             }
