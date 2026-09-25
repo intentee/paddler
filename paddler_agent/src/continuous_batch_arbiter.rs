@@ -16,6 +16,7 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
+use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::debug;
 use log::error;
@@ -27,6 +28,7 @@ use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::model_metadata::ModelMetadata;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -329,6 +331,7 @@ impl ContinuousBatchArbiter {
                 chat_template_renderer,
                 desired_slots_total,
                 inference_parameters,
+                media_marker: MediaMarker::new(mtmd_default_marker()?.to_owned()),
                 model_path: model_path.clone(),
                 multimodal_context,
                 sequence_context_size: llama_context.n_ctx_seq(),

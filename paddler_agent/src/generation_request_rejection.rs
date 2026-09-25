@@ -9,7 +9,6 @@ use llama_cpp_bindings::error::MarkerDetectionError;
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::error::StringToTokenError;
 use llama_cpp_bindings::mtmd::MtmdBitmapError;
-use llama_cpp_bindings::mtmd::MtmdDefaultMarkerError;
 use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdTokenizeError;
 use log::error;
@@ -42,9 +41,6 @@ pub enum GenerationRequestRejection {
 
     #[error("received images but model does not support multimodal input")]
     MultimodalNotSupported,
-
-    #[error("failed to resolve the media marker: {0}")]
-    MediaMarkerUnavailable(#[source] MtmdDefaultMarkerError),
 
     #[error("failed to render chat template: {0:?}")]
     ChatTemplateRenderingFailed(AnyhowError),
@@ -144,7 +140,7 @@ impl GenerationRequestRejection {
                 GeneratedTokenResult::ImageDecodingFailed(message)
             }
             Self::MultimodalNotSupported => GeneratedTokenResult::MultimodalNotSupported(message),
-            Self::MediaMarkerUnavailable(_) | Self::ChatTemplateRenderingFailed(_) => {
+            Self::ChatTemplateRenderingFailed(_) => {
                 GeneratedTokenResult::ChatTemplateError(message)
             }
             Self::ToolSchemaInvalid(_) => GeneratedTokenResult::ToolSchemaInvalid(message),

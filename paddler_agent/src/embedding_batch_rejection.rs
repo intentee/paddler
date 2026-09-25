@@ -1,5 +1,3 @@
-use std::num::TryFromIntError;
-
 use llama_cpp_bindings::error::StringToTokenError;
 use log::error;
 use paddler_messaging::embedding_result::EmbeddingResult;
@@ -17,9 +15,6 @@ pub enum EmbeddingBatchRejection {
         #[source]
         source: StringToTokenError,
     },
-
-    #[error("embedding size does not fit in u32: {0}")]
-    SizeOutOfRange(#[source] TryFromIntError),
 
     #[error("the scheduler is no longer accepting requests")]
     SchedulerUnavailable,
@@ -41,7 +36,6 @@ impl EmbeddingBatchRejection {
         let result = match self {
             Self::EmbeddingsDisabled => EmbeddingResult::EmbeddingsDisabled,
             Self::InputTokenizationFailed { .. }
-            | Self::SizeOutOfRange(_)
             | Self::SchedulerUnavailable
             | Self::ClientDisconnected(_) => EmbeddingResult::Error(message),
         };

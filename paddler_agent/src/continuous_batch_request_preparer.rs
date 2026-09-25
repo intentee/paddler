@@ -4,13 +4,11 @@ use std::sync::mpsc::Sender;
 use llama_cpp_bindings::ChatTools;
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings::token::LlamaToken;
 use log::warn;
 use minijinja::context;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::image_url::ImageUrl;
-use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -177,12 +175,8 @@ impl ContinuousBatchRequestPreparer {
             .map(|image_url| self.decode_image_bitmap(image_url))
             .collect::<Result<Vec<MtmdBitmap>, GenerationRequestRejection>>()?;
 
-        let media_marker = MediaMarker::new(
-            mtmd_default_marker()
-                .map_err(GenerationRequestRejection::MediaMarkerUnavailable)?
-                .to_owned(),
-        );
-        let chat_template_messages = conversation_history.replace_images_with_marker(&media_marker);
+        let chat_template_messages =
+            conversation_history.replace_images_with_marker(&self.scheduler_context.media_marker);
 
         let raw_prompt = chat_template_renderer
             .render(context! {
@@ -307,10 +301,8 @@ impl ContinuousBatchRequestPreparer {
 
             if tokens.len() > n_batch {
                 let details = OversizedEmbeddingDocumentDetails {
-                    document_tokens: u32::try_from(tokens.len())
-                        .map_err(EmbeddingBatchRejection::SizeOutOfRange)?,
-                    n_batch: u32::try_from(n_batch)
-                        .map_err(EmbeddingBatchRejection::SizeOutOfRange)?,
+                    document_tokens: tokens.len(),
+                    n_batch,
                     source_document_id: input.id,
                 };
 
