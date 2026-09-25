@@ -1,10 +1,10 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OversizedEmbeddingDocumentDetails {
-    pub document_tokens: u32,
-    pub n_batch: u32,
+    pub document_tokens: usize,
+    pub n_batch: usize,
     pub source_document_id: String,
 }

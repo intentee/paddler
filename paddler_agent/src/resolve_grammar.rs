@@ -1,152 +1,87 @@
-use anyhow::Result;
-use anyhow::anyhow;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
-use tokio::sync::mpsc;
 
+use crate::generation_request_rejection::GenerationRequestRejection;
 use crate::grammar_sampler::GrammarSampler;
 
 pub fn resolve_grammar(
     grammar: Option<&GrammarConstraint>,
     enable_thinking: bool,
-    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-) -> Result<Option<GrammarSampler>> {
+) -> Result<Option<GrammarSampler>, GenerationRequestRejection> {
     let Some(grammar_constraint) = grammar else {
         return Ok(None);
     };
 
     if enable_thinking {
-        let message = "Grammar constraints are incompatible with thinking mode".to_owned();
-
-        generated_tokens_tx
-            .send(GeneratedTokenResult::GrammarIncompatibleWithThinking(
-                message.clone(),
-            ))
-            .map_err(|err| anyhow!("Failed to send grammar incompatibility error: {err}"))?;
-
-        return Err(anyhow!(message));
+        return Err(GenerationRequestRejection::GrammarIncompatibleWithThinking);
     }
 
-    match GrammarSampler::new(grammar_constraint) {
-        Ok(sampler) => Ok(Some(sampler)),
-        Err(err) => {
-            let message = format!("Failed to create grammar sampler: {err}");
-
-            generated_tokens_tx
-                .send(GeneratedTokenResult::GrammarSyntaxError(message.clone()))
-                .map_err(|send_err| anyhow!("Failed to send grammar syntax error: {send_err}"))?;
-
-            Err(anyhow!(message))
-        }
-    }
+    GrammarSampler::new(grammar_constraint)
+        .map(Some)
+        .map_err(GenerationRequestRejection::GrammarConversionFailed)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::mem::Discriminant;
+    use std::mem::discriminant;
+
+    use llama_cpp_bindings::error::JsonSchemaToGrammarError;
+    use paddler_messaging::grammar_constraint::GrammarConstraint;
+
+    use super::resolve_grammar;
+    use crate::generation_request_rejection::GenerationRequestRejection;
+    use crate::grammar_sampler::GrammarSampler;
+
+    fn yes_or_no_grammar() -> GrammarConstraint {
+        GrammarConstraint::Gbnf {
+            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
+            root: "root".to_owned(),
+        }
+    }
+
+    fn resolved(
+        grammar: Option<&GrammarConstraint>,
+        enable_thinking: bool,
+    ) -> Result<Option<GrammarSampler>, Discriminant<GenerationRequestRejection>> {
+        resolve_grammar(grammar, enable_thinking).map_err(|rejection| discriminant(&rejection))
+    }
 
     #[test]
     fn returns_none_when_grammar_is_absent() {
-        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-
-        let resolved = resolve_grammar(None, false, &generated_tokens_tx).unwrap();
-
-        assert!(resolved.is_none());
-        assert!(generated_tokens_rx.try_recv().is_err());
+        assert_eq!(resolved(None, false), Ok(None));
     }
 
     #[test]
-    fn emits_incompatibility_event_and_errors_when_thinking_is_enabled() {
-        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-        let grammar = GrammarConstraint::Gbnf {
-            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
-            root: "root".to_owned(),
-        };
-
-        let result = resolve_grammar(Some(&grammar), true, &generated_tokens_tx);
-
-        assert!(result.is_err());
-
-        let event = generated_tokens_rx.try_recv().unwrap();
-
-        assert!(
-            matches!(event, GeneratedTokenResult::GrammarIncompatibleWithThinking(message) if message == "Grammar constraints are incompatible with thinking mode")
-        );
-    }
-
-    #[test]
-    fn errors_when_incompatibility_event_cannot_be_sent() {
-        let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
-
-        drop(generated_tokens_rx);
-
-        let grammar = GrammarConstraint::Gbnf {
-            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
-            root: "root".to_owned(),
-        };
-
-        let result = resolve_grammar(Some(&grammar), true, &generated_tokens_tx);
-
+    fn rejects_grammar_when_thinking_is_enabled() {
         assert_eq!(
-            result.err().unwrap().to_string(),
-            "Failed to send grammar incompatibility error: channel closed"
+            resolved(Some(&yes_or_no_grammar()), true),
+            Err(discriminant(
+                &GenerationRequestRejection::GrammarIncompatibleWithThinking
+            ))
         );
     }
 
     #[test]
     fn returns_sampler_for_valid_grammar() {
-        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-        let grammar = GrammarConstraint::Gbnf {
-            grammar: "root ::= \"yes\" | \"no\"".to_owned(),
-            root: "root".to_owned(),
-        };
-
-        let resolved = resolve_grammar(Some(&grammar), false, &generated_tokens_tx).unwrap();
-
-        assert!(resolved.is_some());
-        assert!(generated_tokens_rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn emits_syntax_error_event_and_errors_for_invalid_grammar() {
-        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
-        let grammar = GrammarConstraint::JsonSchema {
-            schema: "not valid json at all".to_owned(),
-        };
-
-        let result = resolve_grammar(Some(&grammar), false, &generated_tokens_tx);
-
-        assert!(result.is_err());
-        assert!(
-            result
-                .err()
-                .unwrap()
-                .to_string()
-                .starts_with("Failed to create grammar sampler:")
-        );
-
-        let event = generated_tokens_rx.try_recv().unwrap();
-
-        assert!(
-            matches!(event, GeneratedTokenResult::GrammarSyntaxError(message) if message.starts_with("Failed to create grammar sampler:"))
+        assert_eq!(
+            resolved(Some(&yes_or_no_grammar()), false),
+            Ok(Some(GrammarSampler::new(&yes_or_no_grammar()).unwrap()))
         );
     }
 
     #[test]
-    fn errors_when_syntax_error_event_cannot_be_sent() {
-        let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
-
-        drop(generated_tokens_rx);
-
+    fn rejects_json_schema_that_cannot_be_converted_to_grammar() {
         let grammar = GrammarConstraint::JsonSchema {
             schema: "not valid json at all".to_owned(),
         };
-
-        let result = resolve_grammar(Some(&grammar), false, &generated_tokens_tx);
 
         assert_eq!(
-            result.err().unwrap().to_string(),
-            "Failed to send grammar syntax error: channel closed"
+            resolved(Some(&grammar), false),
+            Err(discriminant(
+                &GenerationRequestRejection::GrammarConversionFailed(
+                    JsonSchemaToGrammarError::NotEnoughMemory
+                )
+            ))
         );
     }
 }

@@ -7,6 +7,7 @@ use crate::compatibility::openai_service::stream_options::StreamOptions;
 #[derive(Deserialize)]
 pub struct OpenAICompletionRequestParams {
     pub max_completion_tokens: Option<i32>,
+    pub max_tokens: Option<i32>,
     pub messages: Vec<OpenAIMessage>,
     /// This parameter is ignored here, but is required by the `OpenAI` API.
     pub model: String,
@@ -16,11 +17,56 @@ pub struct OpenAICompletionRequestParams {
     pub tools: Vec<OpenAIChatCompletionTool>,
 }
 
+impl OpenAICompletionRequestParams {
+    #[must_use]
+    pub fn requested_max_tokens(&self) -> Option<i32> {
+        self.max_completion_tokens.or(self.max_tokens)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
     use super::OpenAICompletionRequestParams;
+
+    fn request_with_token_limits(
+        token_limits: &serde_json::Value,
+    ) -> OpenAICompletionRequestParams {
+        let mut input = json!({
+            "model": "test-model",
+            "messages": [{"role": "user", "content": "hello"}]
+        });
+
+        input
+            .as_object_mut()
+            .unwrap()
+            .extend(token_limits.as_object().unwrap().clone());
+
+        serde_json::from_value(input).unwrap()
+    }
+
+    #[test]
+    fn requested_max_tokens_honors_max_tokens() {
+        let params = request_with_token_limits(&json!({"max_tokens": 7}));
+
+        assert_eq!(params.requested_max_tokens(), Some(7));
+    }
+
+    #[test]
+    fn requested_max_tokens_prefers_max_completion_tokens() {
+        let params =
+            request_with_token_limits(&json!({"max_tokens": 7, "max_completion_tokens": 3}));
+
+        assert_eq!(params.requested_max_tokens(), Some(3));
+    }
+
+    #[test]
+    fn requested_max_tokens_is_absent_without_limits() {
+        let params = request_with_token_limits(&json!({}));
+
+        assert_eq!(params.requested_max_tokens(), None);
+    }
 
     #[test]
     fn deserialize_text_only_request() {

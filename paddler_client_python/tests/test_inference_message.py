@@ -226,6 +226,46 @@ def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
         parse_inference_client_message(data)
 
 
+def test_parse_prompt_exceeds_context_size_response_carries_token_counts() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {
+                    "PromptExceedsContextSize": {
+                        "prompt_tokens": 9895,
+                        "sequence_context_size": 8192,
+                    },
+                },
+            },
+        },
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.PROMPT_EXCEEDS_CONTEXT_SIZE
+    assert message.oversized_prompt_details is not None
+    assert message.oversized_prompt_details.prompt_tokens == 9895
+    assert message.oversized_prompt_details.sequence_context_size == 8192
+    assert not message.is_token
+
+
+def test_parse_prompt_exceeds_context_size_with_non_dict_payload_raises() -> None:
+    data = {
+        "Response": {
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {"PromptExceedsContextSize": "scalar payload"},
+            },
+        },
+    }
+
+    with pytest.raises(
+        TypeError,
+        match="PromptExceedsContextSize payload is not a dict",
+    ):
+        parse_inference_client_message(data)
+
+
 def test_parse_undeterminable_token_response() -> None:
     data = {
         "Response": {

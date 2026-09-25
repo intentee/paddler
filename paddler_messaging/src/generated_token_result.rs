@@ -5,10 +5,11 @@ use llama_cpp_bindings_types::ParsedToolCall;
 
 use crate::generation_summary::GenerationSummary;
 use crate::oversized_image_details::OversizedImageDetails;
+use crate::oversized_prompt_details::OversizedPromptDetails;
 use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::streamable_result::StreamableResult;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
@@ -22,6 +23,7 @@ pub enum GeneratedTokenResult {
     ImageDecodingFailed(String),
     ImageExceedsBatchSize(OversizedImageDetails),
     MultimodalNotSupported(String),
+    PromptExceedsContextSize(OversizedPromptDetails),
     ReasoningToken(String),
     SamplerError(String),
     TokenGenerationDisabled(String),
@@ -85,6 +87,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::ImageDecodingFailed(_)
                 | Self::ImageExceedsBatchSize(_)
                 | Self::MultimodalNotSupported(_)
+                | Self::PromptExceedsContextSize(_)
                 | Self::SamplerError(_)
                 | Self::TokenGenerationDisabled(_)
                 | Self::ToolSchemaInvalid(_)
@@ -141,6 +144,18 @@ mod tests {
         let event = GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
             image_tokens: 368,
             n_batch: 100,
+        });
+
+        assert!(event.is_done());
+        assert!(!event.is_token());
+        assert!(event.token_text().is_none());
+    }
+
+    #[test]
+    fn prompt_exceeds_context_size_is_done_and_not_classified_as_token() {
+        let event = GeneratedTokenResult::PromptExceedsContextSize(OversizedPromptDetails {
+            prompt_tokens: 9895,
+            sequence_context_size: 8192,
         });
 
         assert!(event.is_done());

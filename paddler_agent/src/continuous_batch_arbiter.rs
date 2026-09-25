@@ -16,6 +16,7 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
+use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::debug;
 use log::error;
@@ -27,7 +28,9 @@ use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::model_metadata::ModelMetadata;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -35,18 +38,29 @@ use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::agent_kv_cache_dtype::AgentKvCacheDtype;
 use crate::agent_pooling_type::AgentPoolingType;
+use crate::chat_prompt_renderer::ChatPromptRenderer;
 use crate::chat_template_load_status::ChatTemplateLoadStatus;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
+use crate::continuous_batch_request_preparer::ContinuousBatchRequestPreparer;
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
+use crate::embedding_batch_preparer::EmbeddingBatchPreparer;
+use crate::generation_request_preparer::GenerationRequestPreparer;
+use crate::image_input::ImageInput;
+use crate::join_scheduler_thread::join_scheduler_thread;
 use crate::model_metadata_holder::ModelMetadataHolder;
+use crate::multimodal_prompt_support::MultimodalPromptSupport;
+use crate::prompt_tokenizer::PromptTokenizer;
 use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+use crate::token_generation::TokenGeneration;
+use crate::token_generation_support::TokenGenerationSupport;
 
 pub struct ContinuousBatchArbiter {
     pub agent_name: Option<String>,
@@ -96,15 +110,13 @@ impl ContinuousBatchArbiter {
             oneshot::channel::<ChatTemplateLoadStatus>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
         let (agent_warm_and_scheduler_running_tx, agent_warm_and_scheduler_running_rx) =
-            oneshot::channel::<()>();
+            oneshot::channel::<ContinuousBatchRequestPreparer>();
 
         let available_parallelism_value: i32 = available_parallelism()?.get().try_into()?;
         let n_threads = max(2, available_parallelism_value / 2);
         let n_threads_batch = max(2, available_parallelism_value / 2);
 
         info!("Using threads for parallelism threads/batch: {n_threads}/{n_threads_batch}");
-
-        let (command_tx, command_rx) = std::sync::mpsc::channel();
 
         let agent_name_clone = self.agent_name.clone();
         let desired_slots_total = self.desired_slots_total;
@@ -178,43 +190,40 @@ impl ContinuousBatchArbiter {
 
             model_metadata_holder.set_model_metadata(model_metadata);
 
-            let chat_template_renderer: Option<Arc<ChatTemplateRenderer>> = if inference_parameters
-                .enable_embeddings
-                && chat_template_override.is_none()
-            {
-                send_startup_signal(
-                    chat_template_loaded_tx,
-                    ChatTemplateLoadStatus::SkippedForEmbeddings,
-                    format!(
-                        "Failed to send chat template skipped signal for model at path: {}",
-                        model_path.display()
-                    ),
-                )?;
-
-                None
-            } else {
-                let llama_chat_template_string = match chat_template_override {
-                    Some(chat_template) => chat_template.content,
-                    None => model
-                        .chat_template(None)
-                        .context(format!(
-                            "Failed to load chat template for model at path: {}",
+            let token_generation =
+                if inference_parameters.enable_embeddings && chat_template_override.is_none() {
+                    send_startup_signal(
+                        chat_template_loaded_tx,
+                        ChatTemplateLoadStatus::SkippedForEmbeddings,
+                        format!(
+                            "Failed to send chat template skipped signal for model at path: {}",
                             model_path.display()
-                        ))?
-                        .to_string()?,
-                };
+                        ),
+                    )?;
 
-                send_startup_signal(
-                    chat_template_loaded_tx,
-                    ChatTemplateLoadStatus::Loaded,
-                    format!(
-                        "Failed to send chat template loaded signal for model at path: {}",
-                        model_path.display()
-                    ),
-                )?;
+                    TokenGeneration::DisabledForEmbeddings
+                } else {
+                    let llama_chat_template_string = match chat_template_override {
+                        Some(chat_template) => chat_template.content,
+                        None => model
+                            .chat_template(None)
+                            .context(format!(
+                                "Failed to load chat template for model at path: {}",
+                                model_path.display()
+                            ))?
+                            .to_string()?,
+                    };
 
-                Some(Arc::new(
-                    match ChatTemplateRenderer::new(ChatTemplate {
+                    send_startup_signal(
+                        chat_template_loaded_tx,
+                        ChatTemplateLoadStatus::Loaded,
+                        format!(
+                            "Failed to send chat template loaded signal for model at path: {}",
+                            model_path.display()
+                        ),
+                    )?;
+
+                    let chat_template_renderer = match ChatTemplateRenderer::new(ChatTemplate {
                         content: llama_chat_template_string.clone(),
                     })
                     .context("Failed to create chat template renderer")
@@ -243,15 +252,42 @@ impl ContinuousBatchArbiter {
 
                             return Err(err);
                         }
-                    },
-                ))
-            };
+                    };
+
+                    let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
+
+                    TokenGeneration::Enabled(Box::new(TokenGenerationSupport {
+                        chat_prompt_renderer: ChatPromptRenderer {
+                            chat_template_renderer,
+                            media_marker: MediaMarker::new(mtmd_default_marker()?.to_owned()),
+                            token_bos_str: model.token_to_piece(
+                                &SampledToken::Content(model.token_bos()),
+                                &mut special_token_decoder,
+                                true,
+                                None,
+                            )?,
+                            token_eos_str: model.token_to_piece(
+                                &SampledToken::Content(model.token_eos()),
+                                &mut special_token_decoder,
+                                true,
+                                None,
+                            )?,
+                            token_nl_str: model.token_to_piece(
+                                &SampledToken::Content(model.token_nl()),
+                                &mut special_token_decoder,
+                                true,
+                                None,
+                            )?,
+                        },
+                        streaming_markers: model.streaming_markers()?,
+                    }))
+                };
 
             slot_aggregated_status_manager
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
 
-            let multimodal_context = match multimodal_projection_path {
+            let image_input = match multimodal_projection_path {
                 Some(multimodal_projection_path) => {
                     let multimodal_projection_path_str =
                         multimodal_projection_path.to_string_lossy();
@@ -277,7 +313,11 @@ impl ContinuousBatchArbiter {
                                 multimodal_projection_path.display()
                             );
 
-                            Some(Arc::new(mtmd_context))
+                            ImageInput::Supported(MultimodalPromptSupport {
+                                multimodal_context: Arc::new(mtmd_context),
+                                n_batch: i32::try_from(inference_parameters.n_batch)
+                                    .context("n_batch does not fit in i32")?,
+                            })
                         }
                         Err(err) => {
                             slot_aggregated_status_manager
@@ -294,38 +334,8 @@ impl ContinuousBatchArbiter {
                         }
                     }
                 }
-                None => None,
+                None => ImageInput::Unsupported,
             };
-
-            let mut special_token_decoder = encoding_rs::UTF_8.new_decoder();
-
-            let scheduler_context = Arc::new(ContinuousBatchSchedulerContext {
-                agent_name: agent_name_clone,
-                chat_template_renderer,
-                desired_slots_total,
-                inference_parameters,
-                model_path: model_path.clone(),
-                multimodal_context,
-                token_bos_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_bos()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                token_nl_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_nl()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                token_eos_str: model.token_to_piece(
-                    &SampledToken::Content(model.token_eos()),
-                    &mut special_token_decoder,
-                    true,
-                    None,
-                )?,
-                model: model.clone(),
-            });
 
             let mut llama_context =
                 match LlamaContext::from_model(&model, &llama_backend, context_params)
@@ -348,23 +358,48 @@ impl ContinuousBatchArbiter {
                     }
                 };
 
-            Self::run_warmup_decode(
-                &model,
-                &mut llama_context,
-                scheduler_context.inference_parameters.n_batch,
-                desired_slots_total,
-            );
+            let (scheduler_command_tx, scheduler_command_rx) = std::sync::mpsc::channel();
 
-            let mut scheduler = ContinuousBatchScheduler::new(
-                command_rx,
-                scheduler_context,
+            let request_preparer = ContinuousBatchRequestPreparer {
+                agent_name: agent_name_clone.clone(),
+                embedding_batch_preparer: Arc::new(EmbeddingBatchPreparer {
+                    enable_embeddings: inference_parameters.enable_embeddings,
+                    model: model.clone(),
+                    n_batch: inference_parameters.n_batch,
+                }),
+                generation_request_preparer: Arc::new(GenerationRequestPreparer {
+                    image_input,
+                    image_resize_to_fit: inference_parameters.image_resize_to_fit,
+                    model: model.clone(),
+                    prompt_tokenizer: PromptTokenizer {
+                        model: model.clone(),
+                        sequence_context_size: llama_context.n_ctx_seq(),
+                    },
+                    token_generation,
+                }),
+                scheduler_command_tx,
+            };
+
+            let mut batch = LlamaBatch::new(inference_parameters.n_batch, desired_slots_total)?;
+
+            Self::run_warmup_decode(&model, &mut llama_context, &mut batch, desired_slots_total);
+
+            let mut scheduler = ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
+                batch,
+                command_rx: scheduler_command_rx,
                 llama_context,
-                desired_slots_total,
-            );
+                max_concurrent_sequences: desired_slots_total,
+                scheduler_context: ContinuousBatchSchedulerContext {
+                    agent_name: agent_name_clone,
+                    desired_slots_total,
+                    inference_parameters,
+                    model: model.clone(),
+                },
+            });
 
             send_startup_signal(
                 agent_warm_and_scheduler_running_tx,
-                (),
+                request_preparer,
                 "Arbiter dropped the agent-warm-and-scheduler-running receiver before the scheduler could start".to_owned(),
             )?;
 
@@ -382,15 +417,10 @@ impl ContinuousBatchArbiter {
             ))
             .await
         else {
-            if let Err(err) = tokio::task::spawn_blocking(move || {
-                ContinuousBatchArbiterHandle {
-                    command_tx,
-                    scheduler_thread_handle,
-                }
-                .shutdown()
-            })
-            .await
-            .context("Failed to join the scheduler shutdown task")?
+            if let Err(err) =
+                tokio::task::spawn_blocking(move || join_scheduler_thread(scheduler_thread_handle))
+                    .await
+                    .context("Failed to join the scheduler shutdown task")?
             {
                 debug!("Scheduler thread ended while its spawn was being cancelled: {err}");
             }
@@ -398,7 +428,10 @@ impl ContinuousBatchArbiter {
             return Ok(ContinuousBatchArbiterSpawnOutcome::Cancelled);
         };
 
-        startup_result?;
+        let request_preparer = startup_result?;
+        let (arbiter_command_tx, arbiter_command_rx) = mpsc::unbounded_channel();
+
+        tokio::spawn(request_preparer.run(arbiter_command_rx));
 
         let desired_slots_total_u32 = u32::try_from(self.desired_slots_total)
             .context("desired_slots_total does not fit in u32")?;
@@ -415,7 +448,7 @@ impl ContinuousBatchArbiter {
 
         Ok(ContinuousBatchArbiterSpawnOutcome::Ready(
             ContinuousBatchArbiterHandle {
-                command_tx,
+                command_tx: arbiter_command_tx,
                 scheduler_thread_handle,
             },
         ))
@@ -425,9 +458,9 @@ impl ContinuousBatchArbiter {
         &self,
         model_loaded_rx: oneshot::Receiver<()>,
         chat_template_loaded_rx: oneshot::Receiver<ChatTemplateLoadStatus>,
-        agent_warm_and_scheduler_running_rx: oneshot::Receiver<()>,
+        agent_warm_and_scheduler_running_rx: oneshot::Receiver<ContinuousBatchRequestPreparer>,
         model_path_string: &str,
-    ) -> Result<()> {
+    ) -> Result<ContinuousBatchRequestPreparer> {
         match model_loaded_rx
             .await
             .context("Failed to receive model loaded signal")
@@ -483,25 +516,16 @@ impl ContinuousBatchArbiter {
 
         agent_warm_and_scheduler_running_rx.await.context(
             "Scheduler thread did not signal agent-warm-and-scheduler-running before exiting",
-        )?;
-
-        Ok(())
+        )
     }
 
     fn run_warmup_decode(
         model: &LlamaModel,
         llama_context: &mut LlamaContext<'_>,
-        n_batch: usize,
+        warmup_batch: &mut LlamaBatch<'static>,
         desired_slots_total: i32,
     ) {
         let warmup_tokens = vec![model.token_bos(); 4];
-        let mut warmup_batch = match LlamaBatch::new(n_batch, desired_slots_total) {
-            Ok(warmup_batch) => warmup_batch,
-            Err(err) => {
-                warn!("Warmup batch allocation failed: {err:#}");
-                return;
-            }
-        };
 
         for sequence_index in 0..desired_slots_total {
             if let Err(err) = warmup_batch.add_sequence(&warmup_tokens, sequence_index, true) {
@@ -511,7 +535,7 @@ impl ContinuousBatchArbiter {
         }
 
         llama_context.clear_kv_cache();
-        if let Err(err) = llama_context.decode(&mut warmup_batch) {
+        if let Err(err) = llama_context.decode(warmup_batch) {
             warn!("Warmup decode failed: {err:#}");
         }
         llama_context.synchronize();

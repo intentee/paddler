@@ -37,6 +37,29 @@ jobs:
       - name: Run unit tests
         run: make test.unit
 
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install GNU Make
+        if: runner.os == 'Windows'
+        run: choco install make --version=4.4.1 --no-progress
+
+      - name: Build the cli binary
+        run: make target/debug/paddler
+        shell: bash
+
   javascript:
     name: javascript
     runs-on: ubuntu-latest

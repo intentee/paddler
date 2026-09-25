@@ -33,6 +33,11 @@ const OversizedImageDetailsSchema = z.object({
   n_batch: z.number(),
 });
 
+const OversizedPromptDetailsSchema = z.object({
+  prompt_tokens: z.number(),
+  sequence_context_size: z.number(),
+});
+
 const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
   z.object({ ReasoningToken: z.string() }),
@@ -47,6 +52,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ ImageDecodingFailed: z.string() }),
   z.object({ ImageExceedsBatchSize: OversizedImageDetailsSchema }),
   z.object({ MultimodalNotSupported: z.string() }),
+  z.object({ PromptExceedsContextSize: OversizedPromptDetailsSchema }),
   z.object({ SamplerError: z.string() }),
   z.object({ TokenGenerationDisabled: z.string() }),
   z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
@@ -361,6 +367,16 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         400,
         `image required ${details.image_tokens} tokens but n_batch is ${details.n_batch}`,
+      );
+    }
+
+    if ("PromptExceedsContextSize" in variant) {
+      const details = variant.PromptExceedsContextSize;
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        `prompt has ${details.prompt_tokens} tokens but each agent sequence holds ${details.sequence_context_size} tokens`,
       );
     }
 

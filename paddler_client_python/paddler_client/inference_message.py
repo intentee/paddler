@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from paddler_client.embedding import Embedding
 from paddler_client.oversized_image_details import OversizedImageDetails
+from paddler_client.oversized_prompt_details import OversizedPromptDetails
 from paddler_client.parsed_tool_call import ParsedToolCall
 from paddler_client.raw_tool_call_tokens import RawToolCallTokens
 
@@ -30,6 +31,7 @@ class InferenceMessageKind(StrEnum):
     IMAGE_DECODING_FAILED = "image_decoding_failed"
     IMAGE_EXCEEDS_BATCH_SIZE = "image_exceeds_batch_size"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
+    PROMPT_EXCEEDS_CONTEXT_SIZE = "prompt_exceeds_context_size"
     REASONING_TOKEN = "reasoning_token"
     SAMPLER_ERROR = "sampler_error"
     SERVER_ERROR = "server_error"
@@ -113,6 +115,7 @@ class InferenceMessage:
     parsed_tool_calls: list[ParsedToolCall] | None = None
     raw_tool_call_tokens: RawToolCallTokens | None = None
     oversized_image_details: OversizedImageDetails | None = None
+    oversized_prompt_details: OversizedPromptDetails | None = None
     generated_by: str | None = None
 
     @property
@@ -331,6 +334,23 @@ def _build_image_exceeds_batch_size_message(
     )
 
 
+def _build_prompt_exceeds_context_size_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    if not isinstance(payload, dict):
+        msg = f"PromptExceedsContextSize payload is not a dict: {payload!r}"
+        raise TypeError(msg)
+    typed_details = cast("dict[str, Any]", payload)
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.PROMPT_EXCEEDS_CONTEXT_SIZE,
+        oversized_prompt_details=OversizedPromptDetails.from_dict(typed_details),
+        generated_by=generated_by,
+    )
+
+
 def _build_token_kind_message(
     request_id: str,
     kind: InferenceMessageKind,
@@ -368,6 +388,7 @@ _STRUCTURED_HANDLERS: dict[str, _StructuredHandler] = {
     "ToolCallValidationFailed": _build_tool_call_validation_failed_message,
     "UnrecognizedToolCallFormat": _build_unrecognized_tool_call_format_message,
     "ImageExceedsBatchSize": _build_image_exceeds_batch_size_message,
+    "PromptExceedsContextSize": _build_prompt_exceeds_context_size_message,
 }
 
 

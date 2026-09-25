@@ -20,9 +20,9 @@ use crate::continue_from_conversation_history_request::ContinueFromConversationH
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_arbiter::ContinuousBatchArbiter;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
+use crate::continuous_batch_arbiter_command::ContinuousBatchArbiterCommand;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
-use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::drain_in_flight_requests::drain_in_flight_requests;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::model_metadata_holder::ModelMetadataHolder;
@@ -81,7 +81,7 @@ async fn apply_state(
 
 fn forward_command(
     continuous_batch_arbiter_handle: Option<&ContinuousBatchArbiterHandle>,
-    command: ContinuousBatchSchedulerCommand,
+    command: ContinuousBatchArbiterCommand,
 ) {
     if let Some(arbiter_handle) = continuous_batch_arbiter_handle {
         if let Err(err) = arbiter_handle.command_tx.send(command) {
@@ -228,19 +228,19 @@ impl Service for LlamaCppArbiterService {
                 Some(request) = continue_from_conversation_history_request_rx.recv() => {
                     forward_command(
                         continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchSchedulerCommand::ContinueFromConversationHistory(request),
+                        ContinuousBatchArbiterCommand::ContinueFromConversationHistory(request),
                     );
                 }
                 Some(request) = continue_from_raw_prompt_request_rx.recv() => {
                     forward_command(
                         continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(request),
+                        ContinuousBatchArbiterCommand::ContinueFromRawPrompt(request),
                     );
                 }
                 Some(request) = generate_embedding_batch_request_rx.recv() => {
                     forward_command(
                         continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchSchedulerCommand::GenerateEmbeddingBatch(request),
+                        ContinuousBatchArbiterCommand::GenerateEmbeddingBatch(request),
                     );
                 }
             }
@@ -257,7 +257,6 @@ impl Service for LlamaCppArbiterService {
 #[cfg(test)]
 mod tests {
     use std::mem::discriminant;
-    use std::sync::mpsc::channel as std_channel;
     use std::thread;
 
     use anyhow::bail;
@@ -266,9 +265,9 @@ mod tests {
 
     fn spawn_arbiter_handle_with_live_receiver() -> (
         ContinuousBatchArbiterHandle,
-        std::sync::mpsc::Receiver<ContinuousBatchSchedulerCommand>,
+        mpsc::UnboundedReceiver<ContinuousBatchArbiterCommand>,
     ) {
-        let (command_tx, command_rx) = std_channel();
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
         let scheduler_thread_handle = thread::spawn(|| Ok(()));
 
         (
@@ -282,18 +281,18 @@ mod tests {
 
     #[test]
     fn forward_command_delivers_command_when_handle_present() {
-        let (arbiter_handle, command_rx) = spawn_arbiter_handle_with_live_receiver();
+        let (arbiter_handle, mut command_rx) = spawn_arbiter_handle_with_live_receiver();
 
         forward_command(
             Some(&arbiter_handle),
-            ContinuousBatchSchedulerCommand::Shutdown,
+            ContinuousBatchArbiterCommand::Shutdown,
         );
 
-        let delivered = command_rx.recv().unwrap();
+        let delivered = command_rx.try_recv().unwrap();
 
         assert_eq!(
             discriminant(&delivered),
-            discriminant(&ContinuousBatchSchedulerCommand::Shutdown),
+            discriminant(&ContinuousBatchArbiterCommand::Shutdown),
         );
     }
 
@@ -305,13 +304,13 @@ mod tests {
 
         forward_command(
             Some(&arbiter_handle),
-            ContinuousBatchSchedulerCommand::Shutdown,
+            ContinuousBatchArbiterCommand::Shutdown,
         );
     }
 
     #[test]
     fn forward_command_logs_error_when_handle_absent() {
-        forward_command(None, ContinuousBatchSchedulerCommand::Shutdown);
+        forward_command(None, ContinuousBatchArbiterCommand::Shutdown);
     }
 
     #[tokio::test]
@@ -382,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn shutdown_arbiter_handle_joins_and_clears_present_handle() {
-        let (arbiter_handle, command_rx) = spawn_arbiter_handle_with_live_receiver();
+        let (arbiter_handle, mut command_rx) = spawn_arbiter_handle_with_live_receiver();
         let mut continuous_batch_arbiter_handle = Some(arbiter_handle);
 
         shutdown_arbiter_handle(&mut continuous_batch_arbiter_handle)
@@ -391,11 +390,11 @@ mod tests {
 
         assert!(continuous_batch_arbiter_handle.is_none());
 
-        let delivered = command_rx.recv().unwrap();
+        let delivered = command_rx.try_recv().unwrap();
 
         assert_eq!(
             discriminant(&delivered),
-            discriminant(&ContinuousBatchSchedulerCommand::Shutdown),
+            discriminant(&ContinuousBatchArbiterCommand::Shutdown),
         );
     }
 

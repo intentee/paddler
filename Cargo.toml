@@ -9,12 +9,14 @@ members = [
     "paddler_client",
     "paddler_download_manager",
     "paddler_gui",
+    "paddler_image_decoder",
     "paddler_messaging",
     "paddler_openai_response_format_validator",
     "paddler_opencode_tests",
     "paddler_state_conversion",
     "paddler_test_cluster_harness",
     "paddler_tests",
+    "paddler_tool_call_validator",
 ]
 resolver = "2"
 
@@ -57,9 +59,9 @@ http = "1"
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = "=0.12.0"
-llama-cpp-bindings-sys = "=0.12.0"
-llama-cpp-bindings-types = "=0.12.0"
+llama-cpp-bindings = "=0.15.0"
+llama-cpp-bindings-sys = "=0.15.0"
+llama-cpp-bindings-types = "=0.15.0"
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"
@@ -76,7 +78,7 @@ reqwest = { version = "0.12", features = ["json", "stream"] }
 resvg = "0.46"
 rust-embed = { version = "8.9", features = ["interpolate-folder-path"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 shellexpand = "3"
 iced = { version = "0.14", features = ["image", "svg", "tokio"] }
@@ -99,11 +101,13 @@ paddler_cache_dir = { version = "4.1.0", path = "paddler_cache_dir" }
 paddler_cli = { version = "4.1.0", path = "paddler_cli" }
 paddler_client = { version = "4.1.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.1.0", path = "paddler_download_manager" }
+paddler_image_decoder = { version = "4.1.0", path = "paddler_image_decoder" }
 paddler_messaging = { version = "4.1.0", path = "paddler_messaging" }
 paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }
 paddler_state_conversion = { version = "4.1.0", path = "paddler_state_conversion" }
 paddler_test_cluster_harness = { version = "4.1.0", path = "paddler_test_cluster_harness" }
 paddler_tests = { version = "4.1.0", path = "paddler_tests" }
+paddler_tool_call_validator = { version = "4.1.0", path = "paddler_tool_call_validator" }
 
 [profile.release]
 lto = true

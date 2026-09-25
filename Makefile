@@ -2,7 +2,7 @@
 
 RUST_LOG ?= debug
 
-PADDLER_SOURCES := $(shell find paddler_agent/src paddler_balancer/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src paddler_messaging/src paddler_state_conversion/src -name '*.rs')
+PADDLER_SOURCES := $(shell find paddler_agent/src paddler_balancer/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src paddler_image_decoder/src paddler_messaging/src paddler_state_conversion/src paddler_tool_call_validator/src -name '*.rs')
 FRONTEND_SOURCES := $(shell find resources -type f) $(wildcard jarmuz/*.mjs)
 
 TEST_DEVICE ?= cpu
@@ -107,10 +107,12 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_client=94 \
 		--gated paddler_download_manager=99 \
 		--gated paddler_gui=13 \
+		--gated paddler_image_decoder=100 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
 		--gated paddler_opencode_tests=76 \
-		--gated paddler_test_cluster_harness=67
+		--gated paddler_test_cluster_harness=67 \
+		--gated paddler_tool_call_validator=100
 
 .PHONY: test.coverage-clean
 test.coverage-clean:

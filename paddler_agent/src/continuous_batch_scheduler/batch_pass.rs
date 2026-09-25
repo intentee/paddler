@@ -1,21 +1,20 @@
-use anyhow::Result;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 
 use crate::continuous_batch_scheduler::contributions::Contributions;
 
-pub struct BatchPass<'tokens> {
-    pub batch: LlamaBatch<'tokens>,
+pub struct BatchPass<'batch> {
+    pub batch: &'batch mut LlamaBatch<'static>,
     pub contributions: Contributions,
 }
 
-impl BatchPass<'_> {
-    /// # Errors
-    /// Forwards [`LlamaBatch::new`] failures verbatim.
-    pub fn new(n_batch: usize, max_sequences: i32) -> Result<Self> {
-        Ok(Self {
-            batch: LlamaBatch::new(n_batch, max_sequences)?,
+impl<'batch> BatchPass<'batch> {
+    pub fn new(batch: &'batch mut LlamaBatch<'static>) -> Self {
+        batch.clear();
+
+        Self {
+            batch,
             contributions: Contributions::default(),
-        })
+        }
     }
 
     #[must_use]
@@ -26,22 +25,23 @@ impl BatchPass<'_> {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::SampledToken;
+    use llama_cpp_bindings::llama_batch::LlamaBatch;
+    use llama_cpp_bindings::token::LlamaToken;
+
     use super::BatchPass;
 
     #[test]
-    fn new_creates_empty_batch_pass() {
-        let batch_pass = BatchPass::new(16, 1).unwrap();
+    fn new_clears_tokens_left_by_the_previous_pass() {
+        let mut batch = LlamaBatch::new(16, 1).unwrap();
+
+        batch
+            .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)
+            .unwrap();
+
+        let batch_pass = BatchPass::new(&mut batch);
 
         assert_eq!(batch_pass.batch.n_tokens(), 0);
         assert!(batch_pass.is_empty());
-    }
-
-    #[test]
-    fn new_forwards_llama_batch_error_for_oversized_n_batch() {
-        let result = BatchPass::new(usize::MAX, 1);
-
-        let error = result.err().unwrap();
-
-        assert!(error.to_string().contains("overflow"));
     }
 }

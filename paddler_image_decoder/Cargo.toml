@@ -1,0 +1,20 @@
+[package]
+name = "paddler_image_decoder"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+base64 = { workspace = true }
+image = { workspace = true }
+log = { workspace = true }
+paddler_messaging = { workspace = true }
+resvg = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
