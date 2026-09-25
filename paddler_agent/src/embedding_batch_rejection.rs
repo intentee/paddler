@@ -67,10 +67,10 @@ mod tests {
 
         EmbeddingBatchRejection::EmbeddingsDisabled.report(Some("agent"), &generated_embedding_tx);
 
-        assert!(matches!(
+        assert_eq!(
             generated_embedding_rx.try_recv(),
             Ok(EmbeddingResult::EmbeddingsDisabled)
-        ));
+        );
     }
 
     #[test]
@@ -80,11 +80,12 @@ mod tests {
         EmbeddingBatchRejection::SchedulerUnavailable
             .report(Some("agent"), &generated_embedding_tx);
 
-        assert!(matches!(
+        assert_eq!(
             generated_embedding_rx.try_recv(),
-            Ok(EmbeddingResult::Error(message))
-                if message == "Some(\"agent\"): the scheduler is no longer accepting requests"
-        ));
+            Ok(EmbeddingResult::Error(
+                "Some(\"agent\"): the scheduler is no longer accepting requests".to_owned()
+            ))
+        );
     }
 
     #[test]

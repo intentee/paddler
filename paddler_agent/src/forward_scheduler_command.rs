@@ -31,6 +31,7 @@ pub fn forward_scheduler_command(
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
     use std::sync::Arc;
     use std::sync::mpsc::channel;
 
@@ -61,10 +62,12 @@ mod tests {
             ContinuousBatchSchedulerCommand::Shutdown,
         );
 
-        assert!(matches!(
-            scheduler_command_rx.try_recv(),
-            Ok(ContinuousBatchSchedulerCommand::Shutdown)
-        ));
+        assert_eq!(
+            scheduler_command_rx
+                .try_recv()
+                .map(|command| discriminant(&command)),
+            Ok(discriminant(&ContinuousBatchSchedulerCommand::Shutdown))
+        );
     }
 
     #[test]
@@ -89,10 +92,12 @@ mod tests {
             })),
         );
 
-        assert!(matches!(
+        assert_eq!(
             generated_tokens_rx.try_recv(),
-            Ok(GeneratedTokenResult::SamplerError(_))
-        ));
+            Ok(GeneratedTokenResult::SamplerError(
+                "Some(\"agent\"): the scheduler is no longer accepting requests".to_owned()
+            ))
+        );
     }
 
     #[test]
@@ -117,10 +122,12 @@ mod tests {
             ),
         );
 
-        assert!(matches!(
+        assert_eq!(
             generated_embedding_rx.try_recv(),
-            Ok(EmbeddingResult::Error(_))
-        ));
+            Ok(EmbeddingResult::Error(
+                "Some(\"agent\"): the scheduler is no longer accepting requests".to_owned()
+            ))
+        );
     }
 
     #[test]

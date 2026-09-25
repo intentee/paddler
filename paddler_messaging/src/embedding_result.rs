@@ -5,7 +5,7 @@ use crate::embedding::Embedding;
 use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use crate::streamable_result::StreamableResult;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum EmbeddingResult {
     DocumentExceedsBatchSize(OversizedEmbeddingDocumentDetails),

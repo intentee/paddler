@@ -9,7 +9,7 @@ use crate::oversized_prompt_details::OversizedPromptDetails;
 use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::streamable_result::StreamableResult;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),

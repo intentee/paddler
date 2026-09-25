@@ -6,8 +6,6 @@ use image::DynamicImage;
 use image::guess_format;
 use image::imageops::FilterType;
 use image::load_from_memory_with_format;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdBitmapError;
 use log::info;
 use paddler_messaging::image_url::ImageUrl;
 use resvg::render;
@@ -152,30 +150,35 @@ impl DecodedImage {
             max_dimension,
         ))
     }
-
-    pub fn into_bitmap(self) -> Result<MtmdBitmap, MtmdBitmapError> {
-        MtmdBitmap::from_image_data(self.width, self.height, &self.rgb_pixels)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs::read;
+    use std::io;
     use std::io::Cursor;
+    use std::mem::discriminant;
 
+    use base64::DecodeError;
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use image::DynamicImage;
+    use image::ImageError;
     use image::ImageFormat;
     use image::Rgb;
     use image::Rgb32FImage;
     use image::RgbImage;
     use image::RgbaImage;
     use paddler_messaging::image_url::ImageUrl;
+    use resvg::usvg::Error as SvgError;
 
     use crate::decoded_image::DecodedImage;
     use crate::decoded_image::compute_target_dimension;
     use crate::decoded_image_error::DecodedImageError;
+
+    fn unrelated_image_error() -> ImageError {
+        ImageError::IoError(io::Error::other("unrelated"))
+    }
 
     fn encode_image(image: DynamicImage, format: ImageFormat) -> Vec<u8> {
         let mut output_buffer = Cursor::new(Vec::new());
@@ -236,7 +239,10 @@ mod tests {
 
         let error = DecodedImage::from_data_uri(&image_url, 1024).err().unwrap();
 
-        assert!(matches!(error, DecodedImageError::RemoteUrlNotSupported));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::RemoteUrlNotSupported)
+        );
     }
 
     #[test]
@@ -247,7 +253,10 @@ mod tests {
 
         let error = DecodedImage::from_data_uri(&image_url, 1024).err().unwrap();
 
-        assert!(matches!(error, DecodedImageError::MissingCommaSeparator));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::MissingCommaSeparator)
+        );
     }
 
     #[test]
@@ -258,7 +267,12 @@ mod tests {
 
         let error = DecodedImage::from_data_uri(&image_url, 1024).err().unwrap();
 
-        assert!(matches!(error, DecodedImageError::InvalidBase64Payload(_)));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::InvalidBase64Payload(
+                DecodeError::InvalidLength(0)
+            ))
+        );
     }
 
     #[test]
@@ -369,7 +383,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(matches!(error, DecodedImageError::InvalidMaxDimension));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::InvalidMaxDimension)
+        );
     }
 
     #[test]
@@ -380,14 +397,22 @@ mod tests {
 
         let error = decode(svg_data, 1024).err().unwrap();
 
-        assert!(matches!(error, DecodedImageError::SvgParsingFailed(_)));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgParsingFailed(SvgError::NotAnUtf8Str))
+        );
     }
 
     #[test]
     fn rejects_format_without_reading_support() {
         let error = decode(b"DDS \x00\x00\x00\x00", 1024).err().unwrap();
 
-        assert!(matches!(error, DecodedImageError::UnsupportedFormat { .. }));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::UnsupportedFormat {
+                format: String::new(),
+            })
+        );
     }
 
     #[test]
@@ -396,7 +421,12 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(matches!(error, DecodedImageError::UnrecognizedFormat(_)));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::UnrecognizedFormat(
+                unrelated_image_error()
+            ))
+        );
     }
 
     #[test]
@@ -406,7 +436,12 @@ mod tests {
 
         let error = decode(&corrupt_png, 1024).err().unwrap();
 
-        assert!(matches!(error, DecodedImageError::PixelDecodingFailed(_)));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::PixelDecodingFailed(
+                unrelated_image_error()
+            ))
+        );
     }
 
     #[test]
@@ -418,20 +453,20 @@ mod tests {
     fn compute_target_dimension_rejects_below_one() {
         let error = compute_target_dimension(0.0, 1.0).err().unwrap();
 
-        assert!(matches!(
-            error,
-            DecodedImageError::SvgDimensionOutOfRange { .. }
-        ));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgDimensionOutOfRange { dimension: 0.0 })
+        );
     }
 
     #[test]
     fn compute_target_dimension_rejects_non_finite() {
         let error = compute_target_dimension(f64::INFINITY, 1.0).err().unwrap();
 
-        assert!(matches!(
-            error,
-            DecodedImageError::SvgDimensionOutOfRange { .. }
-        ));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgDimensionOutOfRange { dimension: 0.0 })
+        );
     }
 
     #[test]
@@ -440,10 +475,10 @@ mod tests {
             .err()
             .unwrap();
 
-        assert!(matches!(
-            error,
-            DecodedImageError::SvgDimensionOutOfRange { .. }
-        ));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgDimensionOutOfRange { dimension: 0.0 })
+        );
     }
 
     #[test]
@@ -453,10 +488,10 @@ mod tests {
 
         let error = decode(svg_data, u32::MAX).err().unwrap();
 
-        assert!(matches!(
-            error,
-            DecodedImageError::SvgDimensionOutOfRange { .. }
-        ));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgDimensionOutOfRange { dimension: 0.0 })
+        );
     }
 
     #[test]
@@ -466,10 +501,10 @@ mod tests {
 
         let error = decode(svg_data, u32::MAX).err().unwrap();
 
-        assert!(matches!(
-            error,
-            DecodedImageError::SvgDimensionOutOfRange { .. }
-        ));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgDimensionOutOfRange { dimension: 0.0 })
+        );
     }
 
     #[test]
@@ -478,19 +513,12 @@ mod tests {
 
         let error = decode(svg_data, 600_000_000).err().unwrap();
 
-        assert!(matches!(
-            error,
-            DecodedImageError::SvgPixmapAllocationFailed { .. }
-        ));
-    }
-
-    #[test]
-    fn converts_decoded_pixels_into_bitmap_with_matching_dimensions() {
-        let decoded_image = decode(&create_rgb_image(8, 4, ImageFormat::Png), 1024).unwrap();
-
-        let bitmap = decoded_image.into_bitmap().unwrap();
-
-        assert_eq!(bitmap.nx(), 8);
-        assert_eq!(bitmap.ny(), 4);
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&DecodedImageError::SvgPixmapAllocationFailed {
+                width: 0,
+                height: 0,
+            })
+        );
     }
 }

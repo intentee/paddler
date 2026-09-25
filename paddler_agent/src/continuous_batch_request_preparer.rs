@@ -9,7 +9,6 @@ use llama_cpp_bindings::token::LlamaToken;
 use log::warn;
 use minijinja::context;
 use paddler_messaging::embedding_result::EmbeddingResult;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
@@ -17,6 +16,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_image_decoder::decoded_image::DecodedImage;
+use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use tokio::sync::mpsc;
 
@@ -25,7 +26,7 @@ use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_arbiter_command::ContinuousBatchArbiterCommand;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
-use crate::decoded_image::DecodedImage;
+use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
 use crate::embedding_batch_rejection::EmbeddingBatchRejection;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::forward_scheduler_command::forward_scheduler_command;
@@ -39,7 +40,6 @@ use crate::require_embeddings_enabled::require_embeddings_enabled;
 use crate::require_prompt_fits_sequence_context::require_prompt_fits_sequence_context;
 use crate::resolve_grammar::resolve_grammar;
 use crate::tool_call_pipeline::ToolCallPipeline;
-use crate::tool_call_validator::ToolCallValidator;
 
 #[derive(Clone)]
 pub struct ContinuousBatchRequestPreparer {
@@ -84,32 +84,28 @@ impl ContinuousBatchRequestPreparer {
         forward_scheduler_command(&self.scheduler_command_tx, self.agent_name(), command);
     }
 
-    fn forward_generation(
-        &self,
-        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-        prepared: Result<PreparedGenerationRequest, GenerationRequestRejection>,
-    ) {
-        match prepared {
-            Ok(prepared) => self.forward(ContinuousBatchSchedulerCommand::Generate(Box::new(
-                prepared,
-            ))),
-            Err(rejection) => rejection.report(self.agent_name(), generated_tokens_tx),
-        }
+    fn forward_generation(&self, prepared: PreparedGenerationRequest) {
+        self.forward(ContinuousBatchSchedulerCommand::Generate(Box::new(
+            prepared,
+        )));
     }
 
     fn accept_raw_prompt(&self, request: ContinueFromRawPromptRequest) {
         let generated_tokens_tx = request.generated_tokens_tx.clone();
 
-        self.forward_generation(&generated_tokens_tx, self.prepare_raw_prompt(request));
+        match self.prepare_raw_prompt(request) {
+            Ok(prepared) => self.forward_generation(prepared),
+            Err(rejection) => rejection.report(self.agent_name(), &generated_tokens_tx),
+        }
     }
 
     fn accept_conversation_history(&self, request: ContinueFromConversationHistoryRequest) {
         let generated_tokens_tx = request.generated_tokens_tx.clone();
 
-        self.forward_generation(
-            &generated_tokens_tx,
-            self.prepare_conversation_history(request),
-        );
+        match self.prepare_conversation_history(request) {
+            Ok(prepared) => self.forward_generation(prepared),
+            Err(rejection) => rejection.report(self.agent_name(), &generated_tokens_tx),
+        }
     }
 
     fn accept_embedding_batch(&self, request: GenerateEmbeddingBatchRequest) {
@@ -244,7 +240,7 @@ impl ContinuousBatchRequestPreparer {
                 .image_resize_to_fit,
         )
         .map_err(GenerationRequestRejection::ImageDecodingFailed)?
-        .into_bitmap()
+        .to_mtmd_bitmap()
         .map_err(GenerationRequestRejection::ImageBitmapCreationFailed)
     }
 

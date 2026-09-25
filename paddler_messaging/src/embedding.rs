@@ -4,7 +4,7 @@ use serde::Serialize;
 use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
 use crate::pooling_type::PoolingType;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Embedding {
     pub embedding: Vec<f32>,

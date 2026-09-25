@@ -12,6 +12,8 @@ use log::warn;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
+use paddler_cache_dir::download_lock_wait_outcome::DownloadLockWaitOutcome;
+use paddler_cache_dir::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
@@ -19,8 +21,6 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::agent_issue_fix::AgentIssueFix;
 use crate::desired_model_resolution::DesiredModelResolution;
-use crate::model_source::download_lock_retry_error::DownloadLockRetryError;
-use crate::model_source::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 use crate::slot_aggregated_status_download_progress::SlotAggregatedStatusDownloadProgress;
@@ -107,16 +107,13 @@ impl ResolvesModelSource for HuggingFaceModelSource {
                     cancellation_token,
                     LOCK_RETRY_TIMEOUT,
                     lock_path,
-                    model_path,
                 )
                 .await
                 {
-                    DownloadLockRetryError::Cancelled { .. } => {
-                        Ok(DesiredModelResolution::Cancelled)
-                    }
-                    lock_still_unavailable @ DownloadLockRetryError::LockStillUnavailable {
-                        ..
-                    } => Err(lock_still_unavailable.into()),
+                    DownloadLockWaitOutcome::Cancelled => Ok(DesiredModelResolution::Cancelled),
+                    DownloadLockWaitOutcome::LockStillUnavailable { lock_path } => Err(anyhow!(
+                        "Failed to acquire download lock '{lock_path}'. Is more than one agent running on this machine?"
+                    )),
                 }
             }
             Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {

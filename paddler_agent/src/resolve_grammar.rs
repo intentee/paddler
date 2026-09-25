@@ -22,10 +22,15 @@ pub fn resolve_grammar(
 
 #[cfg(test)]
 mod tests {
+    use std::mem::Discriminant;
+    use std::mem::discriminant;
+
+    use llama_cpp_bindings::error::JsonSchemaToGrammarError;
     use paddler_messaging::grammar_constraint::GrammarConstraint;
 
     use super::resolve_grammar;
     use crate::generation_request_rejection::GenerationRequestRejection;
+    use crate::grammar_sampler::GrammarSampler;
 
     fn yes_or_no_grammar() -> GrammarConstraint {
         GrammarConstraint::Gbnf {
@@ -34,25 +39,34 @@ mod tests {
         }
     }
 
+    fn resolved(
+        grammar: Option<&GrammarConstraint>,
+        enable_thinking: bool,
+    ) -> Result<Option<GrammarSampler>, Discriminant<GenerationRequestRejection>> {
+        resolve_grammar(grammar, enable_thinking).map_err(|rejection| discriminant(&rejection))
+    }
+
     #[test]
     fn returns_none_when_grammar_is_absent() {
-        assert!(matches!(resolve_grammar(None, false), Ok(None)));
+        assert_eq!(resolved(None, false), Ok(None));
     }
 
     #[test]
     fn rejects_grammar_when_thinking_is_enabled() {
-        assert!(matches!(
-            resolve_grammar(Some(&yes_or_no_grammar()), true),
-            Err(GenerationRequestRejection::GrammarIncompatibleWithThinking)
-        ));
+        assert_eq!(
+            resolved(Some(&yes_or_no_grammar()), true),
+            Err(discriminant(
+                &GenerationRequestRejection::GrammarIncompatibleWithThinking
+            ))
+        );
     }
 
     #[test]
     fn returns_sampler_for_valid_grammar() {
-        assert!(matches!(
-            resolve_grammar(Some(&yes_or_no_grammar()), false),
-            Ok(Some(_))
-        ));
+        assert_eq!(
+            resolved(Some(&yes_or_no_grammar()), false),
+            Ok(Some(GrammarSampler::new(&yes_or_no_grammar()).unwrap()))
+        );
     }
 
     #[test]
@@ -61,9 +75,13 @@ mod tests {
             schema: "not valid json at all".to_owned(),
         };
 
-        assert!(matches!(
-            resolve_grammar(Some(&grammar), false),
-            Err(GenerationRequestRejection::GrammarConversionFailed(_))
-        ));
+        assert_eq!(
+            resolved(Some(&grammar), false),
+            Err(discriminant(
+                &GenerationRequestRejection::GrammarConversionFailed(
+                    JsonSchemaToGrammarError::NotEnoughMemory
+                )
+            ))
+        );
     }
 }

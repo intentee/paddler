@@ -12,7 +12,7 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use paddler_agent::tool_call_event::ToolCallEvent;
 use paddler_agent::tool_call_pipeline::ToolCallPipeline;
-use paddler_agent::tool_call_validator::ToolCallValidator;
+use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 use paddler_tests::model_card::ModelCard;
 use paddler_tests::model_card::deepseek_r1_distill_llama_8b::deepseek_r1_distill_llama_8b;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;

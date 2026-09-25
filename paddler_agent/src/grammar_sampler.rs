@@ -6,6 +6,7 @@ use paddler_messaging::grammar_constraint::GrammarConstraint;
 
 use crate::resolve_grammar_to_gbnf::resolve_grammar_to_gbnf;
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct GrammarSampler {
     grammar_string: String,
     root_rule: String,

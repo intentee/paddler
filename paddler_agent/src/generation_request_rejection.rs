@@ -18,9 +18,10 @@ use paddler_messaging::oversized_image_details::OversizedImageDetails;
 use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 use tokio::sync::mpsc;
 
-use crate::decoded_image_error::DecodedImageError;
+use paddler_image_decoder::decoded_image_error::DecodedImageError;
+use paddler_tool_call_validator::validator_build_error::ValidatorBuildError;
+
 use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
-use crate::validator_build_error::ValidatorBuildError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GenerationRequestRejection {
@@ -176,15 +177,17 @@ mod tests {
     use llama_cpp_bindings::error::EvalMultimodalChunksError;
     use llama_cpp_bindings::error::FfiStatusError;
     use llama_cpp_bindings::error::GrammarError;
+    use llama_cpp_bindings::error::JsonSchemaToGrammarError;
     use llama_cpp_bindings::mtmd::ImageChunkBatchSizeMismatch;
     use llama_cpp_bindings::mtmd::MtmdEvalError;
+    use paddler_image_decoder::decoded_image_error::DecodedImageError;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::oversized_image_details::OversizedImageDetails;
     use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
+    use paddler_tool_call_validator::validator_build_error::ValidatorBuildError;
     use tokio::sync::mpsc;
 
     use super::GenerationRequestRejection;
-    use crate::decoded_image_error::DecodedImageError;
-    use crate::validator_build_error::ValidatorBuildError;
 
     fn reported(rejection: GenerationRequestRejection) -> GeneratedTokenResult {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
@@ -194,105 +197,108 @@ mod tests {
         generated_tokens_rx.try_recv().unwrap()
     }
 
+    fn agent_message(description: &str) -> String {
+        format!("Some(\"agent\"): {description}")
+    }
+
     #[test]
     fn reports_thinking_incompatibility_with_the_agent_name() {
-        let result = reported(GenerationRequestRejection::GrammarIncompatibleWithThinking);
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::GrammarIncompatibleWithThinking(message)
-                if message == "Some(\"agent\"): Grammar constraints are incompatible with thinking mode"
-        ));
+        assert_eq!(
+            reported(GenerationRequestRejection::GrammarIncompatibleWithThinking),
+            GeneratedTokenResult::GrammarIncompatibleWithThinking(agent_message(
+                "Grammar constraints are incompatible with thinking mode"
+            ))
+        );
     }
 
     #[test]
     fn reports_grammar_conversion_failure_as_grammar_syntax_error() {
-        let result = reported(GenerationRequestRejection::GrammarConversionFailed(
-            FfiStatusError {
-                operation: "json_schema_to_grammar",
-                code: 1,
-            }
-            .into(),
+        let conversion_error = JsonSchemaToGrammarError::NotEnoughMemory;
+        let expected_message = agent_message(&format!(
+            "Failed to convert JSON schema to grammar: {conversion_error}"
         ));
 
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::GrammarSyntaxError(_)
-        ));
+        assert_eq!(
+            reported(GenerationRequestRejection::GrammarConversionFailed(
+                conversion_error
+            )),
+            GeneratedTokenResult::GrammarSyntaxError(expected_message)
+        );
     }
 
     #[test]
     fn reports_disabled_token_generation() {
-        let result = reported(GenerationRequestRejection::TokenGenerationDisabled);
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::TokenGenerationDisabled(_)
-        ));
+        assert_eq!(
+            reported(GenerationRequestRejection::TokenGenerationDisabled),
+            GeneratedTokenResult::TokenGenerationDisabled(agent_message(
+                "token generation is disabled because this agent is running in embeddings-only mode"
+            ))
+        );
     }
 
     #[test]
     fn reports_image_failures_as_image_decoding_failure() {
-        let result = reported(GenerationRequestRejection::ImageDecodingFailed(
-            DecodedImageError::MissingCommaSeparator,
-        ));
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::ImageDecodingFailed(_)
-        ));
+        assert_eq!(
+            reported(GenerationRequestRejection::ImageDecodingFailed(
+                DecodedImageError::MissingCommaSeparator,
+            )),
+            GeneratedTokenResult::ImageDecodingFailed(agent_message(
+                "failed to decode images: Invalid data URI: missing comma separator"
+            ))
+        );
     }
 
     #[test]
     fn reports_missing_multimodal_support() {
-        let result = reported(GenerationRequestRejection::MultimodalNotSupported);
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::MultimodalNotSupported(_)
-        ));
+        assert_eq!(
+            reported(GenerationRequestRejection::MultimodalNotSupported),
+            GeneratedTokenResult::MultimodalNotSupported(agent_message(
+                "received images but model does not support multimodal input"
+            ))
+        );
     }
 
     #[test]
     fn reports_prompt_rendering_failures_as_chat_template_error() {
-        let result = reported(GenerationRequestRejection::ChatTemplateRenderingFailed(
-            anyhow!("missing variable"),
-        ));
-
-        assert!(matches!(result, GeneratedTokenResult::ChatTemplateError(_)));
+        assert_eq!(
+            reported(GenerationRequestRejection::ChatTemplateRenderingFailed(
+                anyhow!("missing variable"),
+            )),
+            GeneratedTokenResult::ChatTemplateError(agent_message(
+                "failed to render chat template: missing variable"
+            ))
+        );
     }
 
     #[test]
     fn reports_invalid_tool_schema() {
-        let result = reported(GenerationRequestRejection::ToolSchemaInvalid(
-            ValidatorBuildError::InvalidSchema {
-                tool_name: "get_weather".to_owned(),
-                message: "not a schema".to_owned(),
-            },
-        ));
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::ToolSchemaInvalid(message)
-                if message == "Some(\"agent\"): tool \"get_weather\" parameters are not a valid JSON Schema: not a schema"
-        ));
+        assert_eq!(
+            reported(GenerationRequestRejection::ToolSchemaInvalid(
+                ValidatorBuildError::InvalidSchema {
+                    tool_name: "get_weather".to_owned(),
+                    message: "not a schema".to_owned(),
+                },
+            )),
+            GeneratedTokenResult::ToolSchemaInvalid(agent_message(
+                "tool \"get_weather\" parameters are not a valid JSON Schema: not a schema"
+            ))
+        );
     }
 
     #[test]
     fn reports_grammar_sampler_initialization_failure() {
-        let result = reported(
-            GenerationRequestRejection::GrammarSamplerInitializationFailed(
-                GrammarError::FfiStatus(FfiStatusError {
-                    operation: "llama_sampler_init_grammar",
-                    code: 1,
-                }),
-            ),
-        );
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::GrammarInitializationFailed(_)
+        let grammar_error = GrammarError::FfiStatus(FfiStatusError {
+            operation: "llama_sampler_init_grammar",
+            code: 1,
+        });
+        let expected_message = agent_message(&format!(
+            "failed to initialize grammar sampler: {grammar_error}"
         ));
+
+        assert_eq!(
+            reported(GenerationRequestRejection::GrammarSamplerInitializationFailed(grammar_error)),
+            GeneratedTokenResult::GrammarInitializationFailed(expected_message)
+        );
     }
 
     #[test]
@@ -304,29 +310,29 @@ mod tests {
             }),
         ));
 
-        let result = reported(rejection);
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::ImageExceedsBatchSize(details)
-                if details.image_tokens == 9 && details.n_batch == 4
-        ));
+        assert_eq!(
+            reported(rejection),
+            GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
+                image_tokens: 9,
+                n_batch: 4,
+            })
+        );
     }
 
     #[test]
     fn reports_oversized_prompt_with_its_token_counts() {
-        let result = reported(GenerationRequestRejection::PromptExceedsContextSize {
-            details: OversizedPromptDetails {
+        assert_eq!(
+            reported(GenerationRequestRejection::PromptExceedsContextSize {
+                details: OversizedPromptDetails {
+                    prompt_tokens: 9895,
+                    sequence_context_size: 8192,
+                },
+            }),
+            GeneratedTokenResult::PromptExceedsContextSize(OversizedPromptDetails {
                 prompt_tokens: 9895,
                 sequence_context_size: 8192,
-            },
-        });
-
-        assert!(matches!(
-            result,
-            GeneratedTokenResult::PromptExceedsContextSize(details)
-                if details.prompt_tokens == 9895 && details.sequence_context_size == 8192
-        ));
+            })
+        );
     }
 
     #[test]
@@ -334,8 +340,11 @@ mod tests {
         let rejection =
             GenerationRequestRejection::from(EvalMultimodalChunksError::ChunkOutOfBounds(3));
 
-        let result = reported(rejection);
-
-        assert!(matches!(result, GeneratedTokenResult::SamplerError(_)));
+        assert_eq!(
+            reported(rejection),
+            GeneratedTokenResult::SamplerError(agent_message(
+                "failed to ingest multimodal prompt: chunk index 3 out of bounds during post-eval walk"
+            ))
+        );
     }
 }

@@ -55,6 +55,7 @@ use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use crate::generation_request_rejection::GenerationRequestRejection;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 use crate::prepared_generation_request::PreparedGenerationRequest;
@@ -85,11 +86,13 @@ impl ContinuousBatchScheduler {
         reason = "required for FFI lifetime extension with llama.cpp"
     )]
     pub fn new(
-        command_rx: Receiver<ContinuousBatchSchedulerCommand>,
-        scheduler_context: Arc<ContinuousBatchSchedulerContext>,
-        llama_context: LlamaContext,
-        batch: LlamaBatch<'static>,
-        max_concurrent_sequences: i32,
+        ContinuousBatchSchedulerParams {
+            batch,
+            command_rx,
+            llama_context,
+            max_concurrent_sequences,
+            scheduler_context,
+        }: ContinuousBatchSchedulerParams,
     ) -> Self {
         let llama_context = unsafe {
             std::mem::transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context)

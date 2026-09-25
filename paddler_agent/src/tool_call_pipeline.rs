@@ -7,11 +7,11 @@ use llama_cpp_bindings::RawChatMessage;
 use llama_cpp_bindings::model::LlamaModel;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
+use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
 use crate::tool_call_buffer::ToolCallBuffer;
 use crate::tool_call_event::ToolCallEvent;
 use crate::tool_call_pipeline_error::ToolCallPipelineError;
-use crate::tool_call_validator::ToolCallValidator;
 
 pub struct ToolCallPipeline {
     buffer: ToolCallBuffer,

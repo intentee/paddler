@@ -44,6 +44,7 @@ use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOu
 use crate::continuous_batch_request_preparer::ContinuousBatchRequestPreparer;
 use crate::continuous_batch_scheduler::ContinuousBatchScheduler;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use crate::converts_to_llama_kv_cache_dtype::ConvertsToLlamaKvCacheDtype;
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
 use crate::join_scheduler_thread::join_scheduler_thread;
@@ -357,13 +358,13 @@ impl ContinuousBatchArbiter {
 
             Self::run_warmup_decode(&model, &mut llama_context, &mut batch, desired_slots_total);
 
-            let mut scheduler = ContinuousBatchScheduler::new(
-                scheduler_command_rx,
-                scheduler_context.clone(),
-                llama_context,
+            let mut scheduler = ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
                 batch,
-                desired_slots_total,
-            );
+                command_rx: scheduler_command_rx,
+                llama_context,
+                max_concurrent_sequences: desired_slots_total,
+                scheduler_context: scheduler_context.clone(),
+            });
 
             send_startup_signal(
                 agent_warm_and_scheduler_running_tx,

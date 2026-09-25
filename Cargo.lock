@@ -4820,16 +4820,13 @@ dependencies = [
  "anyhow",
  "async-stream",
  "async-trait",
- "base64",
  "bytes 1.11.1",
  "dashmap",
  "encoding_rs",
  "futures 0.3.32",
  "futures-util",
  "hf-hub",
- "image",
  "indoc",
- "jsonschema",
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
@@ -4839,12 +4836,13 @@ dependencies = [
  "nanoid",
  "paddler_cache_dir",
  "paddler_download_manager",
+ "paddler_image_decoder",
  "paddler_messaging",
  "paddler_state_conversion",
+ "paddler_tool_call_validator",
  "parking_lot",
  "rand 0.9.4",
  "reqwest 0.12.28",
- "resvg 0.46.0",
  "serde",
  "serde_json",
  "shellexpand",
@@ -4929,6 +4927,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -5030,6 +5029,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_image_decoder"
+version = "4.1.0"
+dependencies = [
+ "base64",
+ "image",
+ "log",
+ "paddler_messaging",
+ "resvg 0.46.0",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "paddler_messaging"
 version = "4.1.0"
 dependencies = [
@@ -5117,6 +5128,7 @@ dependencies = [
  "paddler_messaging",
  "paddler_openai_response_format_validator",
  "paddler_test_cluster_harness",
+ "paddler_tool_call_validator",
  "parking_lot",
  "reqwest 0.12.28",
  "serde",
@@ -5126,6 +5138,17 @@ dependencies = [
  "tokio-util",
  "trzcina",
  "url",
+]
+
+[[package]]
+name = "paddler_tool_call_validator"
+version = "4.1.0"
+dependencies = [
+ "jsonschema",
+ "llama-cpp-bindings-types",
+ "paddler_messaging",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use jsonschema::Validator;
 use jsonschema::validator_for;
-use llama_cpp_bindings::ParsedToolCall;
-use llama_cpp_bindings::ToolCallArguments;
+use llama_cpp_bindings_types::ParsedToolCall;
+use llama_cpp_bindings_types::ToolCallArguments;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -34,13 +34,7 @@ impl ToolCallValidator {
             let strategy = match &function.parameters {
                 Parameters::Empty => ValidationStrategy::JsonObjectOnly,
                 Parameters::Schema(schema) => {
-                    let schema_value = serde_json::to_value(schema).map_err(|err| {
-                        ValidatorBuildError::SerializationFailed {
-                            tool_name: function.name.clone(),
-                            message: err.to_string(),
-                        }
-                    })?;
-                    let compiled = validator_for(&schema_value).map_err(|err| {
+                    let compiled = validator_for(&schema.to_json_schema()).map_err(|err| {
                         ValidatorBuildError::InvalidSchema {
                             tool_name: function.name.clone(),
                             message: err.to_string(),
@@ -95,8 +89,8 @@ impl ToolCallValidator {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::ParsedToolCall;
-    use llama_cpp_bindings::ToolCallArguments;
+    use llama_cpp_bindings_types::ParsedToolCall;
+    use llama_cpp_bindings_types::ToolCallArguments;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
     use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
