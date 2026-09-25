@@ -35,6 +35,7 @@ mod tests {
     use std::sync::Arc;
     use std::sync::mpsc::channel;
 
+    use llama_cpp_bindings::StreamingMarkers;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -88,6 +89,7 @@ mod tests {
                 max_tokens: 1,
                 prompt: PreparedPrompt::TextTokens(Vec::new()),
                 slot_guard: slot_guard(),
+                streaming_markers: Arc::new(StreamingMarkers::default()),
                 tool_call_pipeline: None,
             })),
         );

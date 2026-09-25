@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use llama_cpp_bindings::StreamingMarkers;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
@@ -13,5 +16,6 @@ pub struct PreparedGenerationRequest {
     pub max_tokens: i32,
     pub prompt: PreparedPrompt,
     pub slot_guard: SlotGuard,
+    pub streaming_markers: Arc<StreamingMarkers>,
     pub tool_call_pipeline: Option<ToolCallPipeline>,
 }

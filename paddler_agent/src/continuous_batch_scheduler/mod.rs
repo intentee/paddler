@@ -27,8 +27,8 @@ use std::sync::mpsc::TryRecvError;
 use anyhow::Result;
 use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::StreamingMarkers;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::MarkerDetectionError;
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
@@ -63,6 +63,7 @@ use crate::prepared_multimodal_prompt::PreparedMultimodalPrompt;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::require_prompt_fits_sequence_context::require_prompt_fits_sequence_context;
 use crate::sample_token_at_batch_index::sample_token_at_batch_index;
+use crate::sampler_chain_factory::SamplerChainFactory;
 use crate::sampling_outcome::SamplingOutcome;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
@@ -75,7 +76,7 @@ pub struct ContinuousBatchScheduler {
     pending_embedding_requests: VecDeque<PreparedEmbeddingBatchRequest>,
     rng: ThreadRng,
     running: bool,
-    scheduler_context: Arc<ContinuousBatchSchedulerContext>,
+    scheduler_context: ContinuousBatchSchedulerContext,
     sequence_id_pool: SequenceIdPool,
 }
 
@@ -189,25 +190,11 @@ impl ContinuousBatchScheduler {
     }
 
     fn create_sampler_chain(&mut self) -> Result<LlamaSampler, SamplingError> {
-        let seed = self.rng.random::<u32>();
-        let inference_parameters = &self.scheduler_context.inference_parameters;
-
-        let samplers = [
-            LlamaSampler::penalties(
-                self.scheduler_context.model.n_vocab(),
-                inference_parameters.penalty_last_n,
-                inference_parameters.penalty_repeat,
-                inference_parameters.penalty_frequency,
-                inference_parameters.penalty_presence,
-            ),
-            LlamaSampler::top_k(inference_parameters.top_k),
-            LlamaSampler::top_p(inference_parameters.top_p, 0),
-            LlamaSampler::min_p(inference_parameters.min_p, 0),
-            LlamaSampler::temp(inference_parameters.temperature),
-            LlamaSampler::dist(seed),
-        ];
-
-        LlamaSampler::chain_simple(samplers.into_iter().collect::<Result<Vec<_>, _>>()?)
+        SamplerChainFactory {
+            inference_parameters: &self.scheduler_context.inference_parameters,
+            n_vocab: self.scheduler_context.model.n_vocab(),
+        }
+        .create(self.rng.random::<u32>())
     }
 
     #[expect(
@@ -216,14 +203,16 @@ impl ContinuousBatchScheduler {
     )]
     fn build_token_classifier_for_active_request(
         &self,
-    ) -> Result<SampledTokenClassifier<'static>, MarkerDetectionError> {
-        let classifier = self.scheduler_context.model.sampled_token_classifier()?;
+        streaming_markers: Arc<StreamingMarkers>,
+    ) -> SampledTokenClassifier<'static> {
+        let classifier =
+            SampledTokenClassifier::new(&self.scheduler_context.model, streaming_markers);
 
-        Ok(unsafe {
+        unsafe {
             std::mem::transmute::<SampledTokenClassifier<'_>, SampledTokenClassifier<'static>>(
                 classifier,
             )
-        })
+        }
     }
 
     fn accept_generation_request(&mut self, request: PreparedGenerationRequest) {
@@ -264,6 +253,7 @@ impl ContinuousBatchScheduler {
             max_tokens,
             prompt,
             slot_guard,
+            streaming_markers,
             tool_call_pipeline,
         }: PreparedGenerationRequest,
     ) -> Result<ContinuousBatchActiveRequest, GenerationRequestRejection> {
@@ -278,9 +268,7 @@ impl ContinuousBatchScheduler {
         let chain = self
             .create_sampler_chain()
             .map_err(GenerationRequestRejection::SamplerChainCreationFailed)?;
-        let token_classifier = self
-            .build_token_classifier_for_active_request()
-            .map_err(GenerationRequestRejection::TokenClassifierUnavailable)?;
+        let token_classifier = self.build_token_classifier_for_active_request(streaming_markers);
 
         self.clear_kv_cache_for_sequence(sequence_id_guard.sequence_id());
 
@@ -349,7 +337,7 @@ impl ContinuousBatchScheduler {
 
         require_prompt_fits_sequence_context(
             input_chunks.total_tokens(),
-            self.scheduler_context.sequence_context_size,
+            self.llama_context.n_ctx_seq(),
         )?;
 
         self.harvest_pending_samples_before_external_decode();

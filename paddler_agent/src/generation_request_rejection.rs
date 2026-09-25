@@ -1,11 +1,8 @@
-use std::num::TryFromIntError;
-
 use anyhow::Error as AnyhowError;
 use llama_cpp_bindings::error::ChatToolsError;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::error::GrammarError;
 use llama_cpp_bindings::error::JsonSchemaToGrammarError;
-use llama_cpp_bindings::error::MarkerDetectionError;
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::error::StringToTokenError;
 use llama_cpp_bindings::mtmd::MtmdBitmapError;
@@ -64,9 +61,6 @@ pub enum GenerationRequestRejection {
     )]
     PromptExceedsContextSize { details: OversizedPromptDetails },
 
-    #[error("n_batch does not fit in i32: {0}")]
-    BatchSizeOutOfRange(#[source] TryFromIntError),
-
     #[error("the scheduler is no longer accepting requests")]
     SchedulerUnavailable,
 
@@ -78,9 +72,6 @@ pub enum GenerationRequestRejection {
 
     #[error("failed to create sampler chain: {0}")]
     SamplerChainCreationFailed(#[source] SamplingError),
-
-    #[error("failed to build the sampled token classifier: {0}")]
-    TokenClassifierUnavailable(#[source] MarkerDetectionError),
 
     #[error("failed to tokenize multimodal input: {0}")]
     MultimodalTokenizationFailed(#[source] MtmdTokenizeError),
@@ -156,11 +147,9 @@ impl GenerationRequestRejection {
             Self::ToolsSerializationFailed(_)
             | Self::ChatToolsInvalid(_)
             | Self::PromptTokenizationFailed(_)
-            | Self::BatchSizeOutOfRange(_)
             | Self::SchedulerUnavailable
             | Self::NoSequenceSlotAvailable
             | Self::SamplerChainCreationFailed(_)
-            | Self::TokenClassifierUnavailable(_)
             | Self::MultimodalTokenizationFailed(_)
             | Self::MultimodalIngestionFailed(_) => GeneratedTokenResult::SamplerError(message),
         }

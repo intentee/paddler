@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
@@ -18,14 +16,14 @@ use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 pub struct ContinuousBatchEmbeddingProcessor<'context> {
     batch: &'context mut LlamaBatch<'static>,
     llama_context: &'context mut LlamaContext<'static>,
-    scheduler_context: &'context Arc<ContinuousBatchSchedulerContext>,
+    scheduler_context: &'context ContinuousBatchSchedulerContext,
 }
 
 impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
     pub const fn new(
         batch: &'context mut LlamaBatch<'static>,
         llama_context: &'context mut LlamaContext<'static>,
-        scheduler_context: &'context Arc<ContinuousBatchSchedulerContext>,
+        scheduler_context: &'context ContinuousBatchSchedulerContext,
     ) -> Self {
         Self {
             batch,

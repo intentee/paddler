@@ -8,12 +8,10 @@ use anyhow::bail;
 use llama_cpp_bindings::ChatTools;
 use llama_cpp_bindings::ToolCallArguments;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
-use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::params::LlamaModelParams;
 use paddler_agent::tool_call_event::ToolCallEvent;
 use paddler_agent::tool_call_pipeline::ToolCallPipeline;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
-use paddler_tests::model_card::ModelCard;
+use paddler_tests::load_model_from_card::load_model_from_card;
 use paddler_tests::model_card::deepseek_r1_distill_llama_8b::deepseek_r1_distill_llama_8b;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -37,18 +35,10 @@ fn agent_pipeline_recognizes_duck_typed_tool_call_format_when_template_is_not_re
 -> Result<()> {
     let backend = LlamaBackend::init()?;
 
-    let ModelCard {
-        gpu_layer_count,
-        reference,
-    } = deepseek_r1_distill_llama_8b();
-
-    let path = hf_hub::api::sync::ApiBuilder::from_env()
-        .build()?
-        .model(reference.repo_id.clone())
-        .get(&reference.filename)?;
-
-    let model_params = LlamaModelParams::default().with_n_gpu_layers(gpu_layer_count);
-    let model = Arc::new(LlamaModel::load_from_file(&backend, &path, &model_params)?);
+    let model = Arc::new(load_model_from_card(
+        &backend,
+        deepseek_r1_distill_llama_8b(),
+    )?);
 
     let mut location_properties = Map::new();
     location_properties.insert(

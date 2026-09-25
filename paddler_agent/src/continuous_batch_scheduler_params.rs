@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 
 use llama_cpp_bindings::context::LlamaContext;
@@ -12,5 +11,5 @@ pub struct ContinuousBatchSchedulerParams<'model> {
     pub command_rx: Receiver<ContinuousBatchSchedulerCommand>,
     pub llama_context: LlamaContext<'model>,
     pub max_concurrent_sequences: i32,
-    pub scheduler_context: Arc<ContinuousBatchSchedulerContext>,
+    pub scheduler_context: ContinuousBatchSchedulerContext,
 }

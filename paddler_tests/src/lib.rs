@@ -1,6 +1,9 @@
+pub mod detached_slot_guard;
+pub mod embeddings_mode_generation_request_preparer;
 pub mod in_process_agent;
 pub mod in_process_agent_spawner;
 pub mod in_process_balancer;
+pub mod load_model_from_card;
 pub mod local_http_fixture;
 pub mod make_agent_controller_without_remote_agent;
 pub mod make_dispatched_agent_without_remote_agent;
