@@ -98,11 +98,6 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         mut websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
     ) -> Result<ContinuationDecision> {
         match deserialized_message {
-            ManagementJsonRpcMessage::Error(err) => {
-                error!("Received error message: {err:?}");
-
-                Ok(ContinuationDecision::Continue)
-            }
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::DeregisterAgent,
             ) => {

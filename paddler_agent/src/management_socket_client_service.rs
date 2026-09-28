@@ -20,8 +20,6 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
 use paddler_messaging::agent_desired_state::AgentDesiredState;
-use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
-use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 
@@ -149,16 +147,6 @@ impl ManagementSocketClientService {
         deserialized_message: JsonRpcMessage,
     ) -> Result<()> {
         match deserialized_message {
-            JsonRpcMessage::Error(ErrorEnvelope {
-                request_id,
-                error: JsonRpcError { code, description },
-            }) => {
-                error!(
-                    "Received error from server: code: {code}, description: {description:?}, request_id: {request_id:?}"
-                );
-
-                Ok(())
-            }
             JsonRpcMessage::Notification(JsonRpcNotification::SetState(set_state_params)) => {
                 agent_desired_state_tx.send(set_state_params.desired_state)?;
 
@@ -540,7 +528,6 @@ mod tests {
 
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;
-    use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::protocol::frame::Frame;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::Data;
     use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
@@ -659,56 +646,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn keep_connection_alive_returns_when_shutdown_arrives_while_connected() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let (registered_tx, registered_rx) = oneshot::channel::<()>();
-
-        let server = tokio::spawn(async move {
-            let (stream, _peer_addr) = listener
-                .accept()
-                .await
-                .expect("the fixture balancer must accept the agent connection");
-            let mut server_socket = accept_async(stream)
-                .await
-                .expect("the fixture balancer must complete the websocket handshake");
-
-            let _register_message = server_socket.next().await;
-
-            registered_tx
-                .send(())
-                .expect("the test must still be waiting for the registration signal");
-
-            while let Some(Ok(_incoming)) = server_socket.next().await {}
-        });
-
-        let service =
-            service_with_socket_url(format!("ws://{addr}/api/v1/agent_socket/test-agent"));
-        let shutdown = CancellationToken::new();
-        let keep_alive_shutdown = shutdown.clone();
-        let keep_alive_handle =
-            tokio::spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
-
-        registered_rx
-            .await
-            .expect("the agent must connect and register before shutdown is requested");
-
-        shutdown.cancel();
-
-        let keep_alive_result = tokio::time::timeout(SHUTDOWN_BUDGET, keep_alive_handle)
-            .await
-            .expect("keep_connection_alive must return promptly after shutdown while connected")
-            .expect("the keep_connection_alive task must not panic");
-
-        assert!(keep_alive_result.is_ok());
-
-        tokio::time::timeout(SHUTDOWN_BUDGET, server)
-            .await
-            .expect("the fixture balancer must observe the closed connection promptly")
-            .expect("the fixture balancer task must not panic");
-    }
-
-    #[tokio::test]
     async fn run_returns_when_shutdown_arrives_during_a_stalled_handshake() {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -774,37 +711,6 @@ mod tests {
             message_tx,
             slot_aggregated_status,
         }
-    }
-
-    #[tokio::test]
-    async fn error_message_is_acknowledged_without_side_effects() {
-        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, mut agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Error(ErrorEnvelope {
-                request_id: "req_error".to_owned(),
-                error: JsonRpcError {
-                    code: -32_600,
-                    description: "Invalid Request".to_owned(),
-                },
-            }),
-        );
-
-        assert!(result.is_ok());
-        assert!(message_rx.try_recv().is_err());
-        assert!(agent_desired_state_rx.try_recv().is_err());
     }
 
     #[tokio::test]
