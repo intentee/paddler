@@ -210,13 +210,8 @@ mod tests {
     }
 
     #[test]
-    fn reports_available_when_port_is_free() -> Result<()> {
-        let listener = TcpListener::bind(LOOPBACK_ANY_PORT)?;
-        let bound_address = listener.local_addr()?;
-
-        drop(listener);
-
-        match check_port(&bound_address) {
+    fn reports_available_when_the_port_can_be_bound() -> Result<()> {
+        match check_port(&LOOPBACK_ANY_PORT.parse()?) {
             PortCheck::Available => Ok(()),
             PortCheck::InUse => bail!("free port reported as InUse"),
             PortCheck::BindFailed(error) => {

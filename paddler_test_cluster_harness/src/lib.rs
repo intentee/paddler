@@ -1,9 +1,9 @@
 pub mod agent_config;
 pub mod agent_spawner;
 pub mod agents_stream_watcher;
-pub mod balancer_addresses;
 pub mod buffered_requests_stream_watcher;
 pub mod cluster;
+pub mod cluster_harness_error;
 pub mod cluster_params;
 pub mod collect_embedding_results;
 pub mod collect_generated_tokens;

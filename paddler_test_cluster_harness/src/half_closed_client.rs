@@ -61,10 +61,7 @@ mod tests {
 
     #[tokio::test]
     async fn reports_the_address_it_could_not_reach() -> Result<()> {
-        let unbound_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?;
-        let unreachable_addr = unbound_listener.local_addr()?;
-
-        drop(unbound_listener);
+        let unreachable_addr = SocketAddr::from(([127, 0, 0, 1], 1));
 
         let connect_error = HalfClosedClient::post_json_then_half_close(
             unreachable_addr,

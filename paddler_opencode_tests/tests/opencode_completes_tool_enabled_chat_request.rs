@@ -23,11 +23,7 @@ async fn opencode_completes_tool_enabled_chat_request() -> Result<()> {
     )
     .await?;
 
-    let api_base_url = cluster
-        .balancer
-        .addresses
-        .compat_openai_base_url()?
-        .join("v1")?;
+    let api_base_url = cluster.balancer.compat_openai_base_url()?.join("v1")?;
 
     let project = OpenCodeTestProject::create(&api_base_url, "PADDLER-OPENCODE-MARKER".to_owned())?;
 

@@ -36,10 +36,7 @@ async fn inference_socket_duplicate_request_id_is_answered_with_an_error() -> Re
     })
     .await?;
 
-    let pool = Pool::new(
-        cluster.balancer.addresses.inference_base_url()?,
-        NonZeroUsize::MIN,
-    );
+    let pool = Pool::new(cluster.balancer.inference_base_url()?, NonZeroUsize::MIN);
 
     let _first_request = pool
         .send_request(

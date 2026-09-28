@@ -81,6 +81,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 shellexpand = "3"
+socket2 = "0.6"
 iced = { version = "0.14", features = ["image", "svg", "tokio"] }
 if-addrs = "0.13"
 statum = "0.6"

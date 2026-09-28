@@ -1,43 +1,22 @@
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Result;
 use paddler_balancer::agent_controller_pool::AgentControllerPool;
+use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-use paddler_balancer::state_database_type::StateDatabaseType;
-use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
-#[cfg(feature = "web_admin_panel")]
-use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use tokio::sync::broadcast;
-use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
 
-use crate::balancer_service_bundle::BalancerBootstrapConfig;
+use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
+use crate::balancer_runner_params::BalancerRunnerParams;
 use crate::balancer_service_bundle::BalancerServiceBundle;
+use crate::bootstrap_error::BootstrapError;
 use crate::run_service_manager::run_service_manager;
 use crate::service_thread::ServiceThread;
 
-pub struct BalancerRunnerParams {
-    pub buffered_request_timeout: Duration,
-    pub inference_service_configuration: InferenceServiceConfiguration,
-    pub management_service_configuration: ManagementServiceConfiguration,
-    pub max_buffered_requests: i32,
-    pub openai_service_configuration: Option<OpenAIServiceConfiguration>,
-    pub cancellation_token: CancellationToken,
-    pub shutdown_options: ServiceShutdownOptions,
-    pub state_database_type: StateDatabaseType,
-    pub statsd_prefix: String,
-    pub statsd_service_configuration: Option<StatsdServiceConfiguration>,
-    #[cfg(feature = "web_admin_panel")]
-    pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
-}
-
 pub struct BalancerRunner {
+    pub addresses: BalancerAddresses,
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
@@ -61,7 +40,7 @@ impl BalancerRunner {
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         }: BalancerRunnerParams,
-    ) -> Result<Self> {
+    ) -> Result<Self, BootstrapError> {
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration,
@@ -76,6 +55,7 @@ impl BalancerRunner {
         })
         .await?;
 
+        let addresses = bundle.addresses;
         let agent_controller_pool = bundle.agent_controller_pool.clone();
         let balancer_applicable_state_holder = bundle.balancer_applicable_state_holder.clone();
         let balancer_desired_state_tx = bundle.balancer_desired_state_tx.clone();
@@ -86,6 +66,7 @@ impl BalancerRunner {
         });
 
         Ok(Self {
+            addresses,
             agent_controller_pool,
             balancer_applicable_state_holder,
             balancer_desired_state_tx,

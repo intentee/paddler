@@ -1,3 +1,4 @@
+use std::io::stdout;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -14,10 +15,10 @@ use paddler_balancer::statsd_service::configuration::Configuration as StatsdServ
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler_bootstrap::balancer_service_bundle::BalancerBootstrapConfig;
+use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
+use paddler_bootstrap::run_service_manager::run_service_manager;
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceManager;
 use trzcina::ServiceShutdownOptions;
 
 use super::value_parser::parse_duration::parse_duration;
@@ -146,15 +147,9 @@ impl Handler for Balancer {
         })
         .await?;
 
-        let mut service_manager = ServiceManager::default();
-        service_manager.register_bundle(bundle).await?;
+        bundle.addresses.write_json_line(stdout().lock())?;
 
-        service_manager
-            .start(shutdown)
-            .run_to_completion(shutdown_options)
-            .await
-            .into_result()
-            .map_err(anyhow::Error::from)
+        run_service_manager(bundle, shutdown, shutdown_options).await
     }
 }
 

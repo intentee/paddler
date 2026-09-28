@@ -30,9 +30,9 @@ use paddler_balancer::web_admin_panel_service::configuration::Configuration as W
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner::AgentRunnerParams;
+use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
+use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;

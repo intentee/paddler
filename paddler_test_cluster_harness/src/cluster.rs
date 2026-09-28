@@ -60,9 +60,9 @@ impl Cluster {
         agent_spawner: Box<dyn AgentSpawner>,
         desired_state: Option<&BalancerDesiredState>,
     ) -> Result<Self> {
-        let management_base_url = balancer.addresses.management_base_url()?;
-        let inference_base_url = balancer.addresses.inference_base_url()?;
-        let openai_base_url = balancer.addresses.compat_openai_base_url()?;
+        let management_base_url = balancer.management_base_url()?;
+        let inference_base_url = balancer.inference_base_url()?;
+        let openai_base_url = balancer.compat_openai_base_url()?;
 
         let client_management = ClientManagement::new(management_base_url);
         let client_inference = ClientInference::new(ClientInferenceParams {
@@ -293,6 +293,41 @@ impl Cluster {
         self.buffered_requests_watcher
             .until(observation_window, assert_count(expected_count))
             .await
+    }
+
+    pub async fn register_agents(
+        &mut self,
+        agents: &[AgentConfig],
+        wait_for_slots_ready: bool,
+    ) -> Result<()> {
+        let mut last_ready_snapshot = None;
+
+        for agent in agents {
+            self.spawn_additional_agent(agent)?;
+
+            if wait_for_slots_ready {
+                last_ready_snapshot = Some(
+                    self.wait_for_agent_ready(&agent.name, agent.slot_count)
+                        .await?,
+                );
+            }
+        }
+
+        let registered_snapshot = match last_ready_snapshot {
+            Some(snapshot) => snapshot,
+            None => self
+                .wait_for_agent_count(agents.len())
+                .await
+                .context("not all agents registered")?,
+        };
+
+        self.agent_ids = registered_snapshot
+            .agents
+            .iter()
+            .map(|registered_agent| registered_agent.id.clone())
+            .collect();
+
+        Ok(())
     }
 
     pub fn spawn_additional_agent(&mut self, config: &AgentConfig) -> Result<()> {

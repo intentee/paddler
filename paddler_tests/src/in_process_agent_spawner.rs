@@ -1,6 +1,6 @@
 use anyhow::Result;
 use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner::AgentRunnerParams;
+use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
 use tokio_util::sync::CancellationToken;
 
 use crate::in_process_agent::InProcessAgent;

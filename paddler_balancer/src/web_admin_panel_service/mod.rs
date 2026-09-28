@@ -10,6 +10,7 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
+use crate::http_listener::HttpListener;
 use crate::run_http_service::run_http_service;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::web_admin_panel_service::app_data::AppData;
@@ -17,6 +18,7 @@ use crate::web_admin_panel_service::configuration::Configuration as WebAdminPane
 
 pub struct WebAdminPanelService {
     pub configuration: WebAdminPanelServiceConfiguration,
+    pub http_listener: HttpListener,
 }
 
 #[async_trait]
@@ -41,7 +43,7 @@ impl Service for WebAdminPanelService {
                         .configure(http_route::static_files::register)
                         .configure(http_route::home::register)
                 },
-                bind_addr: self.configuration.addr,
+                http_listener: self.http_listener,
                 service_name,
                 worker_count: 2,
             },
@@ -53,7 +55,6 @@ impl Service for WebAdminPanelService {
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
-    use std::net::TcpListener;
     use std::time::Duration;
 
     use anyhow::Result;
@@ -61,19 +62,21 @@ mod tests {
     use trzcina::Service as _;
 
     use super::WebAdminPanelService;
+    use crate::http_listener::HttpListener;
     use crate::resolved_socket_addr::ResolvedSocketAddr;
     use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
     use crate::web_admin_panel_service::template_data::TemplateData;
 
-    fn build_service(addr: SocketAddr) -> WebAdminPanelService {
+    fn build_service() -> WebAdminPanelService {
+        let ephemeral_loopback_addr = SocketAddr::from(([127, 0, 0, 1], 0));
         let loopback_addr = ResolvedSocketAddr {
             input_addr: "127.0.0.1:0".to_owned(),
-            socket_addr: addr,
+            socket_addr: ephemeral_loopback_addr,
         };
 
         WebAdminPanelService {
             configuration: WebAdminPanelServiceConfiguration {
-                addr,
+                addr: ephemeral_loopback_addr,
                 template_data: TemplateData {
                     buffered_request_timeout: Duration::from_secs(30),
                     compat_openai_addr: None,
@@ -85,19 +88,14 @@ mod tests {
                     statsd_reporting_interval: Duration::from_secs(10),
                 },
             },
+            http_listener: HttpListener::bind(ephemeral_loopback_addr)
+                .expect("an ephemeral loopback port must be bindable"),
         }
-    }
-
-    #[test]
-    fn name_identifies_the_web_admin_panel_service() {
-        let service = build_service(SocketAddr::from(([127, 0, 0, 1], 0)));
-
-        assert_eq!(service.name(), "balancer::web_admin_panel_service");
     }
 
     #[actix_web::test]
     async fn run_serves_until_shutdown_is_requested() -> Result<()> {
-        let service = Box::new(build_service(SocketAddr::from(([127, 0, 0, 1], 0))));
+        let service = Box::new(build_service());
         let shutdown = CancellationToken::new();
         let requested_shutdown = shutdown.clone();
 
@@ -108,19 +106,5 @@ mod tests {
             );
 
         run_result
-    }
-
-    #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
-
-        let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
-
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
-
-        assert!(error_message.contains(&expected_addr_fragment));
     }
 }

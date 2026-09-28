@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 use std::str::FromStr as _;
 
 use anyhow::Context as _;
@@ -7,13 +9,12 @@ use paddler_balancer::inference_service::configuration::Configuration as Inferen
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::state_database_type::StateDatabaseType;
 use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
+use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
 use crate::in_process_agent_spawner::InProcessAgentSpawner;
 use crate::in_process_balancer::InProcessBalancer;
-use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::running_balancer::RunningBalancer;
@@ -33,25 +34,24 @@ pub async fn start_cluster(
 ) -> Result<Cluster> {
     log::set_max_level(log::LevelFilter::Trace);
 
-    let addresses = BalancerAddresses::pick()?;
-    let management_address = addresses.management.to_string();
+    let ephemeral_loopback_addr = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
         .context("failed to parse state_database_url")?;
 
     let balancer_runner = BalancerRunner::start(BalancerRunnerParams {
         buffered_request_timeout,
         inference_service_configuration: InferenceServiceConfiguration {
-            addr: addresses.inference,
+            addr: ephemeral_loopback_addr,
             cors_allowed_hosts: inference_cors_allowed_hosts,
             inference_item_timeout,
         },
         management_service_configuration: ManagementServiceConfiguration {
-            addr: addresses.management,
+            addr: ephemeral_loopback_addr,
             cors_allowed_hosts: management_cors_allowed_hosts,
         },
         max_buffered_requests,
         openai_service_configuration: Some(OpenAIServiceConfiguration {
-            addr: addresses.compat_openai,
+            addr: ephemeral_loopback_addr,
         }),
         cancellation_token: CancellationToken::new(),
         shutdown_options: ServiceShutdownOptions::default(),
@@ -64,8 +64,11 @@ pub async fn start_cluster(
     .await
     .context("failed to start in-process BalancerRunner")?;
 
-    let running_balancer =
-        RunningBalancer::new(addresses, Box::new(InProcessBalancer::new(balancer_runner)));
+    let management_address = balancer_runner.addresses.management.to_string();
+    let running_balancer = RunningBalancer::new(
+        balancer_runner.addresses,
+        Box::new(InProcessBalancer::new(balancer_runner)),
+    );
 
     let mut cluster = Cluster::connect(
         CancellationToken::new(),
@@ -75,34 +78,9 @@ pub async fn start_cluster(
     )
     .await?;
 
-    let expected_agent_count = agents.len();
-    let mut last_ready_snapshot = None;
-
-    for agent in &agents {
-        cluster.spawn_additional_agent(agent)?;
-
-        if wait_for_slots_ready {
-            last_ready_snapshot = Some(
-                cluster
-                    .wait_for_agent_ready(&agent.name, agent.slot_count)
-                    .await?,
-            );
-        }
-    }
-
-    let registered_snapshot = match last_ready_snapshot {
-        Some(snapshot) => snapshot,
-        None => cluster
-            .wait_for_agent_count(expected_agent_count)
-            .await
-            .context("not all in-process agents registered")?,
-    };
-
-    cluster.agent_ids = registered_snapshot
-        .agents
-        .iter()
-        .map(|registered_agent| registered_agent.id.clone())
-        .collect();
+    cluster
+        .register_agents(&agents, wait_for_slots_ready)
+        .await?;
 
     Ok(cluster)
 }

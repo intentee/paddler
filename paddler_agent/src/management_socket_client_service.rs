@@ -642,14 +642,8 @@ mod tests {
 
     #[tokio::test]
     async fn keep_connection_alive_errors_when_the_balancer_refuses_the_connection() {
-        let probe = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let refused_addr = probe.local_addr().unwrap();
-
-        drop(probe);
-
-        let service = service_with_socket_url(format!(
-            "ws://{refused_addr}/api/v1/agent_socket/test-agent"
-        ));
+        let service =
+            service_with_socket_url("ws://127.0.0.1:1/api/v1/agent_socket/test-agent".to_owned());
         let shutdown = CancellationToken::new();
 
         let keep_alive_result =

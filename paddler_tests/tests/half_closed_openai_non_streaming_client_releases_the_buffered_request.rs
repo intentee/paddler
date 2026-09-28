@@ -16,7 +16,7 @@ async fn half_closed_openai_non_streaming_client_releases_the_buffered_request()
     .await?;
 
     let mut client = HalfClosedClient::post_json_then_half_close(
-        cluster.balancer.addresses.compat_openai,
+        cluster.balancer.compat_openai_addr()?,
         "/v1/chat/completions",
         &json!({
             "max_completion_tokens": 2048,

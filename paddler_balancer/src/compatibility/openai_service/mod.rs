@@ -66,8 +66,8 @@ use trzcina::Service;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::openai_service::app_data::AppData;
-use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use crate::create_cors_middleware::create_cors_middleware;
+use crate::http_listener::HttpListener;
 use crate::http_route as common_http_route;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::run_http_service::run_http_service;
@@ -76,8 +76,8 @@ use crate::run_http_service_parameters::RunHttpServiceParameters;
 pub struct OpenAIService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
+    pub http_listener: HttpListener,
     pub inference_service_configuration: InferenceServiceConfiguration,
-    pub openai_service_configuration: OpenAIServiceConfiguration,
 }
 
 #[async_trait]
@@ -112,62 +112,11 @@ impl Service for OpenAIService {
                         .configure(http_route::post_chat_completions::register)
                         .configure(http_route::post_responses::register)
                 },
-                bind_addr: self.openai_service_configuration.addr,
+                http_listener: self.http_listener,
                 service_name,
                 worker_count: 16,
             },
         )
         .await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::net::SocketAddr;
-    use std::net::TcpListener;
-    use std::sync::Arc;
-    use std::time::Duration;
-
-    use tokio_util::sync::CancellationToken;
-    use trzcina::Service as _;
-
-    use super::OpenAIService;
-    use crate::agent_controller_pool::AgentControllerPool;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use crate::buffered_request_manager::BufferedRequestManager;
-    use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-    use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-
-    fn build_service(addr: SocketAddr) -> OpenAIService {
-        let agent_controller_pool = Arc::new(AgentControllerPool::default());
-
-        OpenAIService {
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
-            buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                agent_controller_pool,
-                Duration::from_secs(30),
-                32,
-            )),
-            inference_service_configuration: InferenceServiceConfiguration {
-                addr: SocketAddr::from(([127, 0, 0, 1], 0)),
-                cors_allowed_hosts: vec!["http://127.0.0.1:8080".to_owned()],
-                inference_item_timeout: Duration::from_secs(30),
-            },
-            openai_service_configuration: OpenAIServiceConfiguration { addr },
-        }
-    }
-
-    #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
-
-        let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
-
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
-
-        assert!(error_message.contains(&expected_addr_fragment));
     }
 }
