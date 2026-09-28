@@ -14,7 +14,7 @@ use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
-use tokio_tungstenite::connect_async;
+use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
@@ -310,7 +310,11 @@ impl ManagementSocketClientService {
         info!("Connecting to management server at {}", self.socket_url);
 
         let (ws_stream, _response) = match shutdown
-            .run_until_cancelled(connect_async(self.socket_url.clone()))
+            .run_until_cancelled(connect_async_with_config(
+                self.socket_url.clone(),
+                None,
+                true,
+            ))
             .await
         {
             Some(connect_outcome) => connect_outcome?,
