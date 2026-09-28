@@ -13,11 +13,12 @@ def base_url() -> str:
     base_url = os.environ.get(BASE_URL_ENV)
 
     if not base_url:
-        raise RuntimeError(
+        message = (
             f"{BASE_URL_ENV} must point at a running Paddler OpenAI-compatible "
             "endpoint, e.g. http://127.0.0.1:8063/v1 — this suite's sole purpose "
             "is to drive that endpoint with the OpenAI client."
         )
+        raise RuntimeError(message)
 
     return base_url
 
