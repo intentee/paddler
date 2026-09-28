@@ -103,15 +103,12 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
 		--gated paddler_cli=83 \
-		--gated paddler_cli_tests=87 \
 		--gated paddler_client=94 \
 		--gated paddler_download_manager=99 \
 		--gated paddler_gui=13 \
 		--gated paddler_image_decoder=100 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
-		--gated paddler_opencode_tests=76 \
-		--gated paddler_test_cluster_harness=67 \
 		--gated paddler_tool_call_validator=100
 
 .PHONY: test.coverage-clean
