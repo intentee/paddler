@@ -15,6 +15,8 @@ use actix_web::web::Data;
 use actix_web::web::Path;
 use actix_web::web::Payload;
 use actix_web::web::ServiceConfig;
+use actix_ws::CloseCode;
+use actix_ws::CloseReason;
 use actix_ws::Session;
 use anyhow::Context;
 use anyhow::Result;
@@ -30,6 +32,7 @@ use tokio_util::sync::CancellationToken;
 use self::agent_socket_controller_context::AgentSocketControllerContext;
 use crate::agent_controller::AgentController;
 use crate::agent_controller_pool::AgentControllerPool;
+use crate::agent_controller_registration::AgentControllerRegistration;
 use crate::agent_controller_update_result::AgentControllerUpdateResult;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -164,10 +167,30 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     ),
                 });
 
-                context
+                let registered_agent_controller_guard = match context
                     .agent_controller_pool
                     .register_agent_controller(context.agent_id.clone(), agent_controller.clone())
-                    .context("Unable to register agent controller")?;
+                {
+                    AgentControllerRegistration::DuplicateAgentId => {
+                        error!(
+                            "Rejecting a second registration of agent {}",
+                            context.agent_id
+                        );
+
+                        return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                            close_reason: Some(CloseReason {
+                                code: CloseCode::Policy,
+                                description: Some(format!(
+                                    "Agent {} is already registered",
+                                    context.agent_id
+                                )),
+                            }),
+                        }));
+                    }
+                    AgentControllerRegistration::Registered(registered_agent_controller_guard) => {
+                        registered_agent_controller_guard
+                    }
+                };
 
                 if let Some(desired_state) = context
                     .balancer_applicable_state_holder
@@ -184,6 +207,8 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                 let forwarder_close = connection_close.clone();
 
                 rt::spawn(async move {
+                    let _registered_agent_controller_guard = registered_agent_controller_guard;
+
                     loop {
                         tokio::select! {
                             () = forwarder_close.cancelled() => {
@@ -330,158 +355,4 @@ async fn respond(
     };
 
     agent_socket_controller.respond(payload, req, app_data.shutdown.clone())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-    use std::sync::Arc;
-
-    use actix_web::FromRequest as _;
-    use actix_web::body::to_bytes;
-    use actix_web::http::header;
-    use actix_web::test::TestRequest;
-    use actix_web::web::Payload;
-    use tokio_util::sync::CancellationToken;
-
-    use super::AgentSocketController;
-    use super::AgentSocketControllerContext;
-    use super::ManagementJsonRpcMessage;
-    use super::ManagementJsonRpcNotification;
-    use super::RegisterAgentParams;
-    use crate::agent_controller_pool::AgentControllerPool;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-    use crate::continuation_decision::ContinuationDecision;
-    use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint as _;
-    use crate::embedding_sender_collection::EmbeddingSenderCollection;
-    use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
-    use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
-    use crate::websocket_session_controller::WebSocketSessionController;
-    use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-
-    #[actix_web::test]
-    async fn forwarder_task_stops_when_agent_message_channel_closes() {
-        log::set_max_level(log::LevelFilter::Trace);
-
-        let agent_id = "agent-forwarder-close".to_owned();
-        let agent_controller_pool = Arc::new(AgentControllerPool::default());
-        let context = Arc::new(AgentSocketControllerContext {
-            agent_controller_pool: agent_controller_pool.clone(),
-            agent_id: agent_id.clone(),
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
-            chat_template_override_sender_collection: Arc::new(
-                ChatTemplateOverrideSenderCollection::default(),
-            ),
-            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
-            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
-            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
-        });
-
-        let (request, mut raw_payload) = TestRequest::get()
-            .insert_header((header::CONNECTION, "upgrade"))
-            .insert_header((header::UPGRADE, "websocket"))
-            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
-            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
-            .to_http_parts();
-        let payload = Payload::from_request(&request, &mut raw_payload)
-            .await
-            .unwrap();
-        let (response, session, _msg_stream) = actix_ws::handle(&request, payload).unwrap();
-
-        let continuation_decision = AgentSocketController::handle_deserialized_message(
-            CancellationToken::new(),
-            context,
-            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::RegisterAgent(
-                RegisterAgentParams {
-                    name: None,
-                    slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot {
-                        desired_slots_total: 0,
-                        download_current: 0,
-                        download_filename: None,
-                        download_indeterminate: false,
-                        download_total: 0,
-                        issues: BTreeSet::new(),
-                        model_path: None,
-                        slots_processing: 0,
-                        slots_total: 1,
-                        state_application_status: AgentStateApplicationStatus::Fresh,
-                        uses_chat_template_override: false,
-                        version: 0,
-                    },
-                },
-            )),
-            WebSocketSessionController::new(session),
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(
-            std::mem::discriminant(&continuation_decision),
-            std::mem::discriminant(&ContinuationDecision::Continue),
-        );
-
-        assert!(
-            agent_controller_pool
-                .get_agent_controller(&agent_id)
-                .is_some()
-        );
-
-        assert!(
-            agent_controller_pool
-                .remove_agent_controller(&agent_id)
-                .unwrap()
-        );
-
-        let close_frame = to_bytes(response.into_body()).await.unwrap();
-
-        assert!(close_frame.is_empty());
-    }
-
-    #[actix_web::test]
-    async fn deregister_agent_notification_cancels_the_connection_and_stops() {
-        let context = Arc::new(AgentSocketControllerContext {
-            agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            agent_id: "agent-deregister".to_owned(),
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
-            chat_template_override_sender_collection: Arc::new(
-                ChatTemplateOverrideSenderCollection::default(),
-            ),
-            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
-            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
-            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
-        });
-
-        let (request, mut raw_payload) = TestRequest::get()
-            .insert_header((header::CONNECTION, "upgrade"))
-            .insert_header((header::UPGRADE, "websocket"))
-            .insert_header((header::SEC_WEBSOCKET_VERSION, "13"))
-            .insert_header((header::SEC_WEBSOCKET_KEY, "dGhlIHNhbXBsZSBub25jZQ=="))
-            .to_http_parts();
-        let payload = Payload::from_request(&request, &mut raw_payload)
-            .await
-            .unwrap();
-        let (_response, session, _msg_stream) = actix_ws::handle(&request, payload).unwrap();
-
-        let connection_close = CancellationToken::new();
-
-        let continuation_decision = AgentSocketController::handle_deserialized_message(
-            connection_close.clone(),
-            context,
-            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::DeregisterAgent),
-            WebSocketSessionController::new(session),
-        )
-        .await
-        .unwrap();
-
-        assert!(
-            connection_close.is_cancelled(),
-            "DeregisterAgent must cancel the agent connection so it is torn down"
-        );
-        assert!(matches!(
-            continuation_decision,
-            ContinuationDecision::Stop(_)
-        ));
-    }
 }

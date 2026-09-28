@@ -18,6 +18,8 @@ use log::error;
 use log::warn;
 use paddler_messaging::rpc_message::RpcMessage;
 use serde::de::DeserializeOwned;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
@@ -52,75 +54,55 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         context: Arc<Self::Context>,
         msg: Option<Result<AggregatedMessage, ProtocolError>>,
         session: &mut Session,
-    ) -> Result<ContinuationDecision> {
+        continuation_stop_tx: UnboundedSender<ContinuationStopParameters>,
+    ) -> ContinuationDecision {
         match msg {
             Some(Ok(AggregatedMessage::Binary(_))) => {
                 debug!("Received binary message, but only text messages are supported");
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
             Some(Ok(AggregatedMessage::Close(_))) | None => {
-                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
-                    close_reason: None,
-                }));
+                ContinuationDecision::Stop(ContinuationStopParameters { close_reason: None })
             }
             Some(Ok(AggregatedMessage::Ping(msg))) => {
                 if session.pong(&msg).await.is_err() {
-                    return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                    return ContinuationDecision::Stop(ContinuationStopParameters {
                         close_reason: None,
-                    }));
+                    });
                 }
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
-            Some(Ok(AggregatedMessage::Pong(_))) => {
-                // ignore pong messages
-                Ok(ContinuationDecision::Continue)
-            }
+            Some(Ok(AggregatedMessage::Pong(_))) => ContinuationDecision::Continue,
             Some(Ok(AggregatedMessage::Text(text))) => {
-                match Self::handle_text_message(
+                Self::handle_text_message(
                     connection_close,
-                    context.clone(),
+                    context,
                     &text,
                     WebSocketSessionController::<Self::OutgoingMessage>::new(session.clone()),
-                )
-                .await
-                {
-                    Ok(continuation_decision) => return Ok(continuation_decision),
-                    Err(err) => {
-                        error!("Error handling text message {text}: {err:?}");
+                    continuation_stop_tx,
+                );
 
-                        Ok(ContinuationDecision::Continue)
-                    }
-                }
+                ContinuationDecision::Continue
             }
             Some(Err(protocol_error)) => {
                 error!("Error receiving message: {protocol_error:?}");
 
-                Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                ContinuationDecision::Stop(ContinuationStopParameters {
                     close_reason: Some(close_reason_for_protocol_error(&protocol_error)),
-                }))
+                })
             }
         }
     }
 
-    async fn handle_serialization_error(
-        _connection_close: CancellationToken,
-        _context: Arc<Self::Context>,
-        error: serde_json::Error,
-        _websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
-    ) -> Result<ContinuationDecision> {
-        error!("Paddler-RPC serialization error: {error}");
-
-        Ok(ContinuationDecision::Continue)
-    }
-
-    async fn handle_text_message(
+    fn handle_text_message(
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         text: &str,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
-    ) -> Result<ContinuationDecision> {
+        continuation_stop_tx: UnboundedSender<ContinuationStopParameters>,
+    ) {
         match serde_json::from_str::<Self::IncomingMessage>(text) {
             Ok(deserialized_message) => {
                 rt::spawn(async move {
@@ -132,10 +114,14 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                     )
                     .await
                     {
-                        Ok(ContinuationDecision::Continue) => {
-                            // Continue processing messages
+                        Ok(ContinuationDecision::Continue) => {}
+                        Ok(ContinuationDecision::Stop(stop_parameters)) => {
+                            if continuation_stop_tx.send(stop_parameters).is_err() {
+                                debug!(
+                                    "The connection stopped before the handler asked it to stop"
+                                );
+                            }
                         }
-                        Ok(ContinuationDecision::Stop(_)) => connection_close.cancel(),
                         Err(err) => {
                             error!("Error handling deserialized message: {err:?}");
 
@@ -143,30 +129,9 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                         }
                     }
                 });
-
-                Ok(ContinuationDecision::Continue)
-            }
-            Err(err @ serde_json::Error { .. }) if err.is_data() || err.is_syntax() => {
-                error!("JSON-RPC syntax error: {err:?}");
-
-                Self::handle_serialization_error(
-                    connection_close,
-                    context,
-                    err,
-                    websocket_session_controller,
-                )
-                .await
             }
             Err(err) => {
-                error!("Error handling JSON-RPC request: {err:?}");
-
-                Self::handle_serialization_error(
-                    connection_close,
-                    context,
-                    err,
-                    websocket_session_controller,
-                )
-                .await
+                error!("Paddler-RPC message could not be deserialized: {err}");
             }
         }
     }
@@ -211,6 +176,8 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
 
                 return;
             }
+            let (continuation_stop_tx, mut continuation_stop_rx) =
+                mpsc::unbounded_channel::<ContinuationStopParameters>();
             let mut ping_ticker = interval(PING_INTERVAL);
 
             ping_ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -218,26 +185,22 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             loop {
                 tokio::select! {
                     msg = aggregated_msg_stream.next() => {
-                        match Self::handle_aggregated_message(
+                        if let ContinuationDecision::Stop(stop_parameters) = Self::handle_aggregated_message(
                             connection_close.clone(),
                             context.clone(),
                             msg,
                             &mut session,
+                            continuation_stop_tx.clone(),
                         ).await {
-                            Ok(ContinuationDecision::Continue) => {
-                                // continue processing messages
-                            }
-                            Ok(ContinuationDecision::Stop(stop_parameters)) => {
-                                close_reason = stop_parameters.close_reason;
+                            close_reason = stop_parameters.close_reason;
 
-                                break;
-                            }
-                            Err(err) => {
-                                error!("Error handling aggregated message: {err:?}");
-
-                                break;
-                            },
+                            break;
                         }
+                    }
+                    Some(stop_parameters) = continuation_stop_rx.recv() => {
+                        close_reason = stop_parameters.close_reason;
+
+                        break;
                     }
                     _ = ping_ticker.tick() => {
                         if session.ping(b"").await.is_err() {

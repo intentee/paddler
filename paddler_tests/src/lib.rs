@@ -1,3 +1,4 @@
+pub mod conversation_with_a_tool_requiring_an_undeclared_property;
 pub mod in_process_agent;
 pub mod in_process_agent_spawner;
 pub mod in_process_balancer;

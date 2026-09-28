@@ -70,14 +70,18 @@ impl RawInferenceSocket {
         Ok(self.websocket.send(message).await?)
     }
 
-    pub async fn send_raw_prompt_request(&mut self, request_id: &str) -> Result<()> {
+    pub async fn send_raw_prompt_request(
+        &mut self,
+        request_id: &str,
+        max_tokens: i32,
+    ) -> Result<()> {
         let request: InferenceServerMessage<ValidatedParametersSchema> =
             InferenceServerMessage::Request(RequestEnvelope {
                 id: request_id.to_owned(),
                 request: InferenceServerRequest::ContinueFromRawPrompt(
                     ContinueFromRawPromptParams {
                         grammar: None,
-                        max_tokens: 1,
+                        max_tokens,
                         raw_prompt: "Hello".to_owned(),
                     },
                 ),

@@ -26,7 +26,7 @@ async fn inference_socket_keeps_serving_after_malformed_json() {
         .await
         .expect("the frame must be sent");
     socket
-        .send_raw_prompt_request("request-after-malformed-json")
+        .send_raw_prompt_request("request-after-malformed-json", 1)
         .await
         .expect("the follow-up request must be sent");
 

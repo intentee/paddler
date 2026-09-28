@@ -11,6 +11,7 @@ use paddler_messaging::validates::Validates as _;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::http_stream_from_agent::http_stream_from_agent;
 use crate::inference_service::app_data::AppData;
+use crate::invalid_request_parameters_description::invalid_request_parameters_description;
 use crate::require_token_generation_enabled::require_token_generation_enabled;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -30,8 +31,8 @@ async fn respond(
         match params.into_inner().validate() {
             Ok(validated_params) => validated_params,
             Err(validation_error) => {
-                return Err(ErrorBadRequest(format!(
-                    "Invalid request parameters: {validation_error}"
+                return Err(ErrorBadRequest(invalid_request_parameters_description(
+                    &validation_error,
                 )));
             }
         },

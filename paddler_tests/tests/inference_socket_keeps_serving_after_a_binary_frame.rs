@@ -27,7 +27,7 @@ async fn inference_socket_keeps_serving_after_a_binary_frame() {
         .await
         .expect("the frame must be sent");
     socket
-        .send_raw_prompt_request("request-after-binary-frame")
+        .send_raw_prompt_request("request-after-binary-frame", 1)
         .await
         .expect("the follow-up request must be sent");
 
