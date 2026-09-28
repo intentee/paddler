@@ -1,7 +1,5 @@
 use std::num::NonZeroUsize;
 
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_client::inference_socket::pool::Pool;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
@@ -28,15 +26,21 @@ fn raw_prompt_message(request_id: &str) -> InferenceServerMessage<ValidatedParam
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn inference_socket_duplicate_request_id_is_answered_with_an_error() -> Result<()> {
+async fn inference_socket_duplicate_request_id_is_answered_with_an_error() {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         ..ClusterParams::without_request_expiry()
     })
-    .await?;
-
-    let pool = Pool::new(cluster.balancer.inference_base_url()?, NonZeroUsize::MIN);
+    .await
+    .expect("a cluster without agents must start");
+    let pool = Pool::new(
+        cluster
+            .balancer
+            .inference_base_url()
+            .expect("the inference service must have a base URL"),
+        NonZeroUsize::MIN,
+    );
 
     let _first_request = pool
         .send_request(
@@ -45,35 +49,29 @@ async fn inference_socket_duplicate_request_id_is_answered_with_an_error() -> Re
             raw_prompt_message(DUPLICATE_REQUEST_ID),
         )
         .await
-        .map_err(anyhow::Error::new)?;
-
-    let mut duplicate_request = pool
+        .expect("the first request must be sent");
+    let message = pool
         .send_request(
             CancellationToken::new(),
             DUPLICATE_REQUEST_ID.to_owned(),
             raw_prompt_message(DUPLICATE_REQUEST_ID),
         )
         .await
-        .map_err(anyhow::Error::new)?;
-
-    let message = duplicate_request
+        .expect("the duplicate request must be sent")
         .next()
         .await
-        .context(
+        .expect(
             "a duplicate request id must be answered instead of leaving the client waiting forever",
-        )?
-        .map_err(anyhow::Error::new)?;
+        )
+        .expect("the answer to the duplicate request must be readable");
 
-    match message {
-        InferenceClientMessage::Error(envelope) => {
-            assert_eq!(envelope.error.code, 400);
-        }
-        InferenceClientMessage::Notification(_) | InferenceClientMessage::Response(_) => {
-            anyhow::bail!("a duplicate request id must be answered with an error, got {message:?}");
-        }
-    }
+    assert!(matches!(
+        message,
+        InferenceClientMessage::Error(envelope) if envelope.error.code == 400
+    ));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

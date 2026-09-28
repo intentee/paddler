@@ -4,14 +4,16 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() {
-    let ModelCard { reference, .. } = nomic_embed_text_v1_5();
+async fn balancer_reports_multimodal_projection_cannot_be_loaded_for_missing_file() {
+    let ModelCard { reference, .. } = qwen3_0_6b();
+    let projection_path = "/nonexistent/projection.bin".to_owned();
     let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
         model: AgentDesiredModel::HuggingFace(reference),
+        multimodal_projection: AgentDesiredModel::LocalToAgent(projection_path.clone()),
         ..BalancerDesiredState::default()
     })
     .await
@@ -19,10 +21,10 @@ async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() {
 
     cluster
         .wait_for_first_agent_issue(|issue| {
-            matches!(issue, AgentIssue::UnableToFindChatTemplate(_))
+            matches!(issue, AgentIssue::MultimodalProjectionCannotBeLoaded(model_path) if model_path.model_path == projection_path)
         })
         .await
-        .expect("the agent must report UnableToFindChatTemplate for an embedding-only model");
+        .expect("the agent must report MultimodalProjectionCannotBeLoaded for the configured path");
 
     cluster
         .shutdown()

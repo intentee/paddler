@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 const N_BATCH: usize = 64;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_embedding_document_exceeds_n_batch() -> Result<()> {
+async fn agent_reports_oversized_document_and_embeds_the_rest() -> Result<()> {
     let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
         inference_parameters: InferenceParameters {

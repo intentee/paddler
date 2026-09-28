@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -292,6 +293,29 @@ impl Cluster {
     ) -> Result<BufferedRequestManagerSnapshot> {
         self.buffered_requests_watcher
             .until(observation_window, assert_count(expected_count))
+            .await
+    }
+
+    pub async fn wait_for_first_agent_issue<TIssueMatcher>(
+        &mut self,
+        issue_matcher: TIssueMatcher,
+    ) -> Result<AgentControllerPoolSnapshot>
+    where
+        TIssueMatcher: Fn(&AgentIssue) -> bool,
+    {
+        let agent_id = self
+            .agent_ids
+            .first()
+            .context("the cluster must have a registered agent")?
+            .clone();
+
+        self.agents_watcher
+            .until_agent(&agent_id, ObservationWindow::model_load(), |snapshot| {
+                snapshot
+                    .agents
+                    .iter()
+                    .any(|agent| agent.id == agent_id && agent.issues.iter().any(&issue_matcher))
+            })
             .await
     }
 

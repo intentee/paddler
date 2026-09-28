@@ -12,7 +12,7 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_internal_endpoint_pure_content_usage_breakdown() -> Result<()> {
+async fn agent_reports_only_content_tokens_in_usage_for_plain_content() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster

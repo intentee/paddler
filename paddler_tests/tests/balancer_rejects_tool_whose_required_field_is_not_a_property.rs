@@ -1,8 +1,4 @@
-#![cfg(feature = "tests_that_use_llms")]
-
-use anyhow::Result;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_client::error::Error as ClientError;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -12,20 +8,30 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
 use serde_json::Map;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+const BAD_REQUEST: u16 = 400;
 
+#[tokio::test(flavor = "multi_thread")]
+async fn balancer_rejects_tool_whose_required_field_is_not_a_property() {
+    let cluster = start_cluster(ClusterParams {
+        agents: Vec::new(),
+        wait_for_slots_ready: false,
+        ..ClusterParams::default()
+    })
+    .await
+    .expect("a cluster without agents must start");
     let mut name_properties = Map::new();
 
     name_properties.insert("name".to_owned(), json!({"type": "string"}));
 
-    let outcome = cluster
-        .continue_from_conversation_history(
+    let rejection = cluster
+        .client_inference
+        .post_continue_from_conversation_history(
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
@@ -51,14 +57,19 @@ async fn agent_rejects_tool_with_invalid_required_field_in_schema() -> Result<()
                 })],
             },
         )
-        .await;
+        .await
+        .err()
+        .expect("the balancer must reject a tool whose required field is not a property");
 
-    assert!(
-        outcome.is_err(),
-        "request with invalid schema (required field not in properties) must be rejected"
-    );
+    assert!(matches!(
+        rejection,
+        ClientError::UnexpectedResponseStatus { message, status, .. }
+            if status.as_u16() == BAD_REQUEST
+                && message == "Invalid request parameters: Required field 'nonexistent_field' not found in properties"
+    ));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

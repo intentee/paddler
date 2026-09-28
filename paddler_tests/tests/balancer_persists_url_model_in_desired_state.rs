@@ -1,5 +1,3 @@
-#![cfg(feature = "tests_that_use_llms")]
-
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;

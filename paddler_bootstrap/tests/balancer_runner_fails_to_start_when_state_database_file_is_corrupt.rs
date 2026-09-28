@@ -31,6 +31,7 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() {
 
     assert!(matches!(
         start_error,
-        BootstrapError::StateDatabaseReadFailed { .. }
+        BootstrapError::StateDatabaseReadFailed { source }
+            if source.root_cause().downcast_ref::<serde_json::Error>().is_some()
     ));
 }

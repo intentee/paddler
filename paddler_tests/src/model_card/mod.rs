@@ -1,8 +1,9 @@
 pub mod deepseek_r1_distill_llama_8b;
-pub mod gemma_4_e4b_it;
-pub mod gemma_4_e4b_it_mmproj;
-pub mod ministral_3_14b_reasoning;
-pub mod ministral_3_14b_reasoning_mmproj;
+pub mod gemma_4_e2b_it;
+pub mod gemma_4_e2b_it_mmproj;
+pub mod ministral_3_3b_reasoning;
+pub mod ministral_3_8b_reasoning;
+pub mod ministral_3_8b_reasoning_mmproj;
 pub mod nomic_embed_text_v1_5;
 pub mod qwen2_5_vl_3b;
 pub mod qwen2_5_vl_3b_mmproj;

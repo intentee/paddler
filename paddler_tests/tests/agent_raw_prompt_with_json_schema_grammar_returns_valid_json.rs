@@ -8,23 +8,24 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_gbnf_grammar_constrains_output_to_yes_or_no() -> Result<()> {
+async fn agent_raw_prompt_with_json_schema_grammar_returns_valid_json() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
         .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
-            grammar: Some(GrammarConstraint::Gbnf {
-                grammar: r#"root ::= "yes" | "no""#.to_owned(),
-                root: "root".to_owned(),
+            grammar: Some(GrammarConstraint::JsonSchema {
+                schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
             }),
-            max_tokens: 10,
-            raw_prompt: "<|im_start|>user\nIs the sky blue? Answer yes or no.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_owned(),
+            max_tokens: 50,
+            raw_prompt: "<|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_owned(),
         })
         .await?;
 
+    let parsed: serde_json::Value = serde_json::from_str(&collected.text)?;
+
     assert!(
-        collected.text == "yes" || collected.text == "no",
-        "expected 'yes' or 'no', got: {:?}",
+        parsed.get("answer").is_some(),
+        "expected JSON with 'answer' field, got: {:?}",
         collected.text
     );
 

@@ -5,7 +5,7 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::ministral_3_cluster_params::Ministral3ClusterParams;
 use crate::model_card::ModelCard;
-use crate::model_card::ministral_3_14b_reasoning::ministral_3_14b_reasoning;
+use crate::model_card::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
 use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -16,7 +16,7 @@ pub async fn start_cluster_with_ministral_3(
     let ModelCard {
         gpu_layer_count,
         reference,
-    } = ministral_3_14b_reasoning();
+    } = ministral_3_3b_reasoning();
 
     start_cluster(ClusterParams {
         agents,

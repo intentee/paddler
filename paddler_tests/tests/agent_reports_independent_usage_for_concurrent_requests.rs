@@ -14,7 +14,7 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() -> Result<()> {
+async fn agent_reports_independent_usage_for_concurrent_requests() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
 
     let prompts = ["Say hi.", "Count to three."];
@@ -62,8 +62,6 @@ async fn qwen3_internal_endpoint_concurrent_requests_keep_independent_usage() ->
         assert!(summary.usage.completion_tokens() > 0);
     }
 
-    // The two requests have different prompts and different generations;
-    // their usage breakdowns must not be byte-identical.
     assert_ne!(
         summaries[0].usage, summaries[1].usage,
         "concurrent requests reported identical usage; counters likely shared"

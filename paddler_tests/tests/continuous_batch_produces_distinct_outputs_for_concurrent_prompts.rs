@@ -13,7 +13,7 @@ use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn two_concurrent_prompts_produce_distinct_outputs() -> Result<()> {
+async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() -> Result<()> {
     let ModelCard {
         gpu_layer_count,
         reference,

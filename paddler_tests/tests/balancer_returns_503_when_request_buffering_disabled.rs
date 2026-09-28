@@ -1,5 +1,3 @@
-#![cfg(feature = "tests_that_use_llms")]
-
 use std::time::Duration;
 
 use anyhow::Context as _;

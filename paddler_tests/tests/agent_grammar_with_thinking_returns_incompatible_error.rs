@@ -38,7 +38,8 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
             result.token_result,
             GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
         )),
-        "expected GrammarIncompatibleWithThinking error"
+        "expected GrammarIncompatibleWithThinking, got: {:?}",
+        collected.token_results
     );
 
     cluster.shutdown().await?;

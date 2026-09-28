@@ -9,7 +9,7 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_generates_tokens_from_raw_prompt() -> Result<()> {
+async fn agent_generates_tokens_from_raw_prompt() -> Result<()> {
     let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster

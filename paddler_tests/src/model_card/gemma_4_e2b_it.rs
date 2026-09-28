@@ -3,12 +3,12 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use crate::model_card::ModelCard;
 
 #[must_use]
-pub fn ministral_3_14b_reasoning_mmproj() -> ModelCard {
+pub fn gemma_4_e2b_it() -> ModelCard {
     ModelCard {
         gpu_layer_count: 999,
         reference: HuggingFaceModelReference {
-            filename: "mmproj-F16.gguf".to_owned(),
-            repo_id: "unsloth/Ministral-3-14B-Reasoning-2512-GGUF".to_owned(),
+            filename: "gemma-4-E2B-it-Q4_K_M.gguf".to_owned(),
+            repo_id: "unsloth/gemma-4-E2B-it-GGUF".to_owned(),
             revision: "main".to_owned(),
         },
     }
