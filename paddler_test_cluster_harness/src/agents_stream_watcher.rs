@@ -460,5 +460,62 @@ mod tests {
         let error = watcher.wait_for_slots_ready(&[1, 2]).await.err().unwrap();
 
         assert!(format!("{error:#}").contains("issues"));
+        assert!(format!("{error:#}").contains("agent a:"));
+    }
+
+    #[tokio::test]
+    async fn until_returns_the_first_snapshot_matching_the_predicate() {
+        let mut watcher = make_watcher(vec![
+            AgentControllerPoolSnapshot {
+                agents: vec![snapshot_with_agent_and_slots("a", BTreeSet::new(), 0)],
+            },
+            AgentControllerPoolSnapshot {
+                agents: vec![snapshot_with_agent_and_slots("a", BTreeSet::new(), 1)],
+            },
+            AgentControllerPoolSnapshot {
+                agents: vec![snapshot_with_agent_and_slots("a", BTreeSet::new(), 4)],
+            },
+        ]);
+
+        let snapshot = watcher
+            .until(ObservationWindow::model_load(), |snapshot| {
+                snapshot.agents.iter().any(|agent| agent.slots_total >= 1)
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(snapshot.agents[0].slots_total, 1);
+    }
+
+    #[tokio::test]
+    async fn until_propagates_the_stream_error() {
+        let mut watcher = AgentsStreamWatcher::from_stream(Box::pin(stream::iter(vec![Err(
+            anyhow!("simulated SSE failure"),
+        )])));
+
+        let error = watcher
+            .until(ObservationWindow::model_load(), |_| true)
+            .await
+            .err()
+            .unwrap();
+
+        assert!(format!("{error:#}").contains("simulated SSE failure"));
+    }
+
+    #[tokio::test]
+    async fn until_errors_when_the_stream_closes_before_the_predicate_matches() {
+        let mut watcher = make_watcher(vec![AgentControllerPoolSnapshot {
+            agents: vec![snapshot_with_agent_and_slots("a", BTreeSet::new(), 0)],
+        }]);
+
+        let error = watcher
+            .until(ObservationWindow::model_load(), |_| false)
+            .await
+            .err()
+            .unwrap();
+
+        assert!(
+            format!("{error:#}").contains("agents stream closed before predicate was satisfied")
+        );
     }
 }

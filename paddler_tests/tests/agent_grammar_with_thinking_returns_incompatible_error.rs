@@ -32,15 +32,14 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
         })
         .await;
 
-    if let Ok(collected) = outcome {
-        assert!(
-            collected.token_results.iter().any(|result| matches!(
-                result.token_result,
-                GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
-            )),
-            "expected GrammarIncompatibleWithThinking error"
-        );
-    }
+    let collected = outcome?;
+    assert!(
+        collected.token_results.iter().any(|result| matches!(
+            result.token_result,
+            GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
+        )),
+        "expected GrammarIncompatibleWithThinking error"
+    );
 
     cluster.shutdown().await?;
 

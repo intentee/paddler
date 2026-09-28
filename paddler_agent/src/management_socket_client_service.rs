@@ -265,12 +265,10 @@ impl ManagementSocketClientService {
     ) -> Result<()> {
         match msg {
             Message::Text(text) => {
-                let deserialized_message = match serde_json::from_str::<JsonRpcMessage>(&text)
-                    .context(format!("Failed to parse JSON-RPC message: {text}"))
-                {
+                let deserialized_message = match serde_json::from_str::<JsonRpcMessage>(&text) {
                     Ok(deserialized_message) => deserialized_message,
                     Err(err) => {
-                        error!("Failed to deserialize message: {err}");
+                        error!("Failed to deserialize JSON-RPC message {text}: {err}");
 
                         return Ok(());
                     }

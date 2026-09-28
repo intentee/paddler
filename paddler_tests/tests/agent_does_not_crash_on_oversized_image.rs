@@ -1,12 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::fs;
 use std::future::Future;
 
-use anyhow::Context as _;
 use anyhow::Result;
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -16,24 +12,16 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_tests::start_cluster_with_smolvlm2_and_n_batch::start_cluster_with_smolvlm2_and_n_batch;
 use tokio_util::sync::CancellationToken;
-
-fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {
-    let fixture_path = format!("{}/../fixtures/{fixture_name}", env!("CARGO_MANIFEST_DIR"));
-    let bytes = fs::read(&fixture_path)
-        .with_context(|| format!("failed to read test fixture {fixture_path}"))?;
-    let encoded = BASE64_STANDARD.encode(&bytes);
-
-    Ok(format!("data:{mime_type};base64,{encoded}"))
-}
 
 fn drive_oversized_image_fixture(
     cluster: &Cluster,
     fixture_name: &str,
     mime_type: &str,
 ) -> Result<impl Future<Output = Result<()>> + Send + use<>> {
-    let image_data_uri = load_fixture_as_data_uri(fixture_name, mime_type)?;
+    let image_data_uri = load_fixture_data_uri(fixture_name, mime_type)?;
     let fixture_name = fixture_name.to_owned();
 
     let generation = cluster.continue_from_conversation_history(

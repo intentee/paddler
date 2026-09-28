@@ -1,8 +1,8 @@
-use llama_cpp_bindings::mtmd::MtmdBitmap;
+use paddler_messaging::image_url::ImageUrl;
 
 use crate::generation_request_rejection::GenerationRequestRejection;
 use crate::multimodal_prompt_support::MultimodalPromptSupport;
-use crate::prepared_multimodal_prompt::PreparedMultimodalPrompt;
+use crate::prompt_modality::PromptModality;
 
 pub enum ImageInput {
     Supported(MultimodalPromptSupport),
@@ -10,21 +10,18 @@ pub enum ImageInput {
 }
 
 impl ImageInput {
-    pub fn prepare_multimodal_prompt(
+    pub const fn prompt_modality_for(
         &self,
-        bitmaps: Vec<MtmdBitmap>,
-        text: String,
-    ) -> Result<PreparedMultimodalPrompt, GenerationRequestRejection> {
+        image_urls: &[ImageUrl],
+    ) -> Result<PromptModality<'_>, GenerationRequestRejection> {
+        if image_urls.is_empty() {
+            return Ok(PromptModality::TextOnly);
+        }
+
         match self {
-            Self::Supported(MultimodalPromptSupport {
-                multimodal_context,
-                n_batch,
-            }) => Ok(PreparedMultimodalPrompt {
-                bitmaps,
-                multimodal_context: multimodal_context.clone(),
-                n_batch: *n_batch,
-                text,
-            }),
+            Self::Supported(multimodal_prompt_support) => {
+                Ok(PromptModality::Multimodal(multimodal_prompt_support))
+            }
             Self::Unsupported => Err(GenerationRequestRejection::MultimodalNotSupported),
         }
     }
@@ -34,6 +31,8 @@ impl ImageInput {
 mod tests {
     use std::mem::discriminant;
 
+    use paddler_messaging::image_url::ImageUrl;
+
     use super::ImageInput;
     use crate::generation_request_rejection::GenerationRequestRejection;
 
@@ -41,7 +40,9 @@ mod tests {
     fn rejects_images_when_no_multimodal_projection_is_loaded() {
         assert_eq!(
             ImageInput::Unsupported
-                .prepare_multimodal_prompt(Vec::new(), "Describe".to_owned())
+                .prompt_modality_for(&[ImageUrl {
+                    url: "data:image/png;base64,AAAA".to_owned(),
+                }])
                 .err()
                 .map(|rejection| discriminant(&rejection)),
             Some(discriminant(

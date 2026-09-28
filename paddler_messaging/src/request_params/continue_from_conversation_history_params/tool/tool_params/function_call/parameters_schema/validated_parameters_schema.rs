@@ -1,17 +1,21 @@
 use serde::Deserialize;
 use serde::Serialize;
-use serde::Serializer;
 use serde_json::Map;
 use serde_json::Value;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ValidatedParametersSchema {
     #[serde(rename = "type")]
     pub schema_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<Map<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
-    #[serde(rename = "additionalProperties")]
+    #[serde(
+        rename = "additionalProperties",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub additional_properties: Option<Value>,
 }
 
@@ -41,15 +45,6 @@ impl ValidatedParametersSchema {
         }
 
         Value::Object(document)
-    }
-}
-
-impl Serialize for ValidatedParametersSchema {
-    fn serialize<TSerializer: Serializer>(
-        &self,
-        serializer: TSerializer,
-    ) -> Result<TSerializer::Ok, TSerializer::Error> {
-        self.to_json_schema().serialize(serializer)
     }
 }
 

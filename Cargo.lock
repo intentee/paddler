@@ -5132,11 +5132,8 @@ name = "paddler_tests"
 version = "4.1.0"
 dependencies = [
  "anyhow",
- "async-stream",
  "async-trait",
- "base64",
  "futures-util",
- "hf-hub",
  "llama-cpp-bindings",
  "log",
  "paddler_agent",
@@ -5146,16 +5143,12 @@ dependencies = [
  "paddler_messaging",
  "paddler_openai_response_format_validator",
  "paddler_test_cluster_harness",
- "paddler_tool_call_validator",
- "parking_lot",
  "reqwest 0.12.28",
- "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",
  "trzcina",
- "url",
 ]
 
 [[package]]
@@ -7132,6 +7125,7 @@ dependencies = [
  "bytes 1.11.1",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]

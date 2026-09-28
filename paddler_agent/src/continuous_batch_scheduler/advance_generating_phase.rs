@@ -8,6 +8,7 @@ use paddler_messaging::generation_summary::GenerationSummary;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
+use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::classify_token_phase;
 use crate::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
 use crate::continuous_batch_scheduler::completion_check_phase::CompletionCheckPhase;
@@ -99,84 +100,74 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        let completion_phase = CompletionCheckPhase {
-            model: &self.scheduler_context.model,
-        };
-
         let raw_as_sampled = SampledToken::Content(raw_token);
-        if matches!(
-            completion_phase.run(request, &raw_as_sampled),
-            CompletionCheckOutcome::ReachedEog
-        ) {
-            if let Some(pipeline) = request.tool_call_pipeline.as_mut()
-                && !pipeline.buffer_is_empty()
-                && let Some(event) = pipeline.finalize_to_generated_event()
-                && request.generated_tokens_tx.send(event).is_err()
-            {
-                warn!(
-                    "{:?}: sequence {} client disconnected (receiver dropped) during EOG tool-call flush",
-                    self.scheduler_context.agent_name,
-                    request.sequence_id_guard.sequence_id()
-                );
-                return Some(AdvanceOutcome::ChannelDropped);
-            }
-            return Some(AdvanceOutcome::Completed(GeneratedTokenResult::Done(
-                GenerationSummary {
-                    usage: *request.token_classifier.usage(),
-                },
-            )));
+        let completion = CompletionCheckPhase {
+            model: &self.scheduler_context.model,
+        }
+        .run(request, &raw_as_sampled);
+
+        if !matches!(completion, CompletionCheckOutcome::ReachedEog)
+            && self.client_disconnected_while_emitting(request, &classified_outcomes)
+        {
+            return Some(AdvanceOutcome::ChannelDropped);
         }
 
-        for classified in &classified_outcomes {
-            match emit_token_phase::run(request, classified) {
-                EmitTokenOutcome::Emitted(_) => {}
-                EmitTokenOutcome::ChannelDropped => {
-                    warn!(
-                        "{:?}: sequence {} client disconnected (receiver dropped)",
-                        self.scheduler_context.agent_name,
-                        request.sequence_id_guard.sequence_id()
-                    );
-                    return Some(AdvanceOutcome::ChannelDropped);
-                }
+        match completion {
+            CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => {
+                Some(self.complete_after_flushing_tool_calls(request))
             }
+            CompletionCheckOutcome::Continue => {
+                Some(AdvanceOutcome::SampledAndStored(raw_as_sampled))
+            }
+        }
+    }
 
-            if let Some(event) =
-                tool_call_pass::run(request.tool_call_pipeline.as_mut(), classified)
-                && request.generated_tokens_tx.send(event).is_err()
+    fn client_disconnected_while_emitting(
+        &self,
+        request: &mut ContinuousBatchActiveRequest,
+        classified_outcomes: &[ClassifiedToken],
+    ) -> bool {
+        for classified in classified_outcomes {
+            if matches!(
+                emit_token_phase::run(request, classified),
+                EmitTokenOutcome::ChannelDropped
+            ) || tool_call_pass::run(request.tool_call_pipeline.as_mut(), classified)
+                .is_some_and(|event| request.generated_tokens_tx.send(event).is_err())
             {
                 warn!(
                     "{:?}: sequence {} client disconnected (receiver dropped)",
                     self.scheduler_context.agent_name,
                     request.sequence_id_guard.sequence_id()
                 );
-                return Some(AdvanceOutcome::ChannelDropped);
+
+                return true;
             }
         }
 
-        match completion_phase.run(request, &raw_as_sampled) {
-            CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => {
-                if let Some(pipeline) = request.tool_call_pipeline.as_mut()
-                    && !pipeline.buffer_is_empty()
-                    && let Some(event) = pipeline.finalize_to_generated_event()
-                    && request.generated_tokens_tx.send(event).is_err()
-                {
-                    warn!(
-                        "{:?}: sequence {} client disconnected (receiver dropped) during tool-call EOG flush",
-                        self.scheduler_context.agent_name,
-                        request.sequence_id_guard.sequence_id()
-                    );
-                    return Some(AdvanceOutcome::ChannelDropped);
-                }
-                Some(AdvanceOutcome::Completed(GeneratedTokenResult::Done(
-                    GenerationSummary {
-                        usage: *request.token_classifier.usage(),
-                    },
-                )))
-            }
-            CompletionCheckOutcome::Continue => {
-                Some(AdvanceOutcome::SampledAndStored(raw_as_sampled))
-            }
+        false
+    }
+
+    fn complete_after_flushing_tool_calls(
+        &self,
+        request: &mut ContinuousBatchActiveRequest,
+    ) -> AdvanceOutcome {
+        if let Some(pipeline) = request.tool_call_pipeline.as_mut()
+            && !pipeline.buffer_is_empty()
+            && let Some(event) = pipeline.finalize_to_generated_event()
+            && request.generated_tokens_tx.send(event).is_err()
+        {
+            warn!(
+                "{:?}: sequence {} client disconnected (receiver dropped) during the tool-call flush at completion",
+                self.scheduler_context.agent_name,
+                request.sequence_id_guard.sequence_id()
+            );
+
+            return AdvanceOutcome::ChannelDropped;
         }
+
+        AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
+            usage: *request.token_classifier.usage(),
+        }))
     }
 
     fn apply_outcome(request: &mut ContinuousBatchActiveRequest, outcome: Option<AdvanceOutcome>) {

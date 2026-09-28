@@ -1,8 +1,7 @@
 use minijinja::context;
 use paddler_messaging::media_marker::MediaMarker;
-use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
+use crate::chat_prompt_render_request::ChatPromptRenderRequest;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::generation_request_rejection::GenerationRequestRejection;
 
@@ -17,13 +16,12 @@ pub struct ChatPromptRenderer {
 impl ChatPromptRenderer {
     pub fn render(
         &self,
-        ContinueFromConversationHistoryParams {
+        ChatPromptRenderRequest {
             add_generation_prompt,
-            conversation_history,
             enable_thinking,
+            messages,
             tools,
-            ..
-        }: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+        }: ChatPromptRenderRequest,
     ) -> Result<String, GenerationRequestRejection> {
         self.chat_template_renderer
             .render(context! {
@@ -31,7 +29,7 @@ impl ChatPromptRenderer {
                 bos_token => self.token_bos_str,
                 enable_thinking,
                 eos_token => self.token_eos_str,
-                messages => conversation_history.replace_images_with_marker(&self.media_marker).messages,
+                messages,
                 nl_token => self.token_nl_str,
                 tools,
             })
@@ -45,16 +43,16 @@ mod tests {
 
     use anyhow::anyhow;
     use paddler_messaging::chat_template::ChatTemplate;
+    use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
     use paddler_messaging::conversation_history::ConversationHistory;
     use paddler_messaging::conversation_message::ConversationMessage;
     use paddler_messaging::conversation_message_content::ConversationMessageContent;
     use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
     use paddler_messaging::image_url::ImageUrl;
     use paddler_messaging::media_marker::MediaMarker;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
     use super::ChatPromptRenderer;
+    use crate::chat_prompt_render_request::ChatPromptRenderRequest;
     use crate::chat_template_renderer::ChatTemplateRenderer;
     use crate::generation_request_rejection::GenerationRequestRejection;
 
@@ -71,29 +69,32 @@ mod tests {
         }
     }
 
-    fn image_then_text_params() -> ContinueFromConversationHistoryParams<ValidatedParametersSchema>
-    {
-        ContinueFromConversationHistoryParams {
+    fn image_then_text_conversation(renderer: &ChatPromptRenderer) -> ChatTemplateConversation {
+        ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Parts(vec![
+                ConversationMessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "data:image/png;base64,AAAA".to_owned(),
+                    },
+                },
+                ConversationMessageContentPart::Text {
+                    text: "Describe".to_owned(),
+                },
+            ]),
+            role: "user".to_owned(),
+        }])
+        .into_chat_template_conversation(&renderer.media_marker)
+    }
+
+    fn render_image_then_text(
+        renderer: &ChatPromptRenderer,
+    ) -> Result<String, GenerationRequestRejection> {
+        renderer.render(ChatPromptRenderRequest {
             add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                content: ConversationMessageContent::Parts(vec![
-                    ConversationMessageContentPart::ImageUrl {
-                        image_url: ImageUrl {
-                            url: "data:image/png;base64,AAAA".to_owned(),
-                        },
-                    },
-                    ConversationMessageContentPart::Text {
-                        text: "Describe".to_owned(),
-                    },
-                ]),
-                role: "user".to_owned(),
-            }]),
             enable_thinking: false,
-            grammar: None,
-            max_tokens: 1,
-            parse_tool_calls: false,
-            tools: vec![],
-        }
+            messages: &image_then_text_conversation(renderer).messages,
+            tools: &[],
+        })
     }
 
     #[test]
@@ -103,7 +104,7 @@ mod tests {
         );
 
         assert_eq!(
-            renderer.render(&image_then_text_params()).unwrap(),
+            render_image_then_text(&renderer).unwrap(),
             "<bos><media><nl>Describe<nl><eos>"
         );
     }
@@ -113,8 +114,7 @@ mod tests {
         let renderer = renderer_for("{{ raise_exception('unsupported conversation') }}");
 
         assert_eq!(
-            renderer
-                .render(&image_then_text_params())
+            render_image_then_text(&renderer)
                 .err()
                 .map(|rejection| discriminant(&rejection)),
             Some(discriminant(

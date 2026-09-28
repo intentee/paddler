@@ -59,9 +59,9 @@ http = "1"
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = "=0.15.0"
-llama-cpp-bindings-sys = "=0.15.0"
-llama-cpp-bindings-types = "=0.15.0"
+llama-cpp-bindings = "0.15"
+llama-cpp-bindings-sys = "0.15"
+llama-cpp-bindings-types = "0.15"
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"
@@ -89,7 +89,7 @@ tokio = { version = "1.48", features = ["full"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-test = "0.4.4"
 tokio-tungstenite = "0.28"
-tokio-util = "0.7"
+tokio-util = { version = "0.7", features = ["rt"] }
 thiserror = "2"
 trzcina = "=0.3.0"
 url = { version = "2.5", features = ["serde"] }

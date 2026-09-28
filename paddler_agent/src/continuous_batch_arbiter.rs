@@ -30,9 +30,9 @@ use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::model_metadata::ModelMetadata;
-use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
+use tokio_util::task::TaskTracker;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_issue_fix::AgentIssueFix;
@@ -106,11 +106,17 @@ impl ContinuousBatchArbiter {
         &self,
         cancellation_token: &CancellationToken,
     ) -> Result<ContinuousBatchArbiterSpawnOutcome> {
+        if cancellation_token.is_cancelled() {
+            return Ok(ContinuousBatchArbiterSpawnOutcome::Cancelled);
+        }
+
+        let n_seq_max = u32::try_from(self.desired_slots_total)
+            .context("desired_slots_total does not fit in u32")?;
         let (chat_template_loaded_tx, chat_template_loaded_rx) =
             oneshot::channel::<ChatTemplateLoadStatus>();
         let (model_loaded_tx, model_loaded_rx) = oneshot::channel::<()>();
         let (agent_warm_and_scheduler_running_tx, agent_warm_and_scheduler_running_rx) =
-            oneshot::channel::<ContinuousBatchRequestPreparer>();
+            oneshot::channel::<Arc<ContinuousBatchRequestPreparer>>();
 
         let available_parallelism_value: i32 = available_parallelism()?.get().try_into()?;
         let n_threads = max(2, available_parallelism_value / 2);
@@ -128,13 +134,11 @@ impl ContinuousBatchArbiter {
         let model_path_string = self.model_path_string.clone();
         let chat_template_override = self.chat_template_override.clone();
         let slot_aggregated_status_manager = self.slot_aggregated_status_manager.clone();
+        let agent_shutdown = cancellation_token.clone();
 
         let scheduler_thread_handle = thread::spawn(move || -> Result<()> {
             let llama_backend =
                 Arc::new(LlamaBackend::init().context("Unable to initialize llama.cpp backend")?);
-
-            let n_seq_max = u32::try_from(desired_slots_total)
-                .context("desired_slots_total does not fit in u32")?;
 
             let inference_parameters_n_batch_u32 = u32::try_from(inference_parameters.n_batch)
                 .context("n_batch does not fit in u32")?;
@@ -359,41 +363,46 @@ impl ContinuousBatchArbiter {
                 };
 
             let (scheduler_command_tx, scheduler_command_rx) = std::sync::mpsc::channel();
+            let sequence_context_size = llama_context.n_ctx_seq();
 
-            let request_preparer = ContinuousBatchRequestPreparer {
+            let request_preparer = Arc::new(ContinuousBatchRequestPreparer {
                 agent_name: agent_name_clone.clone(),
-                embedding_batch_preparer: Arc::new(EmbeddingBatchPreparer {
+                embedding_batch_preparer: EmbeddingBatchPreparer {
                     enable_embeddings: inference_parameters.enable_embeddings,
                     model: model.clone(),
                     n_batch: inference_parameters.n_batch,
-                }),
-                generation_request_preparer: Arc::new(GenerationRequestPreparer {
+                },
+                generation_request_preparer: GenerationRequestPreparer {
                     image_input,
                     image_resize_to_fit: inference_parameters.image_resize_to_fit,
                     model: model.clone(),
                     prompt_tokenizer: PromptTokenizer {
                         model: model.clone(),
-                        sequence_context_size: llama_context.n_ctx_seq(),
+                        sequence_context_size,
                     },
                     token_generation,
-                }),
+                },
+                llama_backend: llama_backend.clone(),
+                preparation_tasks: TaskTracker::new(),
                 scheduler_command_tx,
-            };
+            });
 
             let mut batch = LlamaBatch::new(inference_parameters.n_batch, desired_slots_total)?;
 
             Self::run_warmup_decode(&model, &mut llama_context, &mut batch, desired_slots_total);
 
             let mut scheduler = ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
+                agent_shutdown,
                 batch,
                 command_rx: scheduler_command_rx,
                 llama_context,
-                max_concurrent_sequences: desired_slots_total,
                 scheduler_context: ContinuousBatchSchedulerContext {
                     agent_name: agent_name_clone,
                     desired_slots_total,
                     inference_parameters,
                     model: model.clone(),
+                    n_vocab: model.n_vocab(),
+                    sequence_context_size,
                 },
             });
 
@@ -428,15 +437,19 @@ impl ContinuousBatchArbiter {
             return Ok(ContinuousBatchArbiterSpawnOutcome::Cancelled);
         };
 
-        let request_preparer = startup_result?;
-        let (arbiter_command_tx, arbiter_command_rx) = mpsc::unbounded_channel();
+        let request_preparer = match startup_result {
+            Ok(request_preparer) => request_preparer,
+            Err(startup_error) => {
+                return tokio::task::spawn_blocking(move || {
+                    join_scheduler_thread(scheduler_thread_handle)
+                })
+                .await
+                .context("Failed to join the scheduler thread after its startup failed")?
+                .and(Err(startup_error));
+            }
+        };
 
-        tokio::spawn(request_preparer.run(arbiter_command_rx));
-
-        let desired_slots_total_u32 = u32::try_from(self.desired_slots_total)
-            .context("desired_slots_total does not fit in u32")?;
-
-        for slot_index in 0..desired_slots_total_u32 {
+        for slot_index in 0..n_seq_max {
             self.slot_aggregated_status_manager
                 .slot_aggregated_status
                 .increment_total_slots();
@@ -448,7 +461,7 @@ impl ContinuousBatchArbiter {
 
         Ok(ContinuousBatchArbiterSpawnOutcome::Ready(
             ContinuousBatchArbiterHandle {
-                command_tx: arbiter_command_tx,
+                request_preparer,
                 scheduler_thread_handle,
             },
         ))
@@ -458,9 +471,9 @@ impl ContinuousBatchArbiter {
         &self,
         model_loaded_rx: oneshot::Receiver<()>,
         chat_template_loaded_rx: oneshot::Receiver<ChatTemplateLoadStatus>,
-        agent_warm_and_scheduler_running_rx: oneshot::Receiver<ContinuousBatchRequestPreparer>,
+        agent_warm_and_scheduler_running_rx: oneshot::Receiver<Arc<ContinuousBatchRequestPreparer>>,
         model_path_string: &str,
-    ) -> Result<ContinuousBatchRequestPreparer> {
+    ) -> Result<Arc<ContinuousBatchRequestPreparer>> {
         match model_loaded_rx
             .await
             .context("Failed to receive model loaded signal")

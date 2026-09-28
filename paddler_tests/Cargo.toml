@@ -23,11 +23,8 @@ web_admin_panel = ["paddler_balancer/web_admin_panel", "paddler_bootstrap/web_ad
 
 [dependencies]
 anyhow = { workspace = true }
-async-stream = { workspace = true }
 async-trait = { workspace = true }
-base64 = { workspace = true }
 futures-util = { workspace = true }
-hf-hub = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
 paddler_agent = { workspace = true }
@@ -36,16 +33,12 @@ paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
-paddler_tool_call_validator = { workspace = true }
-parking_lot = { workspace = true }
 reqwest = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
-url = { workspace = true }
 
 [dev-dependencies]
 paddler_openai_response_format_validator = { workspace = true }

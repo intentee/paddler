@@ -10,10 +10,10 @@ pub struct OpenAIMessage {
 
 impl OpenAIMessage {
     #[must_use]
-    pub fn to_conversation_message(&self) -> ConversationMessage {
+    pub fn into_conversation_message(self) -> ConversationMessage {
         ConversationMessage {
-            content: self.content.clone(),
-            role: self.role.clone(),
+            content: self.content,
+            role: self.role,
         }
     }
 }
@@ -35,7 +35,7 @@ mod tests {
         });
 
         let openai_message: OpenAIMessage = serde_json::from_value(input).unwrap();
-        let conversation_message = openai_message.to_conversation_message();
+        let conversation_message = openai_message.into_conversation_message();
 
         assert_eq!(conversation_message.role, "user");
         assert_eq!(conversation_message.content.text_content(), "OCR this");

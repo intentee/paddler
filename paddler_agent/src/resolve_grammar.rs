@@ -4,7 +4,7 @@ use crate::generation_request_rejection::GenerationRequestRejection;
 use crate::grammar_sampler::GrammarSampler;
 
 pub fn resolve_grammar(
-    grammar: Option<&GrammarConstraint>,
+    grammar: Option<GrammarConstraint>,
     enable_thinking: bool,
 ) -> Result<Option<GrammarSampler>, GenerationRequestRejection> {
     let Some(grammar_constraint) = grammar else {
@@ -40,7 +40,7 @@ mod tests {
     }
 
     fn resolved(
-        grammar: Option<&GrammarConstraint>,
+        grammar: Option<GrammarConstraint>,
         enable_thinking: bool,
     ) -> Result<Option<GrammarSampler>, Discriminant<GenerationRequestRejection>> {
         resolve_grammar(grammar, enable_thinking).map_err(|rejection| discriminant(&rejection))
@@ -54,7 +54,7 @@ mod tests {
     #[test]
     fn rejects_grammar_when_thinking_is_enabled() {
         assert_eq!(
-            resolved(Some(&yes_or_no_grammar()), true),
+            resolved(Some(yes_or_no_grammar()), true),
             Err(discriminant(
                 &GenerationRequestRejection::GrammarIncompatibleWithThinking
             ))
@@ -64,8 +64,8 @@ mod tests {
     #[test]
     fn returns_sampler_for_valid_grammar() {
         assert_eq!(
-            resolved(Some(&yes_or_no_grammar()), false),
-            Ok(Some(GrammarSampler::new(&yes_or_no_grammar()).unwrap()))
+            resolved(Some(yes_or_no_grammar()), false),
+            Ok(Some(GrammarSampler::new(yes_or_no_grammar()).unwrap()))
         );
     }
 
@@ -76,7 +76,7 @@ mod tests {
         };
 
         assert_eq!(
-            resolved(Some(&grammar), false),
+            resolved(Some(grammar), false),
             Err(discriminant(
                 &GenerationRequestRejection::GrammarConversionFailed(
                     JsonSchemaToGrammarError::NotEnoughMemory

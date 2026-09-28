@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::SampledTokenSection;
 use llama_cpp_bindings::token::LlamaToken;
 
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
@@ -9,6 +10,7 @@ use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 pub struct ContinuousBatchRequestState {
     pub current_token_position: i32,
     pub i_batch: Option<i32>,
+    pub last_outcome_section: SampledTokenSection,
     pub max_tokens: i32,
     pub pending_sampled_token: Option<SampledToken>,
     pub phase: ContinuousBatchRequestPhase,
@@ -77,6 +79,8 @@ mod tests {
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
 
+    use llama_cpp_bindings::SampledTokenSection;
+
     use super::ContinuousBatchRequestState;
     use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
     use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
@@ -85,6 +89,7 @@ mod tests {
         ContinuousBatchRequestState {
             current_token_position: 0,
             i_batch: None,
+            last_outcome_section: SampledTokenSection::Content,
             max_tokens: 64,
             pending_sampled_token: None,
             phase: ContinuousBatchRequestPhase::Ingesting,

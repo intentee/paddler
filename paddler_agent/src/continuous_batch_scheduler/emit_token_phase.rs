@@ -18,17 +18,16 @@ fn emit_classified(
     tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
 ) -> EmitTokenOutcome {
     if classified.visible_piece.is_empty() {
-        return EmitTokenOutcome::Emitted(String::new());
+        return EmitTokenOutcome::Emitted;
     }
 
-    let piece = classified.visible_piece.clone();
-    let event = token_to_event(classified.sampled_token, piece.clone());
+    let event = token_to_event(classified.sampled_token, classified.visible_piece.clone());
 
     if tx.send(event).is_err() {
         return EmitTokenOutcome::ChannelDropped;
     }
 
-    EmitTokenOutcome::Emitted(piece)
+    EmitTokenOutcome::Emitted
 }
 
 const fn token_to_event(sampled_token: SampledToken, piece: String) -> GeneratedTokenResult {
@@ -72,7 +71,7 @@ mod tests {
 
         assert_eq!(
             discriminant(&outcome),
-            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+            discriminant(&EmitTokenOutcome::Emitted),
         );
 
         let receive_error = rx.try_recv().err().unwrap();
@@ -92,7 +91,7 @@ mod tests {
 
         assert_eq!(
             discriminant(&outcome),
-            discriminant(&EmitTokenOutcome::Emitted(String::new())),
+            discriminant(&EmitTokenOutcome::Emitted),
         );
 
         let event = rx.try_recv().unwrap();

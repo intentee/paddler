@@ -2,9 +2,8 @@ use crate::continue_from_conversation_history_request::ContinueFromConversationH
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 
-pub enum ContinuousBatchArbiterCommand {
+pub enum ContinuousBatchPreparationRequest {
     ContinueFromConversationHistory(ContinueFromConversationHistoryRequest),
     ContinueFromRawPrompt(ContinueFromRawPromptRequest),
     GenerateEmbeddingBatch(GenerateEmbeddingBatchRequest),
-    Shutdown,
 }

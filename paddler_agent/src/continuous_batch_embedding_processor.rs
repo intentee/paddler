@@ -2,6 +2,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
+use log::warn;
 use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
@@ -39,10 +40,25 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             generated_embedding_tx,
             inputs,
             normalization_method,
+            oversized_documents,
             slot_guard,
         }: PreparedEmbeddingBatchRequest,
     ) -> Result<()> {
         let _slot_guard = slot_guard;
+
+        for oversized_document in oversized_documents {
+            warn!(
+                "{:?}: skipped embedding document {:?}: {} tokens exceeds n_batch {}",
+                self.scheduler_context.agent_name,
+                oversized_document.source_document_id,
+                oversized_document.document_tokens,
+                oversized_document.n_batch,
+            );
+
+            generated_embedding_tx.send(EmbeddingResult::DocumentExceedsBatchSize(
+                oversized_document,
+            ))?;
+        }
 
         let n_batch = self.scheduler_context.inference_parameters.n_batch;
         let max_sequences_per_batch = self.scheduler_context.desired_slots_total;

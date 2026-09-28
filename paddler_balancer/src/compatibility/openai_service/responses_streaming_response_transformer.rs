@@ -1,3 +1,4 @@
+use std::mem::take;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -56,7 +57,7 @@ impl ResponsesStreamingResponseTransformer {
     ) {
         state.close_open_item(events);
 
-        let output = state.finalized_output.clone();
+        let output = take(&mut state.finalized_output);
         let completed_sequence_number = state.next_sequence_number();
         events.push(ResponsesStreamEvent::Completed(ResponseSnapshotEvent {
             sequence_number: completed_sequence_number,

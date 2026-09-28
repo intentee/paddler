@@ -20,10 +20,9 @@ use crate::continue_from_conversation_history_request::ContinueFromConversationH
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_arbiter::ContinuousBatchArbiter;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
-use crate::continuous_batch_arbiter_command::ContinuousBatchArbiterCommand;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
-use crate::drain_in_flight_requests::drain_in_flight_requests;
+use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
@@ -37,17 +36,10 @@ async fn apply_state(
     slot_aggregated_status_manager: &Arc<SlotAggregatedStatusManager>,
     continuous_batch_arbiter_handle: &mut Option<ContinuousBatchArbiterHandle>,
 ) -> Result<()> {
-    wait_for_in_flight_requests_to_finish(
-        shutdown,
-        continuous_batch_arbiter_handle.as_ref(),
-        slot_aggregated_status_manager,
-    )
-    .await?;
+    slot_aggregated_status_manager.reset();
     shutdown_arbiter_handle(continuous_batch_arbiter_handle).await?;
 
     if let Some(applicable_state) = agent_applicable_state.cloned() {
-        slot_aggregated_status_manager.reset();
-
         match ContinuousBatchArbiter::build_from_applicable_state(
             applicable_state,
             agent_name.map(str::to_owned),
@@ -79,14 +71,12 @@ async fn apply_state(
     Ok(())
 }
 
-fn forward_command(
+fn forward_request(
     continuous_batch_arbiter_handle: Option<&ContinuousBatchArbiterHandle>,
-    command: ContinuousBatchArbiterCommand,
+    request: ContinuousBatchPreparationRequest,
 ) {
     if let Some(arbiter_handle) = continuous_batch_arbiter_handle {
-        if let Err(err) = arbiter_handle.command_tx.send(command) {
-            error!("Failed to forward command to scheduler: {err}");
-        }
+        arbiter_handle.request_preparer.prepare(request);
     } else {
         error!("ContinuousBatchArbiterHandle is not initialized");
     }
@@ -99,9 +89,9 @@ async fn shutdown_arbiter_handle(
         return Ok(());
     };
 
-    tokio::task::spawn_blocking(move || handle.shutdown())
+    handle
+        .shutdown()
         .await
-        .context("Arbiter shutdown task panicked")?
         .context("Arbiter shutdown returned an error")
 }
 
@@ -127,18 +117,6 @@ async fn try_to_apply_state(
     {
         error!("Failed to apply reconciled state change: {err}");
     }
-}
-
-async fn wait_for_in_flight_requests_to_finish(
-    shutdown: &CancellationToken,
-    continuous_batch_arbiter_handle: Option<&ContinuousBatchArbiterHandle>,
-    slot_aggregated_status_manager: &Arc<SlotAggregatedStatusManager>,
-) -> Result<()> {
-    if continuous_batch_arbiter_handle.is_some() {
-        drain_in_flight_requests(slot_aggregated_status_manager, shutdown).await?;
-    }
-
-    Ok(())
 }
 
 pub struct LlamaCppArbiterService {
@@ -226,21 +204,21 @@ impl Service for LlamaCppArbiterService {
                     ).await;
                 }
                 Some(request) = continue_from_conversation_history_request_rx.recv() => {
-                    forward_command(
+                    forward_request(
                         continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchArbiterCommand::ContinueFromConversationHistory(request),
+                        ContinuousBatchPreparationRequest::ContinueFromConversationHistory(request),
                     );
                 }
                 Some(request) = continue_from_raw_prompt_request_rx.recv() => {
-                    forward_command(
+                    forward_request(
                         continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchArbiterCommand::ContinueFromRawPrompt(request),
+                        ContinuousBatchPreparationRequest::ContinueFromRawPrompt(request),
                     );
                 }
                 Some(request) = generate_embedding_batch_request_rx.recv() => {
-                    forward_command(
+                    forward_request(
                         continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchArbiterCommand::GenerateEmbeddingBatch(request),
+                        ContinuousBatchPreparationRequest::GenerateEmbeddingBatch(request),
                     );
                 }
             }
@@ -256,88 +234,43 @@ impl Service for LlamaCppArbiterService {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-    use std::thread;
-
     use anyhow::bail;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     use super::*;
+    use crate::from_request_params::FromRequestParams as _;
 
-    fn spawn_arbiter_handle_with_live_receiver() -> (
-        ContinuousBatchArbiterHandle,
-        mpsc::UnboundedReceiver<ContinuousBatchArbiterCommand>,
-    ) {
-        let (command_tx, command_rx) = mpsc::unbounded_channel();
-        let scheduler_thread_handle = thread::spawn(|| Ok(()));
+    #[tokio::test]
+    async fn forward_request_releases_the_request_when_no_arbiter_is_running() {
+        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(1));
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+        let (_generate_tokens_stop_tx, generate_tokens_stop_rx) = mpsc::unbounded_channel();
 
-        (
-            ContinuousBatchArbiterHandle {
-                command_tx,
-                scheduler_thread_handle,
-            },
-            command_rx,
-        )
-    }
-
-    #[test]
-    fn forward_command_delivers_command_when_handle_present() {
-        let (arbiter_handle, mut command_rx) = spawn_arbiter_handle_with_live_receiver();
-
-        forward_command(
-            Some(&arbiter_handle),
-            ContinuousBatchArbiterCommand::Shutdown,
+        forward_request(
+            None,
+            ContinuousBatchPreparationRequest::ContinueFromRawPrompt(
+                ContinueFromRawPromptRequest::from_request_params(
+                    ContinueFromRawPromptParams {
+                        grammar: None,
+                        max_tokens: 1,
+                        raw_prompt: "Hello".to_owned(),
+                    },
+                    generated_tokens_tx,
+                    generate_tokens_stop_rx,
+                    slot_aggregated_status_manager
+                        .slot_aggregated_status
+                        .clone(),
+                ),
+            ),
         );
 
-        let delivered = command_rx.try_recv().unwrap();
-
+        assert_eq!(generated_tokens_rx.recv().await, None);
         assert_eq!(
-            discriminant(&delivered),
-            discriminant(&ContinuousBatchArbiterCommand::Shutdown),
+            slot_aggregated_status_manager
+                .slot_aggregated_status
+                .slots_processing_count(),
+            0
         );
-    }
-
-    #[test]
-    fn forward_command_logs_error_when_receiver_dropped() {
-        let (arbiter_handle, command_rx) = spawn_arbiter_handle_with_live_receiver();
-
-        drop(command_rx);
-
-        forward_command(
-            Some(&arbiter_handle),
-            ContinuousBatchArbiterCommand::Shutdown,
-        );
-    }
-
-    #[test]
-    fn forward_command_logs_error_when_handle_absent() {
-        forward_command(None, ContinuousBatchArbiterCommand::Shutdown);
-    }
-
-    #[tokio::test]
-    async fn wait_for_in_flight_requests_drains_when_handle_present() {
-        let (arbiter_handle, _command_rx) = spawn_arbiter_handle_with_live_receiver();
-        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(1));
-        let shutdown = CancellationToken::new();
-
-        wait_for_in_flight_requests_to_finish(
-            &shutdown,
-            Some(&arbiter_handle),
-            &slot_aggregated_status_manager,
-        )
-        .await
-        .unwrap();
-
-        arbiter_handle.shutdown().unwrap();
-    }
-
-    #[tokio::test]
-    async fn wait_for_in_flight_requests_returns_immediately_without_handle() {
-        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(1));
-        let shutdown = CancellationToken::new();
-
-        wait_for_in_flight_requests_to_finish(&shutdown, None, &slot_aggregated_status_manager)
-            .await
-            .unwrap();
     }
 
     #[tokio::test]
@@ -377,25 +310,6 @@ mod tests {
             .unwrap();
 
         assert!(continuous_batch_arbiter_handle.is_none());
-    }
-
-    #[tokio::test]
-    async fn shutdown_arbiter_handle_joins_and_clears_present_handle() {
-        let (arbiter_handle, mut command_rx) = spawn_arbiter_handle_with_live_receiver();
-        let mut continuous_batch_arbiter_handle = Some(arbiter_handle);
-
-        shutdown_arbiter_handle(&mut continuous_batch_arbiter_handle)
-            .await
-            .unwrap();
-
-        assert!(continuous_batch_arbiter_handle.is_none());
-
-        let delivered = command_rx.try_recv().unwrap();
-
-        assert_eq!(
-            discriminant(&delivered),
-            discriminant(&ContinuousBatchArbiterCommand::Shutdown),
-        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

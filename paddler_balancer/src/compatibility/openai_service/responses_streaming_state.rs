@@ -1,3 +1,5 @@
+use std::mem::take;
+
 use anyhow::Result;
 use llama_cpp_bindings_types::ParsedToolCall;
 use serde_json::Value;
@@ -61,8 +63,8 @@ impl ResponsesStreamingState {
         match self.open {
             OpenItem::None => {}
             OpenItem::Reasoning => {
-                let item_id = self.reasoning_id.clone();
-                let text = self.reasoning_text.clone();
+                let item_id = take(&mut self.reasoning_id);
+                let text = take(&mut self.reasoning_text);
                 let output_index = self.output_index;
 
                 let text_done_sequence_number = self.next_sequence_number();
@@ -84,12 +86,11 @@ impl ResponsesStreamingState {
 
                 self.finalized_output.push(item);
                 self.output_index += 1;
-                self.reasoning_text.clear();
                 self.open = OpenItem::None;
             }
             OpenItem::Message => {
-                let item_id = self.message_id.clone();
-                let text = self.message_text.clone();
+                let item_id = take(&mut self.message_id);
+                let text = take(&mut self.message_text);
                 let output_index = self.output_index;
 
                 let text_done_sequence_number = self.next_sequence_number();
@@ -120,7 +121,6 @@ impl ResponsesStreamingState {
 
                 self.finalized_output.push(item);
                 self.output_index += 1;
-                self.message_text.clear();
                 self.open = OpenItem::None;
             }
         }

@@ -43,6 +43,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use rand::Rng as _;
 use rand::rngs::ThreadRng;
+use tokio_util::sync::CancellationToken;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
 use self::assemble_batch_phase::AssembleBatchPhase;
@@ -62,22 +63,21 @@ use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_multimodal_prompt::PreparedMultimodalPrompt;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::require_prompt_fits_sequence_context::require_prompt_fits_sequence_context;
-use crate::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::sampler_chain_factory::SamplerChainFactory;
-use crate::sampling_outcome::SamplingOutcome;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
+    agent_shutdown: CancellationToken,
     batch: LlamaBatch<'static>,
     command_rx: Receiver<ContinuousBatchSchedulerCommand>,
     llama_context: LlamaContext<'static>,
     pending_embedding_requests: VecDeque<PreparedEmbeddingBatchRequest>,
     rng: ThreadRng,
-    running: bool,
     scheduler_context: ContinuousBatchSchedulerContext,
     sequence_id_pool: SequenceIdPool,
+    shutdown_requested: bool,
 }
 
 impl ContinuousBatchScheduler {
@@ -88,27 +88,29 @@ impl ContinuousBatchScheduler {
     )]
     pub fn new(
         ContinuousBatchSchedulerParams {
+            agent_shutdown,
             batch,
             command_rx,
             llama_context,
-            max_concurrent_sequences,
             scheduler_context,
         }: ContinuousBatchSchedulerParams,
     ) -> Self {
         let llama_context = unsafe {
             std::mem::transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context)
         };
+        let sequence_id_pool = SequenceIdPool::new(scheduler_context.desired_slots_total);
 
         Self {
             active_requests: Vec::new(),
+            agent_shutdown,
             batch,
             command_rx,
             llama_context,
             pending_embedding_requests: VecDeque::new(),
             rng: rand::rng(),
-            running: true,
             scheduler_context,
-            sequence_id_pool: SequenceIdPool::new(max_concurrent_sequences),
+            sequence_id_pool,
+            shutdown_requested: false,
         }
     }
 
@@ -118,13 +120,16 @@ impl ContinuousBatchScheduler {
             self.scheduler_context.agent_name
         );
 
-        while self.running {
+        while !self.agent_shutdown.is_cancelled() {
             self.check_stop_signals();
             self.remove_completed_requests();
             self.accept_new_commands();
-            self.try_process_embedding_request();
 
-            if self.has_active_requests() {
+            let has_active_requests = self.has_active_requests();
+
+            self.try_process_embedding_request(has_active_requests);
+
+            if has_active_requests {
                 if let Err(err) = self.execute_one_iteration() {
                     error!(
                         "{:?}: scheduler iteration failed: {err:#}",
@@ -132,6 +137,10 @@ impl ContinuousBatchScheduler {
                     );
                 }
             } else if self.pending_embedding_requests.is_empty() {
+                if self.shutdown_requested {
+                    break;
+                }
+
                 self.wait_for_next_command();
             }
         }
@@ -157,7 +166,7 @@ impl ContinuousBatchScheduler {
                 "{:?}: command channel closed, shutting down scheduler",
                 self.scheduler_context.agent_name
             );
-            self.running = false;
+            self.shutdown_requested = true;
         }
     }
 
@@ -167,7 +176,7 @@ impl ContinuousBatchScheduler {
                 Ok(command) => self.process_command(command),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
-                    self.running = false;
+                    self.shutdown_requested = true;
 
                     break;
                 }
@@ -184,7 +193,7 @@ impl ContinuousBatchScheduler {
                 self.pending_embedding_requests.push_back(request);
             }
             ContinuousBatchSchedulerCommand::Shutdown => {
-                self.running = false;
+                self.shutdown_requested = true;
             }
         }
     }
@@ -192,7 +201,7 @@ impl ContinuousBatchScheduler {
     fn create_sampler_chain(&mut self) -> Result<LlamaSampler, SamplingError> {
         SamplerChainFactory {
             inference_parameters: &self.scheduler_context.inference_parameters,
-            n_vocab: self.scheduler_context.model.n_vocab(),
+            n_vocab: self.scheduler_context.n_vocab,
         }
         .create(self.rng.random::<u32>())
     }
@@ -276,6 +285,7 @@ impl ContinuousBatchScheduler {
             state: ContinuousBatchRequestState {
                 current_token_position: 0,
                 i_batch: None,
+                last_outcome_section: token_classifier.current_section(),
                 max_tokens,
                 pending_sampled_token: None,
                 phase: ContinuousBatchRequestPhase::Ingesting,
@@ -310,6 +320,9 @@ impl ContinuousBatchScheduler {
             }
         }
 
+        active_request.state.last_outcome_section =
+            active_request.token_classifier.current_section();
+
         Ok(active_request)
     }
 
@@ -337,10 +350,10 @@ impl ContinuousBatchScheduler {
 
         require_prompt_fits_sequence_context(
             input_chunks.total_tokens(),
-            self.llama_context.n_ctx_seq(),
+            self.scheduler_context.sequence_context_size,
         )?;
 
-        self.harvest_pending_samples_before_external_decode();
+        self.advance_generating_requests();
 
         let tokens_ingested = active_request.token_classifier.eval_multimodal_chunks(
             &input_chunks,
@@ -357,85 +370,6 @@ impl ContinuousBatchScheduler {
         self.llama_context.mark_logits_initialized(-1);
 
         Ok(tokens_ingested)
-    }
-
-    fn harvest_pending_samples_before_external_decode(&mut self) {
-        for active_request in &mut self.active_requests {
-            if !matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Generating
-            ) {
-                continue;
-            }
-
-            if active_request.state.pending_sampled_token.is_some() {
-                continue;
-            }
-
-            let Some(batch_index) = active_request.state.i_batch else {
-                continue;
-            };
-
-            match sample_token_at_batch_index(
-                &self.llama_context,
-                batch_index,
-                &mut active_request.chain,
-                &mut active_request.grammar_sampler,
-            ) {
-                Ok(SamplingOutcome::Token(raw_token)) => {
-                    // Update classifier state (section / usage counters) but drop the
-                    // outcomes — harvest-sampled tokens are funnelled into the next
-                    // batch via `pending_sampled_token`; their user-visible emission
-                    // happens in `advance_generating_phase` after the next decode,
-                    // not here.
-                    if let Err(error) = active_request.token_classifier.ingest(raw_token) {
-                        error!(
-                            "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
-                            self.scheduler_context.agent_name,
-                            active_request.sequence_id_guard.sequence_id()
-                        );
-                        active_request.complete_with_outcome(
-                            GeneratedTokenResult::DetokenizationFailed(error.to_string()),
-                        );
-
-                        continue;
-                    }
-
-                    active_request.state.pending_sampled_token =
-                        Some(llama_cpp_bindings::SampledToken::Content(raw_token));
-                    active_request.state.i_batch = None;
-                }
-                Ok(SamplingOutcome::AllCandidatesEliminated) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest exhausted candidates",
-                        self.scheduler_context.agent_name,
-                        active_request.sequence_id_guard.sequence_id()
-                    );
-                    active_request.complete_with_outcome(GeneratedTokenResult::SamplerError(
-                        "all token candidates were eliminated during sampling".to_owned(),
-                    ));
-                }
-                Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest grammar rejected: {message}",
-                        self.scheduler_context.agent_name,
-                        active_request.sequence_id_guard.sequence_id()
-                    );
-                    active_request.complete_with_outcome(
-                        GeneratedTokenResult::GrammarRejectedModelOutput(message),
-                    );
-                }
-                Err(err) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest sampling error: {err:#}",
-                        self.scheduler_context.agent_name,
-                        active_request.sequence_id_guard.sequence_id()
-                    );
-                    active_request
-                        .complete_with_outcome(GeneratedTokenResult::SamplerError(err.to_string()));
-                }
-            }
-        }
     }
 
     fn check_stop_signals(&mut self) {
@@ -457,12 +391,12 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn try_process_embedding_request(&mut self) {
+    fn try_process_embedding_request(&mut self, has_active_requests: bool) {
         let Some(request) = self.pending_embedding_requests.pop_front() else {
             return;
         };
 
-        if self.has_active_requests() {
+        if has_active_requests {
             if request
                 .generated_embedding_tx
                 .send(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration)

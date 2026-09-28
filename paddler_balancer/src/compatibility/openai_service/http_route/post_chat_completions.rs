@@ -77,8 +77,8 @@ async fn respond(
         conversation_history: ConversationHistory::new(
             openai_params
                 .messages
-                .iter()
-                .map(OpenAIMessage::to_conversation_message)
+                .into_iter()
+                .map(OpenAIMessage::into_conversation_message)
                 .collect(),
         ),
         enable_thinking: true,

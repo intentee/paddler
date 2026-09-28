@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaModel;
-use log::warn;
-use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
@@ -22,7 +20,6 @@ pub struct EmbeddingBatchPreparer {
 impl EmbeddingBatchPreparer {
     pub fn prepare(
         &self,
-        agent_name: Option<&str>,
         GenerateEmbeddingBatchRequest {
             generate_embedding_stop_rx,
             generated_embedding_tx,
@@ -37,6 +34,7 @@ impl EmbeddingBatchPreparer {
         require_embeddings_enabled(self.enable_embeddings)?;
 
         let mut inputs = Vec::with_capacity(input_batch.len());
+        let mut oversized_documents = Vec::new();
 
         for input in input_batch {
             let tokens = self
@@ -48,20 +46,11 @@ impl EmbeddingBatchPreparer {
                 })?;
 
             if tokens.len() > self.n_batch {
-                let details = OversizedEmbeddingDocumentDetails {
+                oversized_documents.push(OversizedEmbeddingDocumentDetails {
                     document_tokens: tokens.len(),
                     n_batch: self.n_batch,
                     source_document_id: input.id,
-                };
-
-                warn!(
-                    "{agent_name:?}: skipped embedding document {:?}: {} tokens exceeds n_batch {}",
-                    details.source_document_id, details.document_tokens, details.n_batch,
-                );
-
-                generated_embedding_tx
-                    .send(EmbeddingResult::DocumentExceedsBatchSize(details))
-                    .map_err(EmbeddingBatchRejection::ClientDisconnected)?;
+                });
             } else {
                 inputs.push(EmbeddingInputTokenized {
                     id: input.id,
@@ -75,6 +64,7 @@ impl EmbeddingBatchPreparer {
             generated_embedding_tx,
             inputs,
             normalization_method,
+            oversized_documents,
             slot_guard,
         })
     }

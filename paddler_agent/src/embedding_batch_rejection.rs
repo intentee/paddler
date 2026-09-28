@@ -2,7 +2,6 @@ use llama_cpp_bindings::error::StringToTokenError;
 use log::error;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::SendError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmbeddingBatchRejection {
@@ -18,9 +17,6 @@ pub enum EmbeddingBatchRejection {
 
     #[error("the scheduler is no longer accepting requests")]
     SchedulerUnavailable,
-
-    #[error("the client disconnected before the embedding batch was prepared: {0}")]
-    ClientDisconnected(#[source] SendError<EmbeddingResult>),
 }
 
 impl EmbeddingBatchRejection {
@@ -35,9 +31,9 @@ impl EmbeddingBatchRejection {
 
         let result = match self {
             Self::EmbeddingsDisabled => EmbeddingResult::EmbeddingsDisabled,
-            Self::InputTokenizationFailed { .. }
-            | Self::SchedulerUnavailable
-            | Self::ClientDisconnected(_) => EmbeddingResult::Error(message),
+            Self::InputTokenizationFailed { .. } | Self::SchedulerUnavailable => {
+                EmbeddingResult::Error(message)
+            }
         };
 
         if generated_embedding_tx.send(result).is_err() {

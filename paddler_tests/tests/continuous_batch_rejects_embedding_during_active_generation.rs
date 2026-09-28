@@ -1,38 +1,73 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::qwen3_desired_state_with_embeddings::qwen3_desired_state_with_embeddings;
+use paddler_tests::start_cluster_without_model::start_cluster_without_model;
 use tokio_util::sync::CancellationToken;
+
+const NEVER_COMPLETING_GRAMMAR: &str = r#"root ::= "apple " root"#;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_rejects_embedding_during_active_generation() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
+    let mut cluster = start_cluster_without_model(
+        AgentConfig::uniform(1, 2),
+        InferenceParameters::deterministic(),
+    )
+    .await?;
 
+    let generation_cancellation = CancellationToken::new();
     let mut generation_stream = cluster
         .continue_from_raw_prompt_stream(
-            CancellationToken::new(),
+            generation_cancellation.clone(),
             &ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: 50,
-                raw_prompt: "Tell me a long story about a cat".to_owned(),
+                grammar: Some(GrammarConstraint::Gbnf {
+                    grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
+                    root: "root".to_owned(),
+                }),
+                max_tokens: i32::MAX,
+                raw_prompt: "Repeat the word apple.".to_owned(),
             },
         )
         .await?;
 
-    let _first_token = generation_stream
+    cluster
+        .wait_for_buffered_request_count(1, ObservationWindow::release())
+        .await
+        .context("the generation request must wait in the buffer while the agent has no model")?;
+
+    cluster
+        .client_management
+        .put_balancer_desired_state(
+            CancellationToken::new(),
+            &BalancerDesiredState {
+                chat_template_override: Some(ChatTemplate {
+                    content: "{% for message in messages %}{{ message.content }}{% endfor %}"
+                        .to_owned(),
+                }),
+                use_chat_template_override: true,
+                ..qwen3_desired_state_with_embeddings(true)
+            },
+        )
+        .await?;
+
+    generation_stream
         .next()
         .await
-        .ok_or_else(|| anyhow!("generation stream must yield at least one message"))?;
+        .context("the buffered generation request must start streaming tokens")??;
 
-    let embedding_outcome = cluster
+    let collected = cluster
         .generate_embedding_batch(
             CancellationToken::new(),
             &GenerateEmbeddingBatchParams {
@@ -43,16 +78,16 @@ async fn continuous_batch_rejects_embedding_during_active_generation() -> Result
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
         )
-        .await;
+        .await?;
 
-    if let Ok(collected) = embedding_outcome {
-        assert!(
-            !collected.errors.is_empty() || collected.embeddings.is_empty(),
-            "embedding request must fail when text-only model is busy generating"
-        );
-    }
+    assert_eq!(
+        collected.embedding_rejected_due_to_active_token_generation_count,
+        1
+    );
+    assert!(collected.embeddings.is_empty());
 
-    let _drained = collect_generated_tokens(generation_stream).await;
+    generation_cancellation.cancel();
+    drop(generation_stream);
 
     cluster.shutdown().await?;
 

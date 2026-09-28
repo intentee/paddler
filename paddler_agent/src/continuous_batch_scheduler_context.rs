@@ -8,4 +8,6 @@ pub struct ContinuousBatchSchedulerContext {
     pub desired_slots_total: i32,
     pub inference_parameters: InferenceParameters,
     pub model: Arc<LlamaModel>,
+    pub n_vocab: i32,
+    pub sequence_context_size: u32,
 }

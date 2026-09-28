@@ -9,12 +9,12 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_returns_image_decoding_error_for_remote_url() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+    let cluster = start_cluster_with_smolvlm2(AgentConfig::uniform(1, 2)).await?;
 
     let outcome = cluster
         .continue_from_conversation_history(
@@ -43,19 +43,18 @@ async fn agent_returns_image_decoding_error_for_remote_url() -> Result<()> {
         )
         .await;
 
-    if let Ok(collected) = outcome {
-        let saw_decoding_error = collected.token_results.iter().any(|result| {
-            matches!(
-                result.token_result,
-                GeneratedTokenResult::ImageDecodingFailed(_)
-            )
-        });
+    let collected = outcome?;
+    let saw_decoding_error = collected.token_results.iter().any(|result| {
+        matches!(
+            result.token_result,
+            GeneratedTokenResult::ImageDecodingFailed(_)
+        )
+    });
 
-        assert!(
-            saw_decoding_error,
-            "remote URL must produce ImageDecodingFailed (only data URIs supported)"
-        );
-    }
+    assert!(
+        saw_decoding_error,
+        "remote URL must produce ImageDecodingFailed (only data URIs supported)"
+    );
 
     cluster.shutdown().await?;
 

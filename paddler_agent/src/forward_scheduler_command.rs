@@ -119,6 +119,7 @@ mod tests {
                     generated_embedding_tx,
                     inputs: Vec::new(),
                     normalization_method: EmbeddingNormalizationMethod::None,
+                    oversized_documents: Vec::new(),
                     slot_guard: slot_guard(),
                 },
             ),

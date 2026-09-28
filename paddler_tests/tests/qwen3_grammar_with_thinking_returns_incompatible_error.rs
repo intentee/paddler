@@ -32,16 +32,15 @@ async fn qwen3_grammar_with_thinking_returns_incompatible_error() -> Result<()> 
         })
         .await;
 
-    if let Ok(collected) = outcome {
-        assert!(
-            collected.token_results.iter().any(|result| matches!(
-                result.token_result,
-                GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
-            )),
-            "expected GrammarIncompatibleWithThinking, got: {:?}",
-            collected.token_results
-        );
-    }
+    let collected = outcome?;
+    assert!(
+        collected.token_results.iter().any(|result| matches!(
+            result.token_result,
+            GeneratedTokenResult::GrammarIncompatibleWithThinking(_)
+        )),
+        "expected GrammarIncompatibleWithThinking, got: {:?}",
+        collected.token_results
+    );
 
     cluster.shutdown().await?;
 

@@ -16,7 +16,7 @@ pub struct GenerateEmbeddingBatchParams {
 
 impl GenerateEmbeddingBatchParams {
     pub fn chunk_evenly_with_cap(
-        &self,
+        self,
         agent_count: usize,
         max_documents_per_chunk: usize,
     ) -> Result<Vec<Self>, ChunkEvenlyWithCapError> {
@@ -27,7 +27,11 @@ impl GenerateEmbeddingBatchParams {
             return Err(ChunkEvenlyWithCapError::ZeroMaxDocumentsPerChunk);
         }
 
-        let document_count = self.input_batch.len();
+        let Self {
+            input_batch,
+            normalization_method,
+        } = self;
+        let document_count = input_batch.len();
 
         if document_count == 0 {
             return Ok(Vec::new());
@@ -39,27 +43,22 @@ impl GenerateEmbeddingBatchParams {
         let quotient = document_count / chunk_count;
         let remainder = document_count % chunk_count;
 
-        let mut sub_batches = Vec::with_capacity(chunk_count);
-        let mut start_index = 0;
+        let mut documents = input_batch.into_iter();
 
-        for chunk_index in 0..chunk_count {
-            let chunk_size = if chunk_index < remainder {
-                quotient + 1
-            } else {
-                quotient
-            };
+        Ok((0..chunk_count)
+            .map(|chunk_index| {
+                let chunk_size = if chunk_index < remainder {
+                    quotient + 1
+                } else {
+                    quotient
+                };
 
-            let end_index = start_index + chunk_size;
-
-            sub_batches.push(Self {
-                input_batch: self.input_batch[start_index..end_index].to_vec(),
-                normalization_method: self.normalization_method.clone(),
-            });
-
-            start_index = end_index;
-        }
-
-        Ok(sub_batches)
+                Self {
+                    input_batch: documents.by_ref().take(chunk_size).collect(),
+                    normalization_method: normalization_method.clone(),
+                }
+            })
+            .collect())
     }
 }
 
@@ -139,7 +138,9 @@ mod tests {
                 matches!(result, Err(ChunkEvenlyWithCapError::ZeroAgentCount))
             };
 
-        assert!(is_zero_agent_count(params.chunk_evenly_with_cap(0, 256)));
+        assert!(is_zero_agent_count(
+            params.clone().chunk_evenly_with_cap(0, 256)
+        ));
         assert!(!is_zero_agent_count(params.chunk_evenly_with_cap(2, 0)));
     }
 
@@ -155,7 +156,9 @@ mod tests {
                 )
             };
 
-        assert!(is_zero_max_documents(params.chunk_evenly_with_cap(2, 0)));
+        assert!(is_zero_max_documents(
+            params.clone().chunk_evenly_with_cap(2, 0)
+        ));
         assert!(!is_zero_max_documents(params.chunk_evenly_with_cap(0, 0)));
     }
 

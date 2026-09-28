@@ -46,20 +46,19 @@ async fn agent_text_only_model_rejects_image_input() -> Result<()> {
         )
         .await;
 
-    if let Ok(collected) = outcome {
-        let saw_rejection = collected.token_results.iter().any(|result| {
-            matches!(
-                result.token_result,
-                GeneratedTokenResult::ChatTemplateError(_)
-                    | GeneratedTokenResult::MultimodalNotSupported(_)
-            )
-        });
+    let collected = outcome?;
 
-        assert!(
-            saw_rejection,
-            "text-only model must reject image input with chat template or multimodal-not-supported error"
-        );
-    }
+    assert_eq!(
+        collected
+            .token_results
+            .into_iter()
+            .map(|token_result_with_producer| token_result_with_producer.token_result)
+            .collect::<Vec<GeneratedTokenResult>>(),
+        vec![GeneratedTokenResult::MultimodalNotSupported(
+            "Some(\"test-agent-0\"): received images but model does not support multimodal input"
+                .to_owned()
+        )]
+    );
 
     cluster.shutdown().await?;
 

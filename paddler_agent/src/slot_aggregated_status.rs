@@ -110,7 +110,6 @@ impl SlotAggregatedStatus {
     pub fn reset(&self) {
         self.issues.clear();
         self.set_model_path(None);
-        self.slots_processing.reset();
         self.slots_total.reset();
         self.version.increment();
         self.update_tx.send_replace(());
@@ -416,11 +415,12 @@ mod tests {
     }
 
     #[test]
-    fn reset_clears_state() {
+    fn reset_clears_state_but_keeps_requests_in_flight() {
         let status = SlotAggregatedStatus::new(2);
 
         status.set_model_path(Some("test_model".to_owned()));
         status.increment_total_slots();
+        status.take_slot();
         status.register_issue(AgentIssue::ModelFileDoesNotExist(model_path("model_test")));
 
         status.reset();
@@ -428,7 +428,7 @@ mod tests {
         let snapshot = status.make_snapshot().unwrap();
 
         assert_eq!(snapshot.slots_total, 0);
-        assert_eq!(snapshot.slots_processing, 0);
+        assert_eq!(snapshot.slots_processing, 1);
         assert_eq!(snapshot.model_path, None);
         assert!(snapshot.issues.is_empty());
     }

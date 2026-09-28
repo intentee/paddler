@@ -10,7 +10,6 @@ use actix_ws::CloseCode;
 use actix_ws::CloseReason;
 use actix_ws::ProtocolError;
 use actix_ws::Session;
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures_util::StreamExt as _;
@@ -85,11 +84,10 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                     WebSocketSessionController::<Self::OutgoingMessage>::new(session.clone()),
                 )
                 .await
-                .context(format!("Text message: {text}"))
                 {
                     Ok(continuation_decision) => return Ok(continuation_decision),
                     Err(err) => {
-                        error!("Error handling text message: {err:?}");
+                        error!("Error handling text message {text}: {err:?}");
 
                         Ok(ContinuationDecision::Continue)
                     }
