@@ -13,7 +13,7 @@ use paddler_cache_dir::download_lock_acquisition_error::DownloadLockAcquisitionE
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_download_manager::download_outcome::DownloadOutcome;
-use paddler_download_manager::progress_sink::ProgressSink;
+use paddler_download_manager::download_progress::DownloadProgress;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::url_model_reference::UrlModelReference;
@@ -23,27 +23,15 @@ use crate::desired_model_resolution::DesiredModelResolution;
 use crate::resolves_model_source::ResolvesModelSource;
 use crate::slot_aggregated_status::SlotAggregatedStatus;
 
-#[cfg(unix)]
-fn is_disk_full(error: &io::Error) -> bool {
-    error.raw_os_error() == Some(28)
-}
-
-#[cfg(windows)]
-fn is_disk_full(error: &io::Error) -> bool {
-    error.raw_os_error() == Some(112)
-}
-
 fn classify_cache_io_error(url_string: &str, error: &io::Error) -> AgentIssue {
     let model_path = ModelPath {
         model_path: url_string.to_owned(),
     };
 
-    if error.kind() == io::ErrorKind::PermissionDenied {
-        AgentIssue::CacheDirectoryIsNotWritable(model_path)
-    } else if is_disk_full(error) {
-        AgentIssue::CacheStorageIsFull(model_path)
-    } else {
-        AgentIssue::ModelCacheIsCorrupted(model_path)
+    match error.kind() {
+        io::ErrorKind::PermissionDenied => AgentIssue::CacheDirectoryIsNotWritable(model_path),
+        io::ErrorKind::StorageFull => AgentIssue::CacheStorageIsFull(model_path),
+        _ => AgentIssue::ModelCacheIsCorrupted(model_path),
     }
 }
 
@@ -80,36 +68,41 @@ fn agent_issue_for(error: &DownloadError, url_string: &str) -> AgentIssue {
     }
 }
 
-struct SlotAggregatedStatusSink {
+struct SlotAggregatedStatusDownloadProgress {
     basename: Option<String>,
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
     url: String,
 }
 
-impl ProgressSink for SlotAggregatedStatusSink {
-    fn on_started(&self, total_bytes: Option<u64>, already_downloaded: u64) {
-        self.slot_aggregated_status.set_download_status(
-            already_downloaded,
-            total_bytes,
-            self.basename.clone(),
-        );
-        self.slot_aggregated_status
-            .register_fix(&AgentIssueFix::ModelDownloadStarted(ModelPath {
-                model_path: self.url.clone(),
-            }));
-    }
-
-    fn on_chunk(&self, additional_bytes: u64) {
-        self.slot_aggregated_status
-            .increment_download_current(additional_bytes);
-    }
-
-    fn on_finished(&self) {
-        self.slot_aggregated_status
-            .register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
-                model_path: self.url.clone(),
-            }));
-        self.slot_aggregated_status.reset_download();
+impl SlotAggregatedStatusDownloadProgress {
+    fn apply(&self, progress: DownloadProgress) {
+        match progress {
+            DownloadProgress::Started {
+                already_downloaded_bytes,
+                total_bytes,
+            } => {
+                self.slot_aggregated_status.set_download_status(
+                    already_downloaded_bytes,
+                    total_bytes,
+                    self.basename.clone(),
+                );
+                self.slot_aggregated_status
+                    .register_fix(&AgentIssueFix::ModelDownloadStarted(ModelPath {
+                        model_path: self.url.clone(),
+                    }));
+            }
+            DownloadProgress::ChunkWritten { byte_count } => {
+                self.slot_aggregated_status
+                    .increment_download_current(byte_count);
+            }
+            DownloadProgress::Finished => {
+                self.slot_aggregated_status
+                    .register_fix(&AgentIssueFix::ModelDownloadCompleted(ModelPath {
+                        model_path: self.url.clone(),
+                    }));
+                self.slot_aggregated_status.reset_download();
+            }
+        }
     }
 }
 
@@ -198,21 +191,21 @@ async fn resolve_url_into_cache(
         .file_name()
         .and_then(|name| name.to_str())
         .map(str::to_owned);
-    let sink: Arc<dyn ProgressSink> = Arc::new(SlotAggregatedStatusSink {
+    let download_progress = SlotAggregatedStatusDownloadProgress {
         basename,
         slot_aggregated_status: slot_aggregated_status.clone(),
         url: url_string.to_owned(),
-    });
-
-    match DownloadManager::new()?
+    };
+    let download_result = DownloadManager::new()?
         .download(
             cancellation_token,
             url_string,
             &cached.cache_file_path,
-            sink,
+            &|progress| download_progress.apply(progress),
         )
-        .await
-    {
+        .await;
+
+    match download_result {
         Ok(DownloadOutcome::Completed) => {
             Ok(DesiredModelResolution::Resolved(cached.cache_file_path))
         }
@@ -257,26 +250,24 @@ mod tests {
     use paddler_cache_dir::cache_dir::CacheDir;
     use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
     use paddler_download_manager::download_error::DownloadError;
+    use paddler_local_http_fixture::fixture_response::FixtureResponse;
+    use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_issue::AgentIssue;
     use reqwest::StatusCode;
     use tempfile::TempDir;
     use tokio::fs::create_dir;
     use tokio::fs::read;
     use tokio::fs::write;
-    use tokio::io::AsyncBufReadExt as _;
-    use tokio::io::AsyncWriteExt as _;
-    use tokio::io::BufReader;
-    use tokio::net::TcpListener;
     use tokio_util::sync::CancellationToken;
     use url::Url;
 
     use crate::desired_model_resolution::DesiredModelResolution;
-    use crate::model_source::url::SlotAggregatedStatusSink;
+    use crate::model_source::url::SlotAggregatedStatusDownloadProgress;
     use crate::model_source::url::agent_issue_for;
     use crate::model_source::url::classify_cache_io_error;
     use crate::model_source::url::resolve_url_into_cache;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
-    use paddler_download_manager::progress_sink::ProgressSink;
+    use paddler_download_manager::download_progress::DownloadProgress;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
 
@@ -605,7 +596,7 @@ mod tests {
     fn cache_disk_full_maps_to_cache_storage_is_full() {
         let error = DownloadError::CacheDiskFull {
             path: PathBuf::from("/tmp/full/model.partial"),
-            source: io::Error::from_raw_os_error(28),
+            source: io::Error::from(io::ErrorKind::StorageFull),
         };
 
         assert_eq!(
@@ -638,13 +629,8 @@ mod tests {
     }
 
     #[test]
-    fn classify_cache_io_error_maps_disk_full_errno_to_cache_storage_is_full() {
-        #[cfg(unix)]
-        const DISK_FULL_ERRNO: i32 = 28;
-        #[cfg(windows)]
-        const DISK_FULL_ERRNO: i32 = 112;
-
-        let error = io::Error::from_raw_os_error(DISK_FULL_ERRNO);
+    fn classify_cache_io_error_maps_storage_full_to_cache_storage_is_full() {
+        let error = io::Error::from(io::ErrorKind::StorageFull);
 
         assert_eq!(
             classify_cache_io_error(TEST_URL, &error),
@@ -687,19 +673,22 @@ mod tests {
     }
 
     #[test]
-    fn sink_on_started_sets_download_status_and_clears_matching_download_issue() {
+    fn applying_started_sets_download_status_and_clears_matching_download_issue() {
         let status = fresh_status();
         status.register_issue(AgentIssue::DownloadInterrupted(ModelPath {
             model_path: TEST_URL.to_owned(),
         }));
 
-        let sink = SlotAggregatedStatusSink {
+        let download_progress = SlotAggregatedStatusDownloadProgress {
             basename: Some("m.gguf".to_owned()),
             slot_aggregated_status: status.clone(),
             url: TEST_URL.to_owned(),
         };
 
-        sink.on_started(Some(500), 100);
+        download_progress.apply(DownloadProgress::Started {
+            already_downloaded_bytes: 100,
+            total_bytes: Some(500),
+        });
 
         let snapshot = status.make_snapshot().unwrap();
         assert_eq!(snapshot.download_current, 100);
@@ -714,37 +703,43 @@ mod tests {
     }
 
     #[test]
-    fn sink_on_chunk_increments_download_current() {
+    fn applying_chunk_written_increments_download_current() {
         let status = fresh_status();
-        let sink = SlotAggregatedStatusSink {
+        let download_progress = SlotAggregatedStatusDownloadProgress {
             basename: None,
             slot_aggregated_status: status.clone(),
             url: TEST_URL.to_owned(),
         };
 
-        sink.on_started(Some(1000), 0);
-        sink.on_chunk(250);
-        sink.on_chunk(125);
+        download_progress.apply(DownloadProgress::Started {
+            already_downloaded_bytes: 0,
+            total_bytes: Some(1000),
+        });
+        download_progress.apply(DownloadProgress::ChunkWritten { byte_count: 250 });
+        download_progress.apply(DownloadProgress::ChunkWritten { byte_count: 125 });
 
         let snapshot = status.make_snapshot().unwrap();
         assert_eq!(snapshot.download_current, 375);
     }
 
     #[test]
-    fn sink_on_finished_resets_download_and_clears_matching_download_issue() {
+    fn applying_finished_resets_download_and_clears_matching_download_issue() {
         let status = fresh_status();
         status.register_issue(AgentIssue::DownloadInterrupted(ModelPath {
             model_path: TEST_URL.to_owned(),
         }));
 
-        let sink = SlotAggregatedStatusSink {
+        let download_progress = SlotAggregatedStatusDownloadProgress {
             basename: Some("m.gguf".to_owned()),
             slot_aggregated_status: status.clone(),
             url: TEST_URL.to_owned(),
         };
 
-        sink.on_started(Some(500), 200);
-        sink.on_finished();
+        download_progress.apply(DownloadProgress::Started {
+            already_downloaded_bytes: 200,
+            total_bytes: Some(500),
+        });
+        download_progress.apply(DownloadProgress::Finished);
 
         let snapshot = status.make_snapshot().unwrap();
         assert_eq!(snapshot.download_current, 0);
@@ -795,38 +790,16 @@ mod tests {
         );
     }
 
-    async fn serve_single_ok_response(listener: TcpListener, body: Vec<u8>) {
-        let (mut socket, _peer) = listener.accept().await.unwrap();
-        let (reader_half, mut writer_half) = socket.split();
-        let mut reader = BufReader::new(reader_half);
-
-        loop {
-            let mut header_line = String::new();
-            let bytes_read = reader.read_line(&mut header_line).await.unwrap();
-            if bytes_read == 0 || header_line == "\r\n" {
-                break;
-            }
-        }
-
-        let header = format!(
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-            body.len()
-        );
-        writer_half.write_all(header.as_bytes()).await.unwrap();
-        writer_half.write_all(&body).await.unwrap();
-        writer_half.shutdown().await.unwrap();
-    }
-
     #[tokio::test]
     async fn successful_download_resolves_to_cache_file_with_downloaded_contents() {
         let directory = TempDir::new().unwrap();
         let cache_dir = cache_dir_at(directory.path());
 
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let port = listener.local_addr().unwrap().port();
-        let url_string = format!("http://127.0.0.1:{port}/model.gguf");
         let body = b"downloaded model bytes".to_vec();
-        let server = tokio::spawn(serve_single_ok_response(listener, body.clone()));
+        let fixture = LocalHttpFixture::start(FixtureResponse::Ok(body.clone()))
+            .await
+            .unwrap();
+        let url_string = fixture.url("/model.gguf");
 
         let cached = CachedDownloadedModel::new(&cache_dir, &url_string).unwrap();
         let expected_path = cached.cache_file_path.clone();
@@ -840,8 +813,7 @@ mod tests {
         .await
         .unwrap();
 
-        server.await.unwrap();
-
+        assert_eq!(fixture.request_count(), 1);
         assert!(matches!(
             resolution,
             DesiredModelResolution::Resolved(resolved_path) if resolved_path == expected_path

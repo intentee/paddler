@@ -10,6 +10,7 @@ members = [
     "paddler_download_manager",
     "paddler_gui",
     "paddler_image_decoder",
+    "paddler_local_http_fixture",
     "paddler_messaging",
     "paddler_openai_response_format_validator",
     "paddler_opencode_tests",
@@ -56,6 +57,7 @@ futures-util = { version = "0.3", features = ["tokio-io"] }
 headers = "=0.4.1"
 hf-hub = { version = "0.4", features = ["tokio"] }
 http = "1"
+httparse = "1.10"
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
@@ -103,6 +105,7 @@ paddler_cli = { version = "4.1.0", path = "paddler_cli" }
 paddler_client = { version = "4.1.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.1.0", path = "paddler_download_manager" }
 paddler_image_decoder = { version = "4.1.0", path = "paddler_image_decoder" }
+paddler_local_http_fixture = { path = "paddler_local_http_fixture" }
 paddler_messaging = { version = "4.1.0", path = "paddler_messaging" }
 paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }
 paddler_state_conversion = { version = "4.1.0", path = "paddler_state_conversion" }

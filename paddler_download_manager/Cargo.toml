@@ -25,6 +25,8 @@ tokio-util = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
+http = { workspace = true }
+paddler_local_http_fixture = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

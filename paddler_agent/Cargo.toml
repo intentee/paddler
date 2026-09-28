@@ -53,6 +53,7 @@ vulkan = ["llama-cpp-bindings/vulkan"]
 
 [dev-dependencies]
 indoc = { workspace = true }
+paddler_local_http_fixture = { workspace = true }
 tempfile = { workspace = true }
 tokio-test = { workspace = true }
 

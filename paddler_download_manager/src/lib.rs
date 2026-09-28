@@ -1,9 +1,6 @@
-pub mod download_attempt_error;
 pub mod download_error;
 pub mod download_manager;
 pub mod download_outcome;
+pub mod download_progress;
 pub mod partial_file;
-pub mod progress_sink;
 pub mod response_classification;
-pub mod stream_to_partial_file;
-pub mod stream_to_partial_file_error;
