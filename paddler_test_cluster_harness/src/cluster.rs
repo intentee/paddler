@@ -27,10 +27,8 @@ use crate::agent_config::AgentConfig;
 use crate::agent_spawner::AgentSpawner;
 use crate::agents_status::assert_agent_count::assert_agent_count;
 use crate::agents_status::assert_slots_processing::assert_slots_processing;
-use crate::agents_status::assert_slots_total_at_least::assert_slots_total_at_least;
-use crate::agents_stream_watcher::AgentsStreamWatcher;
 use crate::buffered_requests_status::assert_count::assert_count;
-use crate::buffered_requests_stream_watcher::BufferedRequestsStreamWatcher;
+use crate::cluster_harness_error::ClusterHarnessError;
 use crate::collect_embedding_results::collect_embedding_results;
 use crate::collect_generated_tokens::collect_generated_tokens;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
@@ -40,15 +38,16 @@ use crate::openai_chat_completions_client::OpenAIChatCompletionsClient;
 use crate::openai_responses_client::OpenAIResponsesClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
+use crate::snapshots_watcher::SnapshotsWatcher;
 
 const INFERENCE_SOCKET_POOL_SIZE: NonZeroUsize = NonZeroUsize::MIN;
 
 pub struct Cluster {
     pub agent_ids: Vec<String>,
     pub agents: Vec<RunningAgent>,
-    pub agents_watcher: AgentsStreamWatcher,
+    pub agents_watcher: SnapshotsWatcher<AgentControllerPoolSnapshot>,
     pub balancer: RunningBalancer,
-    pub buffered_requests_watcher: BufferedRequestsStreamWatcher,
+    pub buffered_requests_watcher: SnapshotsWatcher<BufferedRequestManagerSnapshot>,
     pub client_compat_openai_health: ClientHealth,
     pub client_inference: ClientInference,
     pub client_management: ClientManagement,
@@ -87,10 +86,18 @@ impl Cluster {
                 .context("failed to PUT balancer desired state")?;
         }
 
-        let agents_watcher =
-            AgentsStreamWatcher::connect(cancellation_token.clone(), &client_management).await?;
-        let buffered_requests_watcher =
-            BufferedRequestsStreamWatcher::connect(cancellation_token, &client_management).await?;
+        let agents_watcher = SnapshotsWatcher::of_agents(
+            client_management
+                .get_agents_stream(cancellation_token.clone())
+                .await
+                .context("failed to open /api/v1/agents/stream")?,
+        );
+        let buffered_requests_watcher = SnapshotsWatcher::of_buffered_requests(
+            client_management
+                .get_buffered_requests_stream(cancellation_token)
+                .await
+                .context("failed to open /api/v1/buffered_requests/stream")?,
+        );
 
         let openai_client = OpenAIChatCompletionsClient::new(&openai_base_url)?;
         let openai_responses_client = OpenAIResponsesClient::new(&openai_base_url)?;
@@ -237,7 +244,7 @@ impl Cluster {
     pub async fn wait_for_agent_count(
         &mut self,
         expected_count: usize,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.agents_watcher
             .until(
                 ObservationWindow::model_load(),
@@ -250,15 +257,9 @@ impl Cluster {
         &mut self,
         agent_name: &str,
         expected_slot_count: i32,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.agents_watcher
             .wait_for_agent_ready(agent_name, expected_slot_count)
-            .await
-    }
-
-    pub async fn wait_for_agents_ready(&mut self, expected_slot_counts: &[i32]) -> Result<()> {
-        self.agents_watcher
-            .wait_for_slots_ready(expected_slot_counts)
             .await
     }
 
@@ -267,24 +268,11 @@ impl Cluster {
         agent_id: &str,
         expected_slots_processing: i32,
         observation_window: ObservationWindow,
-    ) -> Result<AgentControllerPoolSnapshot> {
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.agents_watcher
             .until(
                 observation_window,
                 assert_slots_processing(agent_id, expected_slots_processing),
-            )
-            .await
-    }
-
-    pub async fn wait_for_slots_total_at_least(
-        &mut self,
-        agent_id: &str,
-        expected_slots_total: i32,
-    ) -> Result<AgentControllerPoolSnapshot> {
-        self.agents_watcher
-            .until(
-                ObservationWindow::model_load(),
-                assert_slots_total_at_least(agent_id, expected_slots_total),
             )
             .await
     }
@@ -318,7 +306,7 @@ impl Cluster {
         &mut self,
         expected_count: i32,
         observation_window: ObservationWindow,
-    ) -> Result<BufferedRequestManagerSnapshot> {
+    ) -> Result<BufferedRequestManagerSnapshot, ClusterHarnessError> {
         self.buffered_requests_watcher
             .until(observation_window, assert_count(expected_count))
             .await
@@ -337,14 +325,15 @@ impl Cluster {
             .context("the cluster must have a registered agent")?
             .clone();
 
-        self.agents_watcher
+        Ok(self
+            .agents_watcher
             .until_agent(&agent_id, ObservationWindow::model_load(), |snapshot| {
                 snapshot
                     .agents
                     .iter()
                     .any(|agent| agent.id == agent_id && agent.issues.iter().any(&issue_matcher))
             })
-            .await
+            .await?)
     }
 
     pub async fn register_agents(

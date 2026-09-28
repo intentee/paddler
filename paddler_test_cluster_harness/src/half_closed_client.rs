@@ -54,7 +54,6 @@ impl HalfClosedClient {
 mod tests {
     use std::net::SocketAddr;
 
-    use anyhow::Result;
     use serde_json::json;
     use tokio::io::AsyncReadExt as _;
     use tokio::net::TcpListener;
@@ -63,7 +62,7 @@ mod tests {
     use crate::cluster_harness_error::ClusterHarnessError;
 
     #[tokio::test]
-    async fn reports_the_address_it_could_not_reach() -> Result<()> {
+    async fn reports_the_address_it_could_not_reach() {
         let unreachable_addr = SocketAddr::from(([127, 0, 0, 1], 1));
 
         let connect_error = HalfClosedClient::post_json_then_half_close(
@@ -79,36 +78,47 @@ mod tests {
             connect_error.downcast_ref::<ClusterHarnessError>(),
             Some(ClusterHarnessError::HalfClosedClientUnreachable { addr, .. }) if *addr == unreachable_addr
         ));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn sends_the_request_and_leaves_the_read_side_open() -> Result<()> {
-        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?;
-        let addr = listener.local_addr()?;
-
+    async fn sends_the_request_and_leaves_the_read_side_open() {
+        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .expect("the receiving socket must bind");
+        let addr = listener
+            .local_addr()
+            .expect("the receiving socket must report its address");
         let accepted = tokio::spawn(async move {
-            let (mut accepted_socket, _peer) = listener.accept().await?;
+            let (mut accepted_socket, _peer) = listener
+                .accept()
+                .await
+                .expect("the receiving socket must accept the client");
             let mut received = Vec::new();
 
-            accepted_socket.read_to_end(&mut received).await?;
+            accepted_socket
+                .read_to_end(&mut received)
+                .await
+                .expect("the request must be readable until the client half-closes");
 
-            Ok::<Vec<u8>, anyhow::Error>(received)
+            received
         });
 
         let mut client =
             HalfClosedClient::post_json_then_half_close(addr, "/api/v1/probe", &json!({"a": 1}))
-                .await?;
+                .await
+                .expect("the client must send its request");
 
-        client.half_close().await?;
+        client
+            .half_close()
+            .await
+            .expect("the client must half-close its write side");
 
-        let received = String::from_utf8(accepted.await??)?;
+        let received =
+            String::from_utf8(accepted.await.expect("the receiving task must not panic"))
+                .expect("the request must be text");
 
         assert!(received.starts_with("POST /api/v1/probe HTTP/1.1\r\n"));
         assert!(received.contains("Content-Length: 7\r\n"));
         assert!(received.ends_with("{\"a\":1}"));
-
-        Ok(())
     }
 }

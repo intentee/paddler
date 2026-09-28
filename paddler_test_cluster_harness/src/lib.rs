@@ -3,9 +3,7 @@ pub mod agent_spawner;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod agents_status;
-pub mod agents_stream_watcher;
 mod buffered_requests_status;
-pub mod buffered_requests_stream_watcher;
 pub mod cluster;
 pub mod cluster_harness_error;
 pub mod cluster_params;
@@ -27,5 +25,7 @@ pub mod resource_snapshot;
 pub mod resource_snapshot_diff;
 pub mod running_agent;
 pub mod running_balancer;
+pub mod snapshots_stream;
+pub mod snapshots_watcher;
 pub mod state_database_file;
 pub mod token_result_with_producer;
