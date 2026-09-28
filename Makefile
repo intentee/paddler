@@ -4,6 +4,7 @@ RUST_LOG ?= debug
 
 PADDLER_SOURCES := $(shell find paddler_agent/src paddler_balancer/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src paddler_image_decoder/src paddler_messaging/src paddler_state_conversion/src paddler_tool_call_validator/src -name '*.rs')
 FRONTEND_SOURCES := $(shell find resources -type f) $(wildcard jarmuz/*.mjs)
+LLVM_COV_THIRD_PARTY_SOURCES := /\.cargo/(registry|git)/|/\.rustup/toolchains/|^/rustc/|^/nix/store/|^$(CURDIR)/target/
 
 TEST_DEVICE ?= cpu
 
@@ -93,22 +94,27 @@ test.client.js: node_modules
 test.coverage: esbuild-meta.json node_modules
 	cargo llvm-cov clean --workspace
 	cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
-	cargo llvm-cov report --json --output-path target/llvm-cov.json
-	cargo llvm-cov report --lcov --output-path target/lcov.info
-	cargo llvm-cov report
+	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --json --output-path target/llvm-cov.json
+	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --lcov --output-path target/lcov.info
+	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)'
 	npx rust-coverage-check target/llvm-cov.json \
 		--workspace-root $(CURDIR) \
-		--gated paddler_agent=95 \
-		--gated paddler_balancer=84 \
+		--gated paddler_agent=97 \
+		--gated paddler_balancer=97 \
 		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
-		--gated paddler_cli=83 \
-		--gated paddler_client=94 \
+		--gated paddler_cli=87 \
+		--gated paddler_cli_tests=89 \
+		--gated paddler_client=97 \
 		--gated paddler_download_manager=99 \
-		--gated paddler_gui=13 \
+		--gated paddler_gui=30 \
 		--gated paddler_image_decoder=100 \
+		--gated paddler_local_http_fixture=89 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
+		--gated paddler_opencode_tests=76 \
+		--gated paddler_test_cluster_harness=94 \
+		--gated paddler_tests=87 \
 		--gated paddler_tool_call_validator=100
 
 .PHONY: test.coverage-clean
