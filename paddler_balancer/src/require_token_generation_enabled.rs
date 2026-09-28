@@ -26,30 +26,33 @@ mod tests {
     use super::require_token_generation_enabled;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     fn holder_with_embeddings(enable_embeddings: bool) -> BalancerApplicableStateHolder {
-        let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
+        let balancer_applicable_state_holder = BalancerApplicableStateHolder::new(
+            BalancerApplicableState::from(BalancerDesiredState::default()),
+        );
 
-        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
-            BalancerApplicableState {
-                agent_desired_state: AgentDesiredState {
-                    chat_template_override: None,
-                    inference_parameters: InferenceParameters {
-                        enable_embeddings,
-                        ..InferenceParameters::default()
-                    },
-                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                    multimodal_projection: AgentDesiredModel::None,
+        balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
+            agent_desired_state: AgentDesiredState {
+                chat_template_override: None,
+                inference_parameters: InferenceParameters {
+                    enable_embeddings,
+                    ..InferenceParameters::default()
                 },
+                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                multimodal_projection: AgentDesiredModel::None,
             },
-        ));
+        });
 
         balancer_applicable_state_holder
     }
 
     #[test]
     fn allows_generation_when_state_is_not_set() {
-        let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
+        let balancer_applicable_state_holder = BalancerApplicableStateHolder::new(
+            BalancerApplicableState::from(BalancerDesiredState::default()),
+        );
 
         assert!(require_token_generation_enabled(&balancer_applicable_state_holder).is_ok());
     }

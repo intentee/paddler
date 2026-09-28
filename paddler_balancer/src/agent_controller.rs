@@ -10,6 +10,7 @@ use log::debug;
 use nanoid::nanoid;
 use parking_lot::RwLock;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::SendError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
@@ -24,6 +25,7 @@ use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnap
 
 use crate::agent_controller_update_result::AgentControllerUpdateResult;
 use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
+use crate::desired_state_delivery::DesiredStateDelivery;
 use crate::embedding_sender_collection::EmbeddingSenderCollection;
 use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
 use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
@@ -31,7 +33,6 @@ use crate::manages_senders::ManagesSenders;
 use crate::manages_senders_controller::ManagesSendersController;
 use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
 use crate::sends_rpc_message::SendsRpcMessage;
-use crate::sets_desired_state::SetsDesiredState;
 use paddler_messaging::atomic_value::AtomicValue;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
@@ -93,6 +94,17 @@ impl AgentController {
 
     pub fn get_model_path(&self) -> Option<String> {
         self.model_path.read().clone()
+    }
+
+    pub fn set_desired_state(&self, desired_state: AgentDesiredState) -> DesiredStateDelivery {
+        match self
+            .agent_message_tx
+            .send(AgentJsonRpcMessage::Notification(
+                AgentJsonRpcNotification::SetState(Box::new(SetStateParams { desired_state })),
+            )) {
+            Ok(()) => DesiredStateDelivery::Delivered,
+            Err(SendError(_undelivered_message)) => DesiredStateDelivery::AgentDisconnected,
+        }
     }
 
     pub fn set_download_filename(&self, filename: Option<String>) {
@@ -317,15 +329,5 @@ impl SendsRpcMessage for AgentController {
         self.agent_message_tx.send(message)?;
 
         Ok(())
-    }
-}
-
-#[async_trait]
-impl SetsDesiredState for AgentController {
-    async fn set_desired_state(&self, desired_state: AgentDesiredState) -> Result<()> {
-        self.send_rpc_message(AgentJsonRpcMessage::Notification(
-            AgentJsonRpcNotification::SetState(Box::new(SetStateParams { desired_state })),
-        ))
-        .await
     }
 }

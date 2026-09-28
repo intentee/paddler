@@ -108,10 +108,10 @@ impl Screen<StartBalancerForm> {
         self.transition_with(HomeData { error: None })
     }
 
-    pub fn balancer_started(self) -> Screen<RunningBalancer> {
+    pub fn balancer_started(self, snapshot: RunningBalancerSnapshot) -> Screen<RunningBalancer> {
         self.transition_map(|form_data: StartBalancerFormData| RunningBalancerData {
             balancer_address: form_data.balancer_address,
-            snapshot: RunningBalancerSnapshot::default(),
+            snapshot,
             stopping: false,
             web_admin_panel_address: Some(form_data.web_admin_panel_address)
                 .filter(|address| !address.is_empty()),

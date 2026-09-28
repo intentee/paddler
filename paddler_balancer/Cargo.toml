@@ -37,7 +37,6 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 url = { workspace = true }
 paddler_messaging = { workspace = true }
-paddler_state_conversion = { workspace = true }
 
 # web dashboard deps
 askama = { workspace = true, optional = true }

@@ -18,9 +18,9 @@ use actix_web::web::ServiceConfig;
 use actix_ws::CloseCode;
 use actix_ws::CloseReason;
 use actix_ws::Session;
-use anyhow::Context;
 use anyhow::Result;
 use async_trait::async_trait;
+use log::debug;
 use log::error;
 use log::info;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
@@ -40,12 +40,12 @@ use crate::continuation_decision::ContinuationDecision;
 use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
+use crate::desired_state_delivery::DesiredStateDelivery;
 use crate::embedding_sender_collection::EmbeddingSenderCollection;
 use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
 use crate::management_service::app_data::AppData;
 use crate::manages_senders::ManagesSenders as _;
 use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
-use crate::sets_desired_state::SetsDesiredState as _;
 use crate::websocket_session_controller::WebSocketSessionController;
 use paddler_messaging::atomic_value::AtomicValue;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
@@ -187,18 +187,11 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     }
                 };
 
-                if let Some(desired_state) = context
-                    .balancer_applicable_state_holder
-                    .get_agent_desired_state()
-                {
-                    agent_controller
-                        .set_desired_state(desired_state)
-                        .await
-                        .context("Unable to set desired state")?;
-                }
-
                 info!("Registered agent: {}", context.agent_id);
 
+                let agent_desired_state = context
+                    .balancer_applicable_state_holder
+                    .get_agent_desired_state();
                 let forwarder_close = connection_close.clone();
 
                 rt::spawn(async move {
@@ -209,22 +202,24 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                             () = forwarder_close.cancelled() => {
                                 break;
                             }
-                            result = agent_message_rx.recv() => {
-                                if let Some(message) = result {
-                                    websocket_session_controller
-                                        .send_response(message)
-                                        .await
-                                        .unwrap_or_else(|err| {
-                                            error!("Error sending response: {err}");
-                                        });
-                                } else {
-                                    info!("Session channel closed for agent: {}", context.agent_id);
-                                    break;
-                                }
+                            Some(message) = agent_message_rx.recv() => {
+                                websocket_session_controller
+                                    .send_response(message)
+                                    .await
+                                    .unwrap_or_else(|err| {
+                                        error!("Error sending response: {err}");
+                                    });
                             }
                         }
                     }
                 });
+
+                if matches!(
+                    agent_controller.set_desired_state(agent_desired_state),
+                    DesiredStateDelivery::AgentDisconnected
+                ) {
+                    debug!("An agent disconnected before receiving its desired state");
+                }
 
                 Ok(ContinuationDecision::Continue)
             }

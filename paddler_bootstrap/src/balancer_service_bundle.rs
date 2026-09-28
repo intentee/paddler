@@ -4,6 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use paddler_balancer::agent_controller_pool::AgentControllerPool;
 use paddler_balancer::balancer_addresses::BalancerAddresses;
+use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_balancer::buffered_request_manager::BufferedRequestManager;
 use paddler_balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -23,7 +24,7 @@ use paddler_balancer::statsd_service::StatsdService;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 use trzcina::Service;
 use trzcina::ServiceBundle;
 
@@ -34,8 +35,7 @@ pub struct BalancerServiceBundle {
     pub addresses: BalancerAddresses,
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
-    pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
-    pub initial_desired_state: BalancerDesiredState,
+    pub balancer_desired_state_tx: watch::Sender<BalancerDesiredState>,
     pub state_database: Arc<dyn StateDatabase>,
     inference_service: InferenceService,
     management_service: ManagementService,
@@ -61,10 +61,10 @@ impl BalancerServiceBundle {
             web_admin_panel_service_configuration,
         }: BalancerBootstrapConfig,
     ) -> Result<Self, BootstrapError> {
-        let (balancer_desired_state_tx, balancer_desired_state_rx) = broadcast::channel(100);
+        let (balancer_desired_state_tx, _initial_desired_state_rx) =
+            watch::channel(BalancerDesiredState::default());
 
         let agent_controller_pool = Arc::new(AgentControllerPool::default());
-        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
             agent_controller_pool.clone(),
             buffered_request_timeout,
@@ -89,6 +89,12 @@ impl BalancerServiceBundle {
             .read_balancer_desired_state()
             .await
             .map_err(|source| BootstrapError::StateDatabaseReadFailed { source })?;
+
+        balancer_desired_state_tx.send_replace(initial_desired_state.clone());
+
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::new(
+            BalancerApplicableState::from(initial_desired_state),
+        ));
 
         let inference_http_listener = HttpListener::bind(inference_service_configuration.addr)
             .map_err(|source| BootstrapError::InferenceBindFailed {
@@ -166,9 +172,7 @@ impl BalancerServiceBundle {
         let reconciliation_service = ReconciliationService {
             agent_controller_pool: agent_controller_pool.clone(),
             balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
-            balancer_desired_state: initial_desired_state.clone(),
-            balancer_desired_state_rx,
-            is_converted_to_applicable_state: false,
+            balancer_desired_state_rx: balancer_desired_state_tx.subscribe(),
         };
 
         let openai_service = openai_http_listener.map(|http_listener| OpenAIService {
@@ -189,7 +193,6 @@ impl BalancerServiceBundle {
             agent_controller_pool,
             balancer_applicable_state_holder,
             balancer_desired_state_tx,
-            initial_desired_state,
             state_database,
             inference_service,
             management_service,

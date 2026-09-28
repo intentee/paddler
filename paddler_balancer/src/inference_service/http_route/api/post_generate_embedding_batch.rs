@@ -64,13 +64,9 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
-    let balancer_applicable_state_holder = app_data.balancer_applicable_state_holder.clone();
-    let Some(agent_desired_state) = balancer_applicable_state_holder.get_agent_desired_state()
-    else {
-        return Err(ErrorServiceUnavailable(
-            "Balancer applicable state is not yet set",
-        ));
-    };
+    let agent_desired_state = app_data
+        .balancer_applicable_state_holder
+        .get_agent_desired_state();
 
     if !agent_desired_state.inference_parameters.enable_embeddings {
         return Err(ErrorNotImplemented(

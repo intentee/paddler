@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
+use log::debug;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
@@ -13,10 +13,10 @@ use super::agent_controller::AgentController;
 use super::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::agent_controller_registration::AgentControllerRegistration;
 use crate::agent_controller_slot_guard::AgentControllerSlotGuard;
+use crate::desired_state_delivery::DesiredStateDelivery;
 use crate::dispatch_candidate::DispatchCandidate;
 use crate::dispatched_agent::DispatchedAgent;
 use crate::registered_agent_controller_guard::RegisteredAgentControllerGuard;
-use crate::sets_desired_state::SetsDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
@@ -118,6 +118,20 @@ impl AgentControllerPool {
         }
     }
 
+    pub fn set_desired_state(&self, desired_state: &AgentDesiredState) {
+        for agent in &self.agents {
+            if matches!(
+                agent.value().set_desired_state(desired_state.clone()),
+                DesiredStateDelivery::AgentDisconnected
+            ) {
+                debug!(
+                    "Skipping the desired state for disconnected agent {}",
+                    agent.key()
+                );
+            }
+        }
+    }
+
     pub fn signal_update(&self) {
         self.update_tx.send_replace(());
     }
@@ -171,20 +185,5 @@ impl ProducesSnapshot for AgentControllerPool {
         }
 
         Ok(AgentControllerPoolSnapshot { agents })
-    }
-}
-
-#[async_trait]
-impl SetsDesiredState for AgentControllerPool {
-    async fn set_desired_state(&self, desired_state: AgentDesiredState) -> Result<()> {
-        for agent in &self.agents {
-            let agent_controller = agent.value();
-
-            agent_controller
-                .set_desired_state(desired_state.clone())
-                .await?;
-        }
-
-        Ok(())
     }
 }

@@ -4902,7 +4902,6 @@ dependencies = [
  "nanoid",
  "paddler_messaging",
  "paddler_openai_response_format_validator",
- "paddler_state_conversion",
  "parking_lot",
  "rust-embed",
  "serde",

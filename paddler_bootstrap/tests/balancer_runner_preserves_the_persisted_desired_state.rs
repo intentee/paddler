@@ -7,7 +7,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use tempfile::NamedTempFile;
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
@@ -25,7 +25,8 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
         multimodal_projection: AgentDesiredModel::None,
         use_chat_template_override: true,
     };
-    let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(1);
+    let (balancer_desired_state_tx, _balancer_desired_state_rx) =
+        watch::channel(BalancerDesiredState::default());
     let state_database = StateDatabaseFile::new(
         balancer_desired_state_tx,
         state_database_file.path().to_path_buf(),
@@ -44,7 +45,7 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
         .await
         .expect("a runner with a valid state database must start");
 
-    assert_eq!(runner.initial_desired_state, persisted_state);
+    assert_eq!(*runner.balancer_desired_state_tx.borrow(), persisted_state);
 
     runner.cancel();
     runner

@@ -14,9 +14,10 @@ impl ClusterTokenGenerationMode {
     pub fn from_applicable_state_holder(
         balancer_applicable_state_holder: &BalancerApplicableStateHolder,
     ) -> Self {
-        if let Some(agent_desired_state) =
-            balancer_applicable_state_holder.get_agent_desired_state()
-            && agent_desired_state.inference_parameters.enable_embeddings
+        if balancer_applicable_state_holder
+            .get_agent_desired_state()
+            .inference_parameters
+            .enable_embeddings
         {
             Self::DisabledForEmbeddings
         } else {
@@ -34,37 +35,26 @@ mod tests {
     use super::ClusterTokenGenerationMode;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     fn holder_with_embeddings(enable_embeddings: bool) -> BalancerApplicableStateHolder {
-        let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
+        let balancer_applicable_state_holder = BalancerApplicableStateHolder::new(
+            BalancerApplicableState::from(BalancerDesiredState::default()),
+        );
 
-        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
-            BalancerApplicableState {
-                agent_desired_state: AgentDesiredState {
-                    chat_template_override: None,
-                    inference_parameters: InferenceParameters {
-                        enable_embeddings,
-                        ..InferenceParameters::default()
-                    },
-                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                    multimodal_projection: AgentDesiredModel::None,
+        balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
+            agent_desired_state: AgentDesiredState {
+                chat_template_override: None,
+                inference_parameters: InferenceParameters {
+                    enable_embeddings,
+                    ..InferenceParameters::default()
                 },
+                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                multimodal_projection: AgentDesiredModel::None,
             },
-        ));
+        });
 
         balancer_applicable_state_holder
-    }
-
-    #[test]
-    fn enabled_when_state_is_not_set() {
-        let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
-
-        assert_eq!(
-            ClusterTokenGenerationMode::from_applicable_state_holder(
-                &balancer_applicable_state_holder
-            ),
-            ClusterTokenGenerationMode::Enabled
-        );
     }
 
     #[test]

@@ -29,10 +29,9 @@ mod tests {
     use actix_web::test::TestRequest;
     use actix_web::test::call_service;
     use actix_web::test::init_service;
-    use actix_web::test::read_body;
     use actix_web::test::read_body_json;
     use actix_web::web::Data;
-    use tokio::sync::broadcast;
+    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
     use super::register;
@@ -55,7 +54,7 @@ mod tests {
         balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     ) -> Data<AppData> {
         let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            broadcast::channel(1);
+            watch::channel(BalancerDesiredState::default());
 
         Data::new(AppData {
             agent_controller_pool: Arc::new(AgentControllerPool::default()),
@@ -82,18 +81,18 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_stored_agent_desired_state() {
-        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
-
-        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
-            BalancerApplicableState {
-                agent_desired_state: AgentDesiredState {
-                    chat_template_override: None,
-                    inference_parameters: InferenceParameters::default(),
-                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                    multimodal_projection: AgentDesiredModel::None,
-                },
-            },
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::new(
+            BalancerApplicableState::from(BalancerDesiredState::default()),
         ));
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
+            agent_desired_state: AgentDesiredState {
+                chat_template_override: None,
+                inference_parameters: InferenceParameters::default(),
+                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                multimodal_projection: AgentDesiredModel::None,
+            },
+        });
 
         let app_data = build_app_data(balancer_applicable_state_holder);
         let app = init_service(App::new().app_data(app_data).configure(register)).await;
@@ -110,21 +109,5 @@ mod tests {
             agent_desired_state.model,
             AgentDesiredModel::LocalToAgent("model.gguf".to_owned())
         );
-    }
-
-    #[actix_web::test]
-    async fn responds_with_json_null_when_no_state_is_set() {
-        let app_data = build_app_data(Arc::new(BalancerApplicableStateHolder::default()));
-        let app = init_service(App::new().app_data(app_data).configure(register)).await;
-        let request = TestRequest::get()
-            .uri("/api/v1/balancer_applicable_state")
-            .to_request();
-        let response = call_service(&app, request).await;
-
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = read_body(response).await;
-
-        assert_eq!(body.as_ref(), b"null");
     }
 }

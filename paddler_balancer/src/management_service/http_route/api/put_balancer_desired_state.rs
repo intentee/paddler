@@ -47,11 +47,13 @@ mod tests {
     use actix_web::test::call_service;
     use actix_web::test::init_service;
     use actix_web::web::Data;
-    use tokio::sync::broadcast;
+    use tempfile::TempDir;
+    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
     use super::register;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -59,14 +61,18 @@ mod tests {
     use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
     use crate::management_service::app_data::AppData;
     use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
+    use crate::state_database::StateDatabase;
+    use crate::state_database::file::File;
     use crate::state_database::memory::Memory;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::inference_parameters::InferenceParameters;
 
-    fn build_app_data(state_database: Arc<Memory>) -> Data<AppData> {
+    fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {
             agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
+                BalancerApplicableState::from(BalancerDesiredState::default()),
+            )),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 Arc::new(AgentControllerPool::default()),
                 Duration::from_secs(1),
@@ -87,7 +93,7 @@ mod tests {
     #[actix_web::test]
     async fn stores_desired_state_and_responds_with_no_content() {
         let (balancer_desired_state_notify_tx, balancer_desired_state_notify_rx) =
-            broadcast::channel(1);
+            watch::channel(BalancerDesiredState::default());
         let state_database = Arc::new(Memory::new(
             balancer_desired_state_notify_tx,
             BalancerDesiredState::default(),
@@ -108,7 +114,7 @@ mod tests {
     #[actix_web::test]
     async fn responds_with_bad_request_when_inference_parameters_are_invalid() {
         let (balancer_desired_state_notify_tx, balancer_desired_state_notify_rx) =
-            broadcast::channel(1);
+            watch::channel(BalancerDesiredState::default());
         let state_database = Arc::new(Memory::new(
             balancer_desired_state_notify_tx,
             BalancerDesiredState::default(),
@@ -135,16 +141,14 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_internal_server_error_when_store_fails() {
-        let (balancer_desired_state_notify_tx, balancer_desired_state_notify_rx) =
-            broadcast::channel(1);
-
-        drop(balancer_desired_state_notify_rx);
-
-        let state_database = Arc::new(Memory::new(
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            watch::channel(BalancerDesiredState::default());
+        let directory_in_place_of_the_state_file =
+            TempDir::new().expect("a temporary directory must be creatable");
+        let app_data = build_app_data(Arc::new(File::new(
             balancer_desired_state_notify_tx,
-            BalancerDesiredState::default(),
-        ));
-        let app_data = build_app_data(state_database);
+            directory_in_place_of_the_state_file.path().to_path_buf(),
+        )));
         let app = init_service(App::new().app_data(app_data).configure(register)).await;
         let request = TestRequest::put()
             .uri("/api/v1/balancer_desired_state")

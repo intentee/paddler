@@ -2,19 +2,19 @@ use anyhow::Result;
 use async_trait::async_trait;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use parking_lot::RwLock;
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 
 use super::StateDatabase;
 
 pub struct Memory {
     balancer_desired_state: RwLock<BalancerDesiredState>,
-    balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>,
+    balancer_desired_state_notify_tx: watch::Sender<BalancerDesiredState>,
 }
 
 impl Memory {
     #[must_use]
     pub const fn new(
-        balancer_desired_state_notify_tx: broadcast::Sender<BalancerDesiredState>,
+        balancer_desired_state_notify_tx: watch::Sender<BalancerDesiredState>,
         initial_desired_state: BalancerDesiredState,
     ) -> Self {
         Self {
@@ -37,7 +37,8 @@ impl StateDatabase for Memory {
             *balancer_desired_state = state.clone();
         }
 
-        self.balancer_desired_state_notify_tx.send(state.clone())?;
+        self.balancer_desired_state_notify_tx
+            .send_replace(state.clone());
 
         Ok(())
     }

@@ -298,12 +298,12 @@ impl Cluster {
     {
         timeout(ObservationWindow::release().duration(), async {
             loop {
-                if let Some(applicable_state) = self
+                let applicable_state = self
                     .client_management
                     .get_balancer_applicable_state(CancellationToken::new())
-                    .await?
-                    && state_matcher(&applicable_state)
-                {
+                    .await?;
+
+                if state_matcher(&applicable_state) {
                     return Ok(applicable_state);
                 }
 

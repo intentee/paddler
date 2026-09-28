@@ -195,10 +195,13 @@ mod tests {
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     fn app_data_without_agents(max_buffered_requests: i32) -> AppData {
         AppData {
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
+                BalancerApplicableState::from(BalancerDesiredState::default()),
+            )),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 Arc::new(AgentControllerPool::default()),
                 Duration::ZERO,
@@ -214,21 +217,21 @@ mod tests {
     }
 
     fn app_data_with_embeddings_enabled() -> AppData {
-        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::default());
-
-        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
-            BalancerApplicableState {
-                agent_desired_state: AgentDesiredState {
-                    chat_template_override: None,
-                    inference_parameters: InferenceParameters {
-                        enable_embeddings: true,
-                        ..InferenceParameters::default()
-                    },
-                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                    multimodal_projection: AgentDesiredModel::None,
-                },
-            },
+        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::new(
+            BalancerApplicableState::from(BalancerDesiredState::default()),
         ));
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
+            agent_desired_state: AgentDesiredState {
+                chat_template_override: None,
+                inference_parameters: InferenceParameters {
+                    enable_embeddings: true,
+                    ..InferenceParameters::default()
+                },
+                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                multimodal_projection: AgentDesiredModel::None,
+            },
+        });
 
         AppData {
             balancer_applicable_state_holder,

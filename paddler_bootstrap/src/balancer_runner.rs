@@ -6,7 +6,7 @@ use paddler_balancer::agent_controller_pool::AgentControllerPool;
 use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 
 use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
 use crate::balancer_runner_params::BalancerRunnerParams;
@@ -19,8 +19,7 @@ pub struct BalancerRunner {
     pub addresses: BalancerAddresses,
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
-    pub balancer_desired_state_tx: broadcast::Sender<BalancerDesiredState>,
-    pub initial_desired_state: BalancerDesiredState,
+    pub balancer_desired_state_tx: watch::Sender<BalancerDesiredState>,
     thread: ServiceThread,
 }
 
@@ -59,7 +58,6 @@ impl BalancerRunner {
         let agent_controller_pool = bundle.agent_controller_pool.clone();
         let balancer_applicable_state_holder = bundle.balancer_applicable_state_holder.clone();
         let balancer_desired_state_tx = bundle.balancer_desired_state_tx.clone();
-        let initial_desired_state = bundle.initial_desired_state.clone();
 
         let thread = ServiceThread::spawn(cancellation_token, move |task_shutdown| {
             run_service_manager(bundle, task_shutdown, shutdown_options)
@@ -70,7 +68,6 @@ impl BalancerRunner {
             agent_controller_pool,
             balancer_applicable_state_holder,
             balancer_desired_state_tx,
-            initial_desired_state,
             thread,
         })
     }

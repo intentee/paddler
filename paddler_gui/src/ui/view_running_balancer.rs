@@ -45,14 +45,13 @@ pub fn view_running_balancer(data: &RunningBalancerData) -> Element<'_, Message>
     .height(16);
 
     let desired_model_label = format_desired_model(&data.snapshot.balancer_desired_state.model);
-    let applied_model_label = data
-        .snapshot
-        .balancer_applicable_state
-        .as_ref()
-        .map_or_else(
-            || "(reconciling...)".to_owned(),
-            |applicable| format_desired_model(&applicable.agent_desired_state.model),
-        );
+    let applied_model_label = format_desired_model(
+        &data
+            .snapshot
+            .balancer_applicable_state
+            .agent_desired_state
+            .model,
+    );
 
     let address_row = container(
         column![

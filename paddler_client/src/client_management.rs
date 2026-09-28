@@ -50,7 +50,7 @@ impl ClientManagement {
     pub async fn get_balancer_applicable_state(
         &self,
         cancellation_token: CancellationToken,
-    ) -> Result<Option<AgentDesiredState>> {
+    ) -> Result<AgentDesiredState> {
         self.http_client
             .get_json(cancellation_token, "/api/v1/balancer_applicable_state")
             .await

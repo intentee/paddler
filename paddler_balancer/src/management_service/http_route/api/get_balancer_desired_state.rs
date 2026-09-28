@@ -35,11 +35,12 @@ mod tests {
     use actix_web::test::read_body_json;
     use actix_web::web::Data;
     use tempfile::TempDir;
-    use tokio::sync::broadcast;
+    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
     use super::register;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -57,7 +58,9 @@ mod tests {
     fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {
             agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
+                BalancerApplicableState::from(BalancerDesiredState::default()),
+            )),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
                 Arc::new(AgentControllerPool::default()),
                 Duration::from_secs(1),
@@ -78,7 +81,7 @@ mod tests {
     #[actix_web::test]
     async fn responds_with_stored_desired_state() {
         let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            broadcast::channel(1);
+            watch::channel(BalancerDesiredState::default());
         let stored_state = BalancerDesiredState {
             chat_template_override: None,
             inference_parameters: InferenceParameters::default(),
@@ -107,7 +110,7 @@ mod tests {
     #[actix_web::test]
     async fn responds_with_internal_server_error_when_reading_state_fails() {
         let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            broadcast::channel(1);
+            watch::channel(BalancerDesiredState::default());
         let temp_dir = TempDir::new().unwrap();
         let state_database = Arc::new(File::new(
             balancer_desired_state_notify_tx,

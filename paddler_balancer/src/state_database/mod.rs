@@ -18,11 +18,12 @@ mod tests {
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::inference_parameters::InferenceParameters;
     use tempfile::NamedTempFile;
-    use tokio::sync::broadcast;
+    use tokio::sync::watch;
 
     use super::file::File;
     use super::memory::Memory;
     use super::*;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     async fn subtest_store_desired_state<TDatabase: StateDatabase>(database: &TDatabase) {
         let desired_state = BalancerDesiredState {
@@ -45,7 +46,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_database() {
-        let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
+        let (balancer_desired_state_tx, _balancer_desired_state_rx) =
+            watch::channel(BalancerDesiredState::default());
         let tempfile = NamedTempFile::new().unwrap();
         let database = File::new(balancer_desired_state_tx, tempfile.path().to_path_buf());
 
@@ -54,7 +56,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_database() {
-        let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
+        let (balancer_desired_state_tx, _balancer_desired_state_rx) =
+            watch::channel(BalancerDesiredState::default());
         let database = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
 
         subtest_store_desired_state(&database).await;
@@ -77,7 +80,8 @@ mod tests {
         };
 
         {
-            let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
+            let (balancer_desired_state_tx, _balancer_desired_state_rx) =
+                watch::channel(BalancerDesiredState::default());
             let database = File::new(balancer_desired_state_tx, path.clone());
 
             database
@@ -86,7 +90,8 @@ mod tests {
                 .unwrap();
         }
 
-        let (balancer_desired_state_tx, _balancer_desired_state_rx) = broadcast::channel(100);
+        let (balancer_desired_state_tx, _balancer_desired_state_rx) =
+            watch::channel(BalancerDesiredState::default());
         let database = File::new(balancer_desired_state_tx, path);
         let read_back = database.read_balancer_desired_state().await.unwrap();
 

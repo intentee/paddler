@@ -36,7 +36,6 @@ use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
-use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
@@ -193,8 +192,8 @@ impl App {
                     }
                 }
             }
-            (CurrentScreen::StartBalancerForm(form), Message::BalancerStarted) => {
-                self.screen = CurrentScreen::RunningBalancer(form.balancer_started());
+            (CurrentScreen::StartBalancerForm(form), Message::BalancerStarted(snapshot)) => {
+                self.screen = CurrentScreen::RunningBalancer(form.balancer_started(*snapshot));
 
                 Task::none()
             }
@@ -525,30 +524,25 @@ impl App {
             let completion_future = runner.wait_for_completion();
             tokio::pin!(completion_future);
 
-            if output.send(Message::BalancerStarted).await.is_err() {
-                return;
-            }
-
             let mut desired_state_rx = runner.balancer_desired_state_tx.subscribe();
-            let mut current_desired_state = runner.initial_desired_state.clone();
             let mut pool_update_rx = runner.agent_controller_pool.subscribe_to_updates();
             let mut holder_update_rx = runner
                 .balancer_applicable_state_holder
                 .subscribe_to_updates();
+            let mut announce_snapshot: fn(Box<RunningBalancerSnapshot>) -> Message =
+                Message::BalancerStarted;
 
             loop {
+                let desired_state = desired_state_rx.borrow_and_update().clone();
+
                 match RunningBalancerSnapshot::build(
                     &runner.agent_controller_pool,
                     &runner.balancer_applicable_state_holder,
-                    current_desired_state.clone(),
+                    desired_state,
                 ) {
                     Ok(snapshot) => {
                         if output
-                            .send(Message::RunningBalancer(
-                                running_balancer_handler::Message::SnapshotUpdated(Box::new(
-                                    snapshot,
-                                )),
-                            ))
+                            .send(announce_snapshot(Box::new(snapshot)))
                             .await
                             .is_err()
                         {
@@ -562,6 +556,12 @@ impl App {
                     }
                 }
 
+                announce_snapshot = |snapshot| {
+                    Message::RunningBalancer(running_balancer_handler::Message::SnapshotUpdated(
+                        snapshot,
+                    ))
+                };
+
                 tokio::select! {
                     changed = pool_update_rx.changed() => {
                         if changed.is_err() {
@@ -573,24 +573,9 @@ impl App {
                             return;
                         }
                     }
-                    desired_state_result = desired_state_rx.recv() => {
-                        match desired_state_result {
-                            Ok(new_desired_state) => {
-                                current_desired_state = new_desired_state;
-                            }
-                            Err(broadcast::error::RecvError::Lagged(missed)) => {
-                                log::warn!(
-                                    "Desired-state broadcast lagged by {missed} messages; \
-                                     continuing with the last known state"
-                                );
-                            }
-                            Err(broadcast::error::RecvError::Closed) => {
-                                log::info!(
-                                    "Desired-state broadcast closed; ending snapshot stream"
-                                );
-
-                                return;
-                            }
+                    changed = desired_state_rx.changed() => {
+                        if changed.is_err() {
+                            return;
                         }
                     }
                     result = &mut completion_future => {

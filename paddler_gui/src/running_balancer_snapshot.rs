@@ -9,10 +9,10 @@ use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
 use crate::sort_agent_snapshots_by_label::sort_agent_snapshots_by_label;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct RunningBalancerSnapshot {
     pub agent_snapshots: Vec<AgentControllerSnapshot>,
-    pub balancer_applicable_state: Option<BalancerApplicableState>,
+    pub balancer_applicable_state: BalancerApplicableState,
     pub balancer_desired_state: BalancerDesiredState,
 }
 
@@ -67,13 +67,14 @@ mod tests {
     #[test]
     fn empty_inputs_produce_empty_snapshot() -> Result<()> {
         let pool = AgentControllerPool::default();
-        let holder = BalancerApplicableStateHolder::default();
+        let holder = BalancerApplicableStateHolder::new(BalancerApplicableState::from(
+            BalancerDesiredState::default(),
+        ));
 
         let snapshot =
             RunningBalancerSnapshot::build(&pool, &holder, BalancerDesiredState::default())?;
 
         assert!(snapshot.agent_snapshots.is_empty());
-        assert!(snapshot.balancer_applicable_state.is_none());
         assert_eq!(
             snapshot.balancer_desired_state,
             BalancerDesiredState::default()
@@ -85,8 +86,10 @@ mod tests {
     #[test]
     fn carries_applicable_and_desired_state() -> Result<()> {
         let pool = AgentControllerPool::default();
-        let holder = BalancerApplicableStateHolder::default();
-        holder.set_balancer_applicable_state(Some(make_applicable_state()));
+        let holder = BalancerApplicableStateHolder::new(BalancerApplicableState::from(
+            BalancerDesiredState::default(),
+        ));
+        holder.set_balancer_applicable_state(make_applicable_state());
 
         let desired = BalancerDesiredState {
             model: AgentDesiredModel::LocalToAgent("requested_model".to_owned()),
@@ -95,9 +98,7 @@ mod tests {
 
         let snapshot = RunningBalancerSnapshot::build(&pool, &holder, desired.clone())?;
 
-        let applicable = snapshot
-            .balancer_applicable_state
-            .ok_or_else(|| anyhow::anyhow!("applicable state should be carried"))?;
+        let applicable = snapshot.balancer_applicable_state;
 
         assert_eq!(
             applicable.agent_desired_state.model,
