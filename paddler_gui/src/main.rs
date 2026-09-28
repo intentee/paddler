@@ -15,6 +15,7 @@ mod running_balancer_handler;
 mod running_balancer_snapshot;
 #[expect(unsafe_code, reason = "statum macros generate link_section statics")]
 mod screen;
+mod sort_agent_snapshots_by_label;
 mod start_balancer_form_data;
 mod start_balancer_form_handler;
 mod ui;
