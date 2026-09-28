@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use futures_util::StreamExt as _;
-use paddler_balancer::controls_websocket_endpoint::MAX_FRAME_SIZE;
+use paddler_balancer::max_websocket_frame_size::MAX_WEBSOCKET_FRAME_SIZE;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::error::Error;
@@ -42,7 +42,7 @@ async fn client_inference_reconnects_after_the_balancer_closes_its_socket() {
     let oversized_request_outcome = client_inference
         .continue_from_raw_prompt(
             CancellationToken::new(),
-            raw_prompt_params("x".repeat(MAX_FRAME_SIZE)),
+            raw_prompt_params("x".repeat(MAX_WEBSOCKET_FRAME_SIZE)),
         )
         .await
         .expect("the oversized request must be sent")

@@ -218,14 +218,14 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         session: &mut Session,
-    ) -> Result<ContinuationDecision> {
+    ) -> ContinuationDecision {
         spawn_token_generation_mode_watcher(
             context.balancer_applicable_state_holder.clone(),
             connection_close,
             session.clone(),
         );
 
-        Ok(ContinuationDecision::Continue)
+        ContinuationDecision::Continue
     }
 }
 

@@ -286,23 +286,21 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         _connection_close: CancellationToken,
         _context: Arc<Self::Context>,
         session: &mut Session,
-    ) -> Result<ContinuationDecision> {
-        if let Err(err) = session
-            .text(serde_json::to_string(&AgentJsonRpcMessage::Notification(
+    ) -> ContinuationDecision {
+        if let Err(err) = WebSocketSessionController::new(session.clone())
+            .send_response(AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::Version(VersionParams {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
-            ))?)
+            ))
             .await
         {
             error!("Error sending version: {err:?}");
 
-            return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
-                close_reason: None,
-            }));
+            return ContinuationDecision::Stop(ContinuationStopParameters { close_reason: None });
         }
 
-        Ok(ContinuationDecision::Continue)
+        ContinuationDecision::Continue
     }
 }
 

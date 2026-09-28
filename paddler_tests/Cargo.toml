@@ -44,6 +44,7 @@ trzcina = { workspace = true }
 http = { workspace = true }
 paddler_local_http_fixture = { workspace = true }
 paddler_openai_response_format_validator = { workspace = true }
+tokio-tungstenite = { workspace = true }
 
 [lints]
 workspace = true
