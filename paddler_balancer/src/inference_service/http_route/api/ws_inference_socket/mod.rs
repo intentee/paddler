@@ -163,7 +163,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
-    ) -> Result<ContinuationDecision> {
+    ) -> ContinuationDecision {
         match deserialized_message {
             InferenceJsonRpcMessage::Notification(
                 InferenceServerNotification::StopRespondingTo(request_id),
@@ -216,21 +216,19 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
             }
         }
 
-        Ok(ContinuationDecision::Continue)
+        ContinuationDecision::Continue
     }
 
     async fn on_connection_start(
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         session: &mut Session,
-    ) -> ContinuationDecision {
+    ) {
         spawn_token_generation_mode_watcher(
             context.balancer_applicable_state_holder.clone(),
             connection_close,
             session.clone(),
         );
-
-        ContinuationDecision::Continue
     }
 }
 

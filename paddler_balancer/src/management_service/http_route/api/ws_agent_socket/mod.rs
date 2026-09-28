@@ -2,9 +2,7 @@ mod agent_socket_controller_context;
 
 use parking_lot::RwLock;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
-use std::sync::atomic::AtomicU64;
 
 use actix_web::Error;
 use actix_web::HttpRequest;
@@ -24,7 +22,6 @@ use log::debug;
 use log::error;
 use log::info;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 use serde::Deserialize;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -33,6 +30,7 @@ use self::agent_socket_controller_context::AgentSocketControllerContext;
 use crate::agent_controller::AgentController;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_controller_registration::AgentControllerRegistration;
+use crate::agent_status::AgentStatus;
 use crate::agent_controller_update_result::AgentControllerUpdateResult;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
@@ -96,35 +94,21 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
         mut websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
-    ) -> Result<ContinuationDecision> {
+    ) -> ContinuationDecision {
         match deserialized_message {
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::DeregisterAgent,
             ) => {
                 connection_close.cancel();
 
-                return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                return ContinuationDecision::Stop(ContinuationStopParameters {
                     close_reason: None,
-                }));
+                });
             }
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
                     name,
-                    slot_aggregated_status_snapshot:
-                        SlotAggregatedStatusSnapshot {
-                            desired_slots_total,
-                            download_current,
-                            download_filename,
-                            download_indeterminate,
-                            download_total,
-                            issues,
-                            model_path,
-                            slots_processing,
-                            slots_total,
-                            state_application_status,
-                            uses_chat_template_override,
-                            version,
-                        },
+                    slot_aggregated_status_snapshot,
                 }),
             ) => {
                 let (agent_message_tx, mut agent_message_rx) =
@@ -135,31 +119,19 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                         .chat_template_override_sender_collection
                         .clone(),
                     connection_close: connection_close.clone(),
-                    desired_slots_total: AtomicValue::<AtomicI32>::new(desired_slots_total),
-                    download_current: AtomicValue::<AtomicU64>::new(download_current),
-                    download_filename: RwLock::new(download_filename),
-                    download_indeterminate: AtomicValue::<AtomicBool>::new(download_indeterminate),
-                    download_total: AtomicValue::<AtomicU64>::new(download_total),
                     embedding_sender_collection: context.embedding_sender_collection.clone(),
                     generate_tokens_sender_collection: context
                         .generate_tokens_sender_collection
                         .clone(),
+                    id: context.agent_id.clone(),
                     model_metadata_sender_collection: context
                         .model_metadata_sender_collection
                         .clone(),
-                    id: context.agent_id.clone(),
-                    issues: RwLock::new(issues),
-                    model_path: RwLock::new(model_path),
                     name,
-                    newest_update_version: AtomicValue::<AtomicI32>::new(version),
-                    slots_processing: AtomicValue::<AtomicI32>::new(slots_processing),
-                    slots_total: AtomicValue::<AtomicI32>::new(slots_total),
-                    state_application_status_code: AtomicValue::<AtomicI32>::new(
-                        state_application_status as i32,
+                    slots_processing: AtomicValue::<AtomicI32>::new(
+                        slot_aggregated_status_snapshot.slots_processing,
                     ),
-                    uses_chat_template_override: AtomicValue::<AtomicBool>::new(
-                        uses_chat_template_override,
-                    ),
+                    status: RwLock::new(AgentStatus::from(slot_aggregated_status_snapshot)),
                 });
 
                 let registered_agent_controller_guard = match context
@@ -172,7 +144,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                             context.agent_id
                         );
 
-                        return Ok(ContinuationDecision::Stop(ContinuationStopParameters {
+                        return ContinuationDecision::Stop(ContinuationStopParameters {
                             close_reason: Some(CloseReason {
                                 code: CloseCode::Policy,
                                 description: Some(format!(
@@ -180,7 +152,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                                     context.agent_id
                                 )),
                             }),
-                        }));
+                        });
                     }
                     AgentControllerRegistration::Registered(registered_agent_controller_guard) => {
                         registered_agent_controller_guard
@@ -221,7 +193,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     debug!("An agent disconnected before receiving its desired state");
                 }
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
@@ -244,7 +216,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     error!("Agent controller not found for agent: {}", context.agent_id);
                 }
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
@@ -256,7 +228,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     .forward_response_safe(request_id, chat_template_override)
                     .await;
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
@@ -268,7 +240,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     .forward_response_safe(request_id, embedding_result)
                     .await;
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
@@ -280,7 +252,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     .forward_response_safe(request_id, generated_token_envelope)
                     .await;
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
@@ -292,7 +264,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     .forward_response_safe(request_id, model_metadata)
                     .await;
 
-                Ok(ContinuationDecision::Continue)
+                ContinuationDecision::Continue
             }
         }
     }
@@ -301,7 +273,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         _connection_close: CancellationToken,
         _context: Arc<Self::Context>,
         session: &mut Session,
-    ) -> ContinuationDecision {
+    ) {
         if let Err(err) = WebSocketSessionController::new(session.clone())
             .send_response(AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::Version(VersionParams {
@@ -311,11 +283,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             .await
         {
             error!("Error sending version: {err:?}");
-
-            return ContinuationDecision::Stop(ContinuationStopParameters { close_reason: None });
         }
-
-        ContinuationDecision::Continue
     }
 }
 

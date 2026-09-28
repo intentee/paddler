@@ -6,7 +6,6 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
-use cadence::Gauged;
 use cadence::MetricError;
 use cadence::StatsdClient;
 use cadence::UdpMetricSink;
@@ -19,6 +18,8 @@ use trzcina::Service;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
 use crate::buffered_request_manager::BufferedRequestManager;
+use crate::report_statsd_gauges::report_statsd_gauges;
+use crate::statsd_gauges::StatsdGauges;
 use crate::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 
 fn log_statsd_error(error: MetricError) {
@@ -32,25 +33,21 @@ pub struct StatsdService {
 }
 
 impl StatsdService {
-    fn report_metrics(&self, client: &StatsdClient) -> Result<()> {
+    fn gauges(&self) -> Result<StatsdGauges> {
         let AgentControllerPoolTotalSlots {
             slots_processing,
             slots_total,
         } = self.agent_controller_pool.total_slots();
-        let requests_buffered = self.buffered_request_manager.buffered_request_counter.get();
 
-        let slots_processing =
-            u64::try_from(slots_processing).context("slots_processing count is negative")?;
-        let slots_total = u64::try_from(slots_total).context("slots_total count is negative")?;
-        let requests_buffered =
-            u64::try_from(requests_buffered).context("requests_buffered count is negative")?;
-
-        client.gauge("slots_processing", slots_processing)?;
-        client.gauge("slots_total", slots_total)?;
-        client.gauge("requests_buffered", requests_buffered)?;
-        client.flush()?;
-
-        Ok(())
+        Ok(StatsdGauges {
+            requests_buffered: u64::try_from(
+                self.buffered_request_manager.buffered_request_counter.get(),
+            )
+            .context("requests_buffered count is negative")?,
+            slots_processing: u64::try_from(slots_processing)
+                .context("slots_processing count is negative")?,
+            slots_total: u64::try_from(slots_total).context("slots_total count is negative")?,
+        })
     }
 }
 
@@ -76,8 +73,13 @@ impl Service for StatsdService {
             tokio::select! {
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    if let Err(err) = self.report_metrics(&client) {
-                        error!("Failed to report metrics: {err}");
+                    match self.gauges() {
+                        Ok(gauges) => {
+                            if let Err(err) = report_statsd_gauges(&client, &gauges) {
+                                error!("Failed to report metrics: {err}");
+                            }
+                        }
+                        Err(err) => error!("Failed to gather metrics: {err}"),
                     }
                 }
             }

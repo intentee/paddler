@@ -34,7 +34,7 @@ impl AgentControllerPool {
             let agent_controller = entry.value().clone();
             let snapshot = agent_controller.slots_processing.get();
 
-            if snapshot >= agent_controller.slots_total.get() {
+            if snapshot >= agent_controller.status.read().slots_total {
                 continue;
             }
 
@@ -145,7 +145,7 @@ impl AgentControllerPool {
             let agent = entry.value();
 
             slots_processing += agent.slots_processing.get();
-            slots_total += agent.slots_total.get();
+            slots_total += agent.status.read().slots_total;
         }
 
         AgentControllerPoolTotalSlots {

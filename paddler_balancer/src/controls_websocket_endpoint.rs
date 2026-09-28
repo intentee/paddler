@@ -47,7 +47,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
-    ) -> Result<ContinuationDecision>;
+    ) -> ContinuationDecision;
 
     async fn handle_aggregated_message(
         connection_close: CancellationToken,
@@ -106,27 +106,17 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         match serde_json::from_str::<Self::IncomingMessage>(text) {
             Ok(deserialized_message) => {
                 rt::spawn(async move {
-                    match Self::handle_deserialized_message(
-                        connection_close.clone(),
-                        context,
-                        deserialized_message,
-                        websocket_session_controller,
-                    )
-                    .await
+                    if let ContinuationDecision::Stop(stop_parameters) =
+                        Self::handle_deserialized_message(
+                            connection_close,
+                            context,
+                            deserialized_message,
+                            websocket_session_controller,
+                        )
+                        .await
+                        && continuation_stop_tx.send(stop_parameters).is_err()
                     {
-                        Ok(ContinuationDecision::Continue) => {}
-                        Ok(ContinuationDecision::Stop(stop_parameters)) => {
-                            if continuation_stop_tx.send(stop_parameters).is_err() {
-                                debug!(
-                                    "The connection stopped before the handler asked it to stop"
-                                );
-                            }
-                        }
-                        Err(err) => {
-                            error!("Error handling deserialized message: {err:?}");
-
-                            connection_close.cancel();
-                        }
+                        debug!("The connection stopped before the handler asked it to stop");
                     }
                 });
             }
@@ -140,8 +130,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         _connection_close: CancellationToken,
         _context: Arc<Self::Context>,
         _session: &mut Session,
-    ) -> ContinuationDecision {
-        ContinuationDecision::Continue
+    ) {
     }
 
     fn respond(
@@ -162,20 +151,9 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         rt::spawn(async move {
             let mut close_reason: Option<CloseReason> = None;
 
-            if let ContinuationDecision::Stop(stop_parameters) =
-                Self::on_connection_start(connection_close.clone(), context.clone(), &mut session)
-                    .await
-            {
-                connection_close.cancel();
+            Self::on_connection_start(connection_close.clone(), context.clone(), &mut session)
+                .await;
 
-                if let Err(close_err) = session.close(stop_parameters.close_reason).await {
-                    warn!(
-                        "WebSocket session close failed after Stop decision (peer likely already disconnected): {close_err:?}"
-                    );
-                }
-
-                return;
-            }
             let (continuation_stop_tx, mut continuation_stop_rx) =
                 mpsc::unbounded_channel::<ContinuationStopParameters>();
             let mut ping_ticker = interval(PING_INTERVAL);

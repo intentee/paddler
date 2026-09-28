@@ -20,7 +20,10 @@ use crate::agent_stop_outcome::AgentStopOutcome;
 use crate::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::controls_session::ControlsSession;
+use crate::decide_forwarding_plan::decide_forwarding_plan;
 use crate::dispatched_agent::DispatchedAgent;
+use crate::forwarding_event::ForwardingEvent;
+use crate::forwarding_plan::ForwardingPlan;
 use crate::handles_agent_streaming_response::HandlesAgentStreamingResponse;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::manages_senders::ManagesSenders;
@@ -116,135 +119,66 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
             AgentResponseForwardingMode::ForwardingToClient
         );
 
-        tokio::select! {
+        let forwarding_event = tokio::select! {
             biased;
 
-            () = shutdown.cancelled() => {
-                if is_forwarding_to_client {
-                    respond_with_error(
-                        JsonRpcError {
-                            code: 503,
-                            description: "balancer is shutting down".to_owned(),
-                        },
-                        request_id.clone(),
-                        &mut session_controller,
-                    ).await;
-
-                    stop_responding_to(&agent_controller, agent_request_id.clone()).await;
-                }
-
-                break;
-            }
-            () = agent_connection_close.cancelled() => {
-                if is_forwarding_to_client {
-                    error!("Agent controller connection closed");
-
-                    respond_with_error(
-                        JsonRpcError {
-                            code: 502,
-                            description: "Agent controller connection closed".to_owned(),
-                        },
-                        request_id,
-                        &mut session_controller,
-                    ).await;
-                }
-
-                break;
-            }
+            () = shutdown.cancelled() => ForwardingEvent::ShutdownRequested,
+            () = agent_connection_close.cancelled() => ForwardingEvent::AgentConnectionClosed,
             () = connection_close.cancelled(), if is_forwarding_to_client => {
-                match stop_responding_to(&agent_controller, agent_request_id.clone()).await {
-                    AgentStopOutcome::AgentUnreachable => break,
-                    AgentStopOutcome::StopRequested => {
-                        forwarding_mode = AgentResponseForwardingMode::DrainingUntilAgentConfirms;
-                    }
-                }
+                ForwardingEvent::ClientConnectionClosed
             }
-            () = sleep(inference_item_timeout) => {
-                let timeout_ms = inference_item_timeout.as_millis();
-
-                if !is_forwarding_to_client {
-                    warn!(
-                        "Timed out after {timeout_ms}ms waiting for the agent to confirm that it \
-                        stopped responding to request {request_id:?}. Releasing the slot anyway."
-                    );
-
-                    break;
-                }
-
-                warn!(
-                    "Timed out after {timeout_ms}ms waiting for next token for request {request_id:?}. \
-                    Consider increasing --inference-item-timeout if the model needs more time to process the prompt."
-                );
-
-                respond_with_error(
-                    JsonRpcError {
-                        code: 504,
-                        description: format!(
-                            "Inference timed out after {timeout_ms}ms waiting for next token. \
-                            Increase --inference-item-timeout if the prompt requires longer processing."
-                        ),
-                    },
-                    request_id.clone(),
-                    &mut session_controller,
-                ).await;
-
-                match stop_responding_to(&agent_controller, agent_request_id.clone()).await {
-                    AgentStopOutcome::AgentUnreachable => break,
-                    AgentStopOutcome::StopRequested => {
-                        forwarding_mode = AgentResponseForwardingMode::DrainingUntilAgentConfirms;
-                    }
-                }
+            () = sleep(inference_item_timeout) => ForwardingEvent::ItemTimedOut,
+            Some(response) = receive_response_controller.response_rx.recv() => {
+                ForwardingEvent::ResponseReceived(response)
             }
-            response = receive_response_controller.response_rx.recv() => {
-                let Some(response) = response else {
-                    if is_forwarding_to_client {
-                        error!(
-                            "Response channel closed before terminator for request {request_id:?}"
-                        );
+        };
 
-                        respond_with_error(
-                            JsonRpcError {
-                                code: 502,
-                                description:
-                                    "Response channel closed before terminator".to_owned(),
-                            },
-                            request_id,
-                            &mut session_controller,
-                        ).await;
-                    }
-
-                    break;
-                };
-
-                let is_done = response.is_done();
-
-                if !is_forwarding_to_client {
-                    if is_done {
-                        break;
-                    }
-
-                    continue;
-                }
-
+        let agent_stop_required = match decide_forwarding_plan(
+            forwarding_event,
+            &forwarding_mode,
+            inference_item_timeout,
+        ) {
+            ForwardingPlan::Finish => break,
+            ForwardingPlan::IgnoreDrainedResponse => false,
+            ForwardingPlan::ForwardResponse { is_done, response } => {
                 let send_succeeded = send_response_to_client(
                     agent_controller.name.clone(),
                     response,
                     request_id.clone(),
                     &mut session_controller,
-                ).await;
+                )
+                .await;
 
                 if is_done {
                     break;
                 }
 
-                if !send_succeeded {
-                    match stop_responding_to(&agent_controller, agent_request_id.clone()).await {
-                        AgentStopOutcome::AgentUnreachable => break,
-                        AgentStopOutcome::StopRequested => {
-                            forwarding_mode =
-                                AgentResponseForwardingMode::DrainingUntilAgentConfirms;
-                        }
-                    }
+                !send_succeeded
+            }
+            ForwardingPlan::ReplyWithErrorThenFinish(error) => {
+                respond_with_error(error, request_id.clone(), &mut session_controller).await;
+
+                break;
+            }
+            ForwardingPlan::ReplyWithErrorThenStopAgent(error) => {
+                respond_with_error(error, request_id.clone(), &mut session_controller).await;
+
+                true
+            }
+            ForwardingPlan::ReplyWithErrorThenStopAgentThenFinish(error) => {
+                respond_with_error(error, request_id.clone(), &mut session_controller).await;
+                stop_responding_to(&agent_controller, agent_request_id.clone()).await;
+
+                break;
+            }
+            ForwardingPlan::StopAgent => true,
+        };
+
+        if agent_stop_required {
+            match stop_responding_to(&agent_controller, agent_request_id.clone()).await {
+                AgentStopOutcome::AgentUnreachable => break,
+                AgentStopOutcome::StopRequested => {
+                    forwarding_mode = AgentResponseForwardingMode::DrainingUntilAgentConfirms;
                 }
             }
         }
