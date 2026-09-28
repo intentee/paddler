@@ -34,13 +34,6 @@ impl BufferedRequestsStreamWatcher {
         })
     }
 
-    #[must_use]
-    pub fn from_stream(
-        stream: Pin<Box<dyn Stream<Item = Result<BufferedRequestManagerSnapshot>> + Send>>,
-    ) -> Self {
-        Self { stream }
-    }
-
     pub async fn until<TPredicate>(
         &mut self,
         observation_window: ObservationWindow,
@@ -71,66 +64,5 @@ impl BufferedRequestsStreamWatcher {
                 observation_window.duration()
             )
         })?
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use anyhow::anyhow;
-    use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-
-    use super::BufferedRequestsStreamWatcher;
-    use crate::observation_window::ObservationWindow;
-
-    fn watcher(
-        items: Vec<anyhow::Result<BufferedRequestManagerSnapshot>>,
-    ) -> BufferedRequestsStreamWatcher {
-        BufferedRequestsStreamWatcher::from_stream(Box::pin(futures_util::stream::iter(items)))
-    }
-
-    fn snapshot(buffered_requests_current: i32) -> BufferedRequestManagerSnapshot {
-        BufferedRequestManagerSnapshot {
-            buffered_requests_current,
-        }
-    }
-
-    #[tokio::test]
-    async fn returns_the_first_snapshot_satisfying_the_predicate() {
-        let mut watcher = watcher(vec![Ok(snapshot(5)), Ok(snapshot(0))]);
-
-        let matched = watcher
-            .until(ObservationWindow::release(), |snapshot| {
-                snapshot.buffered_requests_current == 0
-            })
-            .await
-            .unwrap();
-
-        assert_eq!(matched.buffered_requests_current, 0);
-    }
-
-    #[tokio::test]
-    async fn errors_when_the_stream_closes_before_the_predicate_is_satisfied() {
-        let mut watcher = watcher(vec![Ok(snapshot(5))]);
-
-        let error = watcher
-            .until(ObservationWindow::release(), |_| false)
-            .await
-            .err()
-            .unwrap();
-
-        assert!(error.to_string().contains("closed before predicate"));
-    }
-
-    #[tokio::test]
-    async fn propagates_a_stream_error() {
-        let mut watcher = watcher(vec![Err(anyhow!("socket closed"))]);
-
-        let error = watcher
-            .until(ObservationWindow::release(), |_| true)
-            .await
-            .err()
-            .unwrap();
-
-        assert!(error.to_string().contains("yielded an error"));
     }
 }

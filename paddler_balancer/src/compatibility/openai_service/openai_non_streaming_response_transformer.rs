@@ -551,34 +551,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn non_streaming_timeout_returns_error_variant() -> Result<()> {
-        let transformer = non_streaming_transformer();
-
-        let message = response_message(OutgoingResponse::Timeout);
-        let chunks = transformer.transform(message).await?;
-
-        assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "request timed out")?;
-        assert_error_contains(&chunks[0], "timeout")?;
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn non_streaming_too_many_buffered_requests_returns_error_variant() -> Result<()> {
-        let transformer = non_streaming_transformer();
-
-        let message = response_message(OutgoingResponse::TooManyBufferedRequests);
-        let chunks = transformer.transform(message).await?;
-
-        assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "too many buffered requests")?;
-        assert_error_contains(&chunks[0], "rate_limit_error")?;
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn non_streaming_tool_call_with_invalid_json_arguments_passes_raw_string_through() {
         let transformer = non_streaming_transformer();
 

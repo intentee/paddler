@@ -36,7 +36,7 @@ async fn balancer_serves_inference_over_websocket() -> Result<()> {
                         token_count += 1;
                     }
                 }
-                Response::Embedding(_) | Response::Timeout | Response::TooManyBufferedRequests => {
+                Response::Embedding(_) => {
                     panic!("inference over websocket produced an unexpected response variant")
                 }
             },

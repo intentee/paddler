@@ -17,8 +17,6 @@ pytestmark = pytest.mark.integration
 
 def _assert_not_error(message: InferenceMessage) -> None:
     if message.kind in (
-        InferenceMessageKind.TIMEOUT,
-        InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS,
         InferenceMessageKind.SERVER_ERROR,
         InferenceMessageKind.CHAT_TEMPLATE_ERROR,
         InferenceMessageKind.GRAMMAR_INITIALIZATION_FAILED,

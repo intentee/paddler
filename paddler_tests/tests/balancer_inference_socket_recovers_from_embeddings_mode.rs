@@ -138,7 +138,9 @@ async fn balancer_inference_socket_recovers_from_embeddings_mode() -> Result<()>
                         generated_token_count += 1;
                     }
                 }
-                other => panic!("unexpected response after recovery: {other:?}"),
+                other @ InferenceResponse::Embedding(_) => {
+                    panic!("unexpected response after recovery: {other:?}")
+                }
             },
             InferenceMessage::Error(envelope) => panic!(
                 "recovered inference failed: code {}, description {:?}",

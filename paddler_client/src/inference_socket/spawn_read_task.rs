@@ -24,7 +24,6 @@ fn response_is_terminal(response: &Response) -> bool {
     match response {
         Response::Embedding(result) => result.is_done(),
         Response::GeneratedToken(result) => result.is_done(),
-        Response::Timeout | Response::TooManyBufferedRequests => true,
     }
 }
 

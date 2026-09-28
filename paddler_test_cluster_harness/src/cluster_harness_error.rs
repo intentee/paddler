@@ -12,4 +12,10 @@ pub enum ClusterHarnessError {
     },
     #[error("The balancer does not serve the OpenAI compatibility service")]
     CompatOpenAIServiceNotServed,
+    #[error("The half-closed client could not reach {addr}")]
+    HalfClosedClientUnreachable {
+        addr: SocketAddr,
+        #[source]
+        source: std::io::Error,
+    },
 }

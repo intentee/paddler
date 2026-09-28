@@ -620,34 +620,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn streaming_timeout_returns_error_variant() -> Result<()> {
-        let transformer = streaming_transformer(false);
-
-        let message = response_message(OutgoingResponse::Timeout);
-        let chunks = transformer.transform(message).await?;
-
-        assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "request timed out")?;
-        assert_error_contains(&chunks[0], "timeout")?;
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn streaming_too_many_buffered_requests_returns_error_variant() -> Result<()> {
-        let transformer = streaming_transformer(false);
-
-        let message = response_message(OutgoingResponse::TooManyBufferedRequests);
-        let chunks = transformer.transform(message).await?;
-
-        assert_eq!(chunks.len(), 1);
-        assert_error_contains(&chunks[0], "too many buffered requests")?;
-        assert_error_contains(&chunks[0], "rate_limit_error")?;
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn streaming_image_decoding_failed_returns_error_variant() -> Result<()> {
         let transformer = streaming_transformer(false);
 

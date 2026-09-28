@@ -6,6 +6,8 @@ use serde::Serialize;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
 
+use crate::cluster_harness_error::ClusterHarnessError;
+
 pub struct HalfClosedClient {
     socket: TcpStream,
 }
@@ -32,7 +34,7 @@ impl HalfClosedClient {
 
         let mut socket = TcpStream::connect(addr)
             .await
-            .context(format!("half-closed client must reach {addr}"))?;
+            .map_err(|source| ClusterHarnessError::HalfClosedClientUnreachable { addr, source })?;
 
         socket.write_all(request.as_bytes()).await?;
         socket.flush().await?;
@@ -58,6 +60,7 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::HalfClosedClient;
+    use crate::cluster_harness_error::ClusterHarnessError;
 
     #[tokio::test]
     async fn reports_the_address_it_could_not_reach() -> Result<()> {
@@ -69,13 +72,13 @@ mod tests {
             &json!({}),
         )
         .await
-        .err();
+        .err()
+        .expect("connecting to a closed port must fail");
 
-        assert!(
-            connect_error
-                .is_some_and(|error| error.to_string().contains(&unreachable_addr.to_string())),
-            "connecting to a closed port must fail and name the address"
-        );
+        assert!(matches!(
+            connect_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::HalfClosedClientUnreachable { addr, .. }) if *addr == unreachable_addr
+        ));
 
         Ok(())
     }

@@ -101,14 +101,6 @@ impl OpenAIError {
             OutgoingMessage::Notification(_) => None,
             OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
                 OutgoingResponse::GeneratedToken(token) => server_error_from_token(token),
-                OutgoingResponse::Timeout => Some(Self {
-                    error_type: "timeout",
-                    message: "request timed out".to_owned(),
-                }),
-                OutgoingResponse::TooManyBufferedRequests => Some(Self {
-                    error_type: "rate_limit_error",
-                    message: "too many buffered requests".to_owned(),
-                }),
                 OutgoingResponse::Embedding(_) => None,
             },
         }
@@ -213,32 +205,6 @@ mod tests {
             error.message,
             "prompt has 9895 tokens but each agent sequence holds 8192 tokens; shorten the prompt or raise context_size"
         );
-    }
-
-    #[test]
-    fn classifies_timeout_as_timeout() {
-        let message = OutgoingMessage::Response(ResponseEnvelope {
-            generated_by: None,
-            request_id: "test-request".to_owned(),
-            response: OutgoingResponse::Timeout,
-        });
-
-        let classified = OpenAIError::classify(&message).unwrap();
-
-        assert_eq!(classified.error_type, "timeout");
-    }
-
-    #[test]
-    fn classifies_too_many_buffered_requests_as_rate_limit() {
-        let message = OutgoingMessage::Response(ResponseEnvelope {
-            generated_by: None,
-            request_id: "test-request".to_owned(),
-            response: OutgoingResponse::TooManyBufferedRequests,
-        });
-
-        let classified = OpenAIError::classify(&message).unwrap();
-
-        assert_eq!(classified.error_type, "rate_limit_error");
     }
 
     #[test]

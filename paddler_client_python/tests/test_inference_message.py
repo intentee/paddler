@@ -315,32 +315,6 @@ def test_parse_done_response_carries_summary() -> None:
     assert message.summary.usage.total_tokens == 11
 
 
-def test_parse_timeout() -> None:
-    data = {
-        "Response": {
-            "request_id": "req-1",
-            "response": "Timeout",
-        }
-    }
-    message = parse_inference_client_message(data)
-
-    assert message.kind == InferenceMessageKind.TIMEOUT
-    assert message.is_terminal
-
-
-def test_parse_too_many_buffered_requests() -> None:
-    data = {
-        "Response": {
-            "request_id": "req-1",
-            "response": "TooManyBufferedRequests",
-        }
-    }
-    message = parse_inference_client_message(data)
-
-    assert message.kind == InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS
-    assert message.is_terminal
-
-
 def test_parse_server_error() -> None:
     data = {
         "Error": {

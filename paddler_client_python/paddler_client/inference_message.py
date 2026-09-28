@@ -35,13 +35,11 @@ class InferenceMessageKind(StrEnum):
     REASONING_TOKEN = "reasoning_token"
     SAMPLER_ERROR = "sampler_error"
     SERVER_ERROR = "server_error"
-    TIMEOUT = "timeout"
     TOOL_CALL_PARSED = "tool_call_parsed"
     TOOL_CALL_PARSE_FAILED = "tool_call_parse_failed"
     TOOL_CALL_TOKEN = "tool_call_token"
     TOOL_CALL_VALIDATION_FAILED = "tool_call_validation_failed"
     TOOL_CALL_VALIDATOR_BUILD_FAILED = "tool_call_validator_build_failed"
-    TOO_MANY_BUFFERED_REQUESTS = "too_many_buffered_requests"
     UNDETERMINABLE_TOKEN = "undeterminable_token"
     UNRECOGNIZED_TOOL_CALL_FORMAT = "unrecognized_tool_call_format"
 
@@ -175,39 +173,22 @@ def _parse_response(
     response: str | dict[str, Any],
     generated_by: str | None,
 ) -> InferenceMessage:
-    if isinstance(response, str):
-        if response == "Timeout":
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.TIMEOUT,
-                generated_by=generated_by,
+    if isinstance(response, dict):
+        if "GeneratedToken" in response:
+            return _parse_generated_token_result(
+                request_id,
+                response["GeneratedToken"],
+                generated_by,
             )
 
-        if response == "TooManyBufferedRequests":
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.TOO_MANY_BUFFERED_REQUESTS,
-                generated_by=generated_by,
+        if "Embedding" in response:
+            return _parse_embedding_result(
+                request_id,
+                response["Embedding"],
+                generated_by,
             )
 
-        msg = f"Unknown response variant: {response}"
-        raise ValueError(msg)
-
-    if "GeneratedToken" in response:
-        return _parse_generated_token_result(
-            request_id,
-            response["GeneratedToken"],
-            generated_by,
-        )
-
-    if "Embedding" in response:
-        return _parse_embedding_result(
-            request_id,
-            response["Embedding"],
-            generated_by,
-        )
-
-    msg = f"Unknown response: {response}"
+    msg = f"Unknown response variant: {response}"
     raise ValueError(msg)
 
 
