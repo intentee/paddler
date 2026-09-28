@@ -4,6 +4,7 @@ use std::num::NonZeroUsize;
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -18,6 +19,8 @@ use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use serde_json::Value;
+use tokio::task::yield_now;
+use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 use crate::agent_config::AgentConfig;
@@ -284,6 +287,31 @@ impl Cluster {
                 assert_slots_total_at_least(agent_id, expected_slots_total),
             )
             .await
+    }
+
+    pub async fn wait_for_applicable_state<TStateMatcher>(
+        &self,
+        state_matcher: TStateMatcher,
+    ) -> Result<AgentDesiredState>
+    where
+        TStateMatcher: Fn(&AgentDesiredState) -> bool,
+    {
+        timeout(ObservationWindow::release().duration(), async {
+            loop {
+                if let Some(applicable_state) = self
+                    .client_management
+                    .get_balancer_applicable_state(CancellationToken::new())
+                    .await?
+                    && state_matcher(&applicable_state)
+                {
+                    return Ok(applicable_state);
+                }
+
+                yield_now().await;
+            }
+        })
+        .await
+        .context("the balancer did not apply the expected state in time")?
     }
 
     pub async fn wait_for_buffered_request_count(

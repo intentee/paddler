@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures_util::StreamExt;
 use futures_util::stream::SplitStream;
 use log::debug;
@@ -14,7 +16,6 @@ use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
-use crate::error::Error;
 use crate::inference_socket::pending_requests::PendingRequests;
 
 type WebSocketReadStream = SplitStream<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>>;
@@ -50,14 +51,11 @@ fn route_message(
         },
     };
 
-    if let Some(sender) = pending.get(&request_scoped_message.request_id) {
-        let send_failed = sender.send(Ok(message)).is_err();
-
-        if request_scoped_message.is_done || send_failed {
-            drop(sender);
-            pending.remove(&request_scoped_message.request_id);
-        }
-    } else {
+    if !pending.deliver(
+        &request_scoped_message.request_id,
+        message,
+        request_scoped_message.is_done,
+    ) {
         warn!(
             "Received message for unknown request_id: {}",
             request_scoped_message.request_id
@@ -73,7 +71,7 @@ struct RequestScopedMessage {
 #[must_use]
 pub fn spawn_read_task(
     ws_read: WebSocketReadStream,
-    pending: PendingRequests,
+    pending: Arc<PendingRequests>,
     notification_tx: broadcast::Sender<Notification>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
@@ -99,18 +97,6 @@ pub fn spawn_read_task(
             }
         }
 
-        for entry in pending.iter() {
-            if entry
-                .value()
-                .send(Err(Error::ConnectionDropped {
-                    request_id: entry.key().clone(),
-                }))
-                .is_err()
-            {
-                debug!("Receiver already dropped for request: {}", entry.key());
-            }
-        }
-
-        pending.clear();
+        pending.close();
     })
 }

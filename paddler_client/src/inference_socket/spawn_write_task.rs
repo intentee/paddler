@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
 use log::error;
@@ -7,12 +9,15 @@ use tokio_tungstenite::MaybeTlsStream;
 use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::tungstenite::Message as WsMessage;
 
+use crate::inference_socket::pending_requests::PendingRequests;
+
 type WebSocketWriteSink =
     SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, WsMessage>;
 
 pub fn spawn_write_task(
     ws_write: WebSocketWriteSink,
     write_rx: UnboundedReceiver<String>,
+    pending: Arc<PendingRequests>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut ws_write = ws_write;
@@ -21,6 +26,7 @@ pub fn spawn_write_task(
         while let Some(message) = write_rx.recv().await {
             if let Err(err) = ws_write.send(WsMessage::Text(message.into())).await {
                 error!("WebSocket write error: {err}");
+                pending.close();
                 break;
             }
         }
