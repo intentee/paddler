@@ -112,60 +112,35 @@ impl StartBalancerFormData {
         }
     }
 
+    fn desired_state(&self) -> Result<BalancerDesiredState, String> {
+        if self.add_model_later {
+            return Ok(BalancerDesiredState::default());
+        }
+
+        self.selected_model
+            .as_ref()
+            .map(ModelPreset::to_balancer_desired_state)
+            .ok_or_else(|| "Please select a model.".to_owned())
+    }
+
     fn validate_and_confirm(&mut self) -> Action {
-        self.balancer_address_error = None;
-        self.inference_address_error = None;
-        self.web_admin_panel_address_error = None;
-        self.model_error = None;
+        let desired_state = self.desired_state();
+        let management_addr = validate_required_address(&self.balancer_address);
+        let inference_addr = validate_required_address(&self.inference_address);
+        let web_admin_panel_addr = validate_optional_address(&self.web_admin_panel_address);
 
-        if !self.add_model_later && self.selected_model.is_none() {
-            self.model_error = Some("Please select a model.".to_owned());
-        }
+        self.model_error = desired_state.as_ref().err().cloned();
+        self.balancer_address_error = management_addr.as_ref().err().cloned();
+        self.inference_address_error = inference_addr.as_ref().err().cloned();
+        self.web_admin_panel_address_error = web_admin_panel_addr.as_ref().err().cloned();
 
-        let management_addr = match validate_required_address(&self.balancer_address) {
-            Ok(addr) => Some(addr),
-            Err(message) => {
-                self.balancer_address_error = Some(message);
-                None
-            }
-        };
-
-        let inference_addr = match validate_required_address(&self.inference_address) {
-            Ok(addr) => Some(addr),
-            Err(message) => {
-                self.inference_address_error = Some(message);
-                None
-            }
-        };
-
-        let web_admin_panel_addr = match validate_optional_address(&self.web_admin_panel_address) {
-            Ok(addr) => addr,
-            Err(message) => {
-                self.web_admin_panel_address_error = Some(message);
-                None
-            }
-        };
-
-        if self.model_error.is_some()
-            || self.balancer_address_error.is_some()
-            || self.inference_address_error.is_some()
-            || self.web_admin_panel_address_error.is_some()
-        {
+        let (Ok(desired_state), Ok(management_addr), Ok(inference_addr), Ok(web_admin_panel_addr)) = (
+            desired_state,
+            management_addr,
+            inference_addr,
+            web_admin_panel_addr,
+        ) else {
             return Action::None;
-        }
-
-        let (Some(management_addr), Some(inference_addr)) = (management_addr, inference_addr)
-        else {
-            return Action::None;
-        };
-
-        let desired_state = if self.add_model_later {
-            BalancerDesiredState::default()
-        } else {
-            self.selected_model
-                .as_ref()
-                .map(ModelPreset::to_balancer_desired_state)
-                .unwrap_or_default()
         };
 
         self.starting = true;
@@ -187,13 +162,115 @@ mod tests {
     use anyhow::Result;
     use anyhow::bail;
 
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
+    use super::Action;
+    use super::Message;
     use super::PortCheck;
     use super::check_port;
     use super::validate_optional_address;
     use super::validate_required_address;
+    use crate::model_preset::ModelPreset;
+    use crate::start_balancer_form_data::StartBalancerFormData;
 
     const LOOPBACK_ANY_PORT: &str = "127.0.0.1:0";
     const UNASSIGNED_TEST_NET_ADDRESS: &str = "192.0.2.1:0";
+
+    fn form_on_free_ports() -> StartBalancerFormData {
+        StartBalancerFormData {
+            add_model_later: false,
+            balancer_address: LOOPBACK_ANY_PORT.to_owned(),
+            balancer_address_error: None,
+            inference_address: LOOPBACK_ANY_PORT.to_owned(),
+            inference_address_error: None,
+            model_error: None,
+            selected_model: None,
+            starting: false,
+            web_admin_panel_address: String::new(),
+            web_admin_panel_address_error: None,
+            web_admin_panel_address_placeholder: String::new(),
+        }
+    }
+
+    fn multimodal_preset() -> ModelPreset {
+        ModelPreset::available_presets()
+            .into_iter()
+            .find(|preset| preset.multimodal_projection.is_some())
+            .expect("a multimodal preset must be available")
+    }
+
+    #[test]
+    fn requires_a_model_unless_it_is_added_later() {
+        let mut form = form_on_free_ports();
+
+        assert!(matches!(form.update(Message::Confirm), Action::None));
+        assert_eq!(form.model_error.as_deref(), Some("Please select a model."));
+        assert!(!form.starting);
+    }
+
+    #[test]
+    fn starts_without_a_model_when_it_is_added_later() {
+        let mut form = form_on_free_ports();
+
+        form.update(Message::ToggleAddModelLater(true));
+
+        assert!(matches!(
+            form.update(Message::Confirm),
+            Action::StartBalancer {
+                desired_state,
+                web_admin_panel_addr: None,
+                ..
+            } if desired_state == BalancerDesiredState::default()
+        ));
+        assert!(form.starting);
+    }
+
+    #[test]
+    fn starts_with_the_selected_model_and_its_multimodal_projection() {
+        let mut form = form_on_free_ports();
+        let preset = multimodal_preset();
+        let expected_model = AgentDesiredModel::HuggingFace(preset.model.clone());
+        let expected_multimodal_projection = AgentDesiredModel::HuggingFace(
+            preset
+                .multimodal_projection
+                .clone()
+                .expect("the multimodal preset must carry a projection"),
+        );
+
+        form.update(Message::SelectModel(preset));
+
+        assert!(matches!(
+            form.update(Message::Confirm),
+            Action::StartBalancer { desired_state, .. }
+                if desired_state.model == expected_model
+                    && desired_state.multimodal_projection == expected_multimodal_projection
+        ));
+    }
+
+    #[test]
+    fn reports_every_invalid_address_at_once() {
+        let mut form = form_on_free_ports();
+
+        form.update(Message::ToggleAddModelLater(true));
+        form.update(Message::SetBalancerAddress(String::new()));
+        form.update(Message::SetInferenceAddress("not an address".to_owned()));
+        form.update(Message::SetWebAdminPanelAddress("127.0.0.1".to_owned()));
+
+        assert!(matches!(form.update(Message::Confirm), Action::None));
+        assert_eq!(
+            form.balancer_address_error.as_deref(),
+            Some("Address is required.")
+        );
+        assert_eq!(
+            form.inference_address_error.as_deref(),
+            Some("Invalid address (invalid socket address syntax), expected format: IP:port")
+        );
+        assert_eq!(
+            form.web_admin_panel_address_error.as_deref(),
+            Some("Invalid address (invalid socket address syntax), expected format: IP:port")
+        );
+    }
 
     #[test]
     fn reports_in_use_when_port_is_bound() -> Result<()> {
@@ -211,7 +288,11 @@ mod tests {
 
     #[test]
     fn reports_available_when_the_port_can_be_bound() -> Result<()> {
-        match check_port(&LOOPBACK_ANY_PORT.parse()?) {
+        match check_port(
+            &LOOPBACK_ANY_PORT
+                .parse()
+                .expect("the loopback test address must parse"),
+        ) {
             PortCheck::Available => Ok(()),
             PortCheck::InUse => bail!("free port reported as InUse"),
             PortCheck::BindFailed(error) => {

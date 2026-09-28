@@ -442,11 +442,6 @@ impl App {
         }))
     }
 
-    #[cfg(test)]
-    pub fn shutdown_token_for_test(&self) -> CancellationToken {
-        self.shutdown.clone()
-    }
-
     fn spawn_balancer(
         &mut self,
         management_addr: SocketAddr,
@@ -635,7 +630,7 @@ mod tests {
     #[test]
     fn quit_message_cancels_shutdown_token() {
         let (mut app, _initial_task) = App::new();
-        let shutdown = app.shutdown_token_for_test();
+        let shutdown = app.shutdown.clone();
 
         assert!(!shutdown.is_cancelled());
 
