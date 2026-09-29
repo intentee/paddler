@@ -6,7 +6,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 use tokio_util::sync::CancellationToken;
 
@@ -14,15 +14,15 @@ const N_BATCH: usize = 64;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_oversized_document_and_embeds_the_rest() -> Result<()> {
-    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
+    let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
         inference_parameters: InferenceParameters {
             n_batch: N_BATCH,
-            context_size: 4096,
+            context_size: 2048,
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        ..Qwen3EmbeddingClusterParams::default()
+        ..EmbeddingClusterParams::default()
     })
     .await?;
 

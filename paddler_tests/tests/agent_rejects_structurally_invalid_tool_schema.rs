@@ -17,8 +17,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use serde_json::Map;
 use serde_json::json;

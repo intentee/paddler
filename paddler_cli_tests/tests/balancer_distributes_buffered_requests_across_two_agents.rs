@@ -4,8 +4,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_cli_tests::model_card::ModelCard;
-use paddler_cli_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -14,6 +12,8 @@ use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]

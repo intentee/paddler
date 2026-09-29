@@ -2,16 +2,16 @@ use std::time::Duration;
 
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
+use crate::agent_config::AgentConfig;
 
-pub struct Qwen3EmbeddingClusterParams {
+pub struct EmbeddingClusterParams {
     pub agents: Vec<AgentConfig>,
     pub buffered_request_timeout: Duration,
     pub inference_parameters: InferenceParameters,
     pub max_buffered_requests: i32,
 }
 
-impl Default for Qwen3EmbeddingClusterParams {
+impl Default for EmbeddingClusterParams {
     fn default() -> Self {
         Self {
             agents: AgentConfig::uniform(1, 4),

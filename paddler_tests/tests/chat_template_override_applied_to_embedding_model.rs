@@ -8,8 +8,8 @@ use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 

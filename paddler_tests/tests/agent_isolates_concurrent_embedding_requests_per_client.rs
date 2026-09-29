@@ -8,7 +8,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 use tokio_util::sync::CancellationToken;
 
@@ -17,13 +17,13 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()>
     let client_count: usize = 4;
     let docs_per_client: usize = 3;
 
-    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
+    let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(4)],
         inference_parameters: InferenceParameters {
             enable_embeddings: true,
             ..InferenceParameters::default()
         },
-        ..Qwen3EmbeddingClusterParams::default()
+        ..EmbeddingClusterParams::default()
     })
     .await?;
 

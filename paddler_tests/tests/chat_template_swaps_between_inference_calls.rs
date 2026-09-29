@@ -15,8 +15,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 

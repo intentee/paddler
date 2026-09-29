@@ -8,8 +8,8 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use tokio::time::timeout;
 

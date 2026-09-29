@@ -11,12 +11,12 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
-use paddler_tests::start_cluster_with_qwen2_5_vl::start_cluster_with_qwen2_5_vl;
+use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_rejects_image_prompt_containing_media_marker_text() -> Result<()> {
-    let cluster = start_cluster_with_qwen2_5_vl(vec![AgentConfig::single(1)]).await?;
+    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
         .continue_from_conversation_history(

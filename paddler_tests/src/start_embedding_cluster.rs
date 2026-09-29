@@ -3,25 +3,25 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use crate::model_card::ModelCard;
-use crate::model_card::qwen3_embedding_0_6b::qwen3_embedding_0_6b;
-use crate::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 
 pub async fn start_embedding_cluster(
-    Qwen3EmbeddingClusterParams {
+    EmbeddingClusterParams {
         agents,
         buffered_request_timeout,
         inference_parameters,
         max_buffered_requests,
-    }: Qwen3EmbeddingClusterParams,
+    }: EmbeddingClusterParams,
 ) -> Result<Cluster> {
     let ModelCard {
         gpu_layer_count,
         reference,
-    } = qwen3_embedding_0_6b();
+    } = nomic_embed_text_v1_5();
 
     let inference_parameters_with_offload = InferenceParameters {
         n_gpu_layers: gpu_layer_count,

@@ -2,8 +2,8 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use crate::model_card::ModelCard;
-use crate::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 
 #[must_use]
 pub fn qwen3_desired_state() -> BalancerDesiredState {

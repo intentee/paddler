@@ -3,13 +3,13 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
-use crate::model_card::ModelCard;
-use crate::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use crate::model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
+use paddler_test_cluster_harness::model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
 
 pub async fn start_cluster_with_qwen3_5_and_context_size(
     agents: Vec<AgentConfig>,

@@ -12,12 +12,12 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
-use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> {
-    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(4)], true).await?;
+    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(4)]).await?;
 
     let image_data_uri = load_test_image_data_uri()?;
 

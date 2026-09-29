@@ -1,34 +1,27 @@
 use anyhow::Result;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_parameters::InferenceParameters;
 
+use crate::smolvlm2_desired_state::smolvlm2_desired_state;
 use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
-use paddler_test_cluster_harness::model_card::deepseek_r1_distill_llama_8b::deepseek_r1_distill_llama_8b;
 
-pub async fn start_cluster_with_deepseek_r1_distill_llama_8b(
+pub async fn start_cluster_with_smolvlm2_and_context_size(
     agents: Vec<AgentConfig>,
+    context_size: u32,
 ) -> Result<Cluster> {
-    let ModelCard {
-        gpu_layer_count,
-        reference,
-    } = deepseek_r1_distill_llama_8b();
+    let desired_state = smolvlm2_desired_state();
 
     start_cluster(ClusterParams {
         agents,
         desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
             inference_parameters: InferenceParameters {
-                n_gpu_layers: gpu_layer_count,
-                ..InferenceParameters::deterministic()
+                context_size,
+                ..desired_state.inference_parameters
             },
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
+            ..desired_state
         }),
         wait_for_slots_ready: true,
         ..ClusterParams::default()

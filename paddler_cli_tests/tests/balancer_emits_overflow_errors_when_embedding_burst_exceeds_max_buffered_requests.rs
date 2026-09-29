@@ -5,13 +5,13 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
@@ -22,7 +22,7 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
 
     let cluster = start_subprocess_embedding_cluster(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
-        Qwen3EmbeddingClusterParams {
+        EmbeddingClusterParams {
             agents: AgentConfig::uniform(4, 1),
             buffered_request_timeout: Duration::from_secs(2),
             inference_parameters: InferenceParameters {

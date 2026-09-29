@@ -3,20 +3,20 @@
 use std::collections::BTreeSet;
 
 use anyhow::Result;
-use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() -> Result<()> {
     let cluster = start_subprocess_embedding_cluster(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
-        Qwen3EmbeddingClusterParams {
+        EmbeddingClusterParams {
             agents: vec![
                 AgentConfig {
                     name: "agent-fat".to_owned(),
@@ -39,7 +39,7 @@ async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() 
                 enable_embeddings: true,
                 ..InferenceParameters::default()
             },
-            ..Qwen3EmbeddingClusterParams::default()
+            ..EmbeddingClusterParams::default()
         },
     )
     .await?;

@@ -11,7 +11,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
-use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
+use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use tokio_util::sync::CancellationToken;
 
 fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
@@ -46,7 +46,7 @@ fn build_multimodal_conversation(image_data_uri: &str) -> ConversationHistory {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_two_concurrent_multimodal_requests_produce_tokens() -> Result<()> {
-    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(4)], true).await?;
+    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(4)]).await?;
 
     let image_data_uri = load_test_image_data_uri()?;
 

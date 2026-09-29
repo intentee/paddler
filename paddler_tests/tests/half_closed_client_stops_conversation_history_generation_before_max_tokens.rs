@@ -14,8 +14,8 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
 const MAX_TOKENS_TOO_MANY_TO_FINISH_INSIDE_THE_OBSERVATION_WINDOW: i32 = 4096;

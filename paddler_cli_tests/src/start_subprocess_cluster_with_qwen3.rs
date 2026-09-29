@@ -6,9 +6,9 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 
-use crate::model_card::ModelCard;
-use crate::model_card::qwen3_0_6b::qwen3_0_6b;
 use crate::start_subprocess_cluster::start_subprocess_cluster;
+use paddler_test_cluster_harness::model_card::ModelCard;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 
 pub async fn start_subprocess_cluster_with_qwen3(
     binary_path: &str,
