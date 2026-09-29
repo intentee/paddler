@@ -75,11 +75,9 @@ pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Mes
             .style(style_field_text_input)
             .into()
     } else {
-        pick_list(
-            available_models,
-            data.selected_model.as_ref(),
-            Message::SelectModel,
-        )
+        pick_list(available_models, data.selected_model.as_ref(), |preset| {
+            Message::SelectModel(Box::new(preset))
+        })
         .placeholder("Choose a model")
         .width(Fill)
         .padding(SPACING_BASE)

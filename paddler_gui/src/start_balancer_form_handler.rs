@@ -41,25 +41,17 @@ fn validate_required_address(raw: &str) -> Result<SocketAddr, String> {
     validate_optional_address(raw)?.ok_or_else(|| "Address is required.".to_owned())
 }
 
-#[expect(
-    clippy::large_enum_variant,
-    reason = "ephemeral value, immediately consumed"
-)]
 #[derive(Debug, Clone)]
 pub enum Message {
     SetBalancerAddress(String),
     SetInferenceAddress(String),
     SetWebAdminPanelAddress(String),
-    SelectModel(ModelPreset),
+    SelectModel(Box<ModelPreset>),
     ToggleAddModelLater(bool),
     Confirm,
     Cancel,
 }
 
-#[expect(
-    clippy::large_enum_variant,
-    reason = "ephemeral value, immediately consumed"
-)]
 pub enum Action {
     None,
     Cancel,
@@ -67,7 +59,7 @@ pub enum Action {
         management_addr: SocketAddr,
         inference_addr: SocketAddr,
         web_admin_panel_addr: Option<SocketAddr>,
-        desired_state: BalancerDesiredState,
+        desired_state: Box<BalancerDesiredState>,
     },
 }
 
@@ -75,7 +67,7 @@ impl StartBalancerFormData {
     pub fn update(&mut self, message: Message) -> Action {
         match message {
             Message::SelectModel(preset) => {
-                self.selected_model = Some(preset);
+                self.selected_model = Some(*preset);
                 self.model_error = None;
 
                 Action::None
@@ -149,7 +141,7 @@ impl StartBalancerFormData {
             management_addr,
             inference_addr,
             web_admin_panel_addr,
-            desired_state,
+            desired_state: Box::new(desired_state),
         }
     }
 }
@@ -213,7 +205,7 @@ mod tests {
                 desired_state,
                 web_admin_panel_addr: None,
                 ..
-            } if desired_state == BalancerDesiredState::default()
+            } if *desired_state == BalancerDesiredState::default()
         ));
         assert!(form.starting);
     }
@@ -230,7 +222,7 @@ mod tests {
                 .expect("the multimodal preset must carry a projection"),
         );
 
-        form.update(Message::SelectModel(preset));
+        form.update(Message::SelectModel(Box::new(preset)));
 
         assert!(matches!(
             form.update(Message::Confirm),
