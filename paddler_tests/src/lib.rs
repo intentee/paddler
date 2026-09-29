@@ -19,6 +19,7 @@ pub mod start_cluster_with_qwen2_5_vl;
 pub mod start_cluster_with_qwen3;
 pub mod start_cluster_with_qwen3_5;
 pub mod start_cluster_with_qwen3_5_and_context_size;
+pub mod start_cluster_with_qwen3_and_context_size;
 pub mod start_cluster_with_smolvlm2;
 pub mod start_cluster_with_smolvlm2_and_context_size;
 pub mod start_cluster_with_smolvlm2_and_n_batch;

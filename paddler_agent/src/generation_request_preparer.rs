@@ -22,6 +22,7 @@ use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::prompt_modality::PromptModality;
 use crate::prompt_tokenizer::PromptTokenizer;
+use crate::require_grammar_compatible_with_thinking::require_grammar_compatible_with_thinking;
 use crate::resolve_grammar::resolve_grammar;
 use crate::token_generation::TokenGeneration;
 use crate::token_generation_support::TokenGenerationSupport;
@@ -53,14 +54,15 @@ impl GenerationRequestPreparer {
         let TokenGenerationSupport {
             streaming_markers, ..
         } = self.token_generation.require_enabled()?;
-        let grammar_sampler = resolve_grammar(grammar, false)?;
+        let prompt = PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?);
+        let grammar_sampler = resolve_grammar(grammar)?;
 
         Ok(PreparedGenerationRequest {
             generate_tokens_stop_rx,
             generated_tokens_tx,
             grammar_sampler,
             max_tokens,
-            prompt: PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?),
+            prompt,
             slot_guard,
             streaming_markers: streaming_markers.clone(),
             tool_call_pipeline: None,
@@ -89,13 +91,15 @@ impl GenerationRequestPreparer {
             chat_prompt_renderer,
             streaming_markers,
         } = self.token_generation.require_enabled()?;
+
+        require_grammar_compatible_with_thinking(grammar.as_ref(), enable_thinking)?;
+
         let ChatTemplateConversation {
             image_urls,
             messages,
         } = conversation_history
             .into_chat_template_conversation(&chat_prompt_renderer.media_marker);
         let prompt_modality = self.image_input.prompt_modality_for(&image_urls)?;
-        let grammar_sampler = resolve_grammar(grammar, enable_thinking)?;
 
         let raw_prompt = chat_prompt_renderer.render(ChatPromptRenderRequest {
             add_generation_prompt,
@@ -103,12 +107,6 @@ impl GenerationRequestPreparer {
             messages: &messages,
             tools: &tools,
         })?;
-
-        let tool_call_pipeline = if parse_tool_calls && !tools.is_empty() {
-            Some(self.build_tool_call_pipeline(&tools)?)
-        } else {
-            None
-        };
 
         let prompt = match prompt_modality {
             PromptModality::Multimodal(multimodal_prompt_support) => PreparedPrompt::Multimodal(
@@ -123,6 +121,14 @@ impl GenerationRequestPreparer {
             PromptModality::TextOnly => {
                 PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?)
             }
+        };
+
+        let grammar_sampler = resolve_grammar(grammar)?;
+
+        let tool_call_pipeline = if parse_tool_calls && !tools.is_empty() {
+            Some(self.build_tool_call_pipeline(&tools)?)
+        } else {
+            None
         };
 
         Ok(PreparedGenerationRequest {

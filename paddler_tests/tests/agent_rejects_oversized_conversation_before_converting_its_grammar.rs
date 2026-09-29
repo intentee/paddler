@@ -5,6 +5,7 @@ use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
@@ -13,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 const SEQUENCE_CONTEXT_SIZE: u32 = 256;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_conversation_exceeding_sequence_context() -> Result<()> {
+async fn agent_rejects_oversized_conversation_before_converting_its_grammar() -> Result<()> {
     let cluster = start_cluster_with_qwen3_and_context_size(
         vec![AgentConfig::single(1)],
         SEQUENCE_CONTEXT_SIZE,
@@ -32,7 +33,9 @@ async fn agent_rejects_conversation_exceeding_sequence_context() -> Result<()> {
                     role: "user".to_owned(),
                 }]),
                 enable_thinking: false,
-                grammar: None,
+                grammar: Some(GrammarConstraint::JsonSchema {
+                    schema: "not a json schema".to_owned(),
+                }),
                 max_tokens: 20,
                 parse_tool_calls: false,
                 tools: vec![],
@@ -40,12 +43,16 @@ async fn agent_rejects_conversation_exceeding_sequence_context() -> Result<()> {
         )
         .await?;
 
-    assert!(collected.token_results.iter().any(|result| matches!(
-        &result.token_result,
-        GeneratedTokenResult::PromptExceedsContextSize(details)
+    assert!(matches!(
+        collected
+            .token_results
+            .iter()
+            .map(|result| &result.token_result)
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [GeneratedTokenResult::PromptExceedsContextSize(details)]
             if details.sequence_context_size == SEQUENCE_CONTEXT_SIZE
-                && details.prompt_tokens > SEQUENCE_CONTEXT_SIZE as usize
-    )));
+    ));
 
     cluster.shutdown().await?;
 

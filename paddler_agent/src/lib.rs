@@ -61,6 +61,7 @@ pub mod receive_stream_stopper_collection;
 mod receive_stream_stopper_drop_guard;
 pub mod reconciliation_service;
 pub mod require_embeddings_enabled;
+pub mod require_grammar_compatible_with_thinking;
 pub mod require_prompt_fits_sequence_context;
 pub mod resolve_desired_model;
 pub mod resolve_grammar;
