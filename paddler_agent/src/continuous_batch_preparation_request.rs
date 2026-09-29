@@ -7,3 +7,21 @@ pub enum ContinuousBatchPreparationRequest {
     ContinueFromRawPrompt(ContinueFromRawPromptRequest),
     GenerateEmbeddingBatch(GenerateEmbeddingBatchRequest),
 }
+
+impl From<ContinueFromConversationHistoryRequest> for ContinuousBatchPreparationRequest {
+    fn from(request: ContinueFromConversationHistoryRequest) -> Self {
+        Self::ContinueFromConversationHistory(request)
+    }
+}
+
+impl From<ContinueFromRawPromptRequest> for ContinuousBatchPreparationRequest {
+    fn from(request: ContinueFromRawPromptRequest) -> Self {
+        Self::ContinueFromRawPrompt(request)
+    }
+}
+
+impl From<GenerateEmbeddingBatchRequest> for ContinuousBatchPreparationRequest {
+    fn from(request: GenerateEmbeddingBatchRequest) -> Self {
+        Self::GenerateEmbeddingBatch(request)
+    }
+}

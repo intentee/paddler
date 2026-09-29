@@ -62,11 +62,7 @@ impl Screen<JoinBalancerForm> {
 
     pub fn connect(self) -> Screen<AgentRunning> {
         self.transition_map(|form_data: JoinBalancerFormData| {
-            let name = if form_data.agent_name.is_empty() {
-                None
-            } else {
-                Some(form_data.agent_name)
-            };
+            let name = form_data.entered_agent_name();
 
             AgentRunningData {
                 balancer_address: form_data.balancer_address,

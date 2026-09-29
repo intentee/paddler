@@ -690,7 +690,7 @@ mod tests {
             total_bytes: Some(500),
         });
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(snapshot.download_current, 100);
         assert_eq!(snapshot.download_total, 500);
         assert!(!snapshot.download_indeterminate);
@@ -718,7 +718,7 @@ mod tests {
         download_progress.apply(DownloadProgress::ChunkWritten { byte_count: 250 });
         download_progress.apply(DownloadProgress::ChunkWritten { byte_count: 125 });
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(snapshot.download_current, 375);
     }
 
@@ -741,7 +741,7 @@ mod tests {
         });
         download_progress.apply(DownloadProgress::Finished);
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(snapshot.download_current, 0);
         assert_eq!(snapshot.download_total, 0);
         assert!(snapshot.download_indeterminate);
@@ -840,7 +840,7 @@ mod tests {
             "a cancelled download must report cancellation as an outcome, not an error"
         );
         assert!(
-            status.make_snapshot().unwrap().issues.is_empty(),
+            status.make_snapshot().issues.is_empty(),
             "a cancelled download must not register a slot issue"
         );
     }

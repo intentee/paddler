@@ -1,7 +1,6 @@
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::error::ErrorNotImplemented;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
@@ -91,11 +90,6 @@ async fn respond(
         Ok(batches) => batches,
         Err(ChunkEvenlyWithCapError::ZeroAgentCount) => {
             return Err(ErrorServiceUnavailable("No agents are currently connected"));
-        }
-        Err(ChunkEvenlyWithCapError::ZeroMaxDocumentsPerChunk) => {
-            return Err(ErrorInternalServerError(
-                "embedding_batch_size is zero despite validation",
-            ));
         }
     };
 

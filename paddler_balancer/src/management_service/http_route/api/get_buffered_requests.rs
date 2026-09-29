@@ -1,6 +1,4 @@
-use actix_web::Error;
 use actix_web::HttpResponse;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::get;
 use actix_web::web;
 
@@ -12,13 +10,8 @@ pub fn register(cfg: &mut web::ServiceConfig) {
 }
 
 #[get("/api/v1/buffered_requests")]
-async fn respond(app_data: web::Data<AppData>) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok().json(
-        app_data
-            .buffered_request_manager
-            .make_snapshot()
-            .map_err(ErrorInternalServerError)?,
-    ))
+async fn respond(app_data: web::Data<AppData>) -> HttpResponse {
+    HttpResponse::Ok().json(app_data.buffered_request_manager.make_snapshot())
 }
 
 #[cfg(test)]

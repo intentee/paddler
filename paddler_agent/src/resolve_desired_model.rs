@@ -129,7 +129,7 @@ mod tests {
             "a cancelled Hugging Face download must report cancellation as an outcome, not an error"
         );
         assert!(
-            status.make_snapshot().unwrap().issues.is_empty(),
+            status.make_snapshot().issues.is_empty(),
             "a cancelled Hugging Face download must not register a slot issue"
         );
     }

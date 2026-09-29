@@ -387,23 +387,16 @@ impl App {
             tokio::pin!(completion_future);
 
             loop {
-                match slot_aggregated_status.make_snapshot() {
-                    Ok(snapshot) => {
-                        if output
-                            .send(Message::AgentRunning(
-                                agent_running_handler::Message::AgentStatusUpdated(snapshot),
-                            ))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("Failed to make agent status snapshot: {error}");
-
-                        return;
-                    }
+                if output
+                    .send(Message::AgentRunning(
+                        agent_running_handler::Message::AgentStatusUpdated(
+                            slot_aggregated_status.make_snapshot(),
+                        ),
+                    ))
+                    .await
+                    .is_err()
+                {
+                    return;
                 }
 
                 tokio::select! {
@@ -535,25 +528,18 @@ impl App {
             loop {
                 let desired_state = desired_state_rx.borrow_and_update().clone();
 
-                match RunningBalancerSnapshot::build(
+                let snapshot = RunningBalancerSnapshot::build(
                     &runner.agent_controller_pool,
                     &runner.balancer_applicable_state_holder,
                     desired_state,
-                ) {
-                    Ok(snapshot) => {
-                        if output
-                            .send(announce_snapshot(Box::new(snapshot)))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("Failed to build running balancer snapshot: {error}");
+                );
 
-                        return;
-                    }
+                if output
+                    .send(announce_snapshot(Box::new(snapshot)))
+                    .await
+                    .is_err()
+                {
+                    return;
                 }
 
                 announce_snapshot = |snapshot| {
@@ -610,7 +596,13 @@ impl App {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use tokio_util::sync::CancellationToken;
+
+    use super::App;
+    use super::Message;
+    use crate::current_screen::CurrentScreen;
+    use crate::home_handler;
+    use crate::join_balancer_form_handler;
 
     #[test]
     fn quit_message_cancels_shutdown_token() {
@@ -628,9 +620,43 @@ mod tests {
     fn quit_message_drops_both_runners() {
         let (mut app, _initial_task) = App::new();
 
+        app.agent_cancel = Some(CancellationToken::new());
+        app.balancer_cancel = Some(CancellationToken::new());
+
         let _exit_task = app.update(Message::Quit);
 
         assert!(app.agent_cancel.is_none());
         assert!(app.balancer_cancel.is_none());
+    }
+
+    #[test]
+    fn joining_a_balancer_runs_the_agent_under_its_entered_name() {
+        let (mut app, _initial_task) = App::new();
+
+        for message in [
+            Message::Home(home_handler::Message::JoinBalancer),
+            Message::JoinBalancerForm(join_balancer_form_handler::Message::SetBalancerAddress(
+                "127.0.0.1:8060".to_owned(),
+            )),
+            Message::JoinBalancerForm(join_balancer_form_handler::Message::SetSlotsCount(
+                "2".to_owned(),
+            )),
+            Message::JoinBalancerForm(join_balancer_form_handler::Message::SetAgentName(
+                "gpu-box".to_owned(),
+            )),
+        ] {
+            let _form_task = app.update(message);
+        }
+
+        let _agent_task = app.update(Message::JoinBalancerForm(
+            join_balancer_form_handler::Message::Connect,
+        ));
+
+        assert!(matches!(
+            &app.screen,
+            CurrentScreen::AgentRunning(screen)
+                if screen.state_data.snapshot.name.as_deref() == Some("gpu-box")
+        ));
+        assert!(app.agent_cancel.is_some());
     }
 }

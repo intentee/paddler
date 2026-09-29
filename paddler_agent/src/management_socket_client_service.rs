@@ -26,6 +26,7 @@ use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
 use crate::from_request_params::FromRequestParams;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::model_metadata_holder::ModelMetadataHolder;
@@ -47,10 +48,8 @@ struct IncomingMessageContext {
     agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
     agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
     connection_close: CancellationToken,
-    continue_from_conversation_history_request_tx:
-        mpsc::UnboundedSender<ContinueFromConversationHistoryRequest>,
-    continue_from_raw_prompt_request_tx: mpsc::UnboundedSender<ContinueFromRawPromptRequest>,
-    generate_embedding_batch_request_tx: mpsc::UnboundedSender<GenerateEmbeddingBatchRequest>,
+    continuous_batch_preparation_request_tx:
+        mpsc::UnboundedSender<ContinuousBatchPreparationRequest>,
     model_metadata_holder: Arc<ModelMetadataHolder>,
     receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
     message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
@@ -60,10 +59,8 @@ struct IncomingMessageContext {
 pub struct ManagementSocketClientService {
     pub agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
     pub agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
-    pub continue_from_conversation_history_request_tx:
-        mpsc::UnboundedSender<ContinueFromConversationHistoryRequest>,
-    pub continue_from_raw_prompt_request_tx: mpsc::UnboundedSender<ContinueFromRawPromptRequest>,
-    pub generate_embedding_batch_request_tx: mpsc::UnboundedSender<GenerateEmbeddingBatchRequest>,
+    pub continuous_batch_preparation_request_tx:
+        mpsc::UnboundedSender<ContinuousBatchPreparationRequest>,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub name: Option<String>,
     pub receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
@@ -72,16 +69,19 @@ pub struct ManagementSocketClientService {
 }
 
 impl ManagementSocketClientService {
-    fn generate_responses<TRequest: FromRequestParams + 'static>(
+    fn generate_responses<TRequest>(
         connection_close: CancellationToken,
         id: String,
         message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
         request_params: TRequest::RequestParams,
         receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
-        request_tx: mpsc::UnboundedSender<TRequest>,
+        continuous_batch_preparation_request_tx: mpsc::UnboundedSender<
+            ContinuousBatchPreparationRequest,
+        >,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<()>
     where
+        TRequest: FromRequestParams + Into<ContinuousBatchPreparationRequest> + 'static,
         TRequest::Response: Send,
     {
         let (response_tx, mut response_rx) = mpsc::unbounded_channel::<TRequest::Response>();
@@ -91,12 +91,15 @@ impl ManagementSocketClientService {
             .register_stopper_with_guard(id.clone(), stop_tx)
             .context(format!("Failed to register stopper for request: {id}"))?;
 
-        request_tx.send(TRequest::from_request_params(
-            request_params,
-            response_tx,
-            stop_rx,
-            slot_aggregated_status,
-        ))?;
+        continuous_batch_preparation_request_tx.send(
+            TRequest::from_request_params(
+                request_params,
+                response_tx,
+                stop_rx,
+                slot_aggregated_status,
+            )
+            .into(),
+        )?;
 
         tokio::spawn(async move {
             let _stopper_guard = stopper_guard;
@@ -136,9 +139,7 @@ impl ManagementSocketClientService {
             agent_applicable_state_holder,
             agent_desired_state_tx,
             connection_close,
-            continue_from_conversation_history_request_tx,
-            continue_from_raw_prompt_request_tx,
-            generate_embedding_batch_request_tx,
+            continuous_batch_preparation_request_tx,
             message_tx,
             model_metadata_holder,
             receive_stream_stopper_collection,
@@ -180,37 +181,37 @@ impl ManagementSocketClientService {
                     JsonRpcRequest::ContinueFromConversationHistory(
                         continue_from_conversation_history_params,
                     ),
-            }) => Self::generate_responses(
+            }) => Self::generate_responses::<ContinueFromConversationHistoryRequest>(
                 connection_close,
                 id,
                 message_tx,
                 continue_from_conversation_history_params,
                 receive_stream_stopper_collection,
-                continue_from_conversation_history_request_tx,
+                continuous_batch_preparation_request_tx,
                 slot_aggregated_status,
             ),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::ContinueFromRawPrompt(generate_tokens_params),
-            }) => Self::generate_responses(
+            }) => Self::generate_responses::<ContinueFromRawPromptRequest>(
                 connection_close,
                 id,
                 message_tx,
                 generate_tokens_params,
                 receive_stream_stopper_collection,
-                continue_from_raw_prompt_request_tx,
+                continuous_batch_preparation_request_tx,
                 slot_aggregated_status,
             ),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GenerateEmbeddingBatch(generate_embedding_batch_params),
-            }) => Self::generate_responses(
+            }) => Self::generate_responses::<GenerateEmbeddingBatchRequest>(
                 connection_close,
                 id,
                 message_tx,
                 generate_embedding_batch_params,
                 receive_stream_stopper_collection,
-                generate_embedding_batch_request_tx,
+                continuous_batch_preparation_request_tx,
                 slot_aggregated_status,
             ),
             JsonRpcMessage::Request(RequestEnvelope {
@@ -375,39 +376,29 @@ impl ManagementSocketClientService {
             }
         });
 
-        match self.slot_aggregated_status.make_snapshot() {
-            Ok(slot_aggregated_status_snapshot) => {
-                message_tx
-                    .send(ManagementJsonRpcMessage::Notification(
-                        ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
-                            name: self.name.clone(),
-                            slot_aggregated_status_snapshot,
-                        }),
-                    ))
-                    .unwrap_or_else(|err| {
-                        error!("Failed to send register agent notification: {err}");
-                    });
-            }
-            Err(err) => {
-                error!("Failed to create slot aggregated status snapshot: {err}");
+        message_tx
+            .send(ManagementJsonRpcMessage::Notification(
+                ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
+                    name: self.name.clone(),
+                    slot_aggregated_status_snapshot: self.slot_aggregated_status.make_snapshot(),
+                }),
+            ))
+            .unwrap_or_else(|err| {
+                error!("Failed to send register agent notification: {err}");
+            });
 
-                return Err(err);
-            }
-        }
-
-        let do_send_status_update = || match self.slot_aggregated_status.make_snapshot() {
-            Ok(slot_aggregated_status_snapshot) => {
-                message_tx
-                    .send(ManagementJsonRpcMessage::Notification(
-                        ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
-                            slot_aggregated_status_snapshot,
-                        }),
-                    ))
-                    .unwrap_or_else(|err| {
-                        error!("Failed to send status update notification: {err}");
-                    });
-            }
-            Err(err) => error!("Failed to create slot aggregated status snapshot: {err}"),
+        let do_send_status_update = || {
+            message_tx
+                .send(ManagementJsonRpcMessage::Notification(
+                    ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
+                        slot_aggregated_status_snapshot: self
+                            .slot_aggregated_status
+                            .make_snapshot(),
+                    }),
+                ))
+                .unwrap_or_else(|err| {
+                    error!("Failed to send status update notification: {err}");
+                });
         };
 
         let mut ticker = interval(Duration::from_secs(1));
@@ -438,9 +429,7 @@ impl ManagementSocketClientService {
                                         agent_applicable_state_holder: self.agent_applicable_state_holder.clone(),
                                         agent_desired_state_tx: self.agent_desired_state_tx.clone(),
                                         connection_close: connection_close.clone(),
-                                        continue_from_conversation_history_request_tx: self.continue_from_conversation_history_request_tx.clone(),
-                                        continue_from_raw_prompt_request_tx: self.continue_from_raw_prompt_request_tx.clone(),
-                                        generate_embedding_batch_request_tx: self.generate_embedding_batch_request_tx.clone(),
+                                        continuous_batch_preparation_request_tx: self.continuous_batch_preparation_request_tx.clone(),
                                         model_metadata_holder: self.model_metadata_holder.clone(),
                                         receive_stream_stopper_collection: self.receive_stream_stopper_collection.clone(),
                                         message_tx: message_tx.clone(),
@@ -542,17 +531,13 @@ mod tests {
 
     fn service_with_socket_url(socket_url: String) -> ManagementSocketClientService {
         let (agent_desired_state_tx, _agent_desired_state_rx) = mpsc::unbounded_channel();
-        let (continue_from_conversation_history_request_tx, _continue_history_rx) =
+        let (continuous_batch_preparation_request_tx, _continuous_batch_preparation_request_rx) =
             mpsc::unbounded_channel();
-        let (continue_from_raw_prompt_request_tx, _continue_raw_rx) = mpsc::unbounded_channel();
-        let (generate_embedding_batch_request_tx, _embedding_rx) = mpsc::unbounded_channel();
 
         ManagementSocketClientService {
             agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
             agent_desired_state_tx,
-            continue_from_conversation_history_request_tx,
-            continue_from_raw_prompt_request_tx,
-            generate_embedding_batch_request_tx,
+            continuous_batch_preparation_request_tx,
             model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
             name: None,
             receive_stream_stopper_collection: Arc::new(ReceiveStreamStopperCollection::default()),
@@ -692,20 +677,14 @@ mod tests {
         message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> IncomingMessageContext {
-        let (continue_from_conversation_history_request_tx, _continue_history_rx) =
-            mpsc::unbounded_channel::<ContinueFromConversationHistoryRequest>();
-        let (continue_from_raw_prompt_request_tx, _continue_raw_rx) =
-            mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
-        let (generate_embedding_batch_request_tx, _embedding_rx) =
-            mpsc::unbounded_channel::<GenerateEmbeddingBatchRequest>();
+        let (continuous_batch_preparation_request_tx, _continuous_batch_preparation_request_rx) =
+            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
 
         IncomingMessageContext {
             agent_applicable_state_holder,
             agent_desired_state_tx,
             connection_close,
-            continue_from_conversation_history_request_tx,
-            continue_from_raw_prompt_request_tx,
-            generate_embedding_batch_request_tx,
+            continuous_batch_preparation_request_tx,
             model_metadata_holder,
             receive_stream_stopper_collection,
             message_tx,
@@ -1208,7 +1187,7 @@ mod tests {
         let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
         let (request_tx, mut request_rx) =
-            mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
+            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
         let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(2));
 
         ManagementSocketClientService::generate_responses::<ContinueFromRawPromptRequest>(
@@ -1226,9 +1205,15 @@ mod tests {
         )
         .expect("the request must be accepted");
 
-        let dispatched_request = request_rx.try_recv().unwrap();
+        let dispatched_request = request_rx
+            .try_recv()
+            .expect("the request must be dispatched to the arbiter");
 
-        assert_eq!(dispatched_request.params.raw_prompt, "hello");
+        assert!(matches!(
+            &dispatched_request,
+            ContinuousBatchPreparationRequest::ContinueFromRawPrompt(request)
+                if request.params.raw_prompt == "hello"
+        ));
         assert_eq!(
             receive_stream_stopper_collection
                 .stop("req_generate")
@@ -1244,7 +1229,8 @@ mod tests {
         let connection_close = CancellationToken::new();
         let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
-        let (request_tx, request_rx) = mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
+        let (request_tx, request_rx) =
+            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
         let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(2));
 
         drop(request_rx);
@@ -1273,7 +1259,8 @@ mod tests {
         let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
         let (existing_stop_tx, _existing_stop_rx) = mpsc::unbounded_channel::<()>();
-        let (request_tx, _request_rx) = mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
+        let (request_tx, _request_rx) =
+            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
         let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(2));
 
         receive_stream_stopper_collection

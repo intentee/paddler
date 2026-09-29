@@ -2,7 +2,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicI32;
 use std::sync::atomic::AtomicU64;
 
-use anyhow::Result;
 use dashmap::DashSet;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
@@ -26,7 +25,7 @@ pub struct SlotAggregatedStatus {
     model_path: RwLock<Option<String>>,
     slots_processing: AtomicValue<AtomicI32>,
     slots_total: AtomicValue<AtomicI32>,
-    state_application_status_code: AtomicValue<AtomicI32>,
+    state_application_status: RwLock<AgentStateApplicationStatus>,
     update_tx: watch::Sender<()>,
     uses_chat_template_override: AtomicValue<AtomicBool>,
     version: AtomicValue<AtomicI32>,
@@ -45,9 +44,7 @@ impl SlotAggregatedStatus {
             download_total: AtomicValue::<AtomicU64>::new(0),
             issues: DashSet::new(),
             model_path: RwLock::new(None),
-            state_application_status_code: AtomicValue::<AtomicI32>::new(
-                AgentStateApplicationStatus::Fresh as i32,
-            ),
+            state_application_status: RwLock::new(AgentStateApplicationStatus::Fresh),
             slots_processing: AtomicValue::<AtomicI32>::new(0),
             slots_total: AtomicValue::<AtomicI32>::new(0),
             update_tx,
@@ -62,8 +59,8 @@ impl SlotAggregatedStatus {
         self.update_tx.send_replace(());
     }
 
-    pub fn get_state_application_status(&self) -> Result<AgentStateApplicationStatus> {
-        self.state_application_status_code.get().try_into()
+    pub fn get_state_application_status(&self) -> AgentStateApplicationStatus {
+        *self.state_application_status.read()
     }
 
     pub fn has_issue(&self, issue: &AgentIssue) -> bool {
@@ -159,7 +156,7 @@ impl SlotAggregatedStatus {
     }
 
     pub fn set_state_application_status(&self, status: AgentStateApplicationStatus) {
-        self.state_application_status_code.set(status as i32);
+        *self.state_application_status.write() = status;
         self.version.increment();
         self.update_tx.send_replace(());
     }
@@ -198,8 +195,8 @@ impl SubscribesToUpdates for SlotAggregatedStatus {
 impl ProducesSnapshot for SlotAggregatedStatus {
     type Snapshot = SlotAggregatedStatusSnapshot;
 
-    fn make_snapshot(&self) -> Result<Self::Snapshot> {
-        Ok(SlotAggregatedStatusSnapshot {
+    fn make_snapshot(&self) -> Self::Snapshot {
+        SlotAggregatedStatusSnapshot {
             issues: self.issues.iter().map(|item| item.clone()).collect(),
             desired_slots_total: self.desired_slots_total,
             download_current: self.download_current.get(),
@@ -209,10 +206,10 @@ impl ProducesSnapshot for SlotAggregatedStatus {
             model_path: self.model_path.read().clone(),
             slots_processing: self.slots_processing.get(),
             slots_total: self.slots_total.get(),
-            state_application_status: self.state_application_status_code.get().try_into()?,
+            state_application_status: self.get_state_application_status(),
             uses_chat_template_override: self.uses_chat_template_override.get(),
             version: self.version.get(),
-        })
+        }
     }
 }
 
@@ -299,12 +296,12 @@ mod tests {
         status.increment_total_slots();
         status.increment_total_slots();
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(snapshot.slots_total, 2);
 
         status.decrement_total_slots();
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(snapshot.slots_total, 1);
     }
 
@@ -312,11 +309,11 @@ mod tests {
     fn version_increments_on_slot_changes() {
         let status = SlotAggregatedStatus::new(2);
 
-        let initial_version = status.make_snapshot().unwrap().version;
+        let initial_version = status.make_snapshot().version;
 
         status.increment_total_slots();
 
-        let updated_version = status.make_snapshot().unwrap().version;
+        let updated_version = status.make_snapshot().version;
         assert!(updated_version > initial_version);
     }
 
@@ -328,7 +325,7 @@ mod tests {
         status.increment_total_slots();
         status.increment_total_slots();
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.desired_slots_total, 4);
         assert_eq!(snapshot.model_path, Some("test_model".to_owned()));
@@ -345,35 +342,22 @@ mod tests {
         let status = SlotAggregatedStatus::new(2);
 
         assert_eq!(
-            status.get_state_application_status().unwrap(),
+            status.get_state_application_status(),
             AgentStateApplicationStatus::Fresh
         );
 
         status.set_state_application_status(AgentStateApplicationStatus::Applied);
 
         assert_eq!(
-            status.get_state_application_status().unwrap(),
+            status.get_state_application_status(),
             AgentStateApplicationStatus::Applied
         );
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(
             snapshot.state_application_status,
             AgentStateApplicationStatus::Applied
         );
-    }
-
-    #[test]
-    fn make_snapshot_propagates_invalid_state_application_status() {
-        let status = SlotAggregatedStatus::new(2);
-
-        status
-            .state_application_status_code
-            .set(AgentStateApplicationStatus::Stuck as i32 + 1);
-
-        let snapshot_result = status.make_snapshot();
-
-        assert!(snapshot_result.is_err());
     }
 
     #[test]
@@ -384,7 +368,7 @@ mod tests {
         status.register_issue(issue.clone());
         status.register_issue(issue);
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
         assert_eq!(snapshot.issues.len(), 1);
     }
 
@@ -425,7 +409,7 @@ mod tests {
 
         status.reset();
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.slots_total, 0);
         assert_eq!(snapshot.slots_processing, 1);
@@ -439,15 +423,15 @@ mod tests {
 
         status.take_slot();
 
-        assert_eq!(status.make_snapshot().unwrap().slots_processing, 1);
+        assert_eq!(status.make_snapshot().slots_processing, 1);
 
         status.take_slot();
 
-        assert_eq!(status.make_snapshot().unwrap().slots_processing, 2);
+        assert_eq!(status.make_snapshot().slots_processing, 2);
 
         status.release_slot();
 
-        assert_eq!(status.make_snapshot().unwrap().slots_processing, 1);
+        assert_eq!(status.make_snapshot().slots_processing, 1);
     }
 
     #[test]
@@ -456,7 +440,7 @@ mod tests {
 
         status.set_download_status(100, Some(500), Some("model.gguf".to_owned()));
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_current, 100);
         assert_eq!(snapshot.download_total, 500);
@@ -469,7 +453,7 @@ mod tests {
 
         status.set_download_status(123, None, Some("model.gguf".to_owned()));
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_current, 123);
         assert_eq!(snapshot.download_total, 0);
@@ -483,7 +467,7 @@ mod tests {
         status.set_download_status(0, Some(5000), Some("model.gguf".to_owned()));
         status.set_download_status(10, None, Some("model.gguf".to_owned()));
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_total, 0);
         assert!(snapshot.download_indeterminate);
@@ -495,7 +479,7 @@ mod tests {
 
         status.set_download_status(0, Some(5000), Some("model.gguf".to_owned()));
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_total, 5000);
         assert!(!snapshot.download_indeterminate);
@@ -509,7 +493,7 @@ mod tests {
         status.increment_download_current(100);
         status.increment_download_current(200);
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_current, 300);
         assert_eq!(snapshot.download_total, 1000);
@@ -522,7 +506,7 @@ mod tests {
         status.set_download_status(500, Some(1000), Some("model.gguf".to_owned()));
         status.reset_download();
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_current, 0);
         assert_eq!(snapshot.download_total, 0);
@@ -534,14 +518,14 @@ mod tests {
     fn set_uses_chat_template_override() {
         let status = SlotAggregatedStatus::new(2);
 
-        assert!(!status.make_snapshot().unwrap().uses_chat_template_override);
+        assert!(!status.make_snapshot().uses_chat_template_override);
 
         status.set_uses_chat_template_override(true);
 
-        assert!(status.make_snapshot().unwrap().uses_chat_template_override);
+        assert!(status.make_snapshot().uses_chat_template_override);
 
         status.set_uses_chat_template_override(false);
 
-        assert!(!status.make_snapshot().unwrap().uses_chat_template_override);
+        assert!(!status.make_snapshot().uses_chat_template_override);
     }
 }

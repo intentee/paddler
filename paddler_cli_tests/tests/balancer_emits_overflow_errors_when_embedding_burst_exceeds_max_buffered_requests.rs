@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -25,7 +26,7 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
             agents: AgentConfig::uniform(4, 1),
             buffered_request_timeout: Duration::from_secs(2),
             inference_parameters: InferenceParameters {
-                embedding_batch_size: 1,
+                embedding_batch_size: NonZeroUsize::MIN,
                 enable_embeddings: true,
                 ..InferenceParameters::default()
             },

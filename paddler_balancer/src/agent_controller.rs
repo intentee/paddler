@@ -198,7 +198,7 @@ impl HandlesAgentStreamingResponse<GenerateEmbeddingBatchParams> for AgentContro
 impl ProducesSnapshot for AgentController {
     type Snapshot = AgentControllerSnapshot;
 
-    fn make_snapshot(&self) -> Result<Self::Snapshot> {
+    fn make_snapshot(&self) -> Self::Snapshot {
         let AgentStatus {
             desired_slots_total,
             download_current,
@@ -213,7 +213,7 @@ impl ProducesSnapshot for AgentController {
             ..
         } = self.status.read().clone();
 
-        Ok(AgentControllerSnapshot {
+        AgentControllerSnapshot {
             desired_slots_total,
             download_current,
             download_filename,
@@ -227,7 +227,7 @@ impl ProducesSnapshot for AgentController {
             slots_total,
             state_application_status,
             uses_chat_template_override,
-        })
+        }
     }
 }
 

@@ -5,7 +5,6 @@ use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use log::debug;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use tokio::sync::watch;
 
@@ -175,15 +174,13 @@ impl SubscribesToUpdates for AgentControllerPool {
 impl ProducesSnapshot for AgentControllerPool {
     type Snapshot = AgentControllerPoolSnapshot;
 
-    fn make_snapshot(&self) -> Result<Self::Snapshot> {
-        let mut agents: Vec<AgentControllerSnapshot> = Vec::with_capacity(self.agents.len());
-
-        for entry in &self.agents {
-            let agent_controller = entry.value();
-
-            agents.push(agent_controller.make_snapshot()?);
+    fn make_snapshot(&self) -> Self::Snapshot {
+        AgentControllerPoolSnapshot {
+            agents: self
+                .agents
+                .iter()
+                .map(|entry| entry.value().make_snapshot())
+                .collect(),
         }
-
-        Ok(AgentControllerPoolSnapshot { agents })
     }
 }

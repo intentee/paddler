@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use anyhow::Result;
 use anyhow::bail;
 use serde::Deserialize;
@@ -7,12 +9,14 @@ use crate::kv_cache_dtype::KvCacheDtype;
 use crate::pooling_type::PoolingType;
 use crate::validates::Validates;
 
+const DEFAULT_EMBEDDING_BATCH_SIZE: NonZeroUsize = NonZeroUsize::new(256).unwrap();
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InferenceParameters {
     pub n_batch: usize,
     pub context_size: u32,
-    pub embedding_batch_size: usize,
+    pub embedding_batch_size: NonZeroUsize,
     pub enable_embeddings: bool,
     pub image_resize_to_fit: u32,
     pub k_cache_dtype: KvCacheDtype,
@@ -43,10 +47,6 @@ impl Validates<Self> for InferenceParameters {
             bail!("image_resize_to_fit must be greater than zero");
         }
 
-        if self.embedding_batch_size == 0 {
-            bail!("embedding_batch_size must be greater than zero");
-        }
-
         Ok(self)
     }
 }
@@ -56,7 +56,7 @@ impl Default for InferenceParameters {
         Self {
             n_batch: 2048,
             context_size: 8192,
-            embedding_batch_size: 256,
+            embedding_batch_size: DEFAULT_EMBEDDING_BATCH_SIZE,
             enable_embeddings: false,
             image_resize_to_fit: 1024,
             k_cache_dtype: KvCacheDtype::Q80,
@@ -113,20 +113,10 @@ mod tests {
     }
 
     #[test]
-    fn validate_fails_when_embedding_batch_size_is_zero() {
-        let params = InferenceParameters {
-            embedding_batch_size: 0,
-            ..InferenceParameters::default()
-        };
-
-        assert!(params.validate().is_err());
-    }
-
-    #[test]
     fn default_embedding_batch_size_is_256() {
         let params = InferenceParameters::default();
 
-        assert_eq!(params.embedding_batch_size, 256);
+        assert_eq!(params.embedding_batch_size.get(), 256);
     }
 
     #[test]

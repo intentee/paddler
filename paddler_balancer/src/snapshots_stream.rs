@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use futures::Stream;
-use log::error;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
@@ -20,10 +19,7 @@ where
         let mut update_rx = producer.subscribe_to_updates();
 
         loop {
-            match producer.make_snapshot() {
-                Ok(snapshot) => yield snapshot,
-                Err(err) => error!("Failed to produce snapshot: {err}"),
-            }
+            yield producer.make_snapshot();
 
             tokio::select! {
                 () = shutdown.cancelled() => break,
@@ -39,18 +35,17 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::sync::atomic::AtomicI32;
     use std::sync::atomic::Ordering;
-    use std::time::Duration;
 
-    use anyhow::Result;
     use futures::StreamExt as _;
+    use paddler_messaging::produces_snapshot::ProducesSnapshot;
+    use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
     use tokio::sync::watch;
-    use tokio::time::timeout;
+    use tokio_util::sync::CancellationToken;
 
-    use super::*;
-
-    const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(1);
+    use super::snapshots_stream;
 
     struct CounterProducer {
         update_tx: watch::Sender<()>,
@@ -76,8 +71,8 @@ mod tests {
     impl ProducesSnapshot for CounterProducer {
         type Snapshot = i32;
 
-        fn make_snapshot(&self) -> Result<Self::Snapshot> {
-            Ok(self.value.load(Ordering::Acquire))
+        fn make_snapshot(&self) -> Self::Snapshot {
+            self.value.load(Ordering::Acquire)
         }
     }
 
@@ -88,35 +83,16 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn snapshots_stream_emits_initial_snapshot() {
-        let producer = Arc::new(CounterProducer::new());
-        let shutdown = CancellationToken::new();
-        let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
-
-        let first = timeout(SNAPSHOT_TIMEOUT, stream.next())
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(first, 0);
-    }
-
-    #[tokio::test]
     async fn snapshots_stream_emits_after_subscribed_signal() {
         let producer = Arc::new(CounterProducer::new());
         let shutdown = CancellationToken::new();
         let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        stream.next().await.unwrap();
+        assert_eq!(stream.next().await, Some(0));
 
         producer.bump();
 
-        let next = timeout(SNAPSHOT_TIMEOUT, stream.next())
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(next, 1);
+        assert_eq!(stream.next().await, Some(1));
     }
 
     #[tokio::test]
@@ -125,12 +101,10 @@ mod tests {
         let shutdown = CancellationToken::new();
         let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        stream.next().await.unwrap();
+        assert_eq!(stream.next().await, Some(0));
 
         shutdown.cancel();
 
-        let terminated = timeout(SNAPSHOT_TIMEOUT, stream.next()).await.unwrap();
-
-        assert!(terminated.is_none());
+        assert_eq!(stream.next().await, None);
     }
 }

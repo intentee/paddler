@@ -4,9 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use nanoid::nanoid;
 use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
-use paddler_agent::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use paddler_agent::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-use paddler_agent::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
+use paddler_agent::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
 use paddler_agent::llamacpp_arbiter_service::LlamaCppArbiterService;
 use paddler_agent::management_socket_client_service::ManagementSocketClientService;
 use paddler_agent::model_metadata_holder::ModelMetadataHolder;
@@ -30,14 +28,8 @@ impl AgentServiceBundle {
     pub fn new(agent_name: Option<String>, management_address: &str, slots: i32) -> Self {
         let (agent_desired_state_tx, agent_desired_state_rx) =
             mpsc::unbounded_channel::<AgentDesiredState>();
-        let (
-            continue_from_conversation_history_request_tx,
-            continue_from_conversation_history_request_rx,
-        ) = mpsc::unbounded_channel::<ContinueFromConversationHistoryRequest>();
-        let (continue_from_raw_prompt_request_tx, continue_from_raw_prompt_request_rx) =
-            mpsc::unbounded_channel::<ContinueFromRawPromptRequest>();
-        let (generate_embedding_batch_request_tx, generate_embedding_batch_request_rx) =
-            mpsc::unbounded_channel::<GenerateEmbeddingBatchRequest>();
+        let (continuous_batch_preparation_request_tx, continuous_batch_preparation_request_rx) =
+            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
 
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
         let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
@@ -50,11 +42,9 @@ impl AgentServiceBundle {
             agent_applicable_state: None,
             agent_applicable_state_holder: agent_applicable_state_holder.clone(),
             agent_name: agent_name.clone(),
-            continue_from_conversation_history_request_rx,
-            continue_from_raw_prompt_request_rx,
-            desired_slots_total: slots,
-            generate_embedding_batch_request_rx,
             continuous_batch_arbiter_handle: None,
+            continuous_batch_preparation_request_rx,
+            desired_slots_total: slots,
             model_metadata_holder: model_metadata_holder.clone(),
             slot_aggregated_status_manager,
         };
@@ -62,9 +52,7 @@ impl AgentServiceBundle {
         let management_socket_client_service = ManagementSocketClientService {
             agent_applicable_state_holder: agent_applicable_state_holder.clone(),
             agent_desired_state_tx,
-            continue_from_conversation_history_request_tx,
-            continue_from_raw_prompt_request_tx,
-            generate_embedding_batch_request_tx,
+            continuous_batch_preparation_request_tx,
             model_metadata_holder,
             name: agent_name,
             receive_stream_stopper_collection: Arc::default(),

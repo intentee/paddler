@@ -73,7 +73,7 @@ mod tests {
 
         progress.init(1000, "model.gguf").await;
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_total, 1000);
         assert_eq!(snapshot.download_current, 0);
@@ -97,7 +97,7 @@ mod tests {
         progress.update(300).await;
         progress.update(200).await;
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_current, 500);
         assert_eq!(snapshot.download_total, 1000);
@@ -112,7 +112,7 @@ mod tests {
         progress.update(1000).await;
         progress.finish().await;
 
-        let snapshot = status.make_snapshot().unwrap();
+        let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.download_current, 0);
         assert_eq!(snapshot.download_total, 0);

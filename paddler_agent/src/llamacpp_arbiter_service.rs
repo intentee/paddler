@@ -16,14 +16,11 @@ use trzcina::Service;
 
 use crate::agent_applicable_state::AgentApplicableState;
 use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_arbiter::ContinuousBatchArbiter;
 use crate::continuous_batch_arbiter_build_outcome::ContinuousBatchArbiterBuildOutcome;
 use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
 use crate::continuous_batch_arbiter_spawn_outcome::ContinuousBatchArbiterSpawnOutcome;
 use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
-use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
@@ -123,12 +120,10 @@ pub struct LlamaCppArbiterService {
     pub agent_applicable_state: Option<AgentApplicableState>,
     pub agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
     pub agent_name: Option<String>,
-    pub continue_from_conversation_history_request_rx:
-        mpsc::UnboundedReceiver<ContinueFromConversationHistoryRequest>,
-    pub continue_from_raw_prompt_request_rx: mpsc::UnboundedReceiver<ContinueFromRawPromptRequest>,
-    pub desired_slots_total: i32,
-    pub generate_embedding_batch_request_rx: mpsc::UnboundedReceiver<GenerateEmbeddingBatchRequest>,
     pub continuous_batch_arbiter_handle: Option<ContinuousBatchArbiterHandle>,
+    pub continuous_batch_preparation_request_rx:
+        mpsc::UnboundedReceiver<ContinuousBatchPreparationRequest>,
+    pub desired_slots_total: i32,
     pub model_metadata_holder: Arc<ModelMetadataHolder>,
     pub slot_aggregated_status_manager: Arc<SlotAggregatedStatusManager>,
 }
@@ -144,11 +139,9 @@ impl Service for LlamaCppArbiterService {
             mut agent_applicable_state,
             agent_applicable_state_holder,
             agent_name,
-            mut continue_from_conversation_history_request_rx,
-            mut continue_from_raw_prompt_request_rx,
-            desired_slots_total,
-            mut generate_embedding_batch_request_rx,
             mut continuous_batch_arbiter_handle,
+            mut continuous_batch_preparation_request_rx,
+            desired_slots_total,
             model_metadata_holder,
             slot_aggregated_status_manager,
         } = *self;
@@ -163,7 +156,7 @@ impl Service for LlamaCppArbiterService {
                 biased;
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    let current_status = slot_aggregated_status_manager.slot_aggregated_status.get_state_application_status()?;
+                    let current_status = slot_aggregated_status_manager.slot_aggregated_status.get_state_application_status();
 
                     if current_status.should_try_to_apply() {
                         slot_aggregated_status_manager
@@ -203,24 +196,10 @@ impl Service for LlamaCppArbiterService {
                         &mut continuous_batch_arbiter_handle,
                     ).await;
                 }
-                Some(request) = continue_from_conversation_history_request_rx.recv() => {
-                    forward_request(
-                        continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchPreparationRequest::ContinueFromConversationHistory(request),
-                    );
-                }
-                Some(request) = continue_from_raw_prompt_request_rx.recv() => {
-                    forward_request(
-                        continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchPreparationRequest::ContinueFromRawPrompt(request),
-                    );
-                }
-                Some(request) = generate_embedding_batch_request_rx.recv() => {
-                    forward_request(
-                        continuous_batch_arbiter_handle.as_ref(),
-                        ContinuousBatchPreparationRequest::GenerateEmbeddingBatch(request),
-                    );
-                }
+                request = continuous_batch_preparation_request_rx.recv() => match request {
+                    Some(request) => forward_request(continuous_batch_arbiter_handle.as_ref(), request),
+                    None => break Ok(()),
+                },
             }
         };
 
@@ -234,10 +213,10 @@ impl Service for LlamaCppArbiterService {
 
 #[cfg(test)]
 mod tests {
-    use anyhow::bail;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
     use super::*;
+    use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
     use crate::from_request_params::FromRequestParams as _;
 
     #[tokio::test]
@@ -295,8 +274,7 @@ mod tests {
         assert_eq!(
             slot_aggregated_status_manager
                 .slot_aggregated_status
-                .get_state_application_status()
-                .unwrap(),
+                .get_state_application_status(),
             AgentStateApplicationStatus::Applied,
         );
     }
@@ -313,58 +291,25 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn does_not_exit_when_request_channels_close_without_shutdown() -> Result<()> {
-        let observation_window = Duration::from_millis(500);
-        let shutdown_grace = Duration::from_secs(5);
-
-        let (
-            continue_from_conversation_history_request_tx,
-            continue_from_conversation_history_request_rx,
-        ) = mpsc::unbounded_channel();
-        let (continue_from_raw_prompt_request_tx, continue_from_raw_prompt_request_rx) =
+    async fn exits_when_its_request_channel_closes() {
+        let (continuous_batch_preparation_request_tx, continuous_batch_preparation_request_rx) =
             mpsc::unbounded_channel();
-        let (generate_embedding_batch_request_tx, generate_embedding_batch_request_rx) =
-            mpsc::unbounded_channel();
-
         let service = LlamaCppArbiterService {
             agent_applicable_state: None,
             agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
             agent_name: None,
-            continue_from_conversation_history_request_rx,
-            continue_from_raw_prompt_request_rx,
-            desired_slots_total: 1,
-            generate_embedding_batch_request_rx,
             continuous_batch_arbiter_handle: None,
+            continuous_batch_preparation_request_rx,
+            desired_slots_total: 1,
             model_metadata_holder: Arc::new(ModelMetadataHolder::default()),
             slot_aggregated_status_manager: Arc::new(SlotAggregatedStatusManager::new(1)),
         };
 
-        let shutdown = CancellationToken::new();
-        let task_token = shutdown.clone();
+        drop(continuous_batch_preparation_request_tx);
 
-        let mut join_handle = tokio::spawn(async move { Box::new(service).run(task_token).await });
-
-        drop(continue_from_conversation_history_request_tx);
-        drop(continue_from_raw_prompt_request_tx);
-        drop(generate_embedding_batch_request_tx);
-
-        let exited_before_shutdown = tokio::select! {
-            join_result = &mut join_handle => Some(join_result),
-            () = tokio::time::sleep(observation_window) => None,
-        };
-
-        if let Some(join_result) = exited_before_shutdown {
-            let inner = join_result.context("service task panicked")?;
-            bail!("service exited on channel closure without shutdown: {inner:?}");
-        }
-
-        shutdown.cancel();
-
-        tokio::time::timeout(shutdown_grace, join_handle)
+        Box::new(service)
+            .run(CancellationToken::new())
             .await
-            .context("service did not exit after shutdown")?
-            .context("service task panicked")??;
-
-        Ok(())
+            .expect("the service must finish cleanly once no request can arrive");
     }
 }

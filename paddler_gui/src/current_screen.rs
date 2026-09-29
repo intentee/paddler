@@ -1,3 +1,4 @@
+use crate::home_data::HomeData;
 use crate::screen::AgentRunning;
 use crate::screen::Home;
 use crate::screen::JoinBalancerForm;
@@ -15,8 +16,6 @@ pub enum CurrentScreen {
 
 impl Default for CurrentScreen {
     fn default() -> Self {
-        use crate::home_data::HomeData;
-
         Self::Home(
             Screen::<Home>::builder()
                 .state_data(HomeData { error: None })

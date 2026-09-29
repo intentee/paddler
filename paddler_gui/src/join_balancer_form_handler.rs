@@ -95,7 +95,7 @@ impl JoinBalancerFormData {
         };
 
         Action::ConnectAgent {
-            agent_name: (!self.agent_name.is_empty()).then(|| self.agent_name.clone()),
+            agent_name: self.entered_agent_name(),
             management_address,
             slots,
         }

@@ -156,21 +156,13 @@ impl StartBalancerFormData {
 
 #[cfg(test)]
 mod tests {
-    use std::net::SocketAddr;
     use std::net::TcpListener;
-
-    use anyhow::Result;
-    use anyhow::bail;
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     use super::Action;
     use super::Message;
-    use super::PortCheck;
-    use super::check_port;
-    use super::validate_optional_address;
-    use super::validate_required_address;
     use crate::model_preset::ModelPreset;
     use crate::start_balancer_form_data::StartBalancerFormData;
 
@@ -273,63 +265,41 @@ mod tests {
     }
 
     #[test]
-    fn reports_in_use_when_port_is_bound() -> Result<()> {
-        let listener = TcpListener::bind(LOOPBACK_ANY_PORT)?;
-        let bound_address = listener.local_addr()?;
+    fn reports_an_address_another_listener_holds_as_in_use() {
+        let competing_listener =
+            TcpListener::bind(LOOPBACK_ANY_PORT).expect("the competing listener must bind");
+        let taken_address = competing_listener
+            .local_addr()
+            .expect("the competing listener must report its address");
+        let mut form = form_on_free_ports();
 
-        match check_port(&bound_address) {
-            PortCheck::InUse => Ok(()),
-            PortCheck::Available => bail!("bound port reported as Available"),
-            PortCheck::BindFailed(error) => {
-                bail!("bound port reported as BindFailed: {error}")
-            }
-        }
+        form.update(Message::ToggleAddModelLater(true));
+        form.update(Message::SetInferenceAddress(taken_address.to_string()));
+
+        assert!(matches!(form.update(Message::Confirm), Action::None));
+        assert_eq!(
+            form.inference_address_error,
+            Some(format!("Port {} is already in use", taken_address.port()))
+        );
     }
 
     #[test]
-    fn reports_available_when_the_port_can_be_bound() -> Result<()> {
-        match check_port(
-            &LOOPBACK_ANY_PORT
-                .parse()
-                .expect("the loopback test address must parse"),
-        ) {
-            PortCheck::Available => Ok(()),
-            PortCheck::InUse => bail!("free port reported as InUse"),
-            PortCheck::BindFailed(error) => {
-                bail!("free port reported as BindFailed: {error}")
-            }
-        }
-    }
+    fn reports_why_an_address_cannot_be_bound() {
+        let bind_error = TcpListener::bind(UNASSIGNED_TEST_NET_ADDRESS)
+            .expect_err("an address assigned to no interface must not bind");
+        let mut form = form_on_free_ports();
 
-    #[test]
-    fn reports_bind_failed_for_non_addr_in_use_error() -> Result<()> {
-        let unassigned_address: SocketAddr = UNASSIGNED_TEST_NET_ADDRESS.parse()?;
+        form.update(Message::ToggleAddModelLater(true));
+        form.update(Message::SetWebAdminPanelAddress(
+            UNASSIGNED_TEST_NET_ADDRESS.to_owned(),
+        ));
 
-        match check_port(&unassigned_address) {
-            PortCheck::BindFailed(_) => Ok(()),
-            PortCheck::InUse => {
-                bail!("non-AddrInUse bind failure reported as InUse")
-            }
-            PortCheck::Available => {
-                bail!("bind should fail against an unassigned address")
-            }
-        }
-    }
-
-    #[test]
-    fn required_address_rejects_empty_input() -> Result<()> {
-        match validate_required_address("") {
-            Err(_) => Ok(()),
-            Ok(address) => bail!("empty required input should not parse, got {address}"),
-        }
-    }
-
-    #[test]
-    fn optional_address_treats_empty_as_none() -> Result<()> {
-        match validate_optional_address("") {
-            Ok(None) => Ok(()),
-            Ok(Some(address)) => bail!("empty optional input should not parse to {address}"),
-            Err(error) => bail!("empty optional input should not error: {error}"),
-        }
+        assert!(matches!(form.update(Message::Confirm), Action::None));
+        assert_eq!(
+            form.web_admin_panel_address_error,
+            Some(format!(
+                "Cannot bind to {UNASSIGNED_TEST_NET_ADDRESS}: {bind_error}"
+            ))
+        );
     }
 }

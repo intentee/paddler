@@ -63,6 +63,7 @@ pub mod run_http_service_parameters;
 pub mod sends_rpc_message;
 pub mod serve_http_until_shutdown;
 pub mod snapshots_stream;
+pub mod sse_response_from_snapshots;
 pub mod state_database;
 pub mod state_database_type;
 #[cfg(feature = "web_admin_panel")]
