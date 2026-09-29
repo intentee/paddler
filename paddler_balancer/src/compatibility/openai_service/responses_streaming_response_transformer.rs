@@ -74,51 +74,59 @@ impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
         let mut state = self.state.lock();
 
-        if let Some(error) = responses_error(&message) {
-            self.ensure_preamble(&mut state, &mut events);
-
-            let failed_sequence_number = state.next_sequence_number();
-            events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
-                sequence_number: failed_sequence_number,
-                response: self.builder.failed(&error),
-            }));
-
-            return Ok(events);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(token),
+                response:
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ContentToken(text)
+                        | GeneratedTokenResult::UndeterminableToken(text),
+                    ),
                 ..
-            }) => match token {
-                GeneratedTokenResult::ContentToken(text)
-                | GeneratedTokenResult::UndeterminableToken(text) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    state.handle_content(&mut events, &text);
-                }
-                GeneratedTokenResult::ReasoningToken(text) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    state.handle_reasoning(&mut events, &text);
-                }
-                GeneratedTokenResult::ToolCallToken(_) => {}
-                GeneratedTokenResult::ToolCallParsed(parsed_calls) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    state.handle_tool_calls(&mut events, &parsed_calls)?;
-                }
-                GeneratedTokenResult::Done(summary) => {
-                    self.ensure_preamble(&mut state, &mut events);
-                    self.handle_done(&mut state, &mut events, &summary);
-                }
-                other => {
-                    return Err(anyhow!(
-                        "ResponsesStreamingResponseTransformer received a token it does not know how to handle: {other:?}"
-                    ));
-                }
-            },
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                state.handle_content(&mut events, &text);
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                ..
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                state.handle_reasoning(&mut events, &text);
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
+                ..
+            }) => {}
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
+                ..
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                state.handle_tool_calls(&mut events, &parsed_calls);
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
+                ..
+            }) => {
+                self.ensure_preamble(&mut state, &mut events);
+                self.handle_done(&mut state, &mut events, &summary);
+            }
             other => {
-                return Err(anyhow!(
-                    "ResponsesStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-                ));
+                let error = responses_error(&other).ok_or_else(|| {
+                    anyhow!(
+                        "ResponsesStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+                    )
+                })?;
+
+                self.ensure_preamble(&mut state, &mut events);
+
+                let failed_sequence_number = state.next_sequence_number();
+                events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
+                    sequence_number: failed_sequence_number,
+                    response: self.builder.failed(&error),
+                }));
             }
         }
 
@@ -148,6 +156,10 @@ mod tests {
 
     use super::ResponsesStreamingResponseTransformer;
     use super::ResponsesStreamingState;
+
+    fn serialized(event: &ResponsesStreamEvent) -> serde_json::Value {
+        serde_json::to_value(event).expect("a responses stream event must serialize")
+    }
 
     #[must_use]
     pub fn token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
@@ -228,8 +240,8 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        assert_eq!(events[0].to_json()["response"]["status"], "in_progress");
-        assert_eq!(events[4].to_json()["delta"], "hi");
+        assert_eq!(serialized(&events[0])["response"]["status"], "in_progress");
+        assert_eq!(serialized(&events[4])["delta"], "hi");
     }
 
     #[tokio::test]
@@ -279,7 +291,7 @@ mod tests {
             ]
         );
 
-        let completed = events[3].to_json();
+        let completed = serialized(&events[3]);
 
         assert_eq!(completed["response"]["status"], "completed");
         assert_eq!(completed["response"]["usage"]["input_tokens"], 7);
@@ -322,9 +334,9 @@ mod tests {
             ]
         );
         // reasoning item closed at output_index 0, message opened at output_index 1
-        assert_eq!(events[1].to_json()["output_index"], 0);
-        assert_eq!(events[2].to_json()["output_index"], 1);
-        assert_eq!(events[1].to_json()["item"]["type"], "reasoning");
+        assert_eq!(serialized(&events[1])["output_index"], 0);
+        assert_eq!(serialized(&events[2])["output_index"], 1);
+        assert_eq!(serialized(&events[1])["item"]["type"], "reasoning");
     }
 
     #[tokio::test]
@@ -350,15 +362,15 @@ mod tests {
             ]
         );
 
-        let delta_event = events[3].to_json();
+        let delta_event = serialized(&events[3]);
 
         assert_eq!(delta_event["delta"], "{\"location\":\"Paris\"}");
         assert!(
             delta_event.get("content_index").is_none(),
             "function_call_arguments events must not carry a content_index"
         );
-        assert_eq!(events[4].to_json()["name"], "get_weather");
-        assert_eq!(events[5].to_json()["item"]["call_id"], "call_x");
+        assert_eq!(serialized(&events[4])["name"], "get_weather");
+        assert_eq!(serialized(&events[5])["item"]["call_id"], "call_x");
     }
 
     #[tokio::test]
@@ -381,7 +393,7 @@ mod tests {
             ]
         );
 
-        let failed = events[2].to_json();
+        let failed = serialized(&events[2]);
 
         assert_eq!(failed["response"]["status"], "failed");
         assert_eq!(failed["response"]["error"]["code"], "server_error");
@@ -408,7 +420,7 @@ mod tests {
 
         for event in &emitted {
             validator
-                .validate_responses_stream_event(&event.to_json())
+                .validate_responses_stream_event(&serialized(event))
                 .unwrap();
         }
     }
@@ -427,7 +439,7 @@ mod tests {
 
         for event in &events {
             validator
-                .validate_responses_stream_event(&event.to_json())
+                .validate_responses_stream_event(&serialized(event))
                 .unwrap();
         }
     }

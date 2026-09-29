@@ -5,20 +5,19 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::TokenUsage;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use parking_lot::Mutex;
-use serde_json::json;
 
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
-use crate::compatibility::openai_service::arguments_to_tool_call_string::arguments_to_tool_call_string;
+use crate::compatibility::openai_service::chat_completion_chunk::ChatCompletionChunk;
+use crate::compatibility::openai_service::chat_completion_chunk_choice::ChatCompletionChunkChoice;
+use crate::compatibility::openai_service::chat_completion_chunk_payload::ChatCompletionChunkPayload;
 use crate::compatibility::openai_service::openai_streaming_state::OpenAIStreamingState;
-use crate::compatibility::openai_service::openai_usage_json::openai_usage_json;
 use crate::compatibility::openai_service::try_universal_error_chunk::try_universal_error_chunk;
 
 #[derive(Clone)]
@@ -31,108 +30,23 @@ pub struct OpenAIStreamingResponseTransformer {
 }
 
 impl OpenAIStreamingResponseTransformer {
-    fn content_chunk(&self, request_id: &str, text: &str) -> Result<String> {
-        serde_json::to_string(&json!({
-            "id": request_id,
-            "object": "chat.completion.chunk",
-            "created": self.created,
-            "model": self.model,
-            "system_fingerprint": self.system_fingerprint,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {
-                        "role": "assistant",
-                        "content": text,
-                    },
-                    "logprobs": null,
-                    "finish_reason": null
-                }
-            ]
-        }))
-        .context("serializing content chunk")
-    }
-
-    fn tool_calls_chunk(
-        &self,
-        request_id: &str,
-        parsed_calls: &[ParsedToolCall],
-    ) -> Result<String> {
-        parsed_calls
-            .iter()
-            .enumerate()
-            .map(|(index, call)| {
-                arguments_to_tool_call_string(&call.arguments).map(|arguments| {
-                    json!({
-                        "index": index,
-                        "id": call.id,
-                        "type": "function",
-                        "function": {
-                            "name": call.name,
-                            "arguments": arguments,
-                        }
-                    })
-                })
-            })
-            .collect::<Result<Vec<_>>>()
-            .and_then(|tool_calls| {
-                serde_json::to_string(&json!({
-                    "id": request_id,
-                    "object": "chat.completion.chunk",
-                    "created": self.created,
-                    "model": self.model,
-                    "system_fingerprint": self.system_fingerprint,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {
-                                "role": "assistant",
-                                "tool_calls": tool_calls,
-                            },
-                            "logprobs": null,
-                            "finish_reason": null
-                        }
-                    ]
-                }))
-                .context("serializing tool-calls chunk")
-            })
-    }
-
-    fn finish_chunk(&self, request_id: &str, finish_reason: &str) -> Result<String> {
-        serde_json::to_string(&json!({
-            "id": request_id,
-            "object": "chat.completion.chunk",
-            "created": self.created,
-            "model": self.model,
-            "system_fingerprint": self.system_fingerprint,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {},
-                    "logprobs": null,
-                    "finish_reason": finish_reason
-                }
-            ]
-        }))
-        .context("serializing finish chunk")
-    }
-
-    fn usage_chunk(&self, request_id: &str, usage: &TokenUsage) -> Result<String> {
-        serde_json::to_string(&json!({
-            "id": request_id,
-            "object": "chat.completion.chunk",
-            "created": self.created,
-            "model": self.model,
-            "system_fingerprint": self.system_fingerprint,
-            "choices": [],
-            "usage": openai_usage_json(usage),
-        }))
-        .context("serializing usage chunk")
+    fn chunk(&self, request_id: &str, payload: ChatCompletionChunkPayload<'_>) -> Result<String> {
+        serde_json::to_string(&ChatCompletionChunk {
+            created: self.created,
+            id: request_id,
+            model: &self.model,
+            payload,
+            system_fingerprint: &self.system_fingerprint,
+        })
+        .context("serializing chat completion chunk")
     }
 
     fn handle_content(&self, request_id: &str, text: &str) -> Result<Vec<TransformResult>> {
-        self.content_chunk(request_id, text)
-            .map(|chunk| vec![TransformResult::Chunk(chunk)])
+        self.chunk(
+            request_id,
+            ChatCompletionChunkPayload::Choice(ChatCompletionChunkChoice::Content(text)),
+        )
+        .map(|chunk| vec![TransformResult::Chunk(chunk)])
     }
 
     fn handle_tool_call_parsed(
@@ -146,8 +60,11 @@ impl OpenAIStreamingResponseTransformer {
 
         self.state.lock().saw_tool_call = true;
 
-        self.tool_calls_chunk(request_id, parsed_calls)
-            .map(|chunk| vec![TransformResult::Chunk(chunk)])
+        self.chunk(
+            request_id,
+            ChatCompletionChunkPayload::Choice(ChatCompletionChunkChoice::ToolCalls(parsed_calls)),
+        )
+        .map(|chunk| vec![TransformResult::Chunk(chunk)])
     }
 
     fn handle_done(
@@ -158,17 +75,23 @@ impl OpenAIStreamingResponseTransformer {
         let saw_tool_call = self.state.lock().saw_tool_call;
         let finish_reason = if saw_tool_call { "tool_calls" } else { "stop" };
 
-        self.finish_chunk(request_id, finish_reason)
-            .and_then(|finish_chunk| {
-                let finish = TransformResult::Chunk(finish_chunk);
+        self.chunk(
+            request_id,
+            ChatCompletionChunkPayload::Choice(ChatCompletionChunkChoice::Finish(finish_reason)),
+        )
+        .and_then(|finish_chunk| {
+            let finish = TransformResult::Chunk(finish_chunk);
 
-                if self.include_usage {
-                    self.usage_chunk(request_id, &summary.usage)
-                        .map(|usage_chunk| vec![finish, TransformResult::Chunk(usage_chunk)])
-                } else {
-                    Ok(vec![finish])
-                }
-            })
+            if self.include_usage {
+                self.chunk(
+                    request_id,
+                    ChatCompletionChunkPayload::Usage(&summary.usage),
+                )
+                .map(|usage_chunk| vec![finish, TransformResult::Chunk(usage_chunk)])
+            } else {
+                Ok(vec![finish])
+            }
+        })
     }
 }
 
@@ -177,10 +100,6 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
     type Output = TransformResult;
 
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-        if let Some(error_chunk) = try_universal_error_chunk(&message) {
-            return Ok(vec![error_chunk]);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
@@ -210,9 +129,13 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
                 response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
                 ..
             }) => self.handle_done(&request_id, &summary),
-            other => Err(anyhow!(
-                "OpenAIStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-            )),
+            other => try_universal_error_chunk(&other)
+                .map(|error_chunk| vec![error_chunk])
+                .ok_or_else(|| {
+                    anyhow!(
+                        "OpenAIStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+                    )
+                }),
         }
     }
 }
@@ -325,6 +248,14 @@ mod tests {
         );
     }
 
+    pub fn assert_chunk_body_equals(result: &TransformResult, expected: &str) {
+        let TransformResult::Chunk(content) = result else {
+            panic!("expected a chunk variant");
+        };
+
+        assert_eq!(content, expected);
+    }
+
     pub fn assert_error_body_contains(result: &TransformResult, expected: &str) {
         let TransformResult::Error(content) = result else {
             panic!("expected an error variant");
@@ -357,9 +288,10 @@ mod tests {
             .expect("the transformer must accept the message");
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "\"content\":\"hello\"");
-        assert_chunk_body_contains(&chunks[0], "\"role\":\"assistant\"");
-        assert_chunk_body_does_not_contain(&chunks[0], "reasoning_content");
+        assert_chunk_body_equals(
+            &chunks[0],
+            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"logprobs":null,"finish_reason":null}]}"#,
+        );
     }
 
     #[tokio::test]
@@ -418,12 +350,9 @@ mod tests {
             .expect("the transformer must accept the message");
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "\"tool_calls\"");
-        assert_chunk_body_contains(&chunks[0], "\"id\":\"call_x\"");
-        assert_chunk_body_contains(&chunks[0], "\"name\":\"get_weather\"");
-        assert_chunk_body_contains(
+        assert_chunk_body_equals(
             &chunks[0],
-            "\"arguments\":\"{\\\"location\\\":\\\"Paris\\\"}\"",
+            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"Paris\"}"}}]},"logprobs":null,"finish_reason":null}]}"#,
         );
     }
 
@@ -482,10 +411,10 @@ mod tests {
         assert_eq!(chunks.len(), 2);
         assert_chunk_body_contains(&chunks[0], "\"finish_reason\":\"stop\"");
         assert_chunk_body_does_not_contain(&chunks[0], "usage");
-        assert_chunk_body_contains(&chunks[1], "\"prompt_tokens\":7");
-        assert_chunk_body_contains(&chunks[1], "\"completion_tokens\":5");
-        assert_chunk_body_contains(&chunks[1], "\"total_tokens\":12");
-        assert_chunk_body_contains(&chunks[1], "\"choices\":[]");
+        assert_chunk_body_equals(
+            &chunks[1],
+            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":1}}}"#,
+        );
     }
 
     #[tokio::test]
@@ -499,8 +428,10 @@ mod tests {
             .expect("the transformer must accept the message");
 
         assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "\"finish_reason\":\"stop\"");
-        assert_chunk_body_does_not_contain(&chunks[0], "usage");
+        assert_chunk_body_equals(
+            &chunks[0],
+            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#,
+        );
     }
 
     #[tokio::test]

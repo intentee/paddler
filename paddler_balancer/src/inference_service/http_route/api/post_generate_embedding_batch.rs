@@ -9,7 +9,6 @@ use actix_web::rt;
 use actix_web::web;
 use anyhow::Result;
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::stream::StreamExt;
 use nanoid::nanoid;
 use paddler_messaging::embedding_result::EmbeddingResult;
@@ -143,13 +142,8 @@ async fn respond(
 
     let stream =
         CancellationTokenStreamGuard::new(connection_close, UnboundedReceiverStream::new(chunk_rx))
-            .filter_map(|transform_result| async move {
-                match transform_result {
-                    TransformResult::Chunk(content) | TransformResult::Error(content) => {
-                        Some(Ok::<_, Error>(Bytes::from(format!("{content}\n"))))
-                    }
-                    TransformResult::Discard => None,
-                }
+            .filter_map(|transform_result: TransformResult| async move {
+                transform_result.into_ndjson_line().map(Ok::<_, Error>)
             });
 
     Ok(HttpResponse::Ok()

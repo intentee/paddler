@@ -1,3 +1,4 @@
+use std::mem::take;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -37,66 +38,56 @@ impl OpenAINonStreamingResponseTransformer {
     }
 
     fn build_done_chunk(&self, request_id: &str, summary: &GenerationSummary) -> Result<String> {
-        let snapshot = self.snapshot_state();
+        let snapshot = take(&mut *self.state.lock());
 
         let has_tool_calls = !snapshot.tool_calls.is_empty();
         let finish_reason = if has_tool_calls { "tool_calls" } else { "stop" };
 
-        let tool_calls_json = snapshot
-            .tool_calls
-            .iter()
-            .map(|call| {
-                arguments_to_tool_call_string(&call.arguments).map(|arguments| {
+        let mut message = json!({
+            "role": "assistant",
+            "content": if snapshot.content.is_empty() && has_tool_calls {
+                serde_json::Value::Null
+            } else {
+                json!(snapshot.content)
+            },
+            "refusal": null,
+            "annotations": []
+        });
+
+        if has_tool_calls {
+            message["tool_calls"] = snapshot
+                .tool_calls
+                .iter()
+                .map(|call| {
                     json!({
                         "id": call.id,
                         "type": "function",
                         "function": {
                             "name": call.name,
-                            "arguments": arguments,
+                            "arguments": arguments_to_tool_call_string(&call.arguments),
                         }
                     })
                 })
-            })
-            .collect::<Result<Vec<_>>>();
+                .collect();
+        }
 
-        tool_calls_json.and_then(|tool_calls_json| {
-            let mut message_obj = json!({
-                "role": "assistant",
-                "content": if snapshot.content.is_empty() && has_tool_calls {
-                    serde_json::Value::Null
-                } else {
-                    json!(snapshot.content)
-                },
-                "refusal": null,
-                "annotations": []
-            });
-
-            if has_tool_calls && let Some(map) = message_obj.as_object_mut() {
-                map.insert("tool_calls".to_owned(), json!(tool_calls_json));
-            }
-
-            serde_json::to_string(&json!({
-                "id": request_id,
-                "object": "chat.completion",
-                "created": self.created,
-                "model": self.model,
-                "choices": [
-                    {
-                        "index": 0,
-                        "message": message_obj,
-                        "logprobs": null,
-                        "finish_reason": finish_reason
-                    }
-                ],
-                "usage": openai_usage_json(&summary.usage),
-                "service_tier": "default"
-            }))
-            .context("serializing non-streaming completion")
-        })
-    }
-
-    fn snapshot_state(&self) -> OpenAINonStreamingState {
-        self.state.lock().clone()
+        serde_json::to_string(&json!({
+            "id": request_id,
+            "object": "chat.completion",
+            "created": self.created,
+            "model": self.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": message,
+                    "logprobs": null,
+                    "finish_reason": finish_reason
+                }
+            ],
+            "usage": openai_usage_json(&summary.usage),
+            "service_tier": "default"
+        }))
+        .context("serializing non-streaming completion")
     }
 }
 
@@ -105,10 +96,6 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
     type Output = TransformResult;
 
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-        if let Some(error_chunk) = try_universal_error_chunk(&message) {
-            return Ok(vec![error_chunk]);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 response:
@@ -144,9 +131,13 @@ impl TransformsOutgoingMessage for OpenAINonStreamingResponseTransformer {
             }) => Ok(vec![TransformResult::Chunk(
                 self.build_done_chunk(&request_id, &summary)?,
             )]),
-            other => Err(anyhow!(
-                "OpenAINonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-            )),
+            other => try_universal_error_chunk(&other)
+                .map(|error_chunk| vec![error_chunk])
+                .ok_or_else(|| {
+                    anyhow!(
+                        "OpenAINonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+                    )
+                }),
         }
     }
 }

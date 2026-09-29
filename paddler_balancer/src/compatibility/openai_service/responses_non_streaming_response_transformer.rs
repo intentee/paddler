@@ -1,3 +1,4 @@
+use std::mem::take;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -30,7 +31,7 @@ pub struct ResponsesNonStreamingResponseTransformer {
 
 impl ResponsesNonStreamingResponseTransformer {
     fn build_completed(&self, summary: &GenerationSummary) -> Result<String> {
-        let snapshot = self.state.lock().clone();
+        let snapshot = take(&mut *self.state.lock());
 
         let mut output: Vec<Value> = Vec::new();
 
@@ -51,7 +52,7 @@ impl ResponsesNonStreamingResponseTransformer {
         }
 
         for call in &snapshot.tool_calls {
-            let arguments = arguments_to_tool_call_string(&call.arguments)?;
+            let arguments = arguments_to_tool_call_string(&call.arguments);
 
             output.push(function_call_item(
                 &format!("fc_{}", output.len()),
@@ -72,41 +73,50 @@ impl TransformsOutgoingMessage for ResponsesNonStreamingResponseTransformer {
     type Output = TransformResult;
 
     async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
-        if let Some(error) = responses_error(&message) {
-            return Ok(vec![TransformResult::Error(
-                error.to_envelope().to_string(),
-            )]);
-        }
-
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(token),
+                response:
+                    OutgoingResponse::GeneratedToken(
+                        GeneratedTokenResult::ContentToken(text)
+                        | GeneratedTokenResult::UndeterminableToken(text),
+                    ),
                 ..
-            }) => match token {
-                GeneratedTokenResult::ContentToken(text)
-                | GeneratedTokenResult::UndeterminableToken(text) => {
-                    self.state.lock().content.push_str(&text);
-                    Ok(vec![])
-                }
-                GeneratedTokenResult::ReasoningToken(text) => {
-                    self.state.lock().reasoning.push_str(&text);
-                    Ok(vec![])
-                }
-                GeneratedTokenResult::ToolCallToken(_) => Ok(vec![]),
-                GeneratedTokenResult::ToolCallParsed(parsed_calls) => {
-                    self.state.lock().tool_calls.extend(parsed_calls);
-                    Ok(vec![])
-                }
-                GeneratedTokenResult::Done(summary) => Ok(vec![TransformResult::Chunk(
-                    self.build_completed(&summary)?,
-                )]),
-                other => Err(anyhow!(
-                    "ResponsesNonStreamingResponseTransformer received a token it does not know how to handle: {other:?}"
-                )),
-            },
-            other => Err(anyhow!(
-                "ResponsesNonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-            )),
+            }) => {
+                self.state.lock().content.push_str(&text);
+                Ok(vec![])
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
+                ..
+            }) => {
+                self.state.lock().reasoning.push_str(&text);
+                Ok(vec![])
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
+                ..
+            }) => Ok(vec![]),
+            OutgoingMessage::Response(ResponseEnvelope {
+                response:
+                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
+                ..
+            }) => {
+                self.state.lock().tool_calls.extend(parsed_calls);
+                Ok(vec![])
+            }
+            OutgoingMessage::Response(ResponseEnvelope {
+                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
+                ..
+            }) => Ok(vec![TransformResult::Chunk(
+                self.build_completed(&summary)?,
+            )]),
+            other => responses_error(&other)
+                .map(|error| vec![TransformResult::Error(error.to_envelope().to_string())])
+                .ok_or_else(|| {
+                    anyhow!(
+                        "ResponsesNonStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+                    )
+                }),
         }
     }
 }

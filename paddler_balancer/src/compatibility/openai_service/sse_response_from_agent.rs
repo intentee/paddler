@@ -1,4 +1,3 @@
-use std::convert::Infallible;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -20,8 +19,8 @@ use crate::inference_service::configuration::Configuration as InferenceServiceCo
 use crate::manages_senders::ManagesSenders;
 use crate::unbounded_stream_from_agent::unbounded_stream_from_agent;
 
-fn event_to_sse_data(event: &ResponsesStreamEvent) -> sse::Data {
-    sse::Data::new(event.to_json().to_string()).event(event.event_name())
+fn event_to_sse_data(event: &ResponsesStreamEvent) -> Result<sse::Data, serde_json::Error> {
+    Ok(sse::Data::new(serde_json::to_string(event)?).event(event.event_name()))
 }
 
 pub fn sse_response_from_agent<TParams, TTransformsOutgoingMessage>(
@@ -44,7 +43,7 @@ where
         transformer,
         shutdown,
     )
-    .map(|event| Ok::<sse::Event, Infallible>(sse::Event::Data(event_to_sse_data(&event))));
+    .map(|event| event_to_sse_data(&event).map(sse::Event::Data));
 
     HttpResponse::Ok()
         .content_type("text/event-stream")

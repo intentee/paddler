@@ -1,5 +1,8 @@
 pub mod app_data;
 pub mod arguments_to_tool_call_string;
+pub mod chat_completion_chunk;
+pub mod chat_completion_chunk_choice;
+pub mod chat_completion_chunk_payload;
 pub mod chat_completions_sse_response;
 pub mod configuration;
 pub mod content_part_event;

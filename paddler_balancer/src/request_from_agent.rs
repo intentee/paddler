@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::pin::pin;
 use std::sync::Arc;
 
 use log::debug;
@@ -11,6 +12,7 @@ use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::streamable_result::StreamableResult;
+use tokio::time::Instant;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
@@ -112,8 +114,13 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
     let agent_connection_close = agent_controller.connection_close.clone();
     let inference_item_timeout = inference_service_configuration.inference_item_timeout;
     let mut forwarding_mode = AgentResponseForwardingMode::ForwardingToClient;
+    let mut item_timeout = pin!(sleep(inference_item_timeout));
 
     loop {
+        item_timeout
+            .as_mut()
+            .reset(Instant::now() + inference_item_timeout);
+
         let is_forwarding_to_client = matches!(
             forwarding_mode,
             AgentResponseForwardingMode::ForwardingToClient
@@ -127,7 +134,7 @@ pub async fn forward_responses_stream<TControlsSession, TManagesSenders>(
             () = connection_close.cancelled(), if is_forwarding_to_client => {
                 ForwardingEvent::ClientConnectionClosed
             }
-            () = sleep(inference_item_timeout) => ForwardingEvent::ItemTimedOut,
+            () = &mut item_timeout => ForwardingEvent::ItemTimedOut,
             Some(response) = receive_response_controller.response_rx.recv() => {
                 ForwardingEvent::ResponseReceived(response)
             }
