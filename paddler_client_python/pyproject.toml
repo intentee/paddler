@@ -21,13 +21,14 @@ websockets = "^15"
 pydantic = "^2"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^9"
-pytest-asyncio = "^1.3"
-pytest-cov = "^7"
-pygments = "^2.20"
-pyright = "^1"
+paddler-test-cluster = { path = "../paddler_test_cluster_python", develop = true }
+pytest = "9.0.3"
+pytest-asyncio = "1.3.0"
+pytest-cov = "7.1.0"
+pygments = "2.20.0"
+pyright = "1.1.408"
 ruff = "0.15.12"
-mypy = "^1"
+mypy = "1.19.1"
 
 [build-system]
 requires = ["poetry-core"]
@@ -81,14 +82,9 @@ fail_under = 100
 show_missing = true
 
 [tool.coverage.run]
-source = ["paddler_client"]
-omit = [
-    "paddler_client/client_inference.py",
-    "paddler_client/client_management.py",
-    "paddler_client/inference_socket_connection.py",
-    "paddler_client/inference_socket_pool.py",
-]
+branch = true
+source = ["paddler_client", "tests"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-addopts = "--cov --cov-report=term-missing --cov-fail-under=100"
+addopts = "--cov-report=term-missing"

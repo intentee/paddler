@@ -460,6 +460,23 @@ files = [
 ]
 
 [[package]]
+name = "paddler-test-cluster"
+version = "4.0.1"
+description = "Spawns real Paddler balancers and agents for the Python test suites"
+optional = false
+python-versions = "^3.11"
+groups = ["dev"]
+files = []
+develop = true
+
+[package.dependencies]
+paddler-client = {path = "../paddler_client_python", develop = true}
+
+[package.source]
+type = "directory"
+url = "../paddler_test_cluster_python"
+
+[[package]]
 name = "pathspec"
 version = "1.0.4"
 description = "Utility library for gitignore style pattern matching of file paths."
@@ -884,4 +901,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "8ede1b613e2e51eabdae4fd71df2ce16d21bf2c3063b3769d016d9ecf452d629"
+content-hash = "006dcca26ebcab2f66d71ad1c36dfd657fe8ddd5eff6fa455ee9dfdb900d9bc7"

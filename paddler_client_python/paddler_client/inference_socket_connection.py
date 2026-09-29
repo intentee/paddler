@@ -2,68 +2,37 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Self
 
 import websockets
 from websockets.asyncio.client import ClientConnection, connect
 
-from paddler_client.error import ConnectionDroppedError, JsonError
-from paddler_client.inference_message import (
-    InferenceMessage,
-    parse_inference_client_message,
-)
+from paddler_client.error import ConnectionDroppedError
+from paddler_client.pending_requests import PendingRequests
+
+if TYPE_CHECKING:
+    from paddler_client.response_stream import ResponseStream
 
 logger = logging.getLogger(__name__)
 
 
-class ResponseStream:
-    def __init__(
-        self,
-        queue: asyncio.Queue[InferenceMessage | Exception],
-    ) -> None:
-        self._queue = queue
-        self._done = False
-
-    def __aiter__(self) -> ResponseStream:
-        return self
-
-    async def __anext__(self) -> InferenceMessage:
-        if self._done:
-            raise StopAsyncIteration
-
-        item = await self._queue.get()
-
-        if isinstance(item, Exception):
-            self._done = True
-            raise item
-
-        if item.is_terminal:
-            self._done = True
-
-        return item
-
-
 class InferenceSocketConnection:
-    def __init__(self, url: str) -> None:
-        self._url = url
-        self._ws: ClientConnection | None = None
-        self._pending: dict[str, asyncio.Queue[InferenceMessage | Exception]] = {}
+    def __init__(self, websocket: ClientConnection) -> None:
+        self._websocket = websocket
+        self._pending = PendingRequests()
         self._write_queue: asyncio.Queue[str] = asyncio.Queue()
-        self._read_task: asyncio.Task[None] | None = None
-        self._write_task: asyncio.Task[None] | None = None
-        self._connected = False
+        self._connected = True
+        self._read_task = asyncio.create_task(self._read_loop())
+        self._write_task = asyncio.create_task(self._write_loop())
+
+    @classmethod
+    async def connect(cls, url: str) -> Self:
+        return cls(await connect(url))
 
     @property
     def is_connected(self) -> bool:
         return self._connected
-
-    async def connect(self) -> None:
-        self._ws = await connect(self._url)
-        self._connected = True
-        self._read_task = asyncio.create_task(self._read_loop())
-        self._write_task = asyncio.create_task(self._write_loop())
 
     async def send(
         self,
@@ -73,128 +42,42 @@ class InferenceSocketConnection:
         if not self._connected:
             raise ConnectionDroppedError(request_id)
 
-        response_queue: asyncio.Queue[InferenceMessage | Exception] = asyncio.Queue()
-        self._pending[request_id] = response_queue
+        response_stream = self._pending.register(request_id)
         await self._write_queue.put(json_message)
 
-        return ResponseStream(response_queue)
+        return response_stream
 
     async def close(self) -> None:
         self._connected = False
 
-        if self._ws is not None:
-            await self._ws.close()
+        await self._websocket.close()
 
-        if self._write_task is not None:
-            self._write_task.cancel()
+        for task in (self._write_task, self._read_task):
+            task.cancel()
 
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._write_task
-
-        if self._read_task is not None:
-            self._read_task.cancel()
-
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._read_task
-
-    def _dispatch_message(self, raw_message: str) -> None:
-        try:
-            data = json.loads(raw_message)
-            message = parse_inference_client_message(data)
-        except Exception:
-            logger.exception("Failed to parse WebSocket message")
-            self._push_parse_error_to_pending(raw_message)
-
-            return
-
-        queue = self._pending.get(message.request_id)
-
-        if queue is None:
-            logger.warning(
-                "Received message for unknown request: %s",
-                message.request_id,
-            )
-
-            return
-
-        queue.put_nowait(message)
-
-        if message.is_terminal:
-            del self._pending[message.request_id]
+            with contextlib.suppress(
+                asyncio.CancelledError, websockets.ConnectionClosed
+            ):
+                await task
 
     async def _read_loop(self) -> None:
         try:
-            if self._ws is None:
-                return
-
-            async for raw_message in self._ws:
-                if not isinstance(raw_message, str):
-                    logger.warning("Received unexpected binary WebSocket message")
-                    continue
-
-                self._dispatch_message(raw_message)
-        except asyncio.CancelledError:
-            pass
+            while True:
+                self._pending.dispatch(await self._websocket.recv(decode=True))
         except websockets.ConnectionClosed:
             logger.debug("WebSocket connection closed")
-        except Exception:
-            logger.exception("WebSocket read error")
         finally:
-            self._drain_pending()
-
-            if self._write_task is not None:
-                self._write_task.cancel()
-
-    def _push_parse_error_to_pending(self, raw_message: str) -> None:
-        try:
-            data = json.loads(raw_message)
-
-            if isinstance(data, dict):
-                typed_data = cast("dict[str, Any]", data)
-                request_id: str | None = None
-                response_value: object = typed_data.get("Response")
-                error_value: object = typed_data.get("Error")
-
-                if isinstance(response_value, dict):
-                    typed_response = cast("dict[str, Any]", response_value)
-                    raw_id: object = typed_response.get("request_id")
-                    request_id = str(raw_id) if raw_id is not None else None
-                elif isinstance(error_value, dict):
-                    typed_error = cast("dict[str, Any]", error_value)
-                    raw_id = typed_error.get("request_id")
-                    request_id = str(raw_id) if raw_id is not None else None
-
-                if request_id and request_id in self._pending:
-                    self._pending[request_id].put_nowait(
-                        JsonError("Failed to parse message", raw_data=raw_message),
-                    )
-                    del self._pending[request_id]
-        except (json.JSONDecodeError, KeyError, TypeError):
-            pass
-
-    def _drain_pending(self) -> None:
-        self._connected = False
-        pending = dict(self._pending)
-        self._pending.clear()
-
-        for request_id, queue in pending.items():
-            queue.put_nowait(ConnectionDroppedError(request_id))
+            self._drop_connection()
+            self._write_task.cancel()
 
     async def _write_loop(self) -> None:
         try:
-            while self._connected:
-                message = await self._write_queue.get()
-
-                if self._ws is not None:
-                    await self._ws.send(message)
-        except asyncio.CancelledError:
-            pass
-        except websockets.ConnectionClosed:
-            logger.debug("WebSocket write connection closed")
-        except Exception:
-            logger.exception("WebSocket write error")
+            while True:
+                await self._websocket.send(await self._write_queue.get())
         finally:
-            self._drain_pending()
+            self._drop_connection()
+            self._read_task.cancel()
 
-            if self._read_task is not None:
-                self._read_task.cancel()
+    def _drop_connection(self) -> None:
+        self._connected = False
+        self._pending.drain()

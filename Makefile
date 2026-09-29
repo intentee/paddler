@@ -9,12 +9,16 @@ LLVM_COV_THIRD_PARTY_SOURCES := /\.cargo/(registry|git)/|/\.rustup/toolchains/|^
 TEST_DEVICE ?= cpu
 
 ifeq ($(TEST_DEVICE),cpu)
+PADDLER_TEST_BINARY := target/debug/paddler
 TEST_DEVICE_FEATURE_SUFFIX :=
 TEST_DEVICE_TARGET_DIR :=
 else
+PADDLER_TEST_BINARY := target/$(TEST_DEVICE)/debug/paddler
 TEST_DEVICE_FEATURE_SUFFIX := ,$(TEST_DEVICE)
 TEST_DEVICE_TARGET_DIR := --target-dir target/$(TEST_DEVICE)
 endif
+
+PADDLER_BINARY_ENVIRONMENT := PADDLER_BINARY=$(CURDIR)/$(PADDLER_TEST_BINARY)
 
 # -----------------------------------------------------------------------------
 # Real targets
@@ -29,6 +33,18 @@ node_modules: package-lock.json
 
 package-lock.json: package.json
 	npm install --package-lock-only
+
+paddler_client_python/.venv: paddler_client_python/poetry.lock
+	cd paddler_client_python && POETRY_VIRTUALENVS_IN_PROJECT=true poetry install
+	touch paddler_client_python/.venv
+
+paddler_openai_client_python_test/.venv: paddler_openai_client_python_test/poetry.lock
+	cd paddler_openai_client_python_test && POETRY_VIRTUALENVS_IN_PROJECT=true poetry install
+	touch paddler_openai_client_python_test/.venv
+
+paddler_test_cluster_python/.venv: paddler_test_cluster_python/poetry.lock
+	cd paddler_test_cluster_python && POETRY_VIRTUALENVS_IN_PROJECT=true poetry install
+	touch paddler_test_cluster_python/.venv
 
 target/cuda/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
@@ -83,12 +99,36 @@ clippy: esbuild-meta.json
 fmt: node_modules
 	./jarmuz-fmt.mjs
 
+.PHONY: lint.client.python
+lint.client.python: paddler_client_python/.venv paddler_test_cluster_python/.venv
+	cd paddler_client_python && poetry run ruff check && poetry run ruff format --check && poetry run mypy .
+	cd paddler_test_cluster_python && poetry run ruff check && poetry run ruff format --check && poetry run mypy .
+
+.PHONY: lint.openai.python
+lint.openai.python: paddler_openai_client_python_test/.venv
+	cd paddler_openai_client_python_test && poetry run ruff check && poetry run ruff format --check && poetry run mypy .
+
 .PHONY: test
-test: test.client.js test.unit test.integration
+test: test.client.js test.client.python test.unit test.integration
 
 .PHONY: test.client.js
 test.client.js: node_modules
 	npm --workspace @intentee/paddler-client test
+
+.PHONY: test.client.python
+test.client.python: $(PADDLER_TEST_BINARY) paddler_client_python/.venv paddler_test_cluster_python/.venv
+	cd paddler_test_cluster_python && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest tests/unit tests/cluster
+	cd paddler_client_python && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest tests/unit tests/cluster
+
+.PHONY: test.client.python.coverage
+test.client.python.coverage: $(PADDLER_TEST_BINARY) paddler_client_python/.venv paddler_test_cluster_python/.venv
+	cd paddler_test_cluster_python && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest --cov
+	cd paddler_client_python && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest --cov
+
+.PHONY: test.client.python.llm
+test.client.python.llm: $(PADDLER_TEST_BINARY) paddler_client_python/.venv paddler_test_cluster_python/.venv
+	cd paddler_test_cluster_python && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest tests/llm
+	cd paddler_client_python && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest tests/llm
 
 .PHONY: test.coverage
 test.coverage: esbuild-meta.json node_modules
@@ -130,6 +170,10 @@ test.integration:
 .PHONY: test.integration.opencode
 test.integration.opencode:
 	cargo nextest run -p paddler_opencode_tests --features tests_that_use_llms,tests_that_use_opencode$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+
+.PHONY: test.openai.python.llm
+test.openai.python.llm: $(PADDLER_TEST_BINARY) paddler_openai_client_python_test/.venv
+	cd paddler_openai_client_python_test && $(PADDLER_BINARY_ENVIRONMENT) poetry run pytest
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
