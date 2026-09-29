@@ -34,6 +34,7 @@ pub mod dispenses_slots;
 pub mod embedding_batch_preparer;
 pub mod embedding_batch_rejection;
 pub mod embedding_input_tokenized;
+pub mod forward_management_socket_messages;
 pub mod forward_scheduler_command;
 mod from_request_params;
 pub mod generate_embedding_batch_request;

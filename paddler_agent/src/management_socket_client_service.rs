@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Context;
 use anyhow::Result;
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures_util::SinkExt as _;
 use futures_util::StreamExt;
 use log::debug;
@@ -27,6 +26,7 @@ use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
 use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
 use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
+use crate::forward_management_socket_messages::forward_management_socket_messages;
 use crate::from_request_params::FromRequestParams;
 use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::model_metadata_holder::ModelMetadataHolder;
@@ -247,51 +247,28 @@ impl ManagementSocketClientService {
         }
     }
 
-    fn handle_incoming_message(
-        incoming_message_context: IncomingMessageContext,
-        msg: Message,
-        pong_tx: &mpsc::UnboundedSender<Bytes>,
-    ) -> Result<()> {
+    fn handle_incoming_message(incoming_message_context: IncomingMessageContext, msg: Message) {
         match msg {
-            Message::Text(text) => {
-                let deserialized_message = match serde_json::from_str::<JsonRpcMessage>(&text) {
-                    Ok(deserialized_message) => deserialized_message,
-                    Err(err) => {
-                        error!("Failed to deserialize JSON-RPC message {text}: {err}");
-
-                        return Ok(());
+            Message::Text(text) => match serde_json::from_str::<JsonRpcMessage>(&text) {
+                Ok(deserialized_message) => {
+                    if let Err(err) = Self::handle_deserialized_message(
+                        incoming_message_context,
+                        deserialized_message,
+                    ) {
+                        error!("Error handling incoming message: {err}");
                     }
-                };
-
-                if let Err(err) = Self::handle_deserialized_message(
-                    incoming_message_context,
-                    deserialized_message,
-                ) {
-                    error!("Error handling incoming message: {err}");
                 }
-
-                Ok(())
-            }
-            Message::Binary(_) => {
-                error!("Received binary message, which is not expected");
-
-                Ok(())
+                Err(err) => {
+                    error!("Failed to deserialize JSON-RPC message {text}: {err}");
+                }
+            },
+            Message::Binary(_) | Message::Frame(_) => {
+                error!("Received a non-text message, which is not expected");
             }
             Message::Close(_) => {
                 info!("Connection closed by server");
-
-                Ok(())
             }
-            Message::Frame(_) => {
-                error!("Received a frame message, which is not expected");
-
-                Ok(())
-            }
-            Message::Ping(payload) => Ok(pong_tx.send(payload)?),
-            Message::Pong(_) => {
-                // Pong received, no action needed
-                Ok(())
-            }
+            Message::Ping(_) | Message::Pong(_) => {}
         }
     }
 
@@ -313,68 +290,14 @@ impl ManagementSocketClientService {
         info!("Connected to management server");
 
         let connection_close = CancellationToken::new();
-        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (mut write, mut read) = ws_stream.split();
+        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
+        let (write, mut read) = ws_stream.split();
 
-        let forward_connection_close = connection_close.clone();
-
-        let message_forward_handle = tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    () = forward_connection_close.cancelled() => {
-                        while let Ok(pending_message) = message_rx.try_recv() {
-                            match serde_json::to_string(&pending_message) {
-                                Ok(serialized_message) => {
-                                    let message = Message::Text(serialized_message.into());
-
-                                    if let Err(err) = write.send(message).await {
-                                        error!("Failed to flush message on shutdown: {err}");
-
-                                        break;
-                                    }
-                                },
-                                Err(err) => {
-                                    error!("Failed to serialize message on shutdown: {err}");
-                                }
-                            }
-                        }
-
-                        break;
-                    }
-                    message = message_rx.recv() => {
-                        match message {
-                            Some(msg) => {
-                                match serde_json::to_string(&msg) {
-                                    Ok(serialized_message) => {
-                                        let message = Message::Text(serialized_message.into());
-
-                                        if let Err(err) = write.send(message).await {
-                                            error!("Failed to send message: {err}");
-                                            break;
-                                        }
-                                    },
-                                    Err(err) => {
-                                        error!("Failed to serialize message: {err}");
-                                    }
-                                }
-                            }
-                            None => break,
-                        }
-                    }
-                    payload = pong_rx.recv() => {
-                        match payload {
-                            Some(payload) => {
-                                write.send(Message::Pong(payload)).await.unwrap_or_else(|err| {
-                                    error!("Failed to send pong message: {err}");
-                                });
-                            }
-                            None => break,
-                        }
-                    }
-                }
-            }
-        });
+        let message_forward_handle = tokio::spawn(forward_management_socket_messages(
+            connection_close.clone(),
+            message_rx,
+            write,
+        ));
 
         message_tx
             .send(ManagementJsonRpcMessage::Notification(
@@ -424,7 +347,7 @@ impl ManagementSocketClientService {
                 msg = read.next() => {
                     let should_close = match msg {
                         Some(Ok(msg)) => {
-                            if let Err(err) = Self::handle_incoming_message(
+                            Self::handle_incoming_message(
                                     IncomingMessageContext {
                                         agent_applicable_state_holder: self.agent_applicable_state_holder.clone(),
                                         agent_desired_state_tx: self.agent_desired_state_tx.clone(),
@@ -436,12 +359,7 @@ impl ManagementSocketClientService {
                                         slot_aggregated_status: self.slot_aggregated_status.clone(),
                                     },
                                     msg,
-                                    &pong_tx,
-                                )
-                                .context("Failed to handle incoming message")
-                            {
-                                error!("Error handling incoming message: {err}");
-                            }
+                                );
 
                             false
                         }
@@ -472,9 +390,16 @@ impl ManagementSocketClientService {
 
         connection_close.cancel();
 
-        message_forward_handle
+        let mut write = message_forward_handle
             .await
             .context("Failed to join message forwarding task")?;
+
+        if shutdown.is_cancelled() {
+            write
+                .send(Message::Close(None))
+                .await
+                .context("Failed to close the management socket")?;
+        }
 
         Ok(())
     }
@@ -517,9 +442,6 @@ mod tests {
 
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;
-    use tokio_tungstenite::tungstenite::protocol::frame::Frame;
-    use tokio_tungstenite::tungstenite::protocol::frame::coding::Data;
-    use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
 
     use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
     use paddler_messaging::model_metadata::ModelMetadata;
@@ -980,174 +902,8 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn binary_message_is_acknowledged_without_pong() {
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Binary(Bytes::from_static(b"unexpected")),
-            &pong_tx,
-        );
-
-        assert!(result.is_ok());
-        assert!(pong_rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn close_message_is_acknowledged() {
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Close(None),
-            &pong_tx,
-        );
-
-        assert!(result.is_ok());
-        assert!(pong_rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn frame_message_is_acknowledged_without_pong() {
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Frame(Frame::message(
-                Bytes::from_static(b"frame"),
-                OpCode::Data(Data::Text),
-                true,
-            )),
-            &pong_tx,
-        );
-
-        assert!(result.is_ok());
-        assert!(pong_rx.try_recv().is_err());
-    }
-
-    #[test]
-    fn ping_message_forwards_payload_to_pong_channel() {
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Ping(Bytes::from_static(b"ping_payload")),
-            &pong_tx,
-        );
-
-        assert!(result.is_ok());
-        assert_eq!(
-            pong_rx.try_recv().unwrap(),
-            Bytes::from_static(b"ping_payload")
-        );
-    }
-
-    #[test]
-    fn ping_message_errors_when_pong_receiver_dropped() {
-        let (pong_tx, pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-
-        drop(pong_rx);
-
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Ping(Bytes::from_static(b"ping_payload")),
-            &pong_tx,
-        );
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn pong_message_is_acknowledged_without_forwarding() {
-        let (pong_tx, mut pong_rx) = mpsc::unbounded_channel::<Bytes>();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Pong(Bytes::from_static(b"pong_payload")),
-            &pong_tx,
-        );
-
-        assert!(result.is_ok());
-        assert!(pong_rx.try_recv().is_err());
-    }
-
     #[tokio::test]
     async fn text_message_dispatches_deserialized_set_state() {
-        let (pong_tx, _pong_rx) = mpsc::unbounded_channel::<Bytes>();
         let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let (agent_desired_state_tx, mut agent_desired_state_rx) =
             mpsc::unbounded_channel::<AgentDesiredState>();
@@ -1168,13 +924,11 @@ mod tests {
         ))
         .unwrap();
 
-        let result = ManagementSocketClientService::handle_incoming_message(
+        ManagementSocketClientService::handle_incoming_message(
             context,
             Message::Text(serialized_set_state.into()),
-            &pong_tx,
         );
 
-        assert!(result.is_ok());
         assert_eq!(
             agent_desired_state_rx.recv().await.unwrap(),
             AgentDesiredState::default()
