@@ -127,11 +127,10 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     }
 
     async fn on_connection_start(
-        _connection_close: CancellationToken,
-        _context: Arc<Self::Context>,
-        _session: &mut Session,
-    ) {
-    }
+        connection_close: CancellationToken,
+        context: Arc<Self::Context>,
+        session: &mut Session,
+    );
 
     fn respond(
         &self,
