@@ -1,6 +1,7 @@
 import { deepStrictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
+import { UnsupportedModelUrlError } from "../../src/UnsupportedModelUrlError";
 import { urlToAgentDesiredModel } from "../../src/urlToAgentDesiredModel";
 
 test("recognizes Hugging Face URLs as HuggingFace variant", function () {
@@ -28,12 +29,9 @@ test("agent: URLs become LocalToAgent variant", function () {
 test("non-http(s), non-agent URLs throw", function () {
   const url = new URL("ftp://example.com/file.gguf");
 
-  throws(
-    function () {
-      urlToAgentDesiredModel(url);
-    },
-    { message: "Unsupported URL format" },
-  );
+  throws(function () {
+    urlToAgentDesiredModel(url);
+  }, UnsupportedModelUrlError);
 });
 
 test("the user's Qwen 3.6 35B blob URL still routes to HuggingFace", function () {

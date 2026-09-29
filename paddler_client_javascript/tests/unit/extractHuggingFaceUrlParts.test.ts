@@ -2,6 +2,7 @@ import { deepStrictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
 import { extractHuggingFaceUrlParts } from "../../src/extractHuggingFaceUrlParts";
+import { InvalidHuggingFaceUrlError } from "../../src/InvalidHuggingFaceUrlError";
 
 test("blob URL extracts owner, repo, revision and filename", function () {
   const url = new URL(
@@ -44,7 +45,7 @@ test("malformed URLs throw", function () {
 
   throws(function () {
     extractHuggingFaceUrlParts(url);
-  });
+  }, InvalidHuggingFaceUrlError);
 });
 
 test("URLs that do not point at a file blob throw", function () {
@@ -52,5 +53,5 @@ test("URLs that do not point at a file blob throw", function () {
 
   throws(function () {
     extractHuggingFaceUrlParts(url);
-  });
+  }, InvalidHuggingFaceUrlError);
 });

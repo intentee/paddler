@@ -1,3 +1,4 @@
+import { InvalidHuggingFaceUrlError } from "./InvalidHuggingFaceUrlError";
 import type { HuggingFaceModelReference } from "./schemas/HuggingFaceModelReference";
 
 export function extractHuggingFaceUrlParts({
@@ -16,7 +17,7 @@ export function extractHuggingFaceUrlParts({
     (resourceKind !== "blob" && resourceKind !== "resolve") ||
     filenameSegments.length === 0
   ) {
-    throw new Error(`Invalid Hugging Face URL format: ${pathname}`);
+    throw new InvalidHuggingFaceUrlError(pathname);
   }
 
   return {
