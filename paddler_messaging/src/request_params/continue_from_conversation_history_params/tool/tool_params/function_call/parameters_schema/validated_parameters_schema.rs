@@ -75,6 +75,24 @@ mod tests {
     }
 
     #[test]
+    fn json_schema_document_matches_the_serialized_schema() {
+        let mut properties = Map::new();
+        properties.insert("location".to_owned(), json!({"type": "string"}));
+
+        let schema = ValidatedParametersSchema {
+            schema_type: "object".to_owned(),
+            properties: Some(properties),
+            required: Some(vec!["location".to_owned()]),
+            additional_properties: Some(Value::Bool(false)),
+        };
+
+        assert_eq!(
+            schema.to_json_schema(),
+            serde_json::to_value(&schema).expect("a parameters schema must serialize")
+        );
+    }
+
+    #[test]
     fn omits_absent_keywords() {
         let schema = ValidatedParametersSchema {
             schema_type: "object".to_owned(),

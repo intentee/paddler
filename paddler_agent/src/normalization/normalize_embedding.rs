@@ -8,7 +8,7 @@ use crate::normalization::l2::l2;
 use crate::normalization::rms_norm::rms_norm;
 
 pub fn normalize_embedding(
-    embedding: Embedding,
+    mut embedding: Embedding,
     normalization_method: &EmbeddingNormalizationMethod,
 ) -> Result<Embedding> {
     if !embedding
@@ -28,20 +28,17 @@ pub fn normalize_embedding(
         return Ok(embedding);
     }
 
-    let normalized = match normalization_method {
-        EmbeddingNormalizationMethod::None => embedding.embedding,
-        EmbeddingNormalizationMethod::L2 => l2(&embedding.embedding),
+    match normalization_method {
+        EmbeddingNormalizationMethod::None => {}
+        EmbeddingNormalizationMethod::L2 => l2(&mut embedding.embedding),
         EmbeddingNormalizationMethod::RmsNorm { epsilon } => {
-            rms_norm(&embedding.embedding, *epsilon)?
+            rms_norm(&mut embedding.embedding, *epsilon)?;
         }
-    };
+    }
 
-    Ok(Embedding {
-        embedding: normalized,
-        normalization_method: normalization_method.clone(),
-        pooling_type: embedding.pooling_type,
-        source_document_id: embedding.source_document_id,
-    })
+    embedding.normalization_method = normalization_method.clone();
+
+    Ok(embedding)
 }
 
 #[cfg(test)]
