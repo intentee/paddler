@@ -1,25 +1,26 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_test_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
 use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
 const NEVER_COMPLETING_GRAMMAR: &str = r#"root ::= "apple " root"#;
-const IN_FLIGHT_REQUEST_MAX_TOKENS: i32 = 512;
+const IN_FLIGHT_REQUEST_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(512).unwrap();
 
 fn finished_with_done(collected: &CollectedGeneratedTokens) -> bool {
     matches!(
@@ -71,16 +72,7 @@ async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_reques
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &BalancerDesiredState {
-                inference_parameters: InferenceParameters {
-                    image_resize_to_fit: initial_desired_state
-                        .inference_parameters
-                        .image_resize_to_fit
-                        / 2,
-                    ..initial_desired_state.inference_parameters.clone()
-                },
-                ..initial_desired_state
-            },
+            &desired_state_with_halved_image_resize(initial_desired_state)?,
         )
         .await?;
 
@@ -101,7 +93,7 @@ async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_reques
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 4,
+                max_tokens: NonZeroU32::new(4).unwrap(),
                 raw_prompt: "Hello".to_owned(),
             },
         )

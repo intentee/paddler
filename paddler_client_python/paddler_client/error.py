@@ -154,13 +154,38 @@ class UnrecognizedToolCallFormatPayloadNotAnObjectError(PaddlerError, TypeError)
         )
 
 
-class ImageExceedsBatchSizePayloadNotAnObjectError(PaddlerError, TypeError):
+class MediaExceedsMicroBatchPayloadNotAnObjectError(PaddlerError, TypeError):
     def __init__(self, payload: object) -> None:
         self.payload = payload
-        super().__init__(f"ImageExceedsBatchSize payload is not a dict: {payload!r}")
+        super().__init__(f"MediaExceedsMicroBatch payload is not a dict: {payload!r}")
 
 
 class PromptExceedsContextSizePayloadNotAnObjectError(PaddlerError, TypeError):
     def __init__(self, payload: object) -> None:
         self.payload = payload
         super().__init__(f"PromptExceedsContextSize payload is not a dict: {payload!r}")
+
+
+class BatchSizeExceedsContextSizeError(PaddlerError, ValueError):
+    def __init__(self, n_batch: int, context_size: int) -> None:
+        self.n_batch = n_batch
+        self.context_size = context_size
+        super().__init__(f"n_batch {n_batch} exceeds context_size {context_size}")
+
+
+class PenaltiesWithoutWindowError(PaddlerError, ValueError):
+    def __init__(self) -> None:
+        super().__init__("penalty strengths require a penalty_last_n window")
+
+
+class PenaltyWindowWithoutPenaltiesError(PaddlerError, ValueError):
+    def __init__(self, penalty_last_n: int) -> None:
+        self.penalty_last_n = penalty_last_n
+        super().__init__(
+            f"penalty_last_n {penalty_last_n} requires at least one penalty strength"
+        )
+
+
+class ToolCallParsingWithoutToolsError(PaddlerError, ValueError):
+    def __init__(self) -> None:
+        super().__init__("parse_tool_calls requires at least one tool")

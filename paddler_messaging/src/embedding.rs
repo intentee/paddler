@@ -2,7 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
-use crate::pooling_type::PoolingType;
+use paddler_inference_parameters::pooling_type::PoolingType;
 
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

@@ -14,10 +14,10 @@ pub trait StateDatabase: Send + Sync {
 
 #[cfg(test)]
 mod tests {
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::chat_template::ChatTemplate;
-    use paddler_messaging::inference_parameters::InferenceParameters;
     use tempfile::NamedTempFile;
     use tokio::sync::watch;
 

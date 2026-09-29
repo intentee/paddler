@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -42,7 +44,7 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens_for_image_request() -
                 conversation_history,
                 enable_thinking: true,
                 grammar: None,
-                max_tokens: 200,
+                max_tokens: NonZeroU32::new(200).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

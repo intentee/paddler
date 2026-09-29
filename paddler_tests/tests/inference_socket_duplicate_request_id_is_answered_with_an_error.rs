@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use std::num::NonZeroUsize;
 
 use futures_util::StreamExt as _;
@@ -12,6 +14,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(16).unwrap();
 const DUPLICATE_REQUEST_ID: &str = "duplicate-request-id";
 
 fn raw_prompt_message(request_id: &str) -> InferenceServerMessage<ValidatedParametersSchema> {
@@ -19,7 +22,7 @@ fn raw_prompt_message(request_id: &str) -> InferenceServerMessage<ValidatedParam
         id: request_id.to_owned(),
         request: InferenceServerRequest::ContinueFromRawPrompt(ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 16,
+            max_tokens: MAX_TOKENS,
             raw_prompt: "The capital of France is".to_owned(),
         }),
     })

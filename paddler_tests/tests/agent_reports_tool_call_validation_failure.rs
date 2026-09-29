@@ -1,10 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
@@ -73,7 +75,7 @@ async fn agent_reports_tool_call_validation_failure() -> Result<()> {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 400,
+                max_tokens: NonZeroU32::new(400).unwrap(),
                 parse_tool_calls: true,
                 tools: vec![Tool::Function(FunctionCall {
                     function: Function {

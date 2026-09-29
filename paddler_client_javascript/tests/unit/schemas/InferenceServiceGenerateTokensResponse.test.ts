@@ -20,6 +20,7 @@ function generatedToken(generatedTokenResult: unknown): unknown {
 
 const terminalErrorCodes = [
   { code: 500, variant: "ChatTemplateError" },
+  { code: 500, variant: "DecodeFailed" },
   { code: 500, variant: "DetokenizationFailed" },
   { code: 400, variant: "GrammarIncompatibleWithThinking" },
   { code: 500, variant: "GrammarInitializationFailed" },
@@ -141,7 +142,7 @@ test("ReasoningToken maps to reasoning kind", function () {
   strictEqual(parsed.tokenKind, "reasoning");
 });
 
-test("Done normalises with the full usage summary", function () {
+test("Done normalises with the end reason and the full usage summary", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
@@ -149,6 +150,7 @@ test("Done normalises with the full usage summary", function () {
       response: {
         GeneratedToken: {
           Done: {
+            finish: "MaxTokens",
             usage: {
               prompt_tokens: 10,
               cached_prompt_tokens: 0,
@@ -167,6 +169,7 @@ test("Done normalises with the full usage summary", function () {
 
   strictEqual(parsed.done, true);
   strictEqual(parsed.error, null);
+  strictEqual(parsed.summary?.finish, "MaxTokens");
   deepStrictEqual(parsed.summary?.usage.prompt_tokens, 10);
 });
 
@@ -234,14 +237,17 @@ test("PromptExceedsContextSize is terminal and describes token counts", function
   ok(parsed.error?.description.includes("8192"));
 });
 
-test("ImageExceedsBatchSize is terminal and describes token counts", function () {
+test("MediaExceedsMicroBatch is terminal and describes token counts", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Response: {
       generated_by: null,
       request_id: "req-7",
       response: {
         GeneratedToken: {
-          ImageExceedsBatchSize: { image_tokens: 368, n_batch: 100 },
+          MediaExceedsMicroBatch: {
+            media_tokens: 368,
+            micro_batch_tokens: 100,
+          },
         },
       },
     },

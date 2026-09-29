@@ -1,14 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use std::time::Duration;
 
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_client::message::Message;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -62,7 +64,7 @@ async fn balancer_distributes_buffered_requests_across_two_agents() -> Result<()
                 CancellationToken::new(),
                 &ContinueFromRawPromptParams {
                     grammar: None,
-                    max_tokens: 10,
+                    max_tokens: NonZeroU32::new(10).unwrap(),
                     raw_prompt: "Hello".to_owned(),
                 },
             )

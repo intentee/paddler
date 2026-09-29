@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use std::time::Duration;
 
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
@@ -27,7 +29,7 @@ async fn inference_socket_keeps_serving_after_a_binary_frame() {
         .await
         .expect("the frame must be sent");
     socket
-        .send_raw_prompt_request("request-after-binary-frame", 1)
+        .send_raw_prompt_request("request-after-binary-frame", NonZeroU32::new(1).unwrap())
         .await
         .expect("the follow-up request must be sent");
 

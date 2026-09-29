@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -26,7 +28,7 @@ async fn qwen35_generation_stops_at_eog_before_max_tokens() -> Result<()> {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 500,
+                max_tokens: NonZeroU32::new(500).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

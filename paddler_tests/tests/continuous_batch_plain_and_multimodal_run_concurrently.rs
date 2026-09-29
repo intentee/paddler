@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -51,7 +53,7 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> 
 
     let plain_params = ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 64,
+        max_tokens: NonZeroU32::new(64).unwrap(),
         raw_prompt: "Write a long poem about the sea.".to_owned(),
     };
     let multimodal_params = ContinueFromConversationHistoryParams {
@@ -59,7 +61,7 @@ async fn continuous_batch_plain_and_multimodal_run_concurrently() -> Result<()> 
         conversation_history: multimodal_conversation,
         enable_thinking: false,
         grammar: None,
-        max_tokens: 32,
+        max_tokens: NonZeroU32::new(32).unwrap(),
         parse_tool_calls: false,
         tools: vec![],
     };

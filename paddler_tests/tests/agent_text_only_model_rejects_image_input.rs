@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -39,7 +41,7 @@ async fn agent_text_only_model_rejects_image_input() -> Result<()> {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 20,
+                max_tokens: NonZeroU32::new(20).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },
@@ -49,11 +51,7 @@ async fn agent_text_only_model_rejects_image_input() -> Result<()> {
     let collected = outcome?;
 
     assert_eq!(
-        collected
-            .token_results
-            .into_iter()
-            .map(|token_result_with_producer| token_result_with_producer.token_result)
-            .collect::<Vec<GeneratedTokenResult>>(),
+        collected.into_token_results(),
         vec![GeneratedTokenResult::MultimodalNotSupported(
             "Some(\"test-agent-0\"): received images but model does not support multimodal input"
                 .to_owned()

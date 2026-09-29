@@ -51,9 +51,9 @@ mod tests {
     use crate::state_database::StateDatabase;
     use crate::state_database::file::File;
     use crate::state_database::memory::Memory;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
 
     fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {

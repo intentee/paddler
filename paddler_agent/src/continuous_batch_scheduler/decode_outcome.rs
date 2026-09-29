@@ -14,7 +14,7 @@ impl DecodeOutcome {
         match result {
             Ok(()) => Self::Decoded,
             Err(DecodeError::NoKvCacheSlot) => Self::NeedsEviction,
-            Err(DecodeError::Aborted | DecodeError::BatchInvalid) => Self::Aborted,
+            Err(DecodeError::Aborted) => Self::Aborted,
             Err(other) => Self::Errored(other),
         }
     }
@@ -57,13 +57,11 @@ mod tests {
     }
 
     #[test]
-    fn batch_invalid_maps_to_aborted() {
-        assert_eq!(
-            discriminant(&DecodeOutcome::from_decode_result(Err(
-                DecodeError::BatchInvalid
-            ))),
-            discriminant(&DecodeOutcome::Aborted)
-        );
+    fn invalid_batch_is_forwarded_as_errored() {
+        assert!(matches!(
+            DecodeOutcome::from_decode_result(Err(DecodeError::BatchInvalid)),
+            DecodeOutcome::Errored(DecodeError::BatchInvalid)
+        ));
     }
 
     #[test]

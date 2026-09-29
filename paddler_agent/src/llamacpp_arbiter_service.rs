@@ -213,6 +213,8 @@ impl Service for LlamaCppArbiterService {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use std::sync::Arc;
 
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
@@ -245,7 +247,7 @@ mod tests {
                 ContinueFromRawPromptRequest::from_request_params(
                     ContinueFromRawPromptParams {
                         grammar: None,
-                        max_tokens: 1,
+                        max_tokens: NonZeroU32::new(1).unwrap(),
                         raw_prompt: "Hello".to_owned(),
                     },
                     generated_tokens_tx,

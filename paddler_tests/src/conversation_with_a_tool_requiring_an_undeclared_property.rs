@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -9,6 +11,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::Map;
 use serde_json::json;
+
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
 #[must_use]
 pub fn conversation_with_a_tool_requiring_an_undeclared_property()
@@ -25,7 +29,7 @@ pub fn conversation_with_a_tool_requiring_an_undeclared_property()
         }]),
         enable_thinking: true,
         grammar: None,
-        max_tokens: 10,
+        max_tokens: MAX_TOKENS,
         parse_tool_calls: true,
         tools: vec![Tool::Function(FunctionCall {
             function: Function {

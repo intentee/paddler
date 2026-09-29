@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -42,7 +44,7 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() -> Result<()> {
                 conversation_history,
                 enable_thinking: true,
                 grammar: None,
-                max_tokens: 1000,
+                max_tokens: NonZeroU32::new(1000).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

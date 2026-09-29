@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use futures_util::StreamExt as _;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -8,7 +10,7 @@ use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
-const MAX_TOKENS_THAT_OUTLAST_THE_SHUTDOWN: i32 = 2048;
+const MAX_TOKENS_THAT_OUTLAST_THE_SHUTDOWN: NonZeroU32 = NonZeroU32::new(2048).unwrap();
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_ends_an_in_flight_generation_with_a_shutdown_error() {

@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use serde::Deserialize;
 
 use crate::compatibility::openai_service::openai_chat_completion_tool::OpenAIChatCompletionTool;
@@ -6,8 +8,8 @@ use crate::compatibility::openai_service::stream_options::StreamOptions;
 
 #[derive(Deserialize)]
 pub struct OpenAICompletionRequestParams {
-    pub max_completion_tokens: Option<i32>,
-    pub max_tokens: Option<i32>,
+    pub max_completion_tokens: Option<NonZeroU32>,
+    pub max_tokens: Option<NonZeroU32>,
     pub messages: Vec<OpenAIMessage>,
     pub model: String,
     pub stream: Option<bool>,
@@ -18,13 +20,15 @@ pub struct OpenAICompletionRequestParams {
 
 impl OpenAICompletionRequestParams {
     #[must_use]
-    pub fn requested_max_tokens(&self) -> Option<i32> {
+    pub fn requested_max_tokens(&self) -> Option<NonZeroU32> {
         self.max_completion_tokens.or(self.max_tokens)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use serde_json::json;
 
     use super::OpenAICompletionRequestParams;
@@ -49,7 +53,7 @@ mod tests {
     fn requested_max_tokens_honors_max_tokens() {
         let params = request_with_token_limits(&json!({"max_tokens": 7}));
 
-        assert_eq!(params.requested_max_tokens(), Some(7));
+        assert_eq!(params.requested_max_tokens(), NonZeroU32::new(7));
     }
 
     #[test]
@@ -57,7 +61,7 @@ mod tests {
         let params =
             request_with_token_limits(&json!({"max_tokens": 7, "max_completion_tokens": 3}));
 
-        assert_eq!(params.requested_max_tokens(), Some(3));
+        assert_eq!(params.requested_max_tokens(), NonZeroU32::new(3));
     }
 
     #[test]

@@ -1,4 +1,6 @@
 pub mod deepseek_r1_distill_llama_8b;
+pub mod gemma_3_4b_it;
+pub mod gemma_3_4b_it_mmproj;
 pub mod gemma_4_e2b_it;
 pub mod gemma_4_e2b_it_mmproj;
 pub mod ministral_3_3b_reasoning;

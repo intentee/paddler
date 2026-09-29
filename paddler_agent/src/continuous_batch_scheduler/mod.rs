@@ -3,12 +3,12 @@ pub mod advance_outcome;
 pub mod assemble_batch_phase;
 pub mod batch_pass;
 pub mod classified_token;
-pub mod classify_token_phase;
 pub mod commit_phase;
 pub mod completion_check_outcome;
 pub mod completion_check_phase;
 pub mod contributions;
 pub mod decode_batch_phase;
+pub mod decode_failure_phase;
 pub mod decode_outcome;
 pub mod emit_token_outcome;
 pub mod emit_token_phase;
@@ -17,30 +17,26 @@ pub mod ingesting_contribution;
 pub mod sample_outcome;
 pub mod sample_token_phase;
 pub mod sequence_ordered_insertion_index;
-pub mod tool_call_pass;
 
 use std::collections::VecDeque;
 use std::slice;
-use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
 
 use anyhow::Result;
 use llama_cpp_bindings::SampledTokenClassifier;
-use llama_cpp_bindings::StreamingMarkers;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::SamplingError;
+use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use log::debug;
 use log::error;
 use log::info;
 use log::warn;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
-use rand::Rng as _;
-use rand::rngs::ThreadRng;
 use tokio_util::sync::CancellationToken;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
@@ -60,18 +56,19 @@ use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
-use crate::sampler_chain_factory::SamplerChainFactory;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
+use crate::token_classification::TokenClassification;
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
     agent_shutdown: CancellationToken,
     batch: LlamaBatch<'static>,
+    candidates: LlamaTokenDataArray,
     command_rx: Receiver<ContinuousBatchSchedulerCommand>,
+    ingest_outcomes: Vec<IngestOutcome>,
     llama_context: LlamaContext<'static>,
     pending_embedding_requests: VecDeque<PreparedEmbeddingBatchRequest>,
-    rng: ThreadRng,
     scheduler_context: ContinuousBatchSchedulerContext,
     sequence_id_pool: SequenceIdPool,
     shutdown_requested: bool,
@@ -101,10 +98,11 @@ impl ContinuousBatchScheduler {
             active_requests: Vec::new(),
             agent_shutdown,
             batch,
+            candidates: LlamaTokenDataArray::new(Vec::new(), false),
             command_rx,
+            ingest_outcomes: Vec::new(),
             llama_context,
             pending_embedding_requests: VecDeque::new(),
-            rng: rand::rng(),
             scheduler_context,
             sequence_id_pool,
             shutdown_requested: false,
@@ -195,24 +193,22 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn create_sampler_chain(&mut self) -> Result<LlamaSampler, SamplingError> {
-        SamplerChainFactory {
-            inference_parameters: &self.scheduler_context.inference_parameters,
-            n_vocab: self.scheduler_context.n_vocab,
-        }
-        .create(self.rng.random::<u32>())
-    }
-
     #[expect(
         unsafe_code,
         reason = "the SchedulerContext owns the LlamaModel for the lifetime of the active_requests vec — same pattern as LlamaContext<'static> above"
     )]
     fn build_token_classifier_for_active_request(
         &self,
-        streaming_markers: Arc<StreamingMarkers>,
+        TokenClassification {
+            bare_json_tool_calls,
+            streaming_markers,
+        }: TokenClassification,
     ) -> SampledTokenClassifier<'static> {
-        let classifier =
-            SampledTokenClassifier::new(&self.scheduler_context.model, streaming_markers);
+        let classifier = SampledTokenClassifier::new(
+            &self.scheduler_context.model,
+            streaming_markers,
+            bare_json_tool_calls,
+        );
 
         unsafe {
             std::mem::transmute::<SampledTokenClassifier<'_>, SampledTokenClassifier<'static>>(
@@ -255,72 +251,56 @@ impl ContinuousBatchScheduler {
         PreparedGenerationRequest {
             generate_tokens_stop_rx,
             generated_tokens_tx,
-            grammar_sampler,
             max_tokens,
             prompt,
             slot_guard,
-            streaming_markers,
-            tool_call_pipeline,
+            token_classification,
+            token_sampling,
+            tool_call_handling,
         }: PreparedGenerationRequest,
     ) -> Result<ContinuousBatchActiveRequest, GenerationRequestRejection> {
         let sequence_id_guard = SequenceIdGuard::acquire(&self.sequence_id_pool)
             .ok_or(GenerationRequestRejection::NoSequenceSlotAvailable)?;
-        let grammar_sampler = grammar_sampler
-            .map(|grammar_sampler| {
-                grammar_sampler.into_llama_sampler(&self.scheduler_context.model)
-            })
-            .transpose()
-            .map_err(GenerationRequestRejection::GrammarSamplerInitializationFailed)?;
-        let chain = self
-            .create_sampler_chain()
-            .map_err(GenerationRequestRejection::SamplerChainCreationFailed)?;
-        let token_classifier = self.build_token_classifier_for_active_request(streaming_markers);
+        let mut token_classifier =
+            self.build_token_classifier_for_active_request(token_classification);
 
         self.clear_kv_cache_for_sequence(sequence_id_guard.sequence_id());
 
-        let mut active_request = ContinuousBatchActiveRequest {
-            state: ContinuousBatchRequestState {
-                current_token_position: 0,
-                i_batch: None,
-                last_outcome_section: token_classifier.current_section(),
-                max_tokens,
-                pending_sampled_token: None,
-                phase: ContinuousBatchRequestPhase::IngestingText,
-                prompt_tokens: Vec::new(),
-                prompt_tokens_ingested: 0,
-            },
-            chain,
-            token_classifier,
-            grammar_sampler,
-            generated_tokens_tx,
-            generate_tokens_stop_rx,
-            sequence_id_guard,
-            slot_guard,
-            tool_call_pipeline,
+        let mut state = ContinuousBatchRequestState {
+            current_token_position: 0,
+            i_batch: None,
+            last_outcome_section: token_classifier.current_section(),
+            max_tokens,
+            pending_sampled_token: None,
+            phase: ContinuousBatchRequestPhase::IngestingText,
+            prompt_tokens: Vec::new(),
+            prompt_tokens_ingested: 0,
+            sampled_tokens: 0,
         };
 
         match prompt {
             PreparedPrompt::TextTokens(prompt_tokens) => {
-                active_request
-                    .token_classifier
-                    .record_prompt_tokens(prompt_tokens.len() as u64);
-                active_request
-                    .token_classifier
-                    .ingest_prompt_tokens(&prompt_tokens);
-                active_request.state.prompt_tokens = prompt_tokens;
+                token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
+                token_classifier.ingest_prompt_tokens(&prompt_tokens);
+                state.prompt_tokens = prompt_tokens;
             }
-            PreparedPrompt::Multimodal(multimodal_prompt) => {
-                active_request.state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(
-                    multimodal_prompt
-                        .into_ingestion(self.scheduler_context.sequence_context_size)?,
-                );
+            PreparedPrompt::Multimodal(ingestion) => {
+                state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(ingestion);
             }
         }
 
-        active_request.state.last_outcome_section =
-            active_request.token_classifier.current_section();
+        state.last_outcome_section = token_classifier.current_section();
 
-        Ok(active_request)
+        Ok(ContinuousBatchActiveRequest {
+            state,
+            token_classifier,
+            token_sampling,
+            generated_tokens_tx,
+            generate_tokens_stop_rx,
+            sequence_id_guard,
+            slot_guard,
+            tool_call_handling,
+        })
     }
 
     fn ingest_next_multimodal_chunks(&mut self) {
@@ -350,14 +330,16 @@ impl ContinuousBatchScheduler {
                     self.llama_context.mark_logits_initialized(-1);
 
                     AdvanceGeneratingPhase {
-                        scheduler_context: &self.scheduler_context,
+                        candidates: &mut self.candidates,
+                        ingest_outcomes: &mut self.ingest_outcomes,
                         llama_context: &self.llama_context,
+                        scheduler_context: &self.scheduler_context,
                     }
                     .run(slice::from_mut(active_request));
                 }
                 Err(ingestion_error) => {
                     active_request.complete_with_outcome(
-                        GenerationRequestRejection::from(ingestion_error)
+                        GenerationRequestRejection::MultimodalIngestionFailed(ingestion_error)
                             .into_generated_token_result(
                                 self.scheduler_context.agent_name.as_deref(),
                             ),
@@ -378,6 +360,7 @@ impl ContinuousBatchScheduler {
 
             if active_request.is_stop_requested() {
                 let summary = GenerationSummary {
+                    finish: GenerationFinish::StopRequested,
                     usage: *active_request.token_classifier.usage(),
                 };
 
@@ -433,8 +416,13 @@ impl ContinuousBatchScheduler {
         self.advance_generating_requests();
         self.ingest_next_multimodal_chunks();
 
-        let n_batch = self.scheduler_context.inference_parameters.n_batch;
-        let assemble_phase = AssembleBatchPhase { n_batch };
+        let assemble_phase = AssembleBatchPhase {
+            n_batch: self
+                .scheduler_context
+                .inference_parameters
+                .n_batch
+                .tokens_usize(),
+        };
 
         loop {
             let mut pass = BatchPass::new(&mut self.batch);
@@ -469,7 +457,15 @@ impl ContinuousBatchScheduler {
                     return Ok(());
                 }
                 DecodeOutcome::Errored(decode_error) => {
-                    return Err(anyhow::Error::new(decode_error).context("decode failed"));
+                    let description = format!(
+                        "{:?}: llama.cpp rejected the batch: {decode_error}",
+                        self.scheduler_context.agent_name
+                    );
+
+                    error!("{description}");
+                    decode_failure_phase::run(pass, &mut self.active_requests, &description);
+
+                    return Ok(());
                 }
             }
         }
@@ -477,8 +473,10 @@ impl ContinuousBatchScheduler {
 
     fn advance_generating_requests(&mut self) {
         AdvanceGeneratingPhase {
-            scheduler_context: &self.scheduler_context,
+            candidates: &mut self.candidates,
+            ingest_outcomes: &mut self.ingest_outcomes,
             llama_context: &self.llama_context,
+            scheduler_context: &self.scheduler_context,
         }
         .run(&mut self.active_requests);
     }

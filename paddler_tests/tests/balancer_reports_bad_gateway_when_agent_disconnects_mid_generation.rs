@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
@@ -26,7 +28,7 @@ async fn balancer_reports_bad_gateway_when_agent_disconnects_mid_generation() ->
                     grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
                     root: "root".to_owned(),
                 }),
-                max_tokens: i32::MAX,
+                max_tokens: NonZeroU32::MAX,
                 raw_prompt: "Repeat the word apple.".to_owned(),
             },
         )

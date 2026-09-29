@@ -1,12 +1,10 @@
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorBadRequest;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::put;
 use actix_web::web;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::validates::Validates;
 
 use crate::management_service::app_data::AppData;
 
@@ -19,17 +17,9 @@ async fn respond(
     app_data: web::Data<AppData>,
     balancer_desired_state: web::Json<BalancerDesiredState>,
 ) -> Result<impl Responder, Error> {
-    let balancer_desired_state_inner = balancer_desired_state.into_inner();
-
-    balancer_desired_state_inner
-        .inference_parameters
-        .clone()
-        .validate()
-        .map_err(ErrorBadRequest)?;
-
     app_data
         .state_database
-        .store_balancer_desired_state(&balancer_desired_state_inner)
+        .store_balancer_desired_state(&balancer_desired_state.into_inner())
         .await
         .map_err(ErrorInternalServerError)?;
 
@@ -47,6 +37,7 @@ mod tests {
     use actix_web::test::call_service;
     use actix_web::test::init_service;
     use actix_web::web::Data;
+    use serde_json::json;
     use tempfile::TempDir;
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
@@ -65,7 +56,6 @@ mod tests {
     use crate::state_database::file::File;
     use crate::state_database::memory::Memory;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
 
     fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {
@@ -121,13 +111,11 @@ mod tests {
         ));
         let app_data = build_app_data(state_database);
         let app = init_service(App::new().app_data(app_data).configure(register)).await;
-        let invalid_desired_state = BalancerDesiredState {
-            inference_parameters: InferenceParameters {
-                image_resize_to_fit: 0,
-                ..InferenceParameters::default()
-            },
-            ..BalancerDesiredState::default()
-        };
+        let mut invalid_desired_state =
+            serde_json::to_value(BalancerDesiredState::default()).unwrap();
+
+        invalid_desired_state["inference_parameters"]["penalty_last_n"] = json!(-1);
+
         let request = TestRequest::put()
             .uri("/api/v1/balancer_desired_state")
             .set_json(invalid_desired_state)

@@ -22,6 +22,7 @@ log = { workspace = true }
 open = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 parking_lot = { workspace = true }
 statum = { workspace = true }

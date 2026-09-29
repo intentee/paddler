@@ -21,6 +21,7 @@ log = { workspace = true }
 nanoid = { workspace = true }
 paddler_agent = { workspace = true }
 paddler_balancer = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

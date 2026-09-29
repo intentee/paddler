@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -38,7 +40,7 @@ async fn agent_rejects_image_prompt_containing_media_marker_text() -> Result<()>
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 20,
+                max_tokens: NonZeroU32::new(20).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::future;
@@ -31,7 +33,7 @@ async fn agent_reports_independent_usage_for_concurrent_requests() -> Result<()>
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 30,
+                max_tokens: NonZeroU32::new(30).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

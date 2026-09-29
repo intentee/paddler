@@ -17,6 +17,7 @@ use serde_json::json;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::compatibility::openai_service::arguments_to_tool_call_string::arguments_to_tool_call_string;
+use crate::compatibility::openai_service::chat_completion_finish_reason::chat_completion_finish_reason;
 use crate::compatibility::openai_service::openai_non_streaming_state::OpenAINonStreamingState;
 use crate::compatibility::openai_service::openai_usage_json::openai_usage_json;
 use crate::compatibility::openai_service::try_universal_error_chunk::try_universal_error_chunk;
@@ -41,7 +42,7 @@ impl OpenAINonStreamingResponseTransformer {
         let snapshot = take(&mut *self.state.lock());
 
         let has_tool_calls = !snapshot.tool_calls.is_empty();
-        let finish_reason = if has_tool_calls { "tool_calls" } else { "stop" };
+        let finish_reason = chat_completion_finish_reason(summary.finish, has_tool_calls);
 
         let mut message = json!({
             "role": "assistant",
@@ -150,6 +151,7 @@ mod tests {
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
     use paddler_messaging::inference_client::notification::Notification;
@@ -157,6 +159,7 @@ mod tests {
     use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+    use paddler_messaging::oversized_media_details::OversizedMediaDetails;
     use parking_lot::Mutex;
     use serde_json::json;
 
@@ -201,6 +204,7 @@ mod tests {
         reasoning_tokens: u64,
     ) -> GenerationSummary {
         GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
             usage: TokenUsage {
                 prompt_tokens,
                 content_tokens,
@@ -462,7 +466,7 @@ mod tests {
 
         assert_eq!(chunks.len(), 1);
         assert_error_body_contains(&chunks[0], "unsupported format");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_error_body_contains(&chunks[0], "invalid_request_error");
     }
 
     #[tokio::test]
@@ -479,17 +483,17 @@ mod tests {
 
         assert_eq!(chunks.len(), 1);
         assert_error_body_contains(&chunks[0], "model does not support images");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_error_body_contains(&chunks[0], "invalid_request_error");
     }
 
     #[tokio::test]
-    async fn non_streaming_image_exceeds_batch_size_returns_error_variant() {
+    async fn non_streaming_media_exceeding_the_micro_batch_returns_error_variant() {
         let transformer = non_streaming_transformer();
 
-        let message = token_message(GeneratedTokenResult::ImageExceedsBatchSize(
-            paddler_messaging::oversized_image_details::OversizedImageDetails {
-                image_tokens: 368,
-                n_batch: 100,
+        let message = token_message(GeneratedTokenResult::MediaExceedsMicroBatch(
+            OversizedMediaDetails {
+                media_tokens: 256,
+                micro_batch_tokens: 128,
             },
         ));
         let chunks = transformer
@@ -498,9 +502,9 @@ mod tests {
             .expect("the transformer must accept the message");
 
         assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "368");
-        assert_error_body_contains(&chunks[0], "100");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_error_body_contains(&chunks[0], "256");
+        assert_error_body_contains(&chunks[0], "128");
+        assert_error_body_contains(&chunks[0], "invalid_request_error");
     }
 
     #[tokio::test]

@@ -62,6 +62,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use std::mem::discriminant;
     use std::sync::Arc;
     use std::time::Duration;
@@ -105,7 +107,7 @@ mod tests {
             inference_service_configuration(),
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 1,
+                max_tokens: NonZeroU32::new(1).unwrap(),
                 raw_prompt: "fixture prompt".to_owned(),
             },
             IdentityTransformer::new(),

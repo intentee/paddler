@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -16,7 +18,7 @@ async fn agent_rejects_raw_prompt_containing_nul_byte() -> Result<()> {
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 20,
+                max_tokens: NonZeroU32::new(20).unwrap(),
                 raw_prompt: "before\0after".to_owned(),
             },
         )

@@ -1,8 +1,8 @@
 use anyhow::Error as AnyhowError;
-use llama_cpp_bindings::error::ChatToolsError;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::error::GrammarError;
 use llama_cpp_bindings::error::JsonSchemaToGrammarError;
+use llama_cpp_bindings::error::ParseChatMessageError;
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::error::StringToTokenError;
 use llama_cpp_bindings::mtmd::MtmdBitmapError;
@@ -10,7 +10,7 @@ use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdTokenizeError;
 use log::error;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::oversized_image_details::OversizedImageDetails;
+use paddler_messaging::oversized_media_details::OversizedMediaDetails;
 use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 use tokio::sync::mpsc;
 
@@ -48,8 +48,8 @@ pub enum GenerationRequestRejection {
     #[error("failed to serialize tools: {0}")]
     ToolsSerializationFailed(#[source] serde_json::Error),
 
-    #[error("serialized tools are not a valid tool list: {0}")]
-    ChatToolsInvalid(#[source] ChatToolsError),
+    #[error("failed to build this model's tool call parser: {0}")]
+    ToolCallParserCreationFailed(#[source] ParseChatMessageError),
 
     #[error("failed to tokenize prompt: {0}")]
     PromptTokenizationFailed(#[source] StringToTokenError),
@@ -67,6 +67,8 @@ pub enum GenerationRequestRejection {
     #[error("no available sequence slots, all slots are busy")]
     NoSequenceSlotAvailable,
 
+    #[error("invalid grammar: {0}")]
+    GrammarInvalid(#[source] GrammarError),
     #[error("failed to initialize grammar sampler: {0}")]
     GrammarSamplerInitializationFailed(#[source] GrammarError),
 
@@ -77,33 +79,61 @@ pub enum GenerationRequestRejection {
     MultimodalTokenizationFailed(#[source] MtmdTokenizeError),
 
     #[error(
-        "image chunk has {} tokens but n_batch is {}",
-        details.image_tokens,
-        details.n_batch
+        "media chunk has {} tokens but one micro batch holds {} tokens",
+        details.media_tokens,
+        details.micro_batch_tokens
     )]
-    ImageExceedsBatchSize { details: OversizedImageDetails },
+    MediaExceedsMicroBatch { details: OversizedMediaDetails },
+    #[error("failed to check media chunks against the micro batch: {0}")]
+    MediaMicroBatchCheckFailed(#[source] MtmdEvalError),
 
     #[error("failed to ingest multimodal prompt: {0}")]
     MultimodalIngestionFailed(#[source] EvalMultimodalChunksError),
 }
 
-impl From<EvalMultimodalChunksError> for GenerationRequestRejection {
-    fn from(error: EvalMultimodalChunksError) -> Self {
-        match error {
-            EvalMultimodalChunksError::EvalFailed(MtmdEvalError::ImageChunkExceedsBatchSize(
-                mismatch,
-            )) => Self::ImageExceedsBatchSize {
-                details: OversizedImageDetails {
-                    image_tokens: mismatch.image_tokens,
-                    n_batch: mismatch.n_batch,
-                },
-            },
-            other_error => Self::MultimodalIngestionFailed(other_error),
+impl GenerationRequestRejection {
+    #[must_use]
+    pub const fn for_gbnf_grammar_error(grammar_error: GrammarError) -> Self {
+        match grammar_error {
+            GrammarError::GrammarContainsNul(_)
+            | GrammarError::GrammarRejected(_)
+            | GrammarError::RootContainsNul(_)
+            | GrammarError::RootNotFound => Self::GrammarInvalid(grammar_error),
+            GrammarError::FfiContract(_)
+            | GrammarError::FfiStatus(_)
+            | GrammarError::GrammarMalformed
+            | GrammarError::InvalidTriggerPattern { .. }
+            | GrammarError::LazyGrammarMalformed
+            | GrammarError::LlamaCppOutOfMemory
+            | GrammarError::LlguidanceFactoryUnavailable { .. }
+            | GrammarError::LlguidanceGrammarInvalid { .. }
+            | GrammarError::LlguidanceParserUnavailable { .. }
+            | GrammarError::NotEnoughMemory
+            | GrammarError::Reported { .. }
+            | GrammarError::SamplerInitialization(_)
+            | GrammarError::SequenceBreakerContainsNul(_)
+            | GrammarError::TokEnvUnavailable(_)
+            | GrammarError::TriggerPatternContainsNul(_) => {
+                Self::GrammarSamplerInitializationFailed(grammar_error)
+            }
         }
     }
-}
 
-impl GenerationRequestRejection {
+    #[must_use]
+    pub fn for_micro_batch_fit_error(fit_error: MtmdEvalError) -> Self {
+        match fit_error {
+            MtmdEvalError::NonCausalChunkExceedsMicroBatch(mismatch) => {
+                Self::MediaExceedsMicroBatch {
+                    details: OversizedMediaDetails {
+                        media_tokens: mismatch.chunk_tokens,
+                        micro_batch_tokens: mismatch.micro_batch_tokens,
+                    },
+                }
+            }
+            other_fit_error => Self::MediaMicroBatchCheckFailed(other_fit_error),
+        }
+    }
+
     pub fn report(
         self,
         agent_name: Option<&str>,
@@ -126,27 +156,29 @@ impl GenerationRequestRejection {
             Self::GrammarIncompatibleWithThinking => {
                 GeneratedTokenResult::GrammarIncompatibleWithThinking(message)
             }
-            Self::GrammarConversionFailed(_) => GeneratedTokenResult::GrammarSyntaxError(message),
+            Self::GrammarConversionFailed(_) | Self::GrammarInvalid(_) => {
+                GeneratedTokenResult::GrammarSyntaxError(message)
+            }
             Self::TokenGenerationDisabled => GeneratedTokenResult::TokenGenerationDisabled(message),
             Self::ImageDecodingFailed(_) | Self::ImageBitmapCreationFailed(_) => {
                 GeneratedTokenResult::ImageDecodingFailed(message)
             }
             Self::MultimodalNotSupported => GeneratedTokenResult::MultimodalNotSupported(message),
-            Self::ChatTemplateRenderingFailed(_) => {
+            Self::ChatTemplateRenderingFailed(_) | Self::ToolCallParserCreationFailed(_) => {
                 GeneratedTokenResult::ChatTemplateError(message)
             }
             Self::ToolSchemaInvalid(_) => GeneratedTokenResult::ToolSchemaInvalid(message),
             Self::GrammarSamplerInitializationFailed(_) => {
                 GeneratedTokenResult::GrammarInitializationFailed(message)
             }
-            Self::ImageExceedsBatchSize { details } => {
-                GeneratedTokenResult::ImageExceedsBatchSize(details)
+            Self::MediaExceedsMicroBatch { details } => {
+                GeneratedTokenResult::MediaExceedsMicroBatch(details)
             }
             Self::PromptExceedsContextSize { details } => {
                 GeneratedTokenResult::PromptExceedsContextSize(details)
             }
             Self::ToolsSerializationFailed(_)
-            | Self::ChatToolsInvalid(_)
+            | Self::MediaMicroBatchCheckFailed(_)
             | Self::PromptTokenizationFailed(_)
             | Self::SchedulerUnavailable
             | Self::NoSequenceSlotAvailable
@@ -161,14 +193,16 @@ impl GenerationRequestRejection {
 mod tests {
     use anyhow::anyhow;
     use llama_cpp_bindings::error::EvalMultimodalChunksError;
+    use llama_cpp_bindings::error::FfiContractError;
     use llama_cpp_bindings::error::FfiStatusError;
     use llama_cpp_bindings::error::GrammarError;
     use llama_cpp_bindings::error::JsonSchemaToGrammarError;
-    use llama_cpp_bindings::mtmd::ImageChunkBatchSizeMismatch;
+    use llama_cpp_bindings::error::ParseChatMessageError;
     use llama_cpp_bindings::mtmd::MtmdEvalError;
+    use llama_cpp_bindings::mtmd::NonCausalChunkMicroBatchMismatch;
     use paddler_image_decoder::decoded_image_error::DecodedImageError;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
-    use paddler_messaging::oversized_image_details::OversizedImageDetails;
+    use paddler_messaging::oversized_media_details::OversizedMediaDetails;
     use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
     use paddler_tool_call_validator::validator_build_error::ValidatorBuildError;
     use tokio::sync::mpsc;
@@ -288,20 +322,81 @@ mod tests {
     }
 
     #[test]
-    fn reports_oversized_image_chunk_with_its_token_counts() {
-        let rejection = GenerationRequestRejection::from(EvalMultimodalChunksError::EvalFailed(
-            MtmdEvalError::ImageChunkExceedsBatchSize(ImageChunkBatchSizeMismatch {
-                image_tokens: 9,
-                n_batch: 4,
-            }),
+    fn reports_a_grammar_the_client_malformed_as_grammar_syntax_error() {
+        let expected_message =
+            agent_message(&format!("invalid grammar: {}", GrammarError::RootNotFound));
+
+        assert_eq!(
+            reported(GenerationRequestRejection::for_gbnf_grammar_error(
+                GrammarError::RootNotFound
+            )),
+            GeneratedTokenResult::GrammarSyntaxError(expected_message)
+        );
+    }
+
+    #[test]
+    fn reports_a_grammar_the_agent_failed_to_initialize_as_grammar_initialization_failure() {
+        let expected_message = agent_message(&format!(
+            "failed to initialize grammar sampler: {}",
+            GrammarError::NotEnoughMemory
         ));
 
         assert_eq!(
+            reported(GenerationRequestRejection::for_gbnf_grammar_error(
+                GrammarError::NotEnoughMemory
+            )),
+            GeneratedTokenResult::GrammarInitializationFailed(expected_message)
+        );
+    }
+
+    #[test]
+    fn reports_tool_call_parser_creation_failure_as_chat_template_error() {
+        let parser_error = ParseChatMessageError::ToolsNotAnArray;
+        let expected_message = agent_message(&format!(
+            "failed to build this model's tool call parser: {parser_error}"
+        ));
+
+        assert_eq!(
+            reported(GenerationRequestRejection::ToolCallParserCreationFailed(
+                parser_error
+            )),
+            GeneratedTokenResult::ChatTemplateError(expected_message)
+        );
+    }
+
+    #[test]
+    fn reports_media_exceeding_the_micro_batch_with_its_token_counts() {
+        let rejection = GenerationRequestRejection::for_micro_batch_fit_error(
+            MtmdEvalError::NonCausalChunkExceedsMicroBatch(NonCausalChunkMicroBatchMismatch {
+                chunk_tokens: 256,
+                micro_batch_tokens: 128,
+            }),
+        );
+
+        assert_eq!(
             reported(rejection),
-            GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
-                image_tokens: 9,
-                n_batch: 4,
+            GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
+                media_tokens: 256,
+                micro_batch_tokens: 128,
             })
+        );
+    }
+
+    #[test]
+    fn reports_other_micro_batch_check_failures_as_sampler_error() {
+        let fit_error = MtmdEvalError::FfiContract(FfiContractError {
+            operation: "mtmd_input_chunks_get",
+            detail: "returned a null chunk within the chunk count",
+        });
+        let expected_message = agent_message(&format!(
+            "failed to check media chunks against the micro batch: {fit_error}"
+        ));
+
+        assert_eq!(
+            reported(GenerationRequestRejection::for_micro_batch_fit_error(
+                fit_error
+            )),
+            GeneratedTokenResult::SamplerError(expected_message)
         );
     }
 
@@ -323,8 +418,9 @@ mod tests {
 
     #[test]
     fn reports_other_multimodal_ingestion_failures_as_sampler_error() {
-        let rejection =
-            GenerationRequestRejection::from(EvalMultimodalChunksError::ChunkOutOfBounds(3));
+        let rejection = GenerationRequestRejection::MultimodalIngestionFailed(
+            EvalMultimodalChunksError::ChunkOutOfBounds(3),
+        );
 
         assert_eq!(
             reported(rejection),

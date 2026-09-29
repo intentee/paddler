@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -19,7 +21,7 @@ async fn balancer_serves_inference_over_websocket() -> Result<()> {
             CancellationToken::new(),
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 16,
+                max_tokens: NonZeroU32::new(16).unwrap(),
                 raw_prompt: "The capital of France is".to_owned(),
             },
         )

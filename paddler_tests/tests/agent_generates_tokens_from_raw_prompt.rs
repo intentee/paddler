@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -15,7 +17,7 @@ async fn agent_generates_tokens_from_raw_prompt() -> Result<()> {
     let collected = cluster
         .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 30,
+            max_tokens: NonZeroU32::new(30).unwrap(),
             raw_prompt:
                 "<|im_start|>user\nHow can I make a cat happy?<|im_end|>\n<|im_start|>assistant\n"
                     .to_owned(),

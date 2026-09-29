@@ -1,16 +1,18 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use std::future::Future;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
@@ -19,6 +21,8 @@ use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
+
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
 fn run_inference_after_template_swap(
     cluster: &Cluster,
@@ -33,7 +37,7 @@ fn run_inference_after_template_swap(
             }]),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 10,
+            max_tokens: MAX_TOKENS,
             parse_tool_calls: false,
             tools: vec![],
         },

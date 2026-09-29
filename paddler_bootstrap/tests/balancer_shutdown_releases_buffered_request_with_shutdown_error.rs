@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use std::time::Duration;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
@@ -27,7 +29,7 @@ async fn balancer_shutdown_releases_buffered_request_with_shutdown_error() {
         ))
         .json(&ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 10,
+            max_tokens: NonZeroU32::new(10).unwrap(),
             raw_prompt: "hold the connection open during shutdown".to_owned(),
         })
         .send()

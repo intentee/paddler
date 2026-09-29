@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -30,7 +32,7 @@ async fn agent_conversation_with_gbnf_grammar_constrains_output() -> Result<()> 
                     grammar: r"root ::= [Yy][Ee][Ss] | [Nn][Oo]".to_owned(),
                     root: "root".to_owned(),
                 }),
-                max_tokens: 10,
+                max_tokens: NonZeroU32::new(10).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

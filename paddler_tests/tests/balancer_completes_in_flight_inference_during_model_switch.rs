@@ -1,14 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
@@ -29,7 +31,7 @@ async fn balancer_completes_in_flight_inference_during_model_switch() -> Result<
                     grammar: format!("root ::= \"{expected_output}\""),
                     root: "root".to_owned(),
                 }),
-                max_tokens: 200,
+                max_tokens: NonZeroU32::new(200).unwrap(),
                 raw_prompt: "Say the following: the quick brown fox jumps over the lazy dog"
                     .to_owned(),
             },

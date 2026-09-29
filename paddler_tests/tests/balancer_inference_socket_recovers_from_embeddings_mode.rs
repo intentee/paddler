@@ -1,17 +1,19 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -20,12 +22,13 @@ use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(16).unwrap();
 const MODEL_RELOAD_CEILING: Duration = Duration::from_mins(2);
 
 fn capital_of_france_prompt() -> ContinueFromRawPromptParams {
     ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 16,
+        max_tokens: MAX_TOKENS,
         raw_prompt: "The capital of France is".to_owned(),
     }
 }

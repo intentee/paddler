@@ -1,9 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
@@ -18,7 +20,7 @@ async fn agent_embeds_a_document_longer_than_the_default_micro_batch() -> Result
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
         inference_parameters: InferenceParameters {
-            context_size: NOMIC_TRAINING_CONTEXT_SIZE,
+            context_size: NonZeroU32::try_from(NOMIC_TRAINING_CONTEXT_SIZE)?,
             enable_embeddings: true,
             ..InferenceParameters::default()
         },

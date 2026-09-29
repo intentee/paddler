@@ -5,6 +5,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
@@ -58,11 +59,19 @@ impl ResponsesStreamingResponseTransformer {
         state.close_open_item(events);
 
         let output = take(&mut state.finalized_output);
-        let completed_sequence_number = state.next_sequence_number();
-        events.push(ResponsesStreamEvent::Completed(ResponseSnapshotEvent {
-            sequence_number: completed_sequence_number,
-            response: self.builder.completed(output, &summary.usage),
-        }));
+        let snapshot = ResponseSnapshotEvent {
+            sequence_number: state.next_sequence_number(),
+            response: self
+                .builder
+                .finished(output, &summary.usage, summary.finish),
+        };
+
+        events.push(match summary.finish {
+            GenerationFinish::EndOfGeneration | GenerationFinish::StopRequested => {
+                ResponsesStreamEvent::Completed(snapshot)
+            }
+            GenerationFinish::MaxTokens => ResponsesStreamEvent::Incomplete(snapshot),
+        });
     }
 }
 
@@ -142,6 +151,7 @@ mod tests {
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
     use paddler_messaging::inference_client::notification::Notification;
@@ -178,6 +188,7 @@ mod tests {
         reasoning_tokens: u64,
     ) -> GenerationSummary {
         GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
             usage: TokenUsage {
                 prompt_tokens,
                 content_tokens,

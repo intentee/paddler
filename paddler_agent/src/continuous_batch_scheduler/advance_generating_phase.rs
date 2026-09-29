@@ -1,32 +1,35 @@
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use log::error;
 use log::warn;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_scheduler::advance_outcome::AdvanceOutcome;
 use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
-use crate::continuous_batch_scheduler::classify_token_phase;
 use crate::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
-use crate::continuous_batch_scheduler::completion_check_phase::CompletionCheckPhase;
+use crate::continuous_batch_scheduler::completion_check_phase;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 use crate::continuous_batch_scheduler::emit_token_phase;
 use crate::continuous_batch_scheduler::sample_outcome::SampleOutcome;
 use crate::continuous_batch_scheduler::sample_token_phase::SampleTokenPhase;
-use crate::continuous_batch_scheduler::tool_call_pass;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 
 pub struct AdvanceGeneratingPhase<'context> {
-    pub scheduler_context: &'context ContinuousBatchSchedulerContext,
+    pub candidates: &'context mut LlamaTokenDataArray,
+    pub ingest_outcomes: &'context mut Vec<IngestOutcome>,
     pub llama_context: &'context LlamaContext<'context>,
+    pub scheduler_context: &'context ContinuousBatchSchedulerContext,
 }
 
 impl AdvanceGeneratingPhase<'_> {
-    pub fn run(self, requests: &mut [ContinuousBatchActiveRequest]) {
+    pub fn run(mut self, requests: &mut [ContinuousBatchActiveRequest]) {
         for request in requests {
             let outcome = self.advance_one(request);
 
@@ -34,7 +37,10 @@ impl AdvanceGeneratingPhase<'_> {
         }
     }
 
-    fn advance_one(&self, request: &mut ContinuousBatchActiveRequest) -> Option<AdvanceOutcome> {
+    fn advance_one(
+        &mut self,
+        request: &mut ContinuousBatchActiveRequest,
+    ) -> Option<AdvanceOutcome> {
         if !matches!(request.state.phase, ContinuousBatchRequestPhase::Generating) {
             return None;
         }
@@ -48,7 +54,7 @@ impl AdvanceGeneratingPhase<'_> {
         let raw_token = match (SampleTokenPhase {
             context: self.llama_context,
         })
-        .run(request, batch_index)
+        .run(request, batch_index, self.candidates)
         {
             SampleOutcome::Sampled(token) => token,
             SampleOutcome::AllCandidatesEliminated => {
@@ -85,55 +91,78 @@ impl AdvanceGeneratingPhase<'_> {
             }
         };
 
-        let classified_outcomes = match classify_token_phase::run(request, raw_token) {
-            Ok(outcomes) => outcomes,
-            Err(error) => {
+        request.state.record_sampled_token();
+        self.ingest_outcomes.clear();
+
+        let progress = match request
+            .token_classifier
+            .ingest(raw_token, self.ingest_outcomes)
+        {
+            Ok(progress) => progress,
+            Err(detokenization_error) => {
                 error!(
-                    "{:?}: sequence {} token classification failed: {error:#}",
+                    "{:?}: sequence {} token classification failed: {detokenization_error}",
                     self.scheduler_context.agent_name,
                     request.sequence_id_guard.sequence_id()
                 );
 
                 return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::DetokenizationFailed(error.to_string()),
+                    GeneratedTokenResult::DetokenizationFailed(detokenization_error.to_string()),
                 ));
             }
         };
 
-        let raw_as_sampled = SampledToken::Content(raw_token);
-        let completion = CompletionCheckPhase {
-            model: &self.scheduler_context.model,
-        }
-        .run(request, &raw_as_sampled);
+        let completion = completion_check_phase::run(
+            progress,
+            request.state.max_tokens,
+            request.state.sampled_tokens,
+            request.token_classifier.usage(),
+        );
 
-        if !matches!(completion, CompletionCheckOutcome::ReachedEog)
-            && self.client_disconnected_while_emitting(request, &classified_outcomes)
-        {
+        if matches!(completion, CompletionCheckOutcome::ReachedMaxTokens) {
+            request.token_classifier.finish(self.ingest_outcomes);
+        }
+
+        if self.client_disconnected_while_emitting(request) {
             return Some(AdvanceOutcome::ChannelDropped);
         }
 
         match completion {
-            CompletionCheckOutcome::ReachedEog | CompletionCheckOutcome::ReachedMaxTokens => {
-                Some(self.complete_after_flushing_tool_calls(request))
+            CompletionCheckOutcome::Continue => Some(AdvanceOutcome::SampledAndStored(
+                SampledToken::Content(raw_token),
+            )),
+            CompletionCheckOutcome::ReachedEndOfGeneration => {
+                Some(self.complete_after_resolving_tool_calls(
+                    request,
+                    GenerationFinish::EndOfGeneration,
+                ))
             }
-            CompletionCheckOutcome::Continue => {
-                Some(AdvanceOutcome::SampledAndStored(raw_as_sampled))
+            CompletionCheckOutcome::ReachedMaxTokens => {
+                Some(self.complete_after_resolving_tool_calls(request, GenerationFinish::MaxTokens))
             }
         }
     }
 
     fn client_disconnected_while_emitting(
-        &self,
+        &mut self,
         request: &mut ContinuousBatchActiveRequest,
-        classified_outcomes: &[ClassifiedToken],
     ) -> bool {
-        for classified in classified_outcomes {
+        for ingest_outcome in self.ingest_outcomes.drain(..) {
+            let classified =
+                ClassifiedToken::classify(ingest_outcome, &mut request.state.last_outcome_section);
+
+            request.tool_call_handling.feed(&classified);
+
+            let tool_call_result = request
+                .tool_call_handling
+                .resolve_on_section_exit(&classified);
+
             if matches!(
-                emit_token_phase::run(request, classified),
+                emit_token_phase::run(&request.generated_tokens_tx, classified),
                 EmitTokenOutcome::ChannelDropped
-            ) || tool_call_pass::run(request.tool_call_pipeline.as_mut(), classified)
-                .is_some_and(|event| request.generated_tokens_tx.send(event).is_err())
-            {
+            ) || tool_call_result.is_some_and(|tool_call_result| {
+                request.generated_tokens_tx.send(tool_call_result).is_err()
+            }) {
                 warn!(
                     "{:?}: sequence {} client disconnected (receiver dropped)",
                     self.scheduler_context.agent_name,
@@ -147,17 +176,16 @@ impl AdvanceGeneratingPhase<'_> {
         false
     }
 
-    fn complete_after_flushing_tool_calls(
+    fn complete_after_resolving_tool_calls(
         &self,
         request: &mut ContinuousBatchActiveRequest,
+        finish: GenerationFinish,
     ) -> AdvanceOutcome {
-        if let Some(pipeline) = request.tool_call_pipeline.as_mut()
-            && !pipeline.buffer_is_empty()
-            && let Some(event) = pipeline.finalize_to_generated_event()
-            && request.generated_tokens_tx.send(event).is_err()
+        if let Some(tool_call_result) = request.tool_call_handling.resolve_at_completion()
+            && request.generated_tokens_tx.send(tool_call_result).is_err()
         {
             warn!(
-                "{:?}: sequence {} client disconnected (receiver dropped) during the tool-call flush at completion",
+                "{:?}: sequence {} client disconnected (receiver dropped) while resolving tool calls at completion",
                 self.scheduler_context.agent_name,
                 request.sequence_id_guard.sequence_id()
             );
@@ -166,6 +194,7 @@ impl AdvanceGeneratingPhase<'_> {
         }
 
         AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
+            finish,
             usage: *request.token_classifier.usage(),
         }))
     }

@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -31,7 +33,7 @@ async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 10,
+                max_tokens: NonZeroU32::new(10).unwrap(),
                 raw_prompt: "Hello".to_owned(),
             },
         )

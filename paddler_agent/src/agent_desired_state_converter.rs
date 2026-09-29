@@ -89,11 +89,11 @@ mod tests {
     use tempfile::TempDir;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
-    use paddler_messaging::inference_parameters::InferenceParameters;
     use paddler_state_conversion::converts_to_applicable_state::ConvertsToApplicableState as _;
 
     use crate::agent_desired_state_converter::AgentDesiredStateConverter;

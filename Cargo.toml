@@ -10,6 +10,7 @@ members = [
     "paddler_download_manager",
     "paddler_gui",
     "paddler_image_decoder",
+    "paddler_inference_parameters",
     "paddler_local_http_fixture",
     "paddler_messaging",
     "paddler_openai_response_format_validator",
@@ -61,9 +62,9 @@ httparse = "1.10"
 image = "0.25"
 indoc = "2"
 jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = "0.15"
-llama-cpp-bindings-sys = "0.15"
-llama-cpp-bindings-types = "0.15"
+llama-cpp-bindings = "0.16"
+llama-cpp-bindings-sys = "0.16"
+llama-cpp-bindings-types = "0.16"
 base64 = "0.22"
 log = "0.4"
 mime_guess = "2"
@@ -105,6 +106,7 @@ paddler_cli = { version = "4.1.0", path = "paddler_cli" }
 paddler_client = { version = "4.1.0", path = "paddler_client" }
 paddler_download_manager = { version = "4.1.0", path = "paddler_download_manager" }
 paddler_image_decoder = { version = "4.1.0", path = "paddler_image_decoder" }
+paddler_inference_parameters = { version = "4.1.0", path = "paddler_inference_parameters" }
 paddler_local_http_fixture = { path = "paddler_local_http_fixture" }
 paddler_messaging = { version = "4.1.0", path = "paddler_messaging" }
 paddler_openai_response_format_validator = { path = "paddler_openai_response_format_validator" }

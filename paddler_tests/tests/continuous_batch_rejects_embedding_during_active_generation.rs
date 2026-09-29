@@ -1,14 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -36,7 +38,7 @@ async fn continuous_batch_rejects_embedding_during_active_generation() -> Result
                     grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
                     root: "root".to_owned(),
                 }),
-                max_tokens: i32::MAX,
+                max_tokens: NonZeroU32::MAX,
                 raw_prompt: "Repeat the word apple.".to_owned(),
             },
         )

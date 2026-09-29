@@ -155,6 +155,8 @@ impl ReportsHealth for ClientInference {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use std::num::NonZeroUsize;
 
     use paddler_messaging::conversation_history::ConversationHistory;
@@ -181,7 +183,7 @@ mod tests {
     fn raw_prompt_params() -> ContinueFromRawPromptParams {
         ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 16,
+            max_tokens: NonZeroU32::new(16).unwrap(),
             raw_prompt: "hello".to_owned(),
         }
     }
@@ -193,7 +195,7 @@ mod tests {
             conversation_history: ConversationHistory::new(Vec::new()),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 16,
+            max_tokens: NonZeroU32::new(16).unwrap(),
             parse_tool_calls: false,
             tools: Vec::new(),
         }

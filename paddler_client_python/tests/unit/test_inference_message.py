@@ -2,8 +2,8 @@ import pytest
 
 from paddler_client.error import (
     GeneratedTokenResultNotAnObjectError,
-    ImageExceedsBatchSizePayloadNotAnObjectError,
     InferenceClientMessageNotAnObjectError,
+    MediaExceedsMicroBatchPayloadNotAnObjectError,
     PromptExceedsContextSizePayloadNotAnObjectError,
     ToolCallParsedPayloadNotAListError,
     ToolCallValidationFailedPayloadNotAListError,
@@ -13,6 +13,7 @@ from paddler_client.error import (
     UnknownResponseVariantError,
     UnrecognizedToolCallFormatPayloadNotAnObjectError,
 )
+from paddler_client.generation_finish import GenerationFinish
 from paddler_client.inference_message import (
     InferenceMessageKind,
     parse_inference_client_message,
@@ -207,16 +208,16 @@ def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> N
         parse_inference_client_message(data)
 
 
-def test_parse_image_exceeds_batch_size_response_carries_token_counts() -> None:
+def test_parse_media_exceeds_micro_batch_response_carries_token_counts() -> None:
     data = {
         "Response": {
             "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
-                    "ImageExceedsBatchSize": {
-                        "image_tokens": 368,
-                        "n_batch": 100,
+                    "MediaExceedsMicroBatch": {
+                        "media_tokens": 368,
+                        "micro_batch_tokens": 100,
                     },
                 },
             },
@@ -224,25 +225,25 @@ def test_parse_image_exceeds_batch_size_response_carries_token_counts() -> None:
     }
     message = parse_inference_client_message(data)
 
-    assert message.kind == InferenceMessageKind.IMAGE_EXCEEDS_BATCH_SIZE
-    assert message.oversized_image_details is not None
-    assert message.oversized_image_details.image_tokens == 368
-    assert message.oversized_image_details.n_batch == 100
+    assert message.kind == InferenceMessageKind.MEDIA_EXCEEDS_MICRO_BATCH
+    assert message.oversized_media_details is not None
+    assert message.oversized_media_details.media_tokens == 368
+    assert message.oversized_media_details.micro_batch_tokens == 100
     assert not message.is_token
 
 
-def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
+def test_parse_media_exceeds_micro_batch_with_non_dict_payload_raises() -> None:
     data = {
         "Response": {
             "generated_by": None,
             "request_id": "req-1",
             "response": {
-                "GeneratedToken": {"ImageExceedsBatchSize": "scalar payload"},
+                "GeneratedToken": {"MediaExceedsMicroBatch": "scalar payload"},
             },
         },
     }
 
-    with pytest.raises(ImageExceedsBatchSizePayloadNotAnObjectError):
+    with pytest.raises(MediaExceedsMicroBatchPayloadNotAnObjectError):
         parse_inference_client_message(data)
 
 
@@ -308,6 +309,7 @@ def test_parse_done_response_carries_summary() -> None:
             "response": {
                 "GeneratedToken": {
                     "Done": {
+                        "finish": "MaxTokens",
                         "usage": {
                             "prompt_tokens": 4,
                             "cached_prompt_tokens": 0,
@@ -317,7 +319,7 @@ def test_parse_done_response_carries_summary() -> None:
                             "reasoning_tokens": 1,
                             "tool_call_tokens": 0,
                             "undeterminable_tokens": 0,
-                        }
+                        },
                     }
                 }
             },
@@ -329,6 +331,7 @@ def test_parse_done_response_carries_summary() -> None:
     assert message.is_done
     assert message.is_terminal
     assert message.summary is not None
+    assert message.summary.finish == GenerationFinish.MAX_TOKENS
     assert message.summary.usage.prompt_tokens == 4
     assert message.summary.usage.content_tokens == 6
     assert message.summary.usage.reasoning_tokens == 1
@@ -619,7 +622,8 @@ def test_parse_json_string() -> None:
     json_str = (
         '{"Response": {"generated_by": null, "request_id": "req-1", '
         '"response": {"GeneratedToken": '
-        '{"Done": {"usage": {"prompt_tokens": 0, "cached_prompt_tokens": 0, '
+        '{"Done": {"finish": "EndOfGeneration", "usage": {"prompt_tokens": 0, '
+        '"cached_prompt_tokens": 0, '
         '"input_image_tokens": 0, "input_audio_tokens": 0, "content_tokens": 0, '
         '"reasoning_tokens": 0, "tool_call_tokens": 0, "undeterminable_tokens": 0}}}}}}'
     )

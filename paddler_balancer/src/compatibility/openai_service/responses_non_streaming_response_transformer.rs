@@ -63,8 +63,12 @@ impl ResponsesNonStreamingResponseTransformer {
             ));
         }
 
-        serde_json::to_string(&self.builder.completed(output, &summary.usage))
-            .context("serializing non-streaming responses completion")
+        serde_json::to_string(
+            &self
+                .builder
+                .finished(output, &summary.usage, summary.finish),
+        )
+        .context("serializing non-streaming responses completion")
     }
 }
 
@@ -129,6 +133,7 @@ mod tests {
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
     use paddler_messaging::inference_client::notification::Notification;
@@ -161,6 +166,7 @@ mod tests {
         reasoning_tokens: u64,
     ) -> GenerationSummary {
         GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
             usage: TokenUsage {
                 prompt_tokens,
                 content_tokens,

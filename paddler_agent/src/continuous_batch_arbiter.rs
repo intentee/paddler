@@ -1,4 +1,3 @@
-use core::num::NonZeroU32;
 use std::cmp::max;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,18 +15,19 @@ use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::model::params::LlamaModelParams;
 use llama_cpp_bindings::mtmd::MtmdContext;
 use llama_cpp_bindings::mtmd::MtmdContextParams;
+use llama_cpp_bindings::mtmd::micro_batch_tokens;
 use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings_sys::LLAMA_FLASH_ATTN_TYPE_AUTO;
 use log::debug;
 use log::error;
 use log::info;
 use log::warn;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 use paddler_messaging::chat_template::ChatTemplate;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::model_metadata::ModelMetadata;
 use tokio::sync::oneshot;
@@ -57,6 +57,7 @@ use crate::join_scheduler_thread::join_scheduler_thread;
 use crate::model_metadata_holder::ModelMetadataHolder;
 use crate::multimodal_prompt_support::MultimodalPromptSupport;
 use crate::prompt_tokenizer::PromptTokenizer;
+use crate::sampler_chain_factory::SamplerChainFactory;
 use crate::send_startup_signal::send_startup_signal;
 use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 use crate::token_generation::TokenGeneration;
@@ -140,20 +141,19 @@ impl ContinuousBatchArbiter {
             let llama_backend =
                 Arc::new(LlamaBackend::init().context("Unable to initialize llama.cpp backend")?);
 
-            let inference_parameters_n_batch_u32 = u32::try_from(inference_parameters.n_batch)
-                .context("n_batch does not fit in u32")?;
+            let n_batch_tokens = inference_parameters.n_batch.tokens().get();
 
             let default_context_params = LlamaContextParams::default();
             let n_ubatch = if inference_parameters.enable_embeddings {
-                inference_parameters_n_batch_u32
+                n_batch_tokens
             } else {
                 default_context_params.n_ubatch()
             };
 
             let context_params = default_context_params
                 .with_embeddings(inference_parameters.enable_embeddings)
-                .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
-                .with_n_batch(inference_parameters_n_batch_u32)
+                .with_n_ctx(Some(inference_parameters.context_size))
+                .with_n_batch(n_batch_tokens)
                 .with_n_ubatch(n_ubatch)
                 .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_AUTO)
                 .with_n_seq_max(n_seq_max)
@@ -272,6 +272,7 @@ impl ContinuousBatchArbiter {
                         chat_prompt_renderer: ChatPromptRenderer {
                             chat_template_renderer,
                             media_marker: MediaMarker::new(mtmd_default_marker()?.to_owned()),
+                            model_adds_bos_token: model.adds_bos_token(),
                             token_bos_str: model.token_to_piece(
                                 &SampledToken::Content(model.token_bos()),
                                 &mut special_token_decoder,
@@ -298,6 +299,29 @@ impl ContinuousBatchArbiter {
             slot_aggregated_status_manager
                 .slot_aggregated_status
                 .set_model_path(Some(model_path_string_clone));
+
+            let mut llama_context =
+                match LlamaContext::from_model(&model, &llama_backend, context_params)
+                    .context("Unable to create llama.cpp context")
+                {
+                    Ok(context) => context,
+                    Err(err) => {
+                        for slot_index in 0..n_seq_max {
+                            slot_aggregated_status_manager
+                                .slot_aggregated_status
+                                .register_issue(AgentIssue::SlotCannotStart(
+                                    SlotCannotStartParams {
+                                        error: format!("{err:#}"),
+                                        slot_index,
+                                    },
+                                ));
+                        }
+
+                        return Err(err);
+                    }
+                };
+
+            let sequence_context_size = llama_context.n_ctx_seq();
 
             let image_input = match multimodal_projection_path {
                 Some(multimodal_projection_path) => {
@@ -326,9 +350,13 @@ impl ContinuousBatchArbiter {
                             );
 
                             ImageInput::Supported(MultimodalPromptSupport {
+                                micro_batch_tokens: micro_batch_tokens(
+                                    &llama_context,
+                                    inference_parameters.n_batch.tokens(),
+                                ),
                                 multimodal_context: Arc::new(mtmd_context),
-                                n_batch: i32::try_from(inference_parameters.n_batch)
-                                    .context("n_batch does not fit in i32")?,
+                                n_batch: inference_parameters.n_batch.tokens_i32(),
+                                sequence_context_size,
                             })
                         }
                         Err(err) => {
@@ -349,36 +377,14 @@ impl ContinuousBatchArbiter {
                 None => ImageInput::Unsupported,
             };
 
-            let mut llama_context =
-                match LlamaContext::from_model(&model, &llama_backend, context_params)
-                    .context("Unable to create llama.cpp context")
-                {
-                    Ok(context) => context,
-                    Err(err) => {
-                        for slot_index in 0..n_seq_max {
-                            slot_aggregated_status_manager
-                                .slot_aggregated_status
-                                .register_issue(AgentIssue::SlotCannotStart(
-                                    SlotCannotStartParams {
-                                        error: format!("{err:#}"),
-                                        slot_index,
-                                    },
-                                ));
-                        }
-
-                        return Err(err);
-                    }
-                };
-
             let (scheduler_command_tx, scheduler_command_rx) = std::sync::mpsc::channel();
-            let sequence_context_size = llama_context.n_ctx_seq();
 
             let request_preparer = Arc::new(ContinuousBatchRequestPreparer {
                 agent_name: agent_name_clone.clone(),
                 embedding_batch_preparer: EmbeddingBatchPreparer {
                     enable_embeddings: inference_parameters.enable_embeddings,
                     model: model.clone(),
-                    n_batch: inference_parameters.n_batch,
+                    n_batch: inference_parameters.n_batch.tokens_usize(),
                 },
                 generation_request_preparer: GenerationRequestPreparer {
                     image_input,
@@ -388,6 +394,10 @@ impl ContinuousBatchArbiter {
                         model: model.clone(),
                         sequence_context_size,
                     },
+                    sampler_chain_factory: SamplerChainFactory {
+                        inference_parameters: inference_parameters.clone(),
+                        n_vocab: model.n_vocab(),
+                    },
                     token_generation,
                 },
                 llama_backend: llama_backend.clone(),
@@ -395,7 +405,10 @@ impl ContinuousBatchArbiter {
                 scheduler_command_tx,
             });
 
-            let mut batch = LlamaBatch::new(inference_parameters.n_batch, desired_slots_total)?;
+            let mut batch = LlamaBatch::new(
+                inference_parameters.n_batch.tokens_usize(),
+                desired_slots_total,
+            )?;
 
             Self::run_warmup_decode(&model, &mut llama_context, &mut batch, desired_slots_total);
 
@@ -409,8 +422,6 @@ impl ContinuousBatchArbiter {
                     desired_slots_total,
                     inference_parameters,
                     model: model.clone(),
-                    n_vocab: model.n_vocab(),
-                    sequence_context_size,
                 },
             });
 

@@ -69,7 +69,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
-    "ARG001",  # unused handler args - required by httpx.MockTransport signature
     "PERF401", # async for with append - clearer than comprehension in tests
     "PLR2004", # magic values in assertions
     "S101",    # assert statements

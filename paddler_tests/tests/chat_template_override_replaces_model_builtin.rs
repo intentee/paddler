@@ -1,14 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -73,7 +75,7 @@ async fn chat_template_override_replaces_model_builtin() -> Result<()> {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 10,
+                max_tokens: NonZeroU32::new(10).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

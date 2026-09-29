@@ -28,9 +28,9 @@ impl ClusterTokenGenerationMode {
 
 #[cfg(test)]
 mod tests {
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
 
     use super::ClusterTokenGenerationMode;
     use crate::balancer_applicable_state::BalancerApplicableState;

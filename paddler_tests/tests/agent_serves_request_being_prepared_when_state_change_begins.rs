@@ -1,10 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -12,12 +14,12 @@ use paddler_messaging::conversation_message_content_part::ConversationMessageCon
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::image_url::ImageUrl;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
 use paddler_tests::smolvlm2_desired_state::smolvlm2_desired_state;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use tokio_util::sync::CancellationToken;
@@ -53,7 +55,7 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() -> Resul
             }]),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 4,
+            max_tokens: NonZeroU32::new(4).unwrap(),
             parse_tool_calls: false,
             tools: vec![],
         },
@@ -73,7 +75,7 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() -> Resul
                     grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
                     root: "root".to_owned(),
                 }),
-                max_tokens: i32::try_from(InferenceParameters::default().context_size)?,
+                max_tokens: InferenceParameters::default().context_size,
                 raw_prompt: "Repeat the word apple.".to_owned(),
             },
         )
@@ -89,16 +91,7 @@ async fn agent_serves_request_being_prepared_when_state_change_begins() -> Resul
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &BalancerDesiredState {
-                inference_parameters: InferenceParameters {
-                    image_resize_to_fit: initial_desired_state
-                        .inference_parameters
-                        .image_resize_to_fit
-                        / 2,
-                    ..initial_desired_state.inference_parameters.clone()
-                },
-                ..initial_desired_state
-            },
+            &desired_state_with_halved_image_resize(initial_desired_state)?,
         )
         .await?;
 

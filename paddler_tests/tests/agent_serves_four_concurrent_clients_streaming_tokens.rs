@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -17,7 +19,7 @@ async fn agent_serves_four_concurrent_clients_streaming_tokens() -> Result<()> {
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 8,
+                max_tokens: NonZeroU32::new(8).unwrap(),
                 raw_prompt: prompt.to_owned(),
             },
         )

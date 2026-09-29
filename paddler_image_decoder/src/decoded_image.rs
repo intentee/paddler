@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::str::from_utf8;
 
 use base64::Engine as _;
@@ -131,12 +132,9 @@ pub struct DecodedImage {
 impl DecodedImage {
     pub fn from_data_uri(
         image_url: &ImageUrl,
-        max_dimension: u32,
+        max_dimension: NonZeroU32,
     ) -> Result<Self, DecodedImageError> {
-        if max_dimension == 0 {
-            return Err(DecodedImageError::InvalidMaxDimension);
-        }
-
+        let max_dimension = max_dimension.get();
         let encoded_image = decode_data_uri_payload(image_url)?;
 
         if is_svg(&encoded_image) {
@@ -158,6 +156,7 @@ mod tests {
     use std::io;
     use std::io::Cursor;
     use std::mem::discriminant;
+    use std::num::NonZeroU32;
 
     use base64::DecodeError;
     use base64::Engine as _;
@@ -213,7 +212,10 @@ mod tests {
     }
 
     fn decode(encoded_image: &[u8], max_dimension: u32) -> Result<DecodedImage, DecodedImageError> {
-        DecodedImage::from_data_uri(&data_uri(encoded_image), max_dimension)
+        DecodedImage::from_data_uri(
+            &data_uri(encoded_image),
+            NonZeroU32::new(max_dimension).unwrap(),
+        )
     }
 
     fn assert_decodes_small_image_without_resizing(format: ImageFormat) {
@@ -237,7 +239,9 @@ mod tests {
             url: "https://example.com/image.png".to_owned(),
         };
 
-        let error = DecodedImage::from_data_uri(&image_url, 1024).err().unwrap();
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
 
         assert_eq!(
             discriminant(&error),
@@ -251,7 +255,9 @@ mod tests {
             url: "data:image/png;base64".to_owned(),
         };
 
-        let error = DecodedImage::from_data_uri(&image_url, 1024).err().unwrap();
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
 
         assert_eq!(
             discriminant(&error),
@@ -265,7 +271,9 @@ mod tests {
             url: "data:image/png;base64,!!!not-valid-base64!!!".to_owned(),
         };
 
-        let error = DecodedImage::from_data_uri(&image_url, 1024).err().unwrap();
+        let error = DecodedImage::from_data_uri(&image_url, NonZeroU32::new(1024).unwrap())
+            .err()
+            .unwrap();
 
         assert_eq!(
             discriminant(&error),
@@ -375,18 +383,6 @@ mod tests {
 
         assert_eq!(decoded_image.width, 320);
         assert_eq!(decoded_image.height, 214);
-    }
-
-    #[test]
-    fn rejects_zero_max_dimension() {
-        let error = decode(&create_rgb_image(50, 50, ImageFormat::Png), 0)
-            .err()
-            .unwrap();
-
-        assert_eq!(
-            discriminant(&error),
-            discriminant(&DecodedImageError::InvalidMaxDimension)
-        );
     }
 
     #[test]

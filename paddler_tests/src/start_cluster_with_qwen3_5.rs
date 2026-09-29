@@ -1,5 +1,5 @@
 use anyhow::Result;
-use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 
@@ -12,7 +12,7 @@ pub async fn start_cluster_with_qwen3_5(
     start_cluster_with_qwen3_5_and_context_size(
         agents,
         with_mmproj,
-        InferenceParameters::default().context_size,
+        InferenceParameters::default().context_size.get(),
     )
     .await
 }

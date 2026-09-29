@@ -4,17 +4,17 @@ use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-use paddler_messaging::oversized_image_details::OversizedImageDetails;
+use paddler_messaging::oversized_media_details::OversizedMediaDetails;
 use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 use serde_json::Value;
 use serde_json::json;
 
+const INVALID_REQUEST_ERROR: &str = "invalid_request_error";
+const SERVER_ERROR: &str = "server_error";
+
 fn validation_failure_message(errors: &[String]) -> String {
-    errors
-        .first()
-        .cloned()
-        .unwrap_or_else(|| "tool call failed validation".to_owned())
+    errors.join("; ")
 }
 
 fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
@@ -25,10 +25,10 @@ fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
     )
 }
 
-fn image_exceeds_batch_size_message(details: &OversizedImageDetails) -> String {
+fn media_exceeds_micro_batch_message(details: &OversizedMediaDetails) -> String {
     format!(
-        "image required {} tokens but agent n_batch is {}; rerun with a larger n_batch",
-        details.image_tokens, details.n_batch,
+        "media required {} tokens but one agent micro batch holds {} tokens",
+        details.media_tokens, details.micro_batch_tokens,
     )
 }
 
@@ -39,46 +39,54 @@ fn prompt_exceeds_context_size_message(details: &OversizedPromptDetails) -> Stri
     )
 }
 
-fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
-    match token {
-        GeneratedTokenResult::ChatTemplateError(description)
-        | GeneratedTokenResult::DetokenizationFailed(description)
-        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
-        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
-        | GeneratedTokenResult::GrammarInitializationFailed(description)
-        | GeneratedTokenResult::GrammarSyntaxError(description)
-        | GeneratedTokenResult::ImageDecodingFailed(description)
-        | GeneratedTokenResult::MultimodalNotSupported(description)
-        | GeneratedTokenResult::SamplerError(description)
-        | GeneratedTokenResult::TokenGenerationDisabled(description)
-        | GeneratedTokenResult::ToolCallParseFailed(description)
-        | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(description),
-        _ => None,
+const fn openai_error(error_type: &'static str, message: String) -> OpenAIError {
+    OpenAIError {
+        error_type,
+        message,
     }
 }
 
 fn server_error_from_token(token: &GeneratedTokenResult) -> Option<OpenAIError> {
     match token {
-        GeneratedTokenResult::ImageExceedsBatchSize(details) => Some(OpenAIError {
-            error_type: "server_error",
-            message: image_exceeds_batch_size_message(details),
-        }),
-        GeneratedTokenResult::PromptExceedsContextSize(details) => Some(OpenAIError {
-            error_type: "invalid_request_error",
-            message: prompt_exceeds_context_size_message(details),
-        }),
-        GeneratedTokenResult::ToolCallValidationFailed(errors) => Some(OpenAIError {
-            error_type: "server_error",
-            message: validation_failure_message(errors),
-        }),
-        GeneratedTokenResult::UnrecognizedToolCallFormat(raw) => Some(OpenAIError {
-            error_type: "server_error",
-            message: unrecognized_tool_call_format_message(raw),
-        }),
-        other => description_from_error_token(other).map(|description| OpenAIError {
-            error_type: "server_error",
-            message: description.to_owned(),
-        }),
+        GeneratedTokenResult::MediaExceedsMicroBatch(details) => Some(openai_error(
+            INVALID_REQUEST_ERROR,
+            media_exceeds_micro_batch_message(details),
+        )),
+        GeneratedTokenResult::PromptExceedsContextSize(details) => Some(openai_error(
+            INVALID_REQUEST_ERROR,
+            prompt_exceeds_context_size_message(details),
+        )),
+        GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+        | GeneratedTokenResult::GrammarSyntaxError(description)
+        | GeneratedTokenResult::ImageDecodingFailed(description)
+        | GeneratedTokenResult::MultimodalNotSupported(description)
+        | GeneratedTokenResult::ToolSchemaInvalid(description) => {
+            Some(openai_error(INVALID_REQUEST_ERROR, description.clone()))
+        }
+        GeneratedTokenResult::ToolCallValidationFailed(errors) => Some(openai_error(
+            SERVER_ERROR,
+            validation_failure_message(errors),
+        )),
+        GeneratedTokenResult::UnrecognizedToolCallFormat(raw) => Some(openai_error(
+            SERVER_ERROR,
+            unrecognized_tool_call_format_message(raw),
+        )),
+        GeneratedTokenResult::ChatTemplateError(description)
+        | GeneratedTokenResult::DecodeFailed(description)
+        | GeneratedTokenResult::DetokenizationFailed(description)
+        | GeneratedTokenResult::GrammarInitializationFailed(description)
+        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
+        | GeneratedTokenResult::SamplerError(description)
+        | GeneratedTokenResult::TokenGenerationDisabled(description)
+        | GeneratedTokenResult::ToolCallParseFailed(description) => {
+            Some(openai_error(SERVER_ERROR, description.clone()))
+        }
+        GeneratedTokenResult::ContentToken(_)
+        | GeneratedTokenResult::Done(_)
+        | GeneratedTokenResult::ReasoningToken(_)
+        | GeneratedTokenResult::ToolCallParsed(_)
+        | GeneratedTokenResult::ToolCallToken(_)
+        | GeneratedTokenResult::UndeterminableToken(_) => None,
     }
 }
 
@@ -95,7 +103,7 @@ impl OpenAIError {
                 error: JsonRpcError { description, .. },
                 ..
             }) => Some(Self {
-                error_type: "server_error",
+                error_type: SERVER_ERROR,
                 message: description.clone(),
             }),
             OutgoingMessage::Notification(_) => None,
@@ -124,8 +132,11 @@ mod tests {
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
 
+    use llama_cpp_bindings_types::TokenUsage;
     use paddler_messaging::embedding_result::EmbeddingResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::oversized_media_details::OversizedMediaDetails;
 
     use super::OpenAIError;
     use super::OutgoingMessage;
@@ -160,18 +171,58 @@ mod tests {
     }
 
     #[test]
-    fn validation_failure_message_returns_first_error() {
+    fn validation_failure_message_reports_every_error() {
         let message =
             validation_failure_message(&["first issue".to_owned(), "second issue".to_owned()]);
 
-        assert_eq!(message, "first issue");
+        assert_eq!(message, "first issue; second issue");
     }
 
     #[test]
-    fn validation_failure_message_falls_back_when_no_errors() {
-        let message = validation_failure_message(&[]);
+    fn classifies_media_exceeding_the_micro_batch_as_invalid_request() {
+        let error = OpenAIError::classify(&token_message(
+            GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
+                media_tokens: 256,
+                micro_batch_tokens: 128,
+            }),
+        ))
+        .unwrap();
 
-        assert!(message.contains("validation"));
+        assert_eq!(error.error_type, "invalid_request_error");
+        assert_eq!(
+            error.message,
+            "media required 256 tokens but one agent micro batch holds 128 tokens"
+        );
+    }
+
+    #[test]
+    fn classifies_a_malformed_client_grammar_as_invalid_request() {
+        let error = OpenAIError::classify(&token_message(
+            GeneratedTokenResult::GrammarSyntaxError("invalid grammar".to_owned()),
+        ))
+        .unwrap();
+
+        assert_eq!(error.error_type, "invalid_request_error");
+        assert_eq!(error.message, "invalid grammar");
+    }
+
+    #[test]
+    fn classifies_agent_failures_as_server_errors() {
+        for agent_failure in [
+            GeneratedTokenResult::ChatTemplateError("agent failure".to_owned()),
+            GeneratedTokenResult::DecodeFailed("agent failure".to_owned()),
+            GeneratedTokenResult::DetokenizationFailed("agent failure".to_owned()),
+            GeneratedTokenResult::GrammarInitializationFailed("agent failure".to_owned()),
+            GeneratedTokenResult::GrammarRejectedModelOutput("agent failure".to_owned()),
+            GeneratedTokenResult::SamplerError("agent failure".to_owned()),
+            GeneratedTokenResult::TokenGenerationDisabled("agent failure".to_owned()),
+            GeneratedTokenResult::ToolCallParseFailed("agent failure".to_owned()),
+        ] {
+            let error = OpenAIError::classify(&token_message(agent_failure)).unwrap();
+
+            assert_eq!(error.error_type, "server_error");
+            assert_eq!(error.message, "agent failure");
+        }
     }
 
     #[test]
@@ -208,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn classifies_validation_failure_with_first_message() {
+    fn classifies_tool_call_validation_failure_as_server_error() {
         let classified = OpenAIError::classify(&token_message(
             GeneratedTokenResult::ToolCallValidationFailed(vec!["missing field x".to_owned()]),
         ))
@@ -232,7 +283,10 @@ mod tests {
     fn does_not_classify_a_done_summary() {
         assert!(
             OpenAIError::classify(&token_message(GeneratedTokenResult::Done(
-                GenerationSummary::default()
+                GenerationSummary {
+                    finish: GenerationFinish::EndOfGeneration,
+                    usage: TokenUsage::new(),
+                }
             )))
             .is_none()
         );
@@ -250,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn classifies_a_tool_call_with_arguments_is_unrelated_to_errors() {
+    fn does_not_classify_a_parsed_tool_call() {
         let parsed = vec![llama_cpp_bindings_types::ParsedToolCall::new(
             "call_x".to_owned(),
             "get_weather".to_owned(),

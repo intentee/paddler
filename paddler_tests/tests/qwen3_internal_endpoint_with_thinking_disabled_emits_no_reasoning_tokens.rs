@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -26,7 +28,7 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 100,
+                max_tokens: NonZeroU32::new(100).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

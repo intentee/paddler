@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use llama_cpp_bindings::ToolCallArguments;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -8,15 +10,9 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use serde_json::Map;
-use serde_json::Value;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
@@ -25,12 +21,6 @@ const TOOL_CALL_FOLLOWED_BY_CONTENT: &str = "<tool_call>\n{\"name\": \"get_weath
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_emits_tool_call_parsed_event_before_trailing_content() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
-
-    let mut location_properties = Map::new();
-    location_properties.insert(
-        "location".to_owned(),
-        json!({"type": "string", "description": "The city name"}),
-    );
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -51,29 +41,16 @@ async fn agent_emits_tool_call_parsed_event_before_trailing_content() -> Result<
                     ),
                     root: "root".to_owned(),
                 }),
-                max_tokens: i32::try_from(TOOL_CALL_FOLLOWED_BY_CONTENT.len())?,
+                max_tokens: NonZeroU32::try_from(u32::try_from(
+                    TOOL_CALL_FOLLOWED_BY_CONTENT.len(),
+                )?)?,
                 parse_tool_calls: true,
-                tools: vec![Tool::Function(FunctionCall {
-                    function: Function {
-                        name: "get_weather".to_owned(),
-                        description: "Get the current weather for a location".to_owned(),
-                        parameters: Parameters::Schema(ValidatedParametersSchema {
-                            schema_type: "object".to_owned(),
-                            properties: Some(location_properties),
-                            required: Some(vec!["location".to_owned()]),
-                            additional_properties: Some(Value::Bool(false)),
-                        }),
-                    },
-                })],
+                tools: vec![get_weather_tool()],
             },
         )
         .await?;
 
-    let token_results: Vec<GeneratedTokenResult> = collected
-        .token_results
-        .into_iter()
-        .map(|token_result_with_producer| token_result_with_producer.token_result)
-        .collect();
+    let token_results = collected.into_token_results();
 
     let tool_call_position = token_results
         .iter()

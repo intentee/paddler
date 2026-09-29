@@ -9,8 +9,8 @@ from typing import Any, cast
 from paddler_client.embedding import Embedding
 from paddler_client.error import (
     GeneratedTokenResultNotAnObjectError,
-    ImageExceedsBatchSizePayloadNotAnObjectError,
     InferenceClientMessageNotAnObjectError,
+    MediaExceedsMicroBatchPayloadNotAnObjectError,
     PromptExceedsContextSizePayloadNotAnObjectError,
     ToolCallParsedPayloadNotAListError,
     ToolCallValidationFailedPayloadNotAListError,
@@ -20,10 +20,11 @@ from paddler_client.error import (
     UnknownResponseVariantError,
     UnrecognizedToolCallFormatPayloadNotAnObjectError,
 )
+from paddler_client.generation_finish import GenerationFinish
 from paddler_client.oversized_embedding_document_details import (
     OversizedEmbeddingDocumentDetails,
 )
-from paddler_client.oversized_image_details import OversizedImageDetails
+from paddler_client.oversized_media_details import OversizedMediaDetails
 from paddler_client.oversized_prompt_details import OversizedPromptDetails
 from paddler_client.parsed_tool_call import ParsedToolCall
 from paddler_client.raw_tool_call_tokens import RawToolCallTokens
@@ -32,6 +33,7 @@ from paddler_client.raw_tool_call_tokens import RawToolCallTokens
 class InferenceMessageKind(StrEnum):
     CHAT_TEMPLATE_ERROR = "chat_template_error"
     CONTENT_TOKEN = "content_token"
+    DECODE_FAILED = "decode_failed"
     DETOKENIZATION_FAILED = "detokenization_failed"
     DONE = "done"
     EMBEDDING = "embedding"
@@ -48,7 +50,7 @@ class InferenceMessageKind(StrEnum):
     GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
     GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
     IMAGE_DECODING_FAILED = "image_decoding_failed"
-    IMAGE_EXCEEDS_BATCH_SIZE = "image_exceeds_batch_size"
+    MEDIA_EXCEEDS_MICRO_BATCH = "media_exceeds_micro_batch"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
     PROMPT_EXCEEDS_CONTEXT_SIZE = "prompt_exceeds_context_size"
     REASONING_TOKEN = "reasoning_token"
@@ -125,11 +127,15 @@ class TokenUsage:
 
 @dataclass(frozen=True)
 class GenerationSummary:
+    finish: GenerationFinish
     usage: TokenUsage
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> GenerationSummary:
-        return cls(usage=TokenUsage.from_dict(data["usage"]))
+        return cls(
+            finish=GenerationFinish(data["finish"]),
+            usage=TokenUsage.from_dict(data["usage"]),
+        )
 
 
 @dataclass(frozen=True)
@@ -143,7 +149,7 @@ class InferenceMessage:
     summary: GenerationSummary | None = None
     parsed_tool_calls: list[ParsedToolCall] | None = None
     raw_tool_call_tokens: RawToolCallTokens | None = None
-    oversized_image_details: OversizedImageDetails | None = None
+    oversized_media_details: OversizedMediaDetails | None = None
     oversized_prompt_details: OversizedPromptDetails | None = None
     oversized_embedding_document_details: OversizedEmbeddingDocumentDetails | None = (
         None
@@ -225,6 +231,7 @@ def _parse_response(
 
 _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ChatTemplateError": InferenceMessageKind.CHAT_TEMPLATE_ERROR,
+    "DecodeFailed": InferenceMessageKind.DECODE_FAILED,
     "DetokenizationFailed": InferenceMessageKind.DETOKENIZATION_FAILED,
     "GrammarIncompatibleWithThinking": (
         InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
@@ -326,18 +333,18 @@ def _build_unrecognized_tool_call_format_message(
     )
 
 
-def _build_image_exceeds_batch_size_message(
+def _build_media_exceeds_micro_batch_message(
     request_id: str,
     payload: Any,
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(payload, dict):
-        raise ImageExceedsBatchSizePayloadNotAnObjectError(payload)
+        raise MediaExceedsMicroBatchPayloadNotAnObjectError(payload)
     typed_details = cast("dict[str, Any]", payload)
     return InferenceMessage(
         request_id=request_id,
-        kind=InferenceMessageKind.IMAGE_EXCEEDS_BATCH_SIZE,
-        oversized_image_details=OversizedImageDetails.from_dict(typed_details),
+        kind=InferenceMessageKind.MEDIA_EXCEEDS_MICRO_BATCH,
+        oversized_media_details=OversizedMediaDetails.from_dict(typed_details),
         generated_by=generated_by,
     )
 
@@ -394,7 +401,7 @@ _STRUCTURED_HANDLERS: dict[str, _StructuredHandler] = {
     "ToolCallParseFailed": _build_tool_call_parse_failed_message,
     "ToolCallValidationFailed": _build_tool_call_validation_failed_message,
     "UnrecognizedToolCallFormat": _build_unrecognized_tool_call_format_message,
-    "ImageExceedsBatchSize": _build_image_exceeds_batch_size_message,
+    "MediaExceedsMicroBatch": _build_media_exceeds_micro_batch_message,
     "PromptExceedsContextSize": _build_prompt_exceeds_context_size_message,
 }
 

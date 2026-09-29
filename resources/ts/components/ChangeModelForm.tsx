@@ -249,7 +249,7 @@ export function ChangeModelForm({
               name="min_p"
             />
             <InferenceParameterInput
-              description="Number of model layers to offload to GPU (0 = CPU only; negative = all layers)"
+              description="Number of model layers to offload to GPU (0 = CPU only; -1 = all layers)"
               name="n_gpu_layers"
             />
             <InferenceParameterInput
@@ -257,7 +257,7 @@ export function ChangeModelForm({
               name="penalty_frequency"
             />
             <InferenceParameterInput
-              description="Number of last tokens to consider for penalty (-1 = entire context, 0 = disabled)"
+              description="Number of last tokens to consider for penalty (0 = disabled)"
               name="penalty_last_n"
             />
             <InferenceParameterInput

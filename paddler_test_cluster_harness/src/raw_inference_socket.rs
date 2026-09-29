@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::num::NonZeroU32;
 
 use futures_util::SinkExt as _;
 use futures_util::StreamExt as _;
@@ -88,7 +89,7 @@ impl RawInferenceSocket {
     pub async fn send_raw_prompt_request(
         &mut self,
         request_id: &str,
-        max_tokens: i32,
+        max_tokens: NonZeroU32,
     ) -> Result<(), ClusterHarnessError> {
         let request: InferenceServerMessage<ValidatedParametersSchema> =
             InferenceServerMessage::Request(RequestEnvelope {

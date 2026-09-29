@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
@@ -27,7 +29,7 @@ async fn inference_socket_cancellation_releases_the_agent_slot() -> Result<()> {
             cancellation_token.clone(),
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 500,
+                max_tokens: NonZeroU32::new(500).unwrap(),
                 raw_prompt: "Write a long story about an explorer".to_owned(),
             },
         )

@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use std::time::Duration;
 
 use futures_util::StreamExt as _;
@@ -24,7 +26,7 @@ async fn balancer_returns_504_when_no_agents_registered() {
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 10,
+                max_tokens: NonZeroU32::new(10).unwrap(),
                 raw_prompt: "Hello".to_owned(),
             },
         )

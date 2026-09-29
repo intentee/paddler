@@ -45,10 +45,10 @@ mod tests {
     use crate::management_service::app_data::AppData;
     use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
     use crate::state_database::memory::Memory;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
 
     fn build_app_data(
         balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,

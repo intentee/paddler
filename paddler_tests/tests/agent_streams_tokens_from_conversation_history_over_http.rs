@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -24,7 +26,7 @@ async fn agent_streams_tokens_from_conversation_history_over_http() -> Result<()
                 }]),
                 enable_thinking: true,
                 grammar: None,
-                max_tokens: 50,
+                max_tokens: NonZeroU32::new(50).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

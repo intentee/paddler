@@ -28,6 +28,7 @@ nanoid = { workspace = true }
 paddler_cache_dir = { workspace = true }
 paddler_download_manager = { workspace = true }
 paddler_image_decoder = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_state_conversion = { workspace = true }
 paddler_tool_call_validator = { workspace = true }

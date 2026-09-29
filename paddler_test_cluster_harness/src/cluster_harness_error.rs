@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::net::SocketAddr;
 
 use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use thiserror::Error;
 use tokio::time::error::Elapsed;
 
@@ -25,6 +26,10 @@ pub enum ClusterHarnessError {
     },
     #[error("The balancer does not serve the OpenAI compatibility service")]
     CompatOpenAIServiceNotServed,
+    #[error("The generation did not end with a summary; its last result was {last_token_result:?}")]
+    GenerationEndedWithoutSummary {
+        last_token_result: Option<GeneratedTokenResult>,
+    },
     #[error("The half-closed client could not reach {addr}")]
     HalfClosedClientUnreachable {
         addr: SocketAddr,

@@ -436,6 +436,8 @@ impl Service for ManagementSocketClientService {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use std::collections::BTreeMap;
     use std::sync::Arc;
 
@@ -970,7 +972,7 @@ mod tests {
             message_tx,
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 8,
+                max_tokens: NonZeroU32::new(8).unwrap(),
                 raw_prompt: "hello".to_owned(),
             },
             receive_stream_stopper_collection.clone(),
@@ -1016,7 +1018,7 @@ mod tests {
                 message_tx,
                 ContinueFromRawPromptParams {
                     grammar: None,
-                    max_tokens: 8,
+                    max_tokens: NonZeroU32::new(8).unwrap(),
                     raw_prompt: "hello".to_owned(),
                 },
                 receive_stream_stopper_collection,
@@ -1048,7 +1050,7 @@ mod tests {
                 message_tx,
                 ContinueFromRawPromptParams {
                     grammar: None,
-                    max_tokens: 8,
+                    max_tokens: NonZeroU32::new(8).unwrap(),
                     raw_prompt: "hello".to_owned(),
                 },
                 receive_stream_stopper_collection,

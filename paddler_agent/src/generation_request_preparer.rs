@@ -1,16 +1,20 @@
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use llama_cpp_bindings::ChatTools;
+use llama_cpp_bindings::BareJsonToolCalls;
+use llama_cpp_bindings::ChatMessageParser;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use paddler_image_decoder::decoded_image::DecodedImage;
 use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
+use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
+use rand::Rng as _;
 
 use crate::chat_prompt_render_request::ChatPromptRenderRequest;
 use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
@@ -24,15 +28,20 @@ use crate::prompt_modality::PromptModality;
 use crate::prompt_tokenizer::PromptTokenizer;
 use crate::require_grammar_compatible_with_thinking::require_grammar_compatible_with_thinking;
 use crate::resolve_grammar::resolve_grammar;
+use crate::sampler_chain_factory::SamplerChainFactory;
+use crate::token_classification::TokenClassification;
 use crate::token_generation::TokenGeneration;
 use crate::token_generation_support::TokenGenerationSupport;
+use crate::token_sampling::TokenSampling;
+use crate::tool_call_handling::ToolCallHandling;
 use crate::tool_call_pipeline::ToolCallPipeline;
 
 pub struct GenerationRequestPreparer {
     pub image_input: ImageInput,
-    pub image_resize_to_fit: u32,
+    pub image_resize_to_fit: NonZeroU32,
     pub model: Arc<LlamaModel>,
     pub prompt_tokenizer: PromptTokenizer,
+    pub sampler_chain_factory: SamplerChainFactory,
     pub token_generation: TokenGeneration,
 }
 
@@ -55,17 +64,20 @@ impl GenerationRequestPreparer {
             streaming_markers, ..
         } = self.token_generation.require_enabled()?;
         let prompt = PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?);
-        let grammar_sampler = resolve_grammar(grammar)?;
+        let token_sampling = self.build_token_sampling(grammar)?;
 
         Ok(PreparedGenerationRequest {
             generate_tokens_stop_rx,
             generated_tokens_tx,
-            grammar_sampler,
             max_tokens,
             prompt,
             slot_guard,
-            streaming_markers: streaming_markers.clone(),
-            tool_call_pipeline: None,
+            token_classification: TokenClassification {
+                bare_json_tool_calls: BareJsonToolCalls::Ignore,
+                streaming_markers: streaming_markers.clone(),
+            },
+            token_sampling,
+            tool_call_handling: ToolCallHandling::Streamed,
         })
     }
 
@@ -111,35 +123,42 @@ impl GenerationRequestPreparer {
         let prompt = match prompt_modality {
             PromptModality::Multimodal(multimodal_prompt_support) => PreparedPrompt::Multimodal(
                 multimodal_prompt_support.prepare_prompt(
-                    image_urls
+                    &image_urls
                         .iter()
                         .map(|image_url| self.decode_image_bitmap(image_url))
                         .collect::<Result<Vec<MtmdBitmap>, GenerationRequestRejection>>()?,
                     raw_prompt,
-                ),
+                )?,
             ),
             PromptModality::TextOnly => {
                 PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?)
             }
         };
 
-        let grammar_sampler = resolve_grammar(grammar)?;
-
-        let tool_call_pipeline = if parse_tool_calls && !tools.is_empty() {
-            Some(self.build_tool_call_pipeline(&tools)?)
+        let token_sampling = self.build_token_sampling(grammar)?;
+        let tool_call_handling = if parse_tool_calls {
+            ToolCallHandling::Parsed(self.build_tool_call_pipeline(&tools)?)
         } else {
-            None
+            ToolCallHandling::Streamed
+        };
+        let bare_json_tool_calls = if tools.is_empty() {
+            BareJsonToolCalls::Ignore
+        } else {
+            BareJsonToolCalls::Detect
         };
 
         Ok(PreparedGenerationRequest {
             generate_tokens_stop_rx,
             generated_tokens_tx,
-            grammar_sampler,
             max_tokens,
             prompt,
             slot_guard,
-            streaming_markers: streaming_markers.clone(),
-            tool_call_pipeline,
+            token_classification: TokenClassification {
+                bare_json_tool_calls,
+                streaming_markers: streaming_markers.clone(),
+            },
+            token_sampling,
+            tool_call_handling,
         })
     }
 
@@ -153,19 +172,30 @@ impl GenerationRequestPreparer {
             .map_err(GenerationRequestRejection::ImageBitmapCreationFailed)
     }
 
+    fn build_token_sampling(
+        &self,
+        grammar: Option<GrammarConstraint>,
+    ) -> Result<TokenSampling, GenerationRequestRejection> {
+        let grammar = resolve_grammar(grammar, &self.model)?;
+        let chain = self
+            .sampler_chain_factory
+            .create(rand::rng().random::<u32>())
+            .map_err(GenerationRequestRejection::SamplerChainCreationFailed)?;
+
+        Ok(TokenSampling { chain, grammar })
+    }
+
     fn build_tool_call_pipeline(
         &self,
         tools: &[Tool<ValidatedParametersSchema>],
     ) -> Result<ToolCallPipeline, GenerationRequestRejection> {
+        let validator = ToolCallValidator::from_tools(tools)
+            .map_err(GenerationRequestRejection::ToolSchemaInvalid)?;
         let tools_json = serde_json::to_string(tools)
             .map_err(GenerationRequestRejection::ToolsSerializationFailed)?;
+        let chat_message_parser = ChatMessageParser::new(&self.model, &tools_json)
+            .map_err(GenerationRequestRejection::ToolCallParserCreationFailed)?;
 
-        Ok(ToolCallPipeline::new(
-            self.model.clone(),
-            ChatTools::from_json(tools_json)
-                .map_err(GenerationRequestRejection::ChatToolsInvalid)?,
-            ToolCallValidator::from_tools(tools)
-                .map_err(GenerationRequestRejection::ToolSchemaInvalid)?,
-        ))
+        Ok(ToolCallPipeline::new(chat_message_parser, validator))
     }
 }

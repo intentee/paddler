@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
@@ -14,6 +16,8 @@ use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
+const SLOT_FILLING_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(500).unwrap();
+const WAITING_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(32).unwrap();
 const CANCELLED_REQUEST_COUNT: usize = 2;
 const SLOT_COUNT: i32 = 4;
 const WAITING_REQUEST_COUNT: i32 = 4;
@@ -21,7 +25,7 @@ const WAITING_REQUEST_COUNT: i32 = 4;
 fn slot_filling_prompt() -> ContinueFromRawPromptParams {
     ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 500,
+        max_tokens: SLOT_FILLING_MAX_TOKENS,
         raw_prompt: "Write a very long, detailed story about an explorer.".to_owned(),
     }
 }
@@ -29,7 +33,7 @@ fn slot_filling_prompt() -> ContinueFromRawPromptParams {
 fn waiting_prompt() -> ContinueFromRawPromptParams {
     ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 32,
+        max_tokens: WAITING_MAX_TOKENS,
         raw_prompt: "The capital of France is".to_owned(),
     }
 }

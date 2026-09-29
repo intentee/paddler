@@ -1,5 +1,5 @@
 pub enum CompletionCheckOutcome {
     Continue,
-    ReachedEog,
+    ReachedEndOfGeneration,
     ReachedMaxTokens,
 }

@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use std::collections::BTreeSet;
 
 use anyhow::Result;
@@ -30,7 +32,7 @@ async fn balancer_distributes_token_burst_evenly_across_agents() -> Result<()> {
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 16,
+                max_tokens: NonZeroU32::new(16).unwrap(),
                 raw_prompt: prompt.clone(),
             },
         )

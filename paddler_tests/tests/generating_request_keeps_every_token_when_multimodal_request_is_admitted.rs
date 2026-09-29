@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::bail;
@@ -37,7 +39,7 @@ async fn generating_request_keeps_every_token_when_multimodal_request_is_admitte
                     grammar: format!("root ::= \"{forced_text}\""),
                     root: "root".to_owned(),
                 }),
-                max_tokens: i32::try_from(forced_text.len())?,
+                max_tokens: NonZeroU32::try_from(u32::try_from(forced_text.len())?)?,
                 raw_prompt: "Repeat the word apple.".to_owned(),
             },
         )
@@ -73,7 +75,7 @@ async fn generating_request_keeps_every_token_when_multimodal_request_is_admitte
             }]),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 4,
+            max_tokens: NonZeroU32::new(4).unwrap(),
             parse_tool_calls: false,
             tools: vec![],
         },

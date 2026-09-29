@@ -1,5 +1,5 @@
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::qwen3_desired_state::qwen3_desired_state;
 

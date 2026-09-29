@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
@@ -29,7 +31,7 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
             cancelled_request_token.clone(),
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 500,
+                max_tokens: NonZeroU32::new(500).unwrap(),
                 raw_prompt: "Write a long story about an explorer".to_owned(),
             },
         )
@@ -42,7 +44,7 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
             kept_request_token.clone(),
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 32,
+                max_tokens: NonZeroU32::new(32).unwrap(),
                 raw_prompt: "The capital of France is".to_owned(),
             },
         )

@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use futures_util::future::join_all;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -28,7 +30,7 @@ async fn balancer_serves_every_concurrent_request_on_a_single_slot_agent() -> Re
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 1,
+                max_tokens: NonZeroU32::new(1).unwrap(),
                 raw_prompt: "Hello".to_owned(),
             },
         )

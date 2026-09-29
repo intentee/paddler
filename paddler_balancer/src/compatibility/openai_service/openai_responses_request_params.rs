@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -10,6 +12,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::validates::Validates;
 use serde::Deserialize;
 
+use crate::compatibility::openai_service::openai_default_max_tokens::OPENAI_DEFAULT_MAX_TOKENS;
 use crate::compatibility::openai_service::openai_responses_function_tool::OpenAIResponsesFunctionTool;
 use crate::compatibility::openai_service::openai_responses_input::OpenAIResponsesInput;
 use crate::compatibility::openai_service::openai_responses_input_item::OpenAIResponsesInputItem;
@@ -17,8 +20,6 @@ use crate::compatibility::openai_service::openai_responses_reasoning::OpenAIResp
 use crate::compatibility::openai_service::openai_responses_text_param::OpenAIResponsesTextParam;
 use crate::compatibility::openai_service::openai_responses_tool::OpenAIResponsesTool;
 use crate::compatibility::openai_service::responses_prepared_request::ResponsesPreparedRequest;
-
-const DEFAULT_MAX_TOKENS: i32 = 2000;
 
 #[derive(Deserialize)]
 pub struct OpenAIResponsesRequestParams {
@@ -30,7 +31,7 @@ pub struct OpenAIResponsesRequestParams {
     #[serde(default)]
     pub stream: Option<bool>,
     #[serde(default)]
-    pub max_output_tokens: Option<i32>,
+    pub max_output_tokens: Option<NonZeroU32>,
     #[serde(default)]
     pub tools: Vec<OpenAIResponsesTool>,
     #[serde(default)]
@@ -115,7 +116,7 @@ impl OpenAIResponsesRequestParams {
                     Some(text_param) => text_param.into_grammar_constraint()?,
                     None => None,
                 },
-                max_tokens: max_output_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+                max_tokens: max_output_tokens.unwrap_or(OPENAI_DEFAULT_MAX_TOKENS),
                 parse_tool_calls,
                 tools: validated_tools,
             },

@@ -36,6 +36,7 @@ tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
 url = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 
 # web dashboard deps

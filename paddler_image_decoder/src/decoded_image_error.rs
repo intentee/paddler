@@ -6,9 +6,6 @@ pub enum DecodedImageError {
     #[error("Invalid data URI: missing comma separator")]
     MissingCommaSeparator,
 
-    #[error("max_dimension must be greater than zero")]
-    InvalidMaxDimension,
-
     #[error("Unrecognized image format: {0}")]
     UnrecognizedFormat(#[source] image::ImageError),
 

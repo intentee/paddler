@@ -3,7 +3,7 @@ use serde::Serialize;
 
 use crate::agent_desired_model::AgentDesiredModel;
 use crate::chat_template::ChatTemplate;
-use crate::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]

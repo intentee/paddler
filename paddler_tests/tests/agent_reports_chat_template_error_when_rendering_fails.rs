@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
@@ -41,7 +43,7 @@ async fn agent_reports_chat_template_error_when_rendering_fails() -> Result<()> 
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 4,
+                max_tokens: NonZeroU32::new(4).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

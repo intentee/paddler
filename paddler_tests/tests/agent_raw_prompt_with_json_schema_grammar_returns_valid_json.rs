@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -16,7 +18,7 @@ async fn agent_raw_prompt_with_json_schema_grammar_returns_valid_json() -> Resul
             grammar: Some(GrammarConstraint::JsonSchema {
                 schema: r#"{"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}"#.to_owned(),
             }),
-            max_tokens: 50,
+            max_tokens: NonZeroU32::new(50).unwrap(),
             raw_prompt: "<|im_start|>user\nWhat is 2+2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n".to_owned(),
         })
         .await?;

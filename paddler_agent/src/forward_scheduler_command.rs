@@ -31,11 +31,15 @@ pub fn forward_scheduler_command(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use std::mem::discriminant;
     use std::sync::Arc;
     use std::sync::mpsc::channel;
 
+    use llama_cpp_bindings::BareJsonToolCalls;
     use llama_cpp_bindings::StreamingMarkers;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -43,11 +47,16 @@ mod tests {
 
     use super::forward_scheduler_command;
     use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
+    use crate::grammar_sampling::GrammarSampling;
     use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
     use crate::prepared_generation_request::PreparedGenerationRequest;
     use crate::prepared_prompt::PreparedPrompt;
+    use crate::sampler_chain_factory::SamplerChainFactory;
     use crate::slot_aggregated_status::SlotAggregatedStatus;
     use crate::slot_guard::SlotGuard;
+    use crate::token_classification::TokenClassification;
+    use crate::token_sampling::TokenSampling;
+    use crate::tool_call_handling::ToolCallHandling;
 
     fn slot_guard() -> SlotGuard {
         SlotGuard::new(Arc::new(SlotAggregatedStatus::new(1)))
@@ -85,12 +94,23 @@ mod tests {
             ContinuousBatchSchedulerCommand::Generate(Box::new(PreparedGenerationRequest {
                 generate_tokens_stop_rx,
                 generated_tokens_tx,
-                grammar_sampler: None,
-                max_tokens: 1,
+                max_tokens: NonZeroU32::new(1).unwrap(),
                 prompt: PreparedPrompt::TextTokens(Vec::new()),
                 slot_guard: slot_guard(),
-                streaming_markers: Arc::new(StreamingMarkers::default()),
-                tool_call_pipeline: None,
+                token_classification: TokenClassification {
+                    bare_json_tool_calls: BareJsonToolCalls::Ignore,
+                    streaming_markers: Arc::new(StreamingMarkers::default()),
+                },
+                token_sampling: TokenSampling {
+                    chain: SamplerChainFactory {
+                        inference_parameters: InferenceParameters::default(),
+                        n_vocab: 1,
+                    }
+                    .create(0)
+                    .unwrap(),
+                    grammar: GrammarSampling::Unconstrained,
+                },
+                tool_call_handling: ToolCallHandling::Streamed,
             })),
         );
 

@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
@@ -10,7 +12,8 @@ use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
 
 const SHARED_REQUEST_ID: &str = "shared-request-id";
-const MAX_TOKENS_THAT_KEEP_THE_FIRST_REQUEST_GENERATING: i32 = 2048;
+const MAX_TOKENS_THAT_KEEP_THE_FIRST_REQUEST_GENERATING: NonZeroU32 =
+    NonZeroU32::new(2048).unwrap();
 
 const fn is_generated_token(message: &InferenceClientMessage) -> bool {
     matches!(

@@ -1,6 +1,9 @@
 pub mod tool;
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
+use anyhow::bail;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -20,7 +23,7 @@ pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
     pub enable_thinking: bool,
     #[serde(default)]
     pub grammar: Option<GrammarConstraint>,
-    pub max_tokens: i32,
+    pub max_tokens: NonZeroU32,
     #[serde(default)]
     pub parse_tool_calls: bool,
     #[serde(default)]
@@ -31,6 +34,10 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
     for ContinueFromConversationHistoryParams<RawParametersSchema>
 {
     fn validate(self) -> Result<ContinueFromConversationHistoryParams<ValidatedParametersSchema>> {
+        if self.parse_tool_calls && self.tools.is_empty() {
+            bail!("parse_tool_calls requires at least one tool");
+        }
+
         Ok(ContinueFromConversationHistoryParams {
             add_generation_prompt: self.add_generation_prompt,
             conversation_history: self.conversation_history,
@@ -54,6 +61,30 @@ mod tests {
 
     use super::ContinueFromConversationHistoryParams;
     use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
+    use crate::validates::Validates as _;
+
+    #[test]
+    fn validate_fails_when_tool_call_parsing_is_requested_without_tools() {
+        let params: ContinueFromConversationHistoryParams<RawParametersSchema> =
+            from_value(json!({
+                "add_generation_prompt": true,
+                "conversation_history": [
+                    {"content": "Hello", "role": "user"}
+                ],
+                "enable_thinking": false,
+                "max_tokens": 10,
+                "parse_tool_calls": true,
+                "tools": [],
+            }))
+            .unwrap();
+
+        let error = params.validate().unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "parse_tool_calls requires at least one tool"
+        );
+    }
 
     #[test]
     fn a_request_that_omits_the_grammar_field_keeps_working() {

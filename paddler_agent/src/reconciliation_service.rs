@@ -135,9 +135,9 @@ impl Service for ReconciliationService {
 mod tests {
     use std::sync::Arc;
 
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
     use tokio_util::sync::CancellationToken;
 
     use super::convert_to_applicable_state;

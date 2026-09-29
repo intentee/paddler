@@ -1,15 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
@@ -33,7 +34,7 @@ async fn agent_shuts_down_while_state_change_waits_for_in_flight_request() -> Re
                     grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
                     root: "root".to_owned(),
                 }),
-                max_tokens: i32::MAX,
+                max_tokens: NonZeroU32::MAX,
                 raw_prompt: "Repeat the word apple.".to_owned(),
             },
         )
@@ -50,16 +51,7 @@ async fn agent_shuts_down_while_state_change_waits_for_in_flight_request() -> Re
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &BalancerDesiredState {
-                inference_parameters: InferenceParameters {
-                    image_resize_to_fit: initial_desired_state
-                        .inference_parameters
-                        .image_resize_to_fit
-                        / 2,
-                    ..initial_desired_state.inference_parameters.clone()
-                },
-                ..initial_desired_state
-            },
+            &desired_state_with_halved_image_resize(initial_desired_state)?,
         )
         .await?;
 

@@ -63,6 +63,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use std::net::SocketAddr;
     use std::sync::Arc;
     use std::time::Duration;
@@ -96,7 +98,7 @@ mod tests {
     fn raw_prompt_params() -> ContinueFromRawPromptParams {
         ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 1,
+            max_tokens: NonZeroU32::new(1).unwrap(),
             raw_prompt: "hello".to_owned(),
         }
     }

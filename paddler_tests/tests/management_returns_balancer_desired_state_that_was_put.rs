@@ -1,9 +1,9 @@
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_client::client_management::ClientManagement;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;

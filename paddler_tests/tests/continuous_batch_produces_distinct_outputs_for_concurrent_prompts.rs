@@ -1,9 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -43,12 +45,12 @@ async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() -> 
 
     let params_a = ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 20,
+        max_tokens: NonZeroU32::new(20).unwrap(),
         raw_prompt: "Count from one to ten in English: one, two,".to_owned(),
     };
     let params_b = ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 20,
+        max_tokens: NonZeroU32::new(20).unwrap(),
         raw_prompt: "The capital of France is".to_owned(),
     };
     let (collected_a, collected_b) = tokio::join!(

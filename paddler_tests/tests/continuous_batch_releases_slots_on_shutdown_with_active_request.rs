@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use futures_util::StreamExt as _;
@@ -17,7 +19,7 @@ async fn continuous_batch_releases_slots_on_shutdown_with_active_request() -> Re
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 500,
+                max_tokens: NonZeroU32::new(500).unwrap(),
                 raw_prompt: "Write a long essay".to_owned(),
             },
         )

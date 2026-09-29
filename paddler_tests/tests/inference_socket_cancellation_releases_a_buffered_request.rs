@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use futures_util::StreamExt as _;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -23,7 +25,7 @@ async fn inference_socket_cancellation_releases_a_buffered_request() -> Result<(
             cancellation_token.clone(),
             ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 16,
+                max_tokens: NonZeroU32::new(16).unwrap(),
                 raw_prompt: "The capital of France is".to_owned(),
             },
         )

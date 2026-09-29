@@ -1,10 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
+use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -22,8 +25,8 @@ async fn agent_evicts_largest_sequence_under_kv_cache_pressure() -> Result<()> {
 
     let inference_parameters = InferenceParameters {
         n_gpu_layers: gpu_layer_count,
-        n_batch: 256,
-        context_size: 256,
+        n_batch: BatchSize::try_from(256)?,
+        context_size: NonZeroU32::try_from(256)?,
         temperature: 0.0,
         ..InferenceParameters::default()
     };
@@ -48,7 +51,7 @@ async fn agent_evicts_largest_sequence_under_kv_cache_pressure() -> Result<()> {
     let collected = cluster
         .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 4096,
+            max_tokens: NonZeroU32::new(4096).unwrap(),
             raw_prompt: "Write an exhaustive, never-ending encyclopedia entry that lists every fact about the natural world in extreme detail:".to_owned(),
         })
         .await?;

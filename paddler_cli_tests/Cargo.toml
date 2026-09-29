@@ -31,6 +31,7 @@ async-trait = { workspace = true }
 log = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_cli = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
 serde_json = { workspace = true }

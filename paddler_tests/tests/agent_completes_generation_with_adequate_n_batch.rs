@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use std::future::Future;
 
 use anyhow::Result;
@@ -14,6 +16,8 @@ use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
 use tokio_util::sync::CancellationToken;
+
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
 
 fn drive_normal_image_fixture(
     cluster: &Cluster,
@@ -42,7 +46,7 @@ fn drive_normal_image_fixture(
             }]),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 20,
+            max_tokens: MAX_TOKENS,
             parse_tool_calls: false,
             tools: vec![],
         },

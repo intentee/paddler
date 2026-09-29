@@ -36,9 +36,9 @@ pub fn normalize_embedding(
 
 #[cfg(test)]
 mod tests {
+    use paddler_inference_parameters::pooling_type::PoolingType;
     use paddler_messaging::embedding::Embedding;
     use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-    use paddler_messaging::pooling_type::PoolingType;
 
     use super::normalize_embedding;
 

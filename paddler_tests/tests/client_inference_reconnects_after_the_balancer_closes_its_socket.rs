@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use std::num::NonZeroUsize;
 use std::time::Duration;
 
@@ -12,10 +14,12 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(1).unwrap();
+
 const fn raw_prompt_params(raw_prompt: String) -> ContinueFromRawPromptParams {
     ContinueFromRawPromptParams {
         grammar: None,
-        max_tokens: 1,
+        max_tokens: MAX_TOKENS,
         raw_prompt,
     }
 }

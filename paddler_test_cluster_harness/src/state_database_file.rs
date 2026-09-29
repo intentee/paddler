@@ -1,10 +1,12 @@
+use std::path::Path;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use tempfile::NamedTempFile;
 
 pub struct StateDatabaseFile {
     pub url: String,
-    _file: NamedTempFile,
+    file: NamedTempFile,
 }
 
 impl StateDatabaseFile {
@@ -16,7 +18,12 @@ impl StateDatabaseFile {
             .context("temp state database file path is not valid UTF-8")?;
         let url = format!("file://{path}");
 
-        Ok(Self { _file: file, url })
+        Ok(Self { url, file })
+    }
+
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        self.file.path()
     }
 }
 

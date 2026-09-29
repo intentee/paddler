@@ -1,7 +1,7 @@
 use anyhow::Result;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
 
 use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::agent_config::AgentConfig;

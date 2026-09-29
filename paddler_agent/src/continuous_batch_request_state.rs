@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
@@ -11,11 +13,12 @@ pub struct ContinuousBatchRequestState {
     pub current_token_position: i32,
     pub i_batch: Option<i32>,
     pub last_outcome_section: SampledTokenSection,
-    pub max_tokens: i32,
+    pub max_tokens: NonZeroU32,
     pub pending_sampled_token: Option<SampledToken>,
     pub phase: ContinuousBatchRequestPhase,
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
+    pub sampled_tokens: u64,
 }
 
 impl ContinuousBatchRequestState {
@@ -59,6 +62,10 @@ impl ContinuousBatchRequestState {
         self.phase = ContinuousBatchRequestPhase::Generating;
     }
 
+    pub const fn record_sampled_token(&mut self) {
+        self.sampled_tokens += 1;
+    }
+
     pub const fn store_pending_token(&mut self, token: SampledToken) {
         self.pending_sampled_token = Some(token);
     }
@@ -87,12 +94,15 @@ impl ContinuousBatchRequestState {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use llama_cpp_bindings::SampledToken;
+    use llama_cpp_bindings::SampledTokenSection;
+    use llama_cpp_bindings::TokenUsage;
     use llama_cpp_bindings::token::LlamaToken;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
-
-    use llama_cpp_bindings::SampledTokenSection;
 
     use super::ContinuousBatchRequestState;
     use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
@@ -103,12 +113,20 @@ mod tests {
             current_token_position: 0,
             i_batch: None,
             last_outcome_section: SampledTokenSection::Content,
-            max_tokens: 64,
+            max_tokens: NonZeroU32::new(64).unwrap(),
             pending_sampled_token: None,
             phase: ContinuousBatchRequestPhase::IngestingText,
             prompt_tokens: vec![LlamaToken::new(1); prompt_token_count],
             prompt_tokens_ingested: 0,
+            sampled_tokens: 0,
         }
+    }
+
+    const fn done() -> GeneratedTokenResult {
+        GeneratedTokenResult::Done(GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
+            usage: TokenUsage::new(),
+        })
     }
 
     #[test]
@@ -118,9 +136,7 @@ mod tests {
         state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
             GeneratedTokenResult::SamplerError("sampler failed".to_owned()),
         ));
-        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
-            GeneratedTokenResult::Done(GenerationSummary::default()),
-        ));
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(done()));
 
         assert!(
             matches!(
@@ -215,9 +231,7 @@ mod tests {
         state.i_batch = Some(2);
         state.phase = ContinuousBatchRequestPhase::Generating;
 
-        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
-            GeneratedTokenResult::Done(GenerationSummary::default()),
-        ));
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(done()));
 
         assert_eq!(state.i_batch, None);
         assert!(matches!(

@@ -1,42 +1,45 @@
 use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::token_piece::TokenPiece;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
-use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
-pub fn run(
-    request: &mut ContinuousBatchActiveRequest,
-    classified: &ClassifiedToken,
-) -> EmitTokenOutcome {
-    emit_classified(classified, &request.generated_tokens_tx)
+const fn token_to_event(sampled_token: SampledToken, text: String) -> GeneratedTokenResult {
+    match sampled_token {
+        SampledToken::Content(_) => GeneratedTokenResult::ContentToken(text),
+        SampledToken::Reasoning(_) => GeneratedTokenResult::ReasoningToken(text),
+        SampledToken::ToolCall(_) => GeneratedTokenResult::ToolCallToken(text),
+        SampledToken::Undeterminable(_) => GeneratedTokenResult::UndeterminableToken(text),
+    }
 }
 
-fn emit_classified(
-    classified: &ClassifiedToken,
-    tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+#[must_use]
+pub fn run(
+    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
+    ClassifiedToken {
+        sampled_token,
+        piece,
+        ..
+    }: ClassifiedToken,
 ) -> EmitTokenOutcome {
-    if classified.visible_piece.is_empty() {
+    let TokenPiece::Visible(text) = piece else {
+        return EmitTokenOutcome::Emitted;
+    };
+
+    if text.is_empty() {
         return EmitTokenOutcome::Emitted;
     }
 
-    let event = token_to_event(classified.sampled_token, classified.visible_piece.clone());
-
-    if tx.send(event).is_err() {
+    if generated_tokens_tx
+        .send(token_to_event(sampled_token, text))
+        .is_err()
+    {
         return EmitTokenOutcome::ChannelDropped;
     }
 
     EmitTokenOutcome::Emitted
-}
-
-const fn token_to_event(sampled_token: SampledToken, piece: String) -> GeneratedTokenResult {
-    match sampled_token {
-        SampledToken::Content(_) => GeneratedTokenResult::ContentToken(piece),
-        SampledToken::Reasoning(_) => GeneratedTokenResult::ReasoningToken(piece),
-        SampledToken::ToolCall(_) => GeneratedTokenResult::ToolCallToken(piece),
-        SampledToken::Undeterminable(_) => GeneratedTokenResult::UndeterminableToken(piece),
-    }
 }
 
 #[cfg(test)]
@@ -45,125 +48,127 @@ mod tests {
 
     use llama_cpp_bindings::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_bindings::token_piece::TokenPiece;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use tokio::sync::mpsc;
+    use tokio::sync::mpsc::error::TryRecvError;
 
-    use super::emit_classified;
+    use super::run;
     use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
     use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
-    use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
-    fn classified_with_piece(sampled: SampledToken, piece: &str) -> ClassifiedToken {
+    fn classified(sampled_token: SampledToken, piece: TokenPiece) -> ClassifiedToken {
         ClassifiedToken {
-            sampled_token: sampled,
+            sampled_token,
+            piece,
             was_in_tool_call: false,
             is_in_tool_call: false,
-            visible_piece: piece.to_owned(),
-            raw_piece: piece.to_owned(),
         }
     }
 
-    #[test]
-    fn empty_visible_piece_emits_empty_string_without_sending() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
-        let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(1)), "");
+    fn emitted(sampled_token: SampledToken, text: &str) -> GeneratedTokenResult {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
 
-        let outcome = emit_classified(&classified, &tx);
+        let outcome = run(
+            &generated_tokens_tx,
+            classified(sampled_token, TokenPiece::Visible(text.to_owned())),
+        );
 
         assert_eq!(
             discriminant(&outcome),
-            discriminant(&EmitTokenOutcome::Emitted),
+            discriminant(&EmitTokenOutcome::Emitted)
         );
 
-        let receive_error = rx.try_recv().err().unwrap();
+        generated_tokens_rx.try_recv().unwrap()
+    }
+
+    #[test]
+    fn marker_piece_is_not_sent() {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+
+        let outcome = run(
+            &generated_tokens_tx,
+            classified(
+                SampledToken::Reasoning(LlamaToken::new(1)),
+                TokenPiece::Marker("<think>".to_owned()),
+            ),
+        );
 
         assert_eq!(
-            discriminant(&receive_error),
-            discriminant(&mpsc::error::TryRecvError::Empty),
+            discriminant(&outcome),
+            discriminant(&EmitTokenOutcome::Emitted)
         );
+        assert_eq!(generated_tokens_rx.try_recv(), Err(TryRecvError::Empty));
+    }
+
+    #[test]
+    fn empty_visible_piece_is_not_sent() {
+        let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
+
+        let outcome = run(
+            &generated_tokens_tx,
+            classified(
+                SampledToken::Content(LlamaToken::new(2)),
+                TokenPiece::Visible(String::new()),
+            ),
+        );
+
+        assert_eq!(
+            discriminant(&outcome),
+            discriminant(&EmitTokenOutcome::Emitted)
+        );
+        assert_eq!(generated_tokens_rx.try_recv(), Err(TryRecvError::Empty));
     }
 
     #[test]
     fn content_token_emits_content_event() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
-        let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(2)), "hi");
-
-        let outcome = emit_classified(&classified, &tx);
-
         assert_eq!(
-            discriminant(&outcome),
-            discriminant(&EmitTokenOutcome::Emitted),
+            emitted(SampledToken::Content(LlamaToken::new(3)), "hi"),
+            GeneratedTokenResult::ContentToken("hi".to_owned())
         );
-
-        let event = rx.try_recv().unwrap();
-
-        assert_eq!(
-            discriminant(&event),
-            discriminant(&GeneratedTokenResult::ContentToken(String::new())),
-        );
-        assert_eq!(event.token_text().unwrap(), "hi");
     }
 
     #[test]
     fn reasoning_token_emits_reasoning_event() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
-        let classified =
-            classified_with_piece(SampledToken::Reasoning(LlamaToken::new(3)), "think");
-
-        emit_classified(&classified, &tx);
-
-        let event = rx.try_recv().unwrap();
-
         assert_eq!(
-            discriminant(&event),
-            discriminant(&GeneratedTokenResult::ReasoningToken(String::new())),
+            emitted(SampledToken::Reasoning(LlamaToken::new(4)), "think"),
+            GeneratedTokenResult::ReasoningToken("think".to_owned())
         );
-        assert_eq!(event.token_text().unwrap(), "think");
     }
 
     #[test]
     fn tool_call_token_emits_tool_call_event() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
-        let classified = classified_with_piece(SampledToken::ToolCall(LlamaToken::new(4)), "{");
-
-        emit_classified(&classified, &tx);
-
-        let event = rx.try_recv().unwrap();
-
         assert_eq!(
-            discriminant(&event),
-            discriminant(&GeneratedTokenResult::ToolCallToken(String::new())),
+            emitted(SampledToken::ToolCall(LlamaToken::new(5)), "{"),
+            GeneratedTokenResult::ToolCallToken("{".to_owned())
         );
-        assert_eq!(event.token_text().unwrap(), "{");
     }
 
     #[test]
     fn undeterminable_token_emits_undeterminable_event() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
-        let classified =
-            classified_with_piece(SampledToken::Undeterminable(LlamaToken::new(5)), "?");
-
-        emit_classified(&classified, &tx);
-
-        let event = rx.try_recv().unwrap();
-
         assert_eq!(
-            discriminant(&event),
-            discriminant(&GeneratedTokenResult::UndeterminableToken(String::new())),
+            emitted(SampledToken::Undeterminable(LlamaToken::new(6)), "?"),
+            GeneratedTokenResult::UndeterminableToken("?".to_owned())
         );
-        assert_eq!(event.token_text().unwrap(), "?");
     }
 
     #[test]
     fn dropped_receiver_returns_channel_dropped() {
-        let (tx, rx) = mpsc::unbounded_channel::<GeneratedTokenResult>();
-        drop(rx);
-        let classified = classified_with_piece(SampledToken::Content(LlamaToken::new(6)), "hi");
+        let (generated_tokens_tx, generated_tokens_rx) = mpsc::unbounded_channel();
 
-        let outcome = emit_classified(&classified, &tx);
+        drop(generated_tokens_rx);
+
+        let outcome = run(
+            &generated_tokens_tx,
+            classified(
+                SampledToken::Content(LlamaToken::new(7)),
+                TokenPiece::Visible("hi".to_owned()),
+            ),
+        );
 
         assert_eq!(
             discriminant(&outcome),
-            discriminant(&EmitTokenOutcome::ChannelDropped),
+            discriminant(&EmitTokenOutcome::ChannelDropped)
         );
     }
 }

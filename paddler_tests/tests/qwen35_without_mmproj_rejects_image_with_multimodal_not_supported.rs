@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -41,7 +43,7 @@ async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() -> 
                 conversation_history,
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: 100,
+                max_tokens: NonZeroU32::new(100).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

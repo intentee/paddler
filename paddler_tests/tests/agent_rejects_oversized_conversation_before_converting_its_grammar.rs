@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -36,7 +38,7 @@ async fn agent_rejects_oversized_conversation_before_converting_its_grammar() ->
                 grammar: Some(GrammarConstraint::JsonSchema {
                     schema: "not a json schema".to_owned(),
                 }),
-                max_tokens: 20,
+                max_tokens: NonZeroU32::new(20).unwrap(),
                 parse_tool_calls: false,
                 tools: vec![],
             },

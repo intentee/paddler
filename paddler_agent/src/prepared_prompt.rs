@@ -1,8 +1,8 @@
 use llama_cpp_bindings::token::LlamaToken;
 
-use crate::prepared_multimodal_prompt::PreparedMultimodalPrompt;
+use crate::multimodal_prompt_ingestion::MultimodalPromptIngestion;
 
 pub enum PreparedPrompt {
-    Multimodal(PreparedMultimodalPrompt),
+    Multimodal(MultimodalPromptIngestion),
     TextTokens(Vec<LlamaToken>),
 }

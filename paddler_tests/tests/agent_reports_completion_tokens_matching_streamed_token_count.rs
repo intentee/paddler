@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Result;
 use anyhow::anyhow;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -11,7 +13,7 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
-const MAX_TOKENS: i32 = 20;
+const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_completion_tokens_matching_streamed_token_count() -> Result<()> {
@@ -50,7 +52,7 @@ async fn agent_reports_completion_tokens_matching_streamed_token_count() -> Resu
     };
 
     assert!(streamed_token_count > 0);
-    assert!(streamed_token_count <= MAX_TOKENS as u64);
+    assert!(streamed_token_count <= u64::from(MAX_TOKENS.get()));
     assert_eq!(
         summary.usage.completion_tokens(),
         streamed_token_count,

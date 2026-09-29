@@ -19,9 +19,9 @@ pub fn require_token_generation_enabled(
 
 #[cfg(test)]
 mod tests {
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
 
     use super::require_token_generation_enabled;
     use crate::balancer_applicable_state::BalancerApplicableState;

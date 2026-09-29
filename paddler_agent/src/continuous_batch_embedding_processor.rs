@@ -60,7 +60,11 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             ))?;
         }
 
-        let n_batch = self.scheduler_context.inference_parameters.n_batch;
+        let n_batch = self
+            .scheduler_context
+            .inference_parameters
+            .n_batch
+            .tokens_usize();
         let max_sequences_per_batch = self.scheduler_context.desired_slots_total;
 
         let token_counts: Vec<usize> = inputs.iter().map(|input| input.tokens.len()).collect();

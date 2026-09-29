@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::chat_template::ChatTemplate;
-use paddler_messaging::inference_parameters::InferenceParameters;
 
 #[derive(Clone, Debug)]
 pub struct AgentApplicableState {

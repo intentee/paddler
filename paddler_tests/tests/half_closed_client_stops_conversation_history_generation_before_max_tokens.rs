@@ -1,5 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
@@ -7,7 +9,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -18,7 +20,8 @@ use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
-const MAX_TOKENS_TOO_MANY_TO_FINISH_INSIDE_THE_OBSERVATION_WINDOW: i32 = 4096;
+const MAX_TOKENS_TOO_MANY_TO_FINISH_INSIDE_THE_OBSERVATION_WINDOW: NonZeroU32 =
+    NonZeroU32::new(4096).unwrap();
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_client_stops_conversation_history_generation_before_max_tokens() -> Result<()>

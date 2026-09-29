@@ -17,6 +17,7 @@ use crate::compatibility::openai_service::app_data::AppData;
 use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
 use crate::compatibility::openai_service::openai_chat_completion_tool::OpenAIChatCompletionTool;
 use crate::compatibility::openai_service::openai_completion_request_params::OpenAICompletionRequestParams;
+use crate::compatibility::openai_service::openai_default_max_tokens::OPENAI_DEFAULT_MAX_TOKENS;
 use crate::compatibility::openai_service::openai_error::OpenAIError;
 use crate::compatibility::openai_service::openai_message::OpenAIMessage;
 use crate::compatibility::openai_service::openai_non_streaming_response_transformer::OpenAINonStreamingResponseTransformer;
@@ -47,7 +48,9 @@ async fn respond(
     }
 
     let openai_params = openai_params.into_inner();
-    let max_tokens = openai_params.requested_max_tokens().unwrap_or(2000);
+    let max_tokens = openai_params
+        .requested_max_tokens()
+        .unwrap_or(OPENAI_DEFAULT_MAX_TOKENS);
 
     let validated_tools = match openai_params
         .tools
@@ -180,9 +183,9 @@ mod tests {
     use actix_web::test::read_body;
     use actix_web::web::Data;
     use anyhow::Result;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_messaging::inference_parameters::InferenceParameters;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
     use serde_json::Value;
     use serde_json::json;

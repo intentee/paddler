@@ -4,16 +4,17 @@ use serde::Serialize;
 use llama_cpp_bindings_types::ParsedToolCall;
 
 use crate::generation_summary::GenerationSummary;
-use crate::oversized_image_details::OversizedImageDetails;
+use crate::oversized_media_details::OversizedMediaDetails;
 use crate::oversized_prompt_details::OversizedPromptDetails;
 use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::streamable_result::StreamableResult;
 
-#[derive(Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum GeneratedTokenResult {
     ChatTemplateError(String),
     ContentToken(String),
+    DecodeFailed(String),
     DetokenizationFailed(String),
     Done(GenerationSummary),
     GrammarIncompatibleWithThinking(String),
@@ -21,7 +22,7 @@ pub enum GeneratedTokenResult {
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
-    ImageExceedsBatchSize(OversizedImageDetails),
+    MediaExceedsMicroBatch(OversizedMediaDetails),
     MultimodalNotSupported(String),
     PromptExceedsContextSize(OversizedPromptDetails),
     ReasoningToken(String),
@@ -78,6 +79,7 @@ impl StreamableResult for GeneratedTokenResult {
         matches!(
             self,
             Self::ChatTemplateError(_)
+                | Self::DecodeFailed(_)
                 | Self::DetokenizationFailed(_)
                 | Self::Done(_)
                 | Self::GrammarIncompatibleWithThinking(_)
@@ -85,7 +87,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::GrammarRejectedModelOutput(_)
                 | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
-                | Self::ImageExceedsBatchSize(_)
+                | Self::MediaExceedsMicroBatch(_)
                 | Self::MultimodalNotSupported(_)
                 | Self::PromptExceedsContextSize(_)
                 | Self::SamplerError(_)
@@ -97,16 +99,30 @@ impl StreamableResult for GeneratedTokenResult {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings_types::TokenUsage;
+
     use super::GeneratedTokenResult;
+    use crate::generation_finish::GenerationFinish;
     use crate::generation_summary::GenerationSummary;
-    use crate::oversized_image_details::OversizedImageDetails;
+    use crate::oversized_media_details::OversizedMediaDetails;
     use crate::oversized_prompt_details::OversizedPromptDetails;
     use crate::raw_tool_call_tokens::RawToolCallTokens;
     use crate::streamable_result::StreamableResult;
 
     #[test]
     fn done_is_done() {
-        assert!(GeneratedTokenResult::Done(GenerationSummary::default()).is_done());
+        assert!(
+            GeneratedTokenResult::Done(GenerationSummary {
+                finish: GenerationFinish::EndOfGeneration,
+                usage: TokenUsage::new(),
+            })
+            .is_done()
+        );
+    }
+
+    #[test]
+    fn decode_failed_is_done() {
+        assert!(GeneratedTokenResult::DecodeFailed("err".to_owned()).is_done());
     }
 
     #[test]
@@ -145,10 +161,10 @@ mod tests {
     }
 
     #[test]
-    fn image_exceeds_batch_size_is_done_and_not_classified_as_token() {
-        let event = GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
-            image_tokens: 368,
-            n_batch: 100,
+    fn media_exceeds_micro_batch_is_done_and_not_classified_as_token() {
+        let event = GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
+            media_tokens: 368,
+            micro_batch_tokens: 100,
         });
 
         assert!(event.is_done());

@@ -55,6 +55,7 @@ pub enum ResponsesStreamEvent {
     FunctionCallArgumentsDelta(FunctionCallArgumentsDeltaEvent),
     FunctionCallArgumentsDone(FunctionCallArgumentsDoneEvent),
     Completed(ResponseSnapshotEvent),
+    Incomplete(ResponseSnapshotEvent),
     Failed(ResponseSnapshotEvent),
 }
 
@@ -75,6 +76,7 @@ impl ResponsesStreamEvent {
             Self::FunctionCallArgumentsDelta(_) => "response.function_call_arguments.delta",
             Self::FunctionCallArgumentsDone(_) => "response.function_call_arguments.done",
             Self::Completed(_) => "response.completed",
+            Self::Incomplete(_) => "response.incomplete",
             Self::Failed(_) => "response.failed",
         }
     }
@@ -94,6 +96,7 @@ impl Serialize for ResponsesStreamEvent {
             Self::Created(snapshot)
             | Self::InProgress(snapshot)
             | Self::Completed(snapshot)
+            | Self::Incomplete(snapshot)
             | Self::Failed(snapshot) => serialize_typed(event_type, snapshot, serializer),
             Self::OutputItemAdded(item_event) | Self::OutputItemDone(item_event) => {
                 serialize_typed(event_type, item_event, serializer)

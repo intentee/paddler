@@ -1,4 +1,5 @@
 use llama_cpp_bindings_types::TokenUsage;
+use paddler_messaging::generation_finish::GenerationFinish;
 use serde_json::Value;
 use serde_json::json;
 
@@ -23,7 +24,13 @@ pub struct ResponsesResponseBuilder {
 }
 
 impl ResponsesResponseBuilder {
-    fn base(&self, status: &str, output: &Value, error: &Value) -> Value {
+    fn base(
+        &self,
+        status: &str,
+        output: &Value,
+        error: &Value,
+        incomplete_details: &Value,
+    ) -> Value {
         let instructions = self
             .instructions
             .as_ref()
@@ -35,7 +42,7 @@ impl ResponsesResponseBuilder {
             "created_at": self.created_at,
             "status": status,
             "error": error,
-            "incomplete_details": null,
+            "incomplete_details": incomplete_details,
             "instructions": instructions,
             "model": self.model,
             "tools": [],
@@ -51,16 +58,32 @@ impl ResponsesResponseBuilder {
 
     #[must_use]
     pub fn in_progress(&self) -> Value {
-        self.base("in_progress", &json!([]), &Value::Null)
+        self.base("in_progress", &json!([]), &Value::Null, &Value::Null)
     }
 
     #[must_use]
-    pub fn completed(&self, output: Vec<Value>, usage: &TokenUsage) -> Value {
-        let mut response = self.base("completed", &Value::Array(output), &Value::Null);
+    pub fn finished(
+        &self,
+        output: Vec<Value>,
+        usage: &TokenUsage,
+        finish: GenerationFinish,
+    ) -> Value {
+        let mut response = match finish {
+            GenerationFinish::EndOfGeneration | GenerationFinish::StopRequested => self.base(
+                "completed",
+                &Value::Array(output),
+                &Value::Null,
+                &Value::Null,
+            ),
+            GenerationFinish::MaxTokens => self.base(
+                "incomplete",
+                &Value::Array(output),
+                &Value::Null,
+                &json!({ "reason": "max_output_tokens" }),
+            ),
+        };
 
-        if let Some(object) = response.as_object_mut() {
-            object.insert("usage".to_owned(), responses_usage_json(usage));
-        }
+        response["usage"] = responses_usage_json(usage);
 
         response
     }
@@ -71,6 +94,7 @@ impl ResponsesResponseBuilder {
             "failed",
             &json!([]),
             &json!({ "code": "server_error", "message": error.message }),
+            &Value::Null,
         )
     }
 }
@@ -78,6 +102,7 @@ impl ResponsesResponseBuilder {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings_types::TokenUsage;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use serde_json::json;
 
     use super::ResponsesResponseBuilder;
@@ -116,7 +141,7 @@ mod tests {
 
     #[test]
     fn completed_includes_usage_and_output() {
-        let response = builder().completed(
+        let response = builder().finished(
             vec![json!({ "type": "message" })],
             &TokenUsage {
                 prompt_tokens: 3,
@@ -128,6 +153,7 @@ mod tests {
                 tool_call_tokens: 0,
                 undeterminable_tokens: 0,
             },
+            GenerationFinish::EndOfGeneration,
         );
 
         assert_eq!(response["status"], "completed");

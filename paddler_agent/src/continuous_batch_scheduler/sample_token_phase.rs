@@ -1,8 +1,8 @@
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_scheduler::sample_outcome::SampleOutcome;
-use crate::sample_token_at_batch_index::sample_token_at_batch_index;
 use crate::sampling_outcome::SamplingOutcome;
 
 pub struct SampleTokenPhase<'context> {
@@ -14,19 +14,18 @@ impl SampleTokenPhase<'_> {
         &self,
         request: &mut ContinuousBatchActiveRequest,
         batch_index: i32,
+        candidates: &mut LlamaTokenDataArray,
     ) -> SampleOutcome {
-        match sample_token_at_batch_index(
-            self.context,
-            batch_index,
-            &mut request.chain,
-            &mut request.grammar_sampler,
-        ) {
+        match request
+            .token_sampling
+            .sample(self.context, batch_index, candidates)
+        {
             Ok(SamplingOutcome::Token(token)) => SampleOutcome::Sampled(token),
             Ok(SamplingOutcome::AllCandidatesEliminated) => SampleOutcome::AllCandidatesEliminated,
             Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
                 SampleOutcome::GrammarRejected(message)
             }
-            Err(err) => SampleOutcome::Failed(err.to_string()),
+            Err(sampling_error) => SampleOutcome::Failed(format!("{sampling_error:#}")),
         }
     }
 }

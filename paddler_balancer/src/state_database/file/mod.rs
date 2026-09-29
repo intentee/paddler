@@ -1,4 +1,5 @@
 mod schema;
+mod state_database_schema_version;
 
 use std::path::PathBuf;
 

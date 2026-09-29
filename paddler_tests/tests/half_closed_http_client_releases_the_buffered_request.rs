@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use anyhow::Context as _;
 use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -29,7 +31,7 @@ async fn half_closed_http_client_releases_the_buffered_request() -> Result<()> {
             }]),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 2048,
+            max_tokens: NonZeroU32::new(2048).unwrap(),
             parse_tool_calls: false,
             tools: Vec::new(),
         };

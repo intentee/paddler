@@ -1,15 +1,15 @@
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::sampling::LlamaSampler;
-use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 
-pub struct SamplerChainFactory<'parameters> {
-    pub inference_parameters: &'parameters InferenceParameters,
+pub struct SamplerChainFactory {
+    pub inference_parameters: InferenceParameters,
     pub n_vocab: i32,
 }
 
-impl SamplerChainFactory<'_> {
+impl SamplerChainFactory {
     pub fn create(&self, seed: u32) -> Result<LlamaSampler, SamplingError> {
-        let inference_parameters = self.inference_parameters;
+        let inference_parameters = &self.inference_parameters;
         let samplers = [
             LlamaSampler::penalties(
                 self.n_vocab,
@@ -34,7 +34,7 @@ mod tests {
     use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token::data::LlamaTokenData;
     use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
-    use paddler_messaging::inference_parameters::InferenceParameters;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
 
     use super::SamplerChainFactory;
 
@@ -45,7 +45,7 @@ mod tests {
             ..InferenceParameters::default()
         };
         let sampler_chain = SamplerChainFactory {
-            inference_parameters: &inference_parameters,
+            inference_parameters,
             n_vocab: 3,
         }
         .create(7)

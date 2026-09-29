@@ -20,6 +20,7 @@ const TokenUsageSchema = z.object({
 });
 
 const GenerationSummarySchema = z.object({
+  finish: z.enum(["EndOfGeneration", "MaxTokens", "StopRequested"]),
   usage: TokenUsageSchema,
 });
 
@@ -28,9 +29,9 @@ const RawToolCallTokensSchema = z.object({
   ffi_error_message: z.string(),
 });
 
-const OversizedImageDetailsSchema = z.object({
-  image_tokens: z.number(),
-  n_batch: z.number(),
+const OversizedMediaDetailsSchema = z.object({
+  media_tokens: z.number(),
+  micro_batch_tokens: z.number(),
 });
 
 const OversizedPromptDetailsSchema = z.object({
@@ -40,6 +41,7 @@ const OversizedPromptDetailsSchema = z.object({
 
 const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
+  z.object({ DecodeFailed: z.string() }),
   z.object({ DetokenizationFailed: z.string() }),
   z.object({ ReasoningToken: z.string() }),
   z.object({ ToolCallToken: z.string() }),
@@ -51,7 +53,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ GrammarRejectedModelOutput: z.string() }),
   z.object({ GrammarSyntaxError: z.string() }),
   z.object({ ImageDecodingFailed: z.string() }),
-  z.object({ ImageExceedsBatchSize: OversizedImageDetailsSchema }),
+  z.object({ MediaExceedsMicroBatch: OversizedMediaDetailsSchema }),
   z.object({ MultimodalNotSupported: z.string() }),
   z.object({ PromptExceedsContextSize: OversizedPromptDetailsSchema }),
   z.object({ SamplerError: z.string() }),
@@ -352,6 +354,10 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
+    if ("DecodeFailed" in variant) {
+      return terminalError(request_id, generated_by, 500, variant.DecodeFailed);
+    }
+
     if ("DetokenizationFailed" in variant) {
       return terminalError(
         request_id,
@@ -415,13 +421,13 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
-    if ("ImageExceedsBatchSize" in variant) {
-      const details = variant.ImageExceedsBatchSize;
+    if ("MediaExceedsMicroBatch" in variant) {
+      const details = variant.MediaExceedsMicroBatch;
       return terminalError(
         request_id,
         generated_by,
         400,
-        `image required ${details.image_tokens} tokens but n_batch is ${details.n_batch}`,
+        `media required ${details.media_tokens} tokens but one agent micro batch holds ${details.micro_batch_tokens} tokens`,
       );
     }
 
