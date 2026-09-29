@@ -33,9 +33,9 @@
     "nanoid": "^5.1.16"
   },
   "devDependencies": {
-    "@types/node": "^22",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.2"
+    "@types/node": "22.19.17",
+    "tsx": "4.23.15",
+    "typescript": "5.9.2"
   },
   "engines": {
     "node": ">=22"
