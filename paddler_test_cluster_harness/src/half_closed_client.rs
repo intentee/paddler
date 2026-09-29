@@ -37,7 +37,6 @@ impl HalfClosedClient {
             .map_err(|source| ClusterHarnessError::HalfClosedClientUnreachable { addr, source })?;
 
         socket.write_all(request.as_bytes()).await?;
-        socket.flush().await?;
 
         Ok(Self { socket })
     }
@@ -117,8 +116,11 @@ mod tests {
             String::from_utf8(accepted.await.expect("the receiving task must not panic"))
                 .expect("the request must be text");
 
-        assert!(received.starts_with("POST /api/v1/probe HTTP/1.1\r\n"));
-        assert!(received.contains("Content-Length: 7\r\n"));
-        assert!(received.ends_with("{\"a\":1}"));
+        assert_eq!(
+            received,
+            format!(
+                "POST /api/v1/probe HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: 7\r\n\r\n{{\"a\":1}}"
+            )
+        );
     }
 }

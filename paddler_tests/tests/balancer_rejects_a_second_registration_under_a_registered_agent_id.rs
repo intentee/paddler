@@ -48,17 +48,21 @@ async fn balancer_rejects_a_second_registration_under_a_registered_agent_id() {
         .await
         .expect("the impostor registration must be sent");
 
-    let mut close_code = None;
-
-    while let Some(frame) = impostor_socket.next().await {
-        if let Message::Close(Some(close_frame)) =
-            frame.expect("the impostor socket must stay readable")
+    let close_frame = loop {
+        if let Message::Close(close_frame) = impostor_socket
+            .next()
+            .await
+            .expect("the balancer must close the impostor socket")
+            .expect("the impostor socket must stay readable until it is closed")
         {
-            close_code = Some(close_frame.code);
+            break close_frame;
         }
-    }
+    };
 
-    assert_eq!(close_code, Some(CloseCode::Policy));
+    assert_eq!(
+        close_frame.map(|close_frame| close_frame.code),
+        Some(CloseCode::Policy)
+    );
     assert!(
         cluster
             .client_management

@@ -31,6 +31,18 @@ pub enum ClusterHarnessError {
         #[source]
         source: std::io::Error,
     },
+    #[error("The raw inference socket closed before answering request {request_id}")]
+    InferenceSocketClosedBeforeAnswer { request_id: String },
+    #[error("The raw inference socket closed before answering the ping")]
+    InferenceSocketClosedBeforePong,
+    #[error("The raw inference socket received a message it could not read")]
+    InferenceSocketMessageUnreadable(#[source] serde_json::Error),
+    #[error("The raw inference socket could not receive a frame")]
+    InferenceSocketReceiveFailed(#[source] tokio_tungstenite::tungstenite::Error),
+    #[error("The raw inference socket could not serialize a request")]
+    InferenceSocketRequestUnserializable(#[source] serde_json::Error),
+    #[error("The raw inference socket could not send a frame")]
+    InferenceSocketSendFailed(#[source] tokio_tungstenite::tungstenite::Error),
     #[error(
         "The {snapshots_stream:?} stream did not reach the expected state within {observation_window:?}"
     )]
@@ -40,6 +52,8 @@ pub enum ClusterHarnessError {
         #[source]
         source: Elapsed,
     },
+    #[error("Unable to list the open file descriptors of the current process")]
+    OpenFileDescriptorsUnreadable(#[source] std::io::Error),
     #[error("The {snapshots_stream:?} stream closed before reaching the expected state")]
     SnapshotsStreamClosed { snapshots_stream: SnapshotsStream },
     #[error("The {snapshots_stream:?} stream failed")]

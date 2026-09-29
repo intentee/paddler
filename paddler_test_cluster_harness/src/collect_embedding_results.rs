@@ -6,6 +6,7 @@ use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::embedding_with_producer::EmbeddingWithProducer;
@@ -23,56 +24,45 @@ pub async fn collect_embedding_results(
     let mut wire_errors = Vec::new();
 
     while let Some(item) = stream.next().await {
-        let message = item.context("embedding stream yielded an error")?;
+        match item.context("embedding stream yielded an error")? {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by,
+                response: InferenceResponse::Embedding(embedding_result),
+                ..
+            }) => match embedding_result {
+                EmbeddingResult::Done => {
+                    saw_done = true;
 
-        match message {
-            InferenceMessage::Response(envelope) => {
-                let generated_by = envelope.generated_by.clone();
-
-                match envelope.response {
-                    InferenceResponse::Embedding(EmbeddingResult::Done) => {
-                        saw_done = true;
-
-                        break;
-                    }
-                    InferenceResponse::Embedding(EmbeddingResult::Embedding(embedding)) => {
-                        embeddings.push(EmbeddingWithProducer {
-                            embedding,
-                            generated_by,
-                        });
-                    }
-                    InferenceResponse::Embedding(EmbeddingResult::DocumentExceedsBatchSize(
-                        details,
-                    )) => {
-                        oversized_documents.push(details);
-                    }
-                    InferenceResponse::Embedding(EmbeddingResult::EmbeddingsDisabled) => {
-                        embeddings_disabled = true;
-                    }
-                    InferenceResponse::Embedding(EmbeddingResult::Error(message)) => {
-                        errors.push(message);
-                    }
-                    InferenceResponse::Embedding(
-                        EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration,
-                    ) => {
-                        embedding_rejected_due_to_active_token_generation_count += 1;
-                    }
-                    InferenceResponse::Embedding(EmbeddingResult::NoEmbeddingsProduced) => {
-                        no_embeddings_produced_count += 1;
-                    }
-                    InferenceResponse::GeneratedToken(_) => {
-                        return Err(anyhow!(
-                            "unexpected generated-token response on an embedding stream"
-                        ));
-                    }
+                    break;
                 }
-            }
+                EmbeddingResult::Embedding(embedding) => {
+                    embeddings.push(EmbeddingWithProducer {
+                        embedding,
+                        generated_by,
+                    });
+                }
+                EmbeddingResult::DocumentExceedsBatchSize(details) => {
+                    oversized_documents.push(details);
+                }
+                EmbeddingResult::EmbeddingsDisabled => {
+                    embeddings_disabled = true;
+                }
+                EmbeddingResult::Error(message) => {
+                    errors.push(message);
+                }
+                EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration => {
+                    embedding_rejected_due_to_active_token_generation_count += 1;
+                }
+                EmbeddingResult::NoEmbeddingsProduced => {
+                    no_embeddings_produced_count += 1;
+                }
+            },
             InferenceMessage::Error(error_envelope) => {
                 wire_errors.push(error_envelope.error);
             }
-            InferenceMessage::Notification(notification) => {
+            unexpected_message => {
                 return Err(anyhow!(
-                    "unexpected token-generation-mode notification on an embedding stream: {notification:?}"
+                    "unexpected message on an embedding stream: {unexpected_message:?}"
                 ));
             }
         }

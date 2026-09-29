@@ -1,7 +1,5 @@
 pub mod agent_config;
 pub mod agent_spawner;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 mod agents_status;
 mod buffered_requests_status;
 pub mod cluster;
@@ -17,11 +15,11 @@ pub mod load_fixture_data_uri;
 pub mod load_test_image_data_uri;
 pub mod managed_process;
 pub mod observation_window;
-mod openai_chat_completions_client;
-mod openai_config_from_base_url;
-mod openai_responses_client;
+mod openai_api_client;
 pub mod raw_inference_socket;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot_diff;
 pub mod running_agent;
 pub mod running_balancer;

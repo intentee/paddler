@@ -5,6 +5,7 @@ use futures_util::StreamExt as _;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::streamable_result::StreamableResult as _;
 
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
@@ -17,34 +18,25 @@ pub async fn collect_generated_tokens(
     let mut token_results: Vec<TokenResultWithProducer> = Vec::new();
 
     while let Some(item) = stream.next().await {
-        let message = item.context("inference stream yielded an error")?;
+        match item.context("inference stream yielded an error")? {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by,
+                response: InferenceResponse::GeneratedToken(token_result),
+                ..
+            }) => {
+                if let Some(token_text) = token_result.token_text() {
+                    text.push_str(token_text);
+                }
 
-        match message {
-            InferenceMessage::Response(envelope) => {
-                let generated_by = envelope.generated_by.clone();
+                let is_done = token_result.is_done();
 
-                match envelope.response {
-                    InferenceResponse::GeneratedToken(token_result) => {
-                        if let Some(token_text) = token_result.token_text() {
-                            text.push_str(token_text);
-                        }
+                token_results.push(TokenResultWithProducer {
+                    token_result,
+                    generated_by,
+                });
 
-                        let is_done = token_result.is_done();
-
-                        token_results.push(TokenResultWithProducer {
-                            token_result,
-                            generated_by,
-                        });
-
-                        if is_done {
-                            break;
-                        }
-                    }
-                    InferenceResponse::Embedding(_) => {
-                        return Err(anyhow!(
-                            "unexpected embedding response on a token-generation stream"
-                        ));
-                    }
+                if is_done {
+                    break;
                 }
             }
             InferenceMessage::Error(error_envelope) => {
@@ -54,9 +46,9 @@ pub async fn collect_generated_tokens(
                     error_envelope.error.description
                 ));
             }
-            InferenceMessage::Notification(notification) => {
+            unexpected_message => {
                 return Err(anyhow!(
-                    "unexpected token-generation-mode notification on a token-generation stream: {notification:?}"
+                    "unexpected message on a token-generation stream: {unexpected_message:?}"
                 ));
             }
         }

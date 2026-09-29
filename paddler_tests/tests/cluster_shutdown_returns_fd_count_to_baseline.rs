@@ -20,10 +20,8 @@ async fn cluster_shutdown_returns_fd_count_to_baseline() -> Result<()> {
     let diff = after.diff(&before);
 
     assert_eq!(
-        diff.open_file_descriptors_grew_by,
-        0,
-        "in-process cluster lifecycle leaked file descriptors: {summary}",
-        summary = diff.pretty_summary(),
+        diff.open_file_descriptors_grew_by, 0,
+        "in-process cluster lifecycle leaked file descriptors"
     );
 
     Ok(())

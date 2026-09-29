@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use async_openai::error::OpenAIError;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::agent_issue::AgentIssue;
@@ -16,6 +17,7 @@ use paddler_client::client_health::ClientHealth;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::client_management::ClientManagement;
+use paddler_client::error::Result as ClientResult;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use serde_json::Value;
@@ -34,8 +36,7 @@ use crate::collect_generated_tokens::collect_generated_tokens;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::observation_window::ObservationWindow;
-use crate::openai_chat_completions_client::OpenAIChatCompletionsClient;
-use crate::openai_responses_client::OpenAIResponsesClient;
+use crate::openai_api_client::OpenAIApiClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
 use crate::snapshots_watcher::SnapshotsWatcher;
@@ -52,8 +53,7 @@ pub struct Cluster {
     pub client_inference: ClientInference,
     pub client_management: ClientManagement,
     agent_spawner: Box<dyn AgentSpawner>,
-    openai_client: OpenAIChatCompletionsClient,
-    openai_responses_client: OpenAIResponsesClient,
+    openai_api_client: OpenAIApiClient,
 }
 
 impl Cluster {
@@ -99,8 +99,7 @@ impl Cluster {
                 .context("failed to open /api/v1/buffered_requests/stream")?,
         );
 
-        let openai_client = OpenAIChatCompletionsClient::new(&openai_base_url)?;
-        let openai_responses_client = OpenAIResponsesClient::new(&openai_base_url)?;
+        let openai_api_client = OpenAIApiClient::new(&openai_base_url)?;
 
         Ok(Self {
             agent_ids: Vec::new(),
@@ -112,8 +111,7 @@ impl Cluster {
             client_inference,
             client_management,
             agent_spawner,
-            openai_client,
-            openai_responses_client,
+            openai_api_client,
         })
     }
 
@@ -139,14 +137,14 @@ impl Cluster {
         &self,
         cancellation_token: CancellationToken,
         params: &ContinueFromRawPromptParams,
-    ) -> impl Future<Output = Result<InferenceMessageStream>> + Send + use<> {
+    ) -> impl Future<Output = ClientResult<InferenceMessageStream>> + Send + use<> {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
         async move {
-            Ok(client_inference
+            client_inference
                 .post_continue_from_raw_prompt(cancellation_token, &params)
-                .await?)
+                .await
         }
     }
 
@@ -172,14 +170,14 @@ impl Cluster {
         &self,
         cancellation_token: CancellationToken,
         params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    ) -> impl Future<Output = Result<InferenceMessageStream>> + Send + use<> {
+    ) -> impl Future<Output = ClientResult<InferenceMessageStream>> + Send + use<> {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
         async move {
-            Ok(client_inference
+            client_inference
                 .post_continue_from_conversation_history(cancellation_token, &params)
-                .await?)
+                .await
         }
     }
 
@@ -204,41 +202,41 @@ impl Cluster {
     pub fn openai_chat_completion_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Vec<Value>>> + Send + use<> {
-        let openai_client = self.openai_client.clone();
+    ) -> impl Future<Output = Result<Vec<Value>, OpenAIError>> + Send + use<> {
+        let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_client.post_streaming(&body).await }
+        async move { openai_api_client.chat_completion_streaming(&body).await }
     }
 
     pub fn openai_chat_completion_non_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Value>> + Send + use<> {
-        let openai_client = self.openai_client.clone();
+    ) -> impl Future<Output = Result<Value, OpenAIError>> + Send + use<> {
+        let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_client.post_non_streaming(&body).await }
+        async move { openai_api_client.chat_completion_non_streaming(&body).await }
     }
 
     pub fn openai_responses_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Vec<Value>>> + Send + use<> {
-        let openai_responses_client = self.openai_responses_client.clone();
+    ) -> impl Future<Output = Result<Vec<Value>, OpenAIError>> + Send + use<> {
+        let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_responses_client.post_streaming(&body).await }
+        async move { openai_api_client.responses_streaming(&body).await }
     }
 
     pub fn openai_responses_non_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Value>> + Send + use<> {
-        let openai_responses_client = self.openai_responses_client.clone();
+    ) -> impl Future<Output = Result<Value, OpenAIError>> + Send + use<> {
+        let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_responses_client.post_non_streaming(&body).await }
+        async move { openai_api_client.responses_non_streaming(&body).await }
     }
 
     pub async fn wait_for_agent_count(
