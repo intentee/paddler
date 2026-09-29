@@ -143,10 +143,18 @@ impl ContinuousBatchArbiter {
             let inference_parameters_n_batch_u32 = u32::try_from(inference_parameters.n_batch)
                 .context("n_batch does not fit in u32")?;
 
-            let context_params = LlamaContextParams::default()
+            let default_context_params = LlamaContextParams::default();
+            let n_ubatch = if inference_parameters.enable_embeddings {
+                inference_parameters_n_batch_u32
+            } else {
+                default_context_params.n_ubatch()
+            };
+
+            let context_params = default_context_params
                 .with_embeddings(inference_parameters.enable_embeddings)
                 .with_n_ctx(NonZeroU32::new(inference_parameters.context_size))
                 .with_n_batch(inference_parameters_n_batch_u32)
+                .with_n_ubatch(n_ubatch)
                 .with_flash_attention_policy(LLAMA_FLASH_ATTN_TYPE_AUTO)
                 .with_n_seq_max(n_seq_max)
                 .with_n_threads(n_threads)
