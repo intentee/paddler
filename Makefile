@@ -155,14 +155,14 @@ test.coverage: esbuild-meta.json node_modules
 		--gated paddler_cli_tests=89 \
 		--gated paddler_client=97 \
 		--gated paddler_download_manager=99 \
-		--gated paddler_gui=30 \
+		--gated paddler_gui=37 \
 		--gated paddler_image_decoder=100 \
 		--gated paddler_local_http_fixture=89 \
 		--gated paddler_messaging=100 \
 		--gated paddler_openai_response_format_validator=99 \
 		--gated paddler_opencode_tests=76 \
 		--gated paddler_test_cluster_harness=94 \
-		--gated paddler_tests=87 \
+		--gated paddler_tests=88 \
 		--gated paddler_tool_call_validator=100
 
 .PHONY: test.coverage-clean

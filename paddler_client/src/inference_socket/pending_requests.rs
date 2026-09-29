@@ -84,3 +84,28 @@ impl Default for PendingRequests {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::PendingRequests;
+    use crate::error::Error;
+
+    #[test]
+    fn closing_notifies_open_requests_after_one_receiver_was_dropped() {
+        let pending_requests = PendingRequests::default();
+        let abandoned_request = pending_requests
+            .register("abandoned".to_owned())
+            .expect("an open registry must accept a request");
+        let mut awaited_request = pending_requests
+            .register("awaited".to_owned())
+            .expect("an open registry must accept a request");
+
+        drop(abandoned_request);
+        pending_requests.close();
+
+        assert!(matches!(
+            awaited_request.try_recv(),
+            Ok(Err(Error::ConnectionDropped { request_id })) if request_id == "awaited"
+        ));
+    }
+}
