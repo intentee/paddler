@@ -1,7 +1,7 @@
 import { deepStrictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
-import { urlToAgentDesiredModel } from "../src/urlToAgentDesiredModel";
+import { urlToAgentDesiredModel } from "../../src/urlToAgentDesiredModel";
 
 test("recognizes Hugging Face URLs as HuggingFace variant", function () {
   const url = new URL(

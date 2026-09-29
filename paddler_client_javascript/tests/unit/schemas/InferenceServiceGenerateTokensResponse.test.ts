@@ -6,7 +6,111 @@ import {
 } from "node:assert/strict";
 import { test } from "node:test";
 
-import { InferenceServiceGenerateTokensResponseSchema } from "../../src/schemas/InferenceServiceGenerateTokensResponse";
+import { InferenceServiceGenerateTokensResponseSchema } from "../../../src/schemas/InferenceServiceGenerateTokensResponse";
+
+function generatedToken(generatedTokenResult: unknown): unknown {
+  return {
+    Response: {
+      generated_by: null,
+      request_id: "req-1",
+      response: { GeneratedToken: generatedTokenResult },
+    },
+  };
+}
+
+const terminalErrorCodes = [
+  { code: 500, variant: "ChatTemplateError" },
+  { code: 500, variant: "DetokenizationFailed" },
+  { code: 400, variant: "GrammarIncompatibleWithThinking" },
+  { code: 500, variant: "GrammarInitializationFailed" },
+  { code: 500, variant: "GrammarRejectedModelOutput" },
+  { code: 400, variant: "GrammarSyntaxError" },
+  { code: 400, variant: "ImageDecodingFailed" },
+  { code: 400, variant: "MultimodalNotSupported" },
+  { code: 500, variant: "SamplerError" },
+  { code: 501, variant: "TokenGenerationDisabled" },
+  { code: 400, variant: "ToolSchemaInvalid" },
+] as const;
+
+for (const { code, variant } of terminalErrorCodes) {
+  test(`${variant} normalises to a terminal error with code ${code}`, function () {
+    const parsed = InferenceServiceGenerateTokensResponseSchema.parse(
+      generatedToken({ [variant]: "described failure" }),
+    );
+
+    strictEqual(parsed.done, true);
+    deepStrictEqual(parsed.error, { code, description: "described failure" });
+  });
+}
+
+const streamingTokenKinds = [
+  { tokenKind: "tool_call", variant: "ToolCallToken" },
+  { tokenKind: "undeterminable", variant: "UndeterminableToken" },
+] as const;
+
+for (const { tokenKind, variant } of streamingTokenKinds) {
+  test(`${variant} normalises into a streaming token with ${tokenKind} kind`, function () {
+    const parsed = InferenceServiceGenerateTokensResponseSchema.parse(
+      generatedToken({ [variant]: "piece" }),
+    );
+
+    strictEqual(parsed.done, false);
+    strictEqual(parsed.token, "piece");
+    strictEqual(parsed.tokenKind, tokenKind);
+  });
+}
+
+test("ToolCallParsed carries the parsed calls without ending the stream", function () {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse(
+    generatedToken({
+      ToolCallParsed: [
+        {
+          arguments: { ValidJson: { location: "Paris" } },
+          id: "call_42",
+          name: "get_weather",
+        },
+      ],
+    }),
+  );
+
+  strictEqual(parsed.done, false);
+  deepStrictEqual(parsed.toolCalls, [
+    {
+      arguments: { ValidJson: { location: "Paris" } },
+      id: "call_42",
+      name: "get_weather",
+    },
+  ]);
+});
+
+test("ToolCallParseFailed is a non-terminal unprocessable error", function () {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse(
+    generatedToken({ ToolCallParseFailed: "syntax error at 12" }),
+  );
+
+  strictEqual(parsed.done, false);
+  deepStrictEqual(parsed.error, {
+    code: 422,
+    description: "syntax error at 12",
+  });
+});
+
+test("ToolCallValidationFailed joins its errors into a non-terminal unprocessable error", function () {
+  const parsed = InferenceServiceGenerateTokensResponseSchema.parse(
+    generatedToken({
+      ToolCallValidationFailed: [
+        "missing field 'location'",
+        "extra field 'foo'",
+      ],
+    }),
+  );
+
+  strictEqual(parsed.done, false);
+  deepStrictEqual(parsed.error, {
+    code: 422,
+    description: "missing field 'location'; extra field 'foo'",
+  });
+});
 
 test("ContentToken normalises into a streaming token with content kind", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
@@ -66,23 +170,6 @@ test("Done normalises with the full usage summary", function () {
   deepStrictEqual(parsed.summary?.usage.prompt_tokens, 10);
 });
 
-test("ToolCallValidatorBuildFailed normalises to a terminal error", function () {
-  const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
-    Response: {
-      generated_by: null,
-      request_id: "req-4",
-      response: {
-        GeneratedToken: {
-          ToolCallValidatorBuildFailed: "schema invalid",
-        },
-      },
-    },
-  });
-
-  strictEqual(parsed.done, true);
-  deepStrictEqual(parsed.error, { code: 400, description: "schema invalid" });
-});
-
 test("Top-level Error envelope normalises to terminal error", function () {
   const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
     Error: {
@@ -120,26 +207,6 @@ test("UnrecognizedToolCallFormat preserves text and FFI error message", function
   deepStrictEqual(parsed.rawToolCallTokens, {
     text: "<unknown>raw</unknown>",
     ffi_error_message: "common_chat_parse failed: no parser",
-  });
-});
-
-test("TokenGenerationDisabled normalises to a terminal error", function () {
-  const parsed = InferenceServiceGenerateTokensResponseSchema.parse({
-    Response: {
-      generated_by: null,
-      request_id: "req-8",
-      response: {
-        GeneratedToken: {
-          TokenGenerationDisabled: "cluster is configured for embeddings",
-        },
-      },
-    },
-  });
-
-  strictEqual(parsed.done, true);
-  deepStrictEqual(parsed.error, {
-    code: 501,
-    description: "cluster is configured for embeddings",
   });
 });
 

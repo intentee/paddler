@@ -1,7 +1,7 @@
 import { strictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
-import { AgentSchema } from "../../src/schemas/Agent";
+import { AgentSchema } from "../../../src/schemas/Agent";
 
 test("parses a fully populated agent payload", function () {
   const parsed = AgentSchema.parse({

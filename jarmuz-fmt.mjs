@@ -14,6 +14,7 @@ jarmuz({
     "paddler_cli",
     "paddler_cli_tests",
     "paddler_client",
+    "paddler_client_javascript",
     "paddler_download_manager",
     "paddler_gui",
     "paddler_messaging",

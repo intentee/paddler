@@ -112,8 +112,16 @@ lint.openai.python: paddler_openai_client_python_test/.venv
 test: test.client.js test.client.python test.unit test.integration
 
 .PHONY: test.client.js
-test.client.js: node_modules
-	npm --workspace @intentee/paddler-client test
+test.client.js: $(PADDLER_TEST_BINARY) node_modules
+	$(PADDLER_BINARY_ENVIRONMENT) npm --workspace @intentee/paddler-client test
+
+.PHONY: test.client.js.coverage
+test.client.js.coverage: $(PADDLER_TEST_BINARY) node_modules
+	$(PADDLER_BINARY_ENVIRONMENT) npm --workspace @intentee/paddler-client run test:coverage
+
+.PHONY: test.client.js.llm
+test.client.js.llm: $(PADDLER_TEST_BINARY) node_modules
+	$(PADDLER_BINARY_ENVIRONMENT) npm --workspace @intentee/paddler-client run test:llm
 
 .PHONY: test.client.python
 test.client.python: $(PADDLER_TEST_BINARY) paddler_client_python/.venv paddler_test_cluster_python/.venv

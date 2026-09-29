@@ -39,6 +39,7 @@ jobs:
 
   javascript:
     name: javascript
+    needs: paddler-binary
     runs-on: ubuntu-latest
 
     steps:
@@ -52,6 +53,17 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Download the Paddler binary
+        uses: actions/download-artifact@v4
+        with:
+          name: paddler-binary
+          path: target/debug
+
+      - name: Mark the downloaded Paddler binary as built and executable
+        run: |
+          chmod +x target/debug/paddler
+          touch target/debug/paddler
 
       - name: Run JS client tests
         run: make test.client.js

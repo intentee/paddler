@@ -30,6 +30,7 @@ Copy this checklist and tick each item as the suite completes:
 
 ```
 - [ ] JS client
+- [ ] JS client LLM
 - [ ] Python lint
 - [ ] Python client
 - [ ] Python client LLM
@@ -40,17 +41,18 @@ Copy this checklist and tick each item as the suite completes:
 
 | # | Suite                    | Command (from the repo root)                          |
 |---|--------------------------|-------------------------------------------------------|
-| 1 | JS client                | `make test.client.js`                                 |
-| 2 | Python lint              | `make lint.client.python lint.openai.python`          |
-| 3 | Python client            | `TEST_DEVICE=$DEVICE make test.client.python`         |
-| 4 | Python client LLM        | `TEST_DEVICE=$DEVICE make test.client.python.llm`     |
-| 5 | OpenAI Python client LLM | `TEST_DEVICE=$DEVICE make test.openai.python.llm`     |
-| 6 | Rust unit                | `TEST_DEVICE=$DEVICE make test.unit`                  |
-| 7 | Rust integration         | `TEST_DEVICE=$DEVICE make test.integration`           |
+| 1 | JS client                | `TEST_DEVICE=$DEVICE make test.client.js`             |
+| 2 | JS client LLM            | `TEST_DEVICE=$DEVICE make test.client.js.llm`         |
+| 3 | Python lint              | `make lint.client.python lint.openai.python`          |
+| 4 | Python client            | `TEST_DEVICE=$DEVICE make test.client.python`         |
+| 5 | Python client LLM        | `TEST_DEVICE=$DEVICE make test.client.python.llm`     |
+| 6 | OpenAI Python client LLM | `TEST_DEVICE=$DEVICE make test.openai.python.llm`     |
+| 7 | Rust unit                | `TEST_DEVICE=$DEVICE make test.unit`                  |
+| 8 | Rust integration         | `TEST_DEVICE=$DEVICE make test.integration`           |
 
-Run them in this order. Cheap suites (1, 2, 3, 6) surface bugs quickly; the GPU-bound suites (4, 5, 7) load models.
+Run them in this order. Cheap suites (1, 3, 4, 7) surface bugs quickly; the GPU-bound suites (2, 5, 6, 8) load models.
 
-On NixOS the pinned `ruff` wheel is dynamically linked, so suite 2 needs `nix-ld`.
+On NixOS the pinned `ruff` wheel is dynamically linked, so suite 3 needs `nix-ld`.
 
 ## Step 3: rules during the run
 

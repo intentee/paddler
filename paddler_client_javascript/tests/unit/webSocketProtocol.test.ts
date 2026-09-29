@@ -1,7 +1,7 @@
 import { strictEqual } from "node:assert/strict";
 import { test } from "node:test";
 
-import { webSocketProtocol } from "../src/webSocketProtocol";
+import { webSocketProtocol } from "../../src/webSocketProtocol";
 
 test("https: maps to wss:", function () {
   strictEqual(webSocketProtocol("https:"), "wss:");

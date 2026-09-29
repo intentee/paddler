@@ -1,7 +1,7 @@
 import { deepStrictEqual, strictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
-import { ParsedToolCallSchema } from "../../src/schemas/ParsedToolCall";
+import { ParsedToolCallSchema } from "../../../src/schemas/ParsedToolCall";
 
 test("ValidJson arguments parse with the inner JSON kept intact", function () {
   const parsed = ParsedToolCallSchema.parse({

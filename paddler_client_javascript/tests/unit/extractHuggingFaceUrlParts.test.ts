@@ -1,7 +1,7 @@
 import { deepStrictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
-import { extractHuggingFaceUrlParts } from "../src/extractHuggingFaceUrlParts";
+import { extractHuggingFaceUrlParts } from "../../src/extractHuggingFaceUrlParts";
 
 test("blob URL extracts owner, repo, revision and filename", function () {
   const url = new URL(
@@ -41,6 +41,14 @@ test("nested filename paths preserve every segment", function () {
 
 test("malformed URLs throw", function () {
   const url = new URL("https://huggingface.co/owner/repo");
+
+  throws(function () {
+    extractHuggingFaceUrlParts(url);
+  });
+});
+
+test("URLs that do not point at a file blob throw", function () {
+  const url = new URL("https://huggingface.co/owner/repo/tree/main/file.gguf");
 
   throws(function () {
     extractHuggingFaceUrlParts(url);
