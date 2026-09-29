@@ -632,9 +632,9 @@ def test_parse_unknown_format_raises() -> None:
         parse_inference_client_message({"Unknown": {}})
 
 
-def test_parse_non_dict_raises_type_error() -> None:
+def test_parse_json_that_is_not_an_object_raises_type_error() -> None:
     with pytest.raises(TypeError, match="Unknown"):
-        parse_inference_client_message(42)  # type: ignore[arg-type]
+        parse_inference_client_message("42")
 
 
 def test_parse_unknown_response_variant_raises() -> None:

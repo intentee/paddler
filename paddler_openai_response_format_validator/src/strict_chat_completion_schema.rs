@@ -36,6 +36,14 @@ fn unique_strings(values: &[Value]) -> Vec<Value> {
     unique
 }
 
+fn is_draft_2019_09_recursion_keyword(key: &str) -> bool {
+    matches!(key, "$recursiveAnchor" | "$recursiveRef")
+}
+
+fn is_openapi_3_0_boolean_exclusive_bound(key: &str, value: &Value) -> bool {
+    matches!(key, "exclusiveMinimum" | "exclusiveMaximum") && value.is_boolean()
+}
+
 fn transform_object(object: &Map<String, Value>) -> Value {
     let mut transformed = Map::new();
     let mut nullable = false;
@@ -43,14 +51,10 @@ fn transform_object(object: &Map<String, Value>) -> Value {
     for (key, value) in object {
         match key.as_str() {
             "nullable" => nullable = matches!(value, Value::Bool(true)),
-            // Draft 2019-09 recursion keywords the OpenAI document still carries; Draft 2020-12
-            // replaced them with `$dynamicAnchor`/`$dynamicRef`. Drop them so the assembled schema
-            // passes 2020-12 meta-validation. The schemas that use them (recursive filters) are not
-            // part of any Paddler-emitted payload, so removing the recursion is inconsequential.
-            "$recursiveAnchor" | "$recursiveRef" => {}
-            // OpenAPI 3.0 expressed exclusive bounds as booleans; Draft 2020-12 expects the bound to
-            // be the number itself. A boolean form is meaningless under 2020-12, so drop it.
-            "exclusiveMinimum" | "exclusiveMaximum" if value.is_boolean() => {}
+            draft_2019_09_recursion_keyword
+                if is_draft_2019_09_recursion_keyword(draft_2019_09_recursion_keyword) => {}
+            openapi_3_0_exclusive_bound
+                if is_openapi_3_0_boolean_exclusive_bound(openapi_3_0_exclusive_bound, value) => {}
             "required" => {
                 if let Value::Array(entries) = value {
                     transformed.insert(key.clone(), Value::Array(unique_strings(entries)));

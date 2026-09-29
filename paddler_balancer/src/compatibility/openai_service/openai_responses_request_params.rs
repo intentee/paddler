@@ -22,7 +22,6 @@ const DEFAULT_MAX_TOKENS: i32 = 2000;
 
 #[derive(Deserialize)]
 pub struct OpenAIResponsesRequestParams {
-    /// Echoed back in the response object; not used for routing.
     pub model: String,
     #[serde(default)]
     pub input: OpenAIResponsesInput,

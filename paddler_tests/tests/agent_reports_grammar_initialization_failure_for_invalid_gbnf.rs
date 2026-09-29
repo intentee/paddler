@@ -13,11 +13,6 @@ use tokio_util::sync::CancellationToken;
 async fn agent_reports_grammar_initialization_failure_for_invalid_gbnf() -> Result<()> {
     let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    // `root ::= "unterminated` is syntactically broken GBNF (the string literal is
-    // never closed). The `Gbnf` constraint is passed through verbatim, so the
-    // malformed grammar only fails when `llama.cpp` compiles it inside
-    // `GrammarSampler::into_llama_sampler`, exercising the agent's
-    // grammar-initialization-failure path.
     let collected = cluster
         .continue_from_raw_prompt(CancellationToken::new(), &ContinueFromRawPromptParams {
             grammar: Some(GrammarConstraint::Gbnf {

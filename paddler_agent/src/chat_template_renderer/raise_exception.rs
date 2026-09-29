@@ -1,8 +1,6 @@
 use minijinja::Error;
 use minijinja::ErrorKind;
 
-// Surfaces errors raised explicitly inside a chat template. Known uses:
-// https://huggingface.co/bartowski/Mistral-7B-Instruct-v0.3-GGUF
 pub fn raise_exception(message: &str) -> Result<String, Error> {
     Err(Error::new::<String>(
         ErrorKind::InvalidOperation,

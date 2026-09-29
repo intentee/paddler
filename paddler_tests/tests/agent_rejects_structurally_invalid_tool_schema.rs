@@ -52,11 +52,6 @@ async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
     })
     .await?;
 
-    // `{"type": 123}` is a structurally well-formed JSON object (so it survives
-    // request-parameter validation) but is not a valid JSON Schema: the `type`
-    // keyword must be a string or an array of strings. `jsonschema::validator_for`
-    // rejects it, so the agent's tool-call pipeline build reports the tool's schema
-    // as invalid and the scheduler emits `ToolSchemaInvalid` before any generation.
     let mut invalid_properties = Map::new();
     invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
 

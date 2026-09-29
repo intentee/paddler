@@ -13,8 +13,6 @@ pub struct AssembleBatchPhase {
 }
 
 impl AssembleBatchPhase {
-    /// # Errors
-    /// Forwards `LlamaBatch::add` failures verbatim.
     pub fn run(
         &self,
         pass: &mut BatchPass,

@@ -9,7 +9,6 @@ pub struct OpenAICompletionRequestParams {
     pub max_completion_tokens: Option<i32>,
     pub max_tokens: Option<i32>,
     pub messages: Vec<OpenAIMessage>,
-    /// This parameter is ignored here, but is required by the `OpenAI` API.
     pub model: String,
     pub stream: Option<bool>,
     pub stream_options: Option<StreamOptions>,

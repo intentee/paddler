@@ -20,11 +20,6 @@ use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
-// Failure ceiling for the agent to reload out of embeddings mode into token
-// generation: teardown of the embeddings context, reload of the 0.6B weights
-// from the local cache, context re-init, and chat-template load complete in a
-// few seconds; this is generous headroom so the buffered request waits out the
-// reload while still failing in bounded time if recovery never happens.
 const MODEL_RELOAD_CEILING: Duration = Duration::from_mins(2);
 
 fn capital_of_france_prompt() -> ContinueFromRawPromptParams {

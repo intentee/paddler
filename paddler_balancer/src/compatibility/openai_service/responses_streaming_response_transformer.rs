@@ -333,7 +333,6 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        // reasoning item closed at output_index 0, message opened at output_index 1
         assert_eq!(serialized(&events[1])["output_index"], 0);
         assert_eq!(serialized(&events[2])["output_index"], 1);
         assert_eq!(serialized(&events[1])["item"]["type"], "reasoning");

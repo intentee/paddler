@@ -39,7 +39,6 @@ impl BufferedRequestManager {
     }
 
     pub async fn wait_for_available_agent(&self) -> Result<BufferedRequestAgentWaitResult> {
-        // Quick path: a slot is available right now, no buffering needed.
         if let Some(dispatched_agent) = self
             .agent_controller_pool
             .take_least_busy_agent_controller()
@@ -47,8 +46,6 @@ impl BufferedRequestManager {
             return Ok(BufferedRequestAgentWaitResult::Found(dispatched_agent));
         }
 
-        // Slot is busy — we would need to wait. Reject if the buffer is full
-        // (max_buffered_requests == 0 means buffering is disabled entirely).
         if self.buffered_request_counter.get() >= self.max_buffered_requests {
             return Ok(BufferedRequestAgentWaitResult::BufferOverflow);
         }
