@@ -329,17 +329,17 @@ impl ManagementSocketClientService {
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-        loop {
+        let agent_ends_connection = loop {
             tokio::select! {
                 () = connection_close.cancelled() => {
                     info!("Connection close signal received, shutting down");
 
-                    break;
+                    break false;
                 }
-                () = shutdown.cancelled() => break,
+                () = shutdown.cancelled() => break true,
                 changed = update_rx.changed() => {
                     if changed.is_err() {
-                        break;
+                        break true;
                     }
                     do_send_status_update();
                 }
@@ -374,11 +374,11 @@ impl ManagementSocketClientService {
                     if should_close {
                         connection_close.cancel();
 
-                        break;
+                        break false;
                     }
                 }
             }
-        }
+        };
 
         message_tx
             .send(ManagementJsonRpcMessage::Notification(
@@ -394,7 +394,7 @@ impl ManagementSocketClientService {
             .await
             .context("Failed to join message forwarding task")?;
 
-        if shutdown.is_cancelled() {
+        if agent_ends_connection {
             write
                 .send(Message::Close(None))
                 .await
