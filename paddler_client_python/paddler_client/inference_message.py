@@ -7,6 +7,9 @@ from enum import StrEnum
 from typing import Any, cast
 
 from paddler_client.embedding import Embedding
+from paddler_client.oversized_embedding_document_details import (
+    OversizedEmbeddingDocumentDetails,
+)
 from paddler_client.oversized_image_details import OversizedImageDetails
 from paddler_client.oversized_prompt_details import OversizedPromptDetails
 from paddler_client.parsed_tool_call import ParsedToolCall
@@ -16,14 +19,17 @@ from paddler_client.raw_tool_call_tokens import RawToolCallTokens
 class InferenceMessageKind(StrEnum):
     CHAT_TEMPLATE_ERROR = "chat_template_error"
     CONTENT_TOKEN = "content_token"
+    DETOKENIZATION_FAILED = "detokenization_failed"
     DONE = "done"
     EMBEDDING = "embedding"
+    EMBEDDING_DOCUMENT_EXCEEDS_BATCH_SIZE = "embedding_document_exceeds_batch_size"
     EMBEDDING_DONE = "embedding_done"
     EMBEDDING_ERROR = "embedding_error"
     EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION = (
         "embedding_rejected_due_to_active_token_generation"
     )
     EMBEDDING_NO_EMBEDDINGS_PRODUCED = "embedding_no_embeddings_produced"
+    EMBEDDINGS_DISABLED = "embeddings_disabled"
     GRAMMAR_INCOMPATIBLE_WITH_THINKING = "grammar_incompatible_with_thinking"
     GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
     GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
@@ -35,11 +41,12 @@ class InferenceMessageKind(StrEnum):
     REASONING_TOKEN = "reasoning_token"
     SAMPLER_ERROR = "sampler_error"
     SERVER_ERROR = "server_error"
+    TOKEN_GENERATION_DISABLED = "token_generation_disabled"
     TOOL_CALL_PARSED = "tool_call_parsed"
     TOOL_CALL_PARSE_FAILED = "tool_call_parse_failed"
     TOOL_CALL_TOKEN = "tool_call_token"
     TOOL_CALL_VALIDATION_FAILED = "tool_call_validation_failed"
-    TOOL_CALL_VALIDATOR_BUILD_FAILED = "tool_call_validator_build_failed"
+    TOOL_SCHEMA_INVALID = "tool_schema_invalid"
     UNDETERMINABLE_TOKEN = "undeterminable_token"
     UNRECOGNIZED_TOOL_CALL_FORMAT = "unrecognized_tool_call_format"
 
@@ -50,6 +57,17 @@ _TOKEN_KINDS: frozenset[InferenceMessageKind] = frozenset(
         InferenceMessageKind.REASONING_TOKEN,
         InferenceMessageKind.TOOL_CALL_TOKEN,
         InferenceMessageKind.UNDETERMINABLE_TOKEN,
+    },
+)
+
+_NON_TERMINAL_KINDS: frozenset[InferenceMessageKind] = _TOKEN_KINDS | frozenset(
+    {
+        InferenceMessageKind.EMBEDDING,
+        InferenceMessageKind.EMBEDDING_DOCUMENT_EXCEEDS_BATCH_SIZE,
+        InferenceMessageKind.TOOL_CALL_PARSED,
+        InferenceMessageKind.TOOL_CALL_PARSE_FAILED,
+        InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED,
+        InferenceMessageKind.UNRECOGNIZED_TOOL_CALL_FORMAT,
     },
 )
 
@@ -81,14 +99,14 @@ class TokenUsage:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TokenUsage:
         return cls(
-            prompt_tokens=int(data.get("prompt_tokens", 0)),
-            cached_prompt_tokens=int(data.get("cached_prompt_tokens", 0)),
-            input_image_tokens=int(data.get("input_image_tokens", 0)),
-            input_audio_tokens=int(data.get("input_audio_tokens", 0)),
-            content_tokens=int(data.get("content_tokens", 0)),
-            reasoning_tokens=int(data.get("reasoning_tokens", 0)),
-            tool_call_tokens=int(data.get("tool_call_tokens", 0)),
-            undeterminable_tokens=int(data.get("undeterminable_tokens", 0)),
+            prompt_tokens=int(data["prompt_tokens"]),
+            cached_prompt_tokens=int(data["cached_prompt_tokens"]),
+            input_image_tokens=int(data["input_image_tokens"]),
+            input_audio_tokens=int(data["input_audio_tokens"]),
+            content_tokens=int(data["content_tokens"]),
+            reasoning_tokens=int(data["reasoning_tokens"]),
+            tool_call_tokens=int(data["tool_call_tokens"]),
+            undeterminable_tokens=int(data["undeterminable_tokens"]),
         )
 
 
@@ -98,7 +116,7 @@ class GenerationSummary:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> GenerationSummary:
-        return cls(usage=TokenUsage.from_dict(data.get("usage", {})))
+        return cls(usage=TokenUsage.from_dict(data["usage"]))
 
 
 @dataclass(frozen=True)
@@ -114,6 +132,9 @@ class InferenceMessage:
     raw_tool_call_tokens: RawToolCallTokens | None = None
     oversized_image_details: OversizedImageDetails | None = None
     oversized_prompt_details: OversizedPromptDetails | None = None
+    oversized_embedding_document_details: OversizedEmbeddingDocumentDetails | None = (
+        None
+    )
     generated_by: str | None = None
 
     @property
@@ -126,7 +147,7 @@ class InferenceMessage:
 
     @property
     def is_terminal(self) -> bool:
-        return not self.is_token and self.kind != InferenceMessageKind.EMBEDDING
+        return self.kind not in _NON_TERMINAL_KINDS
 
 
 def parse_inference_client_message(
@@ -148,7 +169,7 @@ def parse_inference_client_message(
         return _parse_response(
             response_envelope["request_id"],
             response_envelope["response"],
-            response_envelope.get("generated_by"),
+            response_envelope["generated_by"],
         )
 
     msg = f"Unknown inference client message format: {data}"
@@ -194,6 +215,7 @@ def _parse_response(
 
 _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ChatTemplateError": InferenceMessageKind.CHAT_TEMPLATE_ERROR,
+    "DetokenizationFailed": InferenceMessageKind.DETOKENIZATION_FAILED,
     "GrammarIncompatibleWithThinking": (
         InferenceMessageKind.GRAMMAR_INCOMPATIBLE_WITH_THINKING
     ),
@@ -203,9 +225,8 @@ _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
     "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
     "SamplerError": InferenceMessageKind.SAMPLER_ERROR,
-    "ToolCallValidatorBuildFailed": (
-        InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED
-    ),
+    "TokenGenerationDisabled": InferenceMessageKind.TOKEN_GENERATION_DISABLED,
+    "ToolSchemaInvalid": InferenceMessageKind.TOOL_SCHEMA_INVALID,
 }
 
 
@@ -404,50 +425,80 @@ def _parse_generated_token_result(
     raise ValueError(msg)
 
 
+_EMBEDDING_UNIT_KINDS: dict[str, InferenceMessageKind] = {
+    "Done": InferenceMessageKind.EMBEDDING_DONE,
+    "EmbeddingRejectedDueToActiveTokenGeneration": (
+        InferenceMessageKind.EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION
+    ),
+    "EmbeddingsDisabled": InferenceMessageKind.EMBEDDINGS_DISABLED,
+    "NoEmbeddingsProduced": InferenceMessageKind.EMBEDDING_NO_EMBEDDINGS_PRODUCED,
+}
+
+
+def _build_embedding_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.EMBEDDING,
+        embedding_data=Embedding.model_validate(payload),
+        generated_by=generated_by,
+    )
+
+
+def _build_embedding_error_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.EMBEDDING_ERROR,
+        error_message=payload,
+        generated_by=generated_by,
+    )
+
+
+def _build_embedding_document_exceeds_batch_size_message(
+    request_id: str,
+    payload: Any,
+    generated_by: str | None,
+) -> InferenceMessage:
+    return InferenceMessage(
+        request_id=request_id,
+        kind=InferenceMessageKind.EMBEDDING_DOCUMENT_EXCEEDS_BATCH_SIZE,
+        oversized_embedding_document_details=(
+            OversizedEmbeddingDocumentDetails.from_dict(payload)
+        ),
+        generated_by=generated_by,
+    )
+
+
+_EMBEDDING_STRUCTURED_HANDLERS: dict[str, _StructuredHandler] = {
+    "DocumentExceedsBatchSize": _build_embedding_document_exceeds_batch_size_message,
+    "Embedding": _build_embedding_message,
+    "Error": _build_embedding_error_message,
+}
+
+
 def _parse_embedding_result(
     request_id: str,
     data: str | dict[str, Any],
     generated_by: str | None,
 ) -> InferenceMessage:
-    if data == "Done":
+    if isinstance(data, str) and data in _EMBEDDING_UNIT_KINDS:
         return InferenceMessage(
             request_id=request_id,
-            kind=InferenceMessageKind.EMBEDDING_DONE,
-            generated_by=generated_by,
-        )
-
-    if data == "EmbeddingRejectedDueToActiveTokenGeneration":
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION,
-            generated_by=generated_by,
-        )
-
-    if data == "NoEmbeddingsProduced":
-        return InferenceMessage(
-            request_id=request_id,
-            kind=InferenceMessageKind.EMBEDDING_NO_EMBEDDINGS_PRODUCED,
+            kind=_EMBEDDING_UNIT_KINDS[data],
             generated_by=generated_by,
         )
 
     if isinstance(data, dict):
-        if "Embedding" in data:
-            embedding = Embedding.model_validate(data["Embedding"])
-
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.EMBEDDING,
-                embedding_data=embedding,
-                generated_by=generated_by,
-            )
-
-        if "Error" in data:
-            return InferenceMessage(
-                request_id=request_id,
-                kind=InferenceMessageKind.EMBEDDING_ERROR,
-                error_message=data["Error"],
-                generated_by=generated_by,
-            )
+        for structured_key, handler in _EMBEDDING_STRUCTURED_HANDLERS.items():
+            if structured_key in data:
+                return handler(request_id, data[structured_key], generated_by)
 
     msg = f"Unknown EmbeddingResult: {data}"
     raise ValueError(msg)

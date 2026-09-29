@@ -12,7 +12,13 @@ async def test_pending_requests_fails_a_request_whose_response_cannot_be_parsed(
     pending_requests = PendingRequests()
     response_stream = pending_requests.register("request-1")
     raw_message = json.dumps(
-        {"Response": {"request_id": "request-1", "response": "NotAVariant"}}
+        {
+            "Response": {
+                "generated_by": None,
+                "request_id": "request-1",
+                "response": "NotAVariant",
+            }
+        }
     )
 
     pending_requests.dispatch(raw_message)

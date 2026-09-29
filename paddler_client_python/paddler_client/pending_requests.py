@@ -33,6 +33,9 @@ class PendingRequests:
 
             return
 
+        if isinstance(data, dict) and "Notification" in data:
+            return
+
         try:
             message = parse_inference_client_message(data)
         except (KeyError, TypeError, ValueError):

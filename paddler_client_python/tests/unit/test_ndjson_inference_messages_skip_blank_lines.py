@@ -9,6 +9,7 @@ async def blank_line_then_message_line() -> AsyncGenerator[str, None]:
     yield json.dumps(
         {
             "Response": {
+                "generated_by": None,
                 "request_id": "req-1",
                 "response": {"Embedding": "NoEmbeddingsProduced"},
             }

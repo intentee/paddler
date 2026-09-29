@@ -11,4 +11,5 @@ class ContinueFromConversationHistoryParams(BaseModel):
     enable_thinking: bool
     grammar: GrammarConstraint | None = None
     max_tokens: int
+    parse_tool_calls: bool = False
     tools: list[Tool] = []

@@ -9,6 +9,7 @@ from paddler_client.inference_message import (
 def test_parse_content_token_response() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ContentToken": "hello"}},
         }
@@ -25,6 +26,7 @@ def test_parse_content_token_response() -> None:
 def test_parse_reasoning_token_response() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ReasoningToken": "thinking"}},
         }
@@ -40,6 +42,7 @@ def test_parse_reasoning_token_response() -> None:
 def test_parse_tool_call_token_response() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ToolCallToken": '{"name":'}},
         }
@@ -55,6 +58,7 @@ def test_parse_tool_call_token_response() -> None:
 def test_parse_tool_call_parsed_response_carries_structured_calls() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
@@ -77,11 +81,13 @@ def test_parse_tool_call_parsed_response_carries_structured_calls() -> None:
     assert message.parsed_tool_calls[0].id == "call_42"
     assert message.parsed_tool_calls[0].name == "get_weather"
     assert not message.is_token
+    assert not message.is_terminal
 
 
 def test_parse_tool_call_parse_failed_response_carries_error() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {"ToolCallParseFailed": "syntax error at 12"},
@@ -92,11 +98,13 @@ def test_parse_tool_call_parse_failed_response_carries_error() -> None:
 
     assert message.kind == InferenceMessageKind.TOOL_CALL_PARSE_FAILED
     assert message.error_message == "syntax error at 12"
+    assert not message.is_terminal
 
 
 def test_parse_tool_call_validation_failed_response_joins_errors() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
@@ -112,11 +120,13 @@ def test_parse_tool_call_validation_failed_response_joins_errors() -> None:
 
     assert message.kind == InferenceMessageKind.TOOL_CALL_VALIDATION_FAILED
     assert message.error_message == "missing field 'location'; extra field 'foo'"
+    assert not message.is_terminal
 
 
 def test_parse_tool_call_parsed_with_non_list_payload_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ToolCallParsed": "not a list"}},
         },
@@ -129,6 +139,7 @@ def test_parse_tool_call_parsed_with_non_list_payload_raises() -> None:
 def test_parse_tool_call_validation_failed_with_non_list_payload_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ToolCallValidationFailed": "oops"}},
         },
@@ -146,6 +157,7 @@ def test_parse_unrecognized_tool_call_format_response_carries_text_and_ffi_error
 ):
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
@@ -167,11 +179,13 @@ def test_parse_unrecognized_tool_call_format_response_carries_text_and_ffi_error
         == "common_chat_parse failed: no parser"
     )
     assert not message.is_token
+    assert not message.is_terminal
 
 
 def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {"UnrecognizedToolCallFormat": "raw text only"},
@@ -189,6 +203,7 @@ def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> N
 def test_parse_image_exceeds_batch_size_response_carries_token_counts() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
@@ -212,6 +227,7 @@ def test_parse_image_exceeds_batch_size_response_carries_token_counts() -> None:
 def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {"ImageExceedsBatchSize": "scalar payload"},
@@ -229,6 +245,7 @@ def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
 def test_parse_prompt_exceeds_context_size_response_carries_token_counts() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
@@ -252,6 +269,7 @@ def test_parse_prompt_exceeds_context_size_response_carries_token_counts() -> No
 def test_parse_prompt_exceeds_context_size_with_non_dict_payload_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {"PromptExceedsContextSize": "scalar payload"},
@@ -269,6 +287,7 @@ def test_parse_prompt_exceeds_context_size_with_non_dict_payload_raises() -> Non
 def test_parse_undeterminable_token_response() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"UndeterminableToken": "raw"}},
         }
@@ -283,6 +302,7 @@ def test_parse_undeterminable_token_response() -> None:
 def test_parse_done_response_carries_summary() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
@@ -333,6 +353,7 @@ def test_parse_server_error() -> None:
 def test_parse_chat_template_error() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ChatTemplateError": "bad template"}},
         }
@@ -347,6 +368,7 @@ def test_parse_chat_template_error() -> None:
 def test_parse_grammar_incompatible_with_thinking() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"GrammarIncompatibleWithThinking": "err"}},
         }
@@ -361,6 +383,7 @@ def test_parse_grammar_incompatible_with_thinking() -> None:
 def test_parse_grammar_initialization_failed() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {"GrammarInitializationFailed": "null grammar"}
@@ -377,6 +400,7 @@ def test_parse_grammar_initialization_failed() -> None:
 def test_parse_grammar_rejected_model_output() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {"GrammarRejectedModelOutput": "token rejected"}
@@ -393,6 +417,7 @@ def test_parse_grammar_rejected_model_output() -> None:
 def test_parse_grammar_syntax_error() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"GrammarSyntaxError": "invalid schema"}},
         }
@@ -404,13 +429,14 @@ def test_parse_grammar_syntax_error() -> None:
     assert message.is_terminal
 
 
-def test_parse_tool_call_validator_build_failed_response_carries_error() -> None:
+def test_parse_tool_schema_invalid_response_carries_error() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "GeneratedToken": {
-                    "ToolCallValidatorBuildFailed": (
+                    "ToolSchemaInvalid": (
                         'tool "get_weather" parameters are not a valid JSON Schema'
                     ),
                 },
@@ -419,7 +445,7 @@ def test_parse_tool_call_validator_build_failed_response_carries_error() -> None
     }
     message = parse_inference_client_message(data)
 
-    assert message.kind == InferenceMessageKind.TOOL_CALL_VALIDATOR_BUILD_FAILED
+    assert message.kind == InferenceMessageKind.TOOL_SCHEMA_INVALID
     assert message.error_message == (
         'tool "get_weather" parameters are not a valid JSON Schema'
     )
@@ -429,6 +455,7 @@ def test_parse_tool_call_validator_build_failed_response_carries_error() -> None
 def test_parse_image_decoding_failed() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"ImageDecodingFailed": "corrupt image"}},
         }
@@ -443,6 +470,7 @@ def test_parse_image_decoding_failed() -> None:
 def test_parse_multimodal_not_supported() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"MultimodalNotSupported": "no multimodal"}},
         }
@@ -457,6 +485,7 @@ def test_parse_multimodal_not_supported() -> None:
 def test_parse_sampler_error() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"SamplerError": "no candidates"}},
         }
@@ -471,6 +500,7 @@ def test_parse_sampler_error() -> None:
 def test_parse_embedding_response() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {
                 "Embedding": {
@@ -496,6 +526,7 @@ def test_parse_embedding_response() -> None:
 def test_parse_embedding_done() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"Embedding": "Done"},
         }
@@ -509,6 +540,7 @@ def test_parse_embedding_done() -> None:
 def test_parse_embedding_error() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"Embedding": {"Error": "embedding failed"}},
         }
@@ -520,9 +552,41 @@ def test_parse_embedding_error() -> None:
     assert message.is_terminal
 
 
+def test_parse_detokenization_failed_response_carries_error() -> None:
+    data = {
+        "Response": {
+            "generated_by": None,
+            "request_id": "req-1",
+            "response": {
+                "GeneratedToken": {"DetokenizationFailed": "invalid UTF-8 piece"},
+            },
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.DETOKENIZATION_FAILED
+    assert message.error_message == "invalid UTF-8 piece"
+    assert message.is_terminal
+
+
+def test_parse_embeddings_disabled() -> None:
+    data = {
+        "Response": {
+            "generated_by": None,
+            "request_id": "req-1",
+            "response": {"Embedding": "EmbeddingsDisabled"},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.EMBEDDINGS_DISABLED
+    assert message.is_terminal
+
+
 def test_parse_embedding_no_embeddings_produced() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"Embedding": "NoEmbeddingsProduced"},
         }
@@ -536,6 +600,7 @@ def test_parse_embedding_no_embeddings_produced() -> None:
 def test_parse_embedding_rejected_due_to_active_token_generation() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"Embedding": "EmbeddingRejectedDueToActiveTokenGeneration"},
         }
@@ -551,7 +616,8 @@ def test_parse_embedding_rejected_due_to_active_token_generation() -> None:
 
 def test_parse_json_string() -> None:
     json_str = (
-        '{"Response": {"request_id": "req-1", "response": {"GeneratedToken": '
+        '{"Response": {"generated_by": null, "request_id": "req-1", '
+        '"response": {"GeneratedToken": '
         '{"Done": {"usage": {"prompt_tokens": 0, "cached_prompt_tokens": 0, '
         '"input_image_tokens": 0, "input_audio_tokens": 0, "content_tokens": 0, '
         '"reasoning_tokens": 0, "tool_call_tokens": 0, "undeterminable_tokens": 0}}}}}}'
@@ -574,6 +640,7 @@ def test_parse_non_dict_raises_type_error() -> None:
 def test_parse_unknown_response_variant_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": "SomethingUnexpected",
         }
@@ -586,6 +653,7 @@ def test_parse_unknown_response_variant_raises() -> None:
 def test_parse_unknown_response_dict_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"UnknownKey": "value"},
         }
@@ -598,6 +666,7 @@ def test_parse_unknown_response_dict_raises() -> None:
 def test_parse_unknown_generated_token_result_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": {"UnknownVariant": "data"}},
         }
@@ -610,6 +679,7 @@ def test_parse_unknown_generated_token_result_raises() -> None:
 def test_parse_string_generated_token_result_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"GeneratedToken": "Done"},
         }
@@ -622,6 +692,7 @@ def test_parse_string_generated_token_result_raises() -> None:
 def test_parse_unknown_embedding_result_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"Embedding": {"UnknownVariant": "data"}},
         }
@@ -634,6 +705,7 @@ def test_parse_unknown_embedding_result_raises() -> None:
 def test_parse_unknown_unit_embedding_result_raises() -> None:
     data = {
         "Response": {
+            "generated_by": None,
             "request_id": "req-1",
             "response": {"Embedding": "UnknownVariant"},
         }
