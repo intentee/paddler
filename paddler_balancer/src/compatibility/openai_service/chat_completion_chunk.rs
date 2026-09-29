@@ -1,13 +1,32 @@
-use std::slice::from_ref;
-
 use serde::Serialize;
 use serde::Serializer;
-use serde::ser::SerializeMap as _;
+use serde_json::Value;
 
+use crate::compatibility::openai_service::chat_completion_chunk_choice::ChatCompletionChunkChoice;
 use crate::compatibility::openai_service::chat_completion_chunk_payload::ChatCompletionChunkPayload;
 use crate::compatibility::openai_service::openai_usage_json::openai_usage_json;
 
-const NO_CHOICES: [u8; 0] = [];
+#[derive(Serialize)]
+struct ChunkEnvelope<'chunk, TBody> {
+    id: &'chunk str,
+    object: &'static str,
+    created: u64,
+    model: &'chunk str,
+    system_fingerprint: &'chunk str,
+    #[serde(flatten)]
+    body: TBody,
+}
+
+#[derive(Serialize)]
+struct ChoiceBody<'body, 'choice> {
+    choices: [&'body ChatCompletionChunkChoice<'choice>; 1],
+}
+
+#[derive(Serialize)]
+struct UsageBody {
+    choices: [u8; 0],
+    usage: Value,
+}
 
 pub struct ChatCompletionChunk<'chunk> {
     pub created: u64,
@@ -15,6 +34,19 @@ pub struct ChatCompletionChunk<'chunk> {
     pub model: &'chunk str,
     pub payload: ChatCompletionChunkPayload<'chunk>,
     pub system_fingerprint: &'chunk str,
+}
+
+impl<'chunk> ChatCompletionChunk<'chunk> {
+    const fn envelope<TBody>(&self, body: TBody) -> ChunkEnvelope<'chunk, TBody> {
+        ChunkEnvelope {
+            id: self.id,
+            object: "chat.completion.chunk",
+            created: self.created,
+            model: self.model,
+            system_fingerprint: self.system_fingerprint,
+            body,
+        }
+    }
 }
 
 impl Serialize for ChatCompletionChunk<'_> {
@@ -25,24 +57,16 @@ impl Serialize for ChatCompletionChunk<'_> {
     where
         TSerializer: Serializer,
     {
-        let mut chunk = serializer.serialize_map(None)?;
-
-        chunk.serialize_entry("id", self.id)?;
-        chunk.serialize_entry("object", "chat.completion.chunk")?;
-        chunk.serialize_entry("created", &self.created)?;
-        chunk.serialize_entry("model", self.model)?;
-        chunk.serialize_entry("system_fingerprint", self.system_fingerprint)?;
-
         match &self.payload {
-            ChatCompletionChunkPayload::Choice(choice) => {
-                chunk.serialize_entry("choices", from_ref(choice))?;
-            }
-            ChatCompletionChunkPayload::Usage(usage) => {
-                chunk.serialize_entry("choices", &NO_CHOICES)?;
-                chunk.serialize_entry("usage", &openai_usage_json(usage))?;
-            }
+            ChatCompletionChunkPayload::Choice(choice) => self
+                .envelope(ChoiceBody { choices: [choice] })
+                .serialize(serializer),
+            ChatCompletionChunkPayload::Usage(usage) => self
+                .envelope(UsageBody {
+                    choices: [],
+                    usage: openai_usage_json(usage),
+                })
+                .serialize(serializer),
         }
-
-        chunk.end()
     }
 }

@@ -223,12 +223,10 @@ mod tests {
             "text": { "format": { "type": "json_schema", "name": "out", "schema": { "type": "object" } } }
         }));
 
-        let Some(GrammarConstraint::JsonSchema { schema }) = &prepared.paddler_params.grammar
-        else {
-            panic!("expected a json schema grammar constraint");
-        };
-
-        assert!(schema.contains("\"type\":\"object\""));
+        assert!(matches!(
+            &prepared.paddler_params.grammar,
+            Some(GrammarConstraint::JsonSchema { schema }) if schema.contains("\"type\":\"object\"")
+        ));
     }
 
     #[test]

@@ -131,6 +131,7 @@ mod tests {
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::inference_client::notification::Notification;
     use paddler_messaging::inference_client::response::Response as OutgoingResponse;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
@@ -321,5 +322,17 @@ mod tests {
         let response: serde_json::Value = serde_json::from_str(body).unwrap();
 
         validator.validate_responses_response(&response).unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejects_inference_socket_notifications() {
+        assert!(
+            non_streaming_transformer()
+                .transform(OutgoingMessage::Notification(
+                    Notification::TokenGenerationEnabled
+                ))
+                .await
+                .is_err()
+        );
     }
 }

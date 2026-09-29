@@ -1,53 +1,24 @@
 use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 use serde::Serializer;
-use serde::ser::SerializeMap as _;
-use serde::ser::SerializeSeq as _;
 
 use crate::compatibility::openai_service::arguments_to_tool_call_string::arguments_to_tool_call_string;
 
-struct FunctionDelta<'call>(&'call ParsedToolCall);
+const ASSISTANT_ROLE: &str = "assistant";
 
-impl Serialize for FunctionDelta<'_> {
-    fn serialize<TSerializer>(
-        &self,
-        serializer: TSerializer,
-    ) -> Result<TSerializer::Ok, TSerializer::Error>
-    where
-        TSerializer: Serializer,
-    {
-        let mut function = serializer.serialize_map(Some(2))?;
-
-        function.serialize_entry("name", &self.0.name)?;
-        function.serialize_entry(
-            "arguments",
-            &arguments_to_tool_call_string(&self.0.arguments),
-        )?;
-        function.end()
-    }
+#[derive(Serialize)]
+struct FunctionDelta<'call> {
+    name: &'call str,
+    arguments: String,
 }
 
+#[derive(Serialize)]
 struct ToolCallDelta<'call> {
-    call: &'call ParsedToolCall,
     index: usize,
-}
-
-impl Serialize for ToolCallDelta<'_> {
-    fn serialize<TSerializer>(
-        &self,
-        serializer: TSerializer,
-    ) -> Result<TSerializer::Ok, TSerializer::Error>
-    where
-        TSerializer: Serializer,
-    {
-        let mut tool_call = serializer.serialize_map(Some(4))?;
-
-        tool_call.serialize_entry("index", &self.index)?;
-        tool_call.serialize_entry("id", &self.call.id)?;
-        tool_call.serialize_entry("type", "function")?;
-        tool_call.serialize_entry("function", &FunctionDelta(self.call))?;
-        tool_call.end()
-    }
+    id: &'call str,
+    #[serde(rename = "type")]
+    call_type: &'static str,
+    function: FunctionDelta<'call>,
 }
 
 struct ToolCallsDelta<'calls>(&'calls [ParsedToolCall]);
@@ -60,42 +31,43 @@ impl Serialize for ToolCallsDelta<'_> {
     where
         TSerializer: Serializer,
     {
-        let mut tool_calls = serializer.serialize_seq(Some(self.0.len()))?;
-
-        for (index, call) in self.0.iter().enumerate() {
-            tool_calls.serialize_element(&ToolCallDelta { call, index })?;
-        }
-
-        tool_calls.end()
+        serializer.collect_seq(
+            self.0
+                .iter()
+                .enumerate()
+                .map(|(index, call)| ToolCallDelta {
+                    index,
+                    id: &call.id,
+                    call_type: "function",
+                    function: FunctionDelta {
+                        name: &call.name,
+                        arguments: arguments_to_tool_call_string(&call.arguments),
+                    },
+                }),
+        )
     }
 }
 
-struct ChoiceDelta<'choice>(&'choice ChatCompletionChunkChoice<'choice>);
+#[derive(Serialize)]
+#[serde(untagged)]
+enum ChoiceDelta<'choice> {
+    Content {
+        role: &'static str,
+        content: &'choice str,
+    },
+    Finish {},
+    ToolCalls {
+        role: &'static str,
+        tool_calls: ToolCallsDelta<'choice>,
+    },
+}
 
-impl Serialize for ChoiceDelta<'_> {
-    fn serialize<TSerializer>(
-        &self,
-        serializer: TSerializer,
-    ) -> Result<TSerializer::Ok, TSerializer::Error>
-    where
-        TSerializer: Serializer,
-    {
-        let mut delta = serializer.serialize_map(None)?;
-
-        match self.0 {
-            ChatCompletionChunkChoice::Content(text) => {
-                delta.serialize_entry("role", "assistant")?;
-                delta.serialize_entry("content", text)?;
-            }
-            ChatCompletionChunkChoice::Finish(_) => {}
-            ChatCompletionChunkChoice::ToolCalls(parsed_calls) => {
-                delta.serialize_entry("role", "assistant")?;
-                delta.serialize_entry("tool_calls", &ToolCallsDelta(parsed_calls))?;
-            }
-        }
-
-        delta.end()
-    }
+#[derive(Serialize)]
+struct SerializedChoice<'choice> {
+    index: u8,
+    delta: ChoiceDelta<'choice>,
+    logprobs: Option<()>,
+    finish_reason: Option<&'static str>,
 }
 
 pub enum ChatCompletionChunkChoice<'chunk> {
@@ -112,16 +84,32 @@ impl Serialize for ChatCompletionChunkChoice<'_> {
     where
         TSerializer: Serializer,
     {
-        let finish_reason = match self {
-            Self::Finish(finish_reason) => Some(*finish_reason),
-            Self::Content(_) | Self::ToolCalls(_) => None,
-        };
-        let mut choice = serializer.serialize_map(Some(4))?;
-
-        choice.serialize_entry("index", &0)?;
-        choice.serialize_entry("delta", &ChoiceDelta(self))?;
-        choice.serialize_entry("logprobs", &None::<()>)?;
-        choice.serialize_entry("finish_reason", &finish_reason)?;
-        choice.end()
+        match *self {
+            Self::Content(content) => SerializedChoice {
+                index: 0,
+                delta: ChoiceDelta::Content {
+                    role: ASSISTANT_ROLE,
+                    content,
+                },
+                logprobs: None,
+                finish_reason: None,
+            },
+            Self::Finish(finish_reason) => SerializedChoice {
+                index: 0,
+                delta: ChoiceDelta::Finish {},
+                logprobs: None,
+                finish_reason: Some(finish_reason),
+            },
+            Self::ToolCalls(parsed_calls) => SerializedChoice {
+                index: 0,
+                delta: ChoiceDelta::ToolCalls {
+                    role: ASSISTANT_ROLE,
+                    tool_calls: ToolCallsDelta(parsed_calls),
+                },
+                logprobs: None,
+                finish_reason: None,
+            },
+        }
+        .serialize(serializer)
     }
 }

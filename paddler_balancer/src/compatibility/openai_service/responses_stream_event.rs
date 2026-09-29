@@ -1,6 +1,5 @@
 use serde::Serialize;
 use serde::Serializer;
-use serde::ser::SerializeMap;
 
 use crate::compatibility::openai_service::content_part_event::ContentPartEvent;
 use crate::compatibility::openai_service::function_call_arguments_delta_event::FunctionCallArgumentsDeltaEvent;
@@ -10,34 +9,35 @@ use crate::compatibility::openai_service::response_snapshot_event::ResponseSnaps
 use crate::compatibility::openai_service::text_delta_event::TextDeltaEvent;
 use crate::compatibility::openai_service::text_done_event::TextDoneEvent;
 
-const NO_LOGPROBS: [u8; 0] = [];
-
-fn serialize_text_delta<TSerializeMap>(
-    event: &mut TSerializeMap,
-    delta_event: &TextDeltaEvent,
-) -> Result<(), TSerializeMap::Error>
-where
-    TSerializeMap: SerializeMap,
-{
-    event.serialize_entry("sequence_number", &delta_event.sequence_number)?;
-    event.serialize_entry("item_id", &delta_event.item_id)?;
-    event.serialize_entry("output_index", &delta_event.output_index)?;
-    event.serialize_entry("content_index", &delta_event.content_index)?;
-    event.serialize_entry("delta", &delta_event.delta)
+#[derive(Serialize)]
+struct WithEmptyLogprobs<'event, TEvent> {
+    #[serde(flatten)]
+    event: &'event TEvent,
+    logprobs: &'static [u8],
 }
 
-fn serialize_text_done<TSerializeMap>(
-    event: &mut TSerializeMap,
-    done_event: &TextDoneEvent,
-) -> Result<(), TSerializeMap::Error>
+#[derive(Serialize)]
+struct TypedEvent<'event, TPayload> {
+    #[serde(rename = "type")]
+    event_type: &'static str,
+    #[serde(flatten)]
+    payload: &'event TPayload,
+}
+
+fn serialize_typed<TPayload, TSerializer>(
+    event_type: &'static str,
+    payload: &TPayload,
+    serializer: TSerializer,
+) -> Result<TSerializer::Ok, TSerializer::Error>
 where
-    TSerializeMap: SerializeMap,
+    TPayload: Serialize,
+    TSerializer: Serializer,
 {
-    event.serialize_entry("sequence_number", &done_event.sequence_number)?;
-    event.serialize_entry("item_id", &done_event.item_id)?;
-    event.serialize_entry("output_index", &done_event.output_index)?;
-    event.serialize_entry("content_index", &done_event.content_index)?;
-    event.serialize_entry("text", &done_event.text)
+    TypedEvent {
+        event_type,
+        payload,
+    }
+    .serialize(serializer)
 }
 
 #[derive(Clone, Debug)]
@@ -88,60 +88,48 @@ impl Serialize for ResponsesStreamEvent {
     where
         TSerializer: Serializer,
     {
-        let mut event = serializer.serialize_map(None)?;
-
-        event.serialize_entry("type", self.event_name())?;
+        let event_type = self.event_name();
 
         match self {
             Self::Created(snapshot)
             | Self::InProgress(snapshot)
             | Self::Completed(snapshot)
-            | Self::Failed(snapshot) => {
-                event.serialize_entry("sequence_number", &snapshot.sequence_number)?;
-                event.serialize_entry("response", &snapshot.response)?;
-            }
+            | Self::Failed(snapshot) => serialize_typed(event_type, snapshot, serializer),
             Self::OutputItemAdded(item_event) | Self::OutputItemDone(item_event) => {
-                event.serialize_entry("sequence_number", &item_event.sequence_number)?;
-                event.serialize_entry("output_index", &item_event.output_index)?;
-                event.serialize_entry("item", &item_event.item)?;
+                serialize_typed(event_type, item_event, serializer)
             }
             Self::ContentPartAdded(part_event) | Self::ContentPartDone(part_event) => {
-                event.serialize_entry("sequence_number", &part_event.sequence_number)?;
-                event.serialize_entry("item_id", &part_event.item_id)?;
-                event.serialize_entry("output_index", &part_event.output_index)?;
-                event.serialize_entry("content_index", &part_event.content_index)?;
-                event.serialize_entry("part", &part_event.part)?;
+                serialize_typed(event_type, part_event, serializer)
             }
-            Self::OutputTextDelta(delta_event) => {
-                serialize_text_delta(&mut event, delta_event)?;
-                event.serialize_entry("logprobs", &NO_LOGPROBS)?;
-            }
+            Self::OutputTextDelta(delta_event) => serialize_typed(
+                event_type,
+                &WithEmptyLogprobs {
+                    event: delta_event,
+                    logprobs: &[],
+                },
+                serializer,
+            ),
             Self::ReasoningTextDelta(delta_event) => {
-                serialize_text_delta(&mut event, delta_event)?;
+                serialize_typed(event_type, delta_event, serializer)
             }
-            Self::OutputTextDone(done_event) => {
-                serialize_text_done(&mut event, done_event)?;
-                event.serialize_entry("logprobs", &NO_LOGPROBS)?;
-            }
+            Self::OutputTextDone(done_event) => serialize_typed(
+                event_type,
+                &WithEmptyLogprobs {
+                    event: done_event,
+                    logprobs: &[],
+                },
+                serializer,
+            ),
             Self::ReasoningTextDone(done_event) => {
-                serialize_text_done(&mut event, done_event)?;
+                serialize_typed(event_type, done_event, serializer)
             }
             Self::FunctionCallArgumentsDelta(arguments_event) => {
-                event.serialize_entry("sequence_number", &arguments_event.sequence_number)?;
-                event.serialize_entry("item_id", &arguments_event.item_id)?;
-                event.serialize_entry("output_index", &arguments_event.output_index)?;
-                event.serialize_entry("delta", &arguments_event.delta)?;
+                serialize_typed(event_type, arguments_event, serializer)
             }
             Self::FunctionCallArgumentsDone(arguments_event) => {
-                event.serialize_entry("sequence_number", &arguments_event.sequence_number)?;
-                event.serialize_entry("item_id", &arguments_event.item_id)?;
-                event.serialize_entry("output_index", &arguments_event.output_index)?;
-                event.serialize_entry("name", &arguments_event.name)?;
-                event.serialize_entry("arguments", &arguments_event.arguments)?;
+                serialize_typed(event_type, arguments_event, serializer)
             }
         }
-
-        event.end()
     }
 }
 

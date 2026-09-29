@@ -150,6 +150,7 @@ mod tests {
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::inference_client::notification::Notification;
     use paddler_messaging::inference_client::response::Response as OutgoingResponse;
     use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
@@ -227,43 +228,30 @@ mod tests {
     }
 
     pub fn assert_chunk_body_does_not_contain(result: &TransformResult, unexpected: &str) {
-        let TransformResult::Chunk(content) = result else {
-            panic!("expected a chunk variant");
-        };
-
         assert!(
-            !content.contains(unexpected),
-            "chunk unexpectedly contains '{unexpected}': {content}"
+            matches!(result, TransformResult::Chunk(content) if !content.contains(unexpected)),
+            "expected a chunk without '{unexpected}': {result:?}"
         );
     }
 
     pub fn assert_chunk_body_contains(result: &TransformResult, expected: &str) {
-        let TransformResult::Chunk(content) = result else {
-            panic!("expected a chunk variant");
-        };
-
         assert!(
-            content.contains(expected),
-            "chunk does not contain '{expected}': {content}"
+            matches!(result, TransformResult::Chunk(content) if content.contains(expected)),
+            "expected a chunk containing '{expected}': {result:?}"
         );
     }
 
     pub fn assert_chunk_body_equals(result: &TransformResult, expected: &str) {
-        let TransformResult::Chunk(content) = result else {
-            panic!("expected a chunk variant");
-        };
-
-        assert_eq!(content, expected);
+        assert!(
+            matches!(result, TransformResult::Chunk(content) if content == expected),
+            "expected the chunk {expected}: {result:?}"
+        );
     }
 
     pub fn assert_error_body_contains(result: &TransformResult, expected: &str) {
-        let TransformResult::Error(content) = result else {
-            panic!("expected an error variant");
-        };
-
         assert!(
-            content.contains(expected),
-            "error does not contain '{expected}': {content}"
+            matches!(result, TransformResult::Error(content) if content.contains(expected)),
+            "expected an error containing '{expected}': {result:?}"
         );
     }
 
@@ -716,5 +704,17 @@ mod tests {
 
         assert_eq!(chunks.len(), 1);
         assert_error_body_contains(&chunks[0], "schema is not valid");
+    }
+
+    #[tokio::test]
+    async fn rejects_inference_socket_notifications() {
+        assert!(
+            streaming_transformer(false)
+                .transform(OutgoingMessage::Notification(
+                    Notification::TokenGenerationEnabled
+                ))
+                .await
+                .is_err()
+        );
     }
 }
