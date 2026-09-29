@@ -11,11 +11,9 @@ pub struct RegisteredAgentControllerGuard {
 
 impl Drop for RegisteredAgentControllerGuard {
     fn drop(&mut self) {
-        if self
-            .agent_controller_pool
-            .remove_agent_controller(&self.agent_id)
-        {
-            info!("Removed agent: {}", self.agent_id);
-        }
+        self.agent_controller_pool
+            .remove_agent_controller(&self.agent_id);
+
+        info!("Removed agent: {}", self.agent_id);
     }
 }

@@ -4,6 +4,7 @@ mod agent_controller_pool_total_slots;
 pub mod agent_controller_registration;
 pub mod agent_controller_slot_guard;
 pub mod agent_controller_update_result;
+pub mod agent_desired_state_notification;
 mod agent_response_forwarding_mode;
 pub mod agent_status;
 mod agent_stop_outcome;

@@ -106,15 +106,9 @@ impl AgentControllerPool {
         }
     }
 
-    #[must_use]
-    pub fn remove_agent_controller(&self, agent_id: &str) -> bool {
-        if self.agents.remove(agent_id).is_some() {
-            self.update_tx.send_replace(());
-
-            true
-        } else {
-            false
-        }
+    pub fn remove_agent_controller(&self, agent_id: &str) {
+        self.agents.remove(agent_id);
+        self.update_tx.send_replace(());
     }
 
     pub fn set_desired_state(&self, desired_state: &AgentDesiredState) {
@@ -182,5 +176,81 @@ impl ProducesSnapshot for AgentControllerPool {
                 .map(|entry| entry.value().make_snapshot())
                 .collect(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicI32;
+
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
+    use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
+    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+    use parking_lot::RwLock;
+    use tokio::sync::mpsc;
+    use tokio_util::sync::CancellationToken;
+
+    use super::AgentControllerPool;
+    use crate::agent_controller::AgentController;
+    use crate::agent_controller_registration::AgentControllerRegistration;
+    use crate::agent_status::AgentStatus;
+
+    struct AgentWithInbox {
+        controller: Arc<AgentController>,
+        inbox: mpsc::UnboundedReceiver<AgentJsonRpcMessage>,
+    }
+
+    fn agent_with_inbox(agent_id: &str) -> AgentWithInbox {
+        let (agent_message_tx, inbox) = mpsc::unbounded_channel();
+
+        AgentWithInbox {
+            controller: Arc::new(AgentController {
+                agent_message_tx,
+                chat_template_override_sender_collection: Arc::default(),
+                connection_close: CancellationToken::new(),
+                embedding_sender_collection: Arc::default(),
+                generate_tokens_sender_collection: Arc::default(),
+                id: agent_id.to_owned(),
+                model_metadata_sender_collection: Arc::default(),
+                name: None,
+                slots_processing: AtomicValue::<AtomicI32>::new(0),
+                status: RwLock::new(AgentStatus::from(SlotAggregatedStatusSnapshot::default())),
+            }),
+            inbox,
+        }
+    }
+
+    #[test]
+    fn delivers_the_desired_state_to_connected_agents_past_a_disconnected_one() {
+        let pool = Arc::new(AgentControllerPool::default());
+        let disconnected_agent = agent_with_inbox("disconnected");
+        let mut connected_agent = agent_with_inbox("connected");
+
+        drop(disconnected_agent.inbox);
+
+        let registrations = [
+            pool.register_agent_controller(
+                "disconnected".to_owned(),
+                disconnected_agent.controller,
+            ),
+            pool.register_agent_controller("connected".to_owned(), connected_agent.controller),
+        ];
+
+        assert!(registrations.iter().all(|registration| matches!(
+            registration,
+            AgentControllerRegistration::Registered(_)
+        )));
+
+        pool.set_desired_state(&AgentDesiredState::default());
+
+        assert!(matches!(
+            connected_agent.inbox.try_recv(),
+            Ok(AgentJsonRpcMessage::Notification(
+                AgentJsonRpcNotification::SetState(_)
+            ))
+        ));
     }
 }

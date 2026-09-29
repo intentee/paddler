@@ -18,7 +18,6 @@ use actix_ws::CloseReason;
 use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
-use log::debug;
 use log::error;
 use log::info;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
@@ -28,6 +27,7 @@ use tokio_util::sync::CancellationToken;
 
 use self::agent_socket_controller_context::AgentSocketControllerContext;
 use crate::agent_controller::AgentController;
+use crate::agent_desired_state_notification::agent_desired_state_notification;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_controller_registration::AgentControllerRegistration;
 use crate::agent_status::AgentStatus;
@@ -38,7 +38,6 @@ use crate::continuation_decision::ContinuationDecision;
 use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
-use crate::desired_state_delivery::DesiredStateDelivery;
 use crate::embedding_sender_collection::EmbeddingSenderCollection;
 use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
 use crate::management_service::app_data::AppData;
@@ -54,6 +53,15 @@ use paddler_messaging::management_socket::balancer::message::Message as Manageme
 use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
 use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
 use paddler_messaging::management_socket::balancer::notification_params::update_agent_status_params::UpdateAgentStatusParams;
+
+async fn send_to_agent(
+    websocket_session_controller: &mut WebSocketSessionController<AgentJsonRpcMessage>,
+    message: AgentJsonRpcMessage,
+) {
+    if let Err(err) = websocket_session_controller.send_response(message).await {
+        error!("Error sending response: {err}");
+    }
+}
 
 pub fn register(cfg: &mut ServiceConfig) {
     cfg.service(respond);
@@ -136,7 +144,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
 
                 let registered_agent_controller_guard = match context
                     .agent_controller_pool
-                    .register_agent_controller(context.agent_id.clone(), agent_controller.clone())
+                    .register_agent_controller(context.agent_id.clone(), agent_controller)
                 {
                     AgentControllerRegistration::DuplicateAgentId => {
                         error!(
@@ -161,13 +169,17 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
 
                 info!("Registered agent: {}", context.agent_id);
 
-                let agent_desired_state = context
-                    .balancer_applicable_state_holder
-                    .get_agent_desired_state();
+                let agent_desired_state = agent_desired_state_notification(
+                    context
+                        .balancer_applicable_state_holder
+                        .get_agent_desired_state(),
+                );
                 let forwarder_close = connection_close.clone();
 
                 rt::spawn(async move {
                     let _registered_agent_controller_guard = registered_agent_controller_guard;
+
+                    send_to_agent(&mut websocket_session_controller, agent_desired_state).await;
 
                     loop {
                         tokio::select! {
@@ -175,23 +187,11 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                                 break;
                             }
                             Some(message) = agent_message_rx.recv() => {
-                                websocket_session_controller
-                                    .send_response(message)
-                                    .await
-                                    .unwrap_or_else(|err| {
-                                        error!("Error sending response: {err}");
-                                    });
+                                send_to_agent(&mut websocket_session_controller, message).await;
                             }
                         }
                     }
                 });
-
-                if matches!(
-                    agent_controller.set_desired_state(agent_desired_state),
-                    DesiredStateDelivery::AgentDisconnected
-                ) {
-                    debug!("An agent disconnected before receiving its desired state");
-                }
 
                 ContinuationDecision::Continue
             }

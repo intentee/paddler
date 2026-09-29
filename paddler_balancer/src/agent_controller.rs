@@ -19,6 +19,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 use crate::agent_controller_update_result::AgentControllerUpdateResult;
+use crate::agent_desired_state_notification::agent_desired_state_notification;
 use crate::agent_status::AgentStatus;
 use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use crate::desired_state_delivery::DesiredStateDelivery;
@@ -32,7 +33,6 @@ use crate::sends_rpc_message::SendsRpcMessage;
 use paddler_messaging::atomic_value::AtomicValue;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
-use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 
@@ -73,9 +73,8 @@ impl AgentController {
     pub fn set_desired_state(&self, desired_state: AgentDesiredState) -> DesiredStateDelivery {
         match self
             .agent_message_tx
-            .send(AgentJsonRpcMessage::Notification(
-                AgentJsonRpcNotification::SetState(Box::new(SetStateParams { desired_state })),
-            )) {
+            .send(agent_desired_state_notification(desired_state))
+        {
             Ok(()) => DesiredStateDelivery::Delivered,
             Err(SendError(_undelivered_message)) => DesiredStateDelivery::AgentDisconnected,
         }
