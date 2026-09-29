@@ -70,7 +70,10 @@ impl AssembleBatchPhase {
         requests: &[ContinuousBatchActiveRequest],
     ) -> Result<()> {
         for (request_index, request) in requests.iter().enumerate() {
-            if !matches!(request.state.phase, ContinuousBatchRequestPhase::Ingesting) {
+            if !matches!(
+                request.state.phase,
+                ContinuousBatchRequestPhase::IngestingText
+            ) {
                 continue;
             }
 

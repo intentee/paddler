@@ -47,6 +47,8 @@ pub mod llamacpp_arbiter_service;
 pub mod management_socket_client_service;
 pub mod model_metadata_holder;
 pub mod model_source;
+pub mod multimodal_ingestion_progress;
+pub mod multimodal_prompt_ingestion;
 pub mod multimodal_prompt_support;
 pub mod normalization;
 pub mod plan_embedding_batches;

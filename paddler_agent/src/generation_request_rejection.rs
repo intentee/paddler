@@ -109,18 +109,19 @@ impl GenerationRequestRejection {
         agent_name: Option<&str>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
     ) {
+        send_generated_token_result_or_warn(
+            agent_name,
+            generated_tokens_tx,
+            self.into_generated_token_result(agent_name),
+        );
+    }
+
+    #[must_use]
+    pub fn into_generated_token_result(self, agent_name: Option<&str>) -> GeneratedTokenResult {
         let message = format!("{agent_name:?}: {self}");
 
         error!("{message}");
 
-        send_generated_token_result_or_warn(
-            agent_name,
-            generated_tokens_tx,
-            self.into_generated_token_result(message),
-        );
-    }
-
-    fn into_generated_token_result(self, message: String) -> GeneratedTokenResult {
         match self {
             Self::GrammarIncompatibleWithThinking => {
                 GeneratedTokenResult::GrammarIncompatibleWithThinking(message)

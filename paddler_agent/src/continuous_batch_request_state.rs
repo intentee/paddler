@@ -48,6 +48,17 @@ impl ContinuousBatchRequestState {
         Ok(())
     }
 
+    pub fn begin_generating_after_multimodal_prompt(
+        &mut self,
+        next_position: i32,
+        prompt_section: SampledTokenSection,
+    ) {
+        self.current_token_position = next_position;
+        self.i_batch = Some(-1);
+        self.last_outcome_section = prompt_section;
+        self.phase = ContinuousBatchRequestPhase::Generating;
+    }
+
     pub const fn store_pending_token(&mut self, token: SampledToken) {
         self.pending_sampled_token = Some(token);
     }
@@ -65,7 +76,9 @@ impl ContinuousBatchRequestState {
     pub fn into_terminal_outcome(self) -> ContinuousBatchTerminalOutcome {
         match self.phase {
             ContinuousBatchRequestPhase::Completed(terminal_outcome) => terminal_outcome,
-            ContinuousBatchRequestPhase::Generating | ContinuousBatchRequestPhase::Ingesting => {
+            ContinuousBatchRequestPhase::Generating
+            | ContinuousBatchRequestPhase::IngestingText
+            | ContinuousBatchRequestPhase::IngestingMultimodal(_) => {
                 ContinuousBatchTerminalOutcome::EmitNothing
             }
         }
@@ -92,7 +105,7 @@ mod tests {
             last_outcome_section: SampledTokenSection::Content,
             max_tokens: 64,
             pending_sampled_token: None,
-            phase: ContinuousBatchRequestPhase::Ingesting,
+            phase: ContinuousBatchRequestPhase::IngestingText,
             prompt_tokens: vec![LlamaToken::new(1); prompt_token_count],
             prompt_tokens_ingested: 0,
         }
@@ -154,7 +167,7 @@ mod tests {
         assert_eq!(state.i_batch, None);
         assert!(matches!(
             state.phase,
-            ContinuousBatchRequestPhase::Ingesting
+            ContinuousBatchRequestPhase::IngestingText
         ));
     }
 

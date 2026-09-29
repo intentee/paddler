@@ -20,19 +20,17 @@ pub mod sequence_ordered_insertion_index;
 pub mod tool_call_pass;
 
 use std::collections::VecDeque;
+use std::slice;
 use std::sync::Arc;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
 
 use anyhow::Result;
-use llama_cpp_bindings::EvalMultimodalChunksParams;
 use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::StreamingMarkers;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdInputText;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use log::debug;
 use log::error;
@@ -58,11 +56,10 @@ use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use crate::generation_request_rejection::GenerationRequestRejection;
+use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 use crate::prepared_generation_request::PreparedGenerationRequest;
-use crate::prepared_multimodal_prompt::PreparedMultimodalPrompt;
 use crate::prepared_prompt::PreparedPrompt;
-use crate::require_prompt_fits_sequence_context::require_prompt_fits_sequence_context;
 use crate::sampler_chain_factory::SamplerChainFactory;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
@@ -288,7 +285,7 @@ impl ContinuousBatchScheduler {
                 last_outcome_section: token_classifier.current_section(),
                 max_tokens,
                 pending_sampled_token: None,
-                phase: ContinuousBatchRequestPhase::Ingesting,
+                phase: ContinuousBatchRequestPhase::IngestingText,
                 prompt_tokens: Vec::new(),
                 prompt_tokens_ingested: 0,
             },
@@ -313,10 +310,10 @@ impl ContinuousBatchScheduler {
                 active_request.state.prompt_tokens = prompt_tokens;
             }
             PreparedPrompt::Multimodal(multimodal_prompt) => {
-                active_request.state.current_token_position =
-                    self.ingest_multimodal_prompt(&mut active_request, multimodal_prompt)?;
-                active_request.state.i_batch = Some(-1);
-                active_request.state.phase = ContinuousBatchRequestPhase::Generating;
+                active_request.state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(
+                    multimodal_prompt
+                        .into_ingestion(self.scheduler_context.sequence_context_size)?,
+                );
             }
         }
 
@@ -326,50 +323,48 @@ impl ContinuousBatchScheduler {
         Ok(active_request)
     }
 
-    fn ingest_multimodal_prompt(
-        &mut self,
-        active_request: &mut ContinuousBatchActiveRequest,
-        PreparedMultimodalPrompt {
-            bitmaps,
-            multimodal_context,
-            n_batch,
-            text,
-        }: PreparedMultimodalPrompt,
-    ) -> Result<i32, GenerationRequestRejection> {
-        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
-        let input_chunks = multimodal_context
-            .tokenize(
-                MtmdInputText {
-                    text,
-                    add_special: true,
-                    parse_special: true,
-                },
-                &bitmap_refs,
-            )
-            .map_err(GenerationRequestRejection::MultimodalTokenizationFailed)?;
+    fn ingest_next_multimodal_chunks(&mut self) {
+        for active_request in &mut self.active_requests {
+            let ContinuousBatchRequestPhase::IngestingMultimodal(ingestion) =
+                &mut active_request.state.phase
+            else {
+                continue;
+            };
 
-        require_prompt_fits_sequence_context(
-            input_chunks.total_tokens(),
-            self.scheduler_context.sequence_context_size,
-        )?;
+            match ingestion.ingest_next_chunk(
+                &mut active_request.token_classifier,
+                &self.llama_context,
+                active_request.sequence_id_guard.sequence_id(),
+                active_request.state.current_token_position,
+            ) {
+                Ok(MultimodalIngestionProgress::ChunksRemain { next_position }) => {
+                    active_request.state.current_token_position = next_position;
+                }
+                Ok(MultimodalIngestionProgress::PromptIngested { next_position }) => {
+                    active_request
+                        .state
+                        .begin_generating_after_multimodal_prompt(
+                            next_position,
+                            active_request.token_classifier.current_section(),
+                        );
+                    self.llama_context.mark_logits_initialized(-1);
 
-        self.advance_generating_requests();
-
-        let tokens_ingested = active_request.token_classifier.eval_multimodal_chunks(
-            &input_chunks,
-            &multimodal_context,
-            &self.llama_context,
-            EvalMultimodalChunksParams {
-                start_position: 0,
-                seq_id: active_request.sequence_id_guard.sequence_id(),
-                n_batch,
-                logits_last: true,
-            },
-        )?;
-
-        self.llama_context.mark_logits_initialized(-1);
-
-        Ok(tokens_ingested)
+                    AdvanceGeneratingPhase {
+                        scheduler_context: &self.scheduler_context,
+                        llama_context: &self.llama_context,
+                    }
+                    .run(slice::from_mut(active_request));
+                }
+                Err(ingestion_error) => {
+                    active_request.complete_with_outcome(
+                        GenerationRequestRejection::from(ingestion_error)
+                            .into_generated_token_result(
+                                self.scheduler_context.agent_name.as_deref(),
+                            ),
+                    );
+                }
+            }
+        }
     }
 
     fn check_stop_signals(&mut self) {
@@ -436,6 +431,7 @@ impl ContinuousBatchScheduler {
 
     fn execute_one_iteration(&mut self) -> Result<()> {
         self.advance_generating_requests();
+        self.ingest_next_multimodal_chunks();
 
         let n_batch = self.scheduler_context.inference_parameters.n_batch;
         let assemble_phase = AssembleBatchPhase { n_batch };
