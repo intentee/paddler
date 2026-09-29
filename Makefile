@@ -2,7 +2,8 @@
 
 RUST_LOG ?= debug
 
-PADDLER_SOURCES := $(shell find paddler_agent/src paddler_balancer/src paddler_bootstrap/src paddler_cache_dir/src paddler_cli/src paddler_client/src paddler_download_manager/src paddler_gui/src paddler_image_decoder/src paddler_messaging/src paddler_state_conversion/src paddler_tool_call_validator/src -name '*.rs')
+PADDLER_CRATES := paddler_agent paddler_balancer paddler_bootstrap paddler_cache_dir paddler_cli paddler_client paddler_download_manager paddler_gui paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_state_conversion paddler_tool_call_validator
+PADDLER_SOURCES := $(shell find $(addsuffix /src,$(PADDLER_CRATES)) -name '*.rs') $(addsuffix /Cargo.toml,$(PADDLER_CRATES)) Cargo.toml Cargo.lock
 FRONTEND_SOURCES := $(shell find resources paddler_client_javascript/src -type f) paddler_client_javascript/package.json $(wildcard jarmuz/*.mjs)
 LLVM_COV_THIRD_PARTY_SOURCES := /\.cargo/(registry|git)/|/\.rustup/toolchains/|^/rustc/|^/nix/store/|^$(CURDIR)/target/
 

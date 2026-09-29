@@ -15,8 +15,11 @@ export function run({ development, once = false, rustJobs }) {
       "paddler_client",
       "paddler_client_javascript",
       "paddler_download_manager",
+      "paddler_image_decoder",
+      "paddler_inference_parameters",
       "paddler_messaging",
       "paddler_state_conversion",
+      "paddler_tool_call_validator",
       "resources",
     ],
   }).decide(function ({ matches, schedule }) {
