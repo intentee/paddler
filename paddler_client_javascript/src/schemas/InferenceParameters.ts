@@ -31,7 +31,7 @@ export const InferenceParametersSchema = z
     k_cache_dtype: z.enum(cacheDtypes),
     v_cache_dtype: z.enum(cacheDtypes),
     min_p: z.number(),
-    n_gpu_layers: z.number().int().min(0),
+    n_gpu_layers: z.number().int(),
     penalty_frequency: z.number(),
     penalty_last_n: z.number(),
     penalty_presence: z.number(),

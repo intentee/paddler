@@ -4,7 +4,9 @@ import { assertFetchJsonReadsStoredInferenceParameters } from "../assertFetchJso
 import { PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS } from "../SpawnedBalancer";
 import { withSpawnedBalancer } from "../withSpawnedBalancer";
 
-test("fetchJson reads the desired state the balancer stores", async function () {
+const OFFLOAD_ALL_LAYERS = -1;
+
+test("fetchJson reads a desired state that offloads all layers", async function () {
   await withSpawnedBalancer(
     {
       bufferedRequestTimeoutMilliseconds:
@@ -12,7 +14,7 @@ test("fetchJson reads the desired state the balancer stores", async function () 
     },
     async function ({ management }) {
       await assertFetchJsonReadsStoredInferenceParameters({
-        inferenceParameters: { enable_embeddings: true },
+        inferenceParameters: { n_gpu_layers: OFFLOAD_ALL_LAYERS },
         managementAddress: management,
       });
     },
