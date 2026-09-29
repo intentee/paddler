@@ -2,6 +2,8 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, model_serializer, model_validator
 
+from paddler_client.error import InvalidAgentIssueError
+
 
 class AgentIssue(BaseModel):
     variant: str
@@ -27,8 +29,7 @@ class AgentIssue(BaseModel):
 
                 return {"variant": variant, "params": {"value": params}}
 
-        msg = f"Invalid AgentIssue: {data}"
-        raise ValueError(msg)
+        raise InvalidAgentIssueError(data)
 
     @model_serializer
     def to_serde(self) -> str | dict[str, Any]:

@@ -1,5 +1,6 @@
 import pytest
 
+from paddler_client.error import ToolCallArgumentsNotAnObjectError
 from paddler_client.parsed_tool_call import ParsedToolCall
 from paddler_client.tool_call_arguments import InvalidJson, ValidJson
 
@@ -31,7 +32,7 @@ def test_from_dict_with_invalid_json_arguments() -> None:
 
 
 def test_from_dict_with_non_dict_arguments_raises() -> None:
-    with pytest.raises(TypeError, match="arguments field must be a dict"):
+    with pytest.raises(ToolCallArgumentsNotAnObjectError):
         ParsedToolCall.from_dict(
             {
                 "id": "x",

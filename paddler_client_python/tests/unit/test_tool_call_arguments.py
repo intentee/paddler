@@ -1,5 +1,6 @@
 import pytest
 
+from paddler_client.error import UnknownToolCallArgumentsError
 from paddler_client.tool_call_arguments import (
     InvalidJson,
     ValidJson,
@@ -26,5 +27,5 @@ def test_parse_invalid_json_carries_raw_text() -> None:
 
 
 def test_parse_unknown_shape_raises() -> None:
-    with pytest.raises(ValueError, match="Unknown ToolCallArguments shape"):
+    with pytest.raises(UnknownToolCallArgumentsError):
         parse_tool_call_arguments({"SomethingElse": "x"})

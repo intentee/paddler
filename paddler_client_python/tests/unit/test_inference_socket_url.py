@@ -1,5 +1,6 @@
 import pytest
 
+from paddler_client.error import UnsupportedUrlSchemeError
 from paddler_client.inference_socket_url import inference_socket_url
 
 
@@ -40,5 +41,5 @@ def test_preserves_query_parameters() -> None:
 
 
 def test_unsupported_scheme() -> None:
-    with pytest.raises(ValueError, match="Unsupported"):
+    with pytest.raises(UnsupportedUrlSchemeError):
         inference_socket_url("ftp://localhost:8080")

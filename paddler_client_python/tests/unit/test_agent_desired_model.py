@@ -1,10 +1,19 @@
 import pytest
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
 
 from paddler_client.agent_desired_model import AgentDesiredModel
+from paddler_client.error import (
+    AgentDesiredModelLocalPathMissingError,
+    AgentDesiredModelUrlMissingError,
+    InvalidAgentDesiredModelError,
+    UnknownAgentDesiredModelVariantError,
+)
 from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
 from paddler_client.url_model_reference import UrlModelReference
+from tests.unit.validation_error_cause import validation_error_cause
 
 
 def test_agent_desired_model_none_serialization() -> None:
@@ -65,13 +74,21 @@ def test_agent_desired_model_local_to_agent_deserialization() -> None:
 
 
 def test_agent_desired_model_invalid_data_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid AgentDesiredModel"):
+    with pytest.raises(ValidationError) as rejection:
         AgentDesiredModel.model_validate(42)
+
+    assert isinstance(
+        validation_error_cause(rejection.value), InvalidAgentDesiredModelError
+    )
 
 
 def test_agent_desired_model_unknown_variant_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid AgentDesiredModel"):
+    with pytest.raises(ValidationError) as rejection:
         AgentDesiredModel.model_validate({"Unknown": "value"})
+
+    assert isinstance(
+        validation_error_cause(rejection.value), InvalidAgentDesiredModelError
+    )
 
 
 def test_agent_desired_model_local_to_agent_roundtrip() -> None:
@@ -84,15 +101,19 @@ def test_agent_desired_model_local_to_agent_roundtrip() -> None:
 def test_agent_desired_model_unknown_variant_serialization_raises() -> None:
     model = AgentDesiredModel(variant="Unknown")
 
-    with pytest.raises(ValueError, match="Unknown AgentDesiredModel variant"):
+    with pytest.raises(PydanticSerializationError) as rejection:
         model.model_dump(mode="json")
+
+    assert isinstance(rejection.value.__cause__, UnknownAgentDesiredModelVariantError)
 
 
 def test_agent_desired_model_local_to_agent_missing_path_raises() -> None:
     model = AgentDesiredModel(variant="LocalToAgent", local_path=None)
 
-    with pytest.raises(ValueError, match="local_path is required"):
+    with pytest.raises(PydanticSerializationError) as rejection:
         model.model_dump(mode="json")
+
+    assert isinstance(rejection.value.__cause__, AgentDesiredModelLocalPathMissingError)
 
 
 def test_agent_desired_model_url_serialization() -> None:
@@ -116,5 +137,7 @@ def test_agent_desired_model_url_deserialization() -> None:
 def test_agent_desired_model_url_missing_reference_raises() -> None:
     model = AgentDesiredModel(variant="Url", url=None)
 
-    with pytest.raises(ValueError, match="url is required"):
+    with pytest.raises(PydanticSerializationError) as rejection:
         model.model_dump(mode="json")
+
+    assert isinstance(rejection.value.__cause__, AgentDesiredModelUrlMissingError)

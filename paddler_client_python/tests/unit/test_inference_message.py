@@ -1,5 +1,18 @@
 import pytest
 
+from paddler_client.error import (
+    GeneratedTokenResultNotAnObjectError,
+    ImageExceedsBatchSizePayloadNotAnObjectError,
+    InferenceClientMessageNotAnObjectError,
+    PromptExceedsContextSizePayloadNotAnObjectError,
+    ToolCallParsedPayloadNotAListError,
+    ToolCallValidationFailedPayloadNotAListError,
+    UnknownEmbeddingResultError,
+    UnknownGeneratedTokenResultError,
+    UnknownInferenceClientMessageError,
+    UnknownResponseVariantError,
+    UnrecognizedToolCallFormatPayloadNotAnObjectError,
+)
 from paddler_client.inference_message import (
     InferenceMessageKind,
     parse_inference_client_message,
@@ -132,7 +145,7 @@ def test_parse_tool_call_parsed_with_non_list_payload_raises() -> None:
         },
     }
 
-    with pytest.raises(TypeError, match="ToolCallParsed payload is not a list"):
+    with pytest.raises(ToolCallParsedPayloadNotAListError):
         parse_inference_client_message(data)
 
 
@@ -145,10 +158,7 @@ def test_parse_tool_call_validation_failed_with_non_list_payload_raises() -> Non
         },
     }
 
-    with pytest.raises(
-        TypeError,
-        match="ToolCallValidationFailed payload is not a list",
-    ):
+    with pytest.raises(ToolCallValidationFailedPayloadNotAListError):
         parse_inference_client_message(data)
 
 
@@ -193,10 +203,7 @@ def test_parse_unrecognized_tool_call_format_with_non_dict_payload_raises() -> N
         },
     }
 
-    with pytest.raises(
-        TypeError,
-        match="UnrecognizedToolCallFormat payload is not a dict",
-    ):
+    with pytest.raises(UnrecognizedToolCallFormatPayloadNotAnObjectError):
         parse_inference_client_message(data)
 
 
@@ -235,10 +242,7 @@ def test_parse_image_exceeds_batch_size_with_non_dict_payload_raises() -> None:
         },
     }
 
-    with pytest.raises(
-        TypeError,
-        match="ImageExceedsBatchSize payload is not a dict",
-    ):
+    with pytest.raises(ImageExceedsBatchSizePayloadNotAnObjectError):
         parse_inference_client_message(data)
 
 
@@ -277,10 +281,7 @@ def test_parse_prompt_exceeds_context_size_with_non_dict_payload_raises() -> Non
         },
     }
 
-    with pytest.raises(
-        TypeError,
-        match="PromptExceedsContextSize payload is not a dict",
-    ):
+    with pytest.raises(PromptExceedsContextSizePayloadNotAnObjectError):
         parse_inference_client_message(data)
 
 
@@ -628,12 +629,12 @@ def test_parse_json_string() -> None:
 
 
 def test_parse_unknown_format_raises() -> None:
-    with pytest.raises(ValueError, match="Unknown"):
+    with pytest.raises(UnknownInferenceClientMessageError):
         parse_inference_client_message({"Unknown": {}})
 
 
 def test_parse_json_that_is_not_an_object_raises_type_error() -> None:
-    with pytest.raises(TypeError, match="Unknown"):
+    with pytest.raises(InferenceClientMessageNotAnObjectError):
         parse_inference_client_message("42")
 
 
@@ -646,7 +647,7 @@ def test_parse_unknown_response_variant_raises() -> None:
         }
     }
 
-    with pytest.raises(ValueError, match="Unknown response variant"):
+    with pytest.raises(UnknownResponseVariantError):
         parse_inference_client_message(data)
 
 
@@ -659,7 +660,7 @@ def test_parse_unknown_response_dict_raises() -> None:
         }
     }
 
-    with pytest.raises(ValueError, match="Unknown response"):
+    with pytest.raises(UnknownResponseVariantError):
         parse_inference_client_message(data)
 
 
@@ -672,7 +673,7 @@ def test_parse_unknown_generated_token_result_raises() -> None:
         }
     }
 
-    with pytest.raises(ValueError, match="Unknown GeneratedTokenResult"):
+    with pytest.raises(UnknownGeneratedTokenResultError):
         parse_inference_client_message(data)
 
 
@@ -685,7 +686,7 @@ def test_parse_string_generated_token_result_raises() -> None:
         }
     }
 
-    with pytest.raises(TypeError, match="Unknown GeneratedTokenResult"):
+    with pytest.raises(GeneratedTokenResultNotAnObjectError):
         parse_inference_client_message(data)
 
 
@@ -698,7 +699,7 @@ def test_parse_unknown_embedding_result_raises() -> None:
         }
     }
 
-    with pytest.raises(ValueError, match="Unknown EmbeddingResult"):
+    with pytest.raises(UnknownEmbeddingResultError):
         parse_inference_client_message(data)
 
 
@@ -711,5 +712,5 @@ def test_parse_unknown_unit_embedding_result_raises() -> None:
         }
     }
 
-    with pytest.raises(ValueError, match="Unknown EmbeddingResult"):
+    with pytest.raises(UnknownEmbeddingResultError):
         parse_inference_client_message(data)

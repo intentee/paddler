@@ -1,6 +1,9 @@
 import pytest
+from pydantic import ValidationError
 
 from paddler_client.agent_issue import AgentIssue
+from paddler_client.error import InvalidAgentIssueError
+from tests.unit.validation_error_cause import validation_error_cause
 
 
 def test_agent_issue_deserialization() -> None:
@@ -37,13 +40,17 @@ def test_agent_issue_non_dict_params_deserialization() -> None:
 
 
 def test_agent_issue_invalid_data_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid AgentIssue"):
+    with pytest.raises(ValidationError) as rejection:
         AgentIssue.model_validate(42)
+
+    assert isinstance(validation_error_cause(rejection.value), InvalidAgentIssueError)
 
 
 def test_agent_issue_with_more_than_one_variant_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid AgentIssue"):
+    with pytest.raises(ValidationError) as rejection:
         AgentIssue.model_validate({"First": "value", "Second": "value"})
+
+    assert isinstance(validation_error_cause(rejection.value), InvalidAgentIssueError)
 
 
 def test_agent_issue_empty_params_serializes_as_string() -> None:

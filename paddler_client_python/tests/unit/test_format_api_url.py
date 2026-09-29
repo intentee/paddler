@@ -1,5 +1,6 @@
 import pytest
 
+from paddler_client.error import ApiPathWithoutLeadingSlashError
 from paddler_client.format_api_url import format_api_url
 
 
@@ -16,7 +17,7 @@ def test_strips_trailing_slash() -> None:
 
 
 def test_path_must_start_with_slash() -> None:
-    with pytest.raises(ValueError, match="must start with"):
+    with pytest.raises(ApiPathWithoutLeadingSlashError):
         format_api_url("http://localhost:8080", "health")
 
 

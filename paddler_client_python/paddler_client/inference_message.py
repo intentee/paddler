@@ -7,6 +7,19 @@ from enum import StrEnum
 from typing import Any, cast
 
 from paddler_client.embedding import Embedding
+from paddler_client.error import (
+    GeneratedTokenResultNotAnObjectError,
+    ImageExceedsBatchSizePayloadNotAnObjectError,
+    InferenceClientMessageNotAnObjectError,
+    PromptExceedsContextSizePayloadNotAnObjectError,
+    ToolCallParsedPayloadNotAListError,
+    ToolCallValidationFailedPayloadNotAListError,
+    UnknownEmbeddingResultError,
+    UnknownGeneratedTokenResultError,
+    UnknownInferenceClientMessageError,
+    UnknownResponseVariantError,
+    UnrecognizedToolCallFormatPayloadNotAnObjectError,
+)
 from paddler_client.oversized_embedding_document_details import (
     OversizedEmbeddingDocumentDetails,
 )
@@ -157,8 +170,7 @@ def parse_inference_client_message(
         data = json.loads(data)
 
     if not isinstance(data, dict):
-        msg = f"Unknown inference client message format: {data}"
-        raise TypeError(msg)
+        raise InferenceClientMessageNotAnObjectError(data)
 
     if "Error" in data:
         return _parse_error_envelope(data["Error"])
@@ -172,8 +184,7 @@ def parse_inference_client_message(
             response_envelope["generated_by"],
         )
 
-    msg = f"Unknown inference client message format: {data}"
-    raise ValueError(msg)
+    raise UnknownInferenceClientMessageError(data)
 
 
 def _parse_error_envelope(
@@ -209,8 +220,7 @@ def _parse_response(
                 generated_by,
             )
 
-    msg = f"Unknown response variant: {response}"
-    raise ValueError(msg)
+    raise UnknownResponseVariantError(response)
 
 
 _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
@@ -257,8 +267,7 @@ def _build_tool_call_parsed_message(
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(payload, list):
-        msg = f"ToolCallParsed payload is not a list: {payload}"
-        raise TypeError(msg)
+        raise ToolCallParsedPayloadNotAListError(payload)
     typed_calls = cast("list[dict[str, Any]]", payload)
     parsed_calls: list[ParsedToolCall] = [
         ParsedToolCall.from_dict(call) for call in typed_calls
@@ -290,8 +299,7 @@ def _build_tool_call_validation_failed_message(
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(payload, list):
-        msg = f"ToolCallValidationFailed payload is not a list: {payload}"
-        raise TypeError(msg)
+        raise ToolCallValidationFailedPayloadNotAListError(payload)
     typed_errors = cast("list[object]", payload)
     joined_errors: str = "; ".join(str(error) for error in typed_errors)
     return InferenceMessage(
@@ -308,8 +316,7 @@ def _build_unrecognized_tool_call_format_message(
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(payload, dict):
-        msg = f"UnrecognizedToolCallFormat payload is not a dict: {payload!r}"
-        raise TypeError(msg)
+        raise UnrecognizedToolCallFormatPayloadNotAnObjectError(payload)
     typed_raw = cast("dict[str, Any]", payload)
     return InferenceMessage(
         request_id=request_id,
@@ -325,8 +332,7 @@ def _build_image_exceeds_batch_size_message(
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(payload, dict):
-        msg = f"ImageExceedsBatchSize payload is not a dict: {payload!r}"
-        raise TypeError(msg)
+        raise ImageExceedsBatchSizePayloadNotAnObjectError(payload)
     typed_details = cast("dict[str, Any]", payload)
     return InferenceMessage(
         request_id=request_id,
@@ -342,8 +348,7 @@ def _build_prompt_exceeds_context_size_message(
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(payload, dict):
-        msg = f"PromptExceedsContextSize payload is not a dict: {payload!r}"
-        raise TypeError(msg)
+        raise PromptExceedsContextSizePayloadNotAnObjectError(payload)
     typed_details = cast("dict[str, Any]", payload)
     return InferenceMessage(
         request_id=request_id,
@@ -400,8 +405,7 @@ def _parse_generated_token_result(
     generated_by: str | None,
 ) -> InferenceMessage:
     if not isinstance(data, dict):
-        msg = f"Unknown GeneratedTokenResult: {data}"
-        raise TypeError(msg)
+        raise GeneratedTokenResultNotAnObjectError(data)
     for structured_key, handler in _STRUCTURED_HANDLERS.items():
         if structured_key in data:
             return handler(request_id, data[structured_key], generated_by)
@@ -421,8 +425,7 @@ def _parse_generated_token_result(
                 data[error_key],
                 generated_by,
             )
-    msg = f"Unknown GeneratedTokenResult: {data}"
-    raise ValueError(msg)
+    raise UnknownGeneratedTokenResultError(data)
 
 
 _EMBEDDING_UNIT_KINDS: dict[str, InferenceMessageKind] = {
@@ -500,5 +503,4 @@ def _parse_embedding_result(
             if structured_key in data:
                 return handler(request_id, data[structured_key], generated_by)
 
-    msg = f"Unknown EmbeddingResult: {data}"
-    raise ValueError(msg)
+    raise UnknownEmbeddingResultError(data)

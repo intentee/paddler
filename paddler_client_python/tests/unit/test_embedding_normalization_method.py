@@ -1,8 +1,16 @@
 import pytest
+from pydantic import ValidationError
+from pydantic_core import PydanticSerializationError
 
 from paddler_client.embedding_normalization_method import (
     EmbeddingNormalizationMethod,
 )
+from paddler_client.error import (
+    InvalidEmbeddingNormalizationMethodError,
+    InvalidRmsNormPayloadError,
+    RmsNormEpsilonMissingError,
+)
+from tests.unit.validation_error_cause import validation_error_cause
 
 
 def test_embedding_normalization_method_l2_serialization() -> None:
@@ -45,23 +53,39 @@ def test_embedding_normalization_method_rms_norm_deserialization() -> None:
 def test_embedding_normalization_method_rms_norm_missing_epsilon_raises() -> None:
     method = EmbeddingNormalizationMethod(variant="RmsNorm", epsilon=None)
 
-    with pytest.raises(ValueError, match="epsilon is required"):
+    with pytest.raises(PydanticSerializationError) as rejection:
         method.model_dump(mode="json")
+
+    assert isinstance(rejection.value.__cause__, RmsNormEpsilonMissingError)
 
 
 def test_embedding_normalization_method_invalid_rms_norm_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid RmsNorm payload"):
+    with pytest.raises(ValidationError) as rejection:
         EmbeddingNormalizationMethod.model_validate({"RmsNorm": "not a dict"})
+
+    assert isinstance(
+        validation_error_cause(rejection.value), InvalidRmsNormPayloadError
+    )
 
 
 def test_embedding_normalization_method_invalid_data_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid EmbeddingNormalizationMethod"):
+    with pytest.raises(ValidationError) as rejection:
         EmbeddingNormalizationMethod.model_validate(42)
+
+    assert isinstance(
+        validation_error_cause(rejection.value),
+        InvalidEmbeddingNormalizationMethodError,
+    )
 
 
 def test_embedding_normalization_method_unknown_variant_raises() -> None:
-    with pytest.raises(ValueError, match="Invalid EmbeddingNormalizationMethod"):
+    with pytest.raises(ValidationError) as rejection:
         EmbeddingNormalizationMethod.model_validate({"Unknown": {}})
+
+    assert isinstance(
+        validation_error_cause(rejection.value),
+        InvalidEmbeddingNormalizationMethodError,
+    )
 
 
 def test_embedding_normalization_method_rms_norm_roundtrip() -> None:

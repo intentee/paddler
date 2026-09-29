@@ -25,3 +25,142 @@ class ConnectionDroppedError(PaddlerError):
     def __init__(self, request_id: str) -> None:
         self.request_id = request_id
         super().__init__(f"WebSocket connection dropped for request {request_id}")
+
+
+class InvalidAgentDesiredModelError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Invalid AgentDesiredModel: {data}")
+
+
+class AgentDesiredModelLocalPathMissingError(PaddlerError, ValueError):
+    def __init__(self) -> None:
+        super().__init__("local_path is required for LocalToAgent")
+
+
+class AgentDesiredModelUrlMissingError(PaddlerError, ValueError):
+    def __init__(self) -> None:
+        super().__init__("url is required for Url")
+
+
+class UnknownAgentDesiredModelVariantError(PaddlerError, ValueError):
+    def __init__(self, variant: str) -> None:
+        self.variant = variant
+        super().__init__(f"Unknown AgentDesiredModel variant: {variant}")
+
+
+class InvalidAgentIssueError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Invalid AgentIssue: {data}")
+
+
+class InvalidRmsNormPayloadError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Invalid RmsNorm payload: {data}")
+
+
+class InvalidEmbeddingNormalizationMethodError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Invalid EmbeddingNormalizationMethod: {data}")
+
+
+class RmsNormEpsilonMissingError(PaddlerError, ValueError):
+    def __init__(self) -> None:
+        super().__init__("epsilon is required for RmsNorm")
+
+
+class ApiPathWithoutLeadingSlashError(PaddlerError, ValueError):
+    def __init__(self, path: str) -> None:
+        self.path = path
+        super().__init__(f"Path must start with '/': {path}")
+
+
+class UnsupportedUrlSchemeError(PaddlerError, ValueError):
+    def __init__(self, scheme: str) -> None:
+        self.scheme = scheme
+        super().__init__(f"Unsupported URL scheme: {scheme}")
+
+
+class UnknownToolCallArgumentsError(PaddlerError, ValueError):
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+        super().__init__(f"Unknown ToolCallArguments shape: {payload}")
+
+
+class ToolCallArgumentsNotAnObjectError(PaddlerError, TypeError):
+    def __init__(self, arguments: object) -> None:
+        self.arguments = arguments
+        super().__init__(
+            f"arguments field must be a dict (tagged enum), got: {arguments!r}"
+        )
+
+
+class InferenceClientMessageNotAnObjectError(PaddlerError, TypeError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Unknown inference client message format: {data}")
+
+
+class UnknownInferenceClientMessageError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Unknown inference client message format: {data}")
+
+
+class UnknownResponseVariantError(PaddlerError, ValueError):
+    def __init__(self, response: object) -> None:
+        self.response = response
+        super().__init__(f"Unknown response variant: {response}")
+
+
+class GeneratedTokenResultNotAnObjectError(PaddlerError, TypeError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Unknown GeneratedTokenResult: {data}")
+
+
+class UnknownGeneratedTokenResultError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Unknown GeneratedTokenResult: {data}")
+
+
+class UnknownEmbeddingResultError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Unknown EmbeddingResult: {data}")
+
+
+class ToolCallParsedPayloadNotAListError(PaddlerError, TypeError):
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+        super().__init__(f"ToolCallParsed payload is not a list: {payload}")
+
+
+class ToolCallValidationFailedPayloadNotAListError(PaddlerError, TypeError):
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+        super().__init__(f"ToolCallValidationFailed payload is not a list: {payload}")
+
+
+class UnrecognizedToolCallFormatPayloadNotAnObjectError(PaddlerError, TypeError):
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+        super().__init__(
+            f"UnrecognizedToolCallFormat payload is not a dict: {payload!r}"
+        )
+
+
+class ImageExceedsBatchSizePayloadNotAnObjectError(PaddlerError, TypeError):
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+        super().__init__(f"ImageExceedsBatchSize payload is not a dict: {payload!r}")
+
+
+class PromptExceedsContextSizePayloadNotAnObjectError(PaddlerError, TypeError):
+    def __init__(self, payload: object) -> None:
+        self.payload = payload
+        super().__init__(f"PromptExceedsContextSize payload is not a dict: {payload!r}")
