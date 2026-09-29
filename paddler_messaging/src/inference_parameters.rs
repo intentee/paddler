@@ -93,7 +93,8 @@ impl InferenceParameters {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::InferenceParameters;
+    use crate::validates::Validates;
 
     #[test]
     fn validate_succeeds_with_default_params() {

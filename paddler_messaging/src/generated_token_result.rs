@@ -97,7 +97,12 @@ impl StreamableResult for GeneratedTokenResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::GeneratedTokenResult;
+    use crate::generation_summary::GenerationSummary;
+    use crate::oversized_image_details::OversizedImageDetails;
+    use crate::oversized_prompt_details::OversizedPromptDetails;
+    use crate::raw_tool_call_tokens::RawToolCallTokens;
+    use crate::streamable_result::StreamableResult;
 
     #[test]
     fn done_is_done() {

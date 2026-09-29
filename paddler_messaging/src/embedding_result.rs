@@ -32,9 +32,12 @@ impl StreamableResult for EmbeddingResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::EmbeddingResult;
+    use crate::embedding::Embedding;
     use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
+    use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
     use crate::pooling_type::PoolingType;
+    use crate::streamable_result::StreamableResult;
 
     #[test]
     fn done_is_done() {

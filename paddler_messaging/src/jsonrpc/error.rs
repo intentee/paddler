@@ -20,7 +20,7 @@ impl Display for Error {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Error;
 
     #[test]
     fn formats_only_code_ignoring_description() {

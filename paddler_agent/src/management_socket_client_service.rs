@@ -437,17 +437,37 @@ impl Service for ManagementSocketClientService {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::sync::Arc;
 
-    use crate::receive_stream_stop_outcome::ReceiveStreamStopOutcome;
-
-    use tokio::net::TcpListener;
-    use tokio::sync::oneshot;
-
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+    use paddler_messaging::management_socket::agent::message::Message as JsonRpcMessage;
+    use paddler_messaging::management_socket::agent::notification::Notification as JsonRpcNotification;
     use paddler_messaging::management_socket::agent::notification_params::set_state_params::SetStateParams;
+    use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
+    use paddler_messaging::management_socket::agent::request::Request as JsonRpcRequest;
+    use paddler_messaging::management_socket::agent::response::Response as JsonRpcResponse;
+    use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
     use paddler_messaging::model_metadata::ModelMetadata;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+    use tokio::net::TcpListener;
+    use tokio::sync::mpsc;
+    use tokio::sync::oneshot;
+    use tokio::time::Duration;
+    use tokio_tungstenite::tungstenite::protocol::Message;
+    use tokio_util::sync::CancellationToken;
+    use trzcina::Service;
 
-    use super::*;
+    use super::IncomingMessageContext;
+    use super::ManagementSocketClientService;
+    use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
+    use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+    use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
+    use crate::model_metadata_holder::ModelMetadataHolder;
+    use crate::receive_stream_stop_outcome::ReceiveStreamStopOutcome;
+    use crate::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
+    use crate::slot_aggregated_status::SlotAggregatedStatus;
 
     const SHUTDOWN_BUDGET: Duration = Duration::from_secs(5);
 

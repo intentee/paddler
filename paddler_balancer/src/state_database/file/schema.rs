@@ -16,7 +16,7 @@ pub struct Schema {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::default_version;
 
     #[test]
     fn default_version_is_one() {

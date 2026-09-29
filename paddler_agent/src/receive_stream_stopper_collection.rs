@@ -78,7 +78,12 @@ impl Default for ReceiveStreamStopperCollection {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
+    use tokio::sync::mpsc;
+
+    use super::ReceiveStreamStopperCollection;
+    use crate::receive_stream_stop_outcome::ReceiveStreamStopOutcome;
 
     #[test]
     fn register_stopper_succeeds() {

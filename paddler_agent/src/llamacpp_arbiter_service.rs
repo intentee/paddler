@@ -213,11 +213,25 @@ impl Service for LlamaCppArbiterService {
 
 #[cfg(test)]
 mod tests {
-    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+    use std::sync::Arc;
 
-    use super::*;
+    use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+    use tokio::sync::mpsc;
+    use tokio_util::sync::CancellationToken;
+    use trzcina::Service;
+
+    use super::LlamaCppArbiterService;
+    use super::apply_state;
+    use super::forward_request;
+    use super::shutdown_arbiter_handle;
+    use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
     use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+    use crate::continuous_batch_arbiter_handle::ContinuousBatchArbiterHandle;
+    use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
     use crate::from_request_params::FromRequestParams as _;
+    use crate::model_metadata_holder::ModelMetadataHolder;
+    use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
 
     #[tokio::test]
     async fn forward_request_releases_the_request_when_no_arbiter_is_running() {

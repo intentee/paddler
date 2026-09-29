@@ -25,7 +25,7 @@ pub fn rms_norm(embedding: &[f32], eps: f32) -> Result<Vec<f32>> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::rms_norm;
 
     #[test]
     fn test_rms_norm_uniform_values() {

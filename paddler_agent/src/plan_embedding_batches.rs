@@ -35,7 +35,7 @@ pub fn plan_embedding_batches(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::plan_embedding_batches;
 
     #[test]
     fn empty_input_yields_no_batches() {

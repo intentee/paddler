@@ -63,15 +63,19 @@ where
 #[cfg(test)]
 mod tests {
     use std::mem::discriminant;
+    use std::sync::Arc;
     use std::time::Duration;
 
     use futures_util::StreamExt as _;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+    use tokio_util::sync::CancellationToken;
 
-    use super::*;
+    use super::unbounded_stream_from_agent;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::buffered_request_manager::BufferedRequestManager;
     use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
     use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
-    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+    use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 
     fn inference_service_configuration() -> InferenceServiceConfiguration {
         const TIMEOUT_LONGER_THAN_ANY_TEST_RUN: Duration = Duration::from_hours(1);

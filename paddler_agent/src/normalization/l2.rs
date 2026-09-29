@@ -14,7 +14,7 @@ pub fn l2(embedding: &[f32]) -> Vec<f32> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::l2;
 
     #[test]
     fn test_normalize_l2() {

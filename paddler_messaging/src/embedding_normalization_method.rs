@@ -29,7 +29,7 @@ impl EmbeddingNormalizationMethod {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::EmbeddingNormalizationMethod;
 
     #[test]
     fn test_can_transform_from_none_to_l2() {

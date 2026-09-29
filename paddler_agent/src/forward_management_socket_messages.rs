@@ -69,9 +69,13 @@ where
 mod tests {
     use futures::channel::mpsc as sink_channel;
     use futures_util::StreamExt as _;
+    use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
     use paddler_messaging::management_socket::balancer::notification::Notification;
+    use tokio::sync::mpsc;
+    use tokio_tungstenite::tungstenite::protocol::Message;
+    use tokio_util::sync::CancellationToken;
 
-    use super::*;
+    use super::forward_management_socket_messages;
 
     fn deregister_agent() -> ManagementJsonRpcMessage {
         ManagementJsonRpcMessage::Notification(Notification::DeregisterAgent)

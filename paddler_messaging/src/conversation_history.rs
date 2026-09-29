@@ -72,8 +72,16 @@ impl ConversationHistory {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::ConversationHistory;
+    use crate::chat_template_conversation::ChatTemplateConversation;
+    use crate::chat_template_message::ChatTemplateMessage;
+    use crate::chat_template_message_content::ChatTemplateMessageContent;
+    use crate::chat_template_message_content_part::ChatTemplateMessageContentPart;
+    use crate::conversation_message::ConversationMessage;
+    use crate::conversation_message_content::ConversationMessageContent;
+    use crate::conversation_message_content_part::ConversationMessageContentPart;
     use crate::image_url::ImageUrl;
+    use crate::media_marker::MediaMarker;
 
     fn make_text_message(role: &str, text: &str) -> ConversationMessage {
         ConversationMessage {

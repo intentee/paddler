@@ -133,10 +133,17 @@ impl Service for ReconciliationService {
 
 #[cfg(test)]
 mod tests {
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::inference_parameters::InferenceParameters;
+    use std::sync::Arc;
 
-    use super::*;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::inference_parameters::InferenceParameters;
+    use tokio_util::sync::CancellationToken;
+
+    use super::convert_to_applicable_state;
+    use super::try_convert_to_applicable_state;
+    use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
+    use crate::slot_aggregated_status::SlotAggregatedStatus;
 
     #[tokio::test]
     async fn a_cancelled_conversion_leaves_the_state_unconverted() {

@@ -40,9 +40,11 @@ impl Validates<ValidatedParametersSchema> for RawParametersSchema {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Map;
     use serde_json::json;
 
-    use super::*;
+    use super::RawParametersSchema;
+    use crate::validates::Validates;
 
     #[test]
     fn validate_passes_when_every_required_field_is_present() {

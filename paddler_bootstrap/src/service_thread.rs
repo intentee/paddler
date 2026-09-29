@@ -76,7 +76,10 @@ impl Drop for ServiceThread {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use anyhow::anyhow;
+    use tokio_util::sync::CancellationToken;
+
+    use super::ServiceThread;
 
     #[tokio::test]
     async fn service_thread_finishes_cleanly_when_completion_receiver_dropped_after_success() {

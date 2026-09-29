@@ -34,7 +34,10 @@ mod tests {
     use serde_json::Map;
     use serde_json::Value;
 
-    use super::*;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+    use crate::validates::Validates;
+    use super::Parameters;
 
     fn properties_with_name() -> Map<String, Value> {
         let mut properties = Map::new();

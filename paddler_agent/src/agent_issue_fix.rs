@@ -96,11 +96,13 @@ impl AgentIssueFix {
 
 #[cfg(test)]
 mod tests {
+    use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
 
-    use super::*;
+    use super::AgentIssueFix;
 
     fn model_path(path: &str) -> ModelPath {
         ModelPath {

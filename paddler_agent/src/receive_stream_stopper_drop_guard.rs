@@ -25,9 +25,12 @@ impl Drop for ReceiveStreamStopperDropGuard {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use tokio::sync::mpsc;
 
-    use super::*;
+    use super::ReceiveStreamStopperDropGuard;
+    use crate::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
 
     #[test]
     fn drop_deregisters_registered_stopper() {

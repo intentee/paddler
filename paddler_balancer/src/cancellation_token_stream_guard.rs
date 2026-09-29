@@ -42,8 +42,9 @@ mod tests {
     use futures_util::stream;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
+    use tokio_util::sync::CancellationToken;
 
-    use super::*;
+    use super::CancellationTokenStreamGuard;
 
     #[test]
     fn dropping_wrapper_cancels_token() {

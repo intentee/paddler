@@ -30,7 +30,11 @@ pub fn opencode_binary_path() -> Result<PathBuf, OpenCodeTestError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::env::VarError;
+
+    use super::OPENCODE_BINARY_ENV;
+    use super::resolve_binary_path;
+    use crate::opencode_test_error::OpenCodeTestError;
 
     #[test]
     fn missing_environment_variable_reports_not_provided() {

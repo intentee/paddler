@@ -54,9 +54,10 @@ impl FromStr for StateDatabaseType {
 #[cfg(test)]
 mod tests {
     use std::mem::discriminant;
+    use std::path::PathBuf;
     use std::str::FromStr;
 
-    use super::*;
+    use super::StateDatabaseType;
 
     #[test]
     fn test_memory_basic() {

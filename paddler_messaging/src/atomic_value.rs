@@ -144,7 +144,12 @@ impl AtomicValue<AtomicUsize> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::AtomicI32;
+    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::AtomicUsize;
+
+    use super::AtomicValue;
 
     #[test]
     fn bool_set_check_reports_and_applies_changes() {

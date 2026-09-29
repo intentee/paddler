@@ -217,11 +217,17 @@ impl ProducesSnapshot for SlotAggregatedStatus {
 mod tests {
     use std::time::Duration;
 
+    use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
+    use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+    use paddler_messaging::produces_snapshot::ProducesSnapshot;
+    use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
     use tokio::time::timeout;
 
-    use super::*;
+    use super::SlotAggregatedStatus;
+    use crate::agent_issue_fix::AgentIssueFix;
+    use crate::dispenses_slots::DispensesSlots;
 
     #[tokio::test]
     async fn take_slot_wakes_subscribed_waiter() {

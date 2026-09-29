@@ -42,7 +42,11 @@ impl BufferedRequestCounter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
+    use tokio::sync::watch;
+
+    use super::BufferedRequestCounter;
 
     fn make_counter() -> BufferedRequestCounter {
         let (update_tx, _initial_rx) = watch::channel(());

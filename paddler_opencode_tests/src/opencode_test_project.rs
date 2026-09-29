@@ -84,7 +84,14 @@ impl OpenCodeTestProject {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::fs;
+
+    use serde_json::Value;
+    use url::Url;
+
+    use super::CONFIG_FILE_NAME;
+    use super::MODEL_ID;
+    use super::OpenCodeTestProject;
 
     fn create_project() -> OpenCodeTestProject {
         let api_base_url = Url::parse("http://127.0.0.1:9/v1").unwrap();
