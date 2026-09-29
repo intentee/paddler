@@ -33,6 +33,7 @@ impl Service for ReconciliationService {
 
         loop {
             tokio::select! {
+                biased;
                 () = shutdown.cancelled() => break Ok(()),
                 changed = balancer_desired_state_rx.changed() => {
                     changed.context("the state database stopped announcing desired states")?;
@@ -48,6 +49,46 @@ impl Service for ReconciliationService {
                     agent_controller_pool.set_desired_state(&agent_desired_state);
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use tokio::sync::watch;
+    use tokio_util::sync::CancellationToken;
+    use trzcina::Service as _;
+
+    use super::ReconciliationService;
+    use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state::BalancerApplicableState;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+
+    const RUNS_TO_EXERCISE_EVERY_BRANCH_ORDER: usize = 64;
+
+    #[tokio::test]
+    async fn stops_cleanly_when_its_state_database_closes_during_shutdown() {
+        for _ in 0..RUNS_TO_EXERCISE_EVERY_BRANCH_ORDER {
+            let (balancer_desired_state_tx, balancer_desired_state_rx) =
+                watch::channel(BalancerDesiredState::default());
+            let shutdown = CancellationToken::new();
+
+            shutdown.cancel();
+            drop(balancer_desired_state_tx);
+
+            Box::new(ReconciliationService {
+                agent_controller_pool: Arc::new(AgentControllerPool::default()),
+                balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
+                    BalancerApplicableState::from(BalancerDesiredState::default()),
+                )),
+                balancer_desired_state_rx,
+            })
+            .run(shutdown)
+            .await
+            .expect("a shutdown must stop the reconciliation service cleanly");
         }
     }
 }

@@ -97,6 +97,7 @@ impl Service for ReconciliationService {
 
         loop {
             tokio::select! {
+                biased;
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
                     if !is_converted_to_applicable_state {
