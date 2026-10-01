@@ -6,26 +6,18 @@ import { eventSourceConnectionErrorState } from "../../src/EventSourceConnection
 import { eventSourceInitialState } from "../../src/EventSourceInitialState";
 import { AgentsResponseSchema } from "../../src/schemas/AgentsResponse";
 import { streamEventSource } from "../../src/streamEventSource";
-import {
-  PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS,
-  SpawnedBalancer,
-} from "../SpawnedBalancer";
+import { withConnectionClosingListener } from "../withConnectionClosingListener";
 
 test("streamEventSource reports a connection error", async function () {
-  const balancer = await SpawnedBalancer.spawn({
-    bufferedRequestTimeoutMilliseconds:
-      PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS,
+  await withConnectionClosingListener(async function (address) {
+    deepStrictEqual(
+      await firstValueFrom(
+        streamEventSource({
+          schema: AgentsResponseSchema,
+          url: `http://${address}/api/v1/agents/stream`,
+        }).pipe(take(2), toArray()),
+      ),
+      [eventSourceInitialState, eventSourceConnectionErrorState],
+    );
   });
-
-  await balancer.process.terminate();
-
-  deepStrictEqual(
-    await firstValueFrom(
-      streamEventSource({
-        schema: AgentsResponseSchema,
-        url: `http://${balancer.addresses.management}/api/v1/agents/stream`,
-      }).pipe(take(2), toArray()),
-    ),
-    [eventSourceInitialState, eventSourceConnectionErrorState],
-  );
 });

@@ -4,7 +4,6 @@ import {
   firstValueFrom,
   mergeMap,
   tap,
-  timeout,
   type Observable,
 } from "rxjs";
 
@@ -14,7 +13,6 @@ import type { AgentsResponseSchema } from "../src/schemas/AgentsResponse";
 import { AgentReportedIssuesError } from "./AgentReportedIssuesError";
 import { AgentsSnapshotUndeserializableError } from "./AgentsSnapshotUndeserializableError";
 import { AgentsStreamClosedError } from "./AgentsStreamClosedError";
-import { MODEL_LOAD_MILLISECONDS } from "./observationWindow";
 
 export function waitForAgentReady({
   agentName,
@@ -42,17 +40,16 @@ export function waitForAgentReady({
         return agent.name === agentName;
       }),
       tap(function (agent) {
-        if (agent.issues.length > 0) {
-          throw new AgentReportedIssuesError(agentName, agent.issues);
+        if (agent.status.issues.length > 0) {
+          throw new AgentReportedIssuesError(agentName, agent.status.issues);
         }
       }),
       first(function (agent) {
         return (
-          agent.state_application_status === "Applied" &&
-          agent.slots_total === expectedSlotsTotal
+          agent.status.state_application_status === "Applied" &&
+          agent.status.slots_total === expectedSlotsTotal
         );
       }),
-      timeout({ first: MODEL_LOAD_MILLISECONDS }),
     ),
   );
 }

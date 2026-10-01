@@ -3,9 +3,14 @@ import { once } from "node:events";
 import { setTimeout } from "node:timers/promises";
 import { z } from "zod";
 
-import { RELEASE_MILLISECONDS } from "./observationWindow";
 import { ProcessDidNotExitError } from "./ProcessDidNotExitError";
 import { ProcessExitedWithFailureError } from "./ProcessExitedWithFailureError";
+
+const TRZCINA_DEFAULT_COOPERATIVE_DEADLINE_MILLISECONDS = 10_000;
+const TRZCINA_DEFAULT_ABORT_DEADLINE_MILLISECONDS = 10_000;
+const PADDLER_SHUTDOWN_BOUND_MILLISECONDS =
+  TRZCINA_DEFAULT_COOPERATIVE_DEADLINE_MILLISECONDS +
+  TRZCINA_DEFAULT_ABORT_DEADLINE_MILLISECONDS;
 
 export class SpawnedProcess {
   readonly pid: number;
@@ -32,14 +37,14 @@ export class SpawnedProcess {
       this.#childProcess.kill("SIGTERM");
     }
 
-    const exitedWithinRelease = await Promise.race([
+    const exitedWithinShutdownBound = await Promise.race([
       this.#exited.then(function () {
         return true;
       }),
-      setTimeout(RELEASE_MILLISECONDS, false, { ref: false }),
+      setTimeout(PADDLER_SHUTDOWN_BOUND_MILLISECONDS, false, { ref: false }),
     ]);
 
-    if (!exitedWithinRelease) {
+    if (!exitedWithinShutdownBound) {
       this.#childProcess.kill("SIGKILL");
       await this.#exited;
 

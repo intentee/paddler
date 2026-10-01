@@ -61,15 +61,15 @@ export function ChangeModelForm({
   });
 
   const onBaseModelUriInput = useCallback(
-    function (evt: InputEvent<HTMLInputElement>) {
-      setBaseModelUri(evt.currentTarget.value);
+    function (event: InputEvent<HTMLInputElement>) {
+      setBaseModelUri(event.currentTarget.value);
     },
     [setBaseModelUri],
   );
 
   const onMultimodalProjectionUriInput = useCallback(
-    function (evt: InputEvent<HTMLInputElement>) {
-      setMultimodalProjectionModelUri(evt.currentTarget.value);
+    function (event: InputEvent<HTMLInputElement>) {
+      setMultimodalProjectionModelUri(event.currentTarget.value);
     },
     [setMultimodalProjectionModelUri],
   );
@@ -104,8 +104,8 @@ export function ChangeModelForm({
   );
 
   const onSubmit = useCallback(
-    function (evt: FormEvent<HTMLFormElement>) {
-      evt.preventDefault();
+    function (event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
 
       if (!balancerDesiredState) {
         return;

@@ -13,8 +13,8 @@ export function ModelChatTemplatePreviewButton({
     useContext(ModelMetadataContext);
 
   const onClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       const metadataValue = metadata[metadataKey];
 

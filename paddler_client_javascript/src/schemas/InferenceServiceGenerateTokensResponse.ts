@@ -20,7 +20,12 @@ const TokenUsageSchema = z.object({
 });
 
 const GenerationSummarySchema = z.object({
-  finish: z.enum(["EndOfGeneration", "MaxTokens", "StopRequested"]),
+  finish: z.enum([
+    "ContextFull",
+    "EndOfGeneration",
+    "MaxTokens",
+    "StopRequested",
+  ]),
   usage: TokenUsageSchema,
 });
 
@@ -54,8 +59,21 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ GrammarSyntaxError: z.string() }),
   z.object({ ImageDecodingFailed: z.string() }),
   z.object({ MediaExceedsMicroBatch: OversizedMediaDetailsSchema }),
+  z.object({ ModelNotLoaded: z.string() }),
   z.object({ MultimodalNotSupported: z.string() }),
   z.object({ PromptExceedsContextSize: OversizedPromptDetailsSchema }),
+  z.object({ BatchAssemblyFailed: z.string() }),
+  z.object({ KvCacheClearFailed: z.string() }),
+  z.object({ MediaMicroBatchCheckFailed: z.string() }),
+  z.object({ MultimodalIngestionFailed: z.string() }),
+  z.object({ MultimodalTokenizationFailed: z.string() }),
+  z.object({ NoSequenceSlotAvailable: z.string() }),
+  z.object({ PromptTokenizationFailed: z.string() }),
+  z.object({ SamplerChainCreationFailed: z.string() }),
+  z.object({ SamplingCandidatesExhausted: z.string() }),
+  z.object({ SchedulerUnavailable: z.string() }),
+  z.object({ SequenceIdOutOfRange: z.string() }),
+  z.object({ ToolsSerializationFailed: z.string() }),
   z.object({ SamplerError: z.string() }),
   z.object({ TokenGenerationDisabled: z.string() }),
   z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
@@ -239,19 +257,19 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       }),
     }),
   ])
-  .transform(function (data): Normalised {
-    if ("Error" in data) {
+  .transform(function (response): Normalised {
+    if ("Error" in response) {
       return terminalError(
-        data.Error.request_id,
+        response.Error.request_id,
         null,
-        data.Error.error.code,
-        data.Error.error.description,
+        response.Error.error.code,
+        response.Error.error.description,
       );
     }
 
-    const request_id = data.Response.request_id;
-    const generated_by = data.Response.generated_by;
-    const variant = data.Response.response.GeneratedToken;
+    const request_id = response.Response.request_id;
+    const generated_by = response.Response.generated_by;
+    const variant = response.Response.response.GeneratedToken;
 
     if ("ContentToken" in variant) {
       return streamingToken(
@@ -354,6 +372,114 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
+    if ("BatchAssemblyFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.BatchAssemblyFailed,
+      );
+    }
+
+    if ("KvCacheClearFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.KvCacheClearFailed,
+      );
+    }
+
+    if ("MediaMicroBatchCheckFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.MediaMicroBatchCheckFailed,
+      );
+    }
+
+    if ("MultimodalIngestionFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.MultimodalIngestionFailed,
+      );
+    }
+
+    if ("MultimodalTokenizationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.MultimodalTokenizationFailed,
+      );
+    }
+
+    if ("NoSequenceSlotAvailable" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.NoSequenceSlotAvailable,
+      );
+    }
+
+    if ("PromptTokenizationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.PromptTokenizationFailed,
+      );
+    }
+
+    if ("SamplerChainCreationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.SamplerChainCreationFailed,
+      );
+    }
+
+    if ("SamplingCandidatesExhausted" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.SamplingCandidatesExhausted,
+      );
+    }
+
+    if ("SchedulerUnavailable" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.SchedulerUnavailable,
+      );
+    }
+
+    if ("SequenceIdOutOfRange" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.SequenceIdOutOfRange,
+      );
+    }
+
+    if ("ToolsSerializationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.ToolsSerializationFailed,
+      );
+    }
+
     if ("DecodeFailed" in variant) {
       return terminalError(request_id, generated_by, 500, variant.DecodeFailed);
     }
@@ -438,6 +564,15 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         400,
         `prompt has ${details.prompt_tokens} tokens but each agent sequence holds ${details.sequence_context_size} tokens`,
+      );
+    }
+
+    if ("ModelNotLoaded" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.ModelNotLoaded,
       );
     }
 

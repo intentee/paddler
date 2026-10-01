@@ -34,7 +34,7 @@ test("non-http(s), non-agent URLs throw", function () {
   }, UnsupportedModelUrlError);
 });
 
-test("the user's Qwen 3.6 35B blob URL still routes to HuggingFace", function () {
+test("blob URLs whose repository and file names contain dots route to HuggingFace", function () {
   const url = new URL(
     "https://huggingface.co/unsloth/Qwen3.6-35B-A3B-GGUF/blob/main/Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
   );

@@ -23,14 +23,14 @@ export function eventSourceMessageState<TSchema extends z.ZodType>({
     return eventSourceDeserializationErrorState;
   }
 
-  const result = schema.safeParse(parsedJson);
+  const parsedMessage = schema.safeParse(parsedJson);
 
-  if (!result.success) {
+  if (!parsedMessage.success) {
     return eventSourceDeserializationErrorState;
   }
 
   return {
-    data: result.data,
+    data: parsedMessage.data,
     isConnected: true,
     isConnectionError: false,
     isDeserializationError: false,

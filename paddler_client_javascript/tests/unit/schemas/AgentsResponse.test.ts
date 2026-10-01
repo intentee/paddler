@@ -3,27 +3,29 @@ import { test } from "node:test";
 
 import { AgentsResponseSchema } from "../../../src/schemas/AgentsResponse";
 
-function agentNamed(name: string): unknown {
+function agent({ id, name }: { id: string; name: string | null }): unknown {
   return {
-    desired_slots_total: 1,
-    download_current: 0,
-    download_filename: null,
-    download_indeterminate: false,
-    download_total: 0,
-    id: name,
-    issues: [],
-    model_path: null,
+    id,
     name,
     slots_processing: 0,
-    slots_total: 0,
-    state_application_status: "Applied",
-    uses_chat_template_override: false,
+    status: {
+      desired_slots_total: 1,
+      download_status: "NotDownloading",
+      issues: [],
+      model_path: null,
+      slots_total: 0,
+      state_application_status: "Applied",
+      uses_chat_template_override: false,
+    },
   };
 }
 
 test("orders agents by name", function () {
   const { agents } = AgentsResponseSchema.parse({
-    agents: [agentNamed("second"), agentNamed("first")],
+    agents: [
+      agent({ id: "second", name: "second" }),
+      agent({ id: "first", name: "first" }),
+    ],
   });
 
   deepStrictEqual(
@@ -31,5 +33,22 @@ test("orders agents by name", function () {
       return name;
     }),
     ["first", "second"],
+  );
+});
+
+test("orders an unnamed agent by its id among the named ones", function () {
+  const { agents } = AgentsResponseSchema.parse({
+    agents: [
+      agent({ id: "bravo-id", name: "bravo" }),
+      agent({ id: "alpha-id", name: null }),
+      agent({ id: "charlie-id", name: "charlie" }),
+    ],
+  });
+
+  deepStrictEqual(
+    agents.map(function ({ id }) {
+      return id;
+    }),
+    ["alpha-id", "bravo-id", "charlie-id"],
   );
 });

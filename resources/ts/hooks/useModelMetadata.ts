@@ -29,10 +29,8 @@ export function useModelMetadata({
     [agentId, managementAddr],
   );
 
-  const result = useFetchJson({
+  return useFetchJson({
     produceFetchPromise,
     responseSchema,
   });
-
-  return result;
 }

@@ -1,10 +1,9 @@
 import { test } from "node:test";
 
+import { ALL_GPU_LAYERS } from "../allGpuLayers";
 import { assertFetchJsonReadsStoredInferenceParameters } from "../assertFetchJsonReadsStoredInferenceParameters";
 import { PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS } from "../SpawnedBalancer";
 import { withSpawnedBalancer } from "../withSpawnedBalancer";
-
-const OFFLOAD_ALL_LAYERS = -1;
 
 test("fetchJson reads a desired state that offloads all layers", async function () {
   await withSpawnedBalancer(
@@ -14,7 +13,7 @@ test("fetchJson reads a desired state that offloads all layers", async function 
     },
     async function ({ management }) {
       await assertFetchJsonReadsStoredInferenceParameters({
-        inferenceParameters: { n_gpu_layers: OFFLOAD_ALL_LAYERS },
+        inferenceParameters: { n_gpu_layers: ALL_GPU_LAYERS },
         managementAddress: management,
       });
     },

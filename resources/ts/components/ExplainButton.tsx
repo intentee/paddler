@@ -21,8 +21,8 @@ export function ExplainButton({
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
   const onClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       setIsTooltipOpen(true);
     },

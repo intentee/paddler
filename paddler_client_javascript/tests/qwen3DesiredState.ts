@@ -1,4 +1,5 @@
 import type { BalancerDesiredState } from "../src/schemas/BalancerDesiredState";
+import { ALL_GPU_LAYERS } from "./allGpuLayers";
 
 export function qwen3DesiredState(
   storedDesiredState: BalancerDesiredState,
@@ -8,7 +9,7 @@ export function qwen3DesiredState(
     inference_parameters: {
       ...storedDesiredState.inference_parameters,
       min_p: 0,
-      n_gpu_layers: 28,
+      n_gpu_layers: ALL_GPU_LAYERS,
       penalty_frequency: 0,
       penalty_presence: 0,
       penalty_repeat: 1,

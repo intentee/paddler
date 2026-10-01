@@ -1,9 +1,4 @@
-import {
-  deepStrictEqual,
-  notStrictEqual,
-  ok,
-  strictEqual,
-} from "node:assert/strict";
+import { deepStrictEqual, strictEqual } from "node:assert/strict";
 import { test } from "node:test";
 
 import { InferenceServiceGenerateTokensResponseSchema } from "../../../src/schemas/InferenceServiceGenerateTokensResponse";
@@ -19,6 +14,7 @@ function generatedToken(generatedTokenResult: unknown): unknown {
 }
 
 const terminalErrorCodes = [
+  { code: 500, variant: "BatchAssemblyFailed" },
   { code: 500, variant: "ChatTemplateError" },
   { code: 500, variant: "DecodeFailed" },
   { code: 500, variant: "DetokenizationFailed" },
@@ -27,10 +23,22 @@ const terminalErrorCodes = [
   { code: 500, variant: "GrammarRejectedModelOutput" },
   { code: 400, variant: "GrammarSyntaxError" },
   { code: 400, variant: "ImageDecodingFailed" },
+  { code: 500, variant: "KvCacheClearFailed" },
+  { code: 500, variant: "MediaMicroBatchCheckFailed" },
+  { code: 503, variant: "ModelNotLoaded" },
+  { code: 500, variant: "MultimodalIngestionFailed" },
   { code: 400, variant: "MultimodalNotSupported" },
+  { code: 400, variant: "MultimodalTokenizationFailed" },
+  { code: 503, variant: "NoSequenceSlotAvailable" },
+  { code: 400, variant: "PromptTokenizationFailed" },
+  { code: 500, variant: "SamplerChainCreationFailed" },
   { code: 500, variant: "SamplerError" },
+  { code: 500, variant: "SamplingCandidatesExhausted" },
+  { code: 503, variant: "SchedulerUnavailable" },
+  { code: 500, variant: "SequenceIdOutOfRange" },
   { code: 501, variant: "TokenGenerationDisabled" },
   { code: 400, variant: "ToolSchemaInvalid" },
+  { code: 500, variant: "ToolsSerializationFailed" },
 ] as const;
 
 for (const { code, variant } of terminalErrorCodes) {
@@ -229,12 +237,22 @@ test("PromptExceedsContextSize is terminal and describes token counts", function
     },
   });
 
-  strictEqual(parsed.done, true);
-  strictEqual(parsed.ok, false);
-  notStrictEqual(parsed.error, null);
-  strictEqual(parsed.error?.code, 400);
-  ok(parsed.error?.description.includes("9895"));
-  ok(parsed.error?.description.includes("8192"));
+  deepStrictEqual(parsed, {
+    done: true,
+    error: {
+      code: 400,
+      description:
+        "prompt has 9895 tokens but each agent sequence holds 8192 tokens",
+    },
+    generated_by: null,
+    ok: false,
+    rawToolCallTokens: null,
+    request_id: "req-8",
+    summary: null,
+    token: null,
+    tokenKind: null,
+    toolCalls: null,
+  });
 });
 
 test("MediaExceedsMicroBatch is terminal and describes token counts", function () {
@@ -253,10 +271,20 @@ test("MediaExceedsMicroBatch is terminal and describes token counts", function (
     },
   });
 
-  strictEqual(parsed.done, true);
-  strictEqual(parsed.ok, false);
-  notStrictEqual(parsed.error, null);
-  strictEqual(parsed.error?.code, 400);
-  ok(parsed.error?.description.includes("368"));
-  ok(parsed.error?.description.includes("100"));
+  deepStrictEqual(parsed, {
+    done: true,
+    error: {
+      code: 400,
+      description:
+        "media required 368 tokens but one agent micro batch holds 100 tokens",
+    },
+    generated_by: null,
+    ok: false,
+    rawToolCallTokens: null,
+    request_id: "req-7",
+    summary: null,
+    token: null,
+    tokenKind: null,
+    toolCalls: null,
+  });
 });

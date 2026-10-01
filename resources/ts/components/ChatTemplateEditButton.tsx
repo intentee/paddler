@@ -44,8 +44,8 @@ export function ChatTemplateEditButton() {
   );
 
   const onClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       setIsEditing(true);
     },
@@ -61,8 +61,8 @@ export function ChatTemplateEditButton() {
   );
 
   const onSaveClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       setChatTemplateOverrideContent(temporaryContent);
       setIsEditing(false);

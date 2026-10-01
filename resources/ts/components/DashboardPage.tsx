@@ -20,14 +20,8 @@ import {
 } from "./DashboardPage.module.css";
 
 export function DashboardPage() {
-  const {
-    compatOpenAIAddr,
-    inferenceAddr,
-    managementAddr,
-    statsdAddr,
-    statsdPrefix,
-    statsdReportingIntervalMillis,
-  } = useContext(PaddlerConfigurationContext);
+  const { compatOpenAIAddr, inferenceAddr, managementAddr, statsd } =
+    useContext(PaddlerConfigurationContext);
 
   return (
     <div className={dashboardPage}>
@@ -52,7 +46,7 @@ export function DashboardPage() {
                 <p>Inference addr:</p>
                 <p>{inferenceAddr}</p>
               </div>
-              {compatOpenAIAddr && (
+              {compatOpenAIAddr !== null && (
                 <div
                   className={`${dashboardPage__genericAddr} ${dashboardPage__inferenceAddr} ${dashboardPage__compatibilityServiceAddr}`}
                 >
@@ -64,15 +58,15 @@ export function DashboardPage() {
                 </div>
               )}
             </div>
-            {statsdAddr && (
+            {statsd !== null && (
               <div
                 className={`${dashboardPage__genericAddr} ${dashboardPage__statsdAddr}`}
               >
-                <p>StatsD addr: {statsdAddr}</p>
-                <p>StatsD prefix: {statsdPrefix}</p>
+                <p>StatsD addr: {statsd.addr}</p>
+                <p>StatsD prefix: {statsd.prefix}</p>
                 <p>
                   StatsD reporting interval:{" "}
-                  {statsdReportingIntervalMillis / 1000}s
+                  {statsd.reportingIntervalMillis / 1000}s
                 </p>
               </div>
             )}

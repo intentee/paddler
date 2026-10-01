@@ -1,45 +1,54 @@
-import { strictEqual, throws } from "node:assert/strict";
+import { deepStrictEqual, throws } from "node:assert/strict";
 import { test } from "node:test";
 
 import { AgentSchema } from "../../../src/schemas/Agent";
 
-test("parses a fully populated agent payload", function () {
+test("parses an agent that is downloading its model", function () {
   const parsed = AgentSchema.parse({
-    desired_slots_total: 4,
-    download_current: 0,
-    download_filename: null,
-    download_indeterminate: false,
-    download_total: 0,
     id: "agent-0",
-    issues: [],
-    model_path: "/models/qwen.gguf",
     name: "agent-0",
     slots_processing: 1,
-    slots_total: 4,
-    state_application_status: "Applied",
-    uses_chat_template_override: false,
+    status: {
+      desired_slots_total: 4,
+      download_status: {
+        Downloading: {
+          downloaded_bytes: 100,
+          model_path: "https://example.com/qwen.gguf",
+          total_bytes: 400,
+        },
+      },
+      issues: [],
+      model_path: "/models/qwen.gguf",
+      slots_total: 4,
+      state_application_status: "Applied",
+      uses_chat_template_override: false,
+    },
   });
 
-  strictEqual(parsed.id, "agent-0");
-  strictEqual(parsed.state_application_status, "Applied");
+  deepStrictEqual(parsed.status.download_status, {
+    Downloading: {
+      downloaded_bytes: 100,
+      model_path: "https://example.com/qwen.gguf",
+      total_bytes: 400,
+    },
+  });
 });
 
 test("rejects an unknown state_application_status", function () {
   throws(function () {
     AgentSchema.parse({
-      desired_slots_total: 1,
-      download_current: 0,
-      download_filename: null,
-      download_indeterminate: false,
-      download_total: 0,
       id: "agent-x",
-      issues: [],
-      model_path: null,
       name: null,
       slots_processing: 0,
-      slots_total: 1,
-      state_application_status: "Unknown",
-      uses_chat_template_override: false,
+      status: {
+        desired_slots_total: 1,
+        download_status: "NotDownloading",
+        issues: [],
+        model_path: null,
+        slots_total: 1,
+        state_application_status: "Unknown",
+        uses_chat_template_override: false,
+      },
     });
   });
 });

@@ -40,7 +40,7 @@
   "private": true,
   "overrides": {
     "node-notifier": {
-      "uuid": "^14.0.0"
+      "uuid": "14.0.0"
     }
   },
   "type": "module",
