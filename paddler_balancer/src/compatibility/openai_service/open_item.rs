@@ -1,7 +1,13 @@
-#[derive(Default, Eq, PartialEq)]
+#[derive(Default)]
 pub enum OpenItem {
+    Message {
+        item_id: String,
+        text: String,
+    },
     #[default]
-    None,
-    Reasoning,
-    Message,
+    Nothing,
+    Reasoning {
+        item_id: String,
+        text: String,
+    },
 }

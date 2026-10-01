@@ -1,14 +1,13 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::chat_template_conversation::ChatTemplateConversation;
 use crate::chat_template_message::ChatTemplateMessage;
 use crate::chat_template_message_content::ChatTemplateMessageContent;
 use crate::chat_template_message_content_part::ChatTemplateMessageContentPart;
-use crate::chat_template_messages::ChatTemplateMessages;
 use crate::conversation_message::ConversationMessage;
 use crate::conversation_message_content::ConversationMessageContent;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
-use crate::image_url::ImageUrl;
 use crate::media_marker::MediaMarker;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -24,58 +23,65 @@ impl ConversationHistory {
     }
 
     #[must_use]
-    pub fn extract_image_urls(&self) -> Vec<&ImageUrl> {
-        self.messages
-            .iter()
-            .flat_map(|message| message.content.image_urls())
-            .collect()
-    }
-
-    #[must_use]
-    pub fn replace_images_with_marker(&self, media_marker: &MediaMarker) -> ChatTemplateMessages {
-        let marker_string = media_marker.to_string();
-
-        ChatTemplateMessages {
-            messages: self
-                .messages
-                .iter()
-                .map(|message| ChatTemplateMessage {
-                    content: match &message.content {
+    pub fn into_chat_template_conversation(
+        self,
+        media_marker: &MediaMarker,
+    ) -> ChatTemplateConversation {
+        let mut image_urls = Vec::new();
+        let messages = self
+            .messages
+            .into_iter()
+            .map(
+                |ConversationMessage { content, role }| ChatTemplateMessage {
+                    content: match content {
                         ConversationMessageContent::Text(text) => {
-                            ChatTemplateMessageContent::Text(text.clone())
+                            ChatTemplateMessageContent::Text(text)
                         }
                         ConversationMessageContent::Parts(parts) => {
                             ChatTemplateMessageContent::Parts(
                                 parts
-                                    .iter()
-                                    .map(|part| match part {
-                                        ConversationMessageContentPart::Text { text } => {
-                                            ChatTemplateMessageContentPart {
-                                                content_type: "text".to_owned(),
-                                                text: text.clone(),
+                                    .into_iter()
+                                    .map(|part| ChatTemplateMessageContentPart {
+                                        content_type: "text",
+                                        text: match part {
+                                            ConversationMessageContentPart::Text { text } => text,
+                                            ConversationMessageContentPart::ImageUrl {
+                                                image_url,
+                                            } => {
+                                                image_urls.push(image_url);
+
+                                                media_marker.marker.clone()
                                             }
-                                        }
-                                        ConversationMessageContentPart::ImageUrl { .. } => {
-                                            ChatTemplateMessageContentPart {
-                                                content_type: "text".to_owned(),
-                                                text: marker_string.clone(),
-                                            }
-                                        }
+                                        },
                                     })
                                     .collect(),
                             )
                         }
                     },
-                    role: message.role.clone(),
-                })
-                .collect(),
+                    role,
+                },
+            )
+            .collect();
+
+        ChatTemplateConversation {
+            image_urls,
+            messages,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::ConversationHistory;
+    use crate::chat_template_conversation::ChatTemplateConversation;
+    use crate::chat_template_message::ChatTemplateMessage;
+    use crate::chat_template_message_content::ChatTemplateMessageContent;
+    use crate::chat_template_message_content_part::ChatTemplateMessageContentPart;
+    use crate::conversation_message::ConversationMessage;
+    use crate::conversation_message_content::ConversationMessageContent;
+    use crate::conversation_message_content_part::ConversationMessageContentPart;
+    use crate::image_url::ImageUrl;
+    use crate::media_marker::MediaMarker;
 
     fn make_text_message(role: &str, text: &str) -> ConversationMessage {
         ConversationMessage {
@@ -95,82 +101,57 @@ mod tests {
     }
 
     #[test]
-    fn extract_image_urls_from_mixed_content() {
+    fn collects_image_urls_and_replaces_images_with_the_media_marker() {
         let history = ConversationHistory::new(vec![
-            make_text_message("user", "hello"),
+            make_text_message("assistant", "hello"),
             make_parts_message(
                 "user",
                 vec![
                     ConversationMessageContentPart::Text {
-                        text: "look at this".to_owned(),
+                        text: "before".to_owned(),
                     },
                     ConversationMessageContentPart::ImageUrl {
                         image_url: ImageUrl {
                             url: "http://example.com/img.png".to_owned(),
                         },
                     },
+                    ConversationMessageContentPart::Text {
+                        text: "after".to_owned(),
+                    },
                 ],
             ),
         ]);
 
-        let urls = history.extract_image_urls();
-
-        assert_eq!(urls.len(), 1);
-        assert_eq!(urls[0].url, "http://example.com/img.png");
-    }
-
-    #[test]
-    fn replace_images_with_marker_replaces_image_parts() {
-        let history = ConversationHistory::new(vec![make_parts_message(
-            "user",
-            vec![
-                ConversationMessageContentPart::Text {
-                    text: "before".to_owned(),
-                },
-                ConversationMessageContentPart::ImageUrl {
-                    image_url: ImageUrl {
-                        url: "http://example.com/img.png".to_owned(),
+        assert_eq!(
+            history.into_chat_template_conversation(&MediaMarker::new("[IMAGE]".to_owned())),
+            ChatTemplateConversation {
+                image_urls: vec![ImageUrl {
+                    url: "http://example.com/img.png".to_owned(),
+                }],
+                messages: vec![
+                    ChatTemplateMessage {
+                        content: ChatTemplateMessageContent::Text("hello".to_owned()),
+                        role: "assistant".to_owned(),
                     },
-                },
-                ConversationMessageContentPart::Text {
-                    text: "after".to_owned(),
-                },
-            ],
-        )]);
-
-        let marker = MediaMarker::new("[IMAGE]".to_owned());
-        let result = history.replace_images_with_marker(&marker);
-
-        assert_eq!(
-            result.messages[0].content,
-            ChatTemplateMessageContent::Parts(vec![
-                ChatTemplateMessageContentPart {
-                    content_type: "text".to_owned(),
-                    text: "before".to_owned(),
-                },
-                ChatTemplateMessageContentPart {
-                    content_type: "text".to_owned(),
-                    text: "[IMAGE]".to_owned(),
-                },
-                ChatTemplateMessageContentPart {
-                    content_type: "text".to_owned(),
-                    text: "after".to_owned(),
-                },
-            ])
+                    ChatTemplateMessage {
+                        content: ChatTemplateMessageContent::Parts(vec![
+                            ChatTemplateMessageContentPart {
+                                content_type: "text",
+                                text: "before".to_owned(),
+                            },
+                            ChatTemplateMessageContentPart {
+                                content_type: "text",
+                                text: "[IMAGE]".to_owned(),
+                            },
+                            ChatTemplateMessageContentPart {
+                                content_type: "text",
+                                text: "after".to_owned(),
+                            },
+                        ]),
+                        role: "user".to_owned(),
+                    },
+                ],
+            }
         );
-    }
-
-    #[test]
-    fn replace_images_with_marker_preserves_text_messages() {
-        let history = ConversationHistory::new(vec![make_text_message("assistant", "hello")]);
-
-        let marker = MediaMarker::new("[IMAGE]".to_owned());
-        let result = history.replace_images_with_marker(&marker);
-
-        assert_eq!(
-            result.messages[0].content,
-            ChatTemplateMessageContent::Text("hello".to_owned())
-        );
-        assert_eq!(result.messages[0].role, "assistant");
     }
 }

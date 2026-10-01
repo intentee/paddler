@@ -1,28 +1,29 @@
-use anyhow::Context as _;
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_client::reports_health::ReportsHealth as _;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_inference_health_returns_ok() -> Result<()> {
+async fn balancer_inference_health_returns_ok() {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let health = cluster
         .client_inference
         .get_health(CancellationToken::new())
         .await
-        .context("failed to GET inference /health")?;
+        .expect("failed to GET inference /health");
 
     assert_eq!(health, "OK");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

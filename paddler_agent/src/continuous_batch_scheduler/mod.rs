@@ -3,93 +3,76 @@ pub mod advance_outcome;
 pub mod assemble_batch_phase;
 pub mod batch_pass;
 pub mod classified_token;
-pub mod classify_token_phase;
 pub mod commit_phase;
 pub mod completion_check_outcome;
 pub mod completion_check_phase;
 pub mod contributions;
-pub mod decode_batch_phase;
-pub mod decode_outcome;
+pub mod decode_failure_phase;
 pub mod emit_token_outcome;
 pub mod emit_token_phase;
 pub mod generating_contribution;
 pub mod ingesting_contribution;
-pub mod sample_outcome;
-pub mod sample_token_phase;
-pub mod tool_call_pass;
-pub mod tool_call_pipeline_build_outcome;
+pub mod sequence_ordered_insertion_index;
 
 use std::collections::VecDeque;
-use std::sync::Arc;
+use std::mem::transmute;
+use std::slice;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
-use std::time::Duration;
 
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::anyhow;
-use llama_cpp_bindings::EvalMultimodalChunksParams;
+use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::EvalMultimodalChunksError;
-use llama_cpp_bindings::model::AddBos;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdContext;
-use llama_cpp_bindings::mtmd::MtmdEvalError;
-use llama_cpp_bindings::mtmd::MtmdInputText;
-use llama_cpp_bindings::sampling::LlamaSampler;
+use llama_cpp_bindings::error::DecodeError;
+use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use log::debug;
 use log::error;
 use log::info;
-use log::warn;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
-use paddler_messaging::oversized_image_details::OversizedImageDetails;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use rand::Rng as _;
-use rand::rngs::ThreadRng;
-use tokio::sync::mpsc;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
 use self::assemble_batch_phase::AssembleBatchPhase;
 use self::batch_pass::BatchPass;
-use self::decode_outcome::DecodeOutcome;
-use self::tool_call_pipeline_build_outcome::ToolCallPipelineBuildOutcome;
-use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use self::commit_phase::CommitPhase;
+use self::decode_failure_phase::DecodeFailurePhase;
+use self::sequence_ordered_insertion_index::sequence_ordered_insertion_index;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_embedding_processor::ContinuousBatchEmbeddingProcessor;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
-use crate::decoded_image::DecodedImage;
-use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
-use crate::grammar_sampler::GrammarSampler;
-use crate::prepare_conversation_history_request::prepare_conversation_history_request;
-use crate::prepared_conversation_history_request::PreparedConversationHistoryRequest;
-use crate::resolve_grammar::resolve_grammar;
-use crate::sample_token_at_batch_index::sample_token_at_batch_index;
-use crate::sampling_outcome::SamplingOutcome;
-use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
+use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
+use crate::generation_request_rejection::GenerationRequestRejection;
+use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
+use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
+use crate::prepared_generation_request::PreparedGenerationRequest;
+use crate::prepared_prompt::PreparedPrompt;
+use crate::receives_stop_request::ReceivesStopRequest as _;
+use crate::send_result_or_warn::send_result_or_warn;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
-use crate::slot_guard::SlotGuard;
-use crate::tool_call_pipeline::ToolCallPipeline;
-use crate::tool_call_validator::ToolCallValidator;
-use crate::validator_build_error::ValidatorBuildError;
+use crate::token_classification::TokenClassification;
 
 pub struct ContinuousBatchScheduler {
     active_requests: Vec<ContinuousBatchActiveRequest>,
+    agent_shutdown: CancellationToken,
+    batch: LlamaBatch<'static>,
+    candidates: LlamaTokenDataArray,
     command_rx: Receiver<ContinuousBatchSchedulerCommand>,
+    ingest_outcomes: Vec<IngestOutcome>,
     llama_context: LlamaContext<'static>,
-    pending_embedding_requests: VecDeque<GenerateEmbeddingBatchRequest>,
-    rng: ThreadRng,
-    running: bool,
-    scheduler_context: Arc<ContinuousBatchSchedulerContext>,
+    pending_embedding_requests: VecDeque<PreparedEmbeddingBatchRequest>,
+    scheduler_context: ContinuousBatchSchedulerContext,
     sequence_id_pool: SequenceIdPool,
+    shutdown_requested: bool,
 }
 
 impl ContinuousBatchScheduler {
@@ -99,24 +82,30 @@ impl ContinuousBatchScheduler {
         reason = "required for FFI lifetime extension with llama.cpp"
     )]
     pub fn new(
-        command_rx: Receiver<ContinuousBatchSchedulerCommand>,
-        scheduler_context: Arc<ContinuousBatchSchedulerContext>,
-        llama_context: LlamaContext,
-        max_concurrent_sequences: i32,
+        ContinuousBatchSchedulerParams {
+            agent_shutdown,
+            batch,
+            command_rx,
+            llama_context,
+            scheduler_context,
+        }: ContinuousBatchSchedulerParams,
     ) -> Self {
-        let llama_context = unsafe {
-            std::mem::transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context)
-        };
+        let llama_context =
+            unsafe { transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context) };
+        let sequence_id_pool = SequenceIdPool::new(scheduler_context.desired_slots_total);
 
         Self {
             active_requests: Vec::new(),
+            agent_shutdown,
+            batch,
+            candidates: LlamaTokenDataArray::new(Vec::new(), false),
             command_rx,
+            ingest_outcomes: Vec::new(),
             llama_context,
             pending_embedding_requests: VecDeque::new(),
-            rng: rand::rng(),
-            running: true,
             scheduler_context,
-            sequence_id_pool: SequenceIdPool::new(max_concurrent_sequences),
+            sequence_id_pool,
+            shutdown_requested: false,
         }
     }
 
@@ -126,31 +115,27 @@ impl ContinuousBatchScheduler {
             self.scheduler_context.agent_name
         );
 
-        while self.running {
+        while !self.agent_shutdown.is_cancelled() {
             self.check_stop_signals();
             self.remove_completed_requests();
             self.accept_new_commands();
-            self.try_process_embedding_request();
 
-            if self.has_active_requests() {
-                if let Err(err) = self.execute_one_iteration() {
-                    error!(
-                        "{:?}: scheduler iteration failed: {err:#}",
-                        self.scheduler_context.agent_name
-                    );
+            let has_active_requests = self.has_active_requests();
+
+            self.try_process_embedding_request(has_active_requests);
+
+            if has_active_requests {
+                if let Err(batch_add_error) = self.execute_one_iteration() {
+                    self.fail_unfinished_requests(GenerationRequestRejection::BatchAssemblyFailed(
+                        batch_add_error,
+                    ));
                 }
-            } else {
-                match self.command_rx.recv_timeout(Duration::from_millis(10)) {
-                    Ok(command) => self.process_command(command),
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                        info!(
-                            "{:?}: command channel closed, shutting down scheduler",
-                            self.scheduler_context.agent_name
-                        );
-                        self.running = false;
-                    }
+            } else if self.pending_embedding_requests.is_empty() {
+                if self.shutdown_requested {
+                    break;
                 }
+
+                self.wait_for_next_command();
             }
         }
 
@@ -167,13 +152,25 @@ impl ContinuousBatchScheduler {
         );
     }
 
+    fn wait_for_next_command(&mut self) {
+        if let Ok(command) = self.command_rx.recv() {
+            self.process_command(command);
+        } else {
+            info!(
+                "{:?}: command channel closed, shutting down scheduler",
+                self.scheduler_context.agent_name
+            );
+            self.shutdown_requested = true;
+        }
+    }
+
     fn accept_new_commands(&mut self) {
         loop {
             match self.command_rx.try_recv() {
                 Ok(command) => self.process_command(command),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
-                    self.running = false;
+                    self.shutdown_requested = true;
 
                     break;
                 }
@@ -183,193 +180,16 @@ impl ContinuousBatchScheduler {
 
     fn process_command(&mut self, command: ContinuousBatchSchedulerCommand) {
         match command {
-            ContinuousBatchSchedulerCommand::ContinueFromConversationHistory(request) => {
-                self.accept_conversation_history_request(request);
-            }
-            ContinuousBatchSchedulerCommand::ContinueFromRawPrompt(request) => {
-                self.accept_raw_prompt_request(request);
+            ContinuousBatchSchedulerCommand::Generate(request) => {
+                self.accept_generation_request(*request);
             }
             ContinuousBatchSchedulerCommand::GenerateEmbeddingBatch(request) => {
                 self.pending_embedding_requests.push_back(request);
             }
             ContinuousBatchSchedulerCommand::Shutdown => {
-                self.running = false;
+                self.shutdown_requested = true;
             }
         }
-    }
-
-    fn accept_conversation_history_request(
-        &mut self,
-        ContinueFromConversationHistoryRequest {
-            generate_tokens_stop_rx,
-            generated_tokens_tx,
-            params,
-            slot_guard,
-        }: ContinueFromConversationHistoryRequest,
-    ) {
-        let prepared = match prepare_conversation_history_request(
-            params,
-            &generated_tokens_tx,
-            &self.scheduler_context,
-        ) {
-            Ok(prepared) => prepared,
-            Err(err) => {
-                error!(
-                    "{:?}: failed to prepare conversation history request: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                return;
-            }
-        };
-
-        match prepared {
-            PreparedConversationHistoryRequest::TextPrompt {
-                raw_prompt,
-                max_tokens,
-                grammar_sampler,
-                parse_tool_calls,
-                tools,
-            } => {
-                if let Err(err) = self.accept_text_prompt(
-                    &raw_prompt,
-                    max_tokens,
-                    grammar_sampler,
-                    parse_tool_calls,
-                    tools,
-                    generated_tokens_tx,
-                    generate_tokens_stop_rx,
-                    slot_guard,
-                ) {
-                    error!(
-                        "{:?}: failed to accept text prompt: {err:#}",
-                        self.scheduler_context.agent_name
-                    );
-                }
-            }
-            PreparedConversationHistoryRequest::MultimodalPrompt {
-                raw_prompt,
-                images,
-                max_tokens,
-                grammar_sampler,
-                parse_tool_calls,
-                tools,
-            } => {
-                let multimodal_context = self.scheduler_context.multimodal_context.clone();
-
-                if let Some(multimodal_context) = multimodal_context.as_ref()
-                    && let Err(err) = self.accept_multimodal_request(
-                        multimodal_context,
-                        raw_prompt,
-                        &images,
-                        max_tokens,
-                        grammar_sampler,
-                        parse_tool_calls,
-                        tools,
-                        generated_tokens_tx,
-                        generate_tokens_stop_rx,
-                        slot_guard,
-                    )
-                {
-                    error!(
-                        "{:?}: failed to accept multimodal request: {err:#}",
-                        self.scheduler_context.agent_name
-                    );
-                }
-            }
-        }
-    }
-
-    fn accept_raw_prompt_request(
-        &mut self,
-        ContinueFromRawPromptRequest {
-            generate_tokens_stop_rx,
-            generated_tokens_tx,
-            params:
-                ContinueFromRawPromptParams {
-                    grammar,
-                    max_tokens,
-                    raw_prompt,
-                },
-            slot_guard,
-        }: ContinueFromRawPromptRequest,
-    ) {
-        let grammar_sampler = match resolve_grammar(grammar.as_ref(), false, &generated_tokens_tx) {
-            Ok(sampler) => sampler,
-            Err(err) => {
-                error!(
-                    "{:?}: failed to resolve grammar: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                return;
-            }
-        };
-
-        if let Err(err) = self.accept_text_prompt(
-            &raw_prompt,
-            max_tokens,
-            grammar_sampler,
-            false,
-            Vec::new(),
-            generated_tokens_tx,
-            generate_tokens_stop_rx,
-            slot_guard,
-        ) {
-            error!(
-                "{:?}: failed to accept raw prompt: {err:#}",
-                self.scheduler_context.agent_name
-            );
-        }
-    }
-
-    fn create_sampler_chain(&mut self) -> LlamaSampler {
-        LlamaSampler::chain_simple([
-            LlamaSampler::penalties(
-                self.scheduler_context.inference_parameters.penalty_last_n,
-                self.scheduler_context.inference_parameters.penalty_repeat,
-                self.scheduler_context
-                    .inference_parameters
-                    .penalty_frequency,
-                self.scheduler_context.inference_parameters.penalty_presence,
-            ),
-            LlamaSampler::top_k(self.scheduler_context.inference_parameters.top_k),
-            LlamaSampler::top_p(self.scheduler_context.inference_parameters.top_p, 0),
-            LlamaSampler::min_p(self.scheduler_context.inference_parameters.min_p, 0),
-            LlamaSampler::temp(self.scheduler_context.inference_parameters.temperature),
-            LlamaSampler::dist(self.rng.random::<u32>()),
-        ])
-    }
-
-    fn create_grammar_llama_sampler(
-        &self,
-        grammar_sampler: Option<GrammarSampler>,
-        generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ) -> Result<Option<LlamaSampler>> {
-        grammar_sampler.map_or_else(
-            || Ok(None),
-            |grammar_sampler| match grammar_sampler
-                .into_llama_sampler(&self.scheduler_context.model)
-            {
-                Ok(sampler) => Ok(Some(sampler)),
-                Err(err) => {
-                    let message = format!(
-                        "{:?}: failed to initialize grammar sampler: {err}",
-                        self.scheduler_context.agent_name
-                    );
-
-                    error!("{message}");
-
-                    send_generated_token_result_or_warn(
-                        self.scheduler_context.agent_name.as_deref(),
-                        generated_tokens_tx,
-                        GeneratedTokenResult::GrammarInitializationFailed(message.clone()),
-                    );
-
-                    Err(anyhow!(message))
-                }
-            },
-        )
     }
 
     #[expect(
@@ -378,459 +198,147 @@ impl ContinuousBatchScheduler {
     )]
     fn build_token_classifier_for_active_request(
         &self,
-    ) -> Result<llama_cpp_bindings::SampledTokenClassifier<'static>> {
-        let classifier = self
-            .scheduler_context
-            .model
-            .sampled_token_classifier()
-            .context("failed to build the sampled token classifier")?;
+        TokenClassification {
+            bare_json_tool_calls,
+            streaming_markers,
+        }: TokenClassification,
+    ) -> SampledTokenClassifier<'static> {
+        let classifier = SampledTokenClassifier::new(
+            &self.scheduler_context.model,
+            streaming_markers,
+            bare_json_tool_calls,
+        );
 
-        Ok(unsafe {
-            std::mem::transmute::<
-                llama_cpp_bindings::SampledTokenClassifier<'_>,
-                llama_cpp_bindings::SampledTokenClassifier<'static>,
-            >(classifier)
+        unsafe {
+            transmute::<SampledTokenClassifier<'_>, SampledTokenClassifier<'static>>(classifier)
+        }
+    }
+
+    fn accept_generation_request(&mut self, request: PreparedGenerationRequest) {
+        let generated_tokens_tx = request.generated_tokens_tx.clone();
+
+        match self.admit_generation_request(request) {
+            Ok(active_request) => {
+                debug!(
+                    "{:?}: accepted generation request on sequence {}",
+                    self.scheduler_context.agent_name,
+                    active_request.sequence_id_guard.sequence_id()
+                );
+
+                let insertion_index = sequence_ordered_insertion_index(
+                    self.active_requests
+                        .iter()
+                        .map(|request| request.sequence_id_guard.sequence_id()),
+                    active_request.sequence_id_guard.sequence_id(),
+                );
+
+                self.active_requests.insert(insertion_index, active_request);
+            }
+            Err(rejection) => {
+                rejection.report(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &generated_tokens_tx,
+                );
+            }
+        }
+    }
+
+    fn admit_generation_request(
+        &mut self,
+        PreparedGenerationRequest {
+            generate_tokens_stop_rx,
+            generated_tokens_tx,
+            max_tokens,
+            prompt,
+            slot_guard,
+            token_classification,
+            token_sampling,
+            tool_call_handling,
+        }: PreparedGenerationRequest,
+    ) -> Result<ContinuousBatchActiveRequest, GenerationRequestRejection> {
+        let sequence_id_guard = SequenceIdGuard::acquire(&self.sequence_id_pool)
+            .ok_or(GenerationRequestRejection::NoSequenceSlotAvailable)?;
+        let mut token_classifier =
+            self.build_token_classifier_for_active_request(token_classification);
+
+        self.clear_kv_cache_for_sequence(sequence_id_guard.sequence_id())?;
+
+        let mut state = ContinuousBatchRequestState {
+            current_token_position: 0,
+            last_outcome_section: token_classifier.current_section(),
+            max_tokens,
+            phase: ContinuousBatchRequestPhase::IngestingText,
+            prompt_tokens: Vec::new(),
+            prompt_tokens_ingested: 0,
+            sampled_tokens: 0,
+        };
+
+        match prompt {
+            PreparedPrompt::TextTokens(prompt_tokens) => {
+                token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
+                token_classifier.ingest_prompt_tokens(&prompt_tokens);
+                state.prompt_tokens = prompt_tokens;
+            }
+            PreparedPrompt::Multimodal(ingestion) => {
+                state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(ingestion);
+            }
+        }
+
+        state.last_outcome_section = token_classifier.current_section();
+
+        Ok(ContinuousBatchActiveRequest {
+            state,
+            token_classifier,
+            token_sampling,
+            generated_tokens_tx,
+            generate_tokens_stop_rx,
+            sequence_id_guard,
+            slot_guard,
+            tool_call_handling,
         })
     }
 
-    fn build_tool_call_pipeline(
-        &self,
-        tools: Vec<Tool<ValidatedParametersSchema>>,
-        parse_tool_calls: bool,
-    ) -> Result<ToolCallPipelineBuildOutcome> {
-        if !parse_tool_calls || tools.is_empty() {
-            return Ok(ToolCallPipelineBuildOutcome::Disabled);
-        }
-
-        let validator = match ToolCallValidator::from_tools(&tools) {
-            Ok(validator) => validator,
-            Err(ValidatorBuildError::InvalidSchema { tool_name, message }) => {
-                return Ok(ToolCallPipelineBuildOutcome::SchemaInvalid(format!(
-                    "tool {tool_name:?} parameters are not a valid JSON Schema: {message}"
-                )));
-            }
-            Err(err @ ValidatorBuildError::SerializationFailed { .. }) => {
-                return Err(anyhow::Error::from(err))
-                    .context("failed to serialize tool parameters during validator build");
-            }
-        };
-
-        let tools_json: Vec<serde_json::Value> = tools
-            .into_iter()
-            .map(|tool| serde_json::to_value(&tool))
-            .collect::<Result<Vec<_>, _>>()
-            .context("failed to serialize tools to JSON")?;
-
-        let pipeline =
-            ToolCallPipeline::new(self.scheduler_context.model.clone(), &tools_json, validator)
-                .context("failed to serialize tools for tool-call pipeline")?;
-
-        Ok(ToolCallPipelineBuildOutcome::Ready(pipeline))
-    }
-
-    fn accept_text_prompt(
-        &mut self,
-        prompt: &str,
-        max_tokens: i32,
-        grammar_sampler: Option<GrammarSampler>,
-        parse_tool_calls: bool,
-        tools: Vec<Tool<ValidatedParametersSchema>>,
-        generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
-        generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
-        slot_guard: SlotGuard,
-    ) -> Result<()> {
-        let tool_call_pipeline = match self
-            .build_tool_call_pipeline(tools, parse_tool_calls)
-            .context("failed to build tool-call pipeline for text prompt")?
-        {
-            ToolCallPipelineBuildOutcome::Disabled => None,
-            ToolCallPipelineBuildOutcome::Ready(pipeline) => Some(pipeline),
-            ToolCallPipelineBuildOutcome::SchemaInvalid(message) => {
-                error!(
-                    "{:?}: rejecting text prompt: {message}",
-                    self.scheduler_context.agent_name
-                );
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::ToolSchemaInvalid(message),
-                );
-
-                return Ok(());
-            }
-        };
-
-        let Some(sequence_guard) = SequenceIdGuard::acquire(&self.sequence_id_pool) else {
-            let message = format!(
-                "{:?}: no available sequence slots, all slots are busy",
-                self.scheduler_context.agent_name
-            );
-
-            error!("{message}");
-
-            send_generated_token_result_or_warn(
-                self.scheduler_context.agent_name.as_deref(),
-                &generated_tokens_tx,
-                GeneratedTokenResult::SamplerError(message),
-            );
-
-            return Ok(());
-        };
-
-        let prompt_tokens = match self
-            .scheduler_context
-            .model
-            .str_to_token(prompt, AddBos::Always)
-        {
-            Ok(tokens) => tokens,
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to tokenize prompt: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::SamplerError(message),
-                );
-
-                return Ok(());
-            }
-        };
-
-        let Ok(llama_grammar_sampler) =
-            self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
-        else {
-            return Ok(());
-        };
-
-        let chain = self.create_sampler_chain();
-
-        let mut token_classifier = self.build_token_classifier_for_active_request()?;
-
-        token_classifier.record_prompt_tokens(prompt_tokens.len() as u64);
-        token_classifier.ingest_prompt_tokens(&prompt_tokens);
-
-        self.clear_kv_cache_for_sequence(sequence_guard.sequence_id());
-
-        debug!(
-            "{:?}: accepted text prompt request on sequence {} ({} tokens)",
-            self.scheduler_context.agent_name,
-            sequence_guard.sequence_id(),
-            prompt_tokens.len()
-        );
-
-        self.active_requests.push(ContinuousBatchActiveRequest {
-            state: ContinuousBatchRequestState {
-                current_token_position: 0,
-                i_batch: None,
-                max_tokens,
-                pending_sampled_token: None,
-                phase: ContinuousBatchRequestPhase::Ingesting,
-                prompt_tokens,
-                prompt_tokens_ingested: 0,
-            },
-            chain,
-            token_classifier,
-            grammar_sampler: llama_grammar_sampler,
-            generated_tokens_tx,
-            generate_tokens_stop_rx,
-            sequence_id_guard: sequence_guard,
-            slot_guard,
-            tool_call_pipeline,
-        });
-
-        Ok(())
-    }
-
-    fn accept_multimodal_request(
-        &mut self,
-        multimodal_context: &MtmdContext,
-        prompt: String,
-        images: &[DecodedImage],
-        max_tokens: i32,
-        grammar_sampler: Option<GrammarSampler>,
-        parse_tool_calls: bool,
-        tools: Vec<Tool<ValidatedParametersSchema>>,
-        generated_tokens_tx: mpsc::UnboundedSender<GeneratedTokenResult>,
-        generate_tokens_stop_rx: mpsc::UnboundedReceiver<()>,
-        slot_guard: SlotGuard,
-    ) -> Result<()> {
-        let tool_call_pipeline = match self
-            .build_tool_call_pipeline(tools, parse_tool_calls)
-            .context("failed to build tool-call pipeline for multimodal request")?
-        {
-            ToolCallPipelineBuildOutcome::Disabled => None,
-            ToolCallPipelineBuildOutcome::Ready(pipeline) => Some(pipeline),
-            ToolCallPipelineBuildOutcome::SchemaInvalid(message) => {
-                error!(
-                    "{:?}: rejecting multimodal request: {message}",
-                    self.scheduler_context.agent_name
-                );
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::ToolSchemaInvalid(message),
-                );
-
-                return Ok(());
-            }
-        };
-
-        let Some(sequence_guard) = SequenceIdGuard::acquire(&self.sequence_id_pool) else {
-            let message = format!(
-                "{:?}: no available sequence slots for multimodal request",
-                self.scheduler_context.agent_name
-            );
-
-            error!("{message}");
-
-            send_generated_token_result_or_warn(
-                self.scheduler_context.agent_name.as_deref(),
-                &generated_tokens_tx,
-                GeneratedTokenResult::SamplerError(message),
-            );
-
-            return Ok(());
-        };
-
-        let bitmaps: Vec<MtmdBitmap> = match images
-            .iter()
-            .map(|image| {
-                MtmdBitmap::from_buffer(multimodal_context, &image.data)
-                    .map_err(|err| anyhow!("Failed to create bitmap: {err}"))
-            })
-            .collect::<Result<Vec<_>>>()
-        {
-            Ok(bitmaps) => bitmaps,
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to create bitmaps: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::ImageDecodingFailed(message),
-                );
-
-                return Ok(());
-            }
-        };
-
-        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
-
-        let input_text = MtmdInputText {
-            text: prompt,
-            add_special: true,
-            parse_special: true,
-        };
-
-        let input_chunks = match multimodal_context
-            .tokenize(input_text, &bitmap_refs)
-            .map_err(|err| anyhow!("Failed to tokenize multimodal input: {err}"))
-        {
-            Ok(chunks) => chunks,
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to tokenize multimodal input: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::SamplerError(message),
-                );
-
-                return Ok(());
-            }
-        };
-
-        let batch_size = self.scheduler_context.inference_parameters.n_batch;
-
-        self.clear_kv_cache_for_sequence(sequence_guard.sequence_id());
-
-        self.harvest_pending_samples_before_external_decode();
-
-        let mut token_classifier = self.build_token_classifier_for_active_request()?;
-
-        let batch_size_i32 = i32::try_from(batch_size).context("batch_size does not fit in i32")?;
-
-        let eval_outcome = token_classifier.eval_multimodal_chunks(
-            &input_chunks,
-            multimodal_context,
-            &self.llama_context,
-            EvalMultimodalChunksParams {
-                start_position: 0,
-                seq_id: sequence_guard.sequence_id(),
-                n_batch: batch_size_i32,
-                logits_last: true,
-            },
-        );
-
-        let tokens_ingested = match eval_outcome {
-            Ok(tokens_ingested) => tokens_ingested,
-            Err(EvalMultimodalChunksError::EvalFailed(
-                MtmdEvalError::ImageChunkExceedsBatchSize(mismatch),
-            )) => {
-                warn!(
-                    "{:?}: refused multimodal request: image chunk has {} tokens but n_batch is {}",
-                    self.scheduler_context.agent_name, mismatch.image_tokens, mismatch.n_batch,
-                );
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
-                        image_tokens: mismatch.image_tokens,
-                        n_batch: mismatch.n_batch,
-                    }),
-                );
-
-                return Ok(());
-            }
-            Err(err) => {
-                let message = format!(
-                    "{:?}: failed to ingest multimodal prompt: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                error!("{message}");
-
-                send_generated_token_result_or_warn(
-                    self.scheduler_context.agent_name.as_deref(),
-                    &generated_tokens_tx,
-                    GeneratedTokenResult::SamplerError(message),
-                );
-
-                return Ok(());
-            }
-        };
-
-        self.llama_context.mark_logits_initialized(-1);
-
-        let Ok(llama_grammar_sampler) =
-            self.create_grammar_llama_sampler(grammar_sampler, &generated_tokens_tx)
-        else {
-            return Ok(());
-        };
-
-        let chain = self.create_sampler_chain();
-
-        debug!(
-            "{:?}: accepted multimodal request on sequence {} ({tokens_ingested} tokens ingested)",
-            self.scheduler_context.agent_name,
-            sequence_guard.sequence_id()
-        );
-
-        self.active_requests.push(ContinuousBatchActiveRequest {
-            state: ContinuousBatchRequestState {
-                current_token_position: tokens_ingested,
-                i_batch: Some(-1),
-                max_tokens,
-                pending_sampled_token: None,
-                phase: ContinuousBatchRequestPhase::Generating,
-                prompt_tokens: Vec::new(),
-                prompt_tokens_ingested: 0,
-            },
-            chain,
-            token_classifier,
-            grammar_sampler: llama_grammar_sampler,
-            generated_tokens_tx,
-            generate_tokens_stop_rx,
-            sequence_id_guard: sequence_guard,
-            slot_guard,
-            tool_call_pipeline,
-        });
-
-        Ok(())
-    }
-
-    fn harvest_pending_samples_before_external_decode(&mut self) {
+    fn ingest_next_multimodal_chunks(&mut self) {
         for active_request in &mut self.active_requests {
-            if !matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Generating
-            ) {
-                continue;
-            }
-
-            if active_request.state.pending_sampled_token.is_some() {
-                continue;
-            }
-
-            let Some(batch_index) = active_request.state.i_batch else {
+            let ContinuousBatchRequestPhase::IngestingMultimodal(ingestion) =
+                &mut active_request.state.phase
+            else {
                 continue;
             };
 
-            match sample_token_at_batch_index(
+            match ingestion.ingest_next_chunk(
+                &mut active_request.token_classifier,
                 &self.llama_context,
-                batch_index,
-                &mut active_request.chain,
-                &mut active_request.grammar_sampler,
+                active_request.sequence_id_guard.sequence_id(),
+                active_request.state.current_token_position,
             ) {
-                Ok(SamplingOutcome::Token(raw_token)) => {
-                    // Update classifier state (section / usage counters) but drop the
-                    // outcomes — harvest-sampled tokens are funnelled into the next
-                    // batch via `pending_sampled_token`; their user-visible emission
-                    // happens in `advance_generating_phase` after the next decode,
-                    // not here.
-                    if let Err(error) = active_request.token_classifier.ingest(raw_token) {
-                        error!(
-                            "{:?}: sequence {} pre-eval harvest detokenization error: {error:#}",
-                            self.scheduler_context.agent_name,
-                            active_request.sequence_id_guard.sequence_id()
-                        );
-                        active_request.complete_with_outcome(
-                            GeneratedTokenResult::DetokenizationFailed(error.to_string()),
-                        );
-
-                        continue;
-                    }
-
-                    active_request.state.pending_sampled_token =
-                        Some(llama_cpp_bindings::SampledToken::Content(raw_token));
-                    active_request.state.i_batch = None;
+                Ok(MultimodalIngestionProgress::ChunksRemain { next_position }) => {
+                    active_request.state.current_token_position = next_position;
                 }
-                Ok(SamplingOutcome::AllCandidatesEliminated) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest exhausted candidates",
-                        self.scheduler_context.agent_name,
-                        active_request.sequence_id_guard.sequence_id()
-                    );
-                    active_request.complete_with_outcome(GeneratedTokenResult::SamplerError(
-                        "all token candidates were eliminated during sampling".to_owned(),
-                    ));
-                }
-                Ok(SamplingOutcome::GrammarRejectedModelOutput(message)) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest grammar rejected: {message}",
-                        self.scheduler_context.agent_name,
-                        active_request.sequence_id_guard.sequence_id()
-                    );
-                    active_request.complete_with_outcome(
-                        GeneratedTokenResult::GrammarRejectedModelOutput(message),
-                    );
-                }
-                Err(err) => {
-                    error!(
-                        "{:?}: sequence {} pre-eval harvest sampling error: {err:#}",
-                        self.scheduler_context.agent_name,
-                        active_request.sequence_id_guard.sequence_id()
-                    );
+                Ok(MultimodalIngestionProgress::PromptIngested { next_position }) => {
                     active_request
-                        .complete_with_outcome(GeneratedTokenResult::SamplerError(err.to_string()));
+                        .state
+                        .begin_generating_after_multimodal_prompt(
+                            next_position,
+                            active_request.token_classifier.current_section(),
+                        );
+                    self.llama_context.mark_logits_initialized(-1);
+
+                    AdvanceGeneratingPhase {
+                        candidates: &mut self.candidates,
+                        ingest_outcomes: &mut self.ingest_outcomes,
+                        llama_context: &self.llama_context,
+                        scheduler_context: &self.scheduler_context,
+                    }
+                    .run(slice::from_mut(active_request));
+                }
+                Err(ingestion_error) => {
+                    active_request.complete_with_outcome(
+                        GenerationRequestRejection::MultimodalIngestionFailed(ingestion_error)
+                            .into_generated_token_result(
+                                self.scheduler_context.agent_name.as_deref(),
+                            ),
+                    );
                 }
             }
         }
@@ -845,8 +353,9 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            if active_request.is_stop_requested() {
+            if active_request.generate_tokens_stop_rx.is_stop_requested() {
                 let summary = GenerationSummary {
+                    finish: GenerationFinish::StopRequested,
                     usage: *active_request.token_classifier.usage(),
                 };
 
@@ -855,35 +364,32 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn try_process_embedding_request(&mut self) {
+    fn try_process_embedding_request(&mut self, has_active_requests: bool) {
         let Some(request) = self.pending_embedding_requests.pop_front() else {
             return;
         };
 
-        if self.has_active_requests() {
-            if request
-                .generated_embedding_tx
-                .send(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration)
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    self.scheduler_context.agent_name
-                );
-            }
+        if has_active_requests {
+            send_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                &request.generated_embedding_tx,
+                EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration,
+            );
 
             return;
         }
 
+        let generated_embedding_tx = request.generated_embedding_tx.clone();
         let mut processor = ContinuousBatchEmbeddingProcessor::new(
+            &mut self.batch,
             &mut self.llama_context,
             &self.scheduler_context,
         );
 
-        if let Err(err) = processor.process_embedding_batch(request) {
-            error!(
-                "{:?}: failed to process embedding batch: {err:#}",
-                self.scheduler_context.agent_name
+        if let Err(rejection) = processor.process_embedding_batch(request) {
+            rejection.report(
+                self.scheduler_context.agent_name.as_deref(),
+                &generated_embedding_tx,
             );
         }
     }
@@ -897,97 +403,75 @@ impl ContinuousBatchScheduler {
         })
     }
 
-    fn execute_one_iteration(&mut self) -> Result<()> {
+    fn fail_unfinished_requests(&mut self, rejection: GenerationRequestRejection) {
+        let outcome =
+            rejection.into_generated_token_result(self.scheduler_context.agent_name.as_deref());
+
+        for active_request in &mut self.active_requests {
+            active_request.complete_with_outcome(outcome.clone());
+        }
+    }
+
+    fn execute_one_iteration(&mut self) -> Result<(), BatchAddError> {
         self.advance_generating_requests();
+        self.ingest_next_multimodal_chunks();
 
-        let n_batch = self.scheduler_context.inference_parameters.n_batch;
-        let assemble_phase = AssembleBatchPhase { n_batch };
+        let assemble_phase = AssembleBatchPhase {
+            n_batch: self
+                .scheduler_context
+                .inference_parameters
+                .n_batch
+                .tokens_usize(),
+        };
 
-        loop {
-            let max_sequences = self.active_requests.len();
+        let mut pass = BatchPass::new(&mut self.batch);
 
-            let max_sequences_i32 = i32::try_from(max_sequences.max(1))
-                .context("max sequence count does not fit in i32")?;
-            let mut pass = BatchPass::new(n_batch, max_sequences_i32)?;
+        assemble_phase.run(&mut pass, &mut self.active_requests)?;
 
-            assemble_phase.run(&mut pass, &mut self.active_requests)?;
+        if pass.is_empty() {
+            return Ok(());
+        }
 
-            if pass.is_empty() {
-                return Ok(());
+        debug!(
+            "{:?}: decoding batch with {} tokens for {} active requests",
+            self.scheduler_context.agent_name,
+            pass.batch.n_tokens(),
+            self.active_requests.len()
+        );
+
+        match self.llama_context.decode(pass.batch) {
+            Ok(()) => {
+                CommitPhase {
+                    requests: &mut self.active_requests,
+                }
+                .run(pass);
             }
+            Err(DecodeError::Aborted) => {}
+            Err(decode_error) => {
+                let description = format!(
+                    "{:?}: llama.cpp rejected the batch: {decode_error}",
+                    self.scheduler_context.agent_name
+                );
 
-            debug!(
-                "{:?}: decoding batch with {} tokens for {} active requests",
-                self.scheduler_context.agent_name,
-                pass.batch.n_tokens(),
-                self.active_requests.len()
-            );
-
-            match decode_batch_phase::run(&mut pass, &mut self.llama_context) {
-                DecodeOutcome::Decoded => {
-                    commit_phase::run(pass, &mut self.active_requests)?;
-
-                    return Ok(());
+                error!("{description}");
+                DecodeFailurePhase {
+                    requests: &mut self.active_requests,
                 }
-                DecodeOutcome::NeedsEviction => {
-                    self.evict_largest_sequence();
-
-                    if self.active_requests.is_empty() {
-                        return Ok(());
-                    }
-                }
-                DecodeOutcome::Aborted => {
-                    return Ok(());
-                }
-                DecodeOutcome::Errored(decode_error) => {
-                    return Err(anyhow::Error::new(decode_error).context("decode failed"));
-                }
+                .run(pass, &description);
             }
         }
+
+        Ok(())
     }
 
     fn advance_generating_requests(&mut self) {
         AdvanceGeneratingPhase {
-            scheduler_context: &self.scheduler_context,
+            candidates: &mut self.candidates,
+            ingest_outcomes: &mut self.ingest_outcomes,
             llama_context: &self.llama_context,
+            scheduler_context: &self.scheduler_context,
         }
         .run(&mut self.active_requests);
-    }
-
-    fn evict_largest_sequence(&mut self) {
-        let mut largest_seq_index: Option<usize> = None;
-        let mut largest_position: i32 = -1;
-
-        for (index, active_request) in self.active_requests.iter().enumerate() {
-            if matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Completed(_)
-            ) {
-                continue;
-            }
-
-            if active_request.state.current_token_position > largest_position {
-                largest_position = active_request.state.current_token_position;
-                largest_seq_index = Some(index);
-            }
-        }
-
-        if let Some(eviction_index) = largest_seq_index {
-            let evicted_request = &mut self.active_requests[eviction_index];
-
-            warn!(
-                "{:?}: evicting sequence {} (position {}) due to KV cache pressure",
-                self.scheduler_context.agent_name,
-                evicted_request.sequence_id_guard.sequence_id(),
-                evicted_request.state.current_token_position
-            );
-
-            evicted_request.complete_with_outcome(GeneratedTokenResult::SamplerError(
-                "Request evicted due to KV cache pressure".to_owned(),
-            ));
-
-            self.cleanup_completed_request(eviction_index);
-        }
     }
 
     fn remove_completed_requests(&mut self) {
@@ -1005,42 +489,39 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn clear_kv_cache_for_sequence(&mut self, sequence_id: i32) {
-        let sequence_id_u32 = match u32::try_from(sequence_id) {
-            Ok(sequence_id_u32) => sequence_id_u32,
-            Err(err) => {
-                error!(
-                    "{:?}: sequence id {sequence_id} does not fit in u32: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                return;
+    fn clear_kv_cache_for_sequence(
+        &mut self,
+        sequence_id: i32,
+    ) -> Result<(), GenerationRequestRejection> {
+        let kv_cache_sequence_id = u32::try_from(sequence_id).map_err(|source| {
+            GenerationRequestRejection::SequenceIdOutOfRange {
+                sequence_id,
+                source,
             }
-        };
+        })?;
 
-        if let Err(err) = self
-            .llama_context
-            .clear_kv_cache_seq(Some(sequence_id_u32), None, None)
-        {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
-                self.scheduler_context.agent_name
-            );
-        }
+        self.llama_context
+            .clear_kv_cache_seq(Some(kv_cache_sequence_id), None, None)
+            .map_err(GenerationRequestRejection::KvCacheClearFailed)
     }
 
     fn cleanup_completed_request(&mut self, index: usize) {
-        let removed_request = self.active_requests.swap_remove(index);
+        let removed_request = self.active_requests.remove(index);
         let sequence_id = removed_request.sequence_id_guard.sequence_id();
         let usage = *removed_request.token_classifier.usage();
         let terminal_delivery = removed_request.into_terminal_delivery();
 
-        self.clear_kv_cache_for_sequence(sequence_id);
+        if let Err(rejection) = self.clear_kv_cache_for_sequence(sequence_id) {
+            error!(
+                "{:?}: {rejection}; the next request admitted to sequence {sequence_id} clears it again",
+                self.scheduler_context.agent_name
+            );
+        }
 
         debug!(
             "{:?}: cleaned up sequence {sequence_id} ({} completion tokens generated)",
             self.scheduler_context.agent_name,
-            usage.content_tokens + usage.reasoning_tokens + usage.undeterminable_tokens,
+            usage.completion_tokens(),
         );
 
         terminal_delivery.deliver(self.scheduler_context.agent_name.as_deref());

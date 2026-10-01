@@ -48,6 +48,7 @@ mod tests {
             chunk_size: 4,
             is_last_chunk: false,
             last_batch_position: 3,
+            next_token_position: 4,
         });
 
         assert!(!contributions.is_empty());

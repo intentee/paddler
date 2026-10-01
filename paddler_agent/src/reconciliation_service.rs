@@ -1,9 +1,7 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
-use paddler_messaging::agent_desired_state::AgentDesiredState;
+use tokio::select;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
@@ -11,69 +9,16 @@ use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
-use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::agent_desired_state_converter::AgentDesiredStateConverter;
-use crate::agent_issue_fix::AgentIssueFix;
-use crate::slot_aggregated_status::SlotAggregatedStatus;
-use paddler_state_conversion::converts_to_applicable_state::ConvertsToApplicableState as _;
+use paddler_messaging::agent_desired_state::AgentDesiredState;
 
-async fn convert_to_applicable_state(
-    cancellation_token: &CancellationToken,
-    agent_desired_state: Option<&AgentDesiredState>,
-    slot_aggregated_status: &Arc<SlotAggregatedStatus>,
-    agent_applicable_state_holder: &AgentApplicableStateHolder,
-    is_converted_to_applicable_state: &mut bool,
-) -> Result<()> {
-    let applicable_state = match agent_desired_state {
-        None => None,
-        Some(agent_desired_state) => Some(
-            AgentDesiredStateConverter {
-                cancellation_token: cancellation_token.clone(),
-                slot_aggregated_status: slot_aggregated_status.clone(),
-            }
-            .to_applicable_state(agent_desired_state.clone())
-            .await?,
-        ),
-    };
+use crate::desired_state_reconciler::DesiredStateReconciler;
+use crate::desired_state_reconciliation::DesiredStateReconciliation;
 
-    slot_aggregated_status.set_uses_chat_template_override(
-        applicable_state
-            .as_ref()
-            .is_some_and(|applicable_state| applicable_state.chat_template_override.is_some()),
-    );
-    slot_aggregated_status.register_fix(&AgentIssueFix::ModelStateIsReconciled);
-    agent_applicable_state_holder.set_agent_applicable_state(applicable_state)?;
-    *is_converted_to_applicable_state = true;
-
-    Ok(())
-}
-
-async fn try_convert_to_applicable_state(
-    cancellation_token: &CancellationToken,
-    agent_desired_state: Option<&AgentDesiredState>,
-    slot_aggregated_status: &Arc<SlotAggregatedStatus>,
-    agent_applicable_state_holder: &AgentApplicableStateHolder,
-    is_converted_to_applicable_state: &mut bool,
-) {
-    if let Err(err) = convert_to_applicable_state(
-        cancellation_token,
-        agent_desired_state,
-        slot_aggregated_status,
-        agent_applicable_state_holder,
-        is_converted_to_applicable_state,
-    )
-    .await
-    {
-        error!("Failed to convert to applicable state: {err}");
-    }
-}
+const DESIRED_STATE_CONVERSION_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 
 pub struct ReconciliationService {
-    pub agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
-    pub agent_desired_state: Option<AgentDesiredState>,
     pub agent_desired_state_rx: mpsc::UnboundedReceiver<AgentDesiredState>,
-    pub is_converted_to_applicable_state: bool,
-    pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
+    pub desired_state_reconciler: DesiredStateReconciler,
 }
 
 #[async_trait]
@@ -84,46 +29,36 @@ impl Service for ReconciliationService {
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let Self {
-            agent_applicable_state_holder,
-            mut agent_desired_state,
             mut agent_desired_state_rx,
-            mut is_converted_to_applicable_state,
-            slot_aggregated_status,
+            desired_state_reconciler,
         } = *self;
 
-        let mut ticker = interval(Duration::from_secs(1));
+        let mut reconciliation = DesiredStateReconciliation::Reconciled;
+        let mut ticker = interval(DESIRED_STATE_CONVERSION_RETRY_INTERVAL);
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
-            tokio::select! {
+            select! {
+                biased;
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    if !is_converted_to_applicable_state {
-                        try_convert_to_applicable_state(
-                            &shutdown,
-                            agent_desired_state.as_ref(),
-                            &slot_aggregated_status,
-                            &agent_applicable_state_holder,
-                            &mut is_converted_to_applicable_state,
-                        ).await;
+                    if let DesiredStateReconciliation::Pending(agent_desired_state) = reconciliation {
+                        reconciliation = desired_state_reconciler
+                            .reconcile(&shutdown, *agent_desired_state)
+                            .await;
                     }
                 },
                 next_agent_desired_state = agent_desired_state_rx.recv() => {
-                    is_converted_to_applicable_state = false;
-                    agent_desired_state = if let Some(next) = next_agent_desired_state {
-                        Some(next)
-                    } else {
+                    let Some(agent_desired_state) = next_agent_desired_state else {
                         error!("Agent desired state channel closed, stopping reconciliation service.");
-                        break Ok(())
+
+                        break Ok(());
                     };
-                    try_convert_to_applicable_state(
-                        &shutdown,
-                        agent_desired_state.as_ref(),
-                        &slot_aggregated_status,
-                        &agent_applicable_state_holder,
-                        &mut is_converted_to_applicable_state,
-                    ).await;
+
+                    reconciliation = desired_state_reconciler
+                        .reconcile(&shutdown, agent_desired_state)
+                        .await;
                 }
             }
         }
@@ -132,58 +67,87 @@ impl Service for ReconciliationService {
 
 #[cfg(test)]
 mod tests {
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::inference_parameters::InferenceParameters;
+    use std::sync::Arc;
 
-    use super::*;
+    use tokio_util::sync::CancellationToken;
+
+    use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+
+    use crate::agent_applicable_state::AgentApplicableState;
+    use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
+    use crate::desired_state_reconciler::DesiredStateReconciler;
+    use crate::desired_state_reconciliation::DesiredStateReconciliation;
+
+    fn desired_state_with_model(model: AgentDesiredModel) -> AgentDesiredState {
+        AgentDesiredState {
+            chat_template_override: None,
+            inference_parameters: InferenceParameters::default(),
+            model,
+            multimodal_projection: AgentDesiredModel::None,
+        }
+    }
+
+    fn desired_state_reconciler() -> DesiredStateReconciler {
+        DesiredStateReconciler {
+            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
+            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
+        }
+    }
 
     #[tokio::test]
-    async fn a_cancelled_conversion_leaves_the_state_unconverted() {
+    async fn a_missing_local_model_leaves_the_state_unconverted() {
+        let reconciler = desired_state_reconciler();
+        let desired_state = desired_state_with_model(AgentDesiredModel::LocalToAgent(
+            "/paddler-nonexistent-model-for-reconciliation.gguf".to_owned(),
+        ));
+
+        let reconciliation = reconciler
+            .reconcile(&CancellationToken::new(), desired_state.clone())
+            .await;
+
+        assert_eq!(
+            reconciliation,
+            DesiredStateReconciliation::Pending(Box::new(desired_state))
+        );
+        assert_eq!(
+            reconciler
+                .agent_applicable_state_holder
+                .get_agent_applicable_state(),
+            AgentApplicableState::default()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_model_download_cancelled_mid_conversion_leaves_the_state_unconverted() {
         let cancellation_token = CancellationToken::new();
 
         cancellation_token.cancel();
 
-        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
-        let agent_applicable_state_holder = AgentApplicableStateHolder::default();
-        let mut is_converted_to_applicable_state = false;
+        let reconciler = desired_state_reconciler();
+        let desired_state =
+            desired_state_with_model(AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
+                filename: "model.gguf".to_owned(),
+                repo_id: "paddler-tests/never-downloaded".to_owned(),
+                revision: "main".to_owned(),
+            }));
 
-        let desired_state = AgentDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentDesiredModel::LocalToAgent(
-                "/paddler-nonexistent-model-for-cancellation.gguf".to_owned(),
-            ),
-            multimodal_projection: AgentDesiredModel::None,
-        };
+        let reconciliation = reconciler
+            .reconcile(&cancellation_token, desired_state.clone())
+            .await;
 
-        try_convert_to_applicable_state(
-            &cancellation_token,
-            Some(&desired_state),
-            &slot_aggregated_status,
-            &agent_applicable_state_holder,
-            &mut is_converted_to_applicable_state,
-        )
-        .await;
-
-        assert!(!is_converted_to_applicable_state);
-    }
-
-    #[tokio::test]
-    async fn flag_stays_false_when_set_agent_applicable_state_fails() {
-        let holder = AgentApplicableStateHolder::default();
-        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(1));
-        let mut is_converted_to_applicable_state = false;
-
-        let result = convert_to_applicable_state(
-            &CancellationToken::new(),
-            None,
-            &slot_aggregated_status,
-            &holder,
-            &mut is_converted_to_applicable_state,
-        )
-        .await;
-
-        assert!(result.is_err());
-        assert!(!is_converted_to_applicable_state);
+        assert_eq!(
+            reconciliation,
+            DesiredStateReconciliation::Pending(Box::new(desired_state))
+        );
+        assert_eq!(
+            reconciler
+                .agent_applicable_state_holder
+                .get_agent_applicable_state(),
+            AgentApplicableState::default()
+        );
     }
 }

@@ -2,17 +2,19 @@ use std::process::Stdio;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use tokio_util::sync::CancellationToken;
 
-use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::running_balancer::RunningBalancer;
 
-use tokio_util::sync::CancellationToken;
-
 use crate::paddler_command::paddler_command;
+use crate::read_balancer_addresses::read_balancer_addresses;
 use crate::subprocess_agent_spawner::SubprocessAgentSpawner;
+use crate::subprocess_cluster_error::SubprocessClusterError;
 use crate::subprocess_process::SubprocessProcess;
+
+const EPHEMERAL_LOOPBACK_ADDR: &str = "127.0.0.1:0";
 
 pub async fn start_subprocess_cluster(
     binary_path: &str,
@@ -28,19 +30,16 @@ pub async fn start_subprocess_cluster(
         wait_for_slots_ready,
     }: ClusterParams,
 ) -> Result<Cluster> {
-    let addresses = BalancerAddresses::pick()?;
-    let management_addr = addresses.management;
-
     let mut balancer_command = paddler_command(binary_path);
 
     balancer_command
         .arg("balancer")
         .arg("--inference-addr")
-        .arg(addresses.inference.to_string())
+        .arg(EPHEMERAL_LOOPBACK_ADDR)
         .arg("--management-addr")
-        .arg(addresses.management.to_string())
+        .arg(EPHEMERAL_LOOPBACK_ADDR)
         .arg("--compat-openai-addr")
-        .arg(addresses.compat_openai.to_string())
+        .arg(EPHEMERAL_LOOPBACK_ADDR)
         .arg("--state-database")
         .arg(&state_database_url)
         .arg("--max-buffered-requests")
@@ -49,7 +48,7 @@ pub async fn start_subprocess_cluster(
         .arg(buffered_request_timeout.as_millis().to_string())
         .arg("--inference-item-timeout")
         .arg(inference_item_timeout.as_millis().to_string())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null());
 
     for allowed_host in &inference_cors_allowed_hosts {
@@ -64,9 +63,14 @@ pub async fn start_subprocess_cluster(
             .arg(allowed_host);
     }
 
-    let balancer_subprocess = balancer_command
+    let mut balancer_subprocess = balancer_command
         .spawn()
         .context("failed to spawn paddler balancer subprocess")?;
+    let balancer_stdout = balancer_subprocess
+        .stdout
+        .take()
+        .ok_or(SubprocessClusterError::StdoutNotPiped)?;
+    let addresses = read_balancer_addresses(balancer_stdout).await?;
 
     let running_balancer = RunningBalancer::new(
         addresses,
@@ -78,40 +82,15 @@ pub async fn start_subprocess_cluster(
         running_balancer,
         Box::new(SubprocessAgentSpawner::new(
             binary_path.to_owned(),
-            management_addr,
+            addresses.management,
         )),
         desired_state.as_ref(),
     )
     .await?;
 
-    let expected_agent_count = agents.len();
-    let mut last_ready_snapshot = None;
-
-    for agent in &agents {
-        cluster.spawn_additional_agent(agent)?;
-
-        if wait_for_slots_ready {
-            last_ready_snapshot = Some(
-                cluster
-                    .wait_for_agent_ready(&agent.name, agent.slot_count)
-                    .await?,
-            );
-        }
-    }
-
-    let registered_snapshot = match last_ready_snapshot {
-        Some(snapshot) => snapshot,
-        None => cluster
-            .wait_for_agent_count(expected_agent_count)
-            .await
-            .context("not all subprocess agents registered")?,
-    };
-
-    cluster.agent_ids = registered_snapshot
-        .agents
-        .iter()
-        .map(|registered_agent| registered_agent.id.clone())
-        .collect();
+    cluster
+        .register_agents(&agents, wait_for_slots_ready)
+        .await?;
 
     Ok(cluster)
 }

@@ -1,54 +1,47 @@
-use std::sync::Arc;
-
 use llama_cpp_bindings::ChatMessageParseOutcome;
+use llama_cpp_bindings::ChatMessageParser;
 use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::RawChatMessage;
-use llama_cpp_bindings::model::LlamaModel;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
+
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
+use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
 use crate::tool_call_buffer::ToolCallBuffer;
 use crate::tool_call_event::ToolCallEvent;
-use crate::tool_call_pipeline_error::ToolCallPipelineError;
-use crate::tool_call_validator::ToolCallValidator;
 
 pub struct ToolCallPipeline {
     buffer: ToolCallBuffer,
-    model: Arc<LlamaModel>,
-    tools_json: Arc<str>,
+    chat_message_parser: ChatMessageParser,
     validator: ToolCallValidator,
 }
 
 impl ToolCallPipeline {
-    pub fn new(
-        model: Arc<LlamaModel>,
-        tools: &[serde_json::Value],
-        validator: ToolCallValidator,
-    ) -> Result<Self, serde_json::Error> {
-        let tools_json = Arc::from(serde_json::to_string(tools)?);
-
-        Ok(Self {
-            buffer: ToolCallBuffer::new(),
-            model,
-            tools_json,
+    #[must_use]
+    pub fn new(chat_message_parser: ChatMessageParser, validator: ToolCallValidator) -> Self {
+        Self {
+            buffer: ToolCallBuffer::default(),
+            chat_message_parser,
             validator,
-        })
+        }
     }
 
     pub fn feed(&mut self, fragment: &str) {
         self.buffer.append(fragment);
     }
 
+    #[must_use]
+    pub const fn buffer_is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     pub fn finalize(&mut self) -> ToolCallEvent {
         let input = self.buffer.take();
+
         if input.is_empty() {
             return ToolCallEvent::Resolved(Vec::new());
         }
 
-        match self
-            .model
-            .parse_chat_message(&self.tools_json, &input, false)
-        {
+        match self.chat_message_parser.parse(&input, false) {
             Ok(ChatMessageParseOutcome::Recognized(parsed)) => {
                 self.validate_resolved(parsed.tool_calls)
             }
@@ -60,31 +53,20 @@ impl ToolCallPipeline {
                 text,
                 ffi_error_message,
             }),
-            Err(err) => ToolCallEvent::ParseFailed(ToolCallPipelineError::Bindings(err)),
+            Err(parse_error) => ToolCallEvent::ParseFailed(parse_error),
         }
-    }
-
-    pub fn finalize_to_generated_event(&mut self) -> Option<GeneratedTokenResult> {
-        self.finalize().into_generated_token_result()
-    }
-
-    #[must_use]
-    pub const fn buffer_is_empty(&self) -> bool {
-        self.buffer.is_empty()
     }
 
     fn validate_resolved(&self, tool_calls: Vec<ParsedToolCall>) -> ToolCallEvent {
-        let mut errors = Vec::new();
-        for call in &tool_calls {
-            if let Err(err) = self.validator.validate(call) {
-                errors.push(err);
-            }
-        }
+        let validation_errors: Vec<_> = tool_calls
+            .iter()
+            .filter_map(|tool_call| self.validator.validate(tool_call).err())
+            .collect();
 
-        if errors.is_empty() {
+        if validation_errors.is_empty() {
             ToolCallEvent::Resolved(tool_calls)
         } else {
-            ToolCallEvent::ValidationFailed(errors)
+            ToolCallEvent::ValidationFailed(validation_errors)
         }
     }
 }

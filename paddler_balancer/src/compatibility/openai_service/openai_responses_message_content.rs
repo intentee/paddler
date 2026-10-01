@@ -1,5 +1,6 @@
-use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use serde::Deserialize;
+
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
 
 use crate::compatibility::openai_service::openai_responses_input_content_part::OpenAIResponsesInputContentPart;
 
@@ -18,7 +19,7 @@ impl OpenAIResponsesMessageContent {
             Self::Parts(parts) => ConversationMessageContent::Parts(
                 parts
                     .into_iter()
-                    .filter_map(OpenAIResponsesInputContentPart::into_conversation_part)
+                    .map(OpenAIResponsesInputContentPart::into_conversation_part)
                     .collect(),
             ),
         }

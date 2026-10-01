@@ -13,6 +13,4 @@ pub enum OpenAIResponsesTaggedItem {
     FunctionCall(OpenAIResponsesFunctionCallItem),
     #[serde(rename = "function_call_output")]
     FunctionCallOutput(OpenAIResponsesFunctionCallOutputItem),
-    #[serde(other)]
-    Unsupported,
 }

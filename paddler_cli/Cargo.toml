@@ -1,5 +1,6 @@
 [package]
 name = "paddler_cli"
+autotests = false
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -12,6 +13,10 @@ repository.workspace = true
 name = "paddler"
 path = "src/main.rs"
 
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
 [dependencies]
 actix-rt = { workspace = true }
 actix-web = { workspace = true }
@@ -22,11 +27,9 @@ command_handler = { workspace = true }
 env_logger = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
+paddler_state_database = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
-
-# web dashboard deps
-esbuild-metafile = { workspace = true, optional = true }
 
 [lints]
 workspace = true
@@ -37,7 +40,6 @@ cuda = ["paddler_bootstrap/cuda"]
 metal = ["paddler_bootstrap/metal"]
 vulkan = ["paddler_bootstrap/vulkan"]
 web_admin_panel = [
-    "dep:esbuild-metafile",
     "paddler_balancer/web_admin_panel",
     "paddler_bootstrap/web_admin_panel",
 ]

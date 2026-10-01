@@ -4,5 +4,5 @@ use crate::agent_controller::AgentController;
 
 pub struct DispatchCandidate {
     pub agent_controller: Arc<AgentController>,
-    pub snapshot: i32,
+    pub snapshot: u64,
 }

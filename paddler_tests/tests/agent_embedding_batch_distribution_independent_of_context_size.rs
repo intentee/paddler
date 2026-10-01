@@ -1,30 +1,33 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use std::collections::BTreeSet;
+use std::num::NonZeroU32;
 
-use anyhow::Result;
-use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
-use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_embedding_batch_distribution_independent_of_context_size() -> Result<()> {
-    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
+async fn agent_embedding_batch_distribution_independent_of_context_size() {
+    let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(4)],
         inference_parameters: InferenceParameters {
-            n_batch: 64,
-            context_size: 512,
+            n_batch: BatchSize::try_from(64).expect("the value must fit its target type"),
+            context_size: NonZeroU32::try_from(512).expect("the value must fit its target type"),
             enable_embeddings: true,
-            ..InferenceParameters::default()
+            ..InferenceParameters::deterministic()
         },
-        ..Qwen3EmbeddingClusterParams::default()
+        ..EmbeddingClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .generate_embedding_batch(CancellationToken::new(), &GenerateEmbeddingBatchParams {
@@ -48,7 +51,7 @@ async fn agent_embedding_batch_distribution_independent_of_context_size() -> Res
             ],
             normalization_method: EmbeddingNormalizationMethod::None,
         })
-        .await?;
+        .await.expect("the embedding batch must be accepted");
 
     assert_eq!(collected.embeddings.len(), 4);
     assert!(collected.saw_done);
@@ -69,7 +72,8 @@ async fn agent_embedding_batch_distribution_independent_of_context_size() -> Res
 
     assert_eq!(returned_ids, expected_ids);
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

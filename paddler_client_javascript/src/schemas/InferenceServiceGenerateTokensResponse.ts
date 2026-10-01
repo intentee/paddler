@@ -20,6 +20,12 @@ const TokenUsageSchema = z.object({
 });
 
 const GenerationSummarySchema = z.object({
+  finish: z.enum([
+    "ContextFull",
+    "EndOfGeneration",
+    "MaxTokens",
+    "StopRequested",
+  ]),
   usage: TokenUsageSchema,
 });
 
@@ -28,13 +34,20 @@ const RawToolCallTokensSchema = z.object({
   ffi_error_message: z.string(),
 });
 
-const OversizedImageDetailsSchema = z.object({
-  image_tokens: z.number(),
-  n_batch: z.number(),
+const OversizedMediaDetailsSchema = z.object({
+  media_tokens: z.number(),
+  micro_batch_tokens: z.number(),
+});
+
+const OversizedPromptDetailsSchema = z.object({
+  prompt_tokens: z.number(),
+  sequence_context_size: z.number(),
 });
 
 const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
+  z.object({ DecodeFailed: z.string() }),
+  z.object({ DetokenizationFailed: z.string() }),
   z.object({ ReasoningToken: z.string() }),
   z.object({ ToolCallToken: z.string() }),
   z.object({ UndeterminableToken: z.string() }),
@@ -45,14 +58,28 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ GrammarRejectedModelOutput: z.string() }),
   z.object({ GrammarSyntaxError: z.string() }),
   z.object({ ImageDecodingFailed: z.string() }),
-  z.object({ ImageExceedsBatchSize: OversizedImageDetailsSchema }),
+  z.object({ MediaExceedsMicroBatch: OversizedMediaDetailsSchema }),
+  z.object({ ModelNotLoaded: z.string() }),
   z.object({ MultimodalNotSupported: z.string() }),
+  z.object({ PromptExceedsContextSize: OversizedPromptDetailsSchema }),
+  z.object({ BatchAssemblyFailed: z.string() }),
+  z.object({ KvCacheClearFailed: z.string() }),
+  z.object({ MediaMicroBatchCheckFailed: z.string() }),
+  z.object({ MultimodalIngestionFailed: z.string() }),
+  z.object({ MultimodalTokenizationFailed: z.string() }),
+  z.object({ NoSequenceSlotAvailable: z.string() }),
+  z.object({ PromptTokenizationFailed: z.string() }),
+  z.object({ SamplerChainCreationFailed: z.string() }),
+  z.object({ SamplingCandidatesExhausted: z.string() }),
+  z.object({ SchedulerUnavailable: z.string() }),
+  z.object({ SequenceIdOutOfRange: z.string() }),
+  z.object({ ToolsSerializationFailed: z.string() }),
   z.object({ SamplerError: z.string() }),
   z.object({ TokenGenerationDisabled: z.string() }),
   z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
-  z.object({ ToolCallValidatorBuildFailed: z.string() }),
+  z.object({ ToolSchemaInvalid: z.string() }),
   z.object({ UnrecognizedToolCallFormat: RawToolCallTokensSchema }),
 ]);
 
@@ -230,30 +257,45 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       }),
     }),
   ])
-  .transform(function (data): Normalised {
-    if ("Error" in data) {
+  .transform(function (response): Normalised {
+    if ("Error" in response) {
       return terminalError(
-        data.Error.request_id,
+        response.Error.request_id,
         null,
-        data.Error.error.code,
-        data.Error.error.description,
+        response.Error.error.code,
+        response.Error.error.description,
       );
     }
 
-    const request_id = data.Response.request_id;
-    const generated_by = data.Response.generated_by;
-    const variant = data.Response.response.GeneratedToken;
+    const request_id = response.Response.request_id;
+    const generated_by = response.Response.generated_by;
+    const variant = response.Response.response.GeneratedToken;
 
     if ("ContentToken" in variant) {
-      return streamingToken(request_id, generated_by, variant.ContentToken, "content");
+      return streamingToken(
+        request_id,
+        generated_by,
+        variant.ContentToken,
+        "content",
+      );
     }
 
     if ("ReasoningToken" in variant) {
-      return streamingToken(request_id, generated_by, variant.ReasoningToken, "reasoning");
+      return streamingToken(
+        request_id,
+        generated_by,
+        variant.ReasoningToken,
+        "reasoning",
+      );
     }
 
     if ("ToolCallToken" in variant) {
-      return streamingToken(request_id, generated_by, variant.ToolCallToken, "tool_call");
+      return streamingToken(
+        request_id,
+        generated_by,
+        variant.ToolCallToken,
+        "tool_call",
+      );
     }
 
     if ("UndeterminableToken" in variant) {
@@ -304,7 +346,12 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }
 
     if ("ToolCallParseFailed" in variant) {
-      return nonTerminalError(request_id, generated_by, 422, variant.ToolCallParseFailed);
+      return nonTerminalError(
+        request_id,
+        generated_by,
+        422,
+        variant.ToolCallParseFailed,
+      );
     }
 
     if ("ToolCallValidationFailed" in variant) {
@@ -316,17 +363,143 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
-    if ("ToolCallValidatorBuildFailed" in variant) {
+    if ("ToolSchemaInvalid" in variant) {
       return terminalError(
         request_id,
         generated_by,
         400,
-        variant.ToolCallValidatorBuildFailed,
+        variant.ToolSchemaInvalid,
+      );
+    }
+
+    if ("BatchAssemblyFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.BatchAssemblyFailed,
+      );
+    }
+
+    if ("KvCacheClearFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.KvCacheClearFailed,
+      );
+    }
+
+    if ("MediaMicroBatchCheckFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.MediaMicroBatchCheckFailed,
+      );
+    }
+
+    if ("MultimodalIngestionFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.MultimodalIngestionFailed,
+      );
+    }
+
+    if ("MultimodalTokenizationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.MultimodalTokenizationFailed,
+      );
+    }
+
+    if ("NoSequenceSlotAvailable" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.NoSequenceSlotAvailable,
+      );
+    }
+
+    if ("PromptTokenizationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.PromptTokenizationFailed,
+      );
+    }
+
+    if ("SamplerChainCreationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.SamplerChainCreationFailed,
+      );
+    }
+
+    if ("SamplingCandidatesExhausted" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.SamplingCandidatesExhausted,
+      );
+    }
+
+    if ("SchedulerUnavailable" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.SchedulerUnavailable,
+      );
+    }
+
+    if ("SequenceIdOutOfRange" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.SequenceIdOutOfRange,
+      );
+    }
+
+    if ("ToolsSerializationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.ToolsSerializationFailed,
+      );
+    }
+
+    if ("DecodeFailed" in variant) {
+      return terminalError(request_id, generated_by, 500, variant.DecodeFailed);
+    }
+
+    if ("DetokenizationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.DetokenizationFailed,
       );
     }
 
     if ("ChatTemplateError" in variant) {
-      return terminalError(request_id, generated_by, 500, variant.ChatTemplateError);
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.ChatTemplateError,
+      );
     }
 
     if ("GrammarIncompatibleWithThinking" in variant) {
@@ -339,37 +512,86 @@ export const InferenceServiceGenerateTokensResponseSchema = z
     }
 
     if ("GrammarInitializationFailed" in variant) {
-      return terminalError(request_id, generated_by, 500, variant.GrammarInitializationFailed);
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.GrammarInitializationFailed,
+      );
     }
 
     if ("GrammarRejectedModelOutput" in variant) {
-      return terminalError(request_id, generated_by, 500, variant.GrammarRejectedModelOutput);
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.GrammarRejectedModelOutput,
+      );
     }
 
     if ("GrammarSyntaxError" in variant) {
-      return terminalError(request_id, generated_by, 400, variant.GrammarSyntaxError);
-    }
-
-    if ("ImageDecodingFailed" in variant) {
-      return terminalError(request_id, generated_by, 400, variant.ImageDecodingFailed);
-    }
-
-    if ("ImageExceedsBatchSize" in variant) {
-      const details = variant.ImageExceedsBatchSize;
       return terminalError(
         request_id,
         generated_by,
         400,
-        `image required ${details.image_tokens} tokens but n_batch is ${details.n_batch}`,
+        variant.GrammarSyntaxError,
+      );
+    }
+
+    if ("ImageDecodingFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.ImageDecodingFailed,
+      );
+    }
+
+    if ("MediaExceedsMicroBatch" in variant) {
+      const details = variant.MediaExceedsMicroBatch;
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        `media required ${details.media_tokens} tokens but one agent micro batch holds ${details.micro_batch_tokens} tokens`,
+      );
+    }
+
+    if ("PromptExceedsContextSize" in variant) {
+      const details = variant.PromptExceedsContextSize;
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        `prompt has ${details.prompt_tokens} tokens but each agent sequence holds ${details.sequence_context_size} tokens`,
+      );
+    }
+
+    if ("ModelNotLoaded" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        503,
+        variant.ModelNotLoaded,
       );
     }
 
     if ("MultimodalNotSupported" in variant) {
-      return terminalError(request_id, generated_by, 400, variant.MultimodalNotSupported);
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.MultimodalNotSupported,
+      );
     }
 
     if ("TokenGenerationDisabled" in variant) {
-      return terminalError(request_id, generated_by, 501, variant.TokenGenerationDisabled);
+      return terminalError(
+        request_id,
+        generated_by,
+        501,
+        variant.TokenGenerationDisabled,
+      );
     }
 
     return terminalError(request_id, generated_by, 500, variant.SamplerError);

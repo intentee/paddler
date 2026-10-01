@@ -61,15 +61,15 @@ export function ChangeModelForm({
   });
 
   const onBaseModelUriInput = useCallback(
-    function (evt: InputEvent<HTMLInputElement>) {
-      setBaseModelUri(evt.currentTarget.value);
+    function (event: InputEvent<HTMLInputElement>) {
+      setBaseModelUri(event.currentTarget.value);
     },
     [setBaseModelUri],
   );
 
   const onMultimodalProjectionUriInput = useCallback(
-    function (evt: InputEvent<HTMLInputElement>) {
-      setMultimodalProjectionModelUri(evt.currentTarget.value);
+    function (event: InputEvent<HTMLInputElement>) {
+      setMultimodalProjectionModelUri(event.currentTarget.value);
     },
     [setMultimodalProjectionModelUri],
   );
@@ -104,8 +104,8 @@ export function ChangeModelForm({
   );
 
   const onSubmit = useCallback(
-    function (evt: FormEvent<HTMLFormElement>) {
-      evt.preventDefault();
+    function (event: FormEvent<HTMLFormElement>) {
+      event.preventDefault();
 
       if (!balancerDesiredState) {
         return;
@@ -249,7 +249,7 @@ export function ChangeModelForm({
               name="min_p"
             />
             <InferenceParameterInput
-              description="Number of model layers to offload to GPU (0 = CPU only; set to model's layer count for full GPU offload)"
+              description="Number of model layers to offload to GPU (0 = CPU only; -1 = all layers)"
               name="n_gpu_layers"
             />
             <InferenceParameterInput
@@ -257,7 +257,7 @@ export function ChangeModelForm({
               name="penalty_frequency"
             />
             <InferenceParameterInput
-              description="Number of last tokens to consider for penalty (-1 = entire context, 0 = disabled)"
+              description="Number of last tokens to consider for penalty (0 = disabled)"
               name="penalty_last_n"
             />
             <InferenceParameterInput

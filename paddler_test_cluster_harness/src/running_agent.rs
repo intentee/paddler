@@ -14,7 +14,7 @@ impl RunningAgent {
         Self { config, process }
     }
 
-    pub async fn shutdown(mut self) -> Result<()> {
+    pub async fn shutdown(self) -> Result<()> {
         self.process.shutdown().await
     }
 }

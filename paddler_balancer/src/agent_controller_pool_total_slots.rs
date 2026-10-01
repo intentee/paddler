@@ -1,4 +1,4 @@
 pub struct AgentControllerPoolTotalSlots {
-    pub slots_processing: i32,
-    pub slots_total: i32,
+    pub slots_processing: u64,
+    pub slots_total: u64,
 }

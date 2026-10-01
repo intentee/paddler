@@ -30,7 +30,13 @@ pub fn opencode_binary_path() -> Result<PathBuf, OpenCodeTestError> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::env::VarError;
+
+    use tempfile::NamedTempFile;
+
+    use super::OPENCODE_BINARY_ENV;
+    use super::resolve_binary_path;
+    use crate::opencode_test_error::OpenCodeTestError;
 
     #[test]
     fn missing_environment_variable_reports_not_provided() {
@@ -55,7 +61,7 @@ mod tests {
 
     #[test]
     fn existing_path_is_returned() {
-        let binary = tempfile::NamedTempFile::new().unwrap();
+        let binary = NamedTempFile::new().unwrap();
 
         let resolved =
             resolve_binary_path(Ok(binary.path().to_string_lossy().into_owned())).unwrap();

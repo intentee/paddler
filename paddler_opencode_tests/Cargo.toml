@@ -18,10 +18,6 @@ path = "src/bin/opencode_stub.rs"
 name = "integration"
 path = "tests/main.rs"
 
-[[test]]
-name = "run_opencode"
-path = "tests/run_opencode.rs"
-
 [features]
 default = []
 cuda = ["paddler_tests/cuda"]

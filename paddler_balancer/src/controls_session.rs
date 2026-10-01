@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use log::error;
+
 use paddler_messaging::rpc_message::RpcMessage;
 
 #[async_trait]

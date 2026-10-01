@@ -1,55 +1,50 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use tokio_util::sync::CancellationToken;
 
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::unending_generation::unending_generation;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn continuous_batch_releases_slot_when_client_disconnects() -> Result<()> {
-    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
+async fn continuous_batch_releases_slot_when_client_disconnects() {
+    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
 
     let agent_id = cluster
         .agent_ids
         .first()
-        .context("cluster must have one registered agent")?
+        .expect("cluster must have one registered agent")
         .clone();
 
     let mut stream = cluster
-        .continue_from_raw_prompt_stream(
-            CancellationToken::new(),
-            &ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: 500,
-                raw_prompt: "Write a long story about an explorer".to_owned(),
-            },
-        )
-        .await?;
+        .continue_from_raw_prompt_stream(CancellationToken::new(), &unending_generation())
+        .await
+        .expect("the inference request must be accepted");
 
     let first_message = stream
         .next()
         .await
-        .context("inference stream must produce at least one message")?;
+        .expect("inference stream must produce at least one message");
 
     drop(first_message);
 
     cluster
-        .wait_for_slots_processing(&agent_id, 1, ObservationWindow::model_load())
+        .wait_for_slots_processing(&agent_id, 1)
         .await
-        .context("first request should occupy the only slot")?;
+        .expect("first request should occupy the only slot");
 
     drop(stream);
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
+        .wait_for_slots_processing(&agent_id, 0)
         .await
-        .context("slot should be released after the HTTP client disconnects")?;
+        .expect("slot should be released after the HTTP client disconnects");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

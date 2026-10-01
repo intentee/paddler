@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING
 from paddler_client.raise_for_streaming_error import raise_for_streaming_error
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
     import httpx
 
 
 async def stream_sse(
     response: httpx.Response,
-) -> AsyncIterator[str]:
+) -> AsyncGenerator[str, None]:
     await raise_for_streaming_error(response)
 
     async for raw_line in response.aiter_lines():

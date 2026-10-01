@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -8,7 +10,7 @@ use crate::grammar_constraint::GrammarConstraint;
 pub struct ContinueFromRawPromptParams {
     #[serde(default)]
     pub grammar: Option<GrammarConstraint>,
-    pub max_tokens: i32,
+    pub max_tokens: NonZeroU32,
     pub raw_prompt: String,
 }
 

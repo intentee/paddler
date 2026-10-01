@@ -1,120 +1,112 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::num::NonZeroU32;
 use std::time::Duration;
 
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::inference_client::message::Message;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
-use paddler_tests::model_card::ModelCard;
-use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_serves_request_after_agent_with_capacity_registers() -> Result<()> {
-    let ModelCard {
-        gpu_layer_count,
-        reference,
-    } = qwen3_0_6b();
-
+async fn balancer_serves_request_after_agent_with_capacity_registers() {
     let mut cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         buffered_request_timeout: Duration::from_millis(50),
         max_buffered_requests: 10,
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters {
-                n_gpu_layers: gpu_layer_count,
-                ..InferenceParameters::default()
-            },
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
+        desired_state: Some(qwen3_0_6b().into_desired_state()),
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let mut early_stream = cluster
         .continue_from_raw_prompt_stream(
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 10,
+                max_tokens: NonZeroU32::new(10).unwrap(),
                 raw_prompt: "Hello".to_owned(),
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let early_message = early_stream
         .next()
         .await
-        .context("inference stream must yield a message")??;
+        .expect("inference stream must yield a message")
+        .expect("the message must be readable");
 
     match early_message {
         Message::Error(envelope) => {
             assert_eq!(envelope.error.code, 504);
         }
         Message::Response(_) => {
-            anyhow::bail!("expected timeout before agent registered");
+            panic!("expected timeout before agent registered");
         }
         Message::Notification(_) => {
-            anyhow::bail!("unexpected token-generation-mode notification");
+            panic!("unexpected token-generation-mode notification");
         }
     }
 
-    cluster.spawn_additional_agent(&AgentConfig {
-        name: "capacity-agent".to_owned(),
-        slot_count: 4,
-    })?;
+    cluster
+        .spawn_additional_agent(&AgentConfig {
+            name: "capacity-agent".to_owned(),
+            slot_count: 4,
+        })
+        .expect("the additional agent must start");
 
     cluster
         .agents_watcher
-        .until(ObservationWindow::model_load(), |snapshot| {
-            snapshot.agents.len() == 1 && snapshot.agents.iter().any(|agent| agent.slots_total >= 4)
+        .until(|snapshot| {
+            snapshot.agents.len() == 1
+                && snapshot
+                    .agents
+                    .iter()
+                    .any(|agent| agent.status.slots_total >= 4)
         })
         .await
-        .context("agent should register with 4 slots")?;
+        .expect("agent should register with 4 slots");
 
     let mut later_stream = cluster
         .continue_from_raw_prompt_stream(
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: 10,
+                max_tokens: NonZeroU32::new(10).unwrap(),
                 raw_prompt: "Hello".to_owned(),
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let later_message = later_stream
         .next()
         .await
-        .context("inference stream must yield a message")??;
+        .expect("inference stream must yield a message")
+        .expect("the message must be readable");
 
     match later_message {
         Message::Error(envelope) => {
-            assert_ne!(
-                envelope.error.code, 503,
-                "request should not overflow after agent registered with capacity"
+            panic!(
+                "a request must be served once an agent with capacity registered, got {envelope:?}"
             );
         }
         Message::Response(_) => {}
         Message::Notification(_) => {
-            anyhow::bail!("unexpected token-generation-mode notification");
+            panic!("unexpected token-generation-mode notification");
         }
     }
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

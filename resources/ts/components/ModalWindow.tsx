@@ -23,8 +23,8 @@ export function ModalWindow({
   title: string;
 }) {
   const onCloseButtonClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       if (confirmCloseMessage && !window.confirm(confirmCloseMessage)) {
         return;
