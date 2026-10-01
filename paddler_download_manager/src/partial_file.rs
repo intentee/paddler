@@ -101,21 +101,28 @@ impl PartialFile {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::io::ErrorKind;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
     use tempfile::TempDir;
+    #[cfg(unix)]
     use tokio::fs::create_dir;
+    #[cfg(unix)]
     use tokio::fs::create_dir_all;
+    #[cfg(unix)]
     use tokio::fs::metadata;
     use tokio::fs::read;
+    #[cfg(unix)]
     use tokio::fs::remove_dir_all;
+    #[cfg(unix)]
     use tokio::fs::set_permissions;
     use tokio::fs::try_exists;
     use tokio::fs::write;
     use tokio::io::AsyncWriteExt;
 
+    #[cfg(unix)]
     use crate::download_error::DownloadError;
     use crate::partial_file::PartialFile;
 
