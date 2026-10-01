@@ -1,10 +1,9 @@
 use serde::Serialize;
 use serde::Serializer;
-use serde_json::Value;
 
 use crate::compatibility::openai_service::chat_completion_chunk_choice::ChatCompletionChunkChoice;
 use crate::compatibility::openai_service::chat_completion_chunk_payload::ChatCompletionChunkPayload;
-use crate::compatibility::openai_service::openai_usage_json::openai_usage_json;
+use crate::compatibility::openai_service::openai_usage::OpenAIUsage;
 
 #[derive(Serialize)]
 struct ChunkEnvelope<'chunk, TBody> {
@@ -25,7 +24,7 @@ struct ChoiceBody<'body, 'choice> {
 #[derive(Serialize)]
 struct UsageBody {
     choices: [u8; 0],
-    usage: Value,
+    usage: OpenAIUsage,
 }
 
 pub struct ChatCompletionChunk<'chunk> {
@@ -64,7 +63,7 @@ impl Serialize for ChatCompletionChunk<'_> {
             ChatCompletionChunkPayload::Usage(usage) => self
                 .envelope(UsageBody {
                     choices: [],
-                    usage: openai_usage_json(usage),
+                    usage: OpenAIUsage(**usage),
                 })
                 .serialize(serializer),
         }

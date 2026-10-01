@@ -1,7 +1,6 @@
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_test_cluster_harness::snapshots_stream::SnapshotsStream;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -24,9 +23,7 @@ async fn cluster_harness_reports_the_end_of_a_snapshots_stream() {
         .await
         .expect("the balancer must shut down cleanly");
 
-    let observation = agents_watcher
-        .until(ObservationWindow::release(), |_snapshot| false)
-        .await;
+    let observation = agents_watcher.until(|_snapshot| false).await;
 
     assert!(matches!(
         observation,

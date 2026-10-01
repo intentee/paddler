@@ -1,3 +1,4 @@
+use anyhow::Error;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceBundle;
@@ -17,7 +18,7 @@ pub async fn run_service_manager<TServiceBundle: ServiceBundle>(
         .run_to_completion(shutdown_options)
         .await
         .into_result()
-        .map_err(anyhow::Error::from)
+        .map_err(Error::from)
 }
 
 #[cfg(test)]

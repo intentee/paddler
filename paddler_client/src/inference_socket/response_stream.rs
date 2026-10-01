@@ -3,9 +3,10 @@ use std::sync::Arc;
 use futures_util::Stream;
 use futures_util::stream::unfold;
 use log::debug;
-use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
+
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
 
 use crate::error::Result;
 use crate::inference_socket::connection::Connection;

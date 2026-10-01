@@ -2,35 +2,18 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use tokio::join;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() -> Result<()> {
-    let ModelCard {
-        gpu_layer_count,
-        reference,
-    } = qwen3_0_6b();
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters {
-            n_gpu_layers: gpu_layer_count,
-            ..InferenceParameters::default()
-        },
-        model: AgentDesiredModel::HuggingFace(reference),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
-    };
+async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() {
+    let desired_state = qwen3_0_6b().into_desired_state();
 
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
@@ -41,7 +24,8 @@ async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() -> 
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let params_a = ContinueFromRawPromptParams {
         grammar: None,
@@ -53,13 +37,13 @@ async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() -> 
         max_tokens: NonZeroU32::new(20).unwrap(),
         raw_prompt: "The capital of France is".to_owned(),
     };
-    let (collected_a, collected_b) = tokio::join!(
+    let (collected_a, collected_b) = join!(
         cluster.continue_from_raw_prompt(CancellationToken::new(), &params_a),
         cluster.continue_from_raw_prompt(CancellationToken::new(), &params_b),
     );
 
-    let collected_a = collected_a?;
-    let collected_b = collected_b?;
+    let collected_a = collected_a.expect("the first request must complete");
+    let collected_b = collected_b.expect("the second request must complete");
 
     assert!(
         !collected_a.text.is_empty(),
@@ -74,7 +58,8 @@ async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() -> 
         "two different prompts should produce different outputs"
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

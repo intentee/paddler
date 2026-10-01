@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -12,19 +13,23 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::batch_size_within_context::batch_size_within_context;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 const SEQUENCE_CONTEXT_SIZE: u32 = 256;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_raw_prompt_exceeding_sequence_context() -> Result<()> {
+async fn agent_rejects_raw_prompt_exceeding_sequence_context() {
     let desired_state = qwen3_desired_state();
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(1)],
         desired_state: Some(BalancerDesiredState {
             inference_parameters: InferenceParameters {
-                context_size: NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)?,
-                n_batch: batch_size_within_context(NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)?)?,
+                context_size: NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)
+                    .expect("the value must fit its target type"),
+                n_batch: batch_size_within_context(
+                    NonZeroU32::try_from(SEQUENCE_CONTEXT_SIZE)
+                        .expect("the value must fit its target type"),
+                )
+                .expect("the batch size must fit the context"),
                 ..desired_state.inference_parameters
             },
             ..desired_state
@@ -32,7 +37,8 @@ async fn agent_rejects_raw_prompt_exceeding_sequence_context() -> Result<()> {
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_raw_prompt(
@@ -43,7 +49,8 @@ async fn agent_rejects_raw_prompt_exceeding_sequence_context() -> Result<()> {
                 raw_prompt: "The quick brown fox jumps over the lazy dog. ".repeat(40),
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     assert!(
         !collected
@@ -58,7 +65,8 @@ async fn agent_rejects_raw_prompt_exceeding_sequence_context() -> Result<()> {
                 && details.prompt_tokens > SEQUENCE_CONTEXT_SIZE as usize
     )));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

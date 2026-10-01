@@ -7,42 +7,41 @@ pub mod commit_phase;
 pub mod completion_check_outcome;
 pub mod completion_check_phase;
 pub mod contributions;
-pub mod decode_batch_phase;
 pub mod decode_failure_phase;
-pub mod decode_outcome;
 pub mod emit_token_outcome;
 pub mod emit_token_phase;
 pub mod generating_contribution;
 pub mod ingesting_contribution;
-pub mod sample_outcome;
-pub mod sample_token_phase;
 pub mod sequence_ordered_insertion_index;
 
 use std::collections::VecDeque;
+use std::mem::transmute;
 use std::slice;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::TryRecvError;
 
-use anyhow::Result;
 use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::error::DecodeError;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use log::debug;
 use log::error;
 use log::info;
-use log::warn;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
-use tokio_util::sync::CancellationToken;
 
 use self::advance_generating_phase::AdvanceGeneratingPhase;
 use self::assemble_batch_phase::AssembleBatchPhase;
 use self::batch_pass::BatchPass;
-use self::decode_outcome::DecodeOutcome;
+use self::commit_phase::CommitPhase;
+use self::decode_failure_phase::DecodeFailurePhase;
 use self::sequence_ordered_insertion_index::sequence_ordered_insertion_index;
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_embedding_processor::ContinuousBatchEmbeddingProcessor;
@@ -56,6 +55,8 @@ use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
+use crate::receives_stop_request::ReceivesStopRequest as _;
+use crate::send_result_or_warn::send_result_or_warn;
 use crate::sequence_id_guard::SequenceIdGuard;
 use crate::sequence_id_pool::SequenceIdPool;
 use crate::token_classification::TokenClassification;
@@ -89,9 +90,8 @@ impl ContinuousBatchScheduler {
             scheduler_context,
         }: ContinuousBatchSchedulerParams,
     ) -> Self {
-        let llama_context = unsafe {
-            std::mem::transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context)
-        };
+        let llama_context =
+            unsafe { transmute::<LlamaContext<'_>, LlamaContext<'static>>(llama_context) };
         let sequence_id_pool = SequenceIdPool::new(scheduler_context.desired_slots_total);
 
         Self {
@@ -125,11 +125,10 @@ impl ContinuousBatchScheduler {
             self.try_process_embedding_request(has_active_requests);
 
             if has_active_requests {
-                if let Err(err) = self.execute_one_iteration() {
-                    error!(
-                        "{:?}: scheduler iteration failed: {err:#}",
-                        self.scheduler_context.agent_name
-                    );
+                if let Err(batch_add_error) = self.execute_one_iteration() {
+                    self.fail_unfinished_requests(GenerationRequestRejection::BatchAssemblyFailed(
+                        batch_add_error,
+                    ));
                 }
             } else if self.pending_embedding_requests.is_empty() {
                 if self.shutdown_requested {
@@ -211,9 +210,7 @@ impl ContinuousBatchScheduler {
         );
 
         unsafe {
-            std::mem::transmute::<SampledTokenClassifier<'_>, SampledTokenClassifier<'static>>(
-                classifier,
-            )
+            transmute::<SampledTokenClassifier<'_>, SampledTokenClassifier<'static>>(classifier)
         }
     }
 
@@ -264,14 +261,12 @@ impl ContinuousBatchScheduler {
         let mut token_classifier =
             self.build_token_classifier_for_active_request(token_classification);
 
-        self.clear_kv_cache_for_sequence(sequence_id_guard.sequence_id());
+        self.clear_kv_cache_for_sequence(sequence_id_guard.sequence_id())?;
 
         let mut state = ContinuousBatchRequestState {
             current_token_position: 0,
-            i_batch: None,
             last_outcome_section: token_classifier.current_section(),
             max_tokens,
-            pending_sampled_token: None,
             phase: ContinuousBatchRequestPhase::IngestingText,
             prompt_tokens: Vec::new(),
             prompt_tokens_ingested: 0,
@@ -358,7 +353,7 @@ impl ContinuousBatchScheduler {
                 continue;
             }
 
-            if active_request.is_stop_requested() {
+            if active_request.generate_tokens_stop_rx.is_stop_requested() {
                 let summary = GenerationSummary {
                     finish: GenerationFinish::StopRequested,
                     usage: *active_request.token_classifier.usage(),
@@ -375,30 +370,26 @@ impl ContinuousBatchScheduler {
         };
 
         if has_active_requests {
-            if request
-                .generated_embedding_tx
-                .send(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration)
-                .is_err()
-            {
-                warn!(
-                    "{:?}: failed to send result to client (receiver dropped)",
-                    self.scheduler_context.agent_name
-                );
-            }
+            send_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                &request.generated_embedding_tx,
+                EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration,
+            );
 
             return;
         }
 
+        let generated_embedding_tx = request.generated_embedding_tx.clone();
         let mut processor = ContinuousBatchEmbeddingProcessor::new(
             &mut self.batch,
             &mut self.llama_context,
             &self.scheduler_context,
         );
 
-        if let Err(err) = processor.process_embedding_batch(request) {
-            error!(
-                "{:?}: failed to process embedding batch: {err:#}",
-                self.scheduler_context.agent_name
+        if let Err(rejection) = processor.process_embedding_batch(request) {
+            rejection.report(
+                self.scheduler_context.agent_name.as_deref(),
+                &generated_embedding_tx,
             );
         }
     }
@@ -412,7 +403,16 @@ impl ContinuousBatchScheduler {
         })
     }
 
-    fn execute_one_iteration(&mut self) -> Result<()> {
+    fn fail_unfinished_requests(&mut self, rejection: GenerationRequestRejection) {
+        let outcome =
+            rejection.into_generated_token_result(self.scheduler_context.agent_name.as_deref());
+
+        for active_request in &mut self.active_requests {
+            active_request.complete_with_outcome(outcome.clone());
+        }
+    }
+
+    fn execute_one_iteration(&mut self) -> Result<(), BatchAddError> {
         self.advance_generating_requests();
         self.ingest_next_multimodal_chunks();
 
@@ -424,51 +424,44 @@ impl ContinuousBatchScheduler {
                 .tokens_usize(),
         };
 
-        loop {
-            let mut pass = BatchPass::new(&mut self.batch);
+        let mut pass = BatchPass::new(&mut self.batch);
 
-            assemble_phase.run(&mut pass, &mut self.active_requests)?;
+        assemble_phase.run(&mut pass, &mut self.active_requests)?;
 
-            if pass.is_empty() {
-                return Ok(());
+        if pass.is_empty() {
+            return Ok(());
+        }
+
+        debug!(
+            "{:?}: decoding batch with {} tokens for {} active requests",
+            self.scheduler_context.agent_name,
+            pass.batch.n_tokens(),
+            self.active_requests.len()
+        );
+
+        match self.llama_context.decode(pass.batch) {
+            Ok(()) => {
+                CommitPhase {
+                    requests: &mut self.active_requests,
+                }
+                .run(pass);
             }
+            Err(DecodeError::Aborted) => {}
+            Err(decode_error) => {
+                let description = format!(
+                    "{:?}: llama.cpp rejected the batch: {decode_error}",
+                    self.scheduler_context.agent_name
+                );
 
-            debug!(
-                "{:?}: decoding batch with {} tokens for {} active requests",
-                self.scheduler_context.agent_name,
-                pass.batch.n_tokens(),
-                self.active_requests.len()
-            );
-
-            match decode_batch_phase::run(&mut pass, &mut self.llama_context) {
-                DecodeOutcome::Decoded => {
-                    commit_phase::run(pass, &mut self.active_requests)?;
-
-                    return Ok(());
+                error!("{description}");
+                DecodeFailurePhase {
+                    requests: &mut self.active_requests,
                 }
-                DecodeOutcome::NeedsEviction => {
-                    self.evict_largest_sequence();
-
-                    if self.active_requests.is_empty() {
-                        return Ok(());
-                    }
-                }
-                DecodeOutcome::Aborted => {
-                    return Ok(());
-                }
-                DecodeOutcome::Errored(decode_error) => {
-                    let description = format!(
-                        "{:?}: llama.cpp rejected the batch: {decode_error}",
-                        self.scheduler_context.agent_name
-                    );
-
-                    error!("{description}");
-                    decode_failure_phase::run(pass, &mut self.active_requests, &description);
-
-                    return Ok(());
-                }
+                .run(pass, &description);
             }
         }
+
+        Ok(())
     }
 
     fn advance_generating_requests(&mut self) {
@@ -479,42 +472,6 @@ impl ContinuousBatchScheduler {
             scheduler_context: &self.scheduler_context,
         }
         .run(&mut self.active_requests);
-    }
-
-    fn evict_largest_sequence(&mut self) {
-        let mut largest_seq_index: Option<usize> = None;
-        let mut largest_position: i32 = -1;
-
-        for (index, active_request) in self.active_requests.iter().enumerate() {
-            if matches!(
-                active_request.state.phase,
-                ContinuousBatchRequestPhase::Completed(_)
-            ) {
-                continue;
-            }
-
-            if active_request.state.current_token_position > largest_position {
-                largest_position = active_request.state.current_token_position;
-                largest_seq_index = Some(index);
-            }
-        }
-
-        if let Some(eviction_index) = largest_seq_index {
-            let evicted_request = &mut self.active_requests[eviction_index];
-
-            warn!(
-                "{:?}: evicting sequence {} (position {}) due to KV cache pressure",
-                self.scheduler_context.agent_name,
-                evicted_request.sequence_id_guard.sequence_id(),
-                evicted_request.state.current_token_position
-            );
-
-            evicted_request.complete_with_outcome(GeneratedTokenResult::SamplerError(
-                "Request evicted due to KV cache pressure".to_owned(),
-            ));
-
-            self.cleanup_completed_request(eviction_index);
-        }
     }
 
     fn remove_completed_requests(&mut self) {
@@ -532,28 +489,20 @@ impl ContinuousBatchScheduler {
         }
     }
 
-    fn clear_kv_cache_for_sequence(&mut self, sequence_id: i32) {
-        let sequence_id_u32 = match u32::try_from(sequence_id) {
-            Ok(sequence_id_u32) => sequence_id_u32,
-            Err(err) => {
-                error!(
-                    "{:?}: sequence id {sequence_id} does not fit in u32: {err}",
-                    self.scheduler_context.agent_name
-                );
-
-                return;
+    fn clear_kv_cache_for_sequence(
+        &mut self,
+        sequence_id: i32,
+    ) -> Result<(), GenerationRequestRejection> {
+        let kv_cache_sequence_id = u32::try_from(sequence_id).map_err(|source| {
+            GenerationRequestRejection::SequenceIdOutOfRange {
+                sequence_id,
+                source,
             }
-        };
+        })?;
 
-        if let Err(err) = self
-            .llama_context
-            .clear_kv_cache_seq(Some(sequence_id_u32), None, None)
-        {
-            error!(
-                "{:?}: failed to clear KV cache for sequence {sequence_id}: {err}",
-                self.scheduler_context.agent_name
-            );
-        }
+        self.llama_context
+            .clear_kv_cache_seq(Some(kv_cache_sequence_id), None, None)
+            .map_err(GenerationRequestRejection::KvCacheClearFailed)
     }
 
     fn cleanup_completed_request(&mut self, index: usize) {
@@ -562,12 +511,17 @@ impl ContinuousBatchScheduler {
         let usage = *removed_request.token_classifier.usage();
         let terminal_delivery = removed_request.into_terminal_delivery();
 
-        self.clear_kv_cache_for_sequence(sequence_id);
+        if let Err(rejection) = self.clear_kv_cache_for_sequence(sequence_id) {
+            error!(
+                "{:?}: {rejection}; the next request admitted to sequence {sequence_id} clears it again",
+                self.scheduler_context.agent_name
+            );
+        }
 
         debug!(
             "{:?}: cleaned up sequence {sequence_id} ({} completion tokens generated)",
             self.scheduler_context.agent_name,
-            usage.content_tokens + usage.reasoning_tokens + usage.undeterminable_tokens,
+            usage.completion_tokens(),
         );
 
         terminal_delivery.deliver(self.scheduler_context.agent_name.as_deref());

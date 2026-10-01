@@ -1,4 +1,5 @@
 use llama_cpp_bindings::context::params::LlamaPoolingType;
+
 use paddler_inference_parameters::pooling_type::PoolingType;
 
 use crate::converts_to_llama_pooling_type::ConvertsToLlamaPoolingType;
@@ -21,6 +22,7 @@ impl ConvertsToLlamaPoolingType for AgentPoolingType {
 #[cfg(test)]
 mod tests {
     use llama_cpp_bindings::context::params::LlamaPoolingType;
+
     use paddler_inference_parameters::pooling_type::PoolingType;
 
     use super::AgentPoolingType;

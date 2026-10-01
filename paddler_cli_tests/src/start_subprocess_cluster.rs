@@ -2,12 +2,11 @@ use std::process::Stdio;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use tokio_util::sync::CancellationToken;
 
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::running_balancer::RunningBalancer;
-
-use tokio_util::sync::CancellationToken;
 
 use crate::paddler_command::paddler_command;
 use crate::read_balancer_addresses::read_balancer_addresses;

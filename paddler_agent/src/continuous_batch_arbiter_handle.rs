@@ -3,6 +3,7 @@ use std::thread;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use tokio::task::spawn_blocking;
 
 use crate::continuous_batch_request_preparer::ContinuousBatchRequestPreparer;
 use crate::join_scheduler_thread::join_scheduler_thread;
@@ -23,7 +24,7 @@ impl ContinuousBatchArbiterHandle {
             .shut_down_scheduler_after_pending_preparations()
             .await;
 
-        tokio::task::spawn_blocking(move || {
+        spawn_blocking(move || {
             drop(request_preparer);
 
             join_scheduler_thread(scheduler_thread_handle)

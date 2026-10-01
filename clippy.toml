@@ -1,3 +1,4 @@
+absolute-paths-max-segments = 1
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-unwrap-in-tests = true

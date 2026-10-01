@@ -1,27 +1,26 @@
 use std::mem::take;
 use std::sync::Arc;
 
-use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
+use parking_lot::Mutex;
+
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-use parking_lot::Mutex;
 
+use crate::agent_relay_error::AgentRelayError;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+use crate::compatibility::openai_service::openai_error::OpenAIError;
 use crate::compatibility::openai_service::response_snapshot_event::ResponseSnapshotEvent;
-use crate::compatibility::openai_service::responses_error::responses_error;
-use crate::compatibility::openai_service::responses_response_builder::ResponsesResponseBuilder;
+use crate::compatibility::openai_service::responses_response_header::ResponsesResponseHeader;
 use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
 use crate::compatibility::openai_service::responses_streaming_state::ResponsesStreamingState;
 
 #[derive(Clone)]
 pub struct ResponsesStreamingResponseTransformer {
-    pub builder: ResponsesResponseBuilder,
+    pub header: ResponsesResponseHeader,
     pub state: Arc<Mutex<ResponsesStreamingState>>,
 }
 
@@ -40,13 +39,13 @@ impl ResponsesStreamingResponseTransformer {
         let created_sequence_number = state.next_sequence_number();
         events.push(ResponsesStreamEvent::Created(ResponseSnapshotEvent {
             sequence_number: created_sequence_number,
-            response: self.builder.in_progress(),
+            response: self.header.in_progress(),
         }));
 
         let in_progress_sequence_number = state.next_sequence_number();
         events.push(ResponsesStreamEvent::InProgress(ResponseSnapshotEvent {
             sequence_number: in_progress_sequence_number,
-            response: self.builder.in_progress(),
+            response: self.header.in_progress(),
         }));
     }
 
@@ -61,16 +60,13 @@ impl ResponsesStreamingResponseTransformer {
         let output = take(&mut state.finalized_output);
         let snapshot = ResponseSnapshotEvent {
             sequence_number: state.next_sequence_number(),
-            response: self
-                .builder
-                .finished(output, &summary.usage, summary.finish),
+            response: self.header.finished(output, &summary.usage, summary.finish),
         };
 
-        events.push(match summary.finish {
-            GenerationFinish::EndOfGeneration | GenerationFinish::StopRequested => {
-                ResponsesStreamEvent::Completed(snapshot)
-            }
-            GenerationFinish::MaxTokens => ResponsesStreamEvent::Incomplete(snapshot),
+        events.push(if summary.finish.reached_a_length_limit() {
+            ResponsesStreamEvent::Incomplete(snapshot)
+        } else {
+            ResponsesStreamEvent::Completed(snapshot)
         });
     }
 }
@@ -79,7 +75,10 @@ impl ResponsesStreamingResponseTransformer {
 impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
     type Output = ResponsesStreamEvent;
 
-    async fn transform(&self, message: OutgoingMessage) -> Result<Vec<ResponsesStreamEvent>> {
+    async fn transform(
+        &self,
+        message: OutgoingMessage,
+    ) -> Result<Vec<ResponsesStreamEvent>, AgentRelayError> {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
         let mut state = self.state.lock();
 
@@ -123,10 +122,10 @@ impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
                 self.handle_done(&mut state, &mut events, &summary);
             }
             other => {
-                let error = responses_error(&other).ok_or_else(|| {
-                    anyhow!(
-                        "ResponsesStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-                    )
+                let error = OpenAIError::classify(&other).ok_or_else(|| {
+                    AgentRelayError::MessageNotRelayable {
+                        message: Box::new(other),
+                    }
                 })?;
 
                 self.ensure_preamble(&mut state, &mut events);
@@ -134,7 +133,7 @@ impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
                 let failed_sequence_number = state.next_sequence_number();
                 events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
                     sequence_number: failed_sequence_number,
-                    response: self.builder.failed(&error),
+                    response: self.header.failed(&error),
                 }));
             }
         }
@@ -150,6 +149,11 @@ mod tests {
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
+    use parking_lot::Mutex;
+    use serde_json::Value;
+    use serde_json::json;
+    use serde_json::to_value;
+
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
@@ -158,18 +162,16 @@ mod tests {
     use paddler_messaging::inference_client::response::Response as OutgoingResponse;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
-    use parking_lot::Mutex;
-    use serde_json::json;
-
-    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
-    use crate::compatibility::openai_service::responses_response_builder::ResponsesResponseBuilder;
-    use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
 
     use super::ResponsesStreamingResponseTransformer;
     use super::ResponsesStreamingState;
+    use crate::agent_relay_error::AgentRelayError;
+    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+    use crate::compatibility::openai_service::responses_response_header::ResponsesResponseHeader;
+    use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
 
-    fn serialized(event: &ResponsesStreamEvent) -> serde_json::Value {
-        serde_json::to_value(event).expect("a responses stream event must serialize")
+    fn serialized(event: &ResponsesStreamEvent) -> Value {
+        to_value(event).expect("a responses stream event must serialize")
     }
 
     #[must_use]
@@ -208,18 +210,20 @@ mod tests {
     }
 
     #[must_use]
-    pub fn builder() -> ResponsesResponseBuilder {
-        ResponsesResponseBuilder {
+    pub fn header() -> ResponsesResponseHeader {
+        ResponsesResponseHeader {
             id: "resp_test".to_owned(),
             created_at: 0,
             model: "test-model".to_owned(),
             instructions: None,
+            temperature: 0.25,
+            top_p: 0.5,
         }
     }
 
     fn streaming_transformer() -> ResponsesStreamingResponseTransformer {
         ResponsesStreamingResponseTransformer {
-            builder: builder(),
+            header: header(),
             state: Arc::new(Mutex::new(ResponsesStreamingState::default())),
         }
     }
@@ -457,13 +461,16 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_inference_socket_notifications() {
-        assert!(
-            streaming_transformer()
-                .transform(OutgoingMessage::Notification(
-                    Notification::TokenGenerationEnabled
-                ))
-                .await
-                .is_err()
-        );
+        let transform_result = streaming_transformer()
+            .transform(OutgoingMessage::Notification(
+                Notification::TokenGenerationEnabled,
+            ))
+            .await;
+
+        assert!(matches!(
+            transform_result,
+            Err(AgentRelayError::MessageNotRelayable { message })
+                if matches!(*message, OutgoingMessage::Notification(Notification::TokenGenerationEnabled))
+        ));
     }
 }

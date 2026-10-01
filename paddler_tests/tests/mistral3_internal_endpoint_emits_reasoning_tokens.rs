@@ -2,8 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use anyhow::anyhow;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -11,11 +11,12 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
 use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
-    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default()).await?;
+async fn mistral3_internal_endpoint_emits_reasoning_tokens() {
+    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default())
+        .await
+        .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -35,7 +36,8 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
                 tools: vec![],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let reasoning_count = collected
         .token_results
@@ -51,9 +53,9 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
     let last = collected
         .token_results
         .last()
-        .ok_or_else(|| anyhow!("no token results received"))?;
+        .expect("no token results received");
     let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        anyhow::bail!("last result was not Done: {last:?}");
+        panic!("last result was not Done: {last:?}");
     };
 
     assert!(summary.usage.prompt_tokens > 0);
@@ -95,7 +97,8 @@ async fn mistral3_internal_endpoint_emits_reasoning_tokens() -> Result<()> {
         );
     }
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

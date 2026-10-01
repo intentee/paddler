@@ -1,5 +1,6 @@
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use llama_cpp_bindings::mtmd::MtmdBitmapError;
+
 use paddler_image_decoder::decoded_image::DecodedImage;
 
 pub trait ConvertsToMtmdBitmap {

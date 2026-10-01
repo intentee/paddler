@@ -1,16 +1,14 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
 use futures_util::StreamExt as _;
-use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
-const MAX_TOKENS_THAT_OUTLAST_THE_SHUTDOWN: NonZeroU32 = NonZeroU32::new(2048).unwrap();
+use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::unending_generation::unending_generation;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_ends_an_in_flight_generation_with_a_shutdown_error() {
@@ -19,14 +17,7 @@ async fn balancer_ends_an_in_flight_generation_with_a_shutdown_error() {
         .expect("a single-slot qwen3 cluster must start");
     let mut stream = cluster
         .client_inference
-        .post_continue_from_raw_prompt(
-            CancellationToken::new(),
-            &ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: MAX_TOKENS_THAT_OUTLAST_THE_SHUTDOWN,
-                raw_prompt: "Tell me a long story about a lighthouse keeper.".to_owned(),
-            },
-        )
+        .post_continue_from_raw_prompt(CancellationToken::new(), &unending_generation())
         .await
         .expect("the generation must start");
 
@@ -39,7 +30,7 @@ async fn balancer_ends_an_in_flight_generation_with_a_shutdown_error() {
     let Cluster {
         agents, balancer, ..
     } = cluster;
-    let balancer_shutdown = tokio::spawn(balancer.shutdown());
+    let balancer_shutdown = spawn(balancer.shutdown());
     let mut shutdown_error_codes = Vec::new();
 
     while let Some(message) = stream.next().await {

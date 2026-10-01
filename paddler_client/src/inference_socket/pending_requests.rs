@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::mem;
 
 use log::debug;
-use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use parking_lot::Mutex;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
+
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -49,6 +51,20 @@ impl PendingRequests {
         false
     }
 
+    pub fn fail(&self, request_id: &str, error: Error) -> bool {
+        if let PendingRequestsState::Open(requests) = &mut *self.state.lock()
+            && let Some(response_tx) = requests.remove(request_id)
+        {
+            if response_tx.send(Err(error)).is_err() {
+                debug!("Receiver already dropped for request: {request_id}");
+            }
+
+            return true;
+        }
+
+        false
+    }
+
     #[must_use]
     pub fn is_closed(&self) -> bool {
         matches!(*self.state.lock(), PendingRequestsState::Closed)
@@ -60,13 +76,18 @@ impl PendingRequests {
     ) -> Result<UnboundedReceiver<Result<InferenceMessage>>> {
         match &mut *self.state.lock() {
             PendingRequestsState::Closed => Err(Error::ConnectionDropped { request_id }),
-            PendingRequestsState::Open(requests) => {
-                let (response_tx, response_rx) = mpsc::unbounded_channel();
+            PendingRequestsState::Open(requests) => match requests.entry(request_id) {
+                Entry::Occupied(in_flight_request) => Err(Error::InferenceRequestIdInFlight {
+                    request_id: in_flight_request.key().clone(),
+                }),
+                Entry::Vacant(vacant_request) => {
+                    let (response_tx, response_rx) = mpsc::unbounded_channel();
 
-                requests.insert(request_id, response_tx);
+                    vacant_request.insert(response_tx);
 
-                Ok(response_rx)
-            }
+                    Ok(response_rx)
+                }
+            },
         }
     }
 
@@ -106,6 +127,60 @@ mod tests {
         assert!(matches!(
             awaited_request.try_recv(),
             Ok(Err(Error::ConnectionDropped { request_id })) if request_id == "awaited"
+        ));
+    }
+
+    #[test]
+    fn failing_a_request_that_is_not_pending_fails_nothing() {
+        let pending_requests = PendingRequests::default();
+
+        assert!(!pending_requests.fail(
+            "unknown",
+            Error::InferenceRequestCancelled {
+                request_id: "unknown".to_owned(),
+            },
+        ));
+    }
+
+    #[test]
+    fn failing_an_abandoned_request_forgets_it() {
+        let pending_requests = PendingRequests::default();
+        let abandoned_request = pending_requests
+            .register("abandoned".to_owned())
+            .expect("an open registry must accept a request");
+
+        drop(abandoned_request);
+
+        assert!(pending_requests.fail(
+            "abandoned",
+            Error::InferenceRequestCancelled {
+                request_id: "abandoned".to_owned(),
+            },
+        ));
+        assert!(!pending_requests.fail(
+            "abandoned",
+            Error::InferenceRequestCancelled {
+                request_id: "abandoned".to_owned(),
+            },
+        ));
+    }
+
+    #[test]
+    fn a_second_registration_of_an_in_flight_request_keeps_the_first_one() {
+        let pending_requests = PendingRequests::default();
+        let mut first_registration = pending_requests
+            .register("request-1".to_owned())
+            .expect("an open registry must accept a request");
+        assert!(matches!(
+            pending_requests.register("request-1".to_owned()),
+            Err(Error::InferenceRequestIdInFlight { request_id }) if request_id == "request-1"
+        ));
+
+        pending_requests.close();
+
+        assert!(matches!(
+            first_registration.try_recv(),
+            Ok(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
     }
 }

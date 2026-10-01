@@ -2,17 +2,16 @@ pub mod tool;
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use anyhow::bail;
 use serde::Deserialize;
 use serde::Serialize;
 
-use self::tool::Tool;
 use crate::conversation_history::ConversationHistory;
 use crate::grammar_constraint::GrammarConstraint;
-use crate::validates::Validates;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use crate::request_params_validation_error::RequestParamsValidationError;
+use crate::validates::Validates;
+use self::tool::Tool;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -33,9 +32,14 @@ pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
 impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
     for ContinueFromConversationHistoryParams<RawParametersSchema>
 {
-    fn validate(self) -> Result<ContinueFromConversationHistoryParams<ValidatedParametersSchema>> {
+    fn validate(
+        self,
+    ) -> Result<
+        ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+        RequestParamsValidationError,
+    > {
         if self.parse_tool_calls && self.tools.is_empty() {
-            bail!("parse_tool_calls requires at least one tool");
+            return Err(RequestParamsValidationError::ToolCallParsingWithoutTools);
         }
 
         Ok(ContinueFromConversationHistoryParams {
@@ -49,7 +53,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
                 .tools
                 .into_iter()
                 .map(Validates::validate)
-                .collect::<Result<Vec<_>>>()?,
+                .collect::<Result<Vec<_>, _>>()?,
         })
     }
 }
@@ -59,9 +63,10 @@ mod tests {
     use serde_json::from_value;
     use serde_json::json;
 
+    use crate::request_params_validation_error::RequestParamsValidationError;
     use super::ContinueFromConversationHistoryParams;
-    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-    use crate::validates::Validates as _;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
+use crate::validates::Validates as _;
 
     #[test]
     fn validate_fails_when_tool_call_parsing_is_requested_without_tools() {
@@ -78,11 +83,9 @@ mod tests {
             }))
             .unwrap();
 
-        let error = params.validate().unwrap_err();
-
         assert_eq!(
-            error.to_string(),
-            "parse_tool_calls requires at least one tool"
+            params.validate().err(),
+            Some(RequestParamsValidationError::ToolCallParsingWithoutTools)
         );
     }
 

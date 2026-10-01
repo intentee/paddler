@@ -43,34 +43,82 @@ pub async fn send_checked_request(
 
 #[cfg(test)]
 mod tests {
+    use http::StatusCode;
     use reqwest::Client;
+    use reqwest::Response;
     use tokio_util::sync::CancellationToken;
+
+    use paddler_local_http_fixture::fixture_response::FixtureResponse;
+    use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
+    use paddler_messaging::api_path::ApiPath;
 
     use super::send_checked_request;
     use crate::error::Error;
+    use crate::error::Result;
+
+    const UNREACHABLE_HEALTH_URL: &str = "http://127.0.0.1:1/health";
+
+    async fn response_from(fixture_response: FixtureResponse) -> Result<Response> {
+        let fixture = LocalHttpFixture::start(fixture_response)
+            .await
+            .expect("the fixture server must start");
+        let url = fixture.url(ApiPath::HEALTH);
+        let request_builder = Client::new().get(&url);
+
+        send_checked_request(CancellationToken::new(), url, request_builder).await
+    }
 
     #[tokio::test]
     async fn a_refused_connection_maps_to_the_connect_variant() {
-        let url = "http://127.0.0.1:1/health".to_owned();
-        let request_builder = Client::new().get(&url);
+        let request_builder = Client::new().get(UNREACHABLE_HEALTH_URL);
 
         assert!(matches!(
-            send_checked_request(CancellationToken::new(), url, request_builder).await,
-            Err(Error::Connect { .. })
+            send_checked_request(
+                CancellationToken::new(),
+                UNREACHABLE_HEALTH_URL.to_owned(),
+                request_builder
+            )
+            .await,
+            Err(Error::Connect { url, .. }) if url == UNREACHABLE_HEALTH_URL
         ));
     }
 
     #[tokio::test]
     async fn an_already_cancelled_token_rejects_the_request_without_sending_it() {
-        let url = "http://127.0.0.1:1/health".to_owned();
-        let request_builder = Client::new().get(&url);
+        let request_builder = Client::new().get(UNREACHABLE_HEALTH_URL);
         let cancellation_token = CancellationToken::new();
 
         cancellation_token.cancel();
 
         assert!(matches!(
-            send_checked_request(cancellation_token, url, request_builder).await,
-            Err(Error::RequestCancelled { .. })
+            send_checked_request(
+                cancellation_token,
+                UNREACHABLE_HEALTH_URL.to_owned(),
+                request_builder
+            )
+            .await,
+            Err(Error::RequestCancelled { url }) if url == UNREACHABLE_HEALTH_URL
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_rejection_whose_body_cannot_be_read_is_reported_as_undecodable() {
+        assert!(matches!(
+            response_from(FixtureResponse::TruncatedBody {
+                sent_body: b"inter".to_vec(),
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                withheld_byte_count: 5,
+            })
+            .await,
+            Err(Error::Http(source)) if source.is_decode()
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_connection_closed_before_the_response_is_reported_as_a_failed_request() {
+        assert!(matches!(
+            response_from(FixtureResponse::CloseBeforeHeaders).await,
+            Err(Error::Http(source)) if source.is_request()
         ));
     }
 }

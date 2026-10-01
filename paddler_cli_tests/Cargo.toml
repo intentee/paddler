@@ -45,6 +45,7 @@ nix = { workspace = true }
 [dev-dependencies]
 futures-util = { workspace = true }
 paddler_client = { workspace = true }
+reqwest = { workspace = true }
 url = { workspace = true }
 
 [lints]

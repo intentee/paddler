@@ -1,10 +1,11 @@
+use tokio_util::sync::CancellationToken;
+
 use paddler_client::error::Error as ClientError;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 const NOT_IMPLEMENTED: u16 = 501;
 

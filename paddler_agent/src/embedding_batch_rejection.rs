@@ -1,7 +1,17 @@
+use std::num::TryFromIntError;
+
+use llama_cpp_bindings::batch_add_error::BatchAddError;
+use llama_cpp_bindings::error::DecodeError;
+use llama_cpp_bindings::error::EmbeddingsError;
 use llama_cpp_bindings::error::StringToTokenError;
 use log::error;
-use paddler_messaging::embedding_result::EmbeddingResult;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::SendError;
+
+use paddler_messaging::embedding_result::EmbeddingResult;
+
+use crate::rejection_description::rejection_description;
+use crate::send_result_or_warn::send_result_or_warn;
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmbeddingBatchRejection {
@@ -15,8 +25,33 @@ pub enum EmbeddingBatchRejection {
         source: StringToTokenError,
     },
 
+    #[error("no model is loaded")]
+    ModelNotLoaded,
+
     #[error("the scheduler is no longer accepting requests")]
     SchedulerUnavailable,
+
+    #[error("failed to add an embedding input to the batch: {0}")]
+    BatchAssemblyFailed(#[source] BatchAddError),
+
+    #[error("the client stopped listening for embeddings: {0}")]
+    ClientDisconnected(#[source] SendError<EmbeddingResult>),
+
+    #[error("llama.cpp rejected the embedding batch: {0}")]
+    DecodeFailed(#[source] DecodeError),
+
+    #[error("{dimensions}-dimensional embedding is too long for RMS normalization: {source}")]
+    EmbeddingTooLongForRmsNormalization {
+        dimensions: usize,
+        #[source]
+        source: TryFromIntError,
+    },
+
+    #[error("failed to read the embedding of a batch sequence: {0}")]
+    EmbeddingsUnavailable(#[source] EmbeddingsError),
+
+    #[error("embedding batch sequence index does not fit in i32: {0}")]
+    SequenceIndexOutOfRange(#[source] TryFromIntError),
 }
 
 impl EmbeddingBatchRejection {
@@ -25,29 +60,32 @@ impl EmbeddingBatchRejection {
         agent_name: Option<&str>,
         generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
     ) {
-        let message = format!("{agent_name:?}: {self}");
+        let message = rejection_description(agent_name, &self);
 
         error!("{message}");
 
         let result = match self {
             Self::EmbeddingsDisabled => EmbeddingResult::EmbeddingsDisabled,
-            Self::InputTokenizationFailed { .. } | Self::SchedulerUnavailable => {
-                EmbeddingResult::Error(message)
-            }
+            Self::ModelNotLoaded => EmbeddingResult::ModelNotLoaded(message),
+            Self::InputTokenizationFailed { .. }
+            | Self::SchedulerUnavailable
+            | Self::BatchAssemblyFailed(_)
+            | Self::ClientDisconnected(_)
+            | Self::DecodeFailed(_)
+            | Self::EmbeddingTooLongForRmsNormalization { .. }
+            | Self::EmbeddingsUnavailable(_)
+            | Self::SequenceIndexOutOfRange(_) => EmbeddingResult::Error(message),
         };
 
-        if generated_embedding_tx.send(result).is_err() {
-            error!(
-                "{agent_name:?}: failed to send embedding rejection to client (receiver dropped)"
-            );
-        }
+        send_result_or_warn(agent_name, generated_embedding_tx, result);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use paddler_messaging::embedding_result::EmbeddingResult;
     use tokio::sync::mpsc;
+
+    use paddler_messaging::embedding_result::EmbeddingResult;
 
     use super::EmbeddingBatchRejection;
 
@@ -73,7 +111,7 @@ mod tests {
         assert_eq!(
             generated_embedding_rx.try_recv(),
             Ok(EmbeddingResult::Error(
-                "Some(\"agent\"): the scheduler is no longer accepting requests".to_owned()
+                "agent: the scheduler is no longer accepting requests".to_owned()
             ))
         );
     }

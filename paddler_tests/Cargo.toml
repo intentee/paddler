@@ -16,8 +16,8 @@ path = "tests/main.rs"
 
 [features]
 default = []
-cuda = ["paddler_agent/cuda"]
-metal = ["paddler_agent/metal"]
+cuda = ["paddler_bootstrap/cuda"]
+metal = ["paddler_bootstrap/metal"]
 tests_that_use_llms = []
 web_admin_panel = ["paddler_balancer/web_admin_panel", "paddler_bootstrap/web_admin_panel"]
 
@@ -25,14 +25,13 @@ web_admin_panel = ["paddler_balancer/web_admin_panel", "paddler_bootstrap/web_ad
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true }
-llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
-paddler_agent = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
 paddler_client = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_state_database = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
@@ -42,7 +41,9 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 
 [dev-dependencies]
+async-openai = { workspace = true }
 http = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 paddler_local_http_fixture = { workspace = true }
 paddler_openai_response_format_validator = { workspace = true }
 tokio-tungstenite = { workspace = true }

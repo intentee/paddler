@@ -9,7 +9,7 @@ use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_a
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_multimodal_projection_cannot_be_loaded_for_invalid_file() {
-    let ModelCard { reference, .. } = qwen3_0_6b();
+    let ModelCard { reference } = qwen3_0_6b();
     let projection_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../fixtures/invalid_mmproj.gguf"

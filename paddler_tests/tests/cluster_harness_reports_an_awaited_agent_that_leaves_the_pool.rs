@@ -2,7 +2,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -33,11 +32,7 @@ async fn cluster_harness_reports_an_awaited_agent_that_leaves_the_pool() {
     }
 
     let observation = agents_watcher
-        .until_agent(
-            &awaited_agent_id,
-            ObservationWindow::release(),
-            |_snapshot| false,
-        )
+        .until_agent(&awaited_agent_id, |_snapshot| false)
         .await;
 
     assert!(matches!(

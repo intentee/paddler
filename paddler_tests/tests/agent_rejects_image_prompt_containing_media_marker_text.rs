@@ -2,8 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -14,11 +14,14 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
-use tokio_util::sync::CancellationToken;
+
+const LLAMA_CPP_DEFAULT_MEDIA_MARKER: &str = "<__media__>";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_image_prompt_containing_media_marker_text() -> Result<()> {
-    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;
+async fn agent_rejects_image_prompt_containing_media_marker_text() {
+    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -29,11 +32,11 @@ async fn agent_rejects_image_prompt_containing_media_marker_text() -> Result<()>
                     content: ConversationMessageContent::Parts(vec![
                         ConversationMessageContentPart::ImageUrl {
                             image_url: ImageUrl {
-                                url: load_test_image_data_uri()?,
+                                url: load_test_image_data_uri().expect("the test image must load"),
                             },
                         },
                         ConversationMessageContentPart::Text {
-                            text: format!("What does {} mean?", mtmd_default_marker()?),
+                            text: format!("What does {LLAMA_CPP_DEFAULT_MEDIA_MARKER} mean?"),
                         },
                     ]),
                     role: "user".to_owned(),
@@ -45,21 +48,19 @@ async fn agent_rejects_image_prompt_containing_media_marker_text() -> Result<()>
                 tools: vec![],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     assert_eq!(
-        collected
-            .token_results
-            .into_iter()
-            .map(|result| result.token_result)
-            .collect::<Vec<GeneratedTokenResult>>(),
-        vec![GeneratedTokenResult::SamplerError(
-            "Some(\"test-agent\"): failed to tokenize multimodal input: media preprocessing failed (image or audio)"
+        collected.into_token_results(),
+        vec![GeneratedTokenResult::MultimodalTokenizationFailed(
+            "test-agent: failed to tokenize multimodal input: media preprocessing failed (image or audio)"
                 .to_owned(),
         )]
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

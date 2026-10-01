@@ -1,7 +1,6 @@
+use llama_cpp_bindings_types::TokenUsage;
 use serde::Deserialize;
 use serde::Serialize;
-
-use llama_cpp_bindings_types::TokenUsage;
 
 use crate::generation_finish::GenerationFinish;
 

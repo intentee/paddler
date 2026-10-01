@@ -9,7 +9,7 @@ use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_a
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() {
-    let ModelCard { reference, .. } = nomic_embed_text_v1_5();
+    let ModelCard { reference } = nomic_embed_text_v1_5();
     let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
         model: AgentDesiredModel::HuggingFace(reference),
         ..BalancerDesiredState::default()

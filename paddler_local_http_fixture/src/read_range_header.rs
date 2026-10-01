@@ -2,6 +2,8 @@ use std::io;
 use std::io::ErrorKind;
 
 use http::header::RANGE;
+use httparse::EMPTY_HEADER;
+use httparse::Request;
 use tokio::io::AsyncReadExt as _;
 use tokio::net::TcpStream;
 
@@ -11,8 +13,8 @@ pub async fn read_range_header(stream: &mut TcpStream) -> io::Result<Option<Vec<
     let mut received = Vec::new();
 
     loop {
-        let mut parsed_headers = [httparse::EMPTY_HEADER; MAX_REQUEST_HEADERS];
-        let mut request = httparse::Request::new(&mut parsed_headers);
+        let mut parsed_headers = [EMPTY_HEADER; MAX_REQUEST_HEADERS];
+        let mut request = Request::new(&mut parsed_headers);
 
         if request
             .parse(&received)

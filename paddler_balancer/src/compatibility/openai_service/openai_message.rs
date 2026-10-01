@@ -1,6 +1,7 @@
+use serde::Deserialize;
+
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct OpenAIMessage {
@@ -20,6 +21,7 @@ impl OpenAIMessage {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::from_value;
     use serde_json::json;
 
     use super::OpenAIMessage;
@@ -34,7 +36,7 @@ mod tests {
             ]
         });
 
-        let openai_message: OpenAIMessage = serde_json::from_value(input).unwrap();
+        let openai_message: OpenAIMessage = from_value(input).unwrap();
         let conversation_message = openai_message.into_conversation_message();
 
         assert_eq!(conversation_message.role, "user");

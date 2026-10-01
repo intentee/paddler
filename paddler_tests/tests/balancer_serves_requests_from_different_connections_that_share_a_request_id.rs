@@ -31,7 +31,7 @@ async fn balancer_serves_requests_from_different_connections_that_share_a_reques
         agents: AgentConfig::uniform(1, 2),
         desired_state: Some(qwen3_desired_state()),
         wait_for_slots_ready: true,
-        ..ClusterParams::without_request_expiry()
+        ..ClusterParams::default()
     })
     .await
     .expect("a two-slot qwen3 cluster must start");

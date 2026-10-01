@@ -14,36 +14,34 @@ actix-web = { workspace = true }
 actix-web-lab = { workspace = true }
 actix-ws = { workspace = true }
 anyhow = { workspace = true }
+askama = { workspace = true, optional = true }
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 cadence = { workspace = true }
 dashmap = { workspace = true }
+esbuild-metafile = { workspace = true, optional = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 indoc = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
+mime_guess = { workspace = true, optional = true }
 nanoid = { workspace = true }
+paddler_inference_parameters = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_request_registry = { workspace = true }
+paddler_state_database = { workspace = true }
 parking_lot = { workspace = true }
+rust-embed = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-shellexpand = { workspace = true }
 socket2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
-url = { workspace = true }
-paddler_inference_parameters = { workspace = true }
-paddler_messaging = { workspace = true }
-
-# web dashboard deps
-askama = { workspace = true, optional = true }
-esbuild-metafile = { workspace = true, optional = true }
-mime_guess = { workspace = true, optional = true }
-rust-embed = { workspace = true, optional = true }
 
 [features]
 default = []

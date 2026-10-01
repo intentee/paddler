@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 
 use anyhow::Result;
-use paddler_balancer::balancer_addresses::BalancerAddresses;
 use url::Url;
+
+use paddler_balancer::balancer_addresses::BalancerAddresses;
 
 use crate::cluster_harness_error::ClusterHarnessError;
 use crate::managed_process::ManagedProcess;
@@ -41,7 +42,7 @@ impl RunningBalancer {
         base_url_for(self.addresses.management)
     }
 
-    pub async fn shutdown(mut self) -> Result<()> {
+    pub async fn shutdown(self) -> Result<()> {
         self.process.shutdown().await
     }
 }

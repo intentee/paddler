@@ -1,8 +1,10 @@
 use tokio_util::sync::CancellationToken;
+use trzcina::ServiceShutdownOptions;
+
+use crate::agent_bootstrap_config::AgentBootstrapConfig;
 
 pub struct AgentRunnerParams {
-    pub agent_name: Option<String>,
+    pub bootstrap_config: AgentBootstrapConfig,
     pub cancellation_token: CancellationToken,
-    pub management_address: String,
-    pub slots: i32,
+    pub shutdown_options: ServiceShutdownOptions,
 }

@@ -1,13 +1,14 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use futures_util::StreamExt as _;
+
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::streamable_result::StreamableResult as _;
 
+use crate::cluster_harness_error::ClusterHarnessError;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
 use crate::token_result_with_producer::TokenResultWithProducer;
 
@@ -40,16 +41,16 @@ pub async fn collect_generated_tokens(
                 }
             }
             InferenceMessage::Error(error_envelope) => {
-                return Err(anyhow!(
-                    "inference stream returned JSON-RPC error code {} ({})",
-                    error_envelope.error.code,
-                    error_envelope.error.description
-                ));
+                return Err(ClusterHarnessError::TokenStreamReturnedError {
+                    error: error_envelope.error,
+                }
+                .into());
             }
             unexpected_message => {
-                return Err(anyhow!(
-                    "unexpected message on a token-generation stream: {unexpected_message:?}"
-                ));
+                return Err(ClusterHarnessError::TokenStreamMessageUnexpected {
+                    message: Box::new(unexpected_message),
+                }
+                .into());
             }
         }
     }

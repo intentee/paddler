@@ -14,7 +14,6 @@ name = "integration"
 path = "tests/main.rs"
 
 [dependencies]
-anyhow = { workspace = true }
 bytes = { workspace = true }
 futures-util = { workspace = true }
 headers = { workspace = true }

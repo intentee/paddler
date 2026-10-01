@@ -1,3 +1,4 @@
+pub mod all_gpu_layers;
 pub mod batch_size;
 pub mod inference_parameters;
 pub mod invalid_inference_parameters;

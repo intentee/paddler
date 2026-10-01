@@ -2,7 +2,10 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use serde_json::Map;
+use serde_json::json;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -15,19 +18,17 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
-use serde_json::Map;
-use serde_json::json;
-use tokio_util::sync::CancellationToken;
 
 const SEQUENCE_CONTEXT_SIZE: u32 = 256;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_oversized_conversation_before_compiling_its_tools() -> Result<()> {
+async fn agent_rejects_oversized_conversation_before_compiling_its_tools() {
     let cluster = start_cluster_with_qwen3_and_context_size(
         vec![AgentConfig::single(1)],
         SEQUENCE_CONTEXT_SIZE,
     )
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let mut invalid_properties = Map::new();
     invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
@@ -61,7 +62,8 @@ async fn agent_rejects_oversized_conversation_before_compiling_its_tools() -> Re
                 })],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     assert!(matches!(
         collected
@@ -74,7 +76,8 @@ async fn agent_rejects_oversized_conversation_before_compiling_its_tools() -> Re
             if details.sequence_context_size == SEQUENCE_CONTEXT_SIZE
     ));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

@@ -2,24 +2,24 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_running() -> Result<()> {
-    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)]).await?;
+async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_running() {
+    let mut cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)])
+        .await
+        .expect("the cluster must start");
 
     let agent_id = cluster
         .agent_ids
         .first()
-        .context("cluster must have one registered agent")?
+        .expect("cluster must have one registered agent")
         .clone();
 
     let cancelled_request_token = CancellationToken::new();
@@ -36,7 +36,7 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
             },
         )
         .await
-        .map_err(anyhow::Error::new)?;
+        .expect("the inference request must be accepted");
 
     let kept_stream = cluster
         .client_inference
@@ -49,18 +49,18 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
             },
         )
         .await
-        .map_err(anyhow::Error::new)?;
+        .expect("the inference request must be accepted");
 
     cluster
-        .wait_for_slots_processing(&agent_id, 2, ObservationWindow::model_load())
+        .wait_for_slots_processing(&agent_id, 2)
         .await
-        .context("both requests should occupy a slot")?;
+        .expect("both requests should occupy a slot");
 
     cancelled_stream
         .next()
         .await
-        .context("the cancelled request must produce at least one message first")?
-        .map_err(anyhow::Error::new)?;
+        .expect("the cancelled request must produce at least one message first")
+        .expect("the message must be readable");
 
     cancelled_request_token.cancel();
 
@@ -69,7 +69,9 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
         "the cancelled request must end its stream"
     );
 
-    let kept_tokens = collect_generated_tokens(kept_stream).await?;
+    let kept_tokens = collect_generated_tokens(kept_stream)
+        .await
+        .expect("the generated tokens must be collected");
 
     assert!(
         !kept_tokens.token_results.is_empty(),
@@ -77,11 +79,12 @@ async fn inference_socket_cancelling_one_request_leaves_a_sibling_request_runnin
     );
 
     cluster
-        .wait_for_slots_processing(&agent_id, 0, ObservationWindow::model_load())
+        .wait_for_slots_processing(&agent_id, 0)
         .await
-        .context("both slots should be released once the sibling request completes")?;
+        .expect("both slots should be released once the sibling request completes");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

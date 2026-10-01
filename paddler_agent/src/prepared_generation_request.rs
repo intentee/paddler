@@ -1,7 +1,8 @@
 use std::num::NonZeroU32;
 
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
+
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
 use crate::prepared_prompt::PreparedPrompt;
 use crate::slot_guard::SlotGuard;

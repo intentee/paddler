@@ -1,5 +1,7 @@
-use paddler_bootstrap::balancer_runner::BalancerRunner;
+use reqwest::get;
 use tokio_util::sync::CancellationToken;
+
+use paddler_bootstrap::balancer_runner::BalancerRunner;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
@@ -9,13 +11,13 @@ async fn balancer_runner_serves_on_the_addresses_it_reports() {
         .await
         .expect("a runner on ephemeral ports must start");
 
-    let inference_health = reqwest::get(format!("http://{}/health", runner.addresses.inference))
+    let inference_health = get(format!("http://{}/health", runner.addresses.inference))
         .await
         .expect("the inference service must accept connections on its reported address")
         .text()
         .await
         .expect("the inference health response must have a body");
-    let management_health = reqwest::get(format!("http://{}/health", runner.addresses.management))
+    let management_health = get(format!("http://{}/health", runner.addresses.management))
         .await
         .expect("the management service must accept connections on its reported address")
         .text()

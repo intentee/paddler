@@ -2,16 +2,13 @@ use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::error::ErrorInternalServerError;
-use actix_web::get;
 use actix_web::web;
+use actix_web::web::get;
+
+use paddler_messaging::api_path::ApiPath;
 
 use crate::management_service::app_data::AppData;
 
-pub fn register(cfg: &mut web::ServiceConfig) {
-    cfg.service(respond);
-}
-
-#[get("/api/v1/balancer_desired_state")]
 async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> {
     let desired_state = app_data
         .state_database
@@ -20,6 +17,10 @@ async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> 
         .map_err(ErrorInternalServerError)?;
 
     Ok(HttpResponse::Ok().json(desired_state))
+}
+
+pub fn get_balancer_desired_state(cfg: &mut web::ServiceConfig) {
+    cfg.route(ApiPath::BALANCER_DESIRED_STATE, get().to(respond));
 }
 
 #[cfg(test)]
@@ -38,22 +39,21 @@ mod tests {
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use super::register;
+    use paddler_inference_parameters::inference_parameters::InferenceParameters;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::api_path::ApiPath;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_state_database::file::File;
+    use paddler_state_database::memory::Memory;
+    use paddler_state_database::state_database::StateDatabase;
+
+    use super::get_balancer_desired_state;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::agent_response_senders::AgentResponseSenders;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
-    use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-    use crate::embedding_sender_collection::EmbeddingSenderCollection;
-    use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
     use crate::management_service::app_data::AppData;
-    use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
-    use crate::state_database::StateDatabase;
-    use crate::state_database::file::File;
-    use crate::state_database::memory::Memory;
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {
@@ -66,12 +66,7 @@ mod tests {
                 Duration::from_secs(1),
                 10,
             )),
-            chat_template_override_sender_collection: Arc::new(
-                ChatTemplateOverrideSenderCollection::default(),
-            ),
-            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
-            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
-            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            agent_response_senders: AgentResponseSenders::default(),
             shutdown: CancellationToken::new(),
             state_database,
             statsd_prefix: "paddler".to_owned(),
@@ -94,9 +89,14 @@ mod tests {
             stored_state.clone(),
         ));
         let app_data = build_app_data(state_database);
-        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let app = init_service(
+            App::new()
+                .app_data(app_data)
+                .configure(get_balancer_desired_state),
+        )
+        .await;
         let request = TestRequest::get()
-            .uri("/api/v1/balancer_desired_state")
+            .uri(ApiPath::BALANCER_DESIRED_STATE)
             .to_request();
         let response = call_service(&app, request).await;
 
@@ -117,9 +117,14 @@ mod tests {
             temp_dir.path().to_path_buf(),
         ));
         let app_data = build_app_data(state_database);
-        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let app = init_service(
+            App::new()
+                .app_data(app_data)
+                .configure(get_balancer_desired_state),
+        )
+        .await;
         let request = TestRequest::get()
-            .uri("/api/v1/balancer_desired_state")
+            .uri(ApiPath::BALANCER_DESIRED_STATE)
             .to_request();
         let response = call_service(&app, request).await;
 

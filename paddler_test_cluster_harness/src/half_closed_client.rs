@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use anyhow::Context as _;
 use anyhow::Result;
 use serde::Serialize;
+use serde_json::to_string;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
 
@@ -21,7 +22,7 @@ impl HalfClosedClient {
     where
         TBody: Serialize,
     {
-        let serialized_body = serde_json::to_string(body)?;
+        let serialized_body = to_string(body)?;
         let request = format!(
             "POST {path} HTTP/1.1\r\n\
              Host: {addr}\r\n\
@@ -56,9 +57,11 @@ mod tests {
     use serde_json::json;
     use tokio::io::AsyncReadExt as _;
     use tokio::net::TcpListener;
+    use tokio::spawn;
 
     use super::HalfClosedClient;
     use crate::cluster_harness_error::ClusterHarnessError;
+    use crate::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 
     #[tokio::test]
     async fn reports_the_address_it_could_not_reach() {
@@ -81,13 +84,13 @@ mod tests {
 
     #[tokio::test]
     async fn sends_the_request_and_leaves_the_read_side_open() {
-        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        let listener = TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
             .await
             .expect("the receiving socket must bind");
         let addr = listener
             .local_addr()
             .expect("the receiving socket must report its address");
-        let accepted = tokio::spawn(async move {
+        let accepted = spawn(async move {
             let (mut accepted_socket, _peer) = listener
                 .accept()
                 .await

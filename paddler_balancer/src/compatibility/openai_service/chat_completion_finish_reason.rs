@@ -5,14 +5,11 @@ pub const fn chat_completion_finish_reason(
     finish: GenerationFinish,
     saw_tool_call: bool,
 ) -> &'static str {
-    match finish {
-        GenerationFinish::MaxTokens => "length",
-        GenerationFinish::EndOfGeneration | GenerationFinish::StopRequested => {
-            if saw_tool_call {
-                "tool_calls"
-            } else {
-                "stop"
-            }
-        }
+    if finish.reached_a_length_limit() {
+        "length"
+    } else if saw_tool_call {
+        "tool_calls"
+    } else {
+        "stop"
     }
 }

@@ -1,7 +1,8 @@
+use tokio::sync::mpsc;
+
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
-use tokio::sync::mpsc;
 
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::slot_guard::SlotGuard;

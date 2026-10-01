@@ -1,7 +1,8 @@
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_serves_the_applicable_state_of_the_desired_state() {

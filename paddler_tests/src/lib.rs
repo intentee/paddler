@@ -3,6 +3,7 @@ pub mod conversation_with_a_tool_requiring_an_undeclared_property;
 pub mod desired_state_with_halved_image_resize;
 pub mod gbnf_literal;
 pub mod get_weather_tool;
+pub mod image_description_conversation;
 pub mod in_process_agent;
 pub mod in_process_agent_spawner;
 pub mod in_process_balancer;

@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
+use tokio::spawn;
 use tokio::task::JoinHandle;
 
 use crate::fixture_response::FixtureResponse;
@@ -33,7 +34,7 @@ impl LocalHttpFixture {
         let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).await?;
         let addr = listener.local_addr()?;
         let observed_requests = Arc::new(ObservedRequests::new());
-        let serving_task = tokio::spawn(serve_sequentially(
+        let serving_task = spawn(serve_sequentially(
             listener,
             response,
             observed_requests.clone(),

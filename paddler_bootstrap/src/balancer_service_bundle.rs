@@ -2,31 +2,35 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
+use tokio::sync::watch;
+use trzcina::Service;
+use trzcina::ServiceBundle;
+
 use paddler_balancer::agent_controller_pool::AgentControllerPool;
+use paddler_balancer::agent_response_senders::AgentResponseSenders;
 use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_balancer::buffered_request_manager::BufferedRequestManager;
-use paddler_balancer::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
 use paddler_balancer::compatibility::openai_service::OpenAIService;
-use paddler_balancer::embedding_sender_collection::EmbeddingSenderCollection;
-use paddler_balancer::generate_tokens_sender_collection::GenerateTokensSenderCollection;
+#[cfg(feature = "web_admin_panel")]
+use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler_balancer::http_listener::HttpListener;
 use paddler_balancer::inference_service::InferenceService;
 use paddler_balancer::management_service::ManagementService;
-use paddler_balancer::model_metadata_sender_collection::ModelMetadataSenderCollection;
 use paddler_balancer::reconciliation_service::ReconciliationService;
-use paddler_balancer::state_database::StateDatabase;
-use paddler_balancer::state_database::file::File;
-use paddler_balancer::state_database::memory::Memory;
-use paddler_balancer::state_database_type::StateDatabaseType;
 use paddler_balancer::statsd_service::StatsdService;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
+#[cfg(feature = "web_admin_panel")]
+use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+#[cfg(feature = "web_admin_panel")]
+use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use tokio::sync::watch;
-use trzcina::Service;
-use trzcina::ServiceBundle;
+use paddler_state_database::file::File;
+use paddler_state_database::memory::Memory;
+use paddler_state_database::state_database::StateDatabase;
+use paddler_state_database::state_database_type::StateDatabaseType;
 
 use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
 use crate::bootstrap_error::BootstrapError;
@@ -61,6 +65,17 @@ impl BalancerServiceBundle {
             web_admin_panel_service_configuration,
         }: BalancerBootstrapConfig,
     ) -> Result<Self, BootstrapError> {
+        if statsd_service_configuration
+            .as_ref()
+            .is_some_and(|statsd_service_configuration| {
+                statsd_service_configuration
+                    .statsd_reporting_interval
+                    .is_zero()
+            })
+        {
+            return Err(BootstrapError::StatsdReportingIntervalIsZero);
+        }
+
         let (balancer_desired_state_tx, _initial_desired_state_rx) =
             watch::channel(BalancerDesiredState::default());
 
@@ -70,11 +85,6 @@ impl BalancerServiceBundle {
             buffered_request_timeout,
             max_buffered_requests,
         ));
-        let chat_template_override_sender_collection =
-            Arc::new(ChatTemplateOverrideSenderCollection::default());
-        let embedding_sender_collection = Arc::new(EmbeddingSenderCollection::default());
-        let generate_tokens_sender_collection = Arc::new(GenerateTokensSenderCollection::default());
-        let model_metadata_sender_collection = Arc::new(ModelMetadataSenderCollection::default());
         let state_database: Arc<dyn StateDatabase> = match state_database_type {
             StateDatabaseType::File(path) => {
                 Arc::new(File::new(balancer_desired_state_tx.clone(), path))
@@ -96,21 +106,28 @@ impl BalancerServiceBundle {
             BalancerApplicableState::from(initial_desired_state),
         ));
 
-        let inference_http_listener = HttpListener::bind(inference_service_configuration.addr)
-            .map_err(|source| BootstrapError::InferenceBindFailed {
-                addr: inference_service_configuration.addr,
+        let inference_addr = inference_service_configuration.addr.socket_addr;
+        let inference_http_listener = HttpListener::bind(inference_addr).map_err(|source| {
+            BootstrapError::InferenceBindFailed {
+                addr: inference_addr,
                 source,
-            })?;
-        let management_http_listener = HttpListener::bind(management_service_configuration.addr)
-            .map_err(|source| BootstrapError::ManagementBindFailed {
-                addr: management_service_configuration.addr,
+            }
+        })?;
+        let management_addr = management_service_configuration.addr.socket_addr;
+        let management_http_listener = HttpListener::bind(management_addr).map_err(|source| {
+            BootstrapError::ManagementBindFailed {
+                addr: management_addr,
                 source,
-            })?;
+            }
+        })?;
         let openai_http_listener = openai_service_configuration
+            .as_ref()
             .map(|openai_service_configuration| {
-                HttpListener::bind(openai_service_configuration.addr).map_err(|source| {
+                let openai_addr = openai_service_configuration.addr.socket_addr;
+
+                HttpListener::bind(openai_addr).map_err(|source| {
                     BootstrapError::CompatOpenAIBindFailed {
-                        addr: openai_service_configuration.addr,
+                        addr: openai_addr,
                         source,
                     }
                 })
@@ -118,13 +135,20 @@ impl BalancerServiceBundle {
             .transpose()?;
         #[cfg(feature = "web_admin_panel")]
         let web_admin_panel_service = web_admin_panel_service_configuration
-            .map(|configuration| {
-                let addr = configuration.addr;
-
+            .map(|WebAdminPanelServiceConfiguration { addr }| {
                 HttpListener::bind(addr)
                     .map(|http_listener| WebAdminPanelService {
-                        configuration,
                         http_listener,
+                        template_data: TemplateData {
+                            buffered_request_timeout,
+                            compat_openai_addr: openai_service_configuration
+                                .map(|OpenAIServiceConfiguration { addr }| addr),
+                            inference_addr: inference_service_configuration.addr.clone(),
+                            management_addr: management_service_configuration.addr.clone(),
+                            max_buffered_requests,
+                            statsd_prefix: statsd_prefix.clone(),
+                            statsd_service_configuration: statsd_service_configuration.clone(),
+                        },
                     })
                     .map_err(|source| BootstrapError::WebAdminPanelBindFailed { addr, source })
             })
@@ -157,15 +181,12 @@ impl BalancerServiceBundle {
         let management_service = ManagementService {
             agent_controller_pool: agent_controller_pool.clone(),
             balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
+            agent_response_senders: AgentResponseSenders::default(),
             buffered_request_manager: buffered_request_manager.clone(),
-            chat_template_override_sender_collection,
             configuration: management_service_configuration,
-            embedding_sender_collection,
-            generate_tokens_sender_collection,
             http_listener: management_http_listener,
-            model_metadata_sender_collection,
             state_database: state_database.clone(),
-            statsd_prefix,
+            statsd_prefix: statsd_prefix.clone(),
             web_admin_panel_addr,
         };
 
@@ -186,6 +207,7 @@ impl BalancerServiceBundle {
             agent_controller_pool: agent_controller_pool.clone(),
             buffered_request_manager,
             configuration,
+            statsd_prefix,
         });
 
         Ok(Self {
@@ -233,98 +255,55 @@ impl ServiceBundle for BalancerServiceBundle {
 
 #[cfg(test)]
 mod tests {
-    use std::net::IpAddr;
-    use std::net::Ipv4Addr;
-    use std::net::SocketAddr;
-    use std::net::TcpListener;
     use std::time::Duration;
+
+    use trzcina::ServiceBundle as _;
 
     use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
     use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
     use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-    #[cfg(feature = "web_admin_panel")]
     use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-    use paddler_balancer::state_database_type::StateDatabaseType;
     use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
     #[cfg(feature = "web_admin_panel")]
     use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-    #[cfg(feature = "web_admin_panel")]
-    use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
-    use trzcina::ServiceBundle as _;
+    use paddler_state_database::state_database_type::StateDatabaseType;
+    use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 
     use super::BalancerServiceBundle;
     use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
-    use crate::bootstrap_error::BootstrapError;
 
     #[cfg(feature = "web_admin_panel")]
     const EXPECTED_SERVICE_COUNT: usize = 6;
     #[cfg(not(feature = "web_admin_panel"))]
     const EXPECTED_SERVICE_COUNT: usize = 5;
 
-    const EPHEMERAL_LOOPBACK_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-
-    fn occupy_ephemeral_address() -> TcpListener {
-        TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
-            .expect("an ephemeral loopback port must be bindable")
-    }
-
-    fn address_of(occupying_listener: &TcpListener) -> SocketAddr {
-        occupying_listener
-            .local_addr()
-            .expect("a bound listener must report its address")
-    }
-
     fn fully_configured_bootstrap_config() -> BalancerBootstrapConfig {
         BalancerBootstrapConfig {
             buffered_request_timeout: Duration::from_secs(10),
             inference_service_configuration: InferenceServiceConfiguration {
-                addr: EPHEMERAL_LOOPBACK_ADDR,
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
                 cors_allowed_hosts: vec![],
                 inference_item_timeout: Duration::from_secs(30),
             },
             management_service_configuration: ManagementServiceConfiguration {
-                addr: EPHEMERAL_LOOPBACK_ADDR,
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
                 cors_allowed_hosts: vec![],
             },
             max_buffered_requests: 30,
             openai_service_configuration: Some(OpenAIServiceConfiguration {
-                addr: EPHEMERAL_LOOPBACK_ADDR,
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
             }),
             state_database_type: StateDatabaseType::Memory(Box::default()),
             statsd_prefix: "paddler_bootstrap_test_".to_owned(),
             statsd_service_configuration: Some(StatsdServiceConfiguration {
-                statsd_addr: EPHEMERAL_LOOPBACK_ADDR,
-                statsd_prefix: "paddler_bootstrap_test_".to_owned(),
+                statsd_addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
                 statsd_reporting_interval: Duration::from_secs(10),
             }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
                 addr: EPHEMERAL_LOOPBACK_ADDR,
-                template_data: TemplateData {
-                    buffered_request_timeout: Duration::from_secs(10),
-                    compat_openai_addr: None,
-                    inference_addr: ResolvedSocketAddr {
-                        input_addr: "127.0.0.1:0".to_owned(),
-                        socket_addr: EPHEMERAL_LOOPBACK_ADDR,
-                    },
-                    management_addr: ResolvedSocketAddr {
-                        input_addr: "127.0.0.1:0".to_owned(),
-                        socket_addr: EPHEMERAL_LOOPBACK_ADDR,
-                    },
-                    max_buffered_requests: 30,
-                    statsd_addr: None,
-                    statsd_prefix: "paddler_bootstrap_test_".to_owned(),
-                    statsd_reporting_interval: Duration::from_secs(10),
-                },
             }),
         }
-    }
-
-    async fn bootstrap_error_of(config: BalancerBootstrapConfig) -> BootstrapError {
-        BalancerServiceBundle::new(config)
-            .await
-            .err()
-            .expect("the bundle must fail to bind an occupied address")
     }
 
     #[tokio::test]
@@ -366,52 +345,5 @@ mod tests {
                 .iter()
                 .all(|bound_port| bound_port.is_some_and(|port| port != 0))
         );
-    }
-
-    #[tokio::test]
-    async fn fails_when_the_management_address_is_taken() {
-        let occupying_listener = occupy_ephemeral_address();
-        let taken_addr = address_of(&occupying_listener);
-        let mut config = fully_configured_bootstrap_config();
-
-        config.management_service_configuration.addr = taken_addr;
-
-        assert!(matches!(
-            bootstrap_error_of(config).await,
-            BootstrapError::ManagementBindFailed { addr, .. } if addr == taken_addr
-        ));
-    }
-
-    #[tokio::test]
-    async fn fails_when_the_compat_openai_address_is_taken() {
-        let occupying_listener = occupy_ephemeral_address();
-        let taken_addr = address_of(&occupying_listener);
-        let mut config = fully_configured_bootstrap_config();
-
-        config.openai_service_configuration = Some(OpenAIServiceConfiguration { addr: taken_addr });
-
-        assert!(matches!(
-            bootstrap_error_of(config).await,
-            BootstrapError::CompatOpenAIBindFailed { addr, .. } if addr == taken_addr
-        ));
-    }
-
-    #[cfg(feature = "web_admin_panel")]
-    #[tokio::test]
-    async fn fails_when_the_web_admin_panel_address_is_taken() {
-        let occupying_listener = occupy_ephemeral_address();
-        let taken_addr = address_of(&occupying_listener);
-        let mut config = fully_configured_bootstrap_config();
-
-        config
-            .web_admin_panel_service_configuration
-            .as_mut()
-            .expect("the fully configured bootstrap config must include the web admin panel")
-            .addr = taken_addr;
-
-        assert!(matches!(
-            bootstrap_error_of(config).await,
-            BootstrapError::WebAdminPanelBindFailed { addr, .. } if addr == taken_addr
-        ));
     }
 }

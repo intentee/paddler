@@ -5,8 +5,13 @@ use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ChatMessageParser;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
+use rand::Rng as _;
+use rand::rng;
+use serde_json::to_string;
+
 use paddler_image_decoder::decoded_image::DecodedImage;
 use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
@@ -14,11 +19,9 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
-use rand::Rng as _;
 
+use crate::agent_request::AgentRequest;
 use crate::chat_prompt_render_request::ChatPromptRenderRequest;
-use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
 use crate::generation_request_rejection::GenerationRequestRejection;
 use crate::image_input::ImageInput;
@@ -48,17 +51,17 @@ pub struct GenerationRequestPreparer {
 impl GenerationRequestPreparer {
     pub fn prepare_raw_prompt(
         &self,
-        ContinueFromRawPromptRequest {
-            generate_tokens_stop_rx,
-            generated_tokens_tx,
+        AgentRequest {
             params:
                 ContinueFromRawPromptParams {
                     grammar,
                     max_tokens,
                     raw_prompt,
                 },
+            response_tx: generated_tokens_tx,
             slot_guard,
-        }: ContinueFromRawPromptRequest,
+            stop_rx: generate_tokens_stop_rx,
+        }: AgentRequest<ContinueFromRawPromptParams, GeneratedTokenResult>,
     ) -> Result<PreparedGenerationRequest, GenerationRequestRejection> {
         let TokenGenerationSupport {
             streaming_markers, ..
@@ -83,9 +86,9 @@ impl GenerationRequestPreparer {
 
     pub fn prepare_conversation_history(
         &self,
-        ContinueFromConversationHistoryRequest {
-            generate_tokens_stop_rx,
-            generated_tokens_tx,
+        AgentRequest {
+            response_tx: generated_tokens_tx,
+            stop_rx: generate_tokens_stop_rx,
             params:
                 ContinueFromConversationHistoryParams {
                     add_generation_prompt,
@@ -97,7 +100,10 @@ impl GenerationRequestPreparer {
                     tools,
                 },
             slot_guard,
-        }: ContinueFromConversationHistoryRequest,
+        }: AgentRequest<
+            ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
+            GeneratedTokenResult,
+        >,
     ) -> Result<PreparedGenerationRequest, GenerationRequestRejection> {
         let TokenGenerationSupport {
             chat_prompt_renderer,
@@ -121,15 +127,22 @@ impl GenerationRequestPreparer {
         })?;
 
         let prompt = match prompt_modality {
-            PromptModality::Multimodal(multimodal_prompt_support) => PreparedPrompt::Multimodal(
-                multimodal_prompt_support.prepare_prompt(
-                    &image_urls
-                        .iter()
-                        .map(|image_url| self.decode_image_bitmap(image_url))
-                        .collect::<Result<Vec<MtmdBitmap>, GenerationRequestRejection>>()?,
-                    raw_prompt,
-                )?,
-            ),
+            PromptModality::Multimodal(multimodal_prompt_support) => {
+                let add_special_tokens = !self
+                    .prompt_tokenizer
+                    .renders_its_own_bos_token(&raw_prompt)?;
+
+                PreparedPrompt::Multimodal(
+                    multimodal_prompt_support.prepare_prompt(
+                        &image_urls
+                            .iter()
+                            .map(|image_url| self.decode_image_bitmap(image_url))
+                            .collect::<Result<Vec<MtmdBitmap>, GenerationRequestRejection>>()?,
+                        raw_prompt,
+                        add_special_tokens,
+                    )?,
+                )
+            }
             PromptModality::TextOnly => {
                 PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?)
             }
@@ -179,7 +192,7 @@ impl GenerationRequestPreparer {
         let grammar = resolve_grammar(grammar, &self.model)?;
         let chain = self
             .sampler_chain_factory
-            .create(rand::rng().random::<u32>())
+            .create(rng().random::<u32>())
             .map_err(GenerationRequestRejection::SamplerChainCreationFailed)?;
 
         Ok(TokenSampling { chain, grammar })
@@ -191,8 +204,8 @@ impl GenerationRequestPreparer {
     ) -> Result<ToolCallPipeline, GenerationRequestRejection> {
         let validator = ToolCallValidator::from_tools(tools)
             .map_err(GenerationRequestRejection::ToolSchemaInvalid)?;
-        let tools_json = serde_json::to_string(tools)
-            .map_err(GenerationRequestRejection::ToolsSerializationFailed)?;
+        let tools_json =
+            to_string(tools).map_err(GenerationRequestRejection::ToolsSerializationFailed)?;
         let chat_message_parser = ChatMessageParser::new(&self.model, &tools_json)
             .map_err(GenerationRequestRejection::ToolCallParserCreationFailed)?;
 

@@ -3,6 +3,9 @@
 use std::num::NonZeroU32;
 
 use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
+use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
@@ -15,19 +18,14 @@ use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache_dtypes_on_metal()
--> Result<()> {
-    let ModelCard {
-        gpu_layer_count,
-        reference,
-    } = qwen3_0_6b();
+async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache_dtypes_on_metal() {
+    let ModelCard { reference } = qwen3_0_6b();
 
     let mut inference_parameters = InferenceParameters {
-        n_gpu_layers: gpu_layer_count,
-        ..InferenceParameters::default()
+        n_gpu_layers: ALL_GPU_LAYERS,
+        ..InferenceParameters::deterministic()
     };
 
     inference_parameters.k_cache_dtype = KvCacheDtype::Q80;
@@ -48,7 +46,8 @@ async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_raw_prompt(
@@ -59,7 +58,8 @@ async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache
                 raw_prompt: "Count from 1 to 3:".to_owned(),
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let token_count = collected
         .token_results
@@ -76,7 +76,8 @@ async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache
         })
     ));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

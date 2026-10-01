@@ -1,53 +1,38 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
+use tokio_util::sync::CancellationToken;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::qwen3_desired_state_with_embeddings::qwen3_desired_state_with_embeddings;
 use paddler_tests::start_cluster_without_model::start_cluster_without_model;
-use tokio_util::sync::CancellationToken;
-
-const NEVER_COMPLETING_GRAMMAR: &str = r#"root ::= "apple " root"#;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn continuous_batch_rejects_embedding_during_active_generation() -> Result<()> {
+async fn continuous_batch_rejects_embedding_during_active_generation() {
     let mut cluster = start_cluster_without_model(
         AgentConfig::uniform(1, 2),
         InferenceParameters::deterministic(),
     )
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let generation_cancellation = CancellationToken::new();
     let mut generation_stream = cluster
-        .continue_from_raw_prompt_stream(
-            generation_cancellation.clone(),
-            &ContinueFromRawPromptParams {
-                grammar: Some(GrammarConstraint::Gbnf {
-                    grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
-                    root: "root".to_owned(),
-                }),
-                max_tokens: NonZeroU32::MAX,
-                raw_prompt: "Repeat the word apple.".to_owned(),
-            },
-        )
-        .await?;
+        .continue_from_raw_prompt_stream(generation_cancellation.clone(), &unending_generation())
+        .await
+        .expect("the inference request must be accepted");
 
     cluster
-        .wait_for_buffered_request_count(1, ObservationWindow::release())
+        .wait_for_buffered_request_count(1)
         .await
-        .context("the generation request must wait in the buffer while the agent has no model")?;
+        .expect("the generation request must wait in the buffer while the agent has no model");
 
     cluster
         .client_management
@@ -62,12 +47,14 @@ async fn continuous_batch_rejects_embedding_during_active_generation() -> Result
                 ..qwen3_desired_state_with_embeddings(true)
             },
         )
-        .await?;
+        .await
+        .expect("the balancer must accept the desired state");
 
     generation_stream
         .next()
         .await
-        .context("the buffered generation request must start streaming tokens")??;
+        .expect("the buffered generation request must start streaming tokens")
+        .expect("the message must be readable");
 
     let collected = cluster
         .generate_embedding_batch(
@@ -80,7 +67,8 @@ async fn continuous_batch_rejects_embedding_during_active_generation() -> Result
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
         )
-        .await?;
+        .await
+        .expect("the embedding batch must be accepted");
 
     assert_eq!(
         collected.embedding_rejected_due_to_active_token_generation_count,
@@ -91,7 +79,8 @@ async fn continuous_batch_rejects_embedding_during_active_generation() -> Result
     generation_cancellation.cancel();
     drop(generation_stream);
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

@@ -9,21 +9,6 @@ use crate::compatibility::openai_service::response_snapshot_event::ResponseSnaps
 use crate::compatibility::openai_service::text_delta_event::TextDeltaEvent;
 use crate::compatibility::openai_service::text_done_event::TextDoneEvent;
 
-#[derive(Serialize)]
-struct WithEmptyLogprobs<'event, TEvent> {
-    #[serde(flatten)]
-    event: &'event TEvent,
-    logprobs: &'static [u8],
-}
-
-#[derive(Serialize)]
-struct TypedEvent<'event, TPayload> {
-    #[serde(rename = "type")]
-    event_type: &'static str,
-    #[serde(flatten)]
-    payload: &'event TPayload,
-}
-
 fn serialize_typed<TPayload, TSerializer>(
     event_type: &'static str,
     payload: &TPayload,
@@ -38,6 +23,21 @@ where
         payload,
     }
     .serialize(serializer)
+}
+
+#[derive(Serialize)]
+struct WithEmptyLogprobs<'event, TEvent> {
+    #[serde(flatten)]
+    event: &'event TEvent,
+    logprobs: &'static [u8],
+}
+
+#[derive(Serialize)]
+struct TypedEvent<'event, TPayload> {
+    #[serde(rename = "type")]
+    event_type: &'static str,
+    #[serde(flatten)]
+    payload: &'event TPayload,
 }
 
 #[derive(Clone, Debug)]
@@ -139,10 +139,12 @@ impl Serialize for ResponsesStreamEvent {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use serde_json::to_value;
 
     use super::ResponseSnapshotEvent;
     use super::ResponsesStreamEvent;
     use super::TextDeltaEvent;
+    use crate::compatibility::openai_service::responses_response_header::ResponsesResponseHeader;
 
     #[test]
     fn reasoning_and_text_delta_carry_their_distinct_event_names_with_the_same_payload_shape() {
@@ -172,11 +174,18 @@ mod tests {
     fn serialized_type_field_matches_event_name() {
         let event = ResponsesStreamEvent::Completed(ResponseSnapshotEvent {
             sequence_number: 7,
-            response: json!({ "id": "resp_0" }),
+            response: ResponsesResponseHeader {
+                created_at: 0,
+                id: "resp_0".to_owned(),
+                instructions: None,
+                model: "test-model".to_owned(),
+                temperature: 1.0,
+                top_p: 1.0,
+            }
+            .in_progress(),
         });
 
-        let serialized =
-            serde_json::to_value(&event).expect("a responses stream event must serialize");
+        let serialized = to_value(&event).expect("a responses stream event must serialize");
 
         assert_eq!(serialized["type"], event.event_name());
         assert_eq!(serialized["sequence_number"], 7);
@@ -194,7 +203,7 @@ mod tests {
         });
 
         assert_eq!(
-            serde_json::to_value(&event).expect("a responses stream event must serialize")["logprobs"],
+            to_value(&event).expect("a responses stream event must serialize")["logprobs"],
             json!([])
         );
     }

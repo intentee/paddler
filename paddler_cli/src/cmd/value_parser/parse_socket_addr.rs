@@ -1,5 +1,6 @@
 use anyhow::Result;
 use command_handler::value_parser::parse_socket_addr::parse_socket_addr as resolve_socket_addr;
+
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 
 pub fn parse_socket_addr(input_addr: &str) -> Result<ResolvedSocketAddr> {

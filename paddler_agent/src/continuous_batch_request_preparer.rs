@@ -4,14 +4,17 @@ use std::sync::mpsc::Sender;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use tokio_util::task::TaskTracker;
 
-use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+use paddler_messaging::embedding_result::EmbeddingResult;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+
+use crate::agent_request::AgentRequest;
 use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
 use crate::continuous_batch_scheduler_command::ContinuousBatchSchedulerCommand;
 use crate::embedding_batch_preparer::EmbeddingBatchPreparer;
 use crate::forward_scheduler_command::forward_scheduler_command;
-use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::generation_request_preparer::GenerationRequestPreparer;
+use crate::generation_request_rejection::GenerationRequestRejection;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 
 pub struct ContinuousBatchRequestPreparer {
@@ -30,10 +33,14 @@ impl ContinuousBatchRequestPreparer {
         self.preparation_tasks
             .spawn_blocking(move || match request {
                 ContinuousBatchPreparationRequest::ContinueFromConversationHistory(request) => {
-                    preparer.accept_conversation_history(request);
+                    preparer.accept_generation(
+                        request,
+                        GenerationRequestPreparer::prepare_conversation_history,
+                    );
                 }
                 ContinuousBatchPreparationRequest::ContinueFromRawPrompt(request) => {
-                    preparer.accept_raw_prompt(request);
+                    preparer
+                        .accept_generation(request, GenerationRequestPreparer::prepare_raw_prompt);
                 }
                 ContinuousBatchPreparationRequest::GenerateEmbeddingBatch(request) => {
                     preparer.accept_embedding_batch(request);
@@ -55,35 +62,29 @@ impl ContinuousBatchRequestPreparer {
         );
     }
 
-    fn forward_generation(&self, prepared: PreparedGenerationRequest) {
-        self.forward(ContinuousBatchSchedulerCommand::Generate(Box::new(
-            prepared,
-        )));
-    }
+    fn accept_generation<TParams>(
+        &self,
+        request: AgentRequest<TParams, GeneratedTokenResult>,
+        prepare: fn(
+            &GenerationRequestPreparer,
+            AgentRequest<TParams, GeneratedTokenResult>,
+        ) -> Result<PreparedGenerationRequest, GenerationRequestRejection>,
+    ) {
+        let generated_tokens_tx = request.response_tx.clone();
 
-    fn accept_raw_prompt(&self, request: ContinueFromRawPromptRequest) {
-        let generated_tokens_tx = request.generated_tokens_tx.clone();
-
-        match self.generation_request_preparer.prepare_raw_prompt(request) {
-            Ok(prepared) => self.forward_generation(prepared),
+        match prepare(&self.generation_request_preparer, request) {
+            Ok(prepared) => self.forward(ContinuousBatchSchedulerCommand::Generate(Box::new(
+                prepared,
+            ))),
             Err(rejection) => rejection.report(self.agent_name.as_deref(), &generated_tokens_tx),
         }
     }
 
-    fn accept_conversation_history(&self, request: ContinueFromConversationHistoryRequest) {
-        let generated_tokens_tx = request.generated_tokens_tx.clone();
-
-        match self
-            .generation_request_preparer
-            .prepare_conversation_history(request)
-        {
-            Ok(prepared) => self.forward_generation(prepared),
-            Err(rejection) => rejection.report(self.agent_name.as_deref(), &generated_tokens_tx),
-        }
-    }
-
-    fn accept_embedding_batch(&self, request: GenerateEmbeddingBatchRequest) {
-        let generated_embedding_tx = request.generated_embedding_tx.clone();
+    fn accept_embedding_batch(
+        &self,
+        request: AgentRequest<GenerateEmbeddingBatchParams, EmbeddingResult>,
+    ) {
+        let generated_embedding_tx = request.response_tx.clone();
 
         match self.embedding_batch_preparer.prepare(request) {
             Ok(prepared) => {

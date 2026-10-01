@@ -10,14 +10,17 @@ use actix_ws::CloseCode;
 use actix_ws::CloseReason;
 use actix_ws::ProtocolError;
 use actix_ws::Session;
+use actix_ws::handle;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures_util::StreamExt as _;
 use log::debug;
 use log::error;
 use log::warn;
-use paddler_messaging::rpc_message::RpcMessage;
 use serde::de::DeserializeOwned;
+use serde_json::Error as SerdeJsonError;
+use serde_json::from_str;
+use tokio::select;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Duration;
@@ -25,13 +28,14 @@ use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::rpc_message::RpcMessage;
+
 use crate::close_reason_for_protocol_error::close_reason_for_protocol_error;
 use crate::continuation_decision::ContinuationDecision;
 use crate::continuation_stop_parameters::ContinuationStopParameters;
-use crate::max_websocket_frame_size::MAX_WEBSOCKET_FRAME_SIZE;
+use crate::max_websocket_message_size::MAX_WEBSOCKET_MESSAGE_SIZE;
 use crate::websocket_session_controller::WebSocketSessionController;
 
-const MAX_CONTINUATION_SIZE: usize = 50 * 1024 * 1024;
 const PING_INTERVAL: Duration = Duration::from_secs(3);
 
 #[async_trait]
@@ -46,6 +50,12 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         deserialized_message: Self::IncomingMessage,
+        websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
+    ) -> ContinuationDecision;
+
+    async fn handle_undeserializable_message(
+        text: &str,
+        deserialization_error: SerdeJsonError,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
     ) -> ContinuationDecision;
 
@@ -82,9 +92,8 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                     &text,
                     WebSocketSessionController::<Self::OutgoingMessage>::new(session.clone()),
                     continuation_stop_tx,
-                );
-
-                ContinuationDecision::Continue
+                )
+                .await
             }
             Some(Err(protocol_error)) => {
                 error!("Error receiving message: {protocol_error:?}");
@@ -96,14 +105,14 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         }
     }
 
-    fn handle_text_message(
+    async fn handle_text_message(
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         text: &str,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
         continuation_stop_tx: UnboundedSender<ContinuationStopParameters>,
-    ) {
-        match serde_json::from_str::<Self::IncomingMessage>(text) {
+    ) -> ContinuationDecision {
+        match from_str::<Self::IncomingMessage>(text) {
             Ok(deserialized_message) => {
                 rt::spawn(async move {
                     if let ContinuationDecision::Stop(stop_parameters) =
@@ -119,9 +128,18 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                         debug!("The connection stopped before the handler asked it to stop");
                     }
                 });
+
+                ContinuationDecision::Continue
             }
-            Err(err) => {
-                error!("Paddler-RPC message could not be deserialized: {err}");
+            Err(deserialization_error) => {
+                error!("Paddler-RPC message could not be deserialized: {deserialization_error}");
+
+                Self::handle_undeserializable_message(
+                    text,
+                    deserialization_error,
+                    websocket_session_controller,
+                )
+                .await
             }
         }
     }
@@ -140,12 +158,12 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     ) -> Result<HttpResponse, Error> {
         let connection_close = CancellationToken::new();
         let context = Arc::new(self.create_context());
-        let (res, mut session, msg_stream) = actix_ws::handle(&req, payload)?;
+        let (res, mut session, msg_stream) = handle(&req, payload)?;
 
         let mut aggregated_msg_stream = msg_stream
-            .max_frame_size(MAX_WEBSOCKET_FRAME_SIZE)
+            .max_frame_size(MAX_WEBSOCKET_MESSAGE_SIZE)
             .aggregate_continuations()
-            .max_continuation_size(MAX_CONTINUATION_SIZE);
+            .max_continuation_size(MAX_WEBSOCKET_MESSAGE_SIZE);
 
         rt::spawn(async move {
             let mut close_reason: Option<CloseReason> = None;
@@ -160,7 +178,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             ping_ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
             loop {
-                tokio::select! {
+                select! {
                     msg = aggregated_msg_stream.next() => {
                         if let ContinuationDecision::Stop(stop_parameters) = Self::handle_aggregated_message(
                             connection_close.clone(),

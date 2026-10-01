@@ -1,53 +1,27 @@
 use std::mem::take;
 
 use llama_cpp_bindings_types::ParsedToolCall;
-use serde_json::Value;
-use serde_json::json;
 
 use crate::compatibility::openai_service::arguments_to_tool_call_string::arguments_to_tool_call_string;
 use crate::compatibility::openai_service::content_part_event::ContentPartEvent;
 use crate::compatibility::openai_service::function_call_arguments_delta_event::FunctionCallArgumentsDeltaEvent;
 use crate::compatibility::openai_service::function_call_arguments_done_event::FunctionCallArgumentsDoneEvent;
-use crate::compatibility::openai_service::function_call_item::function_call_item;
-use crate::compatibility::openai_service::message_item_done::message_item_done;
 use crate::compatibility::openai_service::open_item::OpenItem;
 use crate::compatibility::openai_service::output_item_event::OutputItemEvent;
-use crate::compatibility::openai_service::output_text_part::output_text_part;
-use crate::compatibility::openai_service::reasoning_item_done::reasoning_item_done;
+use crate::compatibility::openai_service::responses_content_part::ResponsesContentPart;
+use crate::compatibility::openai_service::responses_output_item::ResponsesOutputItem;
+use crate::compatibility::openai_service::responses_output_item_kind::ResponsesOutputItemKind;
 use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
 use crate::compatibility::openai_service::text_delta_event::TextDeltaEvent;
 use crate::compatibility::openai_service::text_done_event::TextDoneEvent;
 
-fn message_item_open(item_id: &str) -> Value {
-    json!({
-        "id": item_id,
-        "type": "message",
-        "role": "assistant",
-        "status": "in_progress",
-        "content": []
-    })
-}
-
-fn reasoning_item_open(item_id: &str) -> Value {
-    json!({
-        "type": "reasoning",
-        "id": item_id,
-        "summary": [],
-        "status": "in_progress"
-    })
-}
-
 #[derive(Default)]
 pub struct ResponsesStreamingState {
-    pub started: bool,
-    sequence_number: u64,
-    output_index: usize,
+    pub finalized_output: Vec<ResponsesOutputItem>,
     open: OpenItem,
-    reasoning_id: String,
-    reasoning_text: String,
-    message_id: String,
-    message_text: String,
-    pub finalized_output: Vec<Value>,
+    output_index: usize,
+    sequence_number: u64,
+    pub started: bool,
 }
 
 impl ResponsesStreamingState {
@@ -59,13 +33,10 @@ impl ResponsesStreamingState {
     }
 
     pub fn close_open_item(&mut self, events: &mut Vec<ResponsesStreamEvent>) {
-        match self.open {
-            OpenItem::None => {}
-            OpenItem::Reasoning => {
-                let item_id = take(&mut self.reasoning_id);
-                let text = take(&mut self.reasoning_text);
-                let output_index = self.output_index;
-
+        let output_index = self.output_index;
+        let item = match take(&mut self.open) {
+            OpenItem::Nothing => return,
+            OpenItem::Reasoning { item_id, text } => {
                 let text_done_sequence_number = self.next_sequence_number();
                 events.push(ResponsesStreamEvent::ReasoningTextDone(TextDoneEvent {
                     sequence_number: text_done_sequence_number,
@@ -75,23 +46,9 @@ impl ResponsesStreamingState {
                     text: text.clone(),
                 }));
 
-                let item = reasoning_item_done(&item_id, &text);
-                let item_done_sequence_number = self.next_sequence_number();
-                events.push(ResponsesStreamEvent::OutputItemDone(OutputItemEvent {
-                    sequence_number: item_done_sequence_number,
-                    output_index,
-                    item: item.clone(),
-                }));
-
-                self.finalized_output.push(item);
-                self.output_index += 1;
-                self.open = OpenItem::None;
+                ResponsesOutputItem::completed_reasoning(item_id, text)
             }
-            OpenItem::Message => {
-                let item_id = take(&mut self.message_id);
-                let text = take(&mut self.message_text);
-                let output_index = self.output_index;
-
+            OpenItem::Message { item_id, text } => {
                 let text_done_sequence_number = self.next_sequence_number();
                 events.push(ResponsesStreamEvent::OutputTextDone(TextDoneEvent {
                     sequence_number: text_done_sequence_number,
@@ -107,92 +64,92 @@ impl ResponsesStreamingState {
                     item_id: item_id.clone(),
                     output_index,
                     content_index: 0,
-                    part: output_text_part(&text),
+                    part: ResponsesContentPart::output_text(text.clone()),
                 }));
 
-                let item = message_item_done(&item_id, &text);
-                let item_done_sequence_number = self.next_sequence_number();
-                events.push(ResponsesStreamEvent::OutputItemDone(OutputItemEvent {
-                    sequence_number: item_done_sequence_number,
-                    output_index,
-                    item: item.clone(),
-                }));
-
-                self.finalized_output.push(item);
-                self.output_index += 1;
-                self.open = OpenItem::None;
+                ResponsesOutputItem::completed_message(item_id, text)
             }
-        }
+        };
+
+        self.finish_item(events, item);
     }
 
     pub fn handle_reasoning(&mut self, events: &mut Vec<ResponsesStreamEvent>, text: &str) {
-        if self.open != OpenItem::Reasoning {
+        let item_id = if let OpenItem::Reasoning {
+            item_id,
+            text: reasoning_text,
+        } = &mut self.open
+        {
+            reasoning_text.push_str(text);
+
+            item_id.clone()
+        } else {
             self.close_open_item(events);
 
-            let output_index = self.output_index;
-            let item_id = format!("rs_{output_index}");
-            self.reasoning_id.clone_from(&item_id);
+            let item_id = ResponsesOutputItemKind::Reasoning.item_id(self.output_index);
 
-            let added_sequence_number = self.next_sequence_number();
-            events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
-                sequence_number: added_sequence_number,
-                output_index,
-                item: reasoning_item_open(&item_id),
-            }));
+            self.add_item(
+                events,
+                ResponsesOutputItem::reasoning_in_progress(item_id.clone()),
+            );
+            self.open = OpenItem::Reasoning {
+                item_id: item_id.clone(),
+                text: text.to_owned(),
+            };
 
-            self.open = OpenItem::Reasoning;
-        }
+            item_id
+        };
 
-        self.reasoning_text.push_str(text);
-
-        let item_id = self.reasoning_id.clone();
-        let output_index = self.output_index;
         let delta_sequence_number = self.next_sequence_number();
         events.push(ResponsesStreamEvent::ReasoningTextDelta(TextDeltaEvent {
             sequence_number: delta_sequence_number,
             item_id,
-            output_index,
+            output_index: self.output_index,
             content_index: 0,
             delta: text.to_owned(),
         }));
     }
 
     pub fn handle_content(&mut self, events: &mut Vec<ResponsesStreamEvent>, text: &str) {
-        if self.open != OpenItem::Message {
+        let item_id = if let OpenItem::Message {
+            item_id,
+            text: message_text,
+        } = &mut self.open
+        {
+            message_text.push_str(text);
+
+            item_id.clone()
+        } else {
             self.close_open_item(events);
 
-            let output_index = self.output_index;
-            let item_id = format!("msg_{output_index}");
-            self.message_id.clone_from(&item_id);
+            let item_id = ResponsesOutputItemKind::Message.item_id(self.output_index);
 
-            let added_sequence_number = self.next_sequence_number();
-            events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
-                sequence_number: added_sequence_number,
-                output_index,
-                item: message_item_open(&item_id),
-            }));
+            self.add_item(
+                events,
+                ResponsesOutputItem::message_in_progress(item_id.clone()),
+            );
 
             let part_added_sequence_number = self.next_sequence_number();
             events.push(ResponsesStreamEvent::ContentPartAdded(ContentPartEvent {
                 sequence_number: part_added_sequence_number,
-                item_id,
-                output_index,
+                item_id: item_id.clone(),
+                output_index: self.output_index,
                 content_index: 0,
-                part: output_text_part(""),
+                part: ResponsesContentPart::output_text(String::new()),
             }));
+            self.open = OpenItem::Message {
+                item_id: item_id.clone(),
+                text: text.to_owned(),
+            };
 
-            self.open = OpenItem::Message;
-        }
+            item_id
+        };
 
-        self.message_text.push_str(text);
-
-        let item_id = self.message_id.clone();
-        let output_index = self.output_index;
         let delta_sequence_number = self.next_sequence_number();
         events.push(ResponsesStreamEvent::OutputTextDelta(TextDeltaEvent {
             sequence_number: delta_sequence_number,
             item_id,
-            output_index,
+            output_index: self.output_index,
             content_index: 0,
             delta: text.to_owned(),
         }));
@@ -207,15 +164,13 @@ impl ResponsesStreamingState {
 
         for call in parsed_calls {
             let output_index = self.output_index;
-            let item_id = format!("fc_{output_index}");
+            let item_id = ResponsesOutputItemKind::FunctionCall.item_id(output_index);
             let arguments = arguments_to_tool_call_string(&call.arguments);
 
-            let added_sequence_number = self.next_sequence_number();
-            events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
-                sequence_number: added_sequence_number,
-                output_index,
-                item: function_call_item(&item_id, &call.id, &call.name, "", "in_progress"),
-            }));
+            self.add_item(
+                events,
+                ResponsesOutputItem::function_call_in_progress(item_id.clone(), call),
+            );
 
             let delta_sequence_number = self.next_sequence_number();
             events.push(ResponsesStreamEvent::FunctionCallArgumentsDelta(
@@ -234,20 +189,37 @@ impl ResponsesStreamingState {
                     item_id: item_id.clone(),
                     output_index,
                     name: call.name.clone(),
-                    arguments: arguments.clone(),
+                    arguments,
                 },
             ));
 
-            let item = function_call_item(&item_id, &call.id, &call.name, &arguments, "completed");
-            let item_done_sequence_number = self.next_sequence_number();
-            events.push(ResponsesStreamEvent::OutputItemDone(OutputItemEvent {
-                sequence_number: item_done_sequence_number,
-                output_index,
-                item: item.clone(),
-            }));
-
-            self.finalized_output.push(item);
-            self.output_index += 1;
+            self.finish_item(
+                events,
+                ResponsesOutputItem::completed_function_call(item_id, call),
+            );
         }
+    }
+
+    fn add_item(&mut self, events: &mut Vec<ResponsesStreamEvent>, item: ResponsesOutputItem) {
+        let added_sequence_number = self.next_sequence_number();
+
+        events.push(ResponsesStreamEvent::OutputItemAdded(OutputItemEvent {
+            sequence_number: added_sequence_number,
+            output_index: self.output_index,
+            item,
+        }));
+    }
+
+    fn finish_item(&mut self, events: &mut Vec<ResponsesStreamEvent>, item: ResponsesOutputItem) {
+        let item_done_sequence_number = self.next_sequence_number();
+
+        events.push(ResponsesStreamEvent::OutputItemDone(OutputItemEvent {
+            sequence_number: item_done_sequence_number,
+            output_index: self.output_index,
+            item: item.clone(),
+        }));
+
+        self.finalized_output.push(item);
+        self.output_index += 1;
     }
 }

@@ -1,17 +1,17 @@
 use std::sync::Arc;
 
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::anyhow;
 use async_trait::async_trait;
 use llama_cpp_bindings_types::ParsedToolCall;
+use parking_lot::Mutex;
+use serde_json::to_string;
+
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-use parking_lot::Mutex;
 
+use crate::agent_relay_error::AgentRelayError;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::compatibility::openai_service::chat_completion_chunk::ChatCompletionChunk;
@@ -31,18 +31,26 @@ pub struct OpenAIStreamingResponseTransformer {
 }
 
 impl OpenAIStreamingResponseTransformer {
-    fn chunk(&self, request_id: &str, payload: ChatCompletionChunkPayload<'_>) -> Result<String> {
-        serde_json::to_string(&ChatCompletionChunk {
+    fn chunk(
+        &self,
+        request_id: &str,
+        payload: ChatCompletionChunkPayload<'_>,
+    ) -> Result<String, AgentRelayError> {
+        to_string(&ChatCompletionChunk {
             created: self.created,
             id: request_id,
             model: &self.model,
             payload,
             system_fingerprint: &self.system_fingerprint,
         })
-        .context("serializing chat completion chunk")
+        .map_err(AgentRelayError::MessageUnserializable)
     }
 
-    fn handle_content(&self, request_id: &str, text: &str) -> Result<Vec<TransformResult>> {
+    fn handle_content(
+        &self,
+        request_id: &str,
+        text: &str,
+    ) -> Result<Vec<TransformResult>, AgentRelayError> {
         self.chunk(
             request_id,
             ChatCompletionChunkPayload::Choice(ChatCompletionChunkChoice::Content(text)),
@@ -54,7 +62,7 @@ impl OpenAIStreamingResponseTransformer {
         &self,
         request_id: &str,
         parsed_calls: &[ParsedToolCall],
-    ) -> Result<Vec<TransformResult>> {
+    ) -> Result<Vec<TransformResult>, AgentRelayError> {
         if parsed_calls.is_empty() {
             return Ok(vec![]);
         }
@@ -72,7 +80,7 @@ impl OpenAIStreamingResponseTransformer {
         &self,
         request_id: &str,
         summary: &GenerationSummary,
-    ) -> Result<Vec<TransformResult>> {
+    ) -> Result<Vec<TransformResult>, AgentRelayError> {
         let saw_tool_call = self.state.lock().saw_tool_call;
         let finish_reason = chat_completion_finish_reason(summary.finish, saw_tool_call);
 
@@ -100,7 +108,10 @@ impl OpenAIStreamingResponseTransformer {
 impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
     type Output = TransformResult;
 
-    async fn transform(&self, message: OutgoingMessage) -> Result<Vec<TransformResult>> {
+    async fn transform(
+        &self,
+        message: OutgoingMessage,
+    ) -> Result<Vec<TransformResult>, AgentRelayError> {
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
                 request_id,
@@ -132,10 +143,8 @@ impl TransformsOutgoingMessage for OpenAIStreamingResponseTransformer {
             }) => self.handle_done(&request_id, &summary),
             other => try_universal_error_chunk(&other)
                 .map(|error_chunk| vec![error_chunk])
-                .ok_or_else(|| {
-                    anyhow!(
-                        "OpenAIStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
-                    )
+                .ok_or_else(|| AgentRelayError::MessageNotRelayable {
+                    message: Box::new(other),
                 }),
         }
     }
@@ -148,6 +157,10 @@ mod tests {
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
+    use parking_lot::Mutex;
+    use serde_json::json;
+
+    use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
@@ -158,14 +171,13 @@ mod tests {
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
     use paddler_messaging::oversized_media_details::OversizedMediaDetails;
-    use parking_lot::Mutex;
-    use serde_json::json;
-
-    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
-    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+    use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 
     use super::OpenAIStreamingResponseTransformer;
     use super::OpenAIStreamingState;
+    use crate::agent_relay_error::AgentRelayError;
+    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
+    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 
     #[must_use]
     pub fn token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
@@ -231,34 +243,6 @@ mod tests {
         )
     }
 
-    pub fn assert_chunk_body_does_not_contain(result: &TransformResult, unexpected: &str) {
-        assert!(
-            matches!(result, TransformResult::Chunk(content) if !content.contains(unexpected)),
-            "expected a chunk without '{unexpected}': {result:?}"
-        );
-    }
-
-    pub fn assert_chunk_body_contains(result: &TransformResult, expected: &str) {
-        assert!(
-            matches!(result, TransformResult::Chunk(content) if content.contains(expected)),
-            "expected a chunk containing '{expected}': {result:?}"
-        );
-    }
-
-    pub fn assert_chunk_body_equals(result: &TransformResult, expected: &str) {
-        assert!(
-            matches!(result, TransformResult::Chunk(content) if content == expected),
-            "expected the chunk {expected}: {result:?}"
-        );
-    }
-
-    pub fn assert_error_body_contains(result: &TransformResult, expected: &str) {
-        assert!(
-            matches!(result, TransformResult::Error(content) if content.contains(expected)),
-            "expected an error containing '{expected}': {result:?}"
-        );
-    }
-
     fn streaming_transformer(include_usage: bool) -> OpenAIStreamingResponseTransformer {
         OpenAIStreamingResponseTransformer {
             created: 0,
@@ -279,10 +263,11 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_equals(
-            &chunks[0],
-            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"logprobs":null,"finish_reason":null}]}"#,
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"},"logprobs":null,"finish_reason":null}]}"#.to_owned()),
+            ]
         );
     }
 
@@ -311,9 +296,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "\"content\":\"ambig\"");
-        assert_chunk_body_does_not_contain(&chunks[0], "reasoning_content");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","content":"ambig"},"logprobs":null,"finish_reason":null}]}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -341,10 +329,11 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_equals(
-            &chunks[0],
-            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"Paris\"}"}}]},"logprobs":null,"finish_reason":null}]}"#,
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"Paris\"}"}}]},"logprobs":null,"finish_reason":null}]}"#.to_owned()),
+            ]
         );
     }
 
@@ -365,8 +354,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "\"finish_reason\":\"tool_calls\"");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}]}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -386,8 +379,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "\"finish_reason\":\"stop\"");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -400,12 +397,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 2);
-        assert_chunk_body_contains(&chunks[0], "\"finish_reason\":\"stop\"");
-        assert_chunk_body_does_not_contain(&chunks[0], "usage");
-        assert_chunk_body_equals(
-            &chunks[1],
-            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":1}}}"#,
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#.to_owned()),
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[],"usage":{"prompt_tokens":7,"completion_tokens":5,"total_tokens":12,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":1}}}"#.to_owned()),
+            ]
         );
     }
 
@@ -419,10 +416,11 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_equals(
-            &chunks[0],
-            r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#,
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}]}"#.to_owned()),
+            ]
         );
     }
 
@@ -437,9 +435,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "bad payload");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"bad payload","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -453,8 +454,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "missing field x");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"missing field x","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -463,24 +468,24 @@ mod tests {
 
         let chunks = transformer
             .transform(token_message(
-                GeneratedTokenResult::UnrecognizedToolCallFormat(
-                    paddler_messaging::raw_tool_call_tokens::RawToolCallTokens {
-                        text: "<unknown_marker>blah</unknown_marker>".to_owned(),
-                        ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
-                    },
-                ),
+                GeneratedTokenResult::UnrecognizedToolCallFormat(RawToolCallTokens {
+                    text: "<unknown_marker>blah</unknown_marker>".to_owned(),
+                    ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
+                }),
             ))
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "common_chat_parse failed: no parser");
-        assert_error_body_contains(&chunks[0], "<unknown_marker>blah</unknown_marker>");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"model produced output the parser did not recognise as any registered tool-call format; FFI error: common_chat_parse failed: no parser; raw text: <unknown_marker>blah</unknown_marker>","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_error_message_returns_error_variant() {
+    async fn streaming_error_message_returns_server_error() {
         let transformer = streaming_transformer(false);
 
         let message = error_message(500, "internal server error");
@@ -489,13 +494,16 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "internal server error");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"internal server error","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_chat_template_error_returns_error_variant() {
+    async fn streaming_chat_template_error_returns_server_error() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ChatTemplateError(
@@ -506,13 +514,16 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "bad template");
-        assert_error_body_contains(&chunks[0], "server_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"bad template","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_image_decoding_failed_returns_error_variant() {
+    async fn streaming_image_decoding_failed_returns_invalid_request_error() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::ImageDecodingFailed(
@@ -523,13 +534,16 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "unsupported format");
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"unsupported format","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_multimodal_not_supported_returns_error_variant() {
+    async fn streaming_multimodal_not_supported_returns_invalid_request_error() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::MultimodalNotSupported(
@@ -540,13 +554,16 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "model does not support images");
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"model does not support images","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_media_exceeding_the_micro_batch_returns_error_variant() {
+    async fn streaming_media_exceeding_the_micro_batch_returns_invalid_request_error() {
         let transformer = streaming_transformer(false);
 
         let message = token_message(GeneratedTokenResult::MediaExceedsMicroBatch(
@@ -560,10 +577,12 @@ mod tests {
             .await
             .expect("the transformer must accept the message");
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "256");
-        assert_error_body_contains(&chunks[0], "128");
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"media required 256 tokens but one agent micro batch holds 128 tokens","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -577,9 +596,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_chunk_body_contains(&chunks[0], "{not valid json");
-        assert_chunk_body_contains(&chunks[0], "\"name\":\"broken_tool\"");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Chunk(r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_invalid","type":"function","function":{"name":"broken_tool","arguments":"{not valid json"}}]},"logprobs":null,"finish_reason":null}]}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -600,16 +622,14 @@ mod tests {
     async fn streaming_embedding_response_returns_invalid_request_error() {
         let transformer = streaming_transformer(false);
 
-        let message = response_message(OutgoingResponse::Embedding(
-            paddler_messaging::embedding_result::EmbeddingResult::Done,
-        ));
+        let message = response_message(OutgoingResponse::Embedding(EmbeddingResult::Done));
         let chunks = transformer.transform(message).await.unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
-        assert_error_body_contains(
-            &chunks[0],
-            "unexpected embedding response in chat completions",
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"unexpected embedding response to a token generation request","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
         );
     }
 
@@ -626,9 +646,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "grammar conflicts with thinking");
-        assert_error_body_contains(&chunks[0], "invalid_request_error");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"grammar conflicts with thinking","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -644,8 +667,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "output rejected by grammar");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"output rejected by grammar","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -661,12 +688,16 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "could not build grammar");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"could not build grammar","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_grammar_syntax_error_returns_server_error() {
+    async fn streaming_grammar_syntax_error_returns_invalid_request_error() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
@@ -676,8 +707,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "bad grammar syntax");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"bad grammar syntax","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
@@ -691,12 +726,16 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "sampler blew up");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"sampler blew up","type":"server_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
-    async fn streaming_tool_schema_invalid_returns_server_error() {
+    async fn streaming_tool_schema_invalid_returns_invalid_request_error() {
         let transformer = streaming_transformer(false);
 
         let chunks = transformer
@@ -706,19 +745,26 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(chunks.len(), 1);
-        assert_error_body_contains(&chunks[0], "schema is not valid");
+        assert_eq!(
+            chunks,
+            vec![
+                TransformResult::Error(r#"{"error":{"message":"schema is not valid","type":"invalid_request_error","param":null,"code":null}}"#.to_owned()),
+            ]
+        );
     }
 
     #[tokio::test]
     async fn rejects_inference_socket_notifications() {
-        assert!(
-            streaming_transformer(false)
-                .transform(OutgoingMessage::Notification(
-                    Notification::TokenGenerationEnabled
-                ))
-                .await
-                .is_err()
-        );
+        let transform_result = streaming_transformer(false)
+            .transform(OutgoingMessage::Notification(
+                Notification::TokenGenerationEnabled,
+            ))
+            .await;
+
+        assert!(matches!(
+            transform_result,
+            Err(AgentRelayError::MessageNotRelayable { message })
+                if matches!(*message, OutgoingMessage::Notification(Notification::TokenGenerationEnabled))
+        ));
     }
 }

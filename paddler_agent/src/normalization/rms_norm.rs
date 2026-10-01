@@ -1,9 +1,7 @@
-use anyhow::Context as _;
-use anyhow::Result;
+use std::num::TryFromIntError;
 
-pub fn rms_norm(embedding: &mut [f32], eps: f32) -> Result<()> {
-    let embedding_length = u16::try_from(embedding.len())
-        .context("embedding length exceeds the supported maximum for normalization")?;
+pub fn rms_norm(embedding: &mut [f32], eps: f32) -> Result<(), TryFromIntError> {
+    let embedding_length = u16::try_from(embedding.len())?;
 
     let mean_square = embedding
         .iter()
@@ -30,7 +28,7 @@ mod tests {
     use super::rms_norm;
 
     #[test]
-    fn test_rms_norm_uniform_values() {
+    fn scales_uniform_values_to_one() {
         let mut embedding = vec![2.0, 2.0, 2.0, 2.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
@@ -40,7 +38,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_mixed_values() {
+    fn divides_mixed_values_by_their_root_mean_square() {
         let mut embedding = vec![1.0, 3.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
@@ -51,7 +49,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_zero_vector_with_zero_epsilon() {
+    fn leaves_a_zero_vector_at_zero_without_epsilon() {
         let mut embedding = vec![0.0, 0.0, 0.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
@@ -59,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_zero_vector_with_nonzero_epsilon() {
+    fn keeps_a_zero_vector_near_zero_with_epsilon() {
         let mut embedding = vec![0.0, 0.0];
         rms_norm(&mut embedding, 1e-6).unwrap();
 
@@ -69,7 +67,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_epsilon_prevents_division_instability() {
+    fn epsilon_dampens_the_scaling_of_tiny_values() {
         let mut without_eps = vec![1e-10, 1e-10];
         let mut with_eps = without_eps.clone();
         rms_norm(&mut without_eps, 0.0).unwrap();
@@ -79,7 +77,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_single_element() {
+    fn scales_a_single_element_to_one() {
         let mut embedding = vec![5.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 
@@ -87,7 +85,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_empty_embedding() {
+    fn leaves_an_empty_embedding_empty() {
         let mut embedding: Vec<f32> = Vec::new();
         rms_norm(&mut embedding, 0.0).unwrap();
 
@@ -95,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_length_exceeding_u16_max_returns_error() {
+    fn rejects_an_embedding_longer_than_u16_max() {
         let mut embedding = vec![1.0_f32; usize::from(u16::MAX) + 1];
         let result = rms_norm(&mut embedding, 0.0);
 
@@ -103,7 +101,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rms_norm_negative_values() {
+    fn preserves_the_sign_of_negative_values() {
         let mut embedding = vec![-3.0, 4.0];
         rms_norm(&mut embedding, 0.0).unwrap();
 

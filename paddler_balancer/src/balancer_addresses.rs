@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::to_writer;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -16,7 +17,7 @@ pub struct BalancerAddresses {
 
 impl BalancerAddresses {
     pub fn write_json_line<TWriter: Write>(&self, mut writer: TWriter) -> io::Result<()> {
-        serde_json::to_writer(&mut writer, self)?;
+        to_writer(&mut writer, self)?;
 
         writeln!(writer)
     }

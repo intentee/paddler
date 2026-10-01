@@ -1,17 +1,18 @@
 use actix_web::HttpResponse;
-use actix_web::get;
 use actix_web::web;
+use actix_web::web::get;
 
-use crate::management_service::app_data::AppData;
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 
-pub fn register(cfg: &mut web::ServiceConfig) {
-    cfg.service(respond);
-}
+use crate::management_service::app_data::AppData;
 
-#[get("/api/v1/buffered_requests")]
 async fn respond(app_data: web::Data<AppData>) -> HttpResponse {
     HttpResponse::Ok().json(app_data.buffered_request_manager.make_snapshot())
+}
+
+pub fn get_buffered_requests(cfg: &mut web::ServiceConfig) {
+    cfg.route(ApiPath::BUFFERED_REQUESTS, get().to(respond));
 }
 
 #[cfg(test)]
@@ -29,19 +30,18 @@ mod tests {
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use super::register;
+    use paddler_messaging::api_path::ApiPath;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+    use paddler_state_database::memory::Memory;
+
+    use super::get_buffered_requests;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::agent_response_senders::AgentResponseSenders;
     use crate::balancer_applicable_state::BalancerApplicableState;
     use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use crate::buffered_request_manager::BufferedRequestManager;
-    use crate::chat_template_override_sender_collection::ChatTemplateOverrideSenderCollection;
-    use crate::embedding_sender_collection::EmbeddingSenderCollection;
-    use crate::generate_tokens_sender_collection::GenerateTokensSenderCollection;
     use crate::management_service::app_data::AppData;
-    use crate::model_metadata_sender_collection::ModelMetadataSenderCollection;
-    use crate::state_database::memory::Memory;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
     #[actix_web::test]
     async fn responds_with_current_buffered_request_count() {
@@ -51,12 +51,12 @@ mod tests {
             10,
         ));
 
-        buffered_request_manager
+        let _first_buffered_request = buffered_request_manager
             .buffered_request_counter
-            .increment();
-        buffered_request_manager
+            .try_admit();
+        let _second_buffered_request = buffered_request_manager
             .buffered_request_counter
-            .increment();
+            .try_admit();
 
         let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
             watch::channel(BalancerDesiredState::default());
@@ -67,12 +67,7 @@ mod tests {
                 BalancerApplicableState::from(BalancerDesiredState::default()),
             )),
             buffered_request_manager,
-            chat_template_override_sender_collection: Arc::new(
-                ChatTemplateOverrideSenderCollection::default(),
-            ),
-            embedding_sender_collection: Arc::new(EmbeddingSenderCollection::default()),
-            generate_tokens_sender_collection: Arc::new(GenerateTokensSenderCollection::default()),
-            model_metadata_sender_collection: Arc::new(ModelMetadataSenderCollection::default()),
+            agent_response_senders: AgentResponseSenders::default(),
             shutdown: CancellationToken::new(),
             state_database: Arc::new(Memory::new(
                 balancer_desired_state_notify_tx,
@@ -81,9 +76,14 @@ mod tests {
             statsd_prefix: "paddler".to_owned(),
         });
 
-        let app = init_service(App::new().app_data(app_data).configure(register)).await;
+        let app = init_service(
+            App::new()
+                .app_data(app_data)
+                .configure(get_buffered_requests),
+        )
+        .await;
         let request = TestRequest::get()
-            .uri("/api/v1/buffered_requests")
+            .uri(ApiPath::BUFFERED_REQUESTS)
             .to_request();
         let response = call_service(&app, request).await;
 

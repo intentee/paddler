@@ -1,12 +1,13 @@
 use anyhow::Result;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
-use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+
+use crate::start_cluster::start_cluster;
 
 pub async fn start_cluster_without_model(
     agents: Vec<AgentConfig>,
@@ -22,7 +23,7 @@ pub async fn start_cluster_without_model(
             use_chat_template_override: false,
         }),
         wait_for_slots_ready: false,
-        ..ClusterParams::without_request_expiry()
+        ..ClusterParams::default()
     })
     .await
 }

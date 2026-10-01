@@ -5,13 +5,13 @@ use std::num::NonZeroUsize;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::all_gpu_layers::ALL_GPU_LAYERS;
 use crate::batch_size::BatchSize;
 use crate::invalid_inference_parameters::InvalidInferenceParameters;
 use crate::kv_cache_dtype::KvCacheDtype;
 use crate::pooling_type::PoolingType;
 use crate::raw_inference_parameters::RawInferenceParameters;
 
-const ALL_GPU_LAYERS: i32 = -1;
 const DEFAULT_BATCH_SIZE: BatchSize = BatchSize::DEFAULT;
 const DEFAULT_CONTEXT_SIZE: NonZeroU32 = NonZeroU32::new(8192).unwrap();
 const DEFAULT_EMBEDDING_BATCH_SIZE: NonZeroUsize = NonZeroUsize::new(256).unwrap();
@@ -216,7 +216,9 @@ mod tests {
     use std::num::NonZeroU32;
     use std::num::NonZeroUsize;
 
+    use serde_json::from_value;
     use serde_json::json;
+    use serde_json::to_value;
 
     use super::InferenceParameters;
     use crate::batch_size::BatchSize;
@@ -258,12 +260,12 @@ mod tests {
 
     #[test]
     fn deserialization_rejects_parameters_that_fail_validation() {
-        let mut parameters = serde_json::to_value(InferenceParameters::default()).unwrap();
+        let mut parameters = to_value(InferenceParameters::default()).unwrap();
 
         parameters["top_k"] = json!(-1);
 
         assert_eq!(
-            serde_json::from_value::<InferenceParameters>(parameters)
+            from_value::<InferenceParameters>(parameters)
                 .unwrap_err()
                 .to_string(),
             InvalidInferenceParameters::TopKNegative { top_k: -1 }.to_string()

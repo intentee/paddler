@@ -1,26 +1,32 @@
-use anyhow::Result;
+use serde_json::json;
+use serde_json::to_string;
+use serde_json::to_value;
+use tokio::fs::write;
+
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
-use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() -> Result<()> {
-    let database = StateDatabaseFile::new()?;
-    let mut stored_desired_state = serde_json::to_value(BalancerDesiredState::default())?;
+async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
+    let database = StateDatabaseFile::new().expect("the state database file must be created");
+    let mut stored_desired_state =
+        to_value(BalancerDesiredState::default()).expect("the value must serialize");
 
     stored_desired_state["inference_parameters"]["image_resize_to_fit"] = json!(0);
 
-    tokio::fs::write(
-        database.path(),
-        serde_json::to_string(&json!({
+    write(
+        &database.path,
+        to_string(&json!({
             "balancer_desired_state": stored_desired_state,
             "version": "1",
-        }))?,
+        }))
+        .expect("the value must serialize"),
     )
-    .await?;
+    .await
+    .expect("the file must be written");
 
     let start_error = start_cluster(ClusterParams {
         agents: Vec::new(),
@@ -41,6 +47,4 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() -
         ),
         "{start_error:?}"
     );
-
-    Ok(())
 }

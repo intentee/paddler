@@ -18,9 +18,13 @@ use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cors_allowed_hosts_with_web_admin_panel::cors_allowed_hosts_with_web_admin_panel;
 use crate::create_cors_middleware::create_cors_middleware;
 use crate::http_listener::HttpListener;
-use crate::http_route as common_http_route;
+use crate::http_route::get_health::get_health;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+use crate::inference_service::http_route::api::post_continue_from_conversation_history::post_continue_from_conversation_history;
+use crate::inference_service::http_route::api::post_continue_from_raw_prompt::post_continue_from_raw_prompt;
+use crate::inference_service::http_route::api::post_generate_embedding_batch::post_generate_embedding_batch;
+use crate::inference_service::http_route::api::ws_inference_socket::ws_inference_socket;
 use crate::run_http_service::run_http_service;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
 
@@ -61,17 +65,14 @@ impl Service for InferenceService {
                     App::new()
                         .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                         .app_data(app_data.clone())
-                        .configure(common_http_route::get_health::register)
-                        .configure(
-                            http_route::api::post_continue_from_conversation_history::register,
-                        )
-                        .configure(http_route::api::post_continue_from_raw_prompt::register)
-                        .configure(http_route::api::post_generate_embedding_batch::register)
-                        .configure(http_route::api::ws_inference_socket::register)
+                        .configure(get_health)
+                        .configure(post_continue_from_conversation_history)
+                        .configure(post_continue_from_raw_prompt)
+                        .configure(post_generate_embedding_batch)
+                        .configure(ws_inference_socket)
                 },
                 http_listener: self.http_listener,
                 service_name,
-                worker_count: 16,
             },
         )
         .await

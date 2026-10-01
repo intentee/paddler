@@ -1,7 +1,8 @@
 use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::token_piece::TokenPiece;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
+
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
 use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
 use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
@@ -15,31 +16,38 @@ const fn token_to_event(sampled_token: SampledToken, text: String) -> GeneratedT
     }
 }
 
-#[must_use]
-pub fn run(
-    generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
-    ClassifiedToken {
-        sampled_token,
-        piece,
-        ..
-    }: ClassifiedToken,
-) -> EmitTokenOutcome {
-    let TokenPiece::Visible(text) = piece else {
-        return EmitTokenOutcome::Emitted;
-    };
+pub struct EmitTokenPhase<'channel> {
+    pub generated_tokens_tx: &'channel mpsc::UnboundedSender<GeneratedTokenResult>,
+}
 
-    if text.is_empty() {
-        return EmitTokenOutcome::Emitted;
+impl EmitTokenPhase<'_> {
+    #[must_use]
+    pub fn run(
+        self,
+        ClassifiedToken {
+            sampled_token,
+            piece,
+            ..
+        }: ClassifiedToken,
+    ) -> EmitTokenOutcome {
+        let TokenPiece::Visible(text) = piece else {
+            return EmitTokenOutcome::Emitted;
+        };
+
+        if text.is_empty() {
+            return EmitTokenOutcome::Emitted;
+        }
+
+        if self
+            .generated_tokens_tx
+            .send(token_to_event(sampled_token, text))
+            .is_err()
+        {
+            return EmitTokenOutcome::ChannelDropped;
+        }
+
+        EmitTokenOutcome::Emitted
     }
-
-    if generated_tokens_tx
-        .send(token_to_event(sampled_token, text))
-        .is_err()
-    {
-        return EmitTokenOutcome::ChannelDropped;
-    }
-
-    EmitTokenOutcome::Emitted
 }
 
 #[cfg(test)]
@@ -49,11 +57,12 @@ mod tests {
     use llama_cpp_bindings::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
-    use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::TryRecvError;
 
-    use super::run;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+
+    use super::EmitTokenPhase;
     use crate::continuous_batch_scheduler::classified_token::ClassifiedToken;
     use crate::continuous_batch_scheduler::emit_token_outcome::EmitTokenOutcome;
 
@@ -69,10 +78,13 @@ mod tests {
     fn emitted(sampled_token: SampledToken, text: &str) -> GeneratedTokenResult {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
 
-        let outcome = run(
-            &generated_tokens_tx,
-            classified(sampled_token, TokenPiece::Visible(text.to_owned())),
-        );
+        let outcome = EmitTokenPhase {
+            generated_tokens_tx: &generated_tokens_tx,
+        }
+        .run(classified(
+            sampled_token,
+            TokenPiece::Visible(text.to_owned()),
+        ));
 
         assert_eq!(
             discriminant(&outcome),
@@ -86,13 +98,13 @@ mod tests {
     fn marker_piece_is_not_sent() {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
 
-        let outcome = run(
-            &generated_tokens_tx,
-            classified(
-                SampledToken::Reasoning(LlamaToken::new(1)),
-                TokenPiece::Marker("<think>".to_owned()),
-            ),
-        );
+        let outcome = EmitTokenPhase {
+            generated_tokens_tx: &generated_tokens_tx,
+        }
+        .run(classified(
+            SampledToken::Reasoning(LlamaToken::new(1)),
+            TokenPiece::Marker("<think>".to_owned()),
+        ));
 
         assert_eq!(
             discriminant(&outcome),
@@ -105,13 +117,13 @@ mod tests {
     fn empty_visible_piece_is_not_sent() {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
 
-        let outcome = run(
-            &generated_tokens_tx,
-            classified(
-                SampledToken::Content(LlamaToken::new(2)),
-                TokenPiece::Visible(String::new()),
-            ),
-        );
+        let outcome = EmitTokenPhase {
+            generated_tokens_tx: &generated_tokens_tx,
+        }
+        .run(classified(
+            SampledToken::Content(LlamaToken::new(2)),
+            TokenPiece::Visible(String::new()),
+        ));
 
         assert_eq!(
             discriminant(&outcome),
@@ -158,13 +170,13 @@ mod tests {
 
         drop(generated_tokens_rx);
 
-        let outcome = run(
-            &generated_tokens_tx,
-            classified(
-                SampledToken::Content(LlamaToken::new(7)),
-                TokenPiece::Visible("hi".to_owned()),
-            ),
-        );
+        let outcome = EmitTokenPhase {
+            generated_tokens_tx: &generated_tokens_tx,
+        }
+        .run(classified(
+            SampledToken::Content(LlamaToken::new(7)),
+            TokenPiece::Visible("hi".to_owned()),
+        ));
 
         assert_eq!(
             discriminant(&outcome),

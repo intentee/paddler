@@ -1,21 +1,23 @@
-use paddler_balancer::state_database::StateDatabase as _;
-use paddler_balancer::state_database::file::File as StateDatabaseFile;
-use paddler_balancer::state_database_type::StateDatabaseType;
+use tempfile::TempDir;
+use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
+
 use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
-use tempfile::NamedTempFile;
-use tokio::sync::watch;
-use tokio_util::sync::CancellationToken;
+use paddler_state_database::file::File as StateDatabaseFile;
+use paddler_state_database::state_database::StateDatabase as _;
+use paddler_state_database::state_database_type::StateDatabaseType;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
 #[tokio::test]
 async fn balancer_runner_preserves_the_persisted_desired_state() {
-    let state_database_file =
-        NamedTempFile::new().expect("a temporary state database file must be creatable");
+    let state_database_directory =
+        TempDir::new().expect("a temporary state database directory must be creatable");
+    let state_database_path = state_database_directory.path().join("state.json");
     let persisted_state = BalancerDesiredState {
         chat_template_override: Some(ChatTemplate {
             content: "persisted-chat-template".to_owned(),
@@ -27,10 +29,8 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
     };
     let (balancer_desired_state_tx, _balancer_desired_state_rx) =
         watch::channel(BalancerDesiredState::default());
-    let state_database = StateDatabaseFile::new(
-        balancer_desired_state_tx,
-        state_database_file.path().to_path_buf(),
-    );
+    let state_database =
+        StateDatabaseFile::new(balancer_desired_state_tx, state_database_path.clone());
 
     state_database
         .store_balancer_desired_state(&persisted_state)
@@ -39,9 +39,9 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
 
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
-    params.state_database_type = StateDatabaseType::File(state_database_file.path().to_path_buf());
+    params.bootstrap_config.state_database_type = StateDatabaseType::File(state_database_path);
 
-    let mut runner = BalancerRunner::start(params)
+    let runner = BalancerRunner::start(params)
         .await
         .expect("a runner with a valid state database must start");
 

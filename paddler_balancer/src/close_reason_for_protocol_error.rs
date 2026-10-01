@@ -2,7 +2,7 @@ use actix_ws::CloseCode;
 use actix_ws::CloseReason;
 use actix_ws::ProtocolError;
 
-use crate::max_websocket_frame_size::MAX_WEBSOCKET_FRAME_SIZE;
+use crate::max_websocket_message_size::MAX_WEBSOCKET_MESSAGE_SIZE;
 
 #[must_use]
 pub fn close_reason_for_protocol_error(protocol_error: &ProtocolError) -> CloseReason {
@@ -10,7 +10,7 @@ pub fn close_reason_for_protocol_error(protocol_error: &ProtocolError) -> CloseR
         ProtocolError::Overflow => CloseReason {
             code: CloseCode::Size,
             description: Some(format!(
-                "Message exceeded the maximum allowed frame size of {MAX_WEBSOCKET_FRAME_SIZE} bytes"
+                "Message exceeded the maximum allowed message size of {MAX_WEBSOCKET_MESSAGE_SIZE} bytes"
             )),
         },
         ProtocolError::Io(io_error) => CloseReason {

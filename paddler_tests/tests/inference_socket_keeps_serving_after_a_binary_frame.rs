@@ -1,13 +1,13 @@
 use std::num::NonZeroU32;
-
 use std::time::Duration;
+
+use tokio_tungstenite::tungstenite::Bytes;
+use tokio_tungstenite::tungstenite::Message;
 
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_tungstenite::tungstenite::Bytes;
-use tokio_tungstenite::tungstenite::Message;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_keeps_serving_after_a_binary_frame() {

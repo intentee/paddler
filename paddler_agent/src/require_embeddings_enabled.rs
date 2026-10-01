@@ -12,22 +12,21 @@ pub const fn require_embeddings_enabled(
 
 #[cfg(test)]
 mod tests {
-    use super::require_embeddings_enabled;
+    use std::mem::discriminant;
 
-    fn rejection_message(enable_embeddings: bool) -> Result<(), String> {
-        require_embeddings_enabled(enable_embeddings).map_err(|rejection| rejection.to_string())
-    }
+    use super::require_embeddings_enabled;
+    use crate::embedding_batch_rejection::EmbeddingBatchRejection;
 
     #[test]
     fn accepts_batches_when_embeddings_are_enabled() {
-        assert_eq!(rejection_message(true), Ok(()));
+        assert!(require_embeddings_enabled(true).is_ok());
     }
 
     #[test]
     fn rejects_batches_when_embeddings_are_disabled() {
-        assert_eq!(
-            rejection_message(false),
-            Err("embeddings are not enabled".to_owned())
+        assert!(
+            require_embeddings_enabled(false).is_err_and(|rejection| discriminant(&rejection)
+                == discriminant(&EmbeddingBatchRejection::EmbeddingsDisabled))
         );
     }
 }

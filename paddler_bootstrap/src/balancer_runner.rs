@@ -1,14 +1,13 @@
-use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::Result;
+use tokio::sync::watch;
+
 use paddler_balancer::agent_controller_pool::AgentControllerPool;
 use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use tokio::sync::watch;
 
-use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
 use crate::balancer_runner_params::BalancerRunnerParams;
 use crate::balancer_service_bundle::BalancerServiceBundle;
 use crate::bootstrap_error::BootstrapError;
@@ -26,33 +25,12 @@ pub struct BalancerRunner {
 impl BalancerRunner {
     pub async fn start(
         BalancerRunnerParams {
-            buffered_request_timeout,
-            inference_service_configuration,
-            management_service_configuration,
-            max_buffered_requests,
-            openai_service_configuration,
+            bootstrap_config,
             cancellation_token,
             shutdown_options,
-            state_database_type,
-            statsd_prefix,
-            statsd_service_configuration,
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration,
         }: BalancerRunnerParams,
     ) -> Result<Self, BootstrapError> {
-        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
-            buffered_request_timeout,
-            inference_service_configuration,
-            management_service_configuration,
-            max_buffered_requests,
-            openai_service_configuration,
-            state_database_type,
-            statsd_prefix,
-            statsd_service_configuration,
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration,
-        })
-        .await?;
+        let bundle = BalancerServiceBundle::new(bootstrap_config).await?;
 
         let addresses = bundle.addresses;
         let agent_controller_pool = bundle.agent_controller_pool.clone();
@@ -72,8 +50,8 @@ impl BalancerRunner {
         })
     }
 
-    pub fn wait_for_completion(&mut self) -> impl Future<Output = Result<()>> + Send + 'static {
-        self.thread.wait_for_completion()
+    pub async fn wait_for_completion(self) -> Result<(), BootstrapError> {
+        self.thread.wait_for_completion().await
     }
 
     pub fn cancel(&self) {

@@ -1,7 +1,9 @@
-use paddler_balancer::balancer_addresses::BalancerAddresses;
+use serde_json::from_str;
 use tokio::io::AsyncBufReadExt as _;
 use tokio::io::AsyncRead;
 use tokio::io::BufReader;
+
+use paddler_balancer::balancer_addresses::BalancerAddresses;
 
 use crate::subprocess_cluster_error::SubprocessClusterError;
 
@@ -18,11 +20,9 @@ where
         .map_err(|source| SubprocessClusterError::AnnouncementUnreadable { source })?
         .ok_or(SubprocessClusterError::StdoutClosedBeforeAnnouncement)?;
 
-    serde_json::from_str(&announcement).map_err(|source| {
-        SubprocessClusterError::AnnouncementInvalid {
-            announcement,
-            source,
-        }
+    from_str(&announcement).map_err(|source| SubprocessClusterError::AnnouncementInvalid {
+        announcement,
+        source,
     })
 }
 

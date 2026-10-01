@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use crate::dispenses_slots::DispensesSlots as _;
-use crate::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_agent_status::dispenses_slots::DispensesSlots as _;
+use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 
 pub struct SlotGuard {
     slot_aggregated_status: Arc<SlotAggregatedStatus>,
@@ -28,40 +28,22 @@ impl Drop for SlotGuard {
 mod tests {
     use std::sync::Arc;
 
-    use crate::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+    use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+
     use crate::slot_guard::SlotGuard;
 
     #[tokio::test]
     async fn increments_slot_on_construct_and_releases_on_drop() {
-        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(4));
+        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(4));
 
-        assert_eq!(
-            slot_aggregated_status_manager
-                .slot_aggregated_status
-                .slots_processing_count(),
-            0
-        );
+        assert_eq!(slot_aggregated_status.slots_processing_count(), 0);
 
         {
-            let _guard = SlotGuard::new(
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .clone(),
-            );
+            let _guard = SlotGuard::new(slot_aggregated_status.clone());
 
-            assert_eq!(
-                slot_aggregated_status_manager
-                    .slot_aggregated_status
-                    .slots_processing_count(),
-                1
-            );
+            assert_eq!(slot_aggregated_status.slots_processing_count(), 1);
         }
 
-        assert_eq!(
-            slot_aggregated_status_manager
-                .slot_aggregated_status
-                .slots_processing_count(),
-            0
-        );
+        assert_eq!(slot_aggregated_status.slots_processing_count(), 0);
     }
 }

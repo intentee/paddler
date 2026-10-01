@@ -1,3 +1,5 @@
+use tokio_util::sync::CancellationToken;
+
 use paddler_client::error::Error;
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -6,7 +8,6 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn client_reports_service_unavailable_for_an_embedding_batch_without_agents() {
@@ -15,7 +16,7 @@ async fn client_reports_service_unavailable_for_an_embedding_batch_without_agent
         desired_state: Some(BalancerDesiredState {
             inference_parameters: InferenceParameters {
                 enable_embeddings: true,
-                ..InferenceParameters::default()
+                ..InferenceParameters::deterministic()
             },
             ..BalancerDesiredState::default()
         }),
@@ -24,13 +25,6 @@ async fn client_reports_service_unavailable_for_an_embedding_batch_without_agent
     })
     .await
     .expect("a cluster without agents must start");
-
-    cluster
-        .wait_for_applicable_state(|applicable_state| {
-            applicable_state.inference_parameters.enable_embeddings
-        })
-        .await
-        .expect("the balancer must apply the embeddings-enabled state");
 
     let rejection = cluster
         .client_inference

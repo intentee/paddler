@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -14,19 +15,19 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_tests::start_cluster_with_gemma_3_and_mmproj_and_n_batch::start_cluster_with_gemma_3_and_mmproj_and_n_batch;
-use tokio_util::sync::CancellationToken;
 
 const GEMMA_3_IMAGE_TOKENS: usize = 256;
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
 const N_BATCH_SMALLER_THAN_ONE_IMAGE: u32 = 128;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() -> Result<()> {
+async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() {
     let cluster = start_cluster_with_gemma_3_and_mmproj_and_n_batch(
         vec![AgentConfig::single(1)],
         N_BATCH_SMALLER_THAN_ONE_IMAGE,
     )
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -37,7 +38,8 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() -> Result<()> {
                     content: ConversationMessageContent::Parts(vec![
                         ConversationMessageContentPart::ImageUrl {
                             image_url: ImageUrl {
-                                url: load_fixture_data_uri("sarnow.jpeg", "image/jpeg")?,
+                                url: load_fixture_data_uri("sarnow.jpeg", "image/jpeg")
+                                    .expect("the test fixture must load"),
                             },
                         },
                         ConversationMessageContentPart::Text {
@@ -53,7 +55,8 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() -> Result<()> {
                 tools: vec![],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let token_results = collected.into_token_results();
 
@@ -67,7 +70,8 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() -> Result<()> {
         )]
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

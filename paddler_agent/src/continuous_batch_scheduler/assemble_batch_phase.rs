@@ -1,12 +1,21 @@
-use anyhow::Context as _;
-use anyhow::Result;
 use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::batch_add_error::BatchAddError;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
+use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_scheduler::batch_pass::BatchPass;
 use crate::continuous_batch_scheduler::generating_contribution::GeneratingContribution;
 use crate::continuous_batch_scheduler::ingesting_contribution::IngestingContribution;
+
+fn compute_ingesting_chunk_size(
+    remaining_prompt_len: usize,
+    n_batch: usize,
+    current_batch_token_count: usize,
+) -> usize {
+    let available_space = n_batch.saturating_sub(current_batch_token_count);
+    remaining_prompt_len.min(available_space)
+}
 
 pub struct AssembleBatchPhase {
     pub n_batch: usize,
@@ -17,7 +26,7 @@ impl AssembleBatchPhase {
         &self,
         pass: &mut BatchPass,
         requests: &mut [ContinuousBatchActiveRequest],
-    ) -> Result<()> {
+    ) -> Result<(), BatchAddError> {
         let added = self.fill_generating(pass, requests)?;
         pass.contributions.current_batch_token_count += added;
         self.fill_ingesting(pass, requests)?;
@@ -28,15 +37,14 @@ impl AssembleBatchPhase {
         &self,
         pass: &mut BatchPass,
         requests: &[ContinuousBatchActiveRequest],
-    ) -> Result<usize> {
+    ) -> Result<usize, BatchAddError> {
         let mut tokens_added: usize = 0;
 
         for (request_index, request) in requests.iter().enumerate() {
-            if !matches!(request.state.phase, ContinuousBatchRequestPhase::Generating) {
-                continue;
-            }
-
-            let Some(pending_token) = request.state.pending_sampled_token else {
+            let ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGenerationStep::AwaitingDecode(pending_token),
+            ) = &request.state.phase
+            else {
                 continue;
             };
 
@@ -47,7 +55,7 @@ impl AssembleBatchPhase {
             let batch_position = pass.batch.n_tokens();
 
             pass.batch.add(
-                &pending_token,
+                pending_token,
                 request.state.current_token_position,
                 &[request.sequence_id_guard.sequence_id()],
                 true,
@@ -68,7 +76,7 @@ impl AssembleBatchPhase {
         &self,
         pass: &mut BatchPass,
         requests: &[ContinuousBatchActiveRequest],
-    ) -> Result<()> {
+    ) -> Result<(), BatchAddError> {
         for (request_index, request) in requests.iter().enumerate() {
             if !matches!(
                 request.state.phase,
@@ -93,9 +101,12 @@ impl AssembleBatchPhase {
             let is_last_chunk = request.state.prompt_tokens_ingested + chunk_size
                 >= request.state.prompt_tokens.len();
 
-            for (offset, token) in chunk.iter().enumerate() {
-                let position = request.state.current_token_position
-                    + i32::try_from(offset).context("token offset does not fit in i32")?;
+            let mut next_token_position = request.state.current_token_position;
+
+            for (offset, (position, token)) in (request.state.current_token_position..)
+                .zip(chunk)
+                .enumerate()
+            {
                 let is_last_token_of_prompt = is_last_chunk && offset == chunk_size - 1;
 
                 pass.batch.add(
@@ -104,6 +115,8 @@ impl AssembleBatchPhase {
                     &[request.sequence_id_guard.sequence_id()],
                     is_last_token_of_prompt,
                 )?;
+
+                next_token_position = position + 1;
             }
 
             pass.contributions.ingesting.push(IngestingContribution {
@@ -111,6 +124,7 @@ impl AssembleBatchPhase {
                 chunk_size,
                 is_last_chunk,
                 last_batch_position: pass.batch.n_tokens() - 1,
+                next_token_position,
             });
 
             pass.contributions.current_batch_token_count += chunk_size;
@@ -118,15 +132,6 @@ impl AssembleBatchPhase {
 
         Ok(())
     }
-}
-
-fn compute_ingesting_chunk_size(
-    remaining_prompt_len: usize,
-    n_batch: usize,
-    current_batch_token_count: usize,
-) -> usize {
-    let available_space = n_batch.saturating_sub(current_batch_token_count);
-    remaining_prompt_len.min(available_space)
 }
 
 #[cfg(test)]

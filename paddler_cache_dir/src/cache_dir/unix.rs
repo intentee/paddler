@@ -1,81 +1,81 @@
-use std::env::var;
+use std::env::var_os;
 use std::path::PathBuf;
 
-use anyhow::Context as _;
-use anyhow::Result;
+use crate::cache_dir_error::CacheDirError;
 
 pub struct CacheDir {
-    pub explicit: Option<String>,
-    pub home: Option<String>,
-    pub xdg: Option<String>,
+    pub explicit: Option<PathBuf>,
+    pub home: Option<PathBuf>,
+    pub xdg: Option<PathBuf>,
 }
 
 impl CacheDir {
     #[must_use]
     pub fn from_process_env() -> Self {
         Self {
-            explicit: var("PADDLER_CACHE_DIR").ok(),
-            home: var("HOME").ok(),
-            xdg: var("XDG_CACHE_HOME").ok(),
+            explicit: var_os("PADDLER_CACHE_DIR").map(PathBuf::from),
+            home: var_os("HOME").map(PathBuf::from),
+            xdg: var_os("XDG_CACHE_HOME").map(PathBuf::from),
         }
     }
 
-    pub fn resolve(&self) -> Result<PathBuf> {
+    pub fn resolve(&self) -> Result<PathBuf, CacheDirError> {
         if let Some(explicit) = &self.explicit {
-            return Ok(PathBuf::from(explicit));
+            return Ok(explicit.clone());
         }
 
         if let Some(xdg) = &self.xdg {
-            return Ok(PathBuf::from(xdg).join("paddler"));
+            return Ok(xdg.join("paddler"));
         }
 
-        let home = self
-            .home
+        self.home
             .as_ref()
-            .context("HOME not set; cannot derive paddler cache directory")?;
-
-        Ok(PathBuf::from(home).join(".cache").join("paddler"))
+            .map(|home| home.join(".cache").join("paddler"))
+            .ok_or(CacheDirError::HomeVariableUnset { variable: "HOME" })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::CacheDir;
+    use crate::cache_dir_error::CacheDirError;
 
     #[test]
     fn explicit_value_wins_over_xdg_and_home() {
         let cache = CacheDir {
-            explicit: Some("/explicit/cache".to_owned()),
-            home: Some("/home/user".to_owned()),
-            xdg: Some("/xdg/cache".to_owned()),
+            explicit: Some(PathBuf::from("/explicit/cache")),
+            home: Some(PathBuf::from("/home/user")),
+            xdg: Some(PathBuf::from("/xdg/cache")),
         };
-        let path = cache.resolve().unwrap_or_default();
+        let path = cache.resolve().unwrap();
 
-        assert_eq!(path.to_string_lossy(), "/explicit/cache");
+        assert_eq!(path, PathBuf::from("/explicit/cache"));
     }
 
     #[test]
     fn xdg_value_used_when_no_explicit() {
         let cache = CacheDir {
             explicit: None,
-            home: Some("/home/user".to_owned()),
-            xdg: Some("/xdg/cache".to_owned()),
+            home: Some(PathBuf::from("/home/user")),
+            xdg: Some(PathBuf::from("/xdg/cache")),
         };
-        let path = cache.resolve().unwrap_or_default();
+        let path = cache.resolve().unwrap();
 
-        assert_eq!(path.to_string_lossy(), "/xdg/cache/paddler");
+        assert_eq!(path, PathBuf::from("/xdg/cache/paddler"));
     }
 
     #[test]
     fn falls_back_to_home_dot_cache_paddler() {
         let cache = CacheDir {
             explicit: None,
-            home: Some("/home/user".to_owned()),
+            home: Some(PathBuf::from("/home/user")),
             xdg: None,
         };
-        let path = cache.resolve().unwrap_or_default();
+        let path = cache.resolve().unwrap();
 
-        assert_eq!(path.to_string_lossy(), "/home/user/.cache/paddler");
+        assert_eq!(path, PathBuf::from("/home/user/.cache/paddler"));
     }
 
     #[test]
@@ -86,11 +86,9 @@ mod tests {
             xdg: None,
         };
 
-        assert!(cache.resolve().is_err());
-    }
-
-    #[test]
-    fn from_process_env_constructs_without_panicking() {
-        let _ = CacheDir::from_process_env();
+        assert!(matches!(
+            cache.resolve(),
+            Err(CacheDirError::HomeVariableUnset { variable }) if variable == "HOME"
+        ));
     }
 }

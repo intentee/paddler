@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaModel;
+
+use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
+use crate::agent_request::AgentRequest;
 use crate::embedding_batch_rejection::EmbeddingBatchRejection;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
-use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 use crate::require_embeddings_enabled::require_embeddings_enabled;
 
@@ -20,16 +22,16 @@ pub struct EmbeddingBatchPreparer {
 impl EmbeddingBatchPreparer {
     pub fn prepare(
         &self,
-        GenerateEmbeddingBatchRequest {
-            generate_embedding_stop_rx,
-            generated_embedding_tx,
+        AgentRequest {
             params:
                 GenerateEmbeddingBatchParams {
                     input_batch,
                     normalization_method,
                 },
+            response_tx: generated_embedding_tx,
             slot_guard,
-        }: GenerateEmbeddingBatchRequest,
+            stop_rx: generate_embedding_stop_rx,
+        }: AgentRequest<GenerateEmbeddingBatchParams, EmbeddingResult>,
     ) -> Result<PreparedEmbeddingBatchRequest, EmbeddingBatchRejection> {
         require_embeddings_enabled(self.enable_embeddings)?;
 

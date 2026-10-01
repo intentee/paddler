@@ -1,75 +1,71 @@
-use std::env::var;
+use std::env::var_os;
 use std::path::PathBuf;
 
-use anyhow::Context as _;
-use anyhow::Result;
+use crate::cache_dir_error::CacheDirError;
 
 pub struct CacheDir {
-    pub explicit: Option<String>,
-    pub localappdata: Option<String>,
-    pub userprofile: Option<String>,
+    pub explicit: Option<PathBuf>,
+    pub localappdata: Option<PathBuf>,
+    pub userprofile: Option<PathBuf>,
 }
 
 impl CacheDir {
     #[must_use]
     pub fn from_process_env() -> Self {
         Self {
-            explicit: var("PADDLER_CACHE_DIR").ok(),
-            localappdata: var("LOCALAPPDATA").ok(),
-            userprofile: var("USERPROFILE").ok(),
+            explicit: var_os("PADDLER_CACHE_DIR").map(PathBuf::from),
+            localappdata: var_os("LOCALAPPDATA").map(PathBuf::from),
+            userprofile: var_os("USERPROFILE").map(PathBuf::from),
         }
     }
 
-    pub fn resolve(&self) -> Result<PathBuf> {
+    pub fn resolve(&self) -> Result<PathBuf, CacheDirError> {
         if let Some(explicit) = &self.explicit {
-            return Ok(PathBuf::from(explicit));
+            return Ok(explicit.clone());
         }
 
         if let Some(localappdata) = &self.localappdata {
-            return Ok(PathBuf::from(localappdata).join("paddler"));
+            return Ok(localappdata.join("paddler"));
         }
 
-        let userprofile = self
-            .userprofile
+        self.userprofile
             .as_ref()
-            .context("USERPROFILE not set; cannot derive paddler cache directory")?;
-
-        Ok(PathBuf::from(userprofile)
-            .join("AppData")
-            .join("Local")
-            .join("paddler"))
+            .map(|userprofile| userprofile.join("AppData").join("Local").join("paddler"))
+            .ok_or(CacheDirError::HomeVariableUnset {
+                variable: "USERPROFILE",
+            })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::CacheDir;
+    use crate::cache_dir_error::CacheDirError;
 
     #[test]
     fn explicit_value_wins_over_localappdata_and_userprofile() {
         let cache = CacheDir {
-            explicit: Some(r"D:\explicit\cache".to_owned()),
-            localappdata: Some(r"C:\Users\user\AppData\Local".to_owned()),
-            userprofile: Some(r"C:\Users\user".to_owned()),
+            explicit: Some(PathBuf::from(r"D:\explicit\cache")),
+            localappdata: Some(PathBuf::from(r"C:\Users\user\AppData\Local")),
+            userprofile: Some(PathBuf::from(r"C:\Users\user")),
         };
-        let path = cache.resolve().unwrap_or_default();
+        let path = cache.resolve().unwrap();
 
-        assert_eq!(path.to_string_lossy(), r"D:\explicit\cache");
+        assert_eq!(path, PathBuf::from(r"D:\explicit\cache"));
     }
 
     #[test]
     fn localappdata_used_when_no_explicit() {
         let cache = CacheDir {
             explicit: None,
-            localappdata: Some(r"C:\Users\user\AppData\Local".to_owned()),
-            userprofile: Some(r"C:\Users\user".to_owned()),
+            localappdata: Some(PathBuf::from(r"C:\Users\user\AppData\Local")),
+            userprofile: Some(PathBuf::from(r"C:\Users\user")),
         };
-        let path = cache.resolve().unwrap_or_default();
+        let path = cache.resolve().unwrap();
 
-        assert_eq!(
-            path.to_string_lossy(),
-            r"C:\Users\user\AppData\Local\paddler"
-        );
+        assert_eq!(path, PathBuf::from(r"C:\Users\user\AppData\Local\paddler"));
     }
 
     #[test]
@@ -77,14 +73,11 @@ mod tests {
         let cache = CacheDir {
             explicit: None,
             localappdata: None,
-            userprofile: Some(r"C:\Users\user".to_owned()),
+            userprofile: Some(PathBuf::from(r"C:\Users\user")),
         };
-        let path = cache.resolve().unwrap_or_default();
+        let path = cache.resolve().unwrap();
 
-        assert_eq!(
-            path.to_string_lossy(),
-            r"C:\Users\user\AppData\Local\paddler"
-        );
+        assert_eq!(path, PathBuf::from(r"C:\Users\user\AppData\Local\paddler"));
     }
 
     #[test]
@@ -95,11 +88,9 @@ mod tests {
             userprofile: None,
         };
 
-        assert!(cache.resolve().is_err());
-    }
-
-    #[test]
-    fn from_process_env_constructs_without_panicking() {
-        let _ = CacheDir::from_process_env();
+        assert!(matches!(
+            cache.resolve(),
+            Err(CacheDirError::HomeVariableUnset { variable }) if variable == "USERPROFILE"
+        ));
     }
 }

@@ -1,33 +1,25 @@
 use std::num::NonZeroU32;
-use std::str::from_utf8;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use image::DynamicImage;
+use image::ImageFormat;
 use image::guess_format;
 use image::imageops::FilterType;
 use image::load_from_memory_with_format;
 use log::info;
-use paddler_messaging::image_url::ImageUrl;
 use resvg::render;
 use resvg::tiny_skia::Pixmap;
 use resvg::tiny_skia::Transform;
 use resvg::usvg::Options;
 use resvg::usvg::Tree as SvgTree;
 
+use paddler_messaging::image_url::ImageUrl;
+
 use crate::decoded_image_error::DecodedImageError;
 
 const RGBA_BYTES_PER_PIXEL: usize = 4;
 const RGB_BYTES_PER_PIXEL: usize = 3;
-
-fn is_svg(data: &[u8]) -> bool {
-    let trimmed = match from_utf8(data) {
-        Ok(text) => text.trim_start(),
-        Err(_) => return false,
-    };
-
-    trimmed.starts_with("<svg") || trimmed.starts_with("<?xml")
-}
 
 fn compute_target_dimension(svg_dim: f64, scale: f64) -> Result<u32, DecodedImageError> {
     let target = (svg_dim * scale).ceil();
@@ -39,10 +31,10 @@ fn compute_target_dimension(svg_dim: f64, scale: f64) -> Result<u32, DecodedImag
     Ok(target as u32)
 }
 
-fn rasterize_svg(data: &[u8], max_dimension: u32) -> Result<DecodedImage, DecodedImageError> {
-    let svg_tree = SvgTree::from_data(data, &Options::default())
-        .map_err(DecodedImageError::SvgParsingFailed)?;
-
+fn rasterize_svg(
+    svg_tree: &SvgTree,
+    max_dimension: u32,
+) -> Result<DecodedImage, DecodedImageError> {
     let svg_size = svg_tree.size();
     let svg_width = f64::from(svg_size.width());
     let svg_height = f64::from(svg_size.height());
@@ -65,7 +57,7 @@ fn rasterize_svg(data: &[u8], max_dimension: u32) -> Result<DecodedImage, Decode
 
     let transform = Transform::from_scale(render_scale_x as f32, render_scale_y as f32);
 
-    render(&svg_tree, transform, &mut pixmap.as_mut());
+    render(svg_tree, transform, &mut pixmap.as_mut());
 
     Ok(DecodedImage {
         height: target_height,
@@ -79,9 +71,10 @@ fn rasterize_svg(data: &[u8], max_dimension: u32) -> Result<DecodedImage, Decode
     })
 }
 
-fn decode_raster_image(data: &[u8]) -> Result<DynamicImage, DecodedImageError> {
-    let format = guess_format(data).map_err(DecodedImageError::UnrecognizedFormat)?;
-
+fn decode_raster_image(
+    data: &[u8],
+    format: ImageFormat,
+) -> Result<DynamicImage, DecodedImageError> {
     if !format.reading_enabled() {
         return Err(DecodedImageError::UnsupportedFormat {
             format: format!("{format:?}"),
@@ -137,16 +130,24 @@ impl DecodedImage {
         let max_dimension = max_dimension.get();
         let encoded_image = decode_data_uri_payload(image_url)?;
 
-        if is_svg(&encoded_image) {
-            info!("Rasterizing SVG (max_dimension: {max_dimension})");
+        match guess_format(&encoded_image) {
+            Ok(format) => Ok(fit_raster_image(
+                decode_raster_image(&encoded_image, format)?,
+                max_dimension,
+            )),
+            Err(raster_format_error) => {
+                let svg_tree = SvgTree::from_data(&encoded_image, &Options::default()).map_err(
+                    |svg_error| DecodedImageError::UnrecognizedFormat {
+                        raster_format_error,
+                        svg_error,
+                    },
+                )?;
 
-            return rasterize_svg(&encoded_image, max_dimension);
+                info!("Rasterizing SVG (max_dimension: {max_dimension})");
+
+                rasterize_svg(&svg_tree, max_dimension)
+            }
         }
-
-        Ok(fit_raster_image(
-            decode_raster_image(&encoded_image)?,
-            max_dimension,
-        ))
     }
 }
 
@@ -168,8 +169,9 @@ mod tests {
     use image::Rgb32FImage;
     use image::RgbImage;
     use image::RgbaImage;
-    use paddler_messaging::image_url::ImageUrl;
     use resvg::usvg::Error as SvgError;
+
+    use paddler_messaging::image_url::ImageUrl;
 
     use crate::decoded_image::DecodedImage;
     use crate::decoded_image::compute_target_dimension;
@@ -354,6 +356,19 @@ mod tests {
     }
 
     #[test]
+    fn rasterizes_an_svg_that_opens_with_a_comment() {
+        let svg_data = br#"<!-- drawn by hand -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">
+            <rect width="20" height="10" fill="red"/>
+        </svg>"#;
+
+        let decoded_image = decode(svg_data, 1024).unwrap();
+
+        assert_eq!(decoded_image.width, 20);
+        assert_eq!(decoded_image.height, 10);
+    }
+
+    #[test]
     fn rasterizes_svg_fixture_within_bound() {
         let decoded_image = decode(&load_fixture("llamas.svg"), 320).unwrap();
 
@@ -386,17 +401,18 @@ mod tests {
     }
 
     #[test]
-    fn rejects_zero_dimension_svg() {
+    fn rejects_an_svg_without_a_valid_size() {
         let svg_data = br#"<svg xmlns="http://www.w3.org/2000/svg" width="0" height="50">
             <rect width="0" height="50" fill="red"/>
         </svg>"#;
 
         let error = decode(svg_data, 1024).err().unwrap();
 
-        assert_eq!(
-            discriminant(&error),
-            discriminant(&DecodedImageError::SvgParsingFailed(SvgError::NotAnUtf8Str))
-        );
+        assert!(matches!(
+            error,
+            DecodedImageError::UnrecognizedFormat { svg_error, .. }
+                if discriminant(&svg_error) == discriminant(&SvgError::InvalidSize)
+        ));
     }
 
     #[test]
@@ -419,9 +435,10 @@ mod tests {
 
         assert_eq!(
             discriminant(&error),
-            discriminant(&DecodedImageError::UnrecognizedFormat(
-                unrelated_image_error()
-            ))
+            discriminant(&DecodedImageError::UnrecognizedFormat {
+                raster_format_error: unrelated_image_error(),
+                svg_error: SvgError::NotAnUtf8Str,
+            })
         );
     }
 

@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -10,17 +11,17 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
-use tokio_util::sync::CancellationToken;
 
 const SEQUENCE_CONTEXT_SIZE: u32 = 256;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_conversation_exceeding_sequence_context() -> Result<()> {
+async fn agent_rejects_conversation_exceeding_sequence_context() {
     let cluster = start_cluster_with_qwen3_and_context_size(
         vec![AgentConfig::single(1)],
         SEQUENCE_CONTEXT_SIZE,
     )
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -40,7 +41,8 @@ async fn agent_rejects_conversation_exceeding_sequence_context() -> Result<()> {
                 tools: vec![],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     assert!(collected.token_results.iter().any(|result| matches!(
         &result.token_result,
@@ -49,7 +51,8 @@ async fn agent_rejects_conversation_exceeding_sequence_context() -> Result<()> {
                 && details.prompt_tokens > SEQUENCE_CONTEXT_SIZE as usize
     )));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

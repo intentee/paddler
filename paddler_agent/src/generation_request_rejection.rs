@@ -1,4 +1,7 @@
-use anyhow::Error as AnyhowError;
+use std::num::TryFromIntError;
+
+use llama_cpp_bindings::batch_add_error::BatchAddError;
+use llama_cpp_bindings::error::ClearKvCacheSeqError;
 use llama_cpp_bindings::error::EvalMultimodalChunksError;
 use llama_cpp_bindings::error::GrammarError;
 use llama_cpp_bindings::error::JsonSchemaToGrammarError;
@@ -9,15 +12,18 @@ use llama_cpp_bindings::mtmd::MtmdBitmapError;
 use llama_cpp_bindings::mtmd::MtmdEvalError;
 use llama_cpp_bindings::mtmd::MtmdTokenizeError;
 use log::error;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::oversized_media_details::OversizedMediaDetails;
-use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
+use minijinja::Error as MinijinjaError;
+use serde_json::Error;
 use tokio::sync::mpsc;
 
 use paddler_image_decoder::decoded_image_error::DecodedImageError;
-use paddler_tool_call_validator::validator_build_error::ValidatorBuildError;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::oversized_media_details::OversizedMediaDetails;
+use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
+use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
 
-use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
+use crate::rejection_description::rejection_description;
+use crate::send_result_or_warn::send_result_or_warn;
 
 #[derive(Debug, thiserror::Error)]
 pub enum GenerationRequestRejection {
@@ -39,14 +45,17 @@ pub enum GenerationRequestRejection {
     #[error("received images but model does not support multimodal input")]
     MultimodalNotSupported,
 
-    #[error("failed to render chat template: {0:?}")]
-    ChatTemplateRenderingFailed(AnyhowError),
+    #[error("no model is loaded")]
+    ModelNotLoaded,
+
+    #[error("failed to render chat template: {0}")]
+    ChatTemplateRenderingFailed(#[source] MinijinjaError),
 
     #[error("{0}")]
-    ToolSchemaInvalid(#[source] ValidatorBuildError),
+    ToolSchemaInvalid(#[source] ToolCallValidationError),
 
     #[error("failed to serialize tools: {0}")]
-    ToolsSerializationFailed(#[source] serde_json::Error),
+    ToolsSerializationFailed(#[source] Error),
 
     #[error("failed to build this model's tool call parser: {0}")]
     ToolCallParserCreationFailed(#[source] ParseChatMessageError),
@@ -89,6 +98,19 @@ pub enum GenerationRequestRejection {
 
     #[error("failed to ingest multimodal prompt: {0}")]
     MultimodalIngestionFailed(#[source] EvalMultimodalChunksError),
+
+    #[error("failed to add a token to the batch: {0}")]
+    BatchAssemblyFailed(#[source] BatchAddError),
+
+    #[error("failed to clear the KV cache of the sequence: {0}")]
+    KvCacheClearFailed(#[source] ClearKvCacheSeqError),
+
+    #[error("sequence id {sequence_id} cannot address a KV cache sequence: {source}")]
+    SequenceIdOutOfRange {
+        sequence_id: i32,
+        #[source]
+        source: TryFromIntError,
+    },
 }
 
 impl GenerationRequestRejection {
@@ -139,7 +161,7 @@ impl GenerationRequestRejection {
         agent_name: Option<&str>,
         generated_tokens_tx: &mpsc::UnboundedSender<GeneratedTokenResult>,
     ) {
-        send_generated_token_result_or_warn(
+        send_result_or_warn(
             agent_name,
             generated_tokens_tx,
             self.into_generated_token_result(agent_name),
@@ -148,7 +170,7 @@ impl GenerationRequestRejection {
 
     #[must_use]
     pub fn into_generated_token_result(self, agent_name: Option<&str>) -> GeneratedTokenResult {
-        let message = format!("{agent_name:?}: {self}");
+        let message = rejection_description(agent_name, &self);
 
         error!("{message}");
 
@@ -163,6 +185,7 @@ impl GenerationRequestRejection {
             Self::ImageDecodingFailed(_) | Self::ImageBitmapCreationFailed(_) => {
                 GeneratedTokenResult::ImageDecodingFailed(message)
             }
+            Self::ModelNotLoaded => GeneratedTokenResult::ModelNotLoaded(message),
             Self::MultimodalNotSupported => GeneratedTokenResult::MultimodalNotSupported(message),
             Self::ChatTemplateRenderingFailed(_) | Self::ToolCallParserCreationFailed(_) => {
                 GeneratedTokenResult::ChatTemplateError(message)
@@ -177,37 +200,73 @@ impl GenerationRequestRejection {
             Self::PromptExceedsContextSize { details } => {
                 GeneratedTokenResult::PromptExceedsContextSize(details)
             }
-            Self::ToolsSerializationFailed(_)
-            | Self::MediaMicroBatchCheckFailed(_)
-            | Self::PromptTokenizationFailed(_)
-            | Self::SchedulerUnavailable
-            | Self::NoSequenceSlotAvailable
-            | Self::SamplerChainCreationFailed(_)
-            | Self::MultimodalTokenizationFailed(_)
-            | Self::MultimodalIngestionFailed(_) => GeneratedTokenResult::SamplerError(message),
+            Self::ToolsSerializationFailed(_) => {
+                GeneratedTokenResult::ToolsSerializationFailed(message)
+            }
+            Self::MediaMicroBatchCheckFailed(_) => {
+                GeneratedTokenResult::MediaMicroBatchCheckFailed(message)
+            }
+            Self::PromptTokenizationFailed(_) => {
+                GeneratedTokenResult::PromptTokenizationFailed(message)
+            }
+            Self::SchedulerUnavailable => GeneratedTokenResult::SchedulerUnavailable(message),
+            Self::NoSequenceSlotAvailable => GeneratedTokenResult::NoSequenceSlotAvailable(message),
+            Self::SamplerChainCreationFailed(_) => {
+                GeneratedTokenResult::SamplerChainCreationFailed(message)
+            }
+            Self::MultimodalTokenizationFailed(_) => {
+                GeneratedTokenResult::MultimodalTokenizationFailed(message)
+            }
+            Self::MultimodalIngestionFailed(_) => {
+                GeneratedTokenResult::MultimodalIngestionFailed(message)
+            }
+            Self::BatchAssemblyFailed(_) => GeneratedTokenResult::BatchAssemblyFailed(message),
+            Self::KvCacheClearFailed(_) => GeneratedTokenResult::KvCacheClearFailed(message),
+            Self::SequenceIdOutOfRange { .. } => {
+                GeneratedTokenResult::SequenceIdOutOfRange(message)
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use anyhow::anyhow;
+    use llama_cpp_bindings::batch_add_error::BatchAddError;
+    use llama_cpp_bindings::error::ClearKvCacheSeqError;
     use llama_cpp_bindings::error::EvalMultimodalChunksError;
     use llama_cpp_bindings::error::FfiContractError;
     use llama_cpp_bindings::error::FfiStatusError;
     use llama_cpp_bindings::error::GrammarError;
     use llama_cpp_bindings::error::JsonSchemaToGrammarError;
     use llama_cpp_bindings::error::ParseChatMessageError;
+    use llama_cpp_bindings::error::SamplingError;
     use llama_cpp_bindings::mtmd::MtmdEvalError;
     use llama_cpp_bindings::mtmd::NonCausalChunkMicroBatchMismatch;
+    use minijinja::Error as MinijinjaError;
+    use minijinja::ErrorKind as MinijinjaErrorKind;
+    use serde_json::Map;
+    use serde_json::Value;
+    use serde_json::from_str;
+    use serde_json::json;
+    use tokio::sync::mpsc;
+
     use paddler_image_decoder::decoded_image_error::DecodedImageError;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::oversized_media_details::OversizedMediaDetails;
     use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
-    use paddler_tool_call_validator::validator_build_error::ValidatorBuildError;
-    use tokio::sync::mpsc;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+    use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
     use super::GenerationRequestRejection;
+
+    struct ExpectedReport {
+        rejection: GenerationRequestRejection,
+        into_result: fn(String) -> GeneratedTokenResult,
+    }
 
     fn reported(rejection: GenerationRequestRejection) -> GeneratedTokenResult {
         let (generated_tokens_tx, mut generated_tokens_rx) = mpsc::unbounded_channel();
@@ -218,7 +277,7 @@ mod tests {
     }
 
     fn agent_message(description: &str) -> String {
-        format!("Some(\"agent\"): {description}")
+        format!("agent: {description}")
     }
 
     #[test]
@@ -280,28 +339,44 @@ mod tests {
 
     #[test]
     fn reports_prompt_rendering_failures_as_chat_template_error() {
+        let rendering_error =
+            MinijinjaError::new(MinijinjaErrorKind::UndefinedError, "missing variable");
+        let expected_message = agent_message(&format!(
+            "failed to render chat template: {rendering_error}"
+        ));
+
         assert_eq!(
             reported(GenerationRequestRejection::ChatTemplateRenderingFailed(
-                anyhow!("missing variable"),
+                rendering_error
             )),
-            GeneratedTokenResult::ChatTemplateError(agent_message(
-                "failed to render chat template: missing variable"
-            ))
+            GeneratedTokenResult::ChatTemplateError(expected_message)
         );
     }
 
     #[test]
     fn reports_invalid_tool_schema() {
+        let mut properties = Map::new();
+
+        properties.insert("location".to_owned(), json!({"type": 123}));
+
+        let schema_error = ToolCallValidator::from_tools(&[Tool::Function(FunctionCall {
+            function: Function {
+                name: "get_weather".to_owned(),
+                description: "fetch weather".to_owned(),
+                parameters: Parameters::Schema(ValidatedParametersSchema {
+                    schema_type: "object".to_owned(),
+                    properties: Some(properties),
+                    ..ValidatedParametersSchema::default()
+                }),
+            },
+        })])
+        .err()
+        .expect("a property typed as a number is not a valid JSON Schema");
+        let expected_message = agent_message(&schema_error.to_string());
+
         assert_eq!(
-            reported(GenerationRequestRejection::ToolSchemaInvalid(
-                ValidatorBuildError::InvalidSchema {
-                    tool_name: "get_weather".to_owned(),
-                    message: "not a schema".to_owned(),
-                },
-            )),
-            GeneratedTokenResult::ToolSchemaInvalid(agent_message(
-                "tool \"get_weather\" parameters are not a valid JSON Schema: not a schema"
-            ))
+            reported(GenerationRequestRejection::ToolSchemaInvalid(schema_error)),
+            GeneratedTokenResult::ToolSchemaInvalid(expected_message)
         );
     }
 
@@ -383,7 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn reports_other_micro_batch_check_failures_as_sampler_error() {
+    fn reports_other_micro_batch_check_failures_as_micro_batch_check_failures() {
         let fit_error = MtmdEvalError::FfiContract(FfiContractError {
             operation: "mtmd_input_chunks_get",
             detail: "returned a null chunk within the chunk count",
@@ -396,7 +471,7 @@ mod tests {
             reported(GenerationRequestRejection::for_micro_batch_fit_error(
                 fit_error
             )),
-            GeneratedTokenResult::SamplerError(expected_message)
+            GeneratedTokenResult::MediaMicroBatchCheckFailed(expected_message)
         );
     }
 
@@ -417,16 +492,68 @@ mod tests {
     }
 
     #[test]
-    fn reports_other_multimodal_ingestion_failures_as_sampler_error() {
+    fn reports_multimodal_ingestion_failures_as_ingestion_failures() {
         let rejection = GenerationRequestRejection::MultimodalIngestionFailed(
             EvalMultimodalChunksError::ChunkOutOfBounds(3),
         );
 
         assert_eq!(
             reported(rejection),
-            GeneratedTokenResult::SamplerError(agent_message(
+            GeneratedTokenResult::MultimodalIngestionFailed(agent_message(
                 "failed to ingest multimodal prompt: chunk index 3 out of bounds during post-eval walk"
             ))
         );
+    }
+
+    #[test]
+    fn reports_internal_scheduler_failures_under_their_own_results() {
+        for ExpectedReport {
+            rejection,
+            into_result,
+        } in [
+            ExpectedReport {
+                rejection: GenerationRequestRejection::BatchAssemblyFailed(
+                    BatchAddError::EmptyBuffer,
+                ),
+                into_result: GeneratedTokenResult::BatchAssemblyFailed,
+            },
+            ExpectedReport {
+                rejection: GenerationRequestRejection::KvCacheClearFailed(
+                    ClearKvCacheSeqError::PartialSequenceNotRemoved {
+                        seq_id: 1,
+                        p0: 0,
+                        p1: 4,
+                    },
+                ),
+                into_result: GeneratedTokenResult::KvCacheClearFailed,
+            },
+            ExpectedReport {
+                rejection: GenerationRequestRejection::NoSequenceSlotAvailable,
+                into_result: GeneratedTokenResult::NoSequenceSlotAvailable,
+            },
+            ExpectedReport {
+                rejection: GenerationRequestRejection::SamplerChainCreationFailed(
+                    SamplingError::SamplerUnavailable { sampler: "grammar" },
+                ),
+                into_result: GeneratedTokenResult::SamplerChainCreationFailed,
+            },
+            ExpectedReport {
+                rejection: GenerationRequestRejection::SequenceIdOutOfRange {
+                    sequence_id: -1,
+                    source: u32::try_from(-1_i32).unwrap_err(),
+                },
+                into_result: GeneratedTokenResult::SequenceIdOutOfRange,
+            },
+            ExpectedReport {
+                rejection: GenerationRequestRejection::ToolsSerializationFailed(
+                    from_str::<Value>("{").unwrap_err(),
+                ),
+                into_result: GeneratedTokenResult::ToolsSerializationFailed,
+            },
+        ] {
+            let expected_message = agent_message(&rejection.to_string());
+
+            assert_eq!(reported(rejection), into_result(expected_message));
+        }
     }
 }

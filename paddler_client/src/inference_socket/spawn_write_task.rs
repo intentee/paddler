@@ -3,6 +3,8 @@ use std::sync::Arc;
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
 use log::error;
+use tokio::net::TcpStream;
+use tokio::spawn;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::MaybeTlsStream;
@@ -11,15 +13,14 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 use crate::inference_socket::pending_requests::PendingRequests;
 
-type WebSocketWriteSink =
-    SplitSink<WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>, WsMessage>;
+type WebSocketWriteSink = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, WsMessage>;
 
 pub fn spawn_write_task(
     ws_write: WebSocketWriteSink,
     write_rx: UnboundedReceiver<String>,
     pending: Arc<PendingRequests>,
 ) -> JoinHandle<()> {
-    tokio::spawn(async move {
+    spawn(async move {
         let mut ws_write = ws_write;
         let mut write_rx = write_rx;
 

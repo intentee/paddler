@@ -1,31 +1,28 @@
 use std::num::NonZeroU32;
 
-use std::time::Duration;
+use reqwest::Client;
+use serde_json::from_str;
+use tokio_util::sync::CancellationToken;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
 #[tokio::test]
 async fn balancer_shutdown_releases_buffered_request_with_shutdown_error() {
-    let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
-
-    params.buffered_request_timeout = Duration::from_mins(1);
-    params.shutdown_options = ServiceShutdownOptions {
-        cooperative_deadline: Duration::from_secs(2),
-        abort_deadline: Duration::from_secs(2),
-    };
-
-    let mut runner = BalancerRunner::start(params)
+    let runner = BalancerRunner::start(ephemeral_balancer_runner_params(CancellationToken::new()))
         .await
         .expect("a runner on ephemeral ports must start");
-    let held_response = reqwest::Client::new()
+    let held_response = Client::new()
         .post(format!(
-            "http://{}/api/v1/continue_from_raw_prompt",
-            runner.addresses.inference
+            "http://{}{}",
+            runner.addresses.inference,
+            ApiPath::CONTINUE_FROM_RAW_PROMPT
         ))
         .json(&ContinueFromRawPromptParams {
             grammar: None,
@@ -46,10 +43,17 @@ async fn balancer_shutdown_releases_buffered_request_with_shutdown_error() {
     runner
         .wait_for_completion()
         .await
-        .expect("the balancer must shut down before the deadline");
+        .expect("the balancer must shut down once it has released the buffered request");
 
-    assert!(
-        body.contains("shutting down"),
-        "the buffered request must be released with a shutdown error, got body: {body:?}"
-    );
+    assert!(matches!(
+        from_str::<OutgoingMessage>(body.strip_suffix('\n').expect("the body must be one NDJSON line"))
+            .expect("the body must be an inference message"),
+        OutgoingMessage::Error(ErrorEnvelope {
+            error: JsonRpcError {
+                code: 503,
+                description,
+            },
+            ..
+        }) if description == "balancer is shutting down"
+    ));
 }

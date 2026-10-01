@@ -1,7 +1,8 @@
+use tokio_util::sync::CancellationToken;
+
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_client::reports_health::ReportsHealth as _;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_serves_on_the_addresses_it_announces() {

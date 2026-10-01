@@ -3,10 +3,12 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use tokio::select;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
+
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state::BalancerApplicableState;
@@ -32,7 +34,7 @@ impl Service for ReconciliationService {
         } = *self;
 
         loop {
-            tokio::select! {
+            select! {
                 biased;
                 () = shutdown.cancelled() => break Ok(()),
                 changed = balancer_desired_state_rx.changed() => {
@@ -57,10 +59,11 @@ impl Service for ReconciliationService {
 mod tests {
     use std::sync::Arc;
 
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
+
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
     use super::ReconciliationService;
     use crate::agent_controller_pool::AgentControllerPool;

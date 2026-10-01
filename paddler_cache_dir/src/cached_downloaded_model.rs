@@ -1,7 +1,6 @@
-use std::fmt::Write as _;
+use std::io::Error;
 use std::path::PathBuf;
 
-use anyhow::Result;
 use fslock::LockFile;
 use sha2::Digest;
 use sha2::Sha256;
@@ -9,19 +8,11 @@ use tokio::fs::create_dir_all;
 use tokio::fs::try_exists;
 
 use crate::cache_dir::CacheDir;
+use crate::cache_dir_error::CacheDirError;
 use crate::cached_downloaded_model_lock::CachedDownloadedModelLock;
-use crate::download_lock_acquisition_error::DownloadLockAcquisitionError;
+use crate::download_lock_acquisition::DownloadLockAcquisition;
 
 const DOWNLOADED_MODELS_SUBDIR: &str = "downloaded-models";
-
-fn hex_lowercase(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .fold(String::with_capacity(bytes.len() * 2), |mut acc, byte| {
-            let _ = write!(acc, "{byte:02x}");
-            acc
-        })
-}
 
 pub struct CachedDownloadedModel {
     pub cache_file_path: PathBuf,
@@ -30,58 +21,61 @@ pub struct CachedDownloadedModel {
 }
 
 impl CachedDownloadedModel {
-    pub fn new(cache_dir: &CacheDir, url_string: &str) -> Result<Self> {
-        let cache_root = cache_dir.resolve()?;
-        let basename = hex_lowercase(&Sha256::digest(url_string.as_bytes()));
+    pub fn new(cache_dir: &CacheDir, url_string: &str) -> Result<Self, CacheDirError> {
+        cache_dir.resolve().map(|cache_root| {
+            let basename = format!("{:x}", Sha256::digest(url_string.as_bytes()));
+            let cache_subdir = cache_root.join(DOWNLOADED_MODELS_SUBDIR);
 
-        let cache_subdir = cache_root.join(DOWNLOADED_MODELS_SUBDIR);
-        let cache_file_path = cache_subdir.join(&basename);
-        let lock_file_path = cache_subdir.join(format!("{basename}.lock"));
-
-        Ok(Self {
-            cache_file_path,
-            cache_subdir,
-            lock_file_path,
+            Self {
+                cache_file_path: cache_subdir.join(&basename),
+                lock_file_path: cache_subdir.join(format!("{basename}.lock")),
+                cache_subdir,
+            }
         })
     }
 
-    pub async fn is_cached(&self) -> Result<bool, std::io::Error> {
+    pub async fn is_cached(&self) -> Result<bool, Error> {
         try_exists(&self.cache_file_path).await
     }
 
-    pub async fn ensure_cache_subdir_exists(&self) -> Result<(), std::io::Error> {
+    pub async fn ensure_cache_subdir_exists(&self) -> Result<(), Error> {
         create_dir_all(&self.cache_subdir).await
     }
 
-    pub fn try_acquire_download_lock(
-        &self,
-    ) -> Result<CachedDownloadedModelLock, DownloadLockAcquisitionError> {
-        let (acquired, lock_file) = LockFile::open(&self.lock_file_path)
-            .and_then(|mut file| file.try_lock().map(|acquired| (acquired, file)))?;
-        if acquired {
-            Ok(CachedDownloadedModelLock::new(lock_file))
-        } else {
-            Err(DownloadLockAcquisitionError::AnotherProcessIsDownloading)
-        }
+    pub fn try_acquire_download_lock(&self) -> Result<DownloadLockAcquisition, Error> {
+        LockFile::open(&self.lock_file_path).and_then(|mut lock_file| {
+            lock_file.try_lock().map(|acquired| {
+                if acquired {
+                    DownloadLockAcquisition::Acquired(CachedDownloadedModelLock::new(lock_file))
+                } else {
+                    DownloadLockAcquisition::HeldByAnotherProcess
+                }
+            })
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::OsStr;
+    use std::io::ErrorKind;
+    use std::mem::discriminant;
+    use std::path::Path;
+
     use fslock::LockFile;
-    use sha2::Digest;
-    use sha2::Sha256;
     use tempfile::TempDir;
+    use tokio::fs::write;
 
     use crate::cache_dir::CacheDir;
+    use crate::cache_dir_error::CacheDirError;
     use crate::cached_downloaded_model::CachedDownloadedModel;
-    use crate::cached_downloaded_model::hex_lowercase;
+    use crate::download_lock_acquisition::DownloadLockAcquisition;
 
-    fn cache_dir_at(path: &std::path::Path) -> CacheDir {
+    fn cache_dir_at(path: &Path) -> CacheDir {
         #[cfg(unix)]
         {
             CacheDir {
-                explicit: Some(path.to_string_lossy().into_owned()),
+                explicit: Some(path.to_path_buf()),
                 home: None,
                 xdg: None,
             }
@@ -89,7 +83,7 @@ mod tests {
         #[cfg(windows)]
         {
             CacheDir {
-                explicit: Some(path.to_string_lossy().into_owned()),
+                explicit: Some(path.to_path_buf()),
                 localappdata: None,
                 userprofile: None,
             }
@@ -97,24 +91,17 @@ mod tests {
     }
 
     #[test]
-    fn cache_file_basename_is_only_lowercase_hex_for_traversal_url() {
+    fn cache_file_basename_is_the_sha256_hex_of_a_traversal_url() {
         let directory = TempDir::new().unwrap();
         let cache_dir = cache_dir_at(directory.path());
         let url_string = "https://example.com/../../etc/passwd?token=secret";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
 
-        let file_name = cached
-            .cache_file_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap();
-
-        assert_eq!(file_name.len(), 64, "SHA-256 hex is 64 chars");
-        assert!(
-            file_name
-                .chars()
-                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
-            "basename {file_name:?} must be lowercase hex only"
+        assert_eq!(
+            cached.cache_file_path.file_name(),
+            Some(OsStr::new(
+                "2b8d7d17bb8ccf5e8250fc680e613b7c8e8179522fdb52f786dc6a1d593708f1"
+            ))
         );
     }
 
@@ -149,11 +136,10 @@ mod tests {
         let url_string = "https://host.example/folder/model.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
 
-        let expected_hex = hex_lowercase(&Sha256::digest(url_string.as_bytes()));
         let expected_path = directory
             .path()
             .join("downloaded-models")
-            .join(&expected_hex);
+            .join("d211d40a16cf4462dec80daa95e529e1888e86811d721cafb2ff02549a85d57f");
 
         assert_eq!(cached.cache_file_path, expected_path);
     }
@@ -165,11 +151,10 @@ mod tests {
         let url_string = "https://host.example/model.gguf";
         let cached = CachedDownloadedModel::new(&cache_dir, url_string).unwrap();
 
-        let expected_hex = hex_lowercase(&Sha256::digest(url_string.as_bytes()));
         let expected_lock = directory
             .path()
             .join("downloaded-models")
-            .join(format!("{expected_hex}.lock"));
+            .join("5956957a5edf833e4bff4f1c67ac8bbe488602ecd5e659415a6cbbd14c4a91d2.lock");
 
         assert_eq!(cached.lock_file_path, expected_lock);
         assert_eq!(
@@ -196,9 +181,7 @@ mod tests {
             CachedDownloadedModel::new(&cache_dir, "https://host.example/present.gguf").unwrap();
 
         cached.ensure_cache_subdir_exists().await.unwrap();
-        tokio::fs::write(&cached.cache_file_path, b"cached")
-            .await
-            .unwrap();
+        write(&cached.cache_file_path, b"cached").await.unwrap();
 
         assert!(cached.is_cached().await.unwrap());
     }
@@ -211,7 +194,10 @@ mod tests {
             CachedDownloadedModel::new(&cache_dir, "https://host.example/model.gguf").unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
 
-        let _guard = cached.try_acquire_download_lock().unwrap();
+        let _acquisition = cached.try_acquire_download_lock().unwrap();
+        let mut competitor = LockFile::open(&cached.lock_file_path).unwrap();
+
+        assert!(!competitor.try_lock().unwrap());
     }
 
     #[tokio::test]
@@ -226,9 +212,12 @@ mod tests {
         let blocker_acquired = blocker.try_lock().unwrap();
         assert!(blocker_acquired, "blocker must acquire the lock first");
 
-        let result = cached.try_acquire_download_lock();
+        let acquisition = cached.try_acquire_download_lock().unwrap();
 
-        assert!(result.unwrap_err().is_another_process_downloading());
+        assert_eq!(
+            discriminant(&acquisition),
+            discriminant(&DownloadLockAcquisition::HeldByAnotherProcess)
+        );
     }
 
     #[test]
@@ -253,7 +242,12 @@ mod tests {
 
         let result = CachedDownloadedModel::new(&unresolvable, "https://host.example/m.gguf");
 
-        assert!(result.is_err());
+        assert_eq!(
+            result.err().as_ref().map(discriminant),
+            Some(discriminant(&CacheDirError::HomeVariableUnset {
+                variable: "HOME"
+            }))
+        );
     }
 
     #[tokio::test]
@@ -265,7 +259,10 @@ mod tests {
 
         let result = cached.try_acquire_download_lock();
 
-        assert!(result.unwrap_err().is_io());
+        assert!(matches!(
+            result,
+            Err(lock_error) if lock_error.kind() == ErrorKind::NotFound
+        ));
     }
 
     #[tokio::test]
@@ -276,10 +273,13 @@ mod tests {
             CachedDownloadedModel::new(&cache_dir, "https://host.example/model.gguf").unwrap();
         cached.ensure_cache_subdir_exists().await.unwrap();
 
-        {
-            let _guard = cached.try_acquire_download_lock().unwrap();
-        }
+        let first_acquisition = cached.try_acquire_download_lock().unwrap();
 
-        let _second_guard = cached.try_acquire_download_lock().unwrap();
+        drop(first_acquisition);
+
+        let _second_acquisition = cached.try_acquire_download_lock().unwrap();
+        let mut competitor = LockFile::open(&cached.lock_file_path).unwrap();
+
+        assert!(!competitor.try_lock().unwrap());
     }
 }

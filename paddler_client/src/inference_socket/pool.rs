@@ -3,8 +3,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 use serde::Serialize;
 use serde_json::to_string;
 use tokio::sync::Mutex;
@@ -12,6 +10,9 @@ use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use url::Url;
+
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
 
 use crate::error::Error;
 use crate::error::Result;

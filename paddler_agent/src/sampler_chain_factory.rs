@@ -1,5 +1,6 @@
 use llama_cpp_bindings::error::SamplingError;
 use llama_cpp_bindings::sampling::LlamaSampler;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 
 pub struct SamplerChainFactory {
@@ -34,6 +35,7 @@ mod tests {
     use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token::data::LlamaTokenData;
     use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
+
     use paddler_inference_parameters::inference_parameters::InferenceParameters;
 
     use super::SamplerChainFactory;

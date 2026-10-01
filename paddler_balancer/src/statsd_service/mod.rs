@@ -3,52 +3,27 @@ pub mod configuration;
 use std::net::UdpSocket;
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
-use cadence::MetricError;
 use cadence::StatsdClient;
 use cadence::UdpMetricSink;
 use log::error;
+use tokio::select;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
 use crate::agent_controller_pool::AgentControllerPool;
-use crate::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
+use crate::balancer_metrics::BalancerMetrics;
 use crate::buffered_request_manager::BufferedRequestManager;
-use crate::report_statsd_gauges::report_statsd_gauges;
-use crate::statsd_gauges::StatsdGauges;
 use crate::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
-
-fn log_statsd_error(error: MetricError) {
-    error!("Statsd error: {error}");
-}
 
 pub struct StatsdService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: StatsdServiceConfiguration,
-}
-
-impl StatsdService {
-    fn gauges(&self) -> Result<StatsdGauges> {
-        let AgentControllerPoolTotalSlots {
-            slots_processing,
-            slots_total,
-        } = self.agent_controller_pool.total_slots();
-
-        Ok(StatsdGauges {
-            requests_buffered: u64::try_from(
-                self.buffered_request_manager.buffered_request_counter.get(),
-            )
-            .context("requests_buffered count is negative")?,
-            slots_processing: u64::try_from(slots_processing)
-                .context("slots_processing count is negative")?,
-            slots_total: u64::try_from(slots_total).context("slots_total count is negative")?,
-        })
-    }
+    pub statsd_prefix: String,
 }
 
 #[async_trait]
@@ -59,27 +34,28 @@ impl Service for StatsdService {
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
-        let statsd_sink = UdpMetricSink::from(self.configuration.statsd_addr, statsd_sink_socket)?;
+        let statsd_sink = UdpMetricSink::from(
+            self.configuration.statsd_addr.socket_addr,
+            statsd_sink_socket,
+        )?;
 
-        let client = StatsdClient::builder(&self.configuration.statsd_prefix.clone(), statsd_sink)
-            .with_error_handler(log_statsd_error)
-            .build();
+        let client = StatsdClient::builder(&self.statsd_prefix, statsd_sink).build();
 
         let mut ticker = interval(self.configuration.statsd_reporting_interval);
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
-            tokio::select! {
+            select! {
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
-                    match self.gauges() {
-                        Ok(gauges) => {
-                            if let Err(err) = report_statsd_gauges(&client, &gauges) {
-                                error!("Failed to report metrics: {err}");
-                            }
-                        }
-                        Err(err) => error!("Failed to gather metrics: {err}"),
+                    if let Err(err) = BalancerMetrics::gather(
+                        &self.agent_controller_pool,
+                        &self.buffered_request_manager,
+                    )
+                    .report_to(&client)
+                    {
+                        error!("Failed to report metrics: {err}");
                     }
                 }
             }

@@ -2,8 +2,11 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use llama_cpp_bindings::ToolCallArguments;
+use llama_cpp_bindings_types::ToolCallArguments;
+use serde_json::json;
+use serde_json::to_string;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -13,14 +16,14 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use serde_json::json;
-use tokio_util::sync::CancellationToken;
 
 const TOOL_CALL_FOLLOWED_BY_CONTENT: &str = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Paris\"}}\n</tool_call>\nI asked for the weather in Paris.";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_emits_tool_call_parsed_event_before_trailing_content() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1)).await?;
+async fn agent_emits_tool_call_parsed_event_before_trailing_content() {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 1))
+        .await
+        .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -37,18 +40,21 @@ async fn agent_emits_tool_call_parsed_event_before_trailing_content() -> Result<
                 grammar: Some(GrammarConstraint::Gbnf {
                     grammar: format!(
                         "root ::= {}",
-                        serde_json::to_string(TOOL_CALL_FOLLOWED_BY_CONTENT)?
+                        to_string(TOOL_CALL_FOLLOWED_BY_CONTENT).expect("the value must serialize")
                     ),
                     root: "root".to_owned(),
                 }),
-                max_tokens: NonZeroU32::try_from(u32::try_from(
-                    TOOL_CALL_FOLLOWED_BY_CONTENT.len(),
-                )?)?,
+                max_tokens: NonZeroU32::try_from(
+                    u32::try_from(TOOL_CALL_FOLLOWED_BY_CONTENT.len())
+                        .expect("the value must fit its target type"),
+                )
+                .expect("the value must fit its target type"),
                 parse_tool_calls: true,
                 tools: vec![get_weather_tool()],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let token_results = collected.into_token_results();
 
@@ -77,7 +83,8 @@ async fn agent_emits_tool_call_parsed_event_before_trailing_content() -> Result<
         ToolCallArguments::ValidJson(json!({"location": "Paris"}))
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

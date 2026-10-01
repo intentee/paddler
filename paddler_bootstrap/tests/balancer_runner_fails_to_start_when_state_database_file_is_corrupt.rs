@@ -1,10 +1,12 @@
 use std::fs;
 
-use paddler_balancer::state_database_type::StateDatabaseType;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::bootstrap_error::BootstrapError;
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
+
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::bootstrap_error::BootstrapError;
+use paddler_state_database::state_database_error::StateDatabaseError;
+use paddler_state_database::state_database_type::StateDatabaseType;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
@@ -21,7 +23,7 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() {
 
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
-    params.state_database_type =
+    params.bootstrap_config.state_database_type =
         StateDatabaseType::File(corrupt_state_database.path().to_path_buf());
 
     let start_error = BalancerRunner::start(params)
@@ -31,7 +33,8 @@ async fn balancer_runner_fails_to_start_when_state_database_file_is_corrupt() {
 
     assert!(matches!(
         start_error,
-        BootstrapError::StateDatabaseReadFailed { source }
-            if source.root_cause().downcast_ref::<serde_json::Error>().is_some()
+        BootstrapError::StateDatabaseReadFailed {
+            source: StateDatabaseError::FileContentsInvalid { path, .. }
+        } if path == corrupt_state_database.path()
     ));
 }

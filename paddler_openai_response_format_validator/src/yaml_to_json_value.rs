@@ -1,29 +1,33 @@
-use anyhow::Result;
-use anyhow::anyhow;
-use anyhow::bail;
 use serde_json::Map;
 use serde_json::Number;
 use serde_json::Value;
 use yaml_rust2::yaml::Hash;
 use yaml_rust2::yaml::Yaml;
 
-fn real_to_value(real: &str) -> Result<Value> {
+use crate::openai_validator_error::OpenAIValidatorError;
+
+fn real_to_value(real: &str) -> Result<Value, OpenAIValidatorError> {
     let parsed: f64 = real
         .parse()
-        .map_err(|error| anyhow!("could not parse YAML real {real:?}: {error}"))?;
+        .map_err(|source| OpenAIValidatorError::YamlRealUnparsable {
+            real: real.to_owned(),
+            source,
+        })?;
 
     let number =
-        Number::from_f64(parsed).ok_or_else(|| anyhow!("YAML real {real:?} is not finite"))?;
+        Number::from_f64(parsed).ok_or_else(|| OpenAIValidatorError::YamlRealNotFinite {
+            real: real.to_owned(),
+        })?;
 
     Ok(Value::Number(number))
 }
 
-fn hash_to_value(hash: &Hash) -> Result<Value> {
+fn hash_to_value(hash: &Hash) -> Result<Value, OpenAIValidatorError> {
     let mut object = Map::new();
 
     for (key, value) in hash {
         let Yaml::String(key) = key else {
-            bail!("YAML mapping keys must be strings, found {key:?}");
+            return Err(OpenAIValidatorError::YamlMappingKeyNotString { key: key.clone() });
         };
 
         object.insert(key.clone(), yaml_to_json_value(value)?);
@@ -32,7 +36,7 @@ fn hash_to_value(hash: &Hash) -> Result<Value> {
     Ok(Value::Object(object))
 }
 
-pub fn yaml_to_json_value(yaml: &Yaml) -> Result<Value> {
+pub fn yaml_to_json_value(yaml: &Yaml) -> Result<Value, OpenAIValidatorError> {
     match yaml {
         Yaml::Null => Ok(Value::Null),
         Yaml::Boolean(boolean) => Ok(Value::Bool(*boolean)),
@@ -42,21 +46,24 @@ pub fn yaml_to_json_value(yaml: &Yaml) -> Result<Value> {
         Yaml::Array(array) => array
             .iter()
             .map(yaml_to_json_value)
-            .collect::<Result<Vec<Value>>>()
+            .collect::<Result<Vec<Value>, OpenAIValidatorError>>()
             .map(Value::Array),
         Yaml::Hash(hash) => hash_to_value(hash),
-        Yaml::Alias(index) => bail!("YAML aliases are not supported (alias #{index})"),
-        Yaml::BadValue => bail!("encountered an invalid YAML node"),
+        Yaml::Alias(index) => Err(OpenAIValidatorError::YamlAliasUnsupported { index: *index }),
+        Yaml::BadValue => Err(OpenAIValidatorError::YamlBadValue),
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+
     use serde_json::json;
     use yaml_rust2::yaml::Hash;
     use yaml_rust2::yaml::Yaml;
 
     use super::yaml_to_json_value;
+    use crate::openai_validator_error::OpenAIValidatorError;
 
     #[test]
     fn converts_null() {
@@ -96,14 +103,20 @@ mod tests {
     fn rejects_unparseable_real() {
         let error = yaml_to_json_value(&Yaml::Real("not-a-number".to_owned())).unwrap_err();
 
-        assert!(error.to_string().contains("could not parse YAML real"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::YamlRealUnparsable { ref real, .. } if real == "not-a-number"
+        ));
     }
 
     #[test]
     fn rejects_non_finite_real() {
         let error = yaml_to_json_value(&Yaml::Real("inf".to_owned())).unwrap_err();
 
-        assert!(error.to_string().contains("not finite"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::YamlRealNotFinite { ref real } if real == "inf"
+        ));
     }
 
     #[test]
@@ -134,7 +147,10 @@ mod tests {
 
         let error = yaml_to_json_value(&Yaml::Hash(hash)).unwrap_err();
 
-        assert!(error.to_string().contains("mapping keys must be strings"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::YamlMappingKeyNotString { ref key } if *key == Yaml::Integer(1)
+        ));
     }
 
     #[test]
@@ -144,7 +160,10 @@ mod tests {
 
         let error = yaml_to_json_value(&Yaml::Hash(hash)).unwrap_err();
 
-        assert!(error.to_string().contains("invalid YAML node"));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&OpenAIValidatorError::YamlBadValue)
+        );
     }
 
     #[test]
@@ -153,20 +172,29 @@ mod tests {
 
         let error = yaml_to_json_value(&array).unwrap_err();
 
-        assert!(error.to_string().contains("invalid YAML node"));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&OpenAIValidatorError::YamlBadValue)
+        );
     }
 
     #[test]
     fn rejects_alias() {
         let error = yaml_to_json_value(&Yaml::Alias(7)).unwrap_err();
 
-        assert!(error.to_string().contains("aliases are not supported"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::YamlAliasUnsupported { index } if index == 7
+        ));
     }
 
     #[test]
     fn rejects_bad_value() {
         let error = yaml_to_json_value(&Yaml::BadValue).unwrap_err();
 
-        assert!(error.to_string().contains("invalid YAML node"));
+        assert_eq!(
+            discriminant(&error),
+            discriminant(&OpenAIValidatorError::YamlBadValue)
+        );
     }
 }

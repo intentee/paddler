@@ -2,15 +2,17 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_raw_prompt_respects_max_tokens() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+async fn agent_raw_prompt_respects_max_tokens() {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
+        .await
+        .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_raw_prompt(
@@ -21,7 +23,8 @@ async fn agent_raw_prompt_respects_max_tokens() -> Result<()> {
                 raw_prompt: "The capital of France is".to_owned(),
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let token_count = collected
         .token_results
@@ -32,7 +35,8 @@ async fn agent_raw_prompt_respects_max_tokens() -> Result<()> {
     assert!(token_count > 0);
     assert!(token_count <= 20);
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

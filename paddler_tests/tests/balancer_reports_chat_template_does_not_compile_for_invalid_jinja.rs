@@ -10,7 +10,7 @@ use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_a
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_chat_template_does_not_compile_for_invalid_jinja() {
-    let ModelCard { reference, .. } = qwen3_0_6b();
+    let ModelCard { reference } = qwen3_0_6b();
     let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
         chat_template_override: Some(ChatTemplate {
             content: "{{invalid jinja template".to_owned(),

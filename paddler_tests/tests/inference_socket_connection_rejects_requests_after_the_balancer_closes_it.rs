@@ -1,9 +1,10 @@
+use tokio::sync::broadcast;
+use tokio::task::yield_now;
+
 use paddler_client::error::Error;
 use paddler_client::inference_socket::connection::Connection;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio::sync::broadcast;
-use tokio::task::yield_now;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_connection_rejects_requests_after_the_balancer_closes_it() {

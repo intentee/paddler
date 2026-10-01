@@ -5,7 +5,6 @@ use crate::model_card::ModelCard;
 #[must_use]
 pub fn gemma_4_e2b_it() -> ModelCard {
     ModelCard {
-        gpu_layer_count: 999,
         reference: HuggingFaceModelReference {
             filename: "gemma-4-E2B-it-Q4_K_M.gguf".to_owned(),
             repo_id: "unsloth/gemma-4-E2B-it-GGUF".to_owned(),

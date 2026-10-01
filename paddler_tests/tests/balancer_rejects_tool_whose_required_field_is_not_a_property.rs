@@ -1,8 +1,9 @@
+use tokio_util::sync::CancellationToken;
+
 use paddler_client::error::Error as ClientError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::conversation_with_a_tool_requiring_an_undeclared_property::conversation_with_a_tool_requiring_an_undeclared_property;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 const BAD_REQUEST: u16 = 400;
 

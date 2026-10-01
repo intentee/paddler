@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
 use futures_util::StreamExt;
-use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
-use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
-use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::to_string;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -14,6 +9,12 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::connect_async;
 use url::Url;
+
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
+use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
+use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -93,11 +94,77 @@ impl Drop for Connection {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+
+    use futures_util::SinkExt as _;
+    use futures_util::StreamExt as _;
+    use tokio::net::TcpListener;
+    use tokio::net::TcpStream;
+    use tokio::spawn;
     use tokio::sync::broadcast;
+    use tokio::task::JoinHandle;
+    use tokio_tungstenite::WebSocketStream;
+    use tokio_tungstenite::accept_async;
+    use tokio_tungstenite::tungstenite::Error as WebSocketError;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
     use url::Url;
 
     use super::Connection;
     use crate::error::Error;
+
+    struct WebSocketFixture {
+        server: JoinHandle<WebSocketStream<TcpStream>>,
+        url: Url,
+    }
+
+    async fn websocket_fixture_answering_the_first_request_with(
+        answer: Option<WsMessage>,
+    ) -> WebSocketFixture {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("the fixture socket must bind");
+        let url = Url::parse(&format!(
+            "http://{}",
+            listener
+                .local_addr()
+                .expect("the fixture socket must report its address")
+        ))
+        .expect("the fixture URL must be valid");
+        let server = spawn(async move {
+            let (stream, _peer_addr) = listener
+                .accept()
+                .await
+                .expect("the fixture must accept the client");
+            let mut websocket = accept_async(stream)
+                .await
+                .expect("the fixture must complete the handshake");
+
+            websocket
+                .next()
+                .await
+                .expect("the client must send its request")
+                .expect("the client request must be readable");
+
+            if let Some(answer) = answer {
+                websocket
+                    .send(answer)
+                    .await
+                    .expect("the fixture must send its answer");
+            }
+
+            websocket
+        });
+
+        WebSocketFixture { server, url }
+    }
+
+    async fn connection_to(url: Url) -> Connection {
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
+
+        Connection::connect(url, notification_tx)
+            .await
+            .expect("the client must connect to the fixture")
+    }
 
     #[tokio::test]
     async fn connect_fails_for_an_unreachable_server() {
@@ -109,7 +176,44 @@ mod tests {
                 notification_tx,
             )
             .await,
-            Err(Error::WebSocket(_))
+            Err(Error::WebSocket(WebSocketError::Io(io_error)))
+                if io_error.kind() == ErrorKind::ConnectionRefused
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_binary_frame_from_the_server_drops_every_pending_request() {
+        let WebSocketFixture { server, url } = websocket_fixture_answering_the_first_request_with(
+            Some(WsMessage::Binary(vec![0].into())),
+        )
+        .await;
+        let connection = connection_to(url).await;
+        let mut response_rx = connection
+            .send("request-1".to_owned(), "{}".to_owned())
+            .expect("an open connection must accept a request");
+
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
+
+        drop(server.await.expect("the fixture must not panic"));
+    }
+
+    #[tokio::test]
+    async fn a_connection_reset_without_a_closing_handshake_drops_every_pending_request() {
+        let WebSocketFixture { server, url } =
+            websocket_fixture_answering_the_first_request_with(None).await;
+        let connection = connection_to(url).await;
+        let mut response_rx = connection
+            .send("request-1".to_owned(), "{}".to_owned())
+            .expect("an open connection must accept a request");
+
+        drop(server.await.expect("the fixture must not panic"));
+
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
         ));
     }
 }

@@ -1,5 +1,8 @@
 use std::num::NonZeroU32;
 
+use serde_json::Map;
+use serde_json::json;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -9,8 +12,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use serde_json::Map;
-use serde_json::json;
 
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
 

@@ -1,4 +1,5 @@
 use minijinja::context;
+
 use paddler_messaging::media_marker::MediaMarker;
 
 use crate::chat_prompt_render_request::ChatPromptRenderRequest;
@@ -8,7 +9,6 @@ use crate::generation_request_rejection::GenerationRequestRejection;
 pub struct ChatPromptRenderer {
     pub chat_template_renderer: ChatTemplateRenderer,
     pub media_marker: MediaMarker,
-    pub model_adds_bos_token: bool,
     pub token_bos_str: String,
     pub token_eos_str: String,
     pub token_nl_str: String,
@@ -24,8 +24,7 @@ impl ChatPromptRenderer {
             tools,
         }: ChatPromptRenderRequest,
     ) -> Result<String, GenerationRequestRejection> {
-        let mut rendered_prompt = self
-            .chat_template_renderer
+        self.chat_template_renderer
             .render(context! {
                 add_generation_prompt,
                 bos_token => self.token_bos_str,
@@ -35,13 +34,7 @@ impl ChatPromptRenderer {
                 nl_token => self.token_nl_str,
                 tools,
             })
-            .map_err(GenerationRequestRejection::ChatTemplateRenderingFailed)?;
-
-        if self.model_adds_bos_token && rendered_prompt.starts_with(&self.token_bos_str) {
-            rendered_prompt.drain(..self.token_bos_str.len());
-        }
-
-        Ok(rendered_prompt)
+            .map_err(GenerationRequestRejection::ChatTemplateRenderingFailed)
     }
 }
 
@@ -49,7 +42,9 @@ impl ChatPromptRenderer {
 mod tests {
     use std::mem::discriminant;
 
-    use anyhow::anyhow;
+    use minijinja::Error as MinijinjaError;
+    use minijinja::ErrorKind as MinijinjaErrorKind;
+
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
     use paddler_messaging::conversation_history::ConversationHistory;
@@ -66,14 +61,13 @@ mod tests {
 
     const SPECIAL_TOKENS_TEMPLATE: &str = "{{ bos_token }}{% for message in messages %}{% for part in message.content %}{{ part.text }}{{ nl_token }}{% endfor %}{% endfor %}{{ eos_token }}";
 
-    fn renderer_for(template_content: &str, model_adds_bos_token: bool) -> ChatPromptRenderer {
+    fn renderer_for(template_content: &str) -> ChatPromptRenderer {
         ChatPromptRenderer {
             chat_template_renderer: ChatTemplateRenderer::new(ChatTemplate {
                 content: template_content.to_owned(),
             })
             .unwrap(),
             media_marker: MediaMarker::new("<media>".to_owned()),
-            model_adds_bos_token,
             token_bos_str: "<bos>".to_owned(),
             token_eos_str: "<eos>".to_owned(),
             token_nl_str: "<nl>".to_owned(),
@@ -110,7 +104,7 @@ mod tests {
 
     #[test]
     fn renders_images_as_media_markers_between_special_tokens() {
-        let renderer = renderer_for(SPECIAL_TOKENS_TEMPLATE, false);
+        let renderer = renderer_for(SPECIAL_TOKENS_TEMPLATE);
 
         assert_eq!(
             render_image_then_text(&renderer).unwrap(),
@@ -119,25 +113,17 @@ mod tests {
     }
 
     #[test]
-    fn strips_the_leading_bos_token_the_tokenizer_adds_again() {
-        let renderer = renderer_for(SPECIAL_TOKENS_TEMPLATE, true);
-
-        assert_eq!(
-            render_image_then_text(&renderer).unwrap(),
-            "<media><nl>Describe<nl><eos>"
-        );
-    }
-
-    #[test]
     fn reports_template_failures_as_rendering_rejections() {
-        let renderer = renderer_for("{{ raise_exception('unsupported conversation') }}", false);
+        let renderer = renderer_for("{{ raise_exception('unsupported conversation') }}");
 
         assert_eq!(
             render_image_then_text(&renderer)
                 .err()
                 .map(|rejection| discriminant(&rejection)),
             Some(discriminant(
-                &GenerationRequestRejection::ChatTemplateRenderingFailed(anyhow!("expected"))
+                &GenerationRequestRejection::ChatTemplateRenderingFailed(MinijinjaError::from(
+                    MinijinjaErrorKind::InvalidOperation
+                ))
             ))
         );
     }

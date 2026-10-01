@@ -1,50 +1,64 @@
 use serde::Deserialize;
 use serde::Serialize;
+use serde::Serializer;
 use serde_json::Map;
 use serde_json::Value;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ValidatedParametersSchema {
     #[serde(rename = "type")]
     pub schema_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<Map<String, Value>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
-    #[serde(
-        rename = "additionalProperties",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(rename = "additionalProperties")]
     pub additional_properties: Option<Value>,
 }
 
-impl ValidatedParametersSchema {
-    #[must_use]
-    pub fn to_json_schema(&self) -> Value {
-        let mut document = Map::new();
+impl From<&ValidatedParametersSchema> for Value {
+    fn from(
+        ValidatedParametersSchema {
+            schema_type,
+            properties,
+            required,
+            additional_properties,
+        }: &ValidatedParametersSchema,
+    ) -> Self {
+        let mut keywords = Map::new();
 
-        document.insert("type".to_owned(), Value::String(self.schema_type.clone()));
+        keywords.insert("type".to_owned(), Self::String(schema_type.clone()));
 
-        if let Some(properties) = &self.properties {
-            document.insert("properties".to_owned(), Value::Object(properties.clone()));
+        if let Some(properties) = properties {
+            keywords.insert("properties".to_owned(), Self::Object(properties.clone()));
         }
 
-        if let Some(required) = &self.required {
-            document.insert(
+        if let Some(required) = required {
+            keywords.insert(
                 "required".to_owned(),
-                Value::Array(required.iter().cloned().map(Value::String).collect()),
+                Self::Array(required.iter().cloned().map(Self::String).collect()),
             );
         }
 
-        if let Some(additional_properties) = &self.additional_properties {
-            document.insert(
+        if let Some(additional_properties) = additional_properties {
+            keywords.insert(
                 "additionalProperties".to_owned(),
                 additional_properties.clone(),
             );
         }
 
-        Value::Object(document)
+        Self::Object(keywords)
+    }
+}
+
+impl Serialize for ValidatedParametersSchema {
+    fn serialize<TSerializer>(
+        &self,
+        serializer: TSerializer,
+    ) -> Result<TSerializer::Ok, TSerializer::Error>
+    where
+        TSerializer: Serializer,
+    {
+        Value::from(self).serialize(serializer)
     }
 }
 
@@ -53,6 +67,7 @@ mod tests {
     use serde_json::Map;
     use serde_json::Value;
     use serde_json::json;
+    use serde_json::to_string;
 
     use super::ValidatedParametersSchema;
 
@@ -69,26 +84,8 @@ mod tests {
         };
 
         assert_eq!(
-            serde_json::to_string(&schema).unwrap(),
+            to_string(&schema).unwrap(),
             r#"{"type":"object","properties":{"location":{"type":"string"}},"required":["location"],"additionalProperties":false}"#
-        );
-    }
-
-    #[test]
-    fn json_schema_document_matches_the_serialized_schema() {
-        let mut properties = Map::new();
-        properties.insert("location".to_owned(), json!({"type": "string"}));
-
-        let schema = ValidatedParametersSchema {
-            schema_type: "object".to_owned(),
-            properties: Some(properties),
-            required: Some(vec!["location".to_owned()]),
-            additional_properties: Some(Value::Bool(false)),
-        };
-
-        assert_eq!(
-            schema.to_json_schema(),
-            serde_json::to_value(&schema).expect("a parameters schema must serialize")
         );
     }
 
@@ -99,9 +96,6 @@ mod tests {
             ..ValidatedParametersSchema::default()
         };
 
-        assert_eq!(
-            serde_json::to_string(&schema).unwrap(),
-            r#"{"type":"object"}"#
-        );
+        assert_eq!(to_string(&schema).unwrap(), r#"{"type":"object"}"#);
     }
 }

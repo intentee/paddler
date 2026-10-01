@@ -19,6 +19,7 @@ paddler_balancer = { workspace = true }
 paddler_client = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
+quick-xml = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
@@ -26,7 +27,15 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tokio-util = { workspace = true }
+trzcina = { workspace = true }
 url = { workspace = true }
+
+[dev-dependencies]
+data-url = { workspace = true }
+hf-hub = { workspace = true }
+
+[features]
+tests_that_use_llms = []
 
 [lints]
 workspace = true

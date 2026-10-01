@@ -2,7 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
@@ -10,22 +11,22 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
+async fn balancer_distributes_embedding_batch_across_agents() {
     let cluster = start_subprocess_embedding_cluster(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         EmbeddingClusterParams {
             agents: AgentConfig::uniform(2, 4),
             inference_parameters: InferenceParameters {
                 enable_embeddings: true,
-                ..InferenceParameters::default()
+                ..InferenceParameters::deterministic()
             },
             ..EmbeddingClusterParams::default()
         },
     )
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let filler = "x".repeat(380);
     let input_batch: Vec<EmbeddingInputDocument> = (0..12)
@@ -41,7 +42,8 @@ async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
 
     let collected = cluster
         .generate_embedding_batch(CancellationToken::new(), &params)
-        .await?;
+        .await
+        .expect("the embedding batch must be accepted");
 
     assert_eq!(collected.embeddings.len(), 12);
     assert!(collected.saw_done);
@@ -58,7 +60,8 @@ async fn balancer_distributes_embedding_batch_across_agents() -> Result<()> {
         "expected the embedding batch to be distributed across at least two agents, but only saw producers: {producers:?}"
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -10,23 +11,24 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
-use tokio_util::sync::CancellationToken;
 
 const NOMIC_TRAINING_CONTEXT_SIZE: u32 = 2048;
 const SENTENCES_EXCEEDING_THE_DEFAULT_MICRO_BATCH: usize = 100;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_embeds_a_document_longer_than_the_default_micro_batch() -> Result<()> {
+async fn agent_embeds_a_document_longer_than_the_default_micro_batch() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
         inference_parameters: InferenceParameters {
-            context_size: NonZeroU32::try_from(NOMIC_TRAINING_CONTEXT_SIZE)?,
+            context_size: NonZeroU32::try_from(NOMIC_TRAINING_CONTEXT_SIZE)
+                .expect("the value must fit its target type"),
             enable_embeddings: true,
-            ..InferenceParameters::default()
+            ..InferenceParameters::deterministic()
         },
         ..EmbeddingClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .generate_embedding_batch(
@@ -40,7 +42,8 @@ async fn agent_embeds_a_document_longer_than_the_default_micro_batch() -> Result
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
         )
-        .await?;
+        .await
+        .expect("the embedding batch must be accepted");
 
     assert_eq!(
         collected
@@ -51,7 +54,8 @@ async fn agent_embeds_a_document_longer_than_the_default_micro_batch() -> Result
         vec!["long-document"]
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

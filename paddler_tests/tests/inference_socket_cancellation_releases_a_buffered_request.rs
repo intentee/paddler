@@ -1,21 +1,21 @@
 use std::num::NonZeroU32;
 
-use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
-use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn inference_socket_cancellation_releases_a_buffered_request() -> Result<()> {
+async fn inference_socket_cancellation_releases_a_buffered_request() {
     let mut cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
-        ..ClusterParams::without_request_expiry()
+        ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let cancellation_token = CancellationToken::new();
 
@@ -30,11 +30,12 @@ async fn inference_socket_cancellation_releases_a_buffered_request() -> Result<(
             },
         )
         .await
-        .map_err(anyhow::Error::new)?;
+        .expect("the inference request must be accepted");
 
     cluster
-        .wait_for_buffered_request_count(1, ObservationWindow::model_load())
-        .await?;
+        .wait_for_buffered_request_count(1)
+        .await
+        .expect("the balancer must reach the expected buffered request count");
 
     cancellation_token.cancel();
 
@@ -44,10 +45,12 @@ async fn inference_socket_cancellation_releases_a_buffered_request() -> Result<(
     );
 
     cluster
-        .wait_for_buffered_request_count(0, ObservationWindow::model_load())
-        .await?;
+        .wait_for_buffered_request_count(0)
+        .await
+        .expect("the balancer must reach the expected buffered request count");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

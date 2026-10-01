@@ -4,7 +4,9 @@ use std::path::Path;
 use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
+use serde_json::to_string_pretty;
 use tempfile::TempDir;
+use tempfile::tempdir;
 use url::Url;
 
 use crate::opencode_test_error::OpenCodeTestError;
@@ -45,9 +47,9 @@ pub struct OpenCodeTestProject {
 
 impl OpenCodeTestProject {
     pub fn create(api_base_url: &Url, marker_contents: String) -> Result<Self, OpenCodeTestError> {
-        let directory = tempfile::tempdir()
-            .map_err(|source| OpenCodeTestError::ProjectSetupFailed { source })?;
-        let config_contents = serde_json::to_string_pretty(&provider_config(api_base_url))
+        let directory =
+            tempdir().map_err(|source| OpenCodeTestError::ProjectSetupFailed { source })?;
+        let config_contents = to_string_pretty(&provider_config(api_base_url))
             .map_err(|source| OpenCodeTestError::ConfigSerializationFailed { source })?;
 
         fs::write(directory.path().join(CONFIG_FILE_NAME), config_contents)
@@ -87,6 +89,7 @@ mod tests {
     use std::fs;
 
     use serde_json::Value;
+    use serde_json::from_str;
     use url::Url;
 
     use super::CONFIG_FILE_NAME;
@@ -102,10 +105,9 @@ mod tests {
     #[test]
     fn config_points_at_the_compat_base_url_and_model() {
         let project = create_project();
-        let config: Value = serde_json::from_str(
-            &fs::read_to_string(project.directory_path().join(CONFIG_FILE_NAME)).unwrap(),
-        )
-        .unwrap();
+        let config: Value =
+            from_str(&fs::read_to_string(project.directory_path().join(CONFIG_FILE_NAME)).unwrap())
+                .unwrap();
 
         assert_eq!(
             config["provider"]["paddler"]["options"]["baseURL"],

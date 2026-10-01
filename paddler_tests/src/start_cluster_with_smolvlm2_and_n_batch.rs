@@ -1,13 +1,14 @@
 use anyhow::Result;
+
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
-use crate::smolvlm2_desired_state::smolvlm2_desired_state;
-use crate::start_cluster::start_cluster;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+
+use crate::smolvlm2_desired_state::smolvlm2_desired_state;
+use crate::start_cluster::start_cluster;
 
 pub async fn start_cluster_with_smolvlm2_and_n_batch(
     agents: Vec<AgentConfig>,

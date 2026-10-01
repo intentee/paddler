@@ -1,6 +1,7 @@
 use llama_cpp_bindings::json_schema_to_grammar;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::sampling::LlamaSampler;
+
 use paddler_messaging::grammar_constraint::GrammarConstraint;
 
 use crate::generation_request_rejection::GenerationRequestRejection;

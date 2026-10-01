@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod connection_slot;
+pub mod inbound_message_router;
 pub mod pending_requests;
 pub mod pending_requests_state;
 pub mod pool;

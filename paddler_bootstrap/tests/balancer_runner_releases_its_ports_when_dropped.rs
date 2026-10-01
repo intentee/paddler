@@ -1,7 +1,8 @@
 use std::net::TcpListener;
 
-use paddler_bootstrap::balancer_runner::BalancerRunner;
 use tokio_util::sync::CancellationToken;
+
+use paddler_bootstrap::balancer_runner::BalancerRunner;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 

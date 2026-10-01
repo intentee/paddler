@@ -3,39 +3,35 @@ use std::num::NonZeroUsize;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use async_openai::error::OpenAIError;
-use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
-use paddler_messaging::agent_desired_state::AgentDesiredState;
-use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use serde_json::Value;
+use tokio_util::sync::CancellationToken;
+
 use paddler_client::client_health::ClientHealth;
 use paddler_client::client_inference::ClientInference;
 use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::client_management::ClientManagement;
-use paddler_client::error::Result as ClientResult;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
-use serde_json::Value;
-use tokio::task::yield_now;
-use tokio::time::timeout;
-use tokio_util::sync::CancellationToken;
+use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::agent_config::AgentConfig;
+use crate::agent_count_is::agent_count_is;
+use crate::agent_slots_processing_is::agent_slots_processing_is;
 use crate::agent_spawner::AgentSpawner;
-use crate::agents_status::assert_agent_count::assert_agent_count;
-use crate::agents_status::assert_slots_processing::assert_slots_processing;
-use crate::buffered_requests_status::assert_count::assert_count;
+use crate::buffered_request_count_is::buffered_request_count_is;
 use crate::cluster_harness_error::ClusterHarnessError;
 use crate::collect_embedding_results::collect_embedding_results;
 use crate::collect_generated_tokens::collect_generated_tokens;
 use crate::collected_embedding_results::CollectedEmbeddingResults;
 use crate::collected_generated_tokens::CollectedGeneratedTokens;
-use crate::observation_window::ObservationWindow;
+use crate::concurrent_connection_budget::ConcurrentConnectionBudget;
 use crate::openai_api_client::OpenAIApiClient;
 use crate::running_agent::RunningAgent;
 use crate::running_balancer::RunningBalancer;
@@ -53,6 +49,7 @@ pub struct Cluster {
     pub client_inference: ClientInference,
     pub client_management: ClientManagement,
     agent_spawner: Box<dyn AgentSpawner>,
+    connection_budget: ConcurrentConnectionBudget,
     openai_api_client: OpenAIApiClient,
 }
 
@@ -90,14 +87,16 @@ impl Cluster {
             client_management
                 .get_agents_stream(cancellation_token.clone())
                 .await
-                .context("failed to open /api/v1/agents/stream")?,
-        );
+                .context("failed to open the agents stream")?,
+        )
+        .await?;
         let buffered_requests_watcher = SnapshotsWatcher::of_buffered_requests(
             client_management
                 .get_buffered_requests_stream(cancellation_token)
                 .await
-                .context("failed to open /api/v1/buffered_requests/stream")?,
-        );
+                .context("failed to open the buffered requests stream")?,
+        )
+        .await?;
 
         let openai_api_client = OpenAIApiClient::new(&openai_base_url)?;
 
@@ -111,6 +110,7 @@ impl Cluster {
             client_inference,
             client_management,
             agent_spawner,
+            connection_budget: ConcurrentConnectionBudget::default(),
             openai_api_client,
         })
     }
@@ -123,29 +123,30 @@ impl Cluster {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
-        async move {
+        self.connection_budget.hold_during(async move {
             collect_generated_tokens(
                 client_inference
                     .post_continue_from_raw_prompt(cancellation_token, &params)
                     .await?,
             )
             .await
-        }
+        })
     }
 
     pub fn continue_from_raw_prompt_stream(
         &self,
         cancellation_token: CancellationToken,
         params: &ContinueFromRawPromptParams,
-    ) -> impl Future<Output = ClientResult<InferenceMessageStream>> + Send + use<> {
+    ) -> impl Future<Output = Result<InferenceMessageStream, ClusterHarnessError>> + Send + use<>
+    {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
-        async move {
+        self.connection_budget.hold_while_streaming(async move {
             client_inference
                 .post_continue_from_raw_prompt(cancellation_token, &params)
                 .await
-        }
+        })
     }
 
     pub fn continue_from_conversation_history(
@@ -156,29 +157,30 @@ impl Cluster {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
-        async move {
+        self.connection_budget.hold_during(async move {
             collect_generated_tokens(
                 client_inference
                     .post_continue_from_conversation_history(cancellation_token, &params)
                     .await?,
             )
             .await
-        }
+        })
     }
 
     pub fn continue_from_conversation_history_stream(
         &self,
         cancellation_token: CancellationToken,
         params: &ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-    ) -> impl Future<Output = ClientResult<InferenceMessageStream>> + Send + use<> {
+    ) -> impl Future<Output = Result<InferenceMessageStream, ClusterHarnessError>> + Send + use<>
+    {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
-        async move {
+        self.connection_budget.hold_while_streaming(async move {
             client_inference
                 .post_continue_from_conversation_history(cancellation_token, &params)
                 .await
-        }
+        })
     }
 
     pub fn generate_embedding_batch(
@@ -189,54 +191,74 @@ impl Cluster {
         let client_inference = self.client_inference.clone();
         let params = params.clone();
 
-        async move {
+        self.connection_budget.hold_during(async move {
             collect_embedding_results(
                 client_inference
                     .post_generate_embedding_batch(cancellation_token, &params)
                     .await?,
             )
             .await
-        }
+        })
     }
 
     pub fn openai_chat_completion_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Vec<Value>, OpenAIError>> + Send + use<> {
+    ) -> impl Future<Output = Result<Vec<Value>, ClusterHarnessError>> + Send + use<> {
         let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_api_client.chat_completion_streaming(&body).await }
+        self.connection_budget.hold_during(async move {
+            openai_api_client
+                .chat_completion_streaming(&body)
+                .await
+                .map_err(ClusterHarnessError::OpenAIRequestFailed)
+        })
     }
 
     pub fn openai_chat_completion_non_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Value, OpenAIError>> + Send + use<> {
+    ) -> impl Future<Output = Result<Value, ClusterHarnessError>> + Send + use<> {
         let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_api_client.chat_completion_non_streaming(&body).await }
+        self.connection_budget.hold_during(async move {
+            openai_api_client
+                .chat_completion_non_streaming(&body)
+                .await
+                .map_err(ClusterHarnessError::OpenAIRequestFailed)
+        })
     }
 
     pub fn openai_responses_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Vec<Value>, OpenAIError>> + Send + use<> {
+    ) -> impl Future<Output = Result<Vec<Value>, ClusterHarnessError>> + Send + use<> {
         let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_api_client.responses_streaming(&body).await }
+        self.connection_budget.hold_during(async move {
+            openai_api_client
+                .responses_streaming(&body)
+                .await
+                .map_err(ClusterHarnessError::OpenAIRequestFailed)
+        })
     }
 
     pub fn openai_responses_non_streaming(
         &self,
         body: &Value,
-    ) -> impl Future<Output = Result<Value, OpenAIError>> + Send + use<> {
+    ) -> impl Future<Output = Result<Value, ClusterHarnessError>> + Send + use<> {
         let openai_api_client = self.openai_api_client.clone();
         let body = body.clone();
 
-        async move { openai_api_client.responses_non_streaming(&body).await }
+        self.connection_budget.hold_during(async move {
+            openai_api_client
+                .responses_non_streaming(&body)
+                .await
+                .map_err(ClusterHarnessError::OpenAIRequestFailed)
+        })
     }
 
     pub async fn wait_for_agent_count(
@@ -244,17 +266,14 @@ impl Cluster {
         expected_count: usize,
     ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.agents_watcher
-            .until(
-                ObservationWindow::model_load(),
-                assert_agent_count(expected_count),
-            )
+            .until(agent_count_is(expected_count))
             .await
     }
 
     pub async fn wait_for_agent_ready(
         &mut self,
         agent_name: &str,
-        expected_slot_count: i32,
+        expected_slot_count: u16,
     ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.agents_watcher
             .wait_for_agent_ready(agent_name, expected_slot_count)
@@ -264,49 +283,36 @@ impl Cluster {
     pub async fn wait_for_slots_processing(
         &mut self,
         agent_id: &str,
-        expected_slots_processing: i32,
-        observation_window: ObservationWindow,
+        expected_slots_processing: u64,
     ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.agents_watcher
-            .until(
-                observation_window,
-                assert_slots_processing(agent_id, expected_slots_processing),
-            )
+            .until(agent_slots_processing_is(
+                agent_id,
+                expected_slots_processing,
+            ))
             .await
     }
 
-    pub async fn wait_for_applicable_state<TStateMatcher>(
-        &self,
-        state_matcher: TStateMatcher,
-    ) -> Result<AgentDesiredState>
-    where
-        TStateMatcher: Fn(&AgentDesiredState) -> bool,
-    {
-        timeout(ObservationWindow::release().duration(), async {
-            loop {
-                let applicable_state = self
-                    .client_management
-                    .get_balancer_applicable_state(CancellationToken::new())
-                    .await?;
-
-                if state_matcher(&applicable_state) {
-                    return Ok(applicable_state);
-                }
-
-                yield_now().await;
-            }
-        })
-        .await
-        .context("the balancer did not apply the expected state in time")?
+    pub async fn wait_for_chat_template_override_in_use(
+        &mut self,
+        agent_id: &str,
+    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
+        self.agents_watcher
+            .until_agent(agent_id, |snapshot| {
+                snapshot.agents.iter().any(|registered_agent| {
+                    registered_agent.id == agent_id
+                        && registered_agent.status.uses_chat_template_override
+                })
+            })
+            .await
     }
 
     pub async fn wait_for_buffered_request_count(
         &mut self,
-        expected_count: i32,
-        observation_window: ObservationWindow,
+        expected_count: u64,
     ) -> Result<BufferedRequestManagerSnapshot, ClusterHarnessError> {
         self.buffered_requests_watcher
-            .until(observation_window, assert_count(expected_count))
+            .until(buffered_request_count_is(expected_count))
             .await
     }
 
@@ -325,11 +331,10 @@ impl Cluster {
 
         Ok(self
             .agents_watcher
-            .until_agent(&agent_id, ObservationWindow::model_load(), |snapshot| {
-                snapshot
-                    .agents
-                    .iter()
-                    .any(|agent| agent.id == agent_id && agent.issues.iter().any(&issue_matcher))
+            .until_agent(&agent_id, |snapshot| {
+                snapshot.agents.iter().any(|agent| {
+                    agent.id == agent_id && agent.status.issues.iter().any(&issue_matcher)
+                })
             })
             .await?)
     }

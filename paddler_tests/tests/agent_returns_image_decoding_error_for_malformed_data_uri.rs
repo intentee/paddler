@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -12,11 +13,12 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_returns_image_decoding_error_for_malformed_data_uri() -> Result<()> {
-    let cluster = start_cluster_with_smolvlm2(AgentConfig::uniform(1, 2)).await?;
+async fn agent_returns_image_decoding_error_for_malformed_data_uri() {
+    let cluster = start_cluster_with_smolvlm2(AgentConfig::uniform(1, 2))
+        .await
+        .expect("the cluster must start");
 
     let outcome = cluster
         .continue_from_conversation_history(
@@ -45,7 +47,7 @@ async fn agent_returns_image_decoding_error_for_malformed_data_uri() -> Result<(
         )
         .await;
 
-    let collected = outcome?;
+    let collected = outcome.expect("the request must complete");
     let saw_decoding_error = collected.token_results.iter().any(|result| {
         matches!(
             result.token_result,
@@ -58,7 +60,8 @@ async fn agent_returns_image_decoding_error_for_malformed_data_uri() -> Result<(
         "malformed data URI must produce ImageDecodingFailed"
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

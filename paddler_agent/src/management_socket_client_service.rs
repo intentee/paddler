@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Context;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,103 +7,94 @@ use log::debug;
 use log::error;
 use log::info;
 use log::warn;
+use serde_json::from_str;
+use tokio::net::TcpStream;
+use tokio::select;
+use tokio::spawn;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::watch;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
+use tokio_tungstenite::MaybeTlsStream;
+use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
-use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::balancer_connection::BalancerConnection;
+use paddler_messaging::embedding_result::EmbeddingResult;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-
-use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-use crate::continue_from_conversation_history_request::ContinueFromConversationHistoryRequest;
-use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
-use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
-use crate::forward_management_socket_messages::forward_management_socket_messages;
-use crate::from_request_params::FromRequestParams;
-use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
-use crate::model_metadata_holder::ModelMetadataHolder;
-use crate::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
-use crate::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_messaging::management_socket::agent::message::Message as JsonRpcMessage;
 use paddler_messaging::management_socket::agent::notification::Notification as JsonRpcNotification;
+use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
 use paddler_messaging::management_socket::agent::request::Request as JsonRpcRequest;
 use paddler_messaging::management_socket::agent::response::Response as JsonRpcResponse;
-use paddler_messaging::management_socket::agent::notification_params::version_params::VersionParams;
 use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
 use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
 use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
 use paddler_messaging::management_socket::balancer::notification_params::update_agent_status_params::UpdateAgentStatusParams;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
+use paddler_request_registry::request_delivery::RequestDelivery;
+use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
+
+use crate::agent_request::AgentRequest;
+use crate::balancer_message_context::BalancerMessageContext;
+use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
+use crate::forward_management_socket_messages::forward_management_socket_messages;
+use crate::slot_guard::SlotGuard;
+
+const BALANCER_RECONNECT_INTERVAL: Duration = Duration::from_secs(1);
 
 struct IncomingMessageContext {
-    agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
-    agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
+    balancer_message_context: BalancerMessageContext,
     connection_close: CancellationToken,
-    continuous_batch_preparation_request_tx:
-        mpsc::UnboundedSender<ContinuousBatchPreparationRequest>,
-    model_metadata_holder: Arc<ModelMetadataHolder>,
-    receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
     message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
-    slot_aggregated_status: Arc<SlotAggregatedStatus>,
 }
 
-pub struct ManagementSocketClientService {
-    pub agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
-    pub agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
-    pub continuous_batch_preparation_request_tx:
-        mpsc::UnboundedSender<ContinuousBatchPreparationRequest>,
-    pub model_metadata_holder: Arc<ModelMetadataHolder>,
-    pub name: Option<String>,
-    pub receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
-    pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
-    pub socket_url: String,
-}
-
-impl ManagementSocketClientService {
-    fn generate_responses<TRequest>(
-        connection_close: CancellationToken,
-        id: String,
-        message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
-        request_params: TRequest::RequestParams,
-        receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
-        continuous_batch_preparation_request_tx: mpsc::UnboundedSender<
-            ContinuousBatchPreparationRequest,
-        >,
-        slot_aggregated_status: Arc<SlotAggregatedStatus>,
-    ) -> Result<()>
+impl IncomingMessageContext {
+    fn generate_responses<TParams, TResponse>(self, id: String, params: TParams) -> Result<()>
     where
-        TRequest: FromRequestParams + Into<ContinuousBatchPreparationRequest> + 'static,
-        TRequest::Response: Send,
+        AgentRequest<TParams, TResponse>: Into<ContinuousBatchPreparationRequest>,
+        TResponse: Into<JsonRpcResponse> + Send + 'static,
     {
-        let (response_tx, mut response_rx) = mpsc::unbounded_channel::<TRequest::Response>();
+        let Self {
+            balancer_message_context:
+                BalancerMessageContext {
+                    continuous_batch_preparation_request_tx,
+                    request_stoppers,
+                    slot_aggregated_status,
+                    ..
+                },
+            connection_close,
+            message_tx,
+        } = self;
+        let (response_tx, mut response_rx) = mpsc::unbounded_channel::<TResponse>();
         let (stop_tx, stop_rx) = mpsc::unbounded_channel::<()>();
 
-        let stopper_guard = receive_stream_stopper_collection
-            .register_stopper_with_guard(id.clone(), stop_tx)
+        let stopper_guard = RequestRegistryGuard::register(&request_stoppers, id.clone(), stop_tx)
             .context(format!("Failed to register stopper for request: {id}"))?;
 
         continuous_batch_preparation_request_tx.send(
-            TRequest::from_request_params(
-                request_params,
+            AgentRequest {
+                params,
                 response_tx,
+                slot_guard: SlotGuard::new(slot_aggregated_status),
                 stop_rx,
-                slot_aggregated_status,
-            )
+            }
             .into(),
         )?;
 
-        tokio::spawn(async move {
+        spawn(async move {
             let _stopper_guard = stopper_guard;
 
             loop {
-                tokio::select! {
+                select! {
                     () = connection_close.cancelled() => break,
                     response = response_rx.recv() => {
                         match response {
@@ -134,34 +123,29 @@ impl ManagementSocketClientService {
         Ok(())
     }
 
-    fn handle_deserialized_message(
-        IncomingMessageContext {
-            agent_applicable_state_holder,
-            agent_desired_state_tx,
-            connection_close,
-            continuous_batch_preparation_request_tx,
-            message_tx,
-            model_metadata_holder,
-            receive_stream_stopper_collection,
-            slot_aggregated_status,
-        }: IncomingMessageContext,
-        deserialized_message: JsonRpcMessage,
-    ) -> Result<()> {
+    fn handle_deserialized_message(self, deserialized_message: JsonRpcMessage) -> Result<()> {
         match deserialized_message {
             JsonRpcMessage::Notification(JsonRpcNotification::SetState(set_state_params)) => {
-                agent_desired_state_tx.send(set_state_params.desired_state)?;
+                self.balancer_message_context
+                    .agent_desired_state_tx
+                    .send(set_state_params.desired_state)?;
 
                 Ok(())
             }
             JsonRpcMessage::Notification(JsonRpcNotification::StopRespondingTo(request_id)) => {
                 debug!("Received StopGeneratingTokens notification for request ID: {request_id:?}");
-                receive_stream_stopper_collection
-                    .stop(&request_id)
-                    .context(format!(
-                        "Failed to stop generating tokens for request ID: {request_id}"
-                    ))?;
+                match self
+                    .balancer_message_context
+                    .request_stoppers
+                    .send_to(&request_id, ())
+                {
+                    RequestDelivery::Delivered => Ok(()),
+                    RequestDelivery::ReceiverDropped | RequestDelivery::RequestNotRegistered => {
+                        debug!("Request {request_id:?} finished before its stop arrived");
 
-                Ok(())
+                        Ok(())
+                    }
+                }
             }
             JsonRpcMessage::Notification(JsonRpcNotification::Version(VersionParams {
                 version,
@@ -181,89 +165,76 @@ impl ManagementSocketClientService {
                     JsonRpcRequest::ContinueFromConversationHistory(
                         continue_from_conversation_history_params,
                     ),
-            }) => Self::generate_responses::<ContinueFromConversationHistoryRequest>(
-                connection_close,
+            }) => self.generate_responses::<_, GeneratedTokenResult>(
                 id,
-                message_tx,
                 continue_from_conversation_history_params,
-                receive_stream_stopper_collection,
-                continuous_batch_preparation_request_tx,
-                slot_aggregated_status,
             ),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::ContinueFromRawPrompt(generate_tokens_params),
-            }) => Self::generate_responses::<ContinueFromRawPromptRequest>(
-                connection_close,
-                id,
-                message_tx,
-                generate_tokens_params,
-                receive_stream_stopper_collection,
-                continuous_batch_preparation_request_tx,
-                slot_aggregated_status,
-            ),
+            }) => self.generate_responses::<_, GeneratedTokenResult>(id, generate_tokens_params),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GenerateEmbeddingBatch(generate_embedding_batch_params),
-            }) => Self::generate_responses::<GenerateEmbeddingBatchRequest>(
-                connection_close,
-                id,
-                message_tx,
-                generate_embedding_batch_params,
-                receive_stream_stopper_collection,
-                continuous_batch_preparation_request_tx,
-                slot_aggregated_status,
-            ),
+            }) => {
+                self.generate_responses::<_, EmbeddingResult>(id, generate_embedding_batch_params)
+            }
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GetChatTemplateOverride,
-            }) => Ok(
-                message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
-                    generated_by: None,
-                    request_id: id,
-                    response: JsonRpcResponse::ChatTemplateOverride(
-                        if let Some(agent_applicable_state) =
-                            agent_applicable_state_holder.get_agent_applicable_state()
-                        {
-                            agent_applicable_state.chat_template_override
-                        } else {
-                            None
-                        },
-                    ),
-                }))?,
-            ),
+            }) => {
+                Ok(self
+                    .message_tx
+                    .send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                        generated_by: None,
+                        request_id: id,
+                        response: JsonRpcResponse::ChatTemplateOverride(
+                            self.balancer_message_context
+                                .agent_applicable_state_holder
+                                .get_agent_applicable_state()
+                                .chat_template_override,
+                        ),
+                    }))?)
+            }
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
                 request: JsonRpcRequest::GetModelMetadata,
-            }) => Ok(
-                message_tx.send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
-                    generated_by: None,
-                    request_id: id,
-                    response: JsonRpcResponse::ModelMetadata(
-                        model_metadata_holder.get_model_metadata(),
-                    ),
-                }))?,
-            ),
+            }) => {
+                Ok(self
+                    .message_tx
+                    .send(ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                        generated_by: None,
+                        request_id: id,
+                        response: JsonRpcResponse::ModelMetadata(
+                            self.balancer_message_context
+                                .model_metadata_holder
+                                .get_model_metadata(),
+                        ),
+                    }))?)
+            }
         }
     }
 
-    fn handle_incoming_message(incoming_message_context: IncomingMessageContext, msg: Message) {
+    fn handle_incoming_message(self, msg: Message) {
         match msg {
-            Message::Text(text) => match serde_json::from_str::<JsonRpcMessage>(&text) {
+            Message::Text(text) => match from_str::<JsonRpcMessage>(&text) {
                 Ok(deserialized_message) => {
-                    if let Err(err) = Self::handle_deserialized_message(
-                        incoming_message_context,
-                        deserialized_message,
-                    ) {
+                    if let Err(err) = self.handle_deserialized_message(deserialized_message) {
                         error!("Error handling incoming message: {err}");
                     }
                 }
-                Err(err) => {
-                    error!("Failed to deserialize JSON-RPC message {text}: {err}");
+                Err(deserialization_error) => {
+                    error!(
+                        "Closing the management connection after an undeserializable message {text}: {deserialization_error}"
+                    );
+
+                    self.connection_close.cancel();
                 }
             },
             Message::Binary(_) | Message::Frame(_) => {
-                error!("Received a non-text message, which is not expected");
+                error!("Closing the management connection after a non-text message");
+
+                self.connection_close.cancel();
             }
             Message::Close(_) => {
                 info!("Connection closed by server");
@@ -271,8 +242,30 @@ impl ManagementSocketClientService {
             Message::Ping(_) | Message::Pong(_) => {}
         }
     }
+}
 
+pub struct ManagementSocketClientService {
+    pub balancer_connection_tx: watch::Sender<BalancerConnection>,
+    pub balancer_message_context: BalancerMessageContext,
+    pub name: Option<String>,
+    pub socket_url: String,
+}
+
+impl ManagementSocketClientService {
     async fn keep_connection_alive(&self, shutdown: CancellationToken) -> Result<()> {
+        match shutdown
+            .run_until_cancelled(
+                self.balancer_message_context
+                    .slot_aggregated_status
+                    .wait_until_no_slots_are_processing(),
+            )
+            .await
+        {
+            Some(idle_outcome) => idle_outcome
+                .context("Slot status stopped announcing updates while waiting for idle slots")?,
+            None => return Ok(()),
+        }
+
         info!("Connecting to management server at {}", self.socket_url);
 
         let (ws_stream, _response) = match shutdown
@@ -289,77 +282,82 @@ impl ManagementSocketClientService {
 
         info!("Connected to management server");
 
+        self.balancer_connection_tx
+            .send_replace(BalancerConnection::Connected);
+
+        let connection_outcome = self.serve_connection(ws_stream, shutdown).await;
+
+        self.balancer_connection_tx
+            .send_replace(BalancerConnection::Connecting);
+
+        connection_outcome
+    }
+
+    async fn serve_connection(
+        &self,
+        ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>,
+        shutdown: CancellationToken,
+    ) -> Result<()> {
         let connection_close = CancellationToken::new();
         let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
         let (write, mut read) = ws_stream.split();
 
-        let message_forward_handle = tokio::spawn(forward_management_socket_messages(
+        let message_forward_handle = spawn(forward_management_socket_messages(
             connection_close.clone(),
             message_rx,
             write,
         ));
 
+        let mut update_rx = self
+            .balancer_message_context
+            .slot_aggregated_status
+            .subscribe_to_updates();
+
         message_tx
             .send(ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
                     name: self.name.clone(),
-                    slot_aggregated_status_snapshot: self.slot_aggregated_status.make_snapshot(),
+                    slot_aggregated_status_snapshot: self
+                        .balancer_message_context
+                        .slot_aggregated_status
+                        .make_snapshot(),
                 }),
             ))
-            .unwrap_or_else(|err| {
-                error!("Failed to send register agent notification: {err}");
-            });
-
-        let do_send_status_update = || {
-            message_tx
-                .send(ManagementJsonRpcMessage::Notification(
-                    ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
-                        slot_aggregated_status_snapshot: self
-                            .slot_aggregated_status
-                            .make_snapshot(),
-                    }),
-                ))
-                .unwrap_or_else(|err| {
-                    error!("Failed to send status update notification: {err}");
-                });
-        };
-
-        let mut ticker = interval(Duration::from_secs(1));
-        let mut update_rx = self.slot_aggregated_status.subscribe_to_updates();
-
-        ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            .context("The management socket writer stopped before the agent registered")?;
 
         let agent_ends_connection = loop {
-            tokio::select! {
+            select! {
                 () = connection_close.cancelled() => {
                     info!("Connection close signal received, shutting down");
 
                     break false;
                 }
                 () = shutdown.cancelled() => break true,
-                changed = update_rx.changed() => {
-                    if changed.is_err() {
-                        break true;
+                Ok(()) = update_rx.changed() => {
+                    let status_update = ManagementJsonRpcMessage::Notification(
+                        ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
+                            slot_aggregated_status_snapshot: self
+                                .balancer_message_context
+                                .slot_aggregated_status
+                                .make_snapshot(),
+                        }),
+                    );
+
+                    if let Err(SendError(_undelivered_status_update)) = message_tx.send(status_update) {
+                        info!("The management socket writer stopped, reconnecting");
+
+                        break false;
                     }
-                    do_send_status_update();
                 }
-                _ = ticker.tick() => do_send_status_update(),
                 msg = read.next() => {
                     let should_close = match msg {
                         Some(Ok(msg)) => {
-                            Self::handle_incoming_message(
-                                    IncomingMessageContext {
-                                        agent_applicable_state_holder: self.agent_applicable_state_holder.clone(),
-                                        agent_desired_state_tx: self.agent_desired_state_tx.clone(),
-                                        connection_close: connection_close.clone(),
-                                        continuous_batch_preparation_request_tx: self.continuous_batch_preparation_request_tx.clone(),
-                                        model_metadata_holder: self.model_metadata_holder.clone(),
-                                        receive_stream_stopper_collection: self.receive_stream_stopper_collection.clone(),
-                                        message_tx: message_tx.clone(),
-                                        slot_aggregated_status: self.slot_aggregated_status.clone(),
-                                    },
-                                    msg,
-                                );
+                            IncomingMessageContext {
+                                balancer_message_context: self.balancer_message_context.clone(),
+                                connection_close: connection_close.clone(),
+                                message_tx: message_tx.clone(),
+                            }
+                            .handle_incoming_message(msg);
 
                             false
                         }
@@ -380,13 +378,13 @@ impl ManagementSocketClientService {
             }
         };
 
-        message_tx
-            .send(ManagementJsonRpcMessage::Notification(
-                ManagementJsonRpcNotification::DeregisterAgent,
-            ))
-            .unwrap_or_else(|err| {
-                error!("Failed to send deregister agent notification: {err}");
-            });
+        if let Err(SendError(_undelivered_deregistration)) = message_tx.send(
+            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::DeregisterAgent),
+        ) {
+            info!(
+                "The management socket writer already stopped; the balancer deregisters the agent once the connection drops"
+            );
+        }
 
         connection_close.cancel();
 
@@ -412,12 +410,12 @@ impl Service for ManagementSocketClientService {
     }
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        let mut ticker = interval(Duration::from_secs(1));
+        let mut ticker = interval(BALANCER_RECONNECT_INTERVAL);
 
         ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
         loop {
-            tokio::select! {
+            select! {
                 () = shutdown.cancelled() => break Ok(()),
                 _ = ticker.tick() => {
                     match self.keep_connection_alive(shutdown.clone()).await {
@@ -436,12 +434,31 @@ impl Service for ManagementSocketClientService {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroU32;
-
     use std::collections::BTreeMap;
+    use std::num::NonZeroU32;
     use std::sync::Arc;
 
+    use futures_util::StreamExt as _;
+    use serde_json::from_str;
+    use serde_json::to_string;
+    use tokio::net::TcpListener;
+    use tokio::spawn;
+    use tokio::sync::mpsc;
+    use tokio::sync::oneshot;
+    use tokio::sync::watch;
+    use tokio::task::JoinHandle;
+    use tokio_tungstenite::accept_async;
+    use tokio_tungstenite::tungstenite::Bytes;
+    use tokio_tungstenite::tungstenite::protocol::Message;
+    use tokio_util::sync::CancellationToken;
+    use trzcina::Service;
+
+    use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::agent_status::AgentStatus;
+    use paddler_messaging::api_path::ApiPath;
+    use paddler_messaging::balancer_connection::BalancerConnection;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
     use paddler_messaging::management_socket::agent::message::Message as JsonRpcMessage;
@@ -451,48 +468,83 @@ mod tests {
     use paddler_messaging::management_socket::agent::request::Request as JsonRpcRequest;
     use paddler_messaging::management_socket::agent::response::Response as JsonRpcResponse;
     use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
+    use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
+    use paddler_messaging::management_socket::balancer::notification_params::update_agent_status_params::UpdateAgentStatusParams;
     use paddler_messaging::model_metadata::ModelMetadata;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-    use tokio::net::TcpListener;
-    use tokio::sync::mpsc;
-    use tokio::sync::oneshot;
-    use tokio::time::Duration;
-    use tokio_tungstenite::tungstenite::protocol::Message;
-    use tokio_util::sync::CancellationToken;
-    use trzcina::Service;
+    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+    use paddler_request_registry::request_delivery::RequestDelivery;
+    use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
     use super::IncomingMessageContext;
     use super::ManagementSocketClientService;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
-    use crate::continue_from_raw_prompt_request::ContinueFromRawPromptRequest;
+    use crate::balancer_message_context::BalancerMessageContext;
     use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
     use crate::model_metadata_holder::ModelMetadataHolder;
-    use crate::receive_stream_stop_outcome::ReceiveStreamStopOutcome;
-    use crate::receive_stream_stopper_collection::ReceiveStreamStopperCollection;
-    use crate::slot_aggregated_status::SlotAggregatedStatus;
 
-    const SHUTDOWN_BUDGET: Duration = Duration::from_secs(5);
+    struct IncomingMessageFixture {
+        agent_desired_state_rx: mpsc::UnboundedReceiver<AgentDesiredState>,
+        context: IncomingMessageContext,
+        continuous_batch_preparation_request_rx:
+            mpsc::UnboundedReceiver<ContinuousBatchPreparationRequest>,
+        message_rx: mpsc::UnboundedReceiver<ManagementJsonRpcMessage>,
+    }
+
+    fn incoming_message_fixture() -> IncomingMessageFixture {
+        let (agent_desired_state_tx, agent_desired_state_rx) = mpsc::unbounded_channel();
+        let (continuous_batch_preparation_request_tx, continuous_batch_preparation_request_rx) =
+            mpsc::unbounded_channel();
+        let (message_tx, message_rx) = mpsc::unbounded_channel();
+
+        IncomingMessageFixture {
+            agent_desired_state_rx,
+            context: IncomingMessageContext {
+                balancer_message_context: BalancerMessageContext {
+                    agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
+                    agent_desired_state_tx,
+                    continuous_batch_preparation_request_tx,
+                    model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
+                    request_stoppers: Arc::default(),
+                    slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(2)),
+                },
+                connection_close: CancellationToken::new(),
+                message_tx,
+            },
+            continuous_batch_preparation_request_rx,
+            message_rx,
+        }
+    }
 
     fn service_with_socket_url(socket_url: String) -> ManagementSocketClientService {
-        let (agent_desired_state_tx, _agent_desired_state_rx) = mpsc::unbounded_channel();
-        let (continuous_batch_preparation_request_tx, _continuous_batch_preparation_request_rx) =
-            mpsc::unbounded_channel();
+        let (balancer_connection_tx, _initial_balancer_connection_rx) =
+            watch::channel(BalancerConnection::Connecting);
 
         ManagementSocketClientService {
-            agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            continuous_batch_preparation_request_tx,
-            model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
+            balancer_connection_tx,
+            balancer_message_context: incoming_message_fixture().context.balancer_message_context,
             name: None,
-            receive_stream_stopper_collection: Arc::new(ReceiveStreamStopperCollection::default()),
-            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(2)),
             socket_url,
         }
     }
 
+    fn raw_prompt_params() -> ContinueFromRawPromptParams {
+        ContinueFromRawPromptParams {
+            grammar: None,
+            max_tokens: NonZeroU32::new(8).unwrap(),
+            raw_prompt: "hello".to_owned(),
+        }
+    }
+
+    fn set_state_message() -> JsonRpcMessage {
+        JsonRpcMessage::Notification(JsonRpcNotification::SetState(Box::new(SetStateParams {
+            desired_state: AgentDesiredState::default(),
+        })))
+    }
+
     struct StalledHandshakeFixture {
         accepted_rx: oneshot::Receiver<()>,
-        server: tokio::task::JoinHandle<()>,
+        server: JoinHandle<()>,
         shutdown: CancellationToken,
     }
 
@@ -501,7 +553,7 @@ mod tests {
         let shutdown = CancellationToken::new();
         let server_shutdown = shutdown.clone();
 
-        let server = tokio::spawn(async move {
+        let server = spawn(async move {
             let (_stream, _peer_addr) = listener
                 .accept()
                 .await
@@ -531,12 +583,14 @@ mod tests {
             shutdown: fixture_shutdown,
         } = spawn_stalled_handshake_fixture(listener);
 
-        let service =
-            service_with_socket_url(format!("ws://{addr}/api/v1/agent_socket/test-agent"));
+        let service = service_with_socket_url(format!(
+            "ws://{addr}{}",
+            ApiPath::agent_socket("test-agent")
+        ));
         let shutdown = CancellationToken::new();
         let keep_alive_shutdown = shutdown.clone();
         let keep_alive_handle =
-            tokio::spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
+            spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
 
         accepted_rx
             .await
@@ -544,12 +598,8 @@ mod tests {
 
         shutdown.cancel();
 
-        let keep_alive_result = tokio::time::timeout(SHUTDOWN_BUDGET, keep_alive_handle)
+        let keep_alive_result = keep_alive_handle
             .await
-            .expect(
-                "keep_connection_alive must abandon a stalled connect handshake when shutdown \
-                 arrives instead of blocking until trzcina force-aborts it",
-            )
             .expect("the keep_connection_alive task must not panic");
 
         assert!(keep_alive_result.is_ok());
@@ -562,14 +612,13 @@ mod tests {
 
     #[tokio::test]
     async fn keep_connection_alive_errors_when_the_balancer_refuses_the_connection() {
-        let service =
-            service_with_socket_url("ws://127.0.0.1:1/api/v1/agent_socket/test-agent".to_owned());
+        let service = service_with_socket_url(format!(
+            "ws://127.0.0.1:1{}",
+            ApiPath::agent_socket("test-agent")
+        ));
         let shutdown = CancellationToken::new();
 
-        let keep_alive_result =
-            tokio::time::timeout(SHUTDOWN_BUDGET, service.keep_connection_alive(shutdown))
-                .await
-                .expect("connecting to a refused port must fail fast instead of blocking");
+        let keep_alive_result = service.keep_connection_alive(shutdown).await;
 
         assert!(keep_alive_result.is_err());
     }
@@ -584,11 +633,13 @@ mod tests {
             shutdown: fixture_shutdown,
         } = spawn_stalled_handshake_fixture(listener);
 
-        let service =
-            service_with_socket_url(format!("ws://{addr}/api/v1/agent_socket/test-agent"));
+        let service = service_with_socket_url(format!(
+            "ws://{addr}{}",
+            ApiPath::agent_socket("test-agent")
+        ));
         let shutdown = CancellationToken::new();
         let run_shutdown = shutdown.clone();
-        let run_handle = tokio::spawn(async move { Box::new(service).run(run_shutdown).await });
+        let run_handle = spawn(async move { Box::new(service).run(run_shutdown).await });
 
         accepted_rx
             .await
@@ -596,13 +647,7 @@ mod tests {
 
         shutdown.cancel();
 
-        let run_result = tokio::time::timeout(SHUTDOWN_BUDGET, run_handle)
-            .await
-            .expect(
-                "run must return promptly on shutdown even while a connect handshake is stalled, \
-                 instead of blocking until trzcina force-aborts the service",
-            )
-            .expect("the run task must not panic");
+        let run_result = run_handle.await.expect("the run task must not panic");
 
         assert!(run_result.is_ok());
 
@@ -612,115 +657,140 @@ mod tests {
             .expect("the fixture balancer task must not panic");
     }
 
-    fn build_incoming_message_context(
-        agent_applicable_state_holder: Arc<AgentApplicableStateHolder>,
-        agent_desired_state_tx: mpsc::UnboundedSender<AgentDesiredState>,
-        connection_close: CancellationToken,
-        model_metadata_holder: Arc<ModelMetadataHolder>,
-        receive_stream_stopper_collection: Arc<ReceiveStreamStopperCollection>,
-        message_tx: mpsc::UnboundedSender<ManagementJsonRpcMessage>,
-        slot_aggregated_status: Arc<SlotAggregatedStatus>,
-    ) -> IncomingMessageContext {
-        let (continuous_batch_preparation_request_tx, _continuous_batch_preparation_request_rx) =
-            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
+    #[tokio::test]
+    async fn announces_every_status_change_to_the_balancer() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let service = service_with_socket_url(format!(
+            "ws://{addr}{}",
+            ApiPath::agent_socket("test-agent")
+        ));
+        let slot_aggregated_status = service
+            .balancer_message_context
+            .slot_aggregated_status
+            .clone();
+        let shutdown = CancellationToken::new();
+        let keep_alive_shutdown = shutdown.clone();
+        let keep_alive_handle =
+            spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
 
-        IncomingMessageContext {
-            agent_applicable_state_holder,
-            agent_desired_state_tx,
-            connection_close,
-            continuous_batch_preparation_request_tx,
-            model_metadata_holder,
-            receive_stream_stopper_collection,
-            message_tx,
-            slot_aggregated_status,
-        }
+        let (stream, _peer_addr) = listener.accept().await.unwrap();
+        let mut balancer_socket = accept_async(stream).await.unwrap();
+        let registration = balancer_socket.next().await.unwrap().unwrap();
+
+        assert!(matches!(
+            from_str::<ManagementJsonRpcMessage>(registration.to_text().unwrap()).unwrap(),
+            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::RegisterAgent(
+                register_agent_params
+            )) if register_agent_params.name.is_none()
+        ));
+
+        slot_aggregated_status.set_uses_chat_template_override(true);
+
+        let status_update = balancer_socket.next().await.unwrap().unwrap();
+
+        assert!(matches!(
+            from_str::<ManagementJsonRpcMessage>(status_update.to_text().unwrap()).unwrap(),
+            ManagementJsonRpcMessage::Notification(
+                ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
+                    slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot {
+                        status: AgentStatus {
+                            uses_chat_template_override: true,
+                            ..
+                        },
+                        ..
+                    },
+                })
+            )
+        ));
+
+        shutdown.cancel();
+
+        assert!(keep_alive_handle.await.unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn reports_the_balancer_connected_only_while_its_socket_is_open() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let service = service_with_socket_url(format!(
+            "ws://{addr}{}",
+            ApiPath::agent_socket("test-agent")
+        ));
+        let mut balancer_connection_rx = service.balancer_connection_tx.subscribe();
+        let keep_alive_handle = spawn(async move {
+            service
+                .keep_connection_alive(CancellationToken::new())
+                .await
+        });
+
+        let (stream, _peer_addr) = listener.accept().await.unwrap();
+        let balancer_socket = accept_async(stream).await.unwrap();
+
+        balancer_connection_rx
+            .wait_for(|balancer_connection| *balancer_connection == BalancerConnection::Connected)
+            .await
+            .unwrap();
+
+        drop(balancer_socket);
+
+        balancer_connection_rx
+            .wait_for(|balancer_connection| *balancer_connection == BalancerConnection::Connecting)
+            .await
+            .unwrap();
+
+        assert!(keep_alive_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]
     async fn set_state_notification_forwards_desired_state() {
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, mut agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
+        let mut fixture = incoming_message_fixture();
 
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Notification(JsonRpcNotification::SetState(Box::new(SetStateParams {
-                desired_state: AgentDesiredState::default(),
-            }))),
-        );
+        fixture
+            .context
+            .handle_deserialized_message(set_state_message())
+            .unwrap();
 
-        assert!(result.is_ok());
         assert_eq!(
-            agent_desired_state_rx.try_recv().unwrap(),
+            fixture.agent_desired_state_rx.try_recv().unwrap(),
             AgentDesiredState::default()
         );
     }
 
     #[tokio::test]
     async fn set_state_notification_errors_when_receiver_dropped() {
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
+        let fixture = incoming_message_fixture();
 
-        drop(agent_desired_state_rx);
+        drop(fixture.agent_desired_state_rx);
 
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
+        assert!(
+            fixture
+                .context
+                .handle_deserialized_message(set_state_message())
+                .is_err()
         );
-
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Notification(JsonRpcNotification::SetState(Box::new(SetStateParams {
-                desired_state: AgentDesiredState::default(),
-            }))),
-        );
-
-        assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn stop_responding_to_a_finished_request_is_not_an_error_and_retains_nothing() {
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            receive_stream_stopper_collection.clone(),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
+        let fixture = incoming_message_fixture();
+        let request_stoppers = fixture
+            .context
+            .balancer_message_context
+            .request_stoppers
+            .clone();
 
-        ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Notification(JsonRpcNotification::StopRespondingTo(
-                "already_finished".to_owned(),
-            )),
-        )
-        .expect("a stop for a request that already finished must not be an error");
+        fixture
+            .context
+            .handle_deserialized_message(JsonRpcMessage::Notification(
+                JsonRpcNotification::StopRespondingTo("already_finished".to_owned()),
+            ))
+            .expect("a stop for a request that already finished must not be an error");
 
         assert!(
-            receive_stream_stopper_collection
-                .deregister_stopper("already_finished")
-                .is_err(),
+            request_stoppers
+                .with_registered("already_finished", |_registered_stopper| ())
+                .is_none(),
             "the stop must leave nothing behind; retaining it would leak one entry per cancelled \
              request"
         );
@@ -728,92 +798,56 @@ mod tests {
 
     #[tokio::test]
     async fn stop_responding_to_registered_request_signals_stopper() {
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
+        let fixture = incoming_message_fixture();
         let (stop_tx, mut stop_rx) = mpsc::unbounded_channel::<()>();
 
-        receive_stream_stopper_collection
-            .register_stopper("active_request".to_owned(), stop_tx)
+        let _stopper_guard = RequestRegistryGuard::register(
+            &fixture.context.balancer_message_context.request_stoppers,
+            "active_request".to_owned(),
+            stop_tx,
+        )
+        .expect("a fresh request id must register");
+
+        fixture
+            .context
+            .handle_deserialized_message(JsonRpcMessage::Notification(
+                JsonRpcNotification::StopRespondingTo("active_request".to_owned()),
+            ))
             .unwrap();
 
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            receive_stream_stopper_collection,
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Notification(JsonRpcNotification::StopRespondingTo(
-                "active_request".to_owned(),
-            )),
-        );
-
-        assert!(result.is_ok());
-        assert!(stop_rx.try_recv().is_ok());
+        assert_eq!(stop_rx.try_recv(), Ok(()));
     }
 
     #[tokio::test]
     async fn mismatched_version_notification_is_acknowledged() {
-        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
+        let mut fixture = incoming_message_fixture();
 
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Notification(JsonRpcNotification::Version(VersionParams {
-                version: "0.0.0-mismatch".to_owned(),
-            })),
-        );
+        fixture
+            .context
+            .handle_deserialized_message(JsonRpcMessage::Notification(
+                JsonRpcNotification::Version(VersionParams {
+                    version: "0.0.0-mismatch".to_owned(),
+                }),
+            ))
+            .unwrap();
 
-        assert!(result.is_ok());
-        assert!(message_rx.try_recv().is_err());
+        assert!(fixture.message_rx.try_recv().is_err());
     }
 
     #[tokio::test]
     async fn get_chat_template_override_without_applicable_state_responds_with_none() {
-        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
+        let mut fixture = incoming_message_fixture();
 
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Request(RequestEnvelope {
+        fixture
+            .context
+            .handle_deserialized_message(JsonRpcMessage::Request(RequestEnvelope {
                 id: "req_template".to_owned(),
                 request: JsonRpcRequest::GetChatTemplateOverride,
-            }),
-        );
-
-        assert!(result.is_ok());
-
-        let sent_message = message_rx.try_recv().unwrap();
+            }))
+            .unwrap();
 
         assert!(matches!(
-            sent_message,
+            fixture.message_rx.try_recv().unwrap(),
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
                 response: JsonRpcResponse::ChatTemplateOverride(None),
@@ -824,70 +858,45 @@ mod tests {
 
     #[tokio::test]
     async fn get_chat_template_override_errors_when_message_receiver_dropped() {
-        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
+        let fixture = incoming_message_fixture();
 
-        drop(message_rx);
+        drop(fixture.message_rx);
 
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
+        assert!(
+            fixture
+                .context
+                .handle_deserialized_message(JsonRpcMessage::Request(RequestEnvelope {
+                    id: "req_template".to_owned(),
+                    request: JsonRpcRequest::GetChatTemplateOverride,
+                }))
+                .is_err()
         );
-
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Request(RequestEnvelope {
-                id: "req_template".to_owned(),
-                request: JsonRpcRequest::GetChatTemplateOverride,
-            }),
-        );
-
-        assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn get_model_metadata_responds_with_stored_metadata() {
-        let (message_tx, mut message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let model_metadata_holder = Arc::new(ModelMetadataHolder::new());
+        let mut fixture = incoming_message_fixture();
         let mut metadata = BTreeMap::new();
 
         metadata.insert("architecture".to_owned(), "llama".to_owned());
-        model_metadata_holder.set_model_metadata(ModelMetadata {
-            metadata: metadata.clone(),
-        });
+        fixture
+            .context
+            .balancer_message_context
+            .model_metadata_holder
+            .set_model_metadata(ModelMetadata {
+                metadata: metadata.clone(),
+            });
 
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            model_metadata_holder,
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
-
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Request(RequestEnvelope {
+        fixture
+            .context
+            .handle_deserialized_message(JsonRpcMessage::Request(RequestEnvelope {
                 id: "req_metadata".to_owned(),
                 request: JsonRpcRequest::GetModelMetadata,
-            }),
-        );
-
-        assert!(result.is_ok());
-
-        let sent_message = message_rx.try_recv().unwrap();
+            }))
+            .unwrap();
 
         assert!(matches!(
-            sent_message,
+            fixture.message_rx.try_recv().unwrap(),
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 response: JsonRpcResponse::ModelMetadata(Some(returned_metadata)),
                 ..
@@ -897,91 +906,78 @@ mod tests {
 
     #[tokio::test]
     async fn get_model_metadata_errors_when_message_receiver_dropped() {
-        let (message_tx, message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, _agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
+        let fixture = incoming_message_fixture();
 
-        drop(message_rx);
+        drop(fixture.message_rx);
 
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
+        assert!(
+            fixture
+                .context
+                .handle_deserialized_message(JsonRpcMessage::Request(RequestEnvelope {
+                    id: "req_metadata".to_owned(),
+                    request: JsonRpcRequest::GetModelMetadata,
+                }))
+                .is_err()
         );
-
-        let result = ManagementSocketClientService::handle_deserialized_message(
-            context,
-            JsonRpcMessage::Request(RequestEnvelope {
-                id: "req_metadata".to_owned(),
-                request: JsonRpcRequest::GetModelMetadata,
-            }),
-        );
-
-        assert!(result.is_err());
     }
 
     #[tokio::test]
     async fn text_message_dispatches_deserialized_set_state() {
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let (agent_desired_state_tx, mut agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let context = build_incoming_message_context(
-            Arc::new(AgentApplicableStateHolder::default()),
-            agent_desired_state_tx,
-            CancellationToken::new(),
-            Arc::new(ModelMetadataHolder::new()),
-            Arc::new(ReceiveStreamStopperCollection::default()),
-            message_tx,
-            Arc::new(SlotAggregatedStatus::new(2)),
-        );
+        let mut fixture = incoming_message_fixture();
 
-        let serialized_set_state = serde_json::to_string(&JsonRpcMessage::Notification(
-            JsonRpcNotification::SetState(Box::new(SetStateParams {
-                desired_state: AgentDesiredState::default(),
-            })),
-        ))
-        .unwrap();
-
-        ManagementSocketClientService::handle_incoming_message(
-            context,
-            Message::Text(serialized_set_state.into()),
-        );
+        fixture.context.handle_incoming_message(Message::Text(
+            to_string(&set_state_message()).unwrap().into(),
+        ));
 
         assert_eq!(
-            agent_desired_state_rx.recv().await.unwrap(),
+            fixture.agent_desired_state_rx.recv().await.unwrap(),
             AgentDesiredState::default()
         );
     }
 
     #[tokio::test]
+    async fn undecodable_text_message_closes_the_connection() {
+        let fixture = incoming_message_fixture();
+        let connection_close = fixture.context.connection_close.clone();
+
+        fixture
+            .context
+            .handle_incoming_message(Message::Text("not json".into()));
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn binary_message_closes_the_connection() {
+        let fixture = incoming_message_fixture();
+        let connection_close = fixture.context.connection_close.clone();
+
+        fixture
+            .context
+            .handle_incoming_message(Message::Binary(Bytes::from_static(b"\x00\x01")));
+
+        assert!(connection_close.is_cancelled());
+    }
+
+    #[tokio::test]
     async fn generate_responses_registers_the_stopper_before_it_returns() {
-        let connection_close = CancellationToken::new();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
-        let (request_tx, mut request_rx) =
-            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
-        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(2));
+        let mut fixture = incoming_message_fixture();
+        let request_stoppers = fixture
+            .context
+            .balancer_message_context
+            .request_stoppers
+            .clone();
 
-        ManagementSocketClientService::generate_responses::<ContinueFromRawPromptRequest>(
-            connection_close,
-            "req_generate".to_owned(),
-            message_tx,
-            ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: NonZeroU32::new(8).unwrap(),
-                raw_prompt: "hello".to_owned(),
-            },
-            receive_stream_stopper_collection.clone(),
-            request_tx,
-            slot_aggregated_status,
-        )
-        .expect("the request must be accepted");
+        fixture
+            .context
+            .generate_responses::<_, GeneratedTokenResult>(
+                "req_generate".to_owned(),
+                raw_prompt_params(),
+            )
+            .expect("the request must be accepted");
 
-        let dispatched_request = request_rx
+        let dispatched_request = fixture
+            .continuous_batch_preparation_request_rx
             .try_recv()
             .expect("the request must be dispatched to the arbiter");
 
@@ -991,10 +987,8 @@ mod tests {
                 if request.params.raw_prompt == "hello"
         ));
         assert_eq!(
-            receive_stream_stopper_collection
-                .stop("req_generate")
-                .unwrap(),
-            ReceiveStreamStopOutcome::StopSignalled,
+            request_stoppers.send_to("req_generate", ()),
+            RequestDelivery::Delivered,
             "the stopper must be registered before generate_responses returns, so a stop arriving \
              on the next frame cannot be lost"
         );
@@ -1002,62 +996,41 @@ mod tests {
 
     #[tokio::test]
     async fn generate_responses_errors_when_request_receiver_dropped() {
-        let connection_close = CancellationToken::new();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
-        let (request_tx, request_rx) =
-            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
-        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(2));
+        let fixture = incoming_message_fixture();
 
-        drop(request_rx);
+        drop(fixture.continuous_batch_preparation_request_rx);
 
-        let result =
-            ManagementSocketClientService::generate_responses::<ContinueFromRawPromptRequest>(
-                connection_close,
-                "req_generate".to_owned(),
-                message_tx,
-                ContinueFromRawPromptParams {
-                    grammar: None,
-                    max_tokens: NonZeroU32::new(8).unwrap(),
-                    raw_prompt: "hello".to_owned(),
-                },
-                receive_stream_stopper_collection,
-                request_tx,
-                slot_aggregated_status,
-            );
-
-        assert!(result.is_err());
+        assert!(
+            fixture
+                .context
+                .generate_responses::<_, GeneratedTokenResult>(
+                    "req_generate".to_owned(),
+                    raw_prompt_params(),
+                )
+                .is_err()
+        );
     }
 
     #[tokio::test]
     async fn generate_responses_errors_when_stopper_already_registered() {
-        let connection_close = CancellationToken::new();
-        let (message_tx, _message_rx) = mpsc::unbounded_channel::<ManagementJsonRpcMessage>();
-        let receive_stream_stopper_collection = Arc::new(ReceiveStreamStopperCollection::default());
+        let fixture = incoming_message_fixture();
         let (existing_stop_tx, _existing_stop_rx) = mpsc::unbounded_channel::<()>();
-        let (request_tx, _request_rx) =
-            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
-        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(2));
 
-        receive_stream_stopper_collection
-            .register_stopper("req_generate".to_owned(), existing_stop_tx)
-            .unwrap();
+        let _existing_stopper_guard = RequestRegistryGuard::register(
+            &fixture.context.balancer_message_context.request_stoppers,
+            "req_generate".to_owned(),
+            existing_stop_tx,
+        )
+        .expect("a fresh request id must register");
 
-        let result =
-            ManagementSocketClientService::generate_responses::<ContinueFromRawPromptRequest>(
-                connection_close,
-                "req_generate".to_owned(),
-                message_tx,
-                ContinueFromRawPromptParams {
-                    grammar: None,
-                    max_tokens: NonZeroU32::new(8).unwrap(),
-                    raw_prompt: "hello".to_owned(),
-                },
-                receive_stream_stopper_collection,
-                request_tx,
-                slot_aggregated_status,
-            );
-
-        assert!(result.is_err());
+        assert!(
+            fixture
+                .context
+                .generate_responses::<_, GeneratedTokenResult>(
+                    "req_generate".to_owned(),
+                    raw_prompt_params(),
+                )
+                .is_err()
+        );
     }
 }

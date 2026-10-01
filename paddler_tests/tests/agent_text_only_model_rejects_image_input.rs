@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -13,13 +14,14 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_text_only_model_rejects_image_input() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
+async fn agent_text_only_model_rejects_image_input() {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
+        .await
+        .expect("the cluster must start");
 
-    let image_data_uri = load_test_image_data_uri()?;
+    let image_data_uri = load_test_image_data_uri().expect("the test image must load");
 
     let outcome = cluster
         .continue_from_conversation_history(
@@ -48,17 +50,17 @@ async fn agent_text_only_model_rejects_image_input() -> Result<()> {
         )
         .await;
 
-    let collected = outcome?;
+    let collected = outcome.expect("the request must complete");
 
     assert_eq!(
         collected.into_token_results(),
         vec![GeneratedTokenResult::MultimodalNotSupported(
-            "Some(\"test-agent-0\"): received images but model does not support multimodal input"
-                .to_owned()
+            "test-agent-0: received images but model does not support multimodal input".to_owned()
         )]
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

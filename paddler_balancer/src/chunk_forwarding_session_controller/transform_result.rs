@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum TransformResult {
     Chunk(String),
     Discard,

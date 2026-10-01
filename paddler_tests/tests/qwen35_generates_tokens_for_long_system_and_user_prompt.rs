@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -11,7 +12,6 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
-use tokio_util::sync::CancellationToken;
 
 fn build_long_link_list() -> String {
     let mut lines: Vec<String> = Vec::new();
@@ -51,8 +51,10 @@ fn build_long_link_list() -> String {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen35_generates_tokens_for_long_system_and_user_prompt() -> Result<()> {
-    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false).await?;
+async fn qwen35_generates_tokens_for_long_system_and_user_prompt() {
+    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false)
+        .await
+        .expect("the cluster must start");
 
     let system_prompt = "You are a focused web crawler assistant. All elements on each page are collected automatically. Your only job is to decide which links to FOLLOW to discover more relevant pages.\n\nGiven a user's goal and the followable links extracted from a web page, decide which links are worth following to find more content matching the goal.\n\nRespond with JSON only:\n{\"follow\": [1, 3]}\n\nRules:\n- \"follow\": original indices of link elements worth following\n- Reject links that are clearly irrelevant to the goal\n- Prefer following PrimaryListing links on index/listing pages\n- Follow pagination links if more matching content is likely on subsequent pages\n- If no links are worth following, return {\"follow\": []}";
 
@@ -85,7 +87,8 @@ async fn qwen35_generates_tokens_for_long_system_and_user_prompt() -> Result<()>
                 tools: vec![],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let token_count = collected
         .token_results
@@ -102,7 +105,8 @@ async fn qwen35_generates_tokens_for_long_system_and_user_prompt() -> Result<()>
         })
     ));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

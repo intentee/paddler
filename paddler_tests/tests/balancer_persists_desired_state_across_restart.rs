@@ -1,5 +1,5 @@
-use anyhow::Context as _;
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -8,13 +8,12 @@ use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_persists_desired_state_across_restart() -> Result<()> {
-    let database = StateDatabaseFile::new()?;
+async fn balancer_persists_desired_state_across_restart() {
+    let database = StateDatabaseFile::new().expect("the state database file must be created");
 
-    let ModelCard { reference, .. } = qwen3_0_6b();
+    let ModelCard { reference } = qwen3_0_6b();
 
     let desired_state = BalancerDesiredState {
         chat_template_override: None,
@@ -31,9 +30,13 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
         desired_state: Some(desired_state.clone()),
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
-    first_cluster.shutdown().await?;
+    first_cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 
     let second_cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
@@ -42,18 +45,19 @@ async fn balancer_persists_desired_state_across_restart() -> Result<()> {
         desired_state: None,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let restored_state = second_cluster
         .client_management
         .get_balancer_desired_state(CancellationToken::new())
         .await
-        .map_err(anyhow::Error::new)
-        .context("failed to read restored desired state")?;
+        .expect("failed to read restored desired state");
 
     assert_eq!(restored_state.model, desired_state.model);
 
-    second_cluster.shutdown().await?;
-
-    Ok(())
+    second_cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

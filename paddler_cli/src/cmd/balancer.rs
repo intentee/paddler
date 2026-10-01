@@ -1,32 +1,38 @@
 use std::io::stdout;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
 use command_handler::handler::Handler;
+use tokio_util::sync::CancellationToken;
+use trzcina::ServiceShutdownOptions;
+
 use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_balancer::state_database_type::StateDatabaseType;
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-#[cfg(feature = "web_admin_panel")]
-use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
+use paddler_bootstrap::balancer_defaults::BalancerDefaults;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
 use paddler_bootstrap::run_service_manager::run_service_manager;
-use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
+use paddler_state_database::state_database_type::StateDatabaseType;
 
 use super::value_parser::parse_duration::parse_duration;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
 pub struct Balancer {
-    #[arg(long, default_value = "10000", value_parser = parse_duration)]
+    #[arg(
+        long,
+        default_value = BalancerDefaults::BUFFERED_REQUEST_TIMEOUT.as_millis().to_string(),
+        value_parser = parse_duration
+    )]
     /// Specifies how long a request can stay in the buffer before it is processed.
     /// If the request stays in the buffer longer than this time, it is rejected with the 504 error
     buffered_request_timeout: Duration,
@@ -35,11 +41,19 @@ pub struct Balancer {
     /// Address of the OpenAI-compatible API server (enabled only if this address is specified)
     compat_openai_addr: Option<ResolvedSocketAddr>,
 
-    #[arg(long, default_value = "127.0.0.1:8061", value_parser = parse_socket_addr)]
+    #[arg(
+        long,
+        default_value = SocketAddr::from((Ipv4Addr::LOCALHOST, BalancerDefaults::INFERENCE_PORT)).to_string(),
+        value_parser = parse_socket_addr
+    )]
     /// Address of the inference server
     inference_addr: ResolvedSocketAddr,
 
-    #[arg(long, default_value = "30000", value_parser = parse_duration)]
+    #[arg(
+        long,
+        default_value = BalancerDefaults::INFERENCE_ITEM_TIMEOUT.as_millis().to_string(),
+        value_parser = parse_duration
+    )]
     /// The timeout (in milliseconds) for generating a single token or a single embedding
     inference_item_timeout: Duration,
 
@@ -50,7 +64,11 @@ pub struct Balancer {
     /// Allowed CORS host for the inference service (can be specified multiple times)
     inference_cors_allowed_hosts: Vec<String>,
 
-    #[arg(long, default_value = "127.0.0.1:8060", value_parser = parse_socket_addr)]
+    #[arg(
+        long,
+        default_value = SocketAddr::from((Ipv4Addr::LOCALHOST, BalancerDefaults::MANAGEMENT_PORT)).to_string(),
+        value_parser = parse_socket_addr
+    )]
     /// This is where you can manage your Paddler setup and the agents connect to
     management_addr: ResolvedSocketAddr,
 
@@ -61,10 +79,10 @@ pub struct Balancer {
     /// Allowed CORS host for the management service (can be specified multiple times)
     management_cors_allowed_hosts: Vec<String>,
 
-    #[arg(long, default_value = "30")]
+    #[arg(long, default_value_t = BalancerDefaults::MAX_BUFFERED_REQUESTS)]
     /// The maximum number of buffered requests.
     /// If the buffer is full then new requests are rejected with the 503 error
-    max_buffered_requests: i32,
+    max_buffered_requests: u64,
 
     #[arg(long, default_value = "memory://")]
     /// Balancer state database URL. Supported: memory, memory://, or <file:///path> (optional)
@@ -74,11 +92,15 @@ pub struct Balancer {
     /// Address for the statsd server to report metrics to (enabled only if this address is specified)
     statsd_addr: Option<ResolvedSocketAddr>,
 
-    #[arg(long, default_value = "paddler_")]
+    #[arg(long, default_value = BalancerDefaults::STATSD_PREFIX)]
     /// Prefix for statsd metrics
     statsd_prefix: String,
 
-    #[arg(long, default_value = "10000", value_parser = parse_duration)]
+    #[arg(
+        long,
+        default_value = BalancerDefaults::STATSD_REPORTING_INTERVAL.as_millis().to_string(),
+        value_parser = parse_duration
+    )]
     /// Interval (in milliseconds) at which the balancer will report metrics to statsd
     statsd_reporting_interval: Duration,
 
@@ -88,92 +110,59 @@ pub struct Balancer {
     web_admin_panel_addr: Option<ResolvedSocketAddr>,
 }
 
-impl Balancer {
-    #[cfg(feature = "web_admin_panel")]
-    fn get_web_admin_panel_service_configuration(
-        &self,
-    ) -> Option<WebAdminPanelServiceConfiguration> {
-        self.web_admin_panel_addr
-            .clone()
-            .map(|web_admin_panel_addr| WebAdminPanelServiceConfiguration {
-                addr: web_admin_panel_addr.socket_addr,
-                template_data: TemplateData {
-                    buffered_request_timeout: self.buffered_request_timeout,
-                    compat_openai_addr: self.compat_openai_addr.clone(),
-                    inference_addr: self.inference_addr.clone(),
-                    management_addr: self.management_addr.clone(),
-                    max_buffered_requests: self.max_buffered_requests,
-                    statsd_addr: self.statsd_addr.clone(),
-                    statsd_prefix: self.statsd_prefix.clone(),
-                    statsd_reporting_interval: self.statsd_reporting_interval,
-                },
-            })
-    }
-}
-
 #[async_trait(?Send)]
 impl Handler for Balancer {
     async fn handle(self, shutdown: CancellationToken) -> Result<()> {
-        let shutdown_options = ServiceShutdownOptions::default();
+        let Self {
+            buffered_request_timeout,
+            compat_openai_addr,
+            inference_addr,
+            inference_item_timeout,
+            inference_cors_allowed_hosts,
+            management_addr,
+            management_cors_allowed_hosts,
+            max_buffered_requests,
+            state_database,
+            statsd_addr,
+            statsd_prefix,
+            statsd_reporting_interval,
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_addr,
+        } = self;
 
         let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
-            buffered_request_timeout: self.buffered_request_timeout,
+            buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
-                addr: self.inference_addr.socket_addr,
-                cors_allowed_hosts: self.inference_cors_allowed_hosts.clone(),
-                inference_item_timeout: self.inference_item_timeout,
+                addr: inference_addr,
+                cors_allowed_hosts: inference_cors_allowed_hosts,
+                inference_item_timeout,
             },
             management_service_configuration: ManagementServiceConfiguration {
-                addr: self.management_addr.socket_addr,
-                cors_allowed_hosts: self.management_cors_allowed_hosts.clone(),
+                addr: management_addr,
+                cors_allowed_hosts: management_cors_allowed_hosts,
             },
-            max_buffered_requests: self.max_buffered_requests,
-            openai_service_configuration: self.compat_openai_addr.clone().map(
-                |compat_openai_addr| OpenAIServiceConfiguration {
-                    addr: compat_openai_addr.socket_addr,
-                },
-            ),
-            state_database_type: self.state_database.clone(),
-            statsd_prefix: self.statsd_prefix.clone(),
-            statsd_service_configuration: self.statsd_addr.clone().map(|statsd_addr| {
+            max_buffered_requests,
+            openai_service_configuration: compat_openai_addr
+                .map(|addr| OpenAIServiceConfiguration { addr }),
+            state_database_type: state_database,
+            statsd_prefix,
+            statsd_service_configuration: statsd_addr.map(|statsd_addr| {
                 StatsdServiceConfiguration {
-                    statsd_addr: statsd_addr.socket_addr,
-                    statsd_prefix: self.statsd_prefix.clone(),
-                    statsd_reporting_interval: self.statsd_reporting_interval,
+                    statsd_addr,
+                    statsd_reporting_interval,
                 }
             }),
             #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration: self.get_web_admin_panel_service_configuration(),
+            web_admin_panel_service_configuration: web_admin_panel_addr.map(
+                |web_admin_panel_addr| WebAdminPanelServiceConfiguration {
+                    addr: web_admin_panel_addr.socket_addr,
+                },
+            ),
         })
         .await?;
 
         bundle.addresses.write_json_line(stdout().lock())?;
 
-        run_service_manager(bundle, shutdown, shutdown_options).await
-    }
-}
-
-#[cfg(all(test, feature = "web_admin_panel"))]
-mod tests {
-    use clap::Parser as _;
-
-    use super::Balancer;
-
-    #[test]
-    fn web_admin_panel_configuration_is_built_from_the_provided_address() {
-        let balancer = Balancer::parse_from([
-            "balancer",
-            "--web-admin-panel-addr",
-            "127.0.0.1:8062",
-            "--max-buffered-requests",
-            "7",
-        ]);
-
-        let configuration = balancer
-            .get_web_admin_panel_service_configuration()
-            .unwrap();
-
-        assert_eq!(configuration.addr.port(), 8062);
-        assert_eq!(configuration.template_data.max_buffered_requests, 7);
+        run_service_manager(bundle, shutdown, ServiceShutdownOptions::default()).await
     }
 }

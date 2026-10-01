@@ -1,19 +1,15 @@
 use std::num::NonZeroU32;
 
 use anyhow::Result;
+use serde::Deserialize;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::validates::Validates;
-use serde::Deserialize;
 
 use crate::compatibility::openai_service::openai_default_max_tokens::OPENAI_DEFAULT_MAX_TOKENS;
-use crate::compatibility::openai_service::openai_responses_function_tool::OpenAIResponsesFunctionTool;
 use crate::compatibility::openai_service::openai_responses_input::OpenAIResponsesInput;
 use crate::compatibility::openai_service::openai_responses_input_item::OpenAIResponsesInputItem;
 use crate::compatibility::openai_service::openai_responses_reasoning::OpenAIResponsesReasoning;
@@ -73,35 +69,18 @@ impl OpenAIResponsesRequestParams {
                 messages.extend(
                     items
                         .into_iter()
-                        .filter_map(OpenAIResponsesInputItem::into_conversation_message),
+                        .map(OpenAIResponsesInputItem::into_conversation_message),
                 );
             }
         }
 
         let validated_tools = tools
             .into_iter()
-            .filter_map(|tool| match tool {
-                OpenAIResponsesTool::Function(function_tool) => {
-                    let OpenAIResponsesFunctionTool {
-                        name,
-                        description,
-                        parameters,
-                    } = *function_tool;
-
-                    Some(Tool::Function(FunctionCall {
-                        function: Function {
-                            name,
-                            description: description.unwrap_or_default(),
-                            parameters: parameters.map_or(Parameters::Empty, |parameters| {
-                                Parameters::Schema(parameters.into_raw_parameters_schema())
-                            }),
-                        },
-                    }))
-                }
-                OpenAIResponsesTool::Unsupported => None,
+            .map(|OpenAIResponsesTool::Function(function_definition)| {
+                function_definition.into_tool()
             })
             .map(Validates::validate)
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         let parse_tool_calls = !validated_tools.is_empty();
 
@@ -112,10 +91,7 @@ impl OpenAIResponsesRequestParams {
                 enable_thinking: reasoning
                     .as_ref()
                     .is_none_or(OpenAIResponsesReasoning::enables_thinking),
-                grammar: match text {
-                    Some(text_param) => text_param.into_grammar_constraint()?,
-                    None => None,
-                },
+                grammar: text.and_then(OpenAIResponsesTextParam::into_grammar_constraint),
                 max_tokens: max_output_tokens.unwrap_or(OPENAI_DEFAULT_MAX_TOKENS),
                 parse_tool_calls,
                 tools: validated_tools,
@@ -129,15 +105,26 @@ impl OpenAIResponsesRequestParams {
 
 #[cfg(test)]
 mod tests {
-    use paddler_messaging::grammar_constraint::GrammarConstraint;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+    use std::num::NonZeroU32;
+
+    use serde_json::Value;
+    use serde_json::error::Category;
+    use serde_json::from_str;
+    use serde_json::from_value;
     use serde_json::json;
+
+    use paddler_messaging::conversation_message_content::ConversationMessageContent;
+    use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
+    use paddler_messaging::grammar_constraint::GrammarConstraint;
+    use paddler_messaging::image_url::ImageUrl;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+    use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
 
     use super::OpenAIResponsesRequestParams;
     use crate::compatibility::openai_service::responses_prepared_request::ResponsesPreparedRequest;
 
-    fn prepared_from(value: serde_json::Value) -> ResponsesPreparedRequest {
-        let params: OpenAIResponsesRequestParams = serde_json::from_value(value).unwrap();
+    fn prepared_from(value: Value) -> ResponsesPreparedRequest {
+        let params: OpenAIResponsesRequestParams = from_value(value).unwrap();
 
         params.into_prepared().unwrap()
     }
@@ -184,6 +171,66 @@ mod tests {
     }
 
     #[test]
+    fn function_call_item_becomes_an_assistant_message_carrying_the_call() {
+        let prepared = prepared_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "function_call", "call_id": "call_1", "name": "get_weather", "arguments": "{}" }
+            ]
+        }));
+
+        let messages = &prepared.paddler_params.conversation_history.messages;
+
+        assert_eq!(messages[0].role, "assistant");
+        assert_eq!(
+            from_str::<Value>(&messages[0].content.text_content()).unwrap(),
+            json!({ "call_id": "call_1", "name": "get_weather", "arguments": "{}" })
+        );
+    }
+
+    #[test]
+    fn message_content_parts_become_conversation_parts() {
+        let prepared = prepared_from(json!({
+            "model": "test",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        { "type": "input_text", "text": "What is this?" },
+                        { "type": "input_image", "image_url": "https://example.test/cat.png" }
+                    ]
+                }
+            ]
+        }));
+
+        assert_eq!(
+            prepared.paddler_params.conversation_history.messages[0].content,
+            ConversationMessageContent::Parts(vec![
+                ConversationMessageContentPart::Text {
+                    text: "What is this?".to_owned(),
+                },
+                ConversationMessageContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "https://example.test/cat.png".to_owned(),
+                    },
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn text_format_text_leaves_the_output_unconstrained() {
+        let prepared = prepared_from(json!({
+            "model": "test",
+            "input": "hi",
+            "text": { "format": { "type": "text" } }
+        }));
+
+        assert_eq!(prepared.paddler_params.grammar, None);
+    }
+
+    #[test]
     fn developer_role_is_normalized_to_system() {
         let prepared = prepared_from(json!({
             "model": "test",
@@ -226,8 +273,15 @@ mod tests {
 
         assert!(matches!(
             &prepared.paddler_params.grammar,
-            Some(GrammarConstraint::JsonSchema { schema }) if schema.contains("\"type\":\"object\"")
+            Some(GrammarConstraint::JsonSchema { schema }) if schema == r#"{"type":"object"}"#
         ));
+    }
+
+    #[test]
+    fn a_request_without_an_output_limit_generates_until_its_context_is_full() {
+        let prepared = prepared_from(json!({ "model": "test", "input": "hi" }));
+
+        assert_eq!(prepared.paddler_params.max_tokens, NonZeroU32::MAX);
     }
 
     #[test]
@@ -242,15 +296,23 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_tool_is_skipped_and_disables_tool_call_parsing() {
-        let prepared = prepared_from(json!({
-            "model": "test",
-            "input": "hi",
-            "tools": [ { "type": "web_search" } ]
-        }));
+    fn rejects_input_it_cannot_represent() {
+        let unrepresentable_requests = [
+            json!({ "model": "test", "input": "hi", "tools": [ { "type": "web_search" } ] }),
+            json!({ "model": "test", "input": [ { "type": "reasoning", "summary": [] } ] }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "input_file", "file_id": "file_1" } ] } ] }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "input_image", "file_id": "file_1" } ] } ] }),
+            json!({ "model": "test", "input": [ { "type": "function_call_output", "call_id": "call_1", "output": [ { "type": "input_image", "image_url": "https://example.test/cat.png" } ] } ] }),
+            json!({ "model": "test", "input": "hi", "text": { "format": { "type": "json_object" } } }),
+        ];
 
-        assert!(prepared.paddler_params.tools.is_empty());
-        assert!(!prepared.paddler_params.parse_tool_calls);
+        for unrepresentable_request in unrepresentable_requests {
+            let rejection = from_value::<OpenAIResponsesRequestParams>(unrepresentable_request)
+                .err()
+                .map(|deserialization_error| deserialization_error.classify());
+
+            assert_eq!(rejection, Some(Category::Data));
+        }
     }
 
     #[test]
@@ -268,6 +330,61 @@ mod tests {
         assert_eq!(
             prepared.paddler_params.conversation_history.messages.len(),
             1
+        );
+    }
+
+    #[test]
+    fn instructions_alone_become_the_whole_conversation() {
+        let prepared = prepared_from(json!({ "model": "test", "instructions": "be terse" }));
+
+        let messages = &prepared.paddler_params.conversation_history.messages;
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].role, "system");
+        assert_eq!(messages[0].content.text_content(), "be terse");
+    }
+
+    #[test]
+    fn message_item_without_a_type_becomes_a_conversation_message() {
+        let prepared = prepared_from(json!({
+            "model": "test",
+            "input": [ { "role": "user", "content": "hi" } ]
+        }));
+
+        let messages = &prepared.paddler_params.conversation_history.messages;
+
+        assert_eq!(messages[0].role, "user");
+        assert_eq!(messages[0].content.text_content(), "hi");
+    }
+
+    #[test]
+    fn rejects_a_function_tool_that_requires_an_undeclared_property() {
+        let params: OpenAIResponsesRequestParams = from_value(json!({
+            "model": "test",
+            "input": "hi",
+            "tools": [
+                {
+                    "type": "function",
+                    "name": "broken",
+                    "parameters": {
+                        "type": "object",
+                        "properties": { "present": { "type": "string" } },
+                        "required": ["absent"]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        let rejection = params.into_prepared().err().unwrap();
+
+        assert_eq!(
+            rejection.downcast_ref::<RequestParamsValidationError>(),
+            Some(
+                &RequestParamsValidationError::RequiredFieldNotInProperties {
+                    field: "absent".to_owned(),
+                }
+            )
         );
     }
 }

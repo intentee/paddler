@@ -2,8 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use anyhow::anyhow;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -12,11 +12,12 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
+async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -37,7 +38,8 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
                 tools: vec![get_weather_tool()],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let tool_call_count = collected
         .token_results
@@ -53,9 +55,9 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
     let last = collected
         .token_results
         .last()
-        .ok_or_else(|| anyhow!("no token results received"))?;
+        .expect("no token results received");
     let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        anyhow::bail!("last result was not Done: {last:?}");
+        panic!("last result was not Done: {last:?}");
     };
 
     assert!(summary.usage.prompt_tokens > 0);
@@ -67,7 +69,8 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() -> Result<()> {
     );
     assert!(summary.usage.tool_call_tokens > 0);
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

@@ -3017,6 +3017,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "iced_selector"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1442ccc30959cc48b3a624233521ef7f3bc3e06528b6fe306c3a775fbddc4fe"
+dependencies = [
+ "iced_core",
+]
+
+[[package]]
+name = "iced_test"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b56c26cc6e63958ce6be06a68fa3136fd5f646da6302ee12abf1a0f311dd0166"
+dependencies = [
+ "iced_futures",
+ "iced_program",
+ "iced_renderer",
+ "iced_runtime",
+ "iced_selector",
+ "nom 8.0.0",
+ "png 0.18.1",
+ "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "iced_tiny_skia"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4854,13 +4880,15 @@ dependencies = [
  "minijinja",
  "minijinja-contrib",
  "nanoid",
+ "paddler_agent_status",
  "paddler_cache_dir",
  "paddler_download_manager",
  "paddler_image_decoder",
  "paddler_inference_parameters",
  "paddler_local_http_fixture",
  "paddler_messaging",
- "paddler_state_conversion",
+ "paddler_model_source",
+ "paddler_request_registry",
  "paddler_tool_call_validator",
  "parking_lot",
  "rand 0.9.4",
@@ -4877,6 +4905,17 @@ dependencies = [
  "tokio-util",
  "trzcina",
  "url",
+]
+
+[[package]]
+name = "paddler_agent_status"
+version = "4.1.0"
+dependencies = [
+ "dashmap",
+ "paddler_messaging",
+ "parking_lot",
+ "tokio",
+ "tokio-test",
 ]
 
 [[package]]
@@ -4905,11 +4944,12 @@ dependencies = [
  "paddler_inference_parameters",
  "paddler_messaging",
  "paddler_openai_response_format_validator",
+ "paddler_request_registry",
+ "paddler_state_database",
  "parking_lot",
  "rust-embed",
  "serde",
  "serde_json",
- "shellexpand",
  "socket2",
  "tempfile",
  "thiserror 2.0.18",
@@ -4918,7 +4958,6 @@ dependencies = [
  "tokio-test",
  "tokio-util",
  "trzcina",
- "url",
 ]
 
 [[package]]
@@ -4931,9 +4970,12 @@ dependencies = [
  "log",
  "nanoid",
  "paddler_agent",
+ "paddler_agent_status",
  "paddler_balancer",
  "paddler_inference_parameters",
  "paddler_messaging",
+ "paddler_state_database",
+ "paddler_test_cluster_harness",
  "reqwest 0.12.28",
  "serde_json",
  "tempfile",
@@ -4947,7 +4989,6 @@ dependencies = [
 name = "paddler_cache_dir"
 version = "4.1.0"
 dependencies = [
- "anyhow",
  "fslock",
  "sha2",
  "tempfile",
@@ -4967,9 +5008,9 @@ dependencies = [
  "clap",
  "command_handler",
  "env_logger",
- "esbuild-metafile",
  "paddler_balancer",
  "paddler_bootstrap",
+ "paddler_state_database",
  "tokio-util",
  "trzcina",
 ]
@@ -4989,6 +5030,7 @@ dependencies = [
  "paddler_inference_parameters",
  "paddler_messaging",
  "paddler_test_cluster_harness",
+ "reqwest 0.12.28",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -5005,6 +5047,7 @@ dependencies = [
  "http 1.4.0",
  "log",
  "nanoid",
+ "paddler_local_http_fixture",
  "paddler_messaging",
  "parking_lot",
  "reqwest 0.12.28",
@@ -5022,7 +5065,6 @@ dependencies = [
 name = "paddler_download_manager"
 version = "4.1.0"
 dependencies = [
- "anyhow",
  "bytes 1.11.1",
  "futures-util",
  "headers",
@@ -5040,13 +5082,10 @@ dependencies = [
 name = "paddler_gui"
 version = "4.1.0"
 dependencies = [
- "actix-web",
- "anyhow",
+ "async-stream",
  "clap",
  "command_handler",
- "dashmap",
  "env_logger",
- "esbuild-metafile",
  "iced",
  "if-addrs",
  "log",
@@ -5055,8 +5094,28 @@ dependencies = [
  "paddler_bootstrap",
  "paddler_inference_parameters",
  "paddler_messaging",
- "parking_lot",
+ "paddler_state_database",
+ "paddler_test_cluster_harness",
  "statum",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "trzcina",
+]
+
+[[package]]
+name = "paddler_gui_tests"
+version = "4.1.0"
+dependencies = [
+ "futures 0.3.32",
+ "iced_test",
+ "paddler_balancer",
+ "paddler_bootstrap",
+ "paddler_gui",
+ "paddler_messaging",
+ "paddler_test_cluster_harness",
+ "reqwest 0.12.28",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "trzcina",
@@ -5096,7 +5155,6 @@ dependencies = [
 name = "paddler_messaging"
 version = "4.1.0"
 dependencies = [
- "anyhow",
  "base64",
  "encoding_rs",
  "llama-cpp-bindings-types",
@@ -5111,10 +5169,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_model_source"
+version = "4.1.0"
+dependencies = [
+ "async-trait",
+ "hf-hub",
+ "log",
+ "paddler_agent_status",
+ "paddler_cache_dir",
+ "paddler_download_manager",
+ "paddler_local_http_fixture",
+ "paddler_messaging",
+ "reqwest 0.12.28",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
 name = "paddler_openai_response_format_validator"
 version = "4.1.0"
 dependencies = [
- "anyhow",
  "jsonschema",
  "serde_json",
  "thiserror 2.0.18",
@@ -5136,11 +5213,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler_state_conversion"
+name = "paddler_request_registry"
 version = "4.1.0"
 dependencies = [
- "anyhow",
+ "dashmap",
+ "tokio",
+]
+
+[[package]]
+name = "paddler_state_database"
+version = "4.1.0"
+dependencies = [
  "async-trait",
+ "log",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "shellexpand",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tokio",
+ "url",
 ]
 
 [[package]]
@@ -5151,11 +5246,14 @@ dependencies = [
  "async-openai",
  "async-trait",
  "base64",
+ "data-url",
  "futures-util",
+ "hf-hub",
  "paddler_balancer",
  "paddler_client",
  "paddler_inference_parameters",
  "paddler_messaging",
+ "quick-xml",
  "serde",
  "serde_json",
  "tempfile",
@@ -5163,6 +5261,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
+ "trzcina",
  "url",
 ]
 
@@ -5171,12 +5270,12 @@ name = "paddler_tests"
 version = "4.1.0"
 dependencies = [
  "anyhow",
+ "async-openai",
  "async-trait",
  "futures-util",
  "http 1.4.0",
- "llama-cpp-bindings",
+ "llama-cpp-bindings-types",
  "log",
- "paddler_agent",
  "paddler_balancer",
  "paddler_bootstrap",
  "paddler_client",
@@ -5184,6 +5283,7 @@ dependencies = [
  "paddler_local_http_fixture",
  "paddler_messaging",
  "paddler_openai_response_format_validator",
+ "paddler_state_database",
  "paddler_test_cluster_harness",
  "reqwest 0.12.28",
  "serde_json",

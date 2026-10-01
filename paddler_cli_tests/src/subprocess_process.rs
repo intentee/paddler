@@ -20,7 +20,7 @@ impl SubprocessProcess {
 
 #[async_trait]
 impl ManagedProcess for SubprocessProcess {
-    async fn shutdown(&mut self) -> Result<()> {
+    async fn shutdown(mut self: Box<Self>) -> Result<()> {
         terminate_child(&mut self.child)?;
         self.child.wait().await?;
 

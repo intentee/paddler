@@ -2,9 +2,10 @@ use std::future::Future;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use tokio::spawn;
 use tokio_util::sync::CancellationToken;
+
+use paddler_test_cluster_harness::cluster::Cluster;
 
 use crate::qwen3_desired_state_with_embeddings::qwen3_desired_state_with_embeddings;
 
@@ -17,10 +18,10 @@ where
     TRequest: Future<Output = Result<TOutput>> + Send + 'static,
     TOutput: Send + 'static,
 {
-    let buffered_request = tokio::spawn(request);
+    let buffered_request = spawn(request);
 
     cluster
-        .wait_for_buffered_request_count(1, ObservationWindow::release())
+        .wait_for_buffered_request_count(1)
         .await
         .context("the request must wait in the buffer while the agent has no model")?;
 

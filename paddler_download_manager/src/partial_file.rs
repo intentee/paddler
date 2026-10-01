@@ -1,5 +1,4 @@
 use std::io;
-use std::path::Path;
 use std::path::PathBuf;
 
 use tokio::fs::File;
@@ -8,6 +7,8 @@ use tokio::fs::create_dir_all;
 use tokio::fs::metadata;
 use tokio::fs::remove_file;
 use tokio::fs::rename;
+
+use crate::download_error::DownloadError;
 
 const PARTIAL_EXTENSION: &str = "partial";
 
@@ -27,11 +28,17 @@ impl PartialFile {
         }
     }
 
-    pub async fn current_size(&self) -> Result<u64, io::Error> {
+    pub async fn current_size(&self) -> Result<u64, DownloadError> {
         match metadata(&self.partial_path).await {
+            Ok(metadata) if metadata.is_dir() => Err(DownloadError::PartialPathIsADirectory {
+                partial_path: self.partial_path.clone(),
+            }),
             Ok(metadata) => Ok(metadata.len()),
             Err(metadata_error) if metadata_error.kind() == io::ErrorKind::NotFound => Ok(0),
-            Err(metadata_error) => Err(metadata_error),
+            Err(metadata_error) => Err(DownloadError::cache_failure(
+                self.partial_path.clone(),
+                metadata_error,
+            )),
         }
     }
 
@@ -71,14 +78,18 @@ impl PartialFile {
     }
 
     async fn ensure_partial_parent_exists(&self) -> Result<(), io::Error> {
-        let parent = self.partial_path.parent().unwrap_or_else(|| Path::new("."));
-
-        create_dir_all(parent).await
+        match self.partial_path.parent() {
+            Some(parent) => create_dir_all(parent).await,
+            None => Ok(()),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
     #[cfg(unix)]
     use std::path::PathBuf;
 
@@ -93,6 +104,7 @@ mod tests {
     use tokio::fs::write;
     use tokio::io::AsyncWriteExt;
 
+    use crate::download_error::DownloadError;
     use crate::partial_file::PartialFile;
 
     #[tokio::test]
@@ -201,7 +213,11 @@ mod tests {
 
         let result = partial.current_size().await;
 
-        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(DownloadError::Io { path, source })
+                if path == partial.partial_path && source.kind() == ErrorKind::NotADirectory
+        ));
     }
 
     #[cfg(unix)]
@@ -213,7 +229,7 @@ mod tests {
 
         let result = partial.truncate().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
     #[cfg(unix)]
@@ -225,7 +241,7 @@ mod tests {
 
         let result = partial.open_for_append().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
     #[cfg(unix)]
@@ -235,7 +251,7 @@ mod tests {
 
         let result = partial.open_for_append().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
     #[cfg(unix)]
@@ -251,14 +267,12 @@ mod tests {
 
         let result = partial.finalize().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn remove_propagates_non_notfound_error() {
-        use std::os::unix::fs::PermissionsExt;
-
         let directory = TempDir::new().unwrap();
         let locked_parent = directory.path().join("locked");
         create_dir(&locked_parent).await.unwrap();
@@ -274,7 +288,7 @@ mod tests {
         restore.set_mode(0o700);
         set_permissions(&locked_parent, restore).await.unwrap();
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::PermissionDenied);
     }
 
     #[cfg(unix)]
@@ -287,7 +301,7 @@ mod tests {
 
         let result = partial.open_for_append().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::NotADirectory);
     }
 
     #[cfg(unix)]
@@ -300,7 +314,7 @@ mod tests {
 
         let result = partial.truncate().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::NotADirectory);
     }
 
     #[cfg(unix)]
@@ -321,6 +335,6 @@ mod tests {
 
         let result = partial.finalize().await;
 
-        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::NotFound);
     }
 }

@@ -1,16 +1,17 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
+use serde_json::json;
+
 use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn openai_responses_non_streaming_reports_incomplete_status_at_max_output_tokens()
--> Result<()> {
-    let validator = OpenAIValidator::new()?;
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
+async fn openai_responses_non_streaming_reports_incomplete_status_at_max_output_tokens() {
+    let validator = OpenAIValidator::new().expect("the OpenAI schemas must load");
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
 
     let response = cluster
         .openai_responses_non_streaming(&json!({
@@ -18,9 +19,12 @@ async fn openai_responses_non_streaming_reports_incomplete_status_at_max_output_
             "input": "Count from one to one hundred.",
             "max_output_tokens": 5
         }))
-        .await?;
+        .await
+        .expect("the OpenAI response must succeed");
 
-    validator.validate_responses_response(&response)?;
+    validator
+        .validate_responses_response(&response)
+        .expect("the payload must conform to the OpenAI schema");
 
     assert_eq!(response["status"], "incomplete");
     assert_eq!(
@@ -28,7 +32,8 @@ async fn openai_responses_non_streaming_reports_incomplete_status_at_max_output_
         json!({"reason": "max_output_tokens"})
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

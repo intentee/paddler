@@ -1,4 +1,8 @@
-use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use actix_web::Error;
+use actix_web::error::ErrorNotImplemented;
+
+pub const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
+    "Token generation is disabled while the cluster is configured for embeddings";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClusterTokenGenerationMode {
@@ -6,72 +10,41 @@ pub enum ClusterTokenGenerationMode {
     DisabledForEmbeddings,
 }
 
-pub const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
-    "Token generation is disabled while the cluster is configured for embeddings";
-
 impl ClusterTokenGenerationMode {
-    #[must_use]
-    pub fn from_applicable_state_holder(
-        balancer_applicable_state_holder: &BalancerApplicableStateHolder,
-    ) -> Self {
-        if balancer_applicable_state_holder
-            .get_agent_desired_state()
-            .inference_parameters
-            .enable_embeddings
-        {
-            Self::DisabledForEmbeddings
-        } else {
-            Self::Enabled
+    pub fn require_enabled(self) -> Result<(), Error> {
+        match self {
+            Self::Enabled => Ok(()),
+            Self::DisabledForEmbeddings => {
+                Err(ErrorNotImplemented(TOKEN_GENERATION_DISABLED_MESSAGE))
+            }
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use actix_web::http::StatusCode;
 
     use super::ClusterTokenGenerationMode;
-    use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
-    fn holder_with_embeddings(enable_embeddings: bool) -> BalancerApplicableStateHolder {
-        let balancer_applicable_state_holder = BalancerApplicableStateHolder::new(
-            BalancerApplicableState::from(BalancerDesiredState::default()),
-        );
-
-        balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
-            agent_desired_state: AgentDesiredState {
-                chat_template_override: None,
-                inference_parameters: InferenceParameters {
-                    enable_embeddings,
-                    ..InferenceParameters::default()
-                },
-                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                multimodal_projection: AgentDesiredModel::None,
-            },
-        });
-
-        balancer_applicable_state_holder
-    }
 
     #[test]
-    fn enabled_when_embeddings_are_disabled() {
-        assert_eq!(
-            ClusterTokenGenerationMode::from_applicable_state_holder(&holder_with_embeddings(
-                false
-            )),
+    fn allows_requests_while_token_generation_is_enabled() {
+        assert!(
             ClusterTokenGenerationMode::Enabled
+                .require_enabled()
+                .is_ok()
         );
     }
 
     #[test]
-    fn disabled_for_embeddings_when_embeddings_are_enabled() {
+    fn rejects_requests_as_not_implemented_while_disabled_for_embeddings() {
+        let rejection = ClusterTokenGenerationMode::DisabledForEmbeddings
+            .require_enabled()
+            .expect_err("token generation must be rejected in embeddings mode");
+
         assert_eq!(
-            ClusterTokenGenerationMode::from_applicable_state_holder(&holder_with_embeddings(true)),
-            ClusterTokenGenerationMode::DisabledForEmbeddings
+            rejection.as_response_error().status_code(),
+            StatusCode::NOT_IMPLEMENTED
         );
     }
 }

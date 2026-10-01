@@ -2,92 +2,72 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_test_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
-use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
-use paddler_tests::qwen3_desired_state::qwen3_desired_state;
-use paddler_tests::start_cluster::start_cluster;
+use tokio::join;
 use tokio_util::sync::CancellationToken;
 
-const NEVER_COMPLETING_GRAMMAR: &str = r#"root ::= "apple " root"#;
-const IN_FLIGHT_REQUEST_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(512).unwrap();
+use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+use paddler_messaging::generation_finish::GenerationFinish;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
+use paddler_test_cluster_harness::unending_generation::unending_generation;
+use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
+use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 
-fn finished_with_done(collected: &CollectedGeneratedTokens) -> bool {
-    matches!(
-        collected
-            .token_results
-            .last()
-            .map(|token_result_with_producer| &token_result_with_producer.token_result),
-        Some(GeneratedTokenResult::Done(_))
-    )
-}
+const CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION: u32 = 512;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_request() -> Result<()> {
-    let initial_desired_state = qwen3_desired_state();
-    let mut cluster = start_cluster(ClusterParams {
-        agents: AgentConfig::uniform(1, 2),
-        desired_state: Some(initial_desired_state.clone()),
-        wait_for_slots_ready: true,
-        ..ClusterParams::without_request_expiry()
-    })
-    .await?;
-
+async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_request() {
+    let mut cluster = start_cluster_with_qwen3_and_context_size(
+        AgentConfig::uniform(1, 2),
+        CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION,
+    )
+    .await
+    .expect("the cluster must start");
     let agent_id = cluster
         .agent_ids
         .first()
-        .context("cluster must have one registered agent")?
+        .expect("cluster must have one registered agent")
         .clone();
-
     let mut in_flight_stream = cluster
-        .continue_from_raw_prompt_stream(
-            CancellationToken::new(),
-            &ContinueFromRawPromptParams {
-                grammar: Some(GrammarConstraint::Gbnf {
-                    grammar: NEVER_COMPLETING_GRAMMAR.to_owned(),
-                    root: "root".to_owned(),
-                }),
-                max_tokens: IN_FLIGHT_REQUEST_MAX_TOKENS,
-                raw_prompt: "Repeat the word apple.".to_owned(),
-            },
-        )
-        .await?;
+        .continue_from_raw_prompt_stream(CancellationToken::new(), &unending_generation())
+        .await
+        .expect("the inference request must be accepted");
 
     in_flight_stream
         .next()
         .await
-        .context("the in-flight request must stream a first token")??;
+        .expect("the in-flight request must stream a first token")
+        .expect("the message must be readable");
+
+    let initial_desired_state = cluster
+        .client_management
+        .get_balancer_desired_state(CancellationToken::new())
+        .await
+        .expect("the balancer must report its desired state");
 
     cluster
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &desired_state_with_halved_image_resize(initial_desired_state)?,
+            &desired_state_with_halved_image_resize(initial_desired_state)
+                .expect("the desired state must be derivable"),
         )
-        .await?;
+        .await
+        .expect("the balancer must accept the desired state");
 
     cluster
         .agents_watcher
-        .until_agent(&agent_id, ObservationWindow::release(), |snapshot| {
-            snapshot
-                .agents
-                .iter()
-                .any(|agent| agent.state_application_status != AgentStateApplicationStatus::Applied)
+        .until_agent(&agent_id, |snapshot| {
+            snapshot.agents.iter().any(|agent| {
+                agent.status.state_application_status != AgentStateApplicationStatus::Applied
+            })
         })
         .await
-        .context("the agent must start applying the changed state")?;
+        .expect("the agent must start applying the changed state");
 
-    let (in_flight_collected, sent_during_state_change_collected) = tokio::join!(
+    let (in_flight_collected, sent_during_state_change_collected) = join!(
         collect_generated_tokens(in_flight_stream),
         cluster.continue_from_raw_prompt(
             CancellationToken::new(),
@@ -99,10 +79,21 @@ async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_reques
         )
     );
 
-    assert!(finished_with_done(&in_flight_collected?));
-    assert!(finished_with_done(&sent_during_state_change_collected?));
+    assert_eq!(
+        in_flight_collected
+            .expect("the inference request must be accepted")
+            .summary()
+            .expect("the generation must finish with a summary")
+            .finish,
+        GenerationFinish::ContextFull
+    );
+    sent_during_state_change_collected
+        .expect("the request must complete")
+        .summary()
+        .expect("the generation must finish with a summary");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

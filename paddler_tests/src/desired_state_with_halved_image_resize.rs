@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
 use anyhow::Result;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 

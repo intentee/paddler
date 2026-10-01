@@ -1,22 +1,27 @@
+use base64::DecodeError;
+use image::ImageError;
+use resvg::usvg::Error;
+
 #[derive(Debug, thiserror::Error)]
 pub enum DecodedImageError {
     #[error("Invalid base64 payload: {0}")]
-    InvalidBase64Payload(#[source] base64::DecodeError),
+    InvalidBase64Payload(#[source] DecodeError),
 
     #[error("Invalid data URI: missing comma separator")]
     MissingCommaSeparator,
 
-    #[error("Unrecognized image format: {0}")]
-    UnrecognizedFormat(#[source] image::ImageError),
+    #[error("Unrecognized image format: {raster_format_error}; it is not an SVG either")]
+    UnrecognizedFormat {
+        raster_format_error: ImageError,
+        #[source]
+        svg_error: Error,
+    },
 
     #[error("Unsupported image format: {format}")]
     UnsupportedFormat { format: String },
 
     #[error("Failed to decode image pixels: {0}")]
-    PixelDecodingFailed(#[source] image::ImageError),
-
-    #[error("Failed to parse SVG: {0}")]
-    SvgParsingFailed(#[source] resvg::usvg::Error),
+    PixelDecodingFailed(#[source] ImageError),
 
     #[error("SVG dimension {dimension} is out of valid range")]
     SvgDimensionOutOfRange { dimension: f64 },

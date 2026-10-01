@@ -2,23 +2,14 @@ use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 use serde::Serializer;
 
-use crate::compatibility::openai_service::arguments_to_tool_call_string::arguments_to_tool_call_string;
-
-const ASSISTANT_ROLE: &str = "assistant";
-
-#[derive(Serialize)]
-struct FunctionDelta<'call> {
-    name: &'call str,
-    arguments: String,
-}
+use crate::compatibility::openai_service::assistant_role::ASSISTANT_ROLE;
+use crate::compatibility::openai_service::chat_completion_tool_call::ChatCompletionToolCall;
 
 #[derive(Serialize)]
 struct ToolCallDelta<'call> {
     index: usize,
-    id: &'call str,
-    #[serde(rename = "type")]
-    call_type: &'static str,
-    function: FunctionDelta<'call>,
+    #[serde(flatten)]
+    tool_call: ChatCompletionToolCall<'call>,
 }
 
 struct ToolCallsDelta<'calls>(&'calls [ParsedToolCall]);
@@ -37,12 +28,7 @@ impl Serialize for ToolCallsDelta<'_> {
                 .enumerate()
                 .map(|(index, call)| ToolCallDelta {
                     index,
-                    id: &call.id,
-                    call_type: "function",
-                    function: FunctionDelta {
-                        name: &call.name,
-                        arguments: arguments_to_tool_call_string(&call.arguments),
-                    },
+                    tool_call: ChatCompletionToolCall(call),
                 }),
         )
     }
@@ -66,7 +52,7 @@ enum ChoiceDelta<'choice> {
 struct SerializedChoice<'choice> {
     index: u8,
     delta: ChoiceDelta<'choice>,
-    logprobs: Option<()>,
+    logprobs: (),
     finish_reason: Option<&'static str>,
 }
 
@@ -91,13 +77,13 @@ impl Serialize for ChatCompletionChunkChoice<'_> {
                     role: ASSISTANT_ROLE,
                     content,
                 },
-                logprobs: None,
+                logprobs: (),
                 finish_reason: None,
             },
             Self::Finish(finish_reason) => SerializedChoice {
                 index: 0,
                 delta: ChoiceDelta::Finish {},
-                logprobs: None,
+                logprobs: (),
                 finish_reason: Some(finish_reason),
             },
             Self::ToolCalls(parsed_calls) => SerializedChoice {
@@ -106,7 +92,7 @@ impl Serialize for ChatCompletionChunkChoice<'_> {
                     role: ASSISTANT_ROLE,
                     tool_calls: ToolCallsDelta(parsed_calls),
                 },
-                logprobs: None,
+                logprobs: (),
                 finish_reason: None,
             },
         }

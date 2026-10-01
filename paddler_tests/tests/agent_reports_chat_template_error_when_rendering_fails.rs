@@ -2,7 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
@@ -14,10 +15,9 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_reports_chat_template_error_when_rendering_fails() -> Result<()> {
+async fn agent_reports_chat_template_error_when_rendering_fails() {
     let cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
         desired_state: Some(BalancerDesiredState {
@@ -30,7 +30,8 @@ async fn agent_reports_chat_template_error_when_rendering_fails() -> Result<()> 
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -48,7 +49,8 @@ async fn agent_reports_chat_template_error_when_rendering_fails() -> Result<()> 
                 tools: vec![],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     assert!(matches!(
         collected
@@ -60,7 +62,8 @@ async fn agent_reports_chat_template_error_when_rendering_fails() -> Result<()> 
         [GeneratedTokenResult::ChatTemplateError(_)]
     ));
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

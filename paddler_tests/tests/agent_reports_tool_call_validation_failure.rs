@@ -2,16 +2,13 @@
 
 use std::num::NonZeroU32;
 
-use anyhow::Result;
-use anyhow::anyhow;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use serde_json::Map;
+use serde_json::Value;
+use serde_json::json;
+use tokio_util::sync::CancellationToken;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -22,17 +19,14 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use serde_json::Map;
-use serde_json::json;
-use serde_json::Value;
-use tokio_util::sync::CancellationToken;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_reports_tool_call_validation_failure() -> Result<()> {
-    let ModelCard {
-        gpu_layer_count,
-        reference,
-    } = qwen3_0_6b();
+async fn agent_reports_tool_call_validation_failure() {
+    let base_desired_state = qwen3_0_6b().into_desired_state();
 
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
@@ -40,20 +34,17 @@ async fn agent_reports_tool_call_validation_failure() -> Result<()> {
             slot_count: 1,
         }],
         desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
             inference_parameters: InferenceParameters {
-                n_gpu_layers: gpu_layer_count,
                 temperature: 0.0,
-                ..InferenceParameters::default()
+                ..base_desired_state.inference_parameters
             },
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
+            ..base_desired_state
         }),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let mut location_properties = Map::new();
     location_properties.insert(
@@ -91,7 +82,8 @@ async fn agent_reports_tool_call_validation_failure() -> Result<()> {
                 })],
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let validation_failures: Vec<&Vec<String>> = collected
         .token_results
@@ -113,14 +105,15 @@ async fn agent_reports_tool_call_validation_failure() -> Result<()> {
         .iter()
         .flat_map(|messages| messages.iter())
         .next()
-        .ok_or_else(|| anyhow!("no validation-failure messages in any event"))?;
+        .expect("no validation-failure messages in any event");
 
     assert!(
         first_failure.contains("get_weather"),
         "validation-failure message should name the offending tool; got: {first_failure}"
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

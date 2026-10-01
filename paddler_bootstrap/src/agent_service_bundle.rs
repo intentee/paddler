@@ -3,20 +3,29 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use nanoid::nanoid;
+use tokio::sync::mpsc;
+use tokio::sync::watch;
+use trzcina::Service;
+use trzcina::ServiceBundle;
+
 use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
+use paddler_agent::balancer_message_context::BalancerMessageContext;
+use paddler_agent::continuous_batch_arbiter_context::ContinuousBatchArbiterContext;
 use paddler_agent::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
+use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
 use paddler_agent::llamacpp_arbiter_service::LlamaCppArbiterService;
 use paddler_agent::management_socket_client_service::ManagementSocketClientService;
 use paddler_agent::model_metadata_holder::ModelMetadataHolder;
 use paddler_agent::reconciliation_service::ReconciliationService;
-use paddler_agent::slot_aggregated_status::SlotAggregatedStatus;
-use paddler_agent::slot_aggregated_status_manager::SlotAggregatedStatusManager;
+use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
-use tokio::sync::mpsc;
-use trzcina::Service;
-use trzcina::ServiceBundle;
+use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::balancer_connection::BalancerConnection;
+
+use crate::agent_bootstrap_config::AgentBootstrapConfig;
 
 pub struct AgentServiceBundle {
+    pub balancer_connection_rx: watch::Receiver<BalancerConnection>,
     pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
     llamacpp_arbiter_service: LlamaCppArbiterService,
     management_socket_client_service: ManagementSocketClientService,
@@ -25,7 +34,15 @@ pub struct AgentServiceBundle {
 
 impl AgentServiceBundle {
     #[must_use]
-    pub fn new(agent_name: Option<String>, management_address: &str, slots: i32) -> Self {
+    pub fn new(
+        AgentBootstrapConfig {
+            agent_name,
+            management_address,
+            slots,
+        }: AgentBootstrapConfig,
+    ) -> Self {
+        let (balancer_connection_tx, balancer_connection_rx) =
+            watch::channel(BalancerConnection::Connecting);
         let (agent_desired_state_tx, agent_desired_state_rx) =
             mpsc::unbounded_channel::<AgentDesiredState>();
         let (continuous_batch_preparation_request_tx, continuous_batch_preparation_request_rx) =
@@ -33,46 +50,45 @@ impl AgentServiceBundle {
 
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
         let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
-        let slot_aggregated_status_manager = Arc::new(SlotAggregatedStatusManager::new(slots));
-        let slot_aggregated_status = slot_aggregated_status_manager
-            .slot_aggregated_status
-            .clone();
+        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(slots));
 
         let llamacpp_arbiter_service = LlamaCppArbiterService {
-            agent_applicable_state: None,
             agent_applicable_state_holder: agent_applicable_state_holder.clone(),
-            agent_name: agent_name.clone(),
-            continuous_batch_arbiter_handle: None,
+            arbiter_context: ContinuousBatchArbiterContext {
+                agent_name: agent_name.clone(),
+                model_metadata_holder: model_metadata_holder.clone(),
+                slot_aggregated_status: slot_aggregated_status.clone(),
+            },
             continuous_batch_preparation_request_rx,
-            desired_slots_total: slots,
-            model_metadata_holder: model_metadata_holder.clone(),
-            slot_aggregated_status_manager,
         };
 
         let management_socket_client_service = ManagementSocketClientService {
-            agent_applicable_state_holder: agent_applicable_state_holder.clone(),
-            agent_desired_state_tx,
-            continuous_batch_preparation_request_tx,
-            model_metadata_holder,
+            balancer_connection_tx,
+            balancer_message_context: BalancerMessageContext {
+                agent_applicable_state_holder: agent_applicable_state_holder.clone(),
+                agent_desired_state_tx,
+                continuous_batch_preparation_request_tx,
+                model_metadata_holder,
+                request_stoppers: Arc::default(),
+                slot_aggregated_status: slot_aggregated_status.clone(),
+            },
             name: agent_name,
-            receive_stream_stopper_collection: Arc::default(),
-            slot_aggregated_status: slot_aggregated_status.clone(),
             socket_url: format!(
-                "ws://{}/api/v1/agent_socket/{}",
-                management_address,
-                nanoid!()
+                "ws://{management_address}{}",
+                ApiPath::agent_socket(&nanoid!())
             ),
         };
 
         let reconciliation_service = ReconciliationService {
-            agent_applicable_state_holder,
-            agent_desired_state: None,
             agent_desired_state_rx,
-            is_converted_to_applicable_state: false,
-            slot_aggregated_status: slot_aggregated_status.clone(),
+            desired_state_reconciler: DesiredStateReconciler {
+                agent_applicable_state_holder,
+                slot_aggregated_status: slot_aggregated_status.clone(),
+            },
         };
 
         Self {
+            balancer_connection_rx,
             slot_aggregated_status,
             llamacpp_arbiter_service,
             management_socket_client_service,

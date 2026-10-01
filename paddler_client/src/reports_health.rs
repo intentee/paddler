@@ -4,6 +4,8 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::api_path::ApiPath;
+
 use crate::error::Error;
 use crate::error::Result;
 use crate::http_client::HttpClient;
@@ -19,7 +21,7 @@ pub trait ReportsHealth: Sync {
     ) -> impl Future<Output = Result<String>> + Send {
         async move {
             self.http_client()
-                .get_text(cancellation_token, "/health")
+                .get_text(cancellation_token, ApiPath::HEALTH)
                 .await
         }
     }
@@ -54,24 +56,22 @@ mod tests {
     use crate::client_health::ClientHealth;
     use crate::error::Error;
 
-    const REFUSED_CONNECTION_PROBE_WINDOW: Duration = Duration::from_millis(200);
-
     fn unreachable_url() -> Url {
         Url::parse("http://127.0.0.1:1").expect("the test URL must be valid")
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn keeps_probing_a_refused_connection() {
         let client_health = ClientHealth::new(unreachable_url());
 
         assert!(
             timeout(
-                REFUSED_CONNECTION_PROBE_WINDOW,
+                Duration::from_secs(1),
                 client_health.wait_until_healthy(CancellationToken::new()),
             )
             .await
             .is_err(),
-            "a refused connection must keep the probe loop running"
+            "a refused connection must keep the probe loop running through every paused-clock retry"
         );
     }
 
@@ -84,7 +84,7 @@ mod tests {
 
         assert!(matches!(
             client_health.wait_until_healthy(cancellation_token).await,
-            Err(Error::RequestCancelled { .. })
+            Err(Error::RequestCancelled { url }) if url == "http://127.0.0.1:1/health"
         ));
     }
 }

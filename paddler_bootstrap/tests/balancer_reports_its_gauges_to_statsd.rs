@@ -1,10 +1,13 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
 
-use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
 use tokio::net::UdpSocket;
 use tokio_util::sync::CancellationToken;
+
+use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
+use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
@@ -13,20 +16,22 @@ const MAX_STATSD_DATAGRAM_BYTES: usize = 1024;
 
 #[tokio::test]
 async fn balancer_reports_its_gauges_to_statsd() {
-    let statsd_socket = UdpSocket::bind("127.0.0.1:0")
+    let statsd_socket = UdpSocket::bind(EPHEMERAL_LOOPBACK_ADDR)
         .await
         .expect("the statsd socket must bind");
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
-    params.statsd_service_configuration = Some(StatsdServiceConfiguration {
-        statsd_addr: statsd_socket
-            .local_addr()
-            .expect("the statsd socket must report its address"),
-        statsd_prefix: "paddler".to_owned(),
+    params.bootstrap_config.statsd_prefix = "paddler".to_owned();
+    params.bootstrap_config.statsd_service_configuration = Some(StatsdServiceConfiguration {
+        statsd_addr: ResolvedSocketAddr::from(
+            statsd_socket
+                .local_addr()
+                .expect("the statsd socket must report its address"),
+        ),
         statsd_reporting_interval: REPORTING_INTERVAL_LONGER_THAN_THE_TEST,
     });
 
-    let mut runner = BalancerRunner::start(params)
+    let runner = BalancerRunner::start(params)
         .await
         .expect("a runner reporting to statsd must start");
     let mut received_gauges = BTreeSet::new();

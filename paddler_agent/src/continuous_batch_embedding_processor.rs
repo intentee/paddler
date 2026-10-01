@@ -1,18 +1,19 @@
-use anyhow::Context as _;
-use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use log::warn;
+use tokio::sync::mpsc;
+
 use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
-use tokio::sync::mpsc;
 
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::embedding_batch_rejection::EmbeddingBatchRejection;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
 use crate::normalization::normalize_embedding::normalize_embedding;
 use crate::plan_embedding_batches::plan_embedding_batches;
 use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
+use crate::receives_stop_request::ReceivesStopRequest as _;
 
 pub struct ContinuousBatchEmbeddingProcessor<'context> {
     batch: &'context mut LlamaBatch<'static>,
@@ -43,7 +44,7 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             oversized_documents,
             slot_guard,
         }: PreparedEmbeddingBatchRequest,
-    ) -> Result<()> {
+    ) -> Result<(), EmbeddingBatchRejection> {
         let _slot_guard = slot_guard;
 
         for oversized_document in oversized_documents {
@@ -55,9 +56,11 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                 oversized_document.n_batch,
             );
 
-            generated_embedding_tx.send(EmbeddingResult::DocumentExceedsBatchSize(
-                oversized_document,
-            ))?;
+            generated_embedding_tx
+                .send(EmbeddingResult::DocumentExceedsBatchSize(
+                    oversized_document,
+                ))
+                .map_err(EmbeddingBatchRejection::ClientDisconnected)?;
         }
 
         let n_batch = self
@@ -75,7 +78,7 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
         let mut embeddings_emitted: usize = 0;
 
         for planned_batch in planned_batches {
-            if generate_embedding_stop_rx.try_recv().is_ok() {
+            if generate_embedding_stop_rx.is_stop_requested() {
                 break;
             }
 
@@ -83,11 +86,14 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
                 inputs[planned_batch].iter().collect();
 
             for (sequence_index, input) in batch_inputs.iter().enumerate() {
-                self.batch.add_sequence(
-                    &input.tokens,
-                    i32::try_from(sequence_index).context("sequence index does not fit in i32")?,
-                    true,
-                )?;
+                self.batch
+                    .add_sequence(
+                        &input.tokens,
+                        i32::try_from(sequence_index)
+                            .map_err(EmbeddingBatchRejection::SequenceIndexOutOfRange)?,
+                        true,
+                    )
+                    .map_err(EmbeddingBatchRejection::BatchAssemblyFailed)?;
             }
 
             self.embedding_batch_decode(
@@ -99,13 +105,13 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             embeddings_emitted += batch_inputs.len();
         }
 
-        if embeddings_emitted == 0 {
-            generated_embedding_tx.send(EmbeddingResult::NoEmbeddingsProduced)?;
-        } else {
-            generated_embedding_tx.send(EmbeddingResult::Done)?;
-        }
-
-        Ok(())
+        generated_embedding_tx
+            .send(if embeddings_emitted == 0 {
+                EmbeddingResult::NoEmbeddingsProduced
+            } else {
+                EmbeddingResult::Done
+            })
+            .map_err(EmbeddingBatchRejection::ClientDisconnected)
     }
 
     fn embedding_batch_decode(
@@ -113,31 +119,33 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
         current_batch_embeddings: &[&EmbeddingInputTokenized],
         generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
         normalization_method: &EmbeddingNormalizationMethod,
-    ) -> Result<()> {
+    ) -> Result<(), EmbeddingBatchRejection> {
         self.llama_context.clear_kv_cache();
-        self.llama_context.decode(self.batch)?;
+        self.llama_context
+            .decode(self.batch)
+            .map_err(EmbeddingBatchRejection::DecodeFailed)?;
 
         for (index, embedding_input_tokenized) in current_batch_embeddings.iter().enumerate() {
             let embedding = self
                 .llama_context
                 .embeddings_seq_ith(
-                    i32::try_from(index).context("embedding sequence index does not fit in i32")?,
+                    i32::try_from(index)
+                        .map_err(EmbeddingBatchRejection::SequenceIndexOutOfRange)?,
                 )
-                .context("Failed to get embeddings")?;
+                .map_err(EmbeddingBatchRejection::EmbeddingsUnavailable)?;
 
-            generated_embedding_tx.send(EmbeddingResult::Embedding(normalize_embedding(
-                Embedding {
-                    embedding: embedding.to_vec(),
-                    normalization_method: EmbeddingNormalizationMethod::None,
+            generated_embedding_tx
+                .send(EmbeddingResult::Embedding(Embedding {
+                    embedding: normalize_embedding(embedding.to_vec(), normalization_method)?,
+                    normalization_method: normalization_method.clone(),
                     pooling_type: self
                         .scheduler_context
                         .inference_parameters
                         .pooling_type
                         .clone(),
                     source_document_id: embedding_input_tokenized.id.clone(),
-                },
-                normalization_method,
-            )?))?;
+                }))
+                .map_err(EmbeddingBatchRejection::ClientDisconnected)?;
         }
 
         self.batch.clear();

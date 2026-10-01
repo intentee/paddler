@@ -1,7 +1,7 @@
 use llama_cpp_bindings::SampledTokenClassifier;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TryRecvError;
+
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_terminal_delivery::ContinuousBatchTerminalDelivery;
@@ -35,12 +35,5 @@ impl ContinuousBatchActiveRequest {
             self.sequence_id_guard,
             self.state.into_terminal_outcome(),
         )
-    }
-
-    pub fn is_stop_requested(&mut self) -> bool {
-        match self.generate_tokens_stop_rx.try_recv() {
-            Ok(()) | Err(TryRecvError::Disconnected) => true,
-            Err(TryRecvError::Empty) => false,
-        }
     }
 }

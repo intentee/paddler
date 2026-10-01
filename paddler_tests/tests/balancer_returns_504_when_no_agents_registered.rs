@@ -1,13 +1,13 @@
 use std::num::NonZeroU32;
-
 use std::time::Duration;
 
 use futures_util::StreamExt as _;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_agents_registered() {

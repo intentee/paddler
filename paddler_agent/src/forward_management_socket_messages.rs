@@ -3,17 +3,20 @@ use std::fmt::Display;
 use futures_util::Sink;
 use futures_util::SinkExt as _;
 use log::error;
-use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
+use serde_json::to_string;
+use tokio::select;
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
+
+use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
 
 async fn write_message<TSink>(write: &mut TSink, message: ManagementJsonRpcMessage) -> bool
 where
     TSink: Sink<Message> + Unpin,
     TSink::Error: Display,
 {
-    match serde_json::to_string(&message) {
+    match to_string(&message) {
         Ok(serialized_message) => {
             match write.send(Message::Text(serialized_message.into())).await {
                 Ok(()) => true,
@@ -27,7 +30,7 @@ where
         Err(err) => {
             error!("Failed to serialize a management socket message: {err}");
 
-            true
+            false
         }
     }
 }
@@ -42,7 +45,7 @@ where
     TSink::Error: Display,
 {
     loop {
-        tokio::select! {
+        select! {
             () = connection_close.cancelled() => {
                 while let Ok(message) = message_rx.try_recv()
                     && write_message(&mut write, message).await
@@ -69,11 +72,13 @@ where
 mod tests {
     use futures::channel::mpsc as sink_channel;
     use futures_util::StreamExt as _;
-    use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
-    use paddler_messaging::management_socket::balancer::notification::Notification;
+    use serde_json::to_string;
     use tokio::sync::mpsc;
     use tokio_tungstenite::tungstenite::protocol::Message;
     use tokio_util::sync::CancellationToken;
+
+    use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
+    use paddler_messaging::management_socket::balancer::notification::Notification;
 
     use super::forward_management_socket_messages;
 
@@ -83,7 +88,7 @@ mod tests {
 
     fn deregister_agent_text() -> Message {
         Message::Text(
-            serde_json::to_string(&deregister_agent())
+            to_string(&deregister_agent())
                 .expect("a deregistration must serialize")
                 .into(),
         )

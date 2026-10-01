@@ -1,11 +1,12 @@
+use serde_json::Map;
+use serde_json::Value;
+use serde_json::json;
+
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use serde_json::Map;
-use serde_json::Value;
-use serde_json::json;
 
 #[must_use]
 pub fn get_weather_tool() -> Tool<ValidatedParametersSchema> {

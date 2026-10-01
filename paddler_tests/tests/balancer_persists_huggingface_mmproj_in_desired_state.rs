@@ -1,5 +1,5 @@
-use anyhow::Context as _;
-use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -8,17 +8,14 @@ use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_persists_huggingface_mmproj_in_desired_state() -> Result<()> {
+async fn balancer_persists_huggingface_mmproj_in_desired_state() {
     let ModelCard {
         reference: primary_reference,
-        ..
     } = smolvlm2_256m();
     let ModelCard {
         reference: mmproj_reference,
-        ..
     } = smolvlm2_256m_mmproj();
 
     let cluster = start_cluster(ClusterParams {
@@ -33,21 +30,22 @@ async fn balancer_persists_huggingface_mmproj_in_desired_state() -> Result<()> {
         }),
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let retrieved = cluster
         .client_management
         .get_balancer_desired_state(CancellationToken::new())
         .await
-        .map_err(anyhow::Error::new)
-        .context("failed to read balancer desired state")?;
+        .expect("failed to read balancer desired state");
 
     assert_eq!(
         retrieved.multimodal_projection,
         AgentDesiredModel::HuggingFace(mmproj_reference)
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

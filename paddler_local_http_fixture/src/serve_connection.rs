@@ -27,13 +27,13 @@ async fn write_complete_body(stream: &mut TcpStream, head: &str, body: &[u8]) ->
 
 async fn write_body_prefix(
     stream: &mut TcpStream,
+    status: StatusCode,
     sent_body: &[u8],
     withheld_byte_count: usize,
 ) -> io::Result<()> {
     stream
         .write_all(
-            status_line_and_headers(StatusCode::OK, sent_body.len() + withheld_byte_count, "")
-                .as_bytes(),
+            status_line_and_headers(status, sent_body.len() + withheld_byte_count, "").as_bytes(),
         )
         .await?;
     stream.write_all(sent_body).await
@@ -47,6 +47,7 @@ pub async fn serve_connection(
     observed_requests.record(read_range_header(&mut stream).await?);
 
     match response {
+        FixtureResponse::CloseBeforeHeaders => stream.shutdown().await,
         FixtureResponse::Ok(body) => {
             write_complete_body(
                 &mut stream,
@@ -75,7 +76,7 @@ pub async fn serve_connection(
             sent_body,
             withheld_byte_count,
         } => {
-            write_body_prefix(&mut stream, sent_body, *withheld_byte_count).await?;
+            write_body_prefix(&mut stream, StatusCode::OK, sent_body, *withheld_byte_count).await?;
             stream.flush().await?;
 
             pending().await
@@ -85,7 +86,8 @@ pub async fn serve_connection(
         }
         FixtureResponse::TruncatedBody {
             sent_body,
+            status,
             withheld_byte_count,
-        } => write_body_prefix(&mut stream, sent_body, *withheld_byte_count).await,
+        } => write_body_prefix(&mut stream, *status, sent_body, *withheld_byte_count).await,
     }
 }

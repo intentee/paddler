@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use crate::compatibility::openai_service::openai_chat_completion_tool::OpenAIChatCompletionTool;
 use crate::compatibility::openai_service::openai_message::OpenAIMessage;
+use crate::compatibility::openai_service::openai_reasoning_effort::OpenAIReasoningEffort;
 use crate::compatibility::openai_service::stream_options::StreamOptions;
 
 #[derive(Deserialize)]
@@ -12,6 +13,7 @@ pub struct OpenAICompletionRequestParams {
     pub max_tokens: Option<NonZeroU32>,
     pub messages: Vec<OpenAIMessage>,
     pub model: String,
+    pub reasoning_effort: Option<OpenAIReasoningEffort>,
     pub stream: Option<bool>,
     pub stream_options: Option<StreamOptions>,
     #[serde(default)]
@@ -19,6 +21,12 @@ pub struct OpenAICompletionRequestParams {
 }
 
 impl OpenAICompletionRequestParams {
+    #[must_use]
+    pub fn enables_thinking(&self) -> bool {
+        self.reasoning_effort
+            .is_none_or(OpenAIReasoningEffort::enables_thinking)
+    }
+
     #[must_use]
     pub fn requested_max_tokens(&self) -> Option<NonZeroU32> {
         self.max_completion_tokens.or(self.max_tokens)
@@ -29,13 +37,13 @@ impl OpenAICompletionRequestParams {
 mod tests {
     use std::num::NonZeroU32;
 
+    use serde_json::Value;
+    use serde_json::from_value;
     use serde_json::json;
 
     use super::OpenAICompletionRequestParams;
 
-    fn request_with_token_limits(
-        token_limits: &serde_json::Value,
-    ) -> OpenAICompletionRequestParams {
+    fn request_with_token_limits(token_limits: &Value) -> OpenAICompletionRequestParams {
         let mut input = json!({
             "model": "test-model",
             "messages": [{"role": "user", "content": "hello"}]
@@ -46,7 +54,7 @@ mod tests {
             .unwrap()
             .extend(token_limits.as_object().unwrap().clone());
 
-        serde_json::from_value(input).unwrap()
+        from_value(input).unwrap()
     }
 
     #[test]
@@ -80,7 +88,7 @@ mod tests {
             ]
         });
 
-        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+        let params: OpenAICompletionRequestParams = from_value(input).unwrap();
 
         assert_eq!(params.model, "test-model");
         assert_eq!(params.messages.len(), 1);
@@ -97,7 +105,7 @@ mod tests {
             "stream_options": {"include_usage": true}
         });
 
-        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+        let params: OpenAICompletionRequestParams = from_value(input).unwrap();
 
         let stream_options = params.stream_options.unwrap();
 
@@ -112,7 +120,7 @@ mod tests {
             "stream": true
         });
 
-        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+        let params: OpenAICompletionRequestParams = from_value(input).unwrap();
 
         assert!(params.stream_options.is_none());
     }
@@ -132,7 +140,7 @@ mod tests {
             ]
         });
 
-        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+        let params: OpenAICompletionRequestParams = from_value(input).unwrap();
 
         assert_eq!(params.messages.len(), 1);
         assert_eq!(
@@ -158,7 +166,7 @@ mod tests {
             ]
         });
 
-        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+        let params: OpenAICompletionRequestParams = from_value(input).unwrap();
 
         assert_eq!(params.messages.len(), 4);
     }
@@ -208,7 +216,7 @@ mod tests {
             ]
         });
 
-        let params: OpenAICompletionRequestParams = serde_json::from_value(input).unwrap();
+        let params: OpenAICompletionRequestParams = from_value(input).unwrap();
 
         assert_eq!(params.tools.len(), 2);
     }

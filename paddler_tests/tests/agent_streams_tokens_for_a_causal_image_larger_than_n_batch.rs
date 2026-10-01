@@ -3,6 +3,8 @@
 use std::num::NonZeroU32;
 
 use anyhow::Result;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -13,7 +15,6 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_tests::start_cluster_with_smolvlm2_and_n_batch::start_cluster_with_smolvlm2_and_n_batch;
-use tokio_util::sync::CancellationToken;
 
 const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
 const N_BATCH_SMALLER_THAN_ONE_IMAGE: u32 = 32;
@@ -66,17 +67,23 @@ async fn assert_streams_tokens_for_image(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_streams_tokens_for_a_causal_image_larger_than_n_batch() -> Result<()> {
+async fn agent_streams_tokens_for_a_causal_image_larger_than_n_batch() {
     let cluster = start_cluster_with_smolvlm2_and_n_batch(
         vec![AgentConfig::single(1)],
         N_BATCH_SMALLER_THAN_ONE_IMAGE,
     )
-    .await?;
+    .await
+    .expect("the cluster must start");
 
-    assert_streams_tokens_for_image(&cluster, "sarnow.jpeg", "image/jpeg").await?;
-    assert_streams_tokens_for_image(&cluster, "llamas.webp", "image/webp").await?;
+    assert_streams_tokens_for_image(&cluster, "sarnow.jpeg", "image/jpeg")
+        .await
+        .expect("the image request must stream tokens");
+    assert_streams_tokens_for_image(&cluster, "llamas.webp", "image/webp")
+        .await
+        .expect("the image request must stream tokens");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

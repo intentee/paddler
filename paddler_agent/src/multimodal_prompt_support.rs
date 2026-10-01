@@ -20,6 +20,7 @@ impl MultimodalPromptSupport {
         &self,
         bitmaps: &[MtmdBitmap],
         text: String,
+        add_special_tokens: bool,
     ) -> Result<MultimodalPromptIngestion, GenerationRequestRejection> {
         let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
         let chunks = self
@@ -27,7 +28,7 @@ impl MultimodalPromptSupport {
             .tokenize(
                 MtmdInputText {
                     text,
-                    add_special: true,
+                    add_special: add_special_tokens,
                     parse_special: true,
                 },
                 &bitmap_refs,

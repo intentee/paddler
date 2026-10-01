@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use futures::Stream;
+use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
@@ -21,13 +22,9 @@ where
         loop {
             yield producer.make_snapshot();
 
-            tokio::select! {
+            select! {
                 () = shutdown.cancelled() => break,
-                changed = update_rx.changed() => {
-                    if changed.is_err() {
-                        break;
-                    }
-                }
+                Ok(()) = update_rx.changed() => {}
             }
         }
     }
@@ -36,72 +33,66 @@ where
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::sync::atomic::AtomicI32;
-    use std::sync::atomic::Ordering;
+    use std::time::Duration;
 
     use futures::StreamExt as _;
-    use paddler_messaging::produces_snapshot::ProducesSnapshot;
-    use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
-    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+
     use super::snapshots_stream;
+    use crate::agent_controller_pool::AgentControllerPool;
+    use crate::buffered_request_manager::BufferedRequestManager;
 
-    struct CounterProducer {
-        update_tx: watch::Sender<()>,
-        value: AtomicI32,
-    }
-
-    impl CounterProducer {
-        fn new() -> Self {
-            let (update_tx, _initial_rx) = watch::channel(());
-
-            Self {
-                update_tx,
-                value: AtomicI32::new(0),
-            }
-        }
-
-        fn bump(&self) {
-            self.value.fetch_add(1, Ordering::AcqRel);
-            self.update_tx.send_replace(());
-        }
-    }
-
-    impl ProducesSnapshot for CounterProducer {
-        type Snapshot = i32;
-
-        fn make_snapshot(&self) -> Self::Snapshot {
-            self.value.load(Ordering::Acquire)
-        }
-    }
-
-    impl SubscribesToUpdates for CounterProducer {
-        fn subscribe_to_updates(&self) -> watch::Receiver<()> {
-            self.update_tx.subscribe()
-        }
+    fn buffered_request_manager() -> Arc<BufferedRequestManager> {
+        Arc::new(BufferedRequestManager::new(
+            Arc::new(AgentControllerPool::default()),
+            Duration::MAX,
+            1,
+        ))
     }
 
     #[tokio::test]
-    async fn snapshots_stream_emits_after_subscribed_signal() {
-        let producer = Arc::new(CounterProducer::new());
-        let shutdown = CancellationToken::new();
-        let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
+    async fn snapshots_stream_emits_a_snapshot_after_every_update() {
+        let buffered_request_manager = buffered_request_manager();
+        let mut stream = Box::pin(snapshots_stream(
+            buffered_request_manager.clone(),
+            CancellationToken::new(),
+        ));
 
-        assert_eq!(stream.next().await, Some(0));
+        assert_eq!(
+            stream.next().await,
+            Some(BufferedRequestManagerSnapshot {
+                buffered_requests_current: 0
+            })
+        );
 
-        producer.bump();
+        let _buffered_request = buffered_request_manager
+            .buffered_request_counter
+            .try_admit();
 
-        assert_eq!(stream.next().await, Some(1));
+        assert_eq!(
+            stream.next().await,
+            Some(BufferedRequestManagerSnapshot {
+                buffered_requests_current: 1
+            })
+        );
     }
 
     #[tokio::test]
     async fn snapshots_stream_terminates_on_shutdown() {
-        let producer = Arc::new(CounterProducer::new());
         let shutdown = CancellationToken::new();
-        let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
+        let mut stream = Box::pin(snapshots_stream(
+            buffered_request_manager(),
+            shutdown.clone(),
+        ));
 
-        assert_eq!(stream.next().await, Some(0));
+        assert_eq!(
+            stream.next().await,
+            Some(BufferedRequestManagerSnapshot {
+                buffered_requests_current: 0
+            })
+        );
 
         shutdown.cancel();
 

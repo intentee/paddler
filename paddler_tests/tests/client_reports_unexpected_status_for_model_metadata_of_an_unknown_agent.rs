@@ -1,8 +1,9 @@
+use reqwest::StatusCode;
+use tokio_util::sync::CancellationToken;
+
 use paddler_client::error::Error;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use reqwest::StatusCode;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn client_reports_unexpected_status_for_model_metadata_of_an_unknown_agent() {
@@ -18,8 +19,7 @@ async fn client_reports_unexpected_status_for_model_metadata_of_an_unknown_agent
         .client_management
         .get_model_metadata(CancellationToken::new(), "unknown-agent")
         .await
-        .err()
-        .expect("the balancer must reject a request about an agent it does not know");
+        .expect_err("the balancer must reject a request about an agent it does not know");
 
     assert!(matches!(
         rejection,

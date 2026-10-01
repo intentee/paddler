@@ -1,11 +1,13 @@
 use std::path::Path;
 
+use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
+
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_download_manager::download_outcome::DownloadOutcome;
 use paddler_download_manager::download_progress::DownloadProgress;
-use tokio::sync::watch;
-use tokio_util::sync::CancellationToken;
+use paddler_download_manager::download_url::DownloadUrl;
 
 pub struct RecordedDownload {
     pub progress: Vec<DownloadProgress>,
@@ -14,21 +16,27 @@ pub struct RecordedDownload {
 
 impl RecordedDownload {
     pub async fn download(
+        download_manager: &DownloadManager,
         cancellation_token: &CancellationToken,
         url: &str,
         final_path: &Path,
-    ) -> Result<Self, reqwest::Error> {
+    ) -> Self {
         let recorded_progress = watch::Sender::new(Vec::new());
-        let result = DownloadManager::new()?
-            .download(cancellation_token, url, final_path, &|progress| {
-                recorded_progress.send_modify(|recorded| recorded.push(progress));
-            })
-            .await;
+        let result = match DownloadUrl::parse(url) {
+            Ok(download_url) => {
+                download_manager
+                    .download(cancellation_token, &download_url, final_path, &|progress| {
+                        recorded_progress.send_modify(|recorded| recorded.push(progress));
+                    })
+                    .await
+            }
+            Err(url_error) => Err(url_error),
+        };
 
-        Ok(Self {
+        Self {
             progress: recorded_progress.send_replace(Vec::new()),
             result,
-        })
+        }
     }
 
     pub fn written_byte_count(&self) -> u64 {

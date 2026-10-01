@@ -1,50 +1,51 @@
-use anyhow::Result;
-use anyhow::anyhow;
-use log::error;
+use log::debug;
 use tokio::sync::oneshot;
+
+use crate::startup_signal_delivery::StartupSignalDelivery;
 
 pub fn send_startup_signal<TSignal>(
     startup_signal_tx: oneshot::Sender<TSignal>,
     signal: TSignal,
-    failure_message: String,
-) -> Result<()> {
-    if startup_signal_tx.send(signal).is_err() {
-        error!("{failure_message}");
+) -> StartupSignalDelivery {
+    match startup_signal_tx.send(signal) {
+        Ok(()) => StartupSignalDelivery::Delivered,
+        Err(_undelivered_signal) => {
+            debug!("The arbiter abandoned the scheduler startup; stopping the scheduler thread");
 
-        return Err(anyhow!(failure_message));
+            StartupSignalDelivery::Abandoned
+        }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use log::LevelFilter;
+    use std::mem::discriminant;
+
     use tokio::sync::oneshot;
 
     use super::send_startup_signal;
+    use crate::startup_signal_delivery::StartupSignalDelivery;
 
     #[test]
     fn delivers_the_signal_to_a_live_receiver() {
         let (startup_signal_tx, startup_signal_rx) = oneshot::channel::<()>();
 
-        send_startup_signal(startup_signal_tx, (), "must not fail".to_owned())
-            .expect("a live receiver must accept the signal");
-
+        assert_eq!(
+            discriminant(&send_startup_signal(startup_signal_tx, ())),
+            discriminant(&StartupSignalDelivery::Delivered)
+        );
         assert_eq!(startup_signal_rx.blocking_recv(), Ok(()));
     }
 
     #[test]
-    fn fails_when_the_receiver_was_dropped() {
-        log::set_max_level(LevelFilter::Trace);
-
+    fn reports_an_abandoned_startup_when_the_receiver_was_dropped() {
         let (startup_signal_tx, startup_signal_rx) = oneshot::channel::<()>();
 
         drop(startup_signal_rx);
 
-        let error = send_startup_signal(startup_signal_tx, (), "receiver is gone".to_owned())
-            .expect_err("a dropped receiver must fail the startup signal");
-
-        assert_eq!(error.to_string(), "receiver is gone");
+        assert_eq!(
+            discriminant(&send_startup_signal(startup_signal_tx, ())),
+            discriminant(&StartupSignalDelivery::Abandoned)
+        );
     }
 }

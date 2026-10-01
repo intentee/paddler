@@ -1,19 +1,17 @@
 use std::num::NonZeroU32;
-
 use std::time::Duration;
 
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
+use tokio_util::sync::CancellationToken;
+
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
+async fn balancer_returns_503_when_request_buffering_disabled() {
     let mut cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
@@ -21,12 +19,15 @@ async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
         max_buffered_requests: 0,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
-    cluster.spawn_additional_agent(&AgentConfig {
-        name: "buffer-disabled-agent".to_owned(),
-        slot_count: 2,
-    })?;
+    cluster
+        .spawn_additional_agent(&AgentConfig {
+            name: "buffer-disabled-agent".to_owned(),
+            slot_count: 2,
+        })
+        .expect("the additional agent must start");
 
     let mut stream = cluster
         .continue_from_raw_prompt_stream(
@@ -37,26 +38,29 @@ async fn balancer_returns_503_when_request_buffering_disabled() -> Result<()> {
                 raw_prompt: "Hello".to_owned(),
             },
         )
-        .await?;
+        .await
+        .expect("the inference request must be accepted");
 
     let message = stream
         .next()
         .await
-        .context("inference stream must yield a message")??;
+        .expect("inference stream must yield a message")
+        .expect("the message must be readable");
 
     match message {
         Message::Error(envelope) => {
             assert_eq!(envelope.error.code, 503);
         }
         Message::Response(_) => {
-            anyhow::bail!("expected buffer overflow error, got success");
+            panic!("expected buffer overflow error, got success");
         }
         Message::Notification(_) => {
-            anyhow::bail!("unexpected token-generation-mode notification");
+            panic!("unexpected token-generation-mode notification");
         }
     }
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }
