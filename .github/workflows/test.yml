@@ -89,6 +89,31 @@ jobs:
           name: paddler-binary
           path: target/debug/paddler
 
+  python-lint:
+    name: python lint (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: pip install poetry==2.4.3
+
+      - name: Lint the Python client
+        run: make lint.client.python
+
+      - name: Lint the OpenAI Python client suite
+        run: make lint.openai.python
+
   python:
     name: python (${{ matrix.python-version }})
     needs: paddler-binary
@@ -119,12 +144,6 @@ jobs:
         run: |
           chmod +x target/debug/paddler
           touch target/debug/paddler
-
-      - name: Lint the Python client
-        run: make lint.client.python
-
-      - name: Lint the OpenAI Python client suite
-        run: make lint.openai.python
 
       - name: Run Python client tests
         run: make test.client.python
