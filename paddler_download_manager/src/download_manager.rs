@@ -34,7 +34,7 @@ where
     TProgressHandler: Fn(DownloadProgress) + Sync,
 {
     fn cache_failure(&self, source: io::Error) -> DownloadError {
-        DownloadError::cache_failure(self.partial.partial_path.clone(), source)
+        DownloadError::cache_failure(self.partial.partial_path().to_path_buf(), source)
     }
 
     async fn remove_stale_partial(&self) -> Result<DownloadOutcome, DownloadError> {
@@ -45,7 +45,7 @@ where
 
         Err(DownloadError::PartialFileStale {
             url: self.url.as_str().to_owned(),
-            partial_path: self.partial.partial_path.clone(),
+            partial_path: self.partial.partial_path().to_path_buf(),
         })
     }
 
@@ -224,7 +224,7 @@ impl DownloadManager {
         PartialFileDownload {
             cancellation_token,
             on_progress,
-            partial: PartialFile::new(final_path.to_path_buf()),
+            partial: PartialFile::new(final_path.to_path_buf())?,
             url,
         }
         .run(&self.client)

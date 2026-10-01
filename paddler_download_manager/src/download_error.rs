@@ -30,6 +30,9 @@ pub enum DownloadError {
     #[error("'{partial_path_display}' is a directory, not a partial download file", partial_path_display = partial_path.display())]
     PartialPathIsADirectory { partial_path: PathBuf },
 
+    #[error("'{final_path_display}' does not name a file to download into", final_path_display = final_path.display())]
+    FinalPathHasNoFileName { final_path: PathBuf },
+
     #[error("server unreachable for URL '{url}': {source}")]
     DownloadServerIsUnreachable {
         url: String,

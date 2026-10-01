@@ -49,6 +49,7 @@ const fn agent_issue_for(error: &DownloadError, model_path: ModelPath) -> AgentI
         DownloadError::CacheDiskFull { .. } => AgentIssue::CacheStorageIsFull(model_path),
         DownloadError::PartialFileStale { .. }
         | DownloadError::PartialPathIsADirectory { .. }
+        | DownloadError::FinalPathHasNoFileName { .. }
         | DownloadError::Io { .. } => AgentIssue::ModelCacheIsCorrupted(model_path),
     }
 }
