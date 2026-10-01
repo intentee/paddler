@@ -4,7 +4,6 @@ from datetime import timedelta
 
 from paddler_test_cluster.balancer_addresses import BalancerAddresses
 from paddler_test_cluster.error import BalancerExitedBeforeAnnouncingError
-from paddler_test_cluster.observation_window import RELEASE
 from paddler_test_cluster.paddler_binary_path import paddler_binary_path
 from paddler_test_cluster.spawned_process import SpawnedProcess
 
@@ -43,8 +42,7 @@ class SpawnedBalancer:
         announcement = await process.stdout.readline() if process.stdout else b""
 
         if not announcement:
-            async with asyncio.timeout(RELEASE.total_seconds()):
-                raise BalancerExitedBeforeAnnouncingError(await process.wait())
+            raise BalancerExitedBeforeAnnouncingError(await process.wait())
 
         return cls(
             addresses=BalancerAddresses.model_validate_json(announcement),

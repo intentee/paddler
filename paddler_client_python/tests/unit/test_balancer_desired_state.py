@@ -2,7 +2,7 @@ from paddler_client.balancer_desired_state import BalancerDesiredState
 from paddler_client.chat_template import ChatTemplate
 
 
-def test_balancer_desired_state_defaults() -> None:
+def test_balancer_desired_state_defaults_to_no_model_and_no_override() -> None:
     state = BalancerDesiredState()
     dumped = state.model_dump(mode="json")
 

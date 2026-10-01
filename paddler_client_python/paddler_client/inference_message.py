@@ -31,32 +31,45 @@ from paddler_client.raw_tool_call_tokens import RawToolCallTokens
 
 
 class InferenceMessageKind(StrEnum):
+    BATCH_ASSEMBLY_FAILED = "batch_assembly_failed"
     CHAT_TEMPLATE_ERROR = "chat_template_error"
     CONTENT_TOKEN = "content_token"
     DECODE_FAILED = "decode_failed"
     DETOKENIZATION_FAILED = "detokenization_failed"
     DONE = "done"
     EMBEDDING = "embedding"
+    EMBEDDINGS_DISABLED = "embeddings_disabled"
     EMBEDDING_DOCUMENT_EXCEEDS_BATCH_SIZE = "embedding_document_exceeds_batch_size"
     EMBEDDING_DONE = "embedding_done"
     EMBEDDING_ERROR = "embedding_error"
+    EMBEDDING_NO_EMBEDDINGS_PRODUCED = "embedding_no_embeddings_produced"
     EMBEDDING_REJECTED_DUE_TO_ACTIVE_TOKEN_GENERATION = (
         "embedding_rejected_due_to_active_token_generation"
     )
-    EMBEDDING_NO_EMBEDDINGS_PRODUCED = "embedding_no_embeddings_produced"
-    EMBEDDINGS_DISABLED = "embeddings_disabled"
     GRAMMAR_INCOMPATIBLE_WITH_THINKING = "grammar_incompatible_with_thinking"
     GRAMMAR_INITIALIZATION_FAILED = "grammar_initialization_failed"
     GRAMMAR_REJECTED_MODEL_OUTPUT = "grammar_rejected_model_output"
     GRAMMAR_SYNTAX_ERROR = "grammar_syntax_error"
     IMAGE_DECODING_FAILED = "image_decoding_failed"
+    KV_CACHE_CLEAR_FAILED = "kv_cache_clear_failed"
     MEDIA_EXCEEDS_MICRO_BATCH = "media_exceeds_micro_batch"
+    MEDIA_MICRO_BATCH_CHECK_FAILED = "media_micro_batch_check_failed"
+    MODEL_NOT_LOADED = "model_not_loaded"
+    MULTIMODAL_INGESTION_FAILED = "multimodal_ingestion_failed"
     MULTIMODAL_NOT_SUPPORTED = "multimodal_not_supported"
+    MULTIMODAL_TOKENIZATION_FAILED = "multimodal_tokenization_failed"
+    NO_SEQUENCE_SLOT_AVAILABLE = "no_sequence_slot_available"
     PROMPT_EXCEEDS_CONTEXT_SIZE = "prompt_exceeds_context_size"
+    PROMPT_TOKENIZATION_FAILED = "prompt_tokenization_failed"
     REASONING_TOKEN = "reasoning_token"
+    SAMPLER_CHAIN_CREATION_FAILED = "sampler_chain_creation_failed"
     SAMPLER_ERROR = "sampler_error"
+    SAMPLING_CANDIDATES_EXHAUSTED = "sampling_candidates_exhausted"
+    SCHEDULER_UNAVAILABLE = "scheduler_unavailable"
+    SEQUENCE_ID_OUT_OF_RANGE = "sequence_id_out_of_range"
     SERVER_ERROR = "server_error"
     TOKEN_GENERATION_DISABLED = "token_generation_disabled"
+    TOOLS_SERIALIZATION_FAILED = "tools_serialization_failed"
     TOOL_CALL_PARSED = "tool_call_parsed"
     TOOL_CALL_PARSE_FAILED = "tool_call_parse_failed"
     TOOL_CALL_TOKEN = "tool_call_token"
@@ -240,10 +253,23 @@ _GENERATED_TOKEN_ERROR_KINDS: dict[str, InferenceMessageKind] = {
     "GrammarRejectedModelOutput": InferenceMessageKind.GRAMMAR_REJECTED_MODEL_OUTPUT,
     "GrammarSyntaxError": InferenceMessageKind.GRAMMAR_SYNTAX_ERROR,
     "ImageDecodingFailed": InferenceMessageKind.IMAGE_DECODING_FAILED,
+    "ModelNotLoaded": InferenceMessageKind.MODEL_NOT_LOADED,
     "MultimodalNotSupported": InferenceMessageKind.MULTIMODAL_NOT_SUPPORTED,
     "SamplerError": InferenceMessageKind.SAMPLER_ERROR,
     "TokenGenerationDisabled": InferenceMessageKind.TOKEN_GENERATION_DISABLED,
     "ToolSchemaInvalid": InferenceMessageKind.TOOL_SCHEMA_INVALID,
+    "BatchAssemblyFailed": InferenceMessageKind.BATCH_ASSEMBLY_FAILED,
+    "KvCacheClearFailed": InferenceMessageKind.KV_CACHE_CLEAR_FAILED,
+    "MediaMicroBatchCheckFailed": InferenceMessageKind.MEDIA_MICRO_BATCH_CHECK_FAILED,
+    "MultimodalIngestionFailed": InferenceMessageKind.MULTIMODAL_INGESTION_FAILED,
+    "MultimodalTokenizationFailed": InferenceMessageKind.MULTIMODAL_TOKENIZATION_FAILED,
+    "NoSequenceSlotAvailable": InferenceMessageKind.NO_SEQUENCE_SLOT_AVAILABLE,
+    "PromptTokenizationFailed": InferenceMessageKind.PROMPT_TOKENIZATION_FAILED,
+    "SamplerChainCreationFailed": InferenceMessageKind.SAMPLER_CHAIN_CREATION_FAILED,
+    "SamplingCandidatesExhausted": InferenceMessageKind.SAMPLING_CANDIDATES_EXHAUSTED,
+    "SchedulerUnavailable": InferenceMessageKind.SCHEDULER_UNAVAILABLE,
+    "SequenceIdOutOfRange": InferenceMessageKind.SEQUENCE_ID_OUT_OF_RANGE,
+    "ToolsSerializationFailed": InferenceMessageKind.TOOLS_SERIALIZATION_FAILED,
 }
 
 
@@ -458,19 +484,6 @@ def _build_embedding_message(
     )
 
 
-def _build_embedding_error_message(
-    request_id: str,
-    payload: Any,
-    generated_by: str | None,
-) -> InferenceMessage:
-    return InferenceMessage(
-        request_id=request_id,
-        kind=InferenceMessageKind.EMBEDDING_ERROR,
-        error_message=payload,
-        generated_by=generated_by,
-    )
-
-
 def _build_embedding_document_exceeds_batch_size_message(
     request_id: str,
     payload: Any,
@@ -489,7 +502,12 @@ def _build_embedding_document_exceeds_batch_size_message(
 _EMBEDDING_STRUCTURED_HANDLERS: dict[str, _StructuredHandler] = {
     "DocumentExceedsBatchSize": _build_embedding_document_exceeds_batch_size_message,
     "Embedding": _build_embedding_message,
-    "Error": _build_embedding_error_message,
+}
+
+
+_EMBEDDING_ERROR_KINDS: dict[str, InferenceMessageKind] = {
+    "Error": InferenceMessageKind.EMBEDDING_ERROR,
+    "ModelNotLoaded": InferenceMessageKind.MODEL_NOT_LOADED,
 }
 
 
@@ -509,5 +527,13 @@ def _parse_embedding_result(
         for structured_key, handler in _EMBEDDING_STRUCTURED_HANDLERS.items():
             if structured_key in data:
                 return handler(request_id, data[structured_key], generated_by)
+        for error_key, error_kind in _EMBEDDING_ERROR_KINDS.items():
+            if error_key in data:
+                return _build_error_kind_message(
+                    request_id,
+                    error_kind,
+                    data[error_key],
+                    generated_by,
+                )
 
     raise UnknownEmbeddingResultError(data)

@@ -55,8 +55,11 @@ async def test_embedding_batch_reports_documents_exceeding_the_batch_size() -> N
     ]
 
     assert [
-        (details.source_document_id, details.n_batch)
+        details.source_document_id
         for details in oversized_documents
         if details is not None
-    ] == [("oversized", N_BATCH)]
+    ] == ["oversized"]
+    assert [
+        details.n_batch for details in oversized_documents if details is not None
+    ] == [N_BATCH]
     assert messages[-1].kind == InferenceMessageKind.EMBEDDING_DONE

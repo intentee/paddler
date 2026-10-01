@@ -25,5 +25,5 @@ async def test_cluster_with_a_model_waits_until_every_slot_loads_it(
     ):
         [agent] = (await client.get_agents()).agents
 
-    assert agent.model_path is not None
-    assert agent.slots_total == AGENT.slots
+    assert agent.status.model_path is not None
+    assert agent.status.slots_total == AGENT.slots

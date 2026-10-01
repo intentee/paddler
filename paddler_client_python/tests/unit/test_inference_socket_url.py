@@ -40,6 +40,6 @@ def test_preserves_query_parameters() -> None:
     assert result == "ws://localhost:8080/api/v1/inference_socket?token=abc"
 
 
-def test_unsupported_scheme() -> None:
+def test_rejects_a_scheme_that_is_neither_http_nor_websocket() -> None:
     with pytest.raises(UnsupportedUrlSchemeError):
         inference_socket_url("ftp://localhost:8080")

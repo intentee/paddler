@@ -1,7 +1,7 @@
 from paddler_client.kv_cache_dtype import KvCacheDtype
 
 
-def test_kv_cache_dtype_values() -> None:
+def test_kv_cache_dtype_uses_the_wire_names() -> None:
     assert KvCacheDtype.F32.value == "F32"
     assert KvCacheDtype.F16.value == "F16"
     assert KvCacheDtype.BF16.value == "BF16"

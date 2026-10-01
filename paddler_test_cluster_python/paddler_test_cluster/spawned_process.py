@@ -1,10 +1,16 @@
 import asyncio
+from datetime import timedelta
 
 from paddler_test_cluster.error import (
     ProcessDidNotExitError,
     ProcessExitedWithFailureError,
 )
-from paddler_test_cluster.observation_window import RELEASE
+
+TRZCINA_DEFAULT_COOPERATIVE_DEADLINE = timedelta(seconds=10)
+TRZCINA_DEFAULT_ABORT_DEADLINE = timedelta(seconds=10)
+PADDLER_SHUTDOWN_BOUND = (
+    TRZCINA_DEFAULT_COOPERATIVE_DEADLINE + TRZCINA_DEFAULT_ABORT_DEADLINE
+)
 
 
 class SpawnedProcess:
@@ -22,7 +28,7 @@ class SpawnedProcess:
         try:
             returncode = await asyncio.wait_for(
                 self._process.wait(),
-                RELEASE.total_seconds(),
+                PADDLER_SHUTDOWN_BOUND.total_seconds(),
             )
         except TimeoutError as timeout_error:
             self._process.kill()

@@ -1,4 +1,3 @@
-import asyncio
 from collections.abc import AsyncIterator, Sequence
 from contextlib import aclosing, asynccontextmanager
 from datetime import timedelta
@@ -10,7 +9,6 @@ from paddler_client.client_management import ClientManagement
 
 from paddler_test_cluster.agent_spec import AgentSpec
 from paddler_test_cluster.balancer_addresses import BalancerAddresses
-from paddler_test_cluster.observation_window import MODEL_LOAD
 from paddler_test_cluster.spawned_agent import spawn_agent
 from paddler_test_cluster.spawned_balancer import (
     PADDLER_BUFFERED_REQUEST_TIMEOUT,
@@ -39,10 +37,7 @@ async def paddler_cluster(
         async with ClientManagement(url=balancer.addresses.management_url) as client:
             await client.put_balancer_desired_state(desired_state)
 
-            async with (
-                aclosing(client.agents_stream()) as snapshots,
-                asyncio.timeout(MODEL_LOAD.total_seconds()),
-            ):
+            async with aclosing(client.agents_stream()) as snapshots:
                 for agent in agents:
                     agent_processes.append(
                         await spawn_agent(balancer.addresses.management, agent)

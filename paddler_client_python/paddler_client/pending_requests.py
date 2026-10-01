@@ -4,7 +4,11 @@ import asyncio
 import json
 import logging
 
-from paddler_client.error import ConnectionDroppedError, JsonError
+from paddler_client.error import (
+    ConnectionDroppedError,
+    JsonError,
+    RequestIdInFlightError,
+)
 from paddler_client.inference_message import (
     InferenceMessage,
     parse_inference_client_message,
@@ -20,6 +24,9 @@ class PendingRequests:
         self._queues: dict[str, asyncio.Queue[InferenceMessage | Exception]] = {}
 
     def register(self, request_id: str) -> ResponseStream:
+        if request_id in self._queues:
+            raise RequestIdInFlightError(request_id)
+
         queue: asyncio.Queue[InferenceMessage | Exception] = asyncio.Queue()
         self._queues[request_id] = queue
 

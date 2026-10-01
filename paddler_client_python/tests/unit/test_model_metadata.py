@@ -10,7 +10,7 @@ def test_model_metadata_deserialization() -> None:
     assert metadata.metadata["params"] == "7B"
 
 
-def test_model_metadata_empty() -> None:
+def test_model_metadata_defaults_to_no_entries() -> None:
     metadata = ModelMetadata()
 
     assert metadata.metadata == {}

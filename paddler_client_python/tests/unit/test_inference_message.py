@@ -486,6 +486,21 @@ def test_parse_multimodal_not_supported() -> None:
     assert message.is_terminal
 
 
+def test_parse_model_not_loaded() -> None:
+    data = {
+        "Response": {
+            "generated_by": None,
+            "request_id": "req-1",
+            "response": {"GeneratedToken": {"ModelNotLoaded": "no model is loaded"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.MODEL_NOT_LOADED
+    assert message.error_message == "no model is loaded"
+    assert message.is_terminal
+
+
 def test_parse_sampler_error() -> None:
     data = {
         "Response": {
@@ -556,6 +571,21 @@ def test_parse_embedding_error() -> None:
     assert message.is_terminal
 
 
+def test_parse_embedding_model_not_loaded() -> None:
+    data = {
+        "Response": {
+            "generated_by": None,
+            "request_id": "req-1",
+            "response": {"Embedding": {"ModelNotLoaded": "no model is loaded"}},
+        }
+    }
+    message = parse_inference_client_message(data)
+
+    assert message.kind == InferenceMessageKind.MODEL_NOT_LOADED
+    assert message.error_message == "no model is loaded"
+    assert message.is_terminal
+
+
 def test_parse_detokenization_failed_response_carries_error() -> None:
     data = {
         "Response": {
@@ -618,8 +648,8 @@ def test_parse_embedding_rejected_due_to_active_token_generation() -> None:
     assert message.is_terminal
 
 
-def test_parse_json_string() -> None:
-    json_str = (
+def test_parses_a_message_given_as_a_json_string() -> None:
+    serialized_message = (
         '{"Response": {"generated_by": null, "request_id": "req-1", '
         '"response": {"GeneratedToken": '
         '{"Done": {"finish": "EndOfGeneration", "usage": {"prompt_tokens": 0, '
@@ -627,7 +657,7 @@ def test_parse_json_string() -> None:
         '"input_image_tokens": 0, "input_audio_tokens": 0, "content_tokens": 0, '
         '"reasoning_tokens": 0, "tool_call_tokens": 0, "undeterminable_tokens": 0}}}}}}'
     )
-    message = parse_inference_client_message(json_str)
+    message = parse_inference_client_message(serialized_message)
 
     assert message.kind == InferenceMessageKind.DONE
 

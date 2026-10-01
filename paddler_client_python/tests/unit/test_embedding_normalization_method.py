@@ -88,7 +88,7 @@ def test_embedding_normalization_method_unknown_variant_raises() -> None:
     )
 
 
-def test_embedding_normalization_method_rms_norm_roundtrip() -> None:
+def test_rms_norm_serializes_to_the_wire_format() -> None:
     method = EmbeddingNormalizationMethod.rms_norm(epsilon=1e-6)
     dumped = method.model_dump(mode="json")
 

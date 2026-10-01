@@ -19,7 +19,7 @@ class InferenceSocketPool:
         self._url = url
         self._pool_size = pool_size
         self._connections: list[InferenceSocketConnection | None] = [None] * pool_size
-        self._next_idx = 0
+        self._next_connection_index = 0
         self._lock = asyncio.Lock()
 
     async def send_request(
@@ -27,14 +27,16 @@ class InferenceSocketPool:
         request_id: str,
         message: dict[str, object],
     ) -> ResponseStream:
-        json_str = json.dumps(message)
+        serialized_message = json.dumps(message)
 
         async with self._lock:
-            idx = self._next_idx
-            self._next_idx = (self._next_idx + 1) % self._pool_size
-            connection = await self._ensure_connected(idx)
+            connection_index = self._next_connection_index
+            self._next_connection_index = (
+                self._next_connection_index + 1
+            ) % self._pool_size
+            connection = await self._ensure_connected(connection_index)
 
-        return await connection.send(request_id, json_str)
+        return await connection.send(request_id, serialized_message)
 
     async def close(self) -> None:
         for connection in self._connections:
@@ -43,8 +45,10 @@ class InferenceSocketPool:
 
         self._connections = [None] * self._pool_size
 
-    async def _ensure_connected(self, idx: int) -> InferenceSocketConnection:
-        connection = self._connections[idx]
+    async def _ensure_connected(
+        self, connection_index: int
+    ) -> InferenceSocketConnection:
+        connection = self._connections[connection_index]
 
         if connection is not None and connection.is_connected:
             return connection
@@ -53,6 +57,6 @@ class InferenceSocketPool:
             await connection.close()
 
         new_connection = await InferenceSocketConnection.connect(self._url)
-        self._connections[idx] = new_connection
+        self._connections[connection_index] = new_connection
 
         return new_connection

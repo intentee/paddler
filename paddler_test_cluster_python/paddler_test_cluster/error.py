@@ -37,7 +37,7 @@ class CompatOpenAIServiceNotServedError(PaddlerTestClusterError):
 class ProcessDidNotExitError(PaddlerTestClusterError):
     def __init__(self, pid: int) -> None:
         self.pid = pid
-        super().__init__(f"Process {pid} did not exit within its release window")
+        super().__init__(f"Process {pid} did not exit within Paddler's shutdown bound")
 
 
 class ProcessExitedWithFailureError(PaddlerTestClusterError):

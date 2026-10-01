@@ -91,7 +91,7 @@ def test_agent_desired_model_unknown_variant_raises() -> None:
     )
 
 
-def test_agent_desired_model_local_to_agent_roundtrip() -> None:
+def test_agent_desired_model_serializes_a_local_path_to_the_wire_format() -> None:
     model = AgentDesiredModel.local_to_agent("/path/to/model")
     dumped = model.model_dump(mode="json")
 

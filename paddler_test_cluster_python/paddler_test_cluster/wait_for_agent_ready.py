@@ -20,12 +20,13 @@ async def wait_for_agent_ready(
 ) -> None:
     async for snapshot in snapshots:
         for agent in (agent for agent in snapshot.agents if agent.name == agent_name):
-            if agent.issues:
-                raise AgentReportedIssuesError(agent_name, agent.issues)
+            if agent.status.issues:
+                raise AgentReportedIssuesError(agent_name, agent.status.issues)
 
             if (
-                agent.state_application_status == AgentStateApplicationStatus.APPLIED
-                and agent.slots_total == expected_slots_total
+                agent.status.state_application_status
+                == AgentStateApplicationStatus.APPLIED
+                and agent.status.slots_total == expected_slots_total
             ):
                 return
 

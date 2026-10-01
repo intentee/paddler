@@ -28,6 +28,7 @@ async def test_inference_over_http_times_out_without_agents(
             )
         ]
 
-    assert [(message.kind, message.error_code) for message in messages] == [
-        (InferenceMessageKind.SERVER_ERROR, GATEWAY_TIMEOUT)
-    ]
+    [message] = messages
+
+    assert message.kind == InferenceMessageKind.SERVER_ERROR
+    assert message.error_code == GATEWAY_TIMEOUT

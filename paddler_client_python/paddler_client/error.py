@@ -27,6 +27,14 @@ class ConnectionDroppedError(PaddlerError):
         super().__init__(f"WebSocket connection dropped for request {request_id}")
 
 
+class RequestIdInFlightError(PaddlerError, ValueError):
+    def __init__(self, request_id: str) -> None:
+        self.request_id = request_id
+        super().__init__(
+            f"Request {request_id} is already in flight on this connection"
+        )
+
+
 class InvalidAgentDesiredModelError(PaddlerError, ValueError):
     def __init__(self, data: object) -> None:
         self.data = data
@@ -53,6 +61,12 @@ class InvalidAgentIssueError(PaddlerError, ValueError):
     def __init__(self, data: object) -> None:
         self.data = data
         super().__init__(f"Invalid AgentIssue: {data}")
+
+
+class InvalidModelDownloadStatusError(PaddlerError, ValueError):
+    def __init__(self, data: object) -> None:
+        self.data = data
+        super().__init__(f"Invalid ModelDownloadStatus: {data}")
 
 
 class InvalidRmsNormPayloadError(PaddlerError, ValueError):

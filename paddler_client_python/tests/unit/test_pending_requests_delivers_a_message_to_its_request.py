@@ -19,8 +19,7 @@ async def test_pending_requests_delivers_a_message_to_its_request() -> None:
         )
     )
 
-    messages = [message async for message in response_stream]
+    [message] = [message async for message in response_stream]
 
-    assert [(message.kind, message.error_code) for message in messages] == [
-        (InferenceMessageKind.SERVER_ERROR, 504)
-    ]
+    assert message.kind == InferenceMessageKind.SERVER_ERROR
+    assert message.error_code == 504

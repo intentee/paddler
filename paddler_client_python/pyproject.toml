@@ -16,9 +16,9 @@ packages = [{include = "paddler_client"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-httpx = "^0.28"
-websockets = "^15"
-pydantic = "^2"
+httpx = "==0.28.1"
+websockets = "==15.0.1"
+pydantic = "==2.12.5"
 
 [tool.poetry.group.dev.dependencies]
 paddler-test-cluster = { path = "../paddler_test_cluster_python", develop = true }

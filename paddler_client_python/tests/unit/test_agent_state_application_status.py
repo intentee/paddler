@@ -3,7 +3,7 @@ from paddler_client.agent_state_application_status import (
 )
 
 
-def test_agent_state_application_status_values() -> None:
+def test_agent_state_application_status_uses_the_wire_names() -> None:
     assert AgentStateApplicationStatus.APPLIED.value == "Applied"
     assert (
         AgentStateApplicationStatus.ATTEMPTED_AND_NOT_APPLIABLE.value
