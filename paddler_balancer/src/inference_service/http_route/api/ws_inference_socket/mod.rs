@@ -14,7 +14,6 @@ use actix_web::web::ServiceConfig;
 use actix_web::web::get;
 use actix_ws::Session;
 use anyhow::Result;
-use async_trait::async_trait;
 use log::debug;
 use log::error;
 use serde_json::Error as SerdeJsonError;
@@ -58,22 +57,17 @@ async fn send_token_generation_disabled(
     request_id: String,
     websocket_session_controller: &mut WebSocketSessionController<OutgoingMessage>,
 ) {
-    if let Err(err) = websocket_session_controller
-        .send_response(OutgoingMessage::Response(ResponseEnvelope {
+    websocket_session_controller
+        .send_response_safe(OutgoingMessage::Response(ResponseEnvelope {
             generated_by: None,
-            request_id: request_id.clone(),
+            request_id,
             response: OutgoingResponse::GeneratedToken(
                 GeneratedTokenResult::TokenGenerationDisabled(
                     TOKEN_GENERATION_DISABLED_MESSAGE.to_owned(),
                 ),
             ),
         }))
-        .await
-    {
-        error!(
-            "Failed to send token-generation-disabled response for request {request_id:?}: {err}"
-        );
-    }
+        .await;
 }
 
 async fn handle_inference_request<TParams>(
@@ -162,7 +156,6 @@ struct InferenceSocketController {
     shutdown: CancellationToken,
 }
 
-#[async_trait]
 impl ControlsWebSocketEndpoint for InferenceSocketController {
     type Context = InferenceSocketControllerContext;
     type IncomingMessage = InferenceJsonRpcMessage;

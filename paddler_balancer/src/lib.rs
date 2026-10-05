@@ -58,6 +58,7 @@ pub mod response_senders;
 pub mod run_http_service;
 pub mod run_http_service_parameters;
 pub mod serve_http_until_shutdown;
+pub mod session_keep_alive;
 pub mod snapshots_stream;
 pub mod sse_response_from_snapshots;
 #[cfg(feature = "web_admin_panel")]

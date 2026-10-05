@@ -11,6 +11,7 @@ const fn described_close_reason(code: CloseCode, description: String) -> CloseRe
     }
 }
 
+#[derive(Debug)]
 pub enum WebSocketCloseCause {
     AgentAlreadyRegistered,
     AgentDeregistered,

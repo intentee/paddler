@@ -15,7 +15,6 @@ use actix_web::web::ServiceConfig;
 use actix_web::web::get;
 use actix_ws::Session;
 use anyhow::Result;
-use async_trait::async_trait;
 use log::error;
 use log::info;
 use log::warn;
@@ -72,15 +71,6 @@ fn forward_agent_response<TResponse>(
     }
 }
 
-async fn send_to_agent(
-    websocket_session_controller: &mut WebSocketSessionController<AgentJsonRpcMessage>,
-    message: AgentJsonRpcMessage,
-) {
-    if let Err(err) = websocket_session_controller.send_response(message).await {
-        error!("Error sending response: {err}");
-    }
-}
-
 async fn respond(
     app_data: Data<AppData>,
     path_params: Path<AgentIdPathParams>,
@@ -104,7 +94,6 @@ struct AgentSocketController {
     agent_response_senders: AgentResponseSenders,
 }
 
-#[async_trait]
 impl ControlsWebSocketEndpoint for AgentSocketController {
     type Context = AgentSocketControllerContext;
     type IncomingMessage = ManagementJsonRpcMessage;
@@ -132,7 +121,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ) => {
                 connection_close.cancel();
 
-                return ContinuationDecision::Stop(WebSocketCloseCause::AgentDeregistered);
+                ContinuationDecision::Stop(WebSocketCloseCause::AgentDeregistered)
             }
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
@@ -186,7 +175,9 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                 rt::spawn(async move {
                     let _registered_agent_controller_guard = registered_agent_controller_guard;
 
-                    send_to_agent(&mut websocket_session_controller, agent_desired_state).await;
+                    websocket_session_controller
+                        .send_response_safe(agent_desired_state)
+                        .await;
 
                     loop {
                         select! {
@@ -194,7 +185,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                                 break;
                             }
                             Some(message) = agent_message_rx.recv() => {
-                                send_to_agent(&mut websocket_session_controller, message).await;
+                                websocket_session_controller.send_response_safe(message).await;
                             }
                         }
                     }
@@ -296,16 +287,13 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
         _context: Arc<Self::Context>,
         session: &mut Session,
     ) {
-        if let Err(err) = WebSocketSessionController::new(session.clone())
-            .send_response(AgentJsonRpcMessage::Notification(
+        WebSocketSessionController::new(session.clone())
+            .send_response_safe(AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::Version(VersionParams {
                     version: env!("CARGO_PKG_VERSION").to_owned(),
                 }),
             ))
-            .await
-        {
-            error!("Error sending version: {err:?}");
-        }
+            .await;
     }
 }
 
