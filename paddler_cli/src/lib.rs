@@ -1,21 +1,23 @@
 mod cmd;
-#[cfg(feature = "cuda")]
-mod cuda_disclaimer_docs;
 
-use actix_web::rt::System;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
+use cmd::agent::Agent;
+use cmd::balancer::Balancer;
 use command_handler::handler::Handler as _;
 use command_handler::shutdown_signal::register_shutdown_signals;
-use env_logger::Builder;
-use env_logger::Env;
+#[cfg(feature = "web_admin_panel")]
+use esbuild_metafile::instance::initialize_instance;
 use tokio_util::sync::CancellationToken;
 
-use crate::cmd::agent::Agent;
-use crate::cmd::balancer::Balancer;
-#[cfg(feature = "cuda")]
-use crate::cuda_disclaimer_docs::CUDA_DISCLAIMER_DOCS;
+#[cfg(feature = "web_admin_panel")]
+pub const ESBUILD_META_CONTENTS: &str = include_str!("../../esbuild-meta.json");
+
+pub const CUDA_DISCLAIMER_DOCS: &str = "
+This software includes NVIDIA CUDA runtime components, subject to the NVIDIA CUDA Toolkit End User License Agreement: https://docs.nvidia.com/cuda/eula/index.html
+This software contains source code provided by NVIDIA Corporation.
+Paddler is not affiliated with, endorsed by, or sponsored by NVIDIA Corporation.";
 
 #[derive(Parser)]
 #[command(arg_required_else_help(true), version, about, long_about = None)]
@@ -23,7 +25,7 @@ use crate::cuda_disclaimer_docs::CUDA_DISCLAIMER_DOCS;
 /// `LLMOps` platform for hosting and scaling open-source LLMs in your own infrastructure
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -35,14 +37,20 @@ enum Commands {
 }
 
 pub fn run() -> Result<()> {
-    System::new().block_on(async {
-        Builder::from_env(Env::default().default_filter_or("info")).init();
+    actix_web::rt::System::new().block_on(async {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
         let shutdown: CancellationToken = register_shutdown_signals()?.into();
 
         match Cli::parse().command {
-            Commands::Agent(handler) => handler.handle(shutdown).await,
-            Commands::Balancer(handler) => (*handler).handle(shutdown).await,
+            Some(Commands::Agent(handler)) => handler.handle(shutdown).await,
+            Some(Commands::Balancer(handler)) => {
+                #[cfg(feature = "web_admin_panel")]
+                initialize_instance(ESBUILD_META_CONTENTS);
+
+                (*handler).handle(shutdown).await
+            }
+            None => Ok(()),
         }
     })
 }

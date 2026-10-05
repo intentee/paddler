@@ -11,7 +11,7 @@ from paddler_client.inference_socket_url import inference_socket_url
 from paddler_client.stream_ndjson import stream_ndjson_inference_messages
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
+    from collections.abc import AsyncIterator
 
     from pydantic import BaseModel
 
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
         GenerateEmbeddingBatchParams,
     )
     from paddler_client.inference_message import InferenceMessage
-    from paddler_client.response_stream import ResponseStream
+    from paddler_client.inference_socket_connection import ResponseStream
 
 InferenceRequestVariant = Literal[
     "ContinueFromConversationHistory",
@@ -89,7 +89,7 @@ class ClientInference:
     async def post_continue_from_conversation_history(
         self,
         params: ContinueFromConversationHistoryParams,
-    ) -> AsyncGenerator[InferenceMessage, None]:
+    ) -> AsyncIterator[InferenceMessage]:
         async for message in self._stream_ndjson_post(
             "/api/v1/continue_from_conversation_history",
             params,
@@ -99,7 +99,7 @@ class ClientInference:
     async def generate_embedding_batch(
         self,
         params: GenerateEmbeddingBatchParams,
-    ) -> AsyncGenerator[InferenceMessage, None]:
+    ) -> AsyncIterator[InferenceMessage]:
         async for message in self._stream_ndjson_post(
             "/api/v1/generate_embedding_batch",
             params,
@@ -144,7 +144,7 @@ class ClientInference:
         self,
         path: str,
         params: BaseModel,
-    ) -> AsyncGenerator[InferenceMessage, None]:
+    ) -> AsyncIterator[InferenceMessage]:
         url = f"{self._url}{path}"
         request_body = params.model_dump(
             mode="json",

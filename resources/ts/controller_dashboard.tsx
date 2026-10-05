@@ -1,7 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-import { type StatsdConfiguration } from "./StatsdConfiguration";
 import { Home } from "./components/Home";
 import { PaddlerConfigurationContext } from "./contexts/PaddlerConfigurationContext";
 
@@ -12,30 +11,10 @@ class RootNode {
     return parseInt(this.getStringFromDataset(key), 10);
   }
 
-  getOptionalStringFromDataset(key: string): string | null {
-    return this.rootNodeElement.dataset[key] ?? null;
-  }
-
-  getStatsdConfiguration(): StatsdConfiguration | null {
-    const addr = this.getOptionalStringFromDataset("statsdAddr");
-
-    if (addr === null) {
-      return null;
-    }
-
-    return {
-      addr,
-      prefix: this.getStringFromDataset("statsdPrefix"),
-      reportingIntervalMillis: this.getIntFromDataset(
-        "statsdReportingIntervalMillis",
-      ),
-    };
-  }
-
   getStringFromDataset(key: string): string {
-    const value = this.getOptionalStringFromDataset(key);
+    const value = this.rootNodeElement.dataset[key];
 
-    if (value === null) {
+    if (value === undefined) {
       throw new Error(`Missing dataset key: ${key}`);
     }
 
@@ -59,12 +38,15 @@ root.render(
       bufferedRequestTimeoutMillis: rootNode.getIntFromDataset(
         "bufferedRequestTimeoutMillis",
       ),
-      compatOpenAIAddr:
-        rootNode.getOptionalStringFromDataset("compatOpenaiAddr"),
+      compatOpenAIAddr: rootNode.getStringFromDataset("compatOpenaiAddr"),
       inferenceAddr: rootNode.getStringFromDataset("inferenceAddr"),
       managementAddr: rootNode.getStringFromDataset("managementAddr"),
       maxBufferedRequests: rootNode.getIntFromDataset("maxBufferedRequests"),
-      statsd: rootNode.getStatsdConfiguration(),
+      statsdAddr: rootNode.getStringFromDataset("statsdAddr"),
+      statsdPrefix: rootNode.getStringFromDataset("statsdPrefix"),
+      statsdReportingIntervalMillis: rootNode.getIntFromDataset(
+        "statsdReportingIntervalMillis",
+      ),
     }}
   >
     <Home />

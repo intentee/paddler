@@ -1,23 +1,32 @@
-from collections.abc import AsyncIterator
+import os
 
 import pytest
 from openai import OpenAI
-from paddler_test_cluster.agent_spec import AgentSpec
-from paddler_test_cluster.paddler_cluster import paddler_cluster
-from paddler_test_cluster.qwen3_0_6b_desired_state import QWEN3_0_6B_DESIRED_STATE
 
-QWEN3_AGENT = AgentSpec(name="qwen3-agent", slots=1)
+BASE_URL_ENV = "PADDLER_OPENAI_BASE_URL"
+MODEL_ENV = "PADDLER_OPENAI_MODEL"
+DEFAULT_MODEL = "qwen3"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
+def base_url() -> str:
+    base_url = os.environ.get(BASE_URL_ENV)
+
+    if not base_url:
+        raise RuntimeError(
+            f"{BASE_URL_ENV} must point at a running Paddler OpenAI-compatible "
+            "endpoint, e.g. http://127.0.0.1:8063/v1 — this suite's sole purpose "
+            "is to drive that endpoint with the OpenAI client."
+        )
+
+    return base_url
+
+
+@pytest.fixture(scope="session")
 def model() -> str:
-    return "qwen3"
+    return os.environ.get(MODEL_ENV, DEFAULT_MODEL)
 
 
 @pytest.fixture
-async def openai_client() -> AsyncIterator[OpenAI]:
-    async with paddler_cluster(QWEN3_0_6B_DESIRED_STATE, [QWEN3_AGENT]) as addresses:
-        with OpenAI(
-            base_url=f"{addresses.compat_openai_url}/v1", api_key="paddler"
-        ) as openai_client:
-            yield openai_client
+def openai_client(base_url: str) -> OpenAI:
+    return OpenAI(base_url=base_url, api_key="paddler")

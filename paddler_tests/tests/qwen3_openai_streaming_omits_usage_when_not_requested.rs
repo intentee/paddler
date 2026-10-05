@@ -1,15 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use serde_json::json;
-
+use anyhow::Result;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use serde_json::json;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_openai_streaming_omits_usage_when_not_requested() {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
-        .await
-        .expect("the cluster must start");
+async fn qwen3_openai_streaming_omits_usage_when_not_requested() -> Result<()> {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let chunks = cluster
         .openai_chat_completion_streaming(&json!({
@@ -18,8 +16,7 @@ async fn qwen3_openai_streaming_omits_usage_when_not_requested() {
             "stream": true,
             "max_completion_tokens": 50
         }))
-        .await
-        .expect("the OpenAI chat completion stream must succeed");
+        .await?;
 
     assert!(!chunks.is_empty(), "expected at least one chunk");
 
@@ -33,8 +30,7 @@ async fn qwen3_openai_streaming_omits_usage_when_not_requested() {
         "expected no usage chunks when stream_options.include_usage is absent, got {chunks_with_usage}"
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

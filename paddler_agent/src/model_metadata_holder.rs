@@ -37,9 +37,7 @@ impl Default for ModelMetadataHolder {
 mod tests {
     use std::collections::BTreeMap;
 
-    use paddler_messaging::model_metadata::ModelMetadata;
-
-    use super::ModelMetadataHolder;
+    use super::*;
 
     #[test]
     fn new_holder_starts_empty() {

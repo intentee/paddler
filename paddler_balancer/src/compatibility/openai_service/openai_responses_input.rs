@@ -1,5 +1,4 @@
 use serde::Deserialize;
-use serde::Deserializer;
 
 use crate::compatibility::openai_service::openai_responses_input_item::OpenAIResponsesInputItem;
 
@@ -14,10 +13,10 @@ impl Default for OpenAIResponsesInput {
     }
 }
 
-impl<'deserializer> Deserialize<'deserializer> for OpenAIResponsesInput {
+impl<'de> Deserialize<'de> for OpenAIResponsesInput {
     fn deserialize<TDeserializer>(deserializer: TDeserializer) -> Result<Self, TDeserializer::Error>
     where
-        TDeserializer: Deserializer<'deserializer>,
+        TDeserializer: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
         #[serde(untagged)]

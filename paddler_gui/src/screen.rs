@@ -1,14 +1,10 @@
-use std::sync::Arc;
+use std::collections::BTreeSet;
 
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
+use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use statum::machine;
 use statum::state;
 use statum::transition;
-use tokio_util::sync::CancellationToken;
-
-use paddler_balancer::balancer_addresses::BalancerAddresses;
-use paddler_bootstrap::bootstrap_error::BootstrapError;
-use paddler_messaging::agent_status::AgentStatus;
-use paddler_messaging::balancer_connection::BalancerConnection;
 
 use crate::agent_running_data::AgentRunningData;
 use crate::detect_network_interfaces::detect_network_interfaces;
@@ -32,40 +28,64 @@ pub struct Screen<ScreenState> {}
 
 #[transition]
 impl Screen<Home> {
-    #[must_use]
     pub fn join_balancer(self) -> Screen<JoinBalancerForm> {
         self.transition_with(JoinBalancerFormData::default())
     }
 
-    #[must_use]
     pub fn start_balancer(self) -> Screen<StartBalancerForm> {
-        self.transition_with(StartBalancerFormData::suggesting_addresses_on(
-            detect_network_interfaces()
-                .first()
-                .map(|interface| interface.ip_address),
-        ))
+        let suggested_address = detect_network_interfaces()
+            .first()
+            .map(|interface| interface.ip_address.to_string())
+            .unwrap_or_default();
+
+        self.transition_with(StartBalancerFormData {
+            add_model_later: false,
+            balancer_address: format!("{suggested_address}:8060"),
+            balancer_address_error: None,
+            inference_address: format!("{suggested_address}:8061"),
+            inference_address_error: None,
+            model_error: None,
+            selected_model: None,
+            starting: false,
+            web_admin_panel_address: String::new(),
+            web_admin_panel_address_error: None,
+            web_admin_panel_address_placeholder: format!("{suggested_address}:8062"),
+        })
     }
 }
 
 #[transition]
 impl Screen<JoinBalancerForm> {
-    #[must_use]
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
-    #[must_use]
-    pub fn connect(self, cancellation_token: CancellationToken) -> Screen<AgentRunning> {
+    pub fn connect(self) -> Screen<AgentRunning> {
         self.transition_map(|form_data: JoinBalancerFormData| {
-            let name = form_data.entered_agent_name();
+            let name = if form_data.agent_name.is_empty() {
+                None
+            } else {
+                Some(form_data.agent_name)
+            };
 
             AgentRunningData {
                 balancer_address: form_data.balancer_address,
-                balancer_connection: BalancerConnection::Connecting,
-                cancellation_token,
-                name,
-                slots_processing: 0,
-                status: AgentStatus::default(),
+                connected: false,
+                snapshot: AgentControllerSnapshot {
+                    desired_slots_total: 0,
+                    download_current: 0,
+                    download_filename: None,
+                    download_indeterminate: true,
+                    download_total: 0,
+                    id: String::new(),
+                    issues: BTreeSet::new(),
+                    model_path: None,
+                    name,
+                    slots_processing: 0,
+                    slots_total: 0,
+                    state_application_status: AgentStateApplicationStatus::Fresh,
+                    uses_chat_template_override: false,
+                },
             }
         })
     }
@@ -73,54 +93,43 @@ impl Screen<JoinBalancerForm> {
 
 #[transition]
 impl Screen<AgentRunning> {
-    #[must_use]
     pub fn disconnect(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
-    #[must_use]
-    pub fn agent_failed(self, error: Arc<BootstrapError>) -> Screen<Home> {
+    pub fn agent_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
 }
 
 #[transition]
 impl Screen<StartBalancerForm> {
-    #[must_use]
     pub fn cancel(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
-    #[must_use]
-    pub fn balancer_started(
-        self,
-        addresses: BalancerAddresses,
-        cancellation_token: CancellationToken,
-        snapshot: Box<RunningBalancerSnapshot>,
-    ) -> Screen<RunningBalancer> {
-        self.transition_with(RunningBalancerData {
-            addresses,
-            cancellation_token,
-            snapshot,
+    pub fn balancer_started(self) -> Screen<RunningBalancer> {
+        self.transition_map(|form_data: StartBalancerFormData| RunningBalancerData {
+            balancer_address: form_data.balancer_address,
+            snapshot: RunningBalancerSnapshot::default(),
             stopping: false,
+            web_admin_panel_address: Some(form_data.web_admin_panel_address)
+                .filter(|address| !address.is_empty()),
         })
     }
 
-    #[must_use]
-    pub fn balancer_failed(self, error: Arc<BootstrapError>) -> Screen<Home> {
+    pub fn balancer_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
 }
 
 #[transition]
 impl Screen<RunningBalancer> {
-    #[must_use]
     pub fn balancer_stopped(self) -> Screen<Home> {
         self.transition_with(HomeData { error: None })
     }
 
-    #[must_use]
-    pub fn balancer_failed(self, error: Arc<BootstrapError>) -> Screen<Home> {
+    pub fn balancer_failed(self, error: String) -> Screen<Home> {
         self.transition_with(HomeData { error: Some(error) })
     }
 }

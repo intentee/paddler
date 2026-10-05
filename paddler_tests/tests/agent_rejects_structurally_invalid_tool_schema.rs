@@ -1,17 +1,14 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
-use serde_json::Map;
-use serde_json::json;
-use tokio_util::sync::CancellationToken;
-
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use anyhow::Result;
+use anyhow::anyhow;
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
@@ -20,12 +17,19 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use serde_json::Map;
+use serde_json::json;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_rejects_structurally_invalid_tool_schema() {
-    let base_desired_state = qwen3_0_6b().into_desired_state();
+async fn agent_rejects_structurally_invalid_tool_schema() -> Result<()> {
+    let ModelCard {
+        gpu_layer_count,
+        reference,
+    } = qwen3_0_6b();
 
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
@@ -33,18 +37,26 @@ async fn agent_rejects_structurally_invalid_tool_schema() {
             slot_count: 1,
         }],
         desired_state: Some(BalancerDesiredState {
+            chat_template_override: None,
             inference_parameters: InferenceParameters {
+                n_gpu_layers: gpu_layer_count,
                 temperature: 0.0,
-                ..base_desired_state.inference_parameters
+                ..InferenceParameters::default()
             },
-            ..base_desired_state
+            model: AgentDesiredModel::HuggingFace(reference),
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: false,
         }),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
+    // `{"type": 123}` is a structurally well-formed JSON object (so it survives
+    // request-parameter validation) but is not a valid JSON Schema: the `type`
+    // keyword must be a string or an array of strings. `jsonschema::validator_for`
+    // rejects it, so the agent's tool-call pipeline build reports the tool's schema
+    // as invalid and the scheduler emits `ToolSchemaInvalid` before any generation.
     let mut invalid_properties = Map::new();
     invalid_properties.insert("location".to_owned(), json!({ "type": 123 }));
 
@@ -61,7 +73,7 @@ async fn agent_rejects_structurally_invalid_tool_schema() {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: NonZeroU32::new(64).unwrap(),
+                max_tokens: 64,
                 parse_tool_calls: true,
                 tools: vec![Tool::Function(FunctionCall {
                     function: Function {
@@ -77,8 +89,7 @@ async fn agent_rejects_structurally_invalid_tool_schema() {
                 })],
             },
         )
-        .await
-        .expect("the inference request must be accepted");
+        .await?;
 
     let schema_invalid_message = collected
         .token_results
@@ -87,20 +98,19 @@ async fn agent_rejects_structurally_invalid_tool_schema() {
             GeneratedTokenResult::ToolSchemaInvalid(message) => Some(message.clone()),
             _ => None,
         })
-        .unwrap_or_else(|| {
-            panic!(
+        .ok_or_else(|| {
+            anyhow!(
                 "expected a ToolSchemaInvalid event when a tool's JSON Schema is invalid; got:\n{}",
                 collected.text
             )
-        });
+        })?;
 
     assert!(
         schema_invalid_message.contains("get_weather"),
         "the schema-invalid message should name the offending tool; got: {schema_invalid_message}"
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

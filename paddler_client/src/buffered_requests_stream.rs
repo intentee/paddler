@@ -1,7 +1,6 @@
 use std::pin::Pin;
 
 use futures_util::Stream;
-
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
 use crate::error::Result;

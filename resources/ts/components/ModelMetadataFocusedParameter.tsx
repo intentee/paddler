@@ -22,8 +22,8 @@ export function ModelMetadataFocusedParameter({
   const { setFocusedMetadataParameter } = useContext(ModelMetadataContext);
 
   const onBackClick = useCallback(
-    function (event: MouseEvent<HTMLButtonElement>) {
-      event.preventDefault();
+    function (evt: MouseEvent<HTMLButtonElement>) {
+      evt.preventDefault();
 
       setFocusedMetadataParameter(void 0);
     },

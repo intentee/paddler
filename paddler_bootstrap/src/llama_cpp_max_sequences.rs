@@ -1,1 +1,0 @@
-pub const LLAMA_CPP_MAX_SEQUENCES: u16 = 256;

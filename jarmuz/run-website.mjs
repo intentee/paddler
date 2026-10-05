@@ -8,7 +8,6 @@ export function run({ development, once = false, rustJobs }) {
     pipeline: ["stylelint", "tcm", "tsc", "eslint", esbuildJob, ...rustJobs],
     watch: [
       "paddler_agent",
-      "paddler_agent_status",
       "paddler_balancer",
       "paddler_bootstrap",
       "paddler_cache_dir",
@@ -16,13 +15,8 @@ export function run({ development, once = false, rustJobs }) {
       "paddler_client",
       "paddler_client_javascript",
       "paddler_download_manager",
-      "paddler_image_decoder",
-      "paddler_inference_parameters",
       "paddler_messaging",
-      "paddler_model_source",
-      "paddler_request_registry",
-      "paddler_state_database",
-      "paddler_tool_call_validator",
+      "paddler_state_conversion",
       "resources",
     ],
   }).decide(function ({ matches, schedule }) {

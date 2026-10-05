@@ -1,14 +1,14 @@
 import { createContext } from "react";
 
-import { type StatsdConfiguration } from "../StatsdConfiguration";
-
 export type PaddlerConfigurationContextValue = {
   bufferedRequestTimeoutMillis: number;
-  compatOpenAIAddr: string | null;
+  compatOpenAIAddr: string;
   inferenceAddr: string;
   managementAddr: string;
   maxBufferedRequests: number;
-  statsd: StatsdConfiguration | null;
+  statsdAddr: string;
+  statsdPrefix: string;
+  statsdReportingIntervalMillis: number;
 };
 
 export const PaddlerConfigurationContext =
@@ -28,7 +28,13 @@ export const PaddlerConfigurationContext =
     get maxBufferedRequests(): never {
       throw new Error("PaddlerConfigurationContext not provided");
     },
-    get statsd(): never {
+    get statsdAddr(): never {
+      throw new Error("PaddlerConfigurationContext not provided");
+    },
+    get statsdPrefix(): never {
+      throw new Error("PaddlerConfigurationContext not provided");
+    },
+    get statsdReportingIntervalMillis(): never {
       throw new Error("PaddlerConfigurationContext not provided");
     },
   });

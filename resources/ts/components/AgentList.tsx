@@ -2,7 +2,6 @@ import clsx from "clsx";
 import React from "react";
 
 import { type Agent } from "@intentee/paddler-client/schemas/Agent";
-import { type ModelDownloadStatus } from "@intentee/paddler-client/schemas/ModelDownloadStatus";
 import { AgentIssuesPreviewButton } from "./AgentIssuesPreviewButton";
 import { AgentListAgentStatus } from "./AgentListAgentStatus";
 import { ModelChatTemplateOverridePreviewButton } from "./ModelChatTemplateOverridePreviewButton";
@@ -38,37 +37,6 @@ function displayLastPathPart(path: string | null): string {
   return last;
 }
 
-function AgentModelDownload({
-  downloadStatus,
-}: {
-  downloadStatus: Exclude<ModelDownloadStatus, "NotDownloading">;
-}) {
-  const { model_path, progress } =
-    "Downloading" in downloadStatus
-      ? {
-          model_path: downloadStatus.Downloading.model_path,
-          progress: (
-            <progress
-              max={downloadStatus.Downloading.total_bytes}
-              value={downloadStatus.Downloading.downloaded_bytes}
-            />
-          ),
-        }
-      : {
-          model_path: downloadStatus.DownloadingWithUnknownSize.model_path,
-          progress: <progress />,
-        };
-
-  return (
-    <div className={agentList__agent__download}>
-      {progress}
-      <abbr title={`Downloading: ${model_path}`}>
-        <img src={iconDownload} alt="Download" />
-      </abbr>
-    </div>
-  );
-}
-
 export function AgentList({
   agents,
   managementAddr,
@@ -80,14 +48,15 @@ export function AgentList({
     <div className={agentList}>
       {agents.map(function (agent: Agent) {
         const {
+          download_current,
+          download_filename,
+          download_indeterminate,
+          download_total,
           id,
+          issues,
+          model_path,
           name,
-          status: {
-            download_status,
-            issues,
-            model_path,
-            uses_chat_template_override,
-          },
+          uses_chat_template_override,
         } = agent;
 
         return (
@@ -121,8 +90,17 @@ export function AgentList({
                 />
               )}
             </div>
-            {"NotDownloading" !== download_status ? (
-              <AgentModelDownload downloadStatus={download_status} />
+            {download_filename !== null ? (
+              <div className={agentList__agent__download}>
+                {download_indeterminate ? (
+                  <progress />
+                ) : (
+                  <progress max={download_total} value={download_current} />
+                )}
+                <abbr title={`Downloading: ${download_filename}`}>
+                  <img src={iconDownload} alt="Download" />
+                </abbr>
+              </div>
             ) : (
               <div className={agentList__agent__model}>
                 {"string" === typeof model_path ? (

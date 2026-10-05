@@ -1,16 +1,15 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use anyhow::Result;
+use anyhow::anyhow;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_responses_non_streaming_returns_text_and_usage() {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
-        .await
-        .expect("the cluster must start");
+async fn qwen3_responses_non_streaming_returns_text_and_usage() -> Result<()> {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let response = cluster
         .openai_responses_non_streaming(&json!({
@@ -18,8 +17,7 @@ async fn qwen3_responses_non_streaming_returns_text_and_usage() {
             "input": "Say hi briefly.",
             "max_output_tokens": 600
         }))
-        .await
-        .expect("the OpenAI response must succeed");
+        .await?;
 
     assert_eq!(
         response.get("status").and_then(Value::as_str),
@@ -29,20 +27,20 @@ async fn qwen3_responses_non_streaming_returns_text_and_usage() {
 
     let usage = response
         .get("usage")
-        .unwrap_or_else(|| panic!("responses response missing usage: {response}"));
+        .ok_or_else(|| anyhow!("responses response missing usage: {response}"))?;
 
     let input_tokens = usage
         .get("input_tokens")
         .and_then(Value::as_u64)
-        .expect("usage.input_tokens missing");
+        .ok_or_else(|| anyhow!("usage.input_tokens missing"))?;
     let output_tokens = usage
         .get("output_tokens")
         .and_then(Value::as_u64)
-        .expect("usage.output_tokens missing");
+        .ok_or_else(|| anyhow!("usage.output_tokens missing"))?;
     let total_tokens = usage
         .get("total_tokens")
         .and_then(Value::as_u64)
-        .expect("usage.total_tokens missing");
+        .ok_or_else(|| anyhow!("usage.total_tokens missing"))?;
 
     assert!(input_tokens > 0);
     assert!(output_tokens > 0);
@@ -51,20 +49,19 @@ async fn qwen3_responses_non_streaming_returns_text_and_usage() {
     let message_text = response
         .get("output")
         .and_then(Value::as_array)
-        .expect("responses response missing output array")
+        .ok_or_else(|| anyhow!("responses response missing output array"))?
         .iter()
         .find(|item| item.get("type").and_then(Value::as_str) == Some("message"))
         .and_then(|message| message.pointer("/content/0/text"))
         .and_then(Value::as_str)
-        .unwrap_or_else(|| panic!("responses output has no message text: {response}"));
+        .ok_or_else(|| anyhow!("responses output has no message text: {response}"))?;
 
     assert!(
         !message_text.is_empty(),
         "responses message text must not be empty"
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

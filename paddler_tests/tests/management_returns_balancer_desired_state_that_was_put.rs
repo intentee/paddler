@@ -1,14 +1,12 @@
 use anyhow::Context as _;
-use anyhow::Error;
 use anyhow::Result;
-use tokio_util::sync::CancellationToken;
-
 use paddler_client::client_management::ClientManagement;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 async fn get_balancer_desired_state(
     client_management: &ClientManagement,
@@ -16,24 +14,21 @@ async fn get_balancer_desired_state(
     client_management
         .get_balancer_desired_state(CancellationToken::new())
         .await
-        .map_err(Error::new)
-        .context("the balancer desired state must be served")
+        .map_err(anyhow::Error::new)
+        .context("failed to GET /api/v1/balancer_desired_state")
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn management_returns_balancer_desired_state_that_was_put() {
+async fn management_returns_balancer_desired_state_that_was_put() -> Result<()> {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     assert_eq!(
-        get_balancer_desired_state(&cluster.client_management)
-            .await
-            .expect("the balancer must report its desired state"),
+        get_balancer_desired_state(&cluster.client_management).await?,
         BalancerDesiredState::default()
     );
 
@@ -49,17 +44,15 @@ async fn management_returns_balancer_desired_state_that_was_put() {
         .client_management
         .put_balancer_desired_state(CancellationToken::new(), &desired_state)
         .await
-        .expect("the balancer must accept the desired state");
+        .map_err(anyhow::Error::new)
+        .context("failed to PUT /api/v1/balancer_desired_state")?;
 
     assert_eq!(
-        get_balancer_desired_state(&cluster.client_management)
-            .await
-            .expect("the balancer must report its desired state"),
+        get_balancer_desired_state(&cluster.client_management).await?,
         desired_state
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

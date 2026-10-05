@@ -5,7 +5,7 @@ use anyhow::Result;
 pub fn parse_duration(arg: &str) -> Result<Duration> {
     let milliseconds = arg.parse()?;
 
-    Ok(Duration::from_millis(milliseconds))
+    Ok(std::time::Duration::from_millis(milliseconds))
 }
 
 #[cfg(test)]

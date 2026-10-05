@@ -1,6 +1,4 @@
-use serde::Serialize;
-
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug)]
 pub struct FunctionCallArgumentsDoneEvent {
     pub sequence_number: u64,
     pub item_id: String,

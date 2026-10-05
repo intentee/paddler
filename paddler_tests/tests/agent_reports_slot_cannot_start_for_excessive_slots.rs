@@ -1,47 +1,78 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use std::time::Duration;
+
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_reports_slot_cannot_start_for_excessive_slots() {
-    let ModelCard { reference } = qwen3_0_6b();
+async fn agent_reports_slot_cannot_start_for_excessive_slots() -> Result<()> {
+    let ModelCard {
+        gpu_layer_count,
+        reference,
+    } = qwen3_0_6b();
+
+    let inference_parameters = InferenceParameters {
+        n_gpu_layers: gpu_layer_count,
+        ..InferenceParameters::default()
+    };
+
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 257,
         }],
         desired_state: Some(BalancerDesiredState {
-            inference_parameters: InferenceParameters {
-                n_gpu_layers: ALL_GPU_LAYERS,
-                ..InferenceParameters::deterministic()
-            },
+            chat_template_override: None,
+            inference_parameters,
             model: AgentDesiredModel::HuggingFace(reference),
-            ..BalancerDesiredState::default()
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: false,
         }),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
+    .await?;
+
+    let snapshot = tokio::time::timeout(
+        Duration::from_secs(10),
+        cluster
+            .agents_watcher
+            .until(ObservationWindow::model_load(), |snapshot| {
+                snapshot.agents.iter().any(|agent| {
+                    agent
+                        .issues
+                        .iter()
+                        .any(|issue| matches!(issue, AgentIssue::SlotCannotStart(_)))
+                })
+            }),
+    )
     .await
-    .expect("a single-agent cluster must start");
+    .context("agent did not report SlotCannotStart within 10s")??;
 
-    cluster
-        .wait_for_first_agent_issue(|issue| {
-            matches!(issue, AgentIssue::SlotCannotStart(slot_cannot_start) if !slot_cannot_start.error.is_empty())
-        })
-        .await
-        .expect("the agent must report SlotCannotStart with the underlying error");
+    let slot_cannot_start_count = snapshot
+        .agents
+        .iter()
+        .flat_map(|agent| agent.issues.iter())
+        .filter(|issue| matches!(issue, AgentIssue::SlotCannotStart(params) if !params.error.is_empty()))
+        .count();
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    assert!(
+        slot_cannot_start_count > 0,
+        "expected at least one SlotCannotStart issue with non-empty error"
+    );
+
+    cluster.shutdown().await?;
+
+    Ok(())
 }

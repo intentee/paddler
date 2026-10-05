@@ -1,5 +1,5 @@
 #[derive(Debug)]
 pub enum EmitTokenOutcome {
-    Emitted,
+    Emitted(String),
     ChannelDropped,
 }

@@ -121,7 +121,7 @@
                   pkgs.cudaPackages.cccl
                 ];
                 env = {
-                  CUDAARCHS = pkgs.cudaPackages.flags.cmakeCudaArchitecturesString;
+                  CMAKE_CUDA_ARCHITECTURES = pkgs.cudaPackages.flags.cmakeCudaArchitecturesString;
                   CMAKE_BUILD_PARALLEL_LEVEL = toString cudaBuildParallelism;
                   CARGO_BUILD_JOBS = toString cudaBuildParallelism;
                   CARGO_BUILD_RUSTFLAGS = lib.concatStringsSep " " [

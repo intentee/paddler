@@ -1,3 +1,10 @@
+pub mod variables;
+pub mod view_agent_running;
+pub mod view_home;
+pub mod view_join_balancer_form;
+pub mod view_running_balancer;
+pub mod view_start_balancer_form;
+
 mod font;
 mod style_agent_container;
 mod style_button_disconnect;
@@ -10,13 +17,5 @@ mod style_field_pick_list;
 mod style_field_pick_list_menu;
 mod style_field_text_input;
 mod style_status_indicator;
-pub mod variables;
 mod view_agent_card;
-mod view_agent_running;
-mod view_error_message;
 mod view_form_field;
-mod view_home;
-mod view_join_balancer_form;
-mod view_running_balancer;
-mod view_start_balancer_form;
-mod view_stop_button;

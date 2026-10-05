@@ -16,8 +16,8 @@ export function AgentIssuesPreviewButton({
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
 
   const onClick = useCallback(
-    function (event: MouseEvent<HTMLButtonElement>) {
-      event.preventDefault();
+    function (evt: MouseEvent<HTMLButtonElement>) {
+      evt.preventDefault();
 
       setIsDetailsVisible(true);
     },

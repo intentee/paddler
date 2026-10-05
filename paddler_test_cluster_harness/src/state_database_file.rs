@@ -1,30 +1,22 @@
-use std::path::PathBuf;
-
 use anyhow::Context as _;
 use anyhow::Result;
-use tempfile::TempDir;
+use tempfile::NamedTempFile;
 
 pub struct StateDatabaseFile {
-    pub path: PathBuf,
     pub url: String,
-    _directory_guard: TempDir,
+    _file: NamedTempFile,
 }
 
 impl StateDatabaseFile {
     pub fn new() -> Result<Self> {
-        let directory = TempDir::new().context("failed to create temp state database directory")?;
-        let path = directory.path().join("state.json");
-        let url = format!(
-            "file://{}",
-            path.to_str()
-                .context("temp state database file path is not valid UTF-8")?
-        );
+        let file = NamedTempFile::new().context("failed to create temp state database file")?;
+        let path = file
+            .path()
+            .to_str()
+            .context("temp state database file path is not valid UTF-8")?;
+        let url = format!("file://{path}");
 
-        Ok(Self {
-            path,
-            url,
-            _directory_guard: directory,
-        })
+        Ok(Self { _file: file, url })
     }
 }
 
@@ -33,9 +25,11 @@ mod tests {
     use super::StateDatabaseFile;
 
     #[test]
-    fn names_its_url_after_its_file_path() {
+    fn new_builds_a_file_url_for_a_real_temp_file() {
         let database = StateDatabaseFile::new().unwrap();
 
-        assert_eq!(database.url, format!("file://{}", database.path.display()));
+        let path = database.url.strip_prefix("file://").unwrap();
+
+        assert!(std::path::Path::new(path).exists());
     }
 }

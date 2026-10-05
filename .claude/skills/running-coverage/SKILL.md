@@ -22,23 +22,13 @@ fi
 echo "Device: $DEVICE"
 ```
 
-`$DEVICE` selects the Paddler binary and the Rust feature set every suite in Step 2 runs against.
+`$DEVICE` selects the Rust integration suite variant in Step 2. The other four suites don't take a device feature.
 
 ## Step 2: run the code coverage
 
 Copy this checklist and tick each item as the suite completes:
 
-```
-- [ ] Rust
-- [ ] Python client
-- [ ] JS client
-```
-
-| # | Suite         | Command (from the repo root)                           |
-|---|---------------|--------------------------------------------------------|
-| 1 | Rust          | `TEST_DEVICE=$DEVICE make test.coverage`               |
-| 2 | Python client | `TEST_DEVICE=$DEVICE make test.client.python.coverage` |
-| 3 | JS client     | `TEST_DEVICE=$DEVICE make test.client.js.coverage`     |
+`TEST_DEVICE=$DEVICE make test.coverage`
 
 ## Step 3: rules during the run
 

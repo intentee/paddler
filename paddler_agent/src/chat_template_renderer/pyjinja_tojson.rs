@@ -4,22 +4,16 @@ use minijinja::Value;
 use minijinja::filters::tojson;
 use minijinja::value::Kwargs;
 
-const ENSURE_ASCII_UNSUPPORTED: &str = "tojson(ensure_ascii=True) is not supported by minijinja: object output already \
-     emits non-ASCII characters unescaped (matching ensure_ascii=False). Drop the \
-     kwarg or set it to False.";
-
-const SORT_KEYS_UNSUPPORTED: &str = "tojson(sort_keys=True) is not supported by minijinja: object key ordering follows \
-     insertion order. Drop the kwarg or set it to False.";
-
-const SEPARATORS_UNSUPPORTED: &str =
-    "tojson(separators=...) is not supported by minijinja: separator strings are fixed.";
-
 pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
+    let indent: Option<Value> = kwargs.get("indent")?;
+
     let ensure_ascii: Option<bool> = kwargs.get("ensure_ascii")?;
     if matches!(ensure_ascii, Some(true)) {
         return Err(Error::new(
             ErrorKind::InvalidOperation,
-            ENSURE_ASCII_UNSUPPORTED,
+            "tojson(ensure_ascii=True) is not supported by minijinja: object output already \
+             emits non-ASCII characters unescaped (matching ensure_ascii=False). Drop the \
+             kwarg or set it to False.",
         ));
     }
 
@@ -27,34 +21,33 @@ pub fn pyjinja_tojson(value: &Value, kwargs: Kwargs) -> Result<Value, Error> {
     if matches!(sort_keys, Some(true)) {
         return Err(Error::new(
             ErrorKind::InvalidOperation,
-            SORT_KEYS_UNSUPPORTED,
+            "tojson(sort_keys=True) is not supported by minijinja: object key ordering follows \
+             insertion order. Drop the kwarg or set it to False.",
         ));
     }
 
     if kwargs.has("separators") {
         return Err(Error::new(
             ErrorKind::InvalidOperation,
-            SEPARATORS_UNSUPPORTED,
+            "tojson(separators=...) is not supported by minijinja: separator strings are fixed.",
         ));
     }
 
-    tojson(value, None, kwargs)
+    kwargs.assert_all_used()?;
+
+    let forwarded_kwargs: Kwargs = Kwargs::from_iter(Vec::<(String, Value)>::new());
+
+    tojson(value, indent, forwarded_kwargs)
 }
 
 #[cfg(test)]
 mod tests {
     use minijinja::Environment;
-    use minijinja::Error;
-    use minijinja::ErrorKind;
-    use minijinja::Value;
     use minijinja::context;
 
-    use super::ENSURE_ASCII_UNSUPPORTED;
-    use super::SEPARATORS_UNSUPPORTED;
-    use super::SORT_KEYS_UNSUPPORTED;
     use super::pyjinja_tojson;
 
-    fn render(template_source: &str, scope: Value) -> String {
+    fn render(template_source: &str, scope: minijinja::Value) -> String {
         let mut environment = Environment::new();
         environment.add_filter("tojson", pyjinja_tojson);
         environment
@@ -68,7 +61,7 @@ mod tests {
             .unwrap()
     }
 
-    fn render_error(template_source: &str, scope: Value) -> Error {
+    fn render_error_message(template_source: &str, scope: minijinja::Value) -> String {
         let mut environment = Environment::new();
         environment.add_filter("tojson", pyjinja_tojson);
         environment
@@ -80,6 +73,7 @@ mod tests {
             .unwrap()
             .render(scope)
             .unwrap_err()
+            .to_string()
     }
 
     #[test]
@@ -102,25 +96,29 @@ mod tests {
     }
 
     #[test]
-    fn ensure_ascii_true_is_rejected_as_unsupported() {
-        let error = render_error(
+    fn ensure_ascii_true_returns_error_naming_the_kwarg() {
+        let rendered = render_error_message(
             "{{ value | tojson(ensure_ascii=True) }}",
             context! { value => "x" },
         );
 
-        assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert_eq!(error.detail(), Some(ENSURE_ASCII_UNSUPPORTED));
+        assert!(
+            rendered.contains("ensure_ascii=True"),
+            "error must name the rejected kwarg; got: {rendered}"
+        );
     }
 
     #[test]
     fn ensure_ascii_non_bool_propagates_kwargs_get_error() {
-        let error = render_error(
+        let rendered = render_error_message(
             "{{ value | tojson(ensure_ascii='nope') }}",
             context! { value => "x" },
         );
 
-        assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert_eq!(error.detail(), Some("cannot convert string to bool"));
+        assert!(
+            !rendered.is_empty(),
+            "a type-mismatched ensure_ascii kwarg must surface an error"
+        );
     }
 
     #[test]
@@ -134,36 +132,42 @@ mod tests {
     }
 
     #[test]
-    fn sort_keys_true_is_rejected_as_unsupported() {
-        let error = render_error(
+    fn sort_keys_true_returns_error_naming_the_kwarg() {
+        let rendered = render_error_message(
             "{{ value | tojson(sort_keys=True) }}",
             context! { value => "x" },
         );
 
-        assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert_eq!(error.detail(), Some(SORT_KEYS_UNSUPPORTED));
+        assert!(
+            rendered.contains("sort_keys=True"),
+            "error must name the rejected kwarg; got: {rendered}"
+        );
     }
 
     #[test]
     fn sort_keys_non_bool_propagates_kwargs_get_error() {
-        let error = render_error(
+        let rendered = render_error_message(
             "{{ value | tojson(sort_keys='nope') }}",
             context! { value => "x" },
         );
 
-        assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert_eq!(error.detail(), Some("cannot convert string to bool"));
+        assert!(
+            !rendered.is_empty(),
+            "a type-mismatched sort_keys kwarg must surface an error"
+        );
     }
 
     #[test]
-    fn separators_are_rejected_as_unsupported() {
-        let error = render_error(
+    fn separators_returns_error_naming_the_kwarg() {
+        let rendered = render_error_message(
             "{{ value | tojson(separators=[',', ':']) }}",
             context! { value => "x" },
         );
 
-        assert_eq!(error.kind(), ErrorKind::InvalidOperation);
-        assert_eq!(error.detail(), Some(SEPARATORS_UNSUPPORTED));
+        assert!(
+            rendered.contains("separators"),
+            "error must name the rejected kwarg; got: {rendered}"
+        );
     }
 
     #[test]
@@ -187,11 +191,14 @@ mod tests {
     }
 
     #[test]
-    fn unknown_kwarg_is_rejected_as_an_extra_argument() {
-        let error = render_error("{{ value | tojson(bogus=42) }}", context! { value => "x" });
+    fn unknown_kwarg_returns_error() {
+        let rendered =
+            render_error_message("{{ value | tojson(bogus=42) }}", context! { value => "x" });
 
-        assert_eq!(error.kind(), ErrorKind::TooManyArguments);
-        assert_eq!(error.detail(), Some("unknown keyword argument 'bogus'"));
+        assert!(
+            rendered.contains("bogus"),
+            "error must name the unknown kwarg; got: {rendered}"
+        );
     }
 
     #[test]

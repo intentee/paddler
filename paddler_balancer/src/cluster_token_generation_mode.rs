@@ -1,8 +1,4 @@
-use actix_web::Error;
-use actix_web::error::ErrorNotImplemented;
-
-pub const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
-    "Token generation is disabled while the cluster is configured for embeddings";
+use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ClusterTokenGenerationMode {
@@ -10,41 +6,82 @@ pub enum ClusterTokenGenerationMode {
     DisabledForEmbeddings,
 }
 
+pub const TOKEN_GENERATION_DISABLED_MESSAGE: &str =
+    "Token generation is disabled while the cluster is configured for embeddings";
+
 impl ClusterTokenGenerationMode {
-    pub fn require_enabled(self) -> Result<(), Error> {
-        match self {
-            Self::Enabled => Ok(()),
-            Self::DisabledForEmbeddings => {
-                Err(ErrorNotImplemented(TOKEN_GENERATION_DISABLED_MESSAGE))
-            }
+    #[must_use]
+    pub fn from_applicable_state_holder(
+        balancer_applicable_state_holder: &BalancerApplicableStateHolder,
+    ) -> Self {
+        if let Some(agent_desired_state) =
+            balancer_applicable_state_holder.get_agent_desired_state()
+            && agent_desired_state.inference_parameters.enable_embeddings
+        {
+            Self::DisabledForEmbeddings
+        } else {
+            Self::Enabled
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use actix_web::http::StatusCode;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::inference_parameters::InferenceParameters;
 
     use super::ClusterTokenGenerationMode;
+    use crate::balancer_applicable_state::BalancerApplicableState;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+
+    fn holder_with_embeddings(enable_embeddings: bool) -> BalancerApplicableStateHolder {
+        let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
+
+        balancer_applicable_state_holder.set_balancer_applicable_state(Some(
+            BalancerApplicableState {
+                agent_desired_state: AgentDesiredState {
+                    chat_template_override: None,
+                    inference_parameters: InferenceParameters {
+                        enable_embeddings,
+                        ..InferenceParameters::default()
+                    },
+                    model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+                    multimodal_projection: AgentDesiredModel::None,
+                },
+            },
+        ));
+
+        balancer_applicable_state_holder
+    }
 
     #[test]
-    fn allows_requests_while_token_generation_is_enabled() {
-        assert!(
+    fn enabled_when_state_is_not_set() {
+        let balancer_applicable_state_holder = BalancerApplicableStateHolder::default();
+
+        assert_eq!(
+            ClusterTokenGenerationMode::from_applicable_state_holder(
+                &balancer_applicable_state_holder
+            ),
             ClusterTokenGenerationMode::Enabled
-                .require_enabled()
-                .is_ok()
         );
     }
 
     #[test]
-    fn rejects_requests_as_not_implemented_while_disabled_for_embeddings() {
-        let rejection = ClusterTokenGenerationMode::DisabledForEmbeddings
-            .require_enabled()
-            .expect_err("token generation must be rejected in embeddings mode");
-
+    fn enabled_when_embeddings_are_disabled() {
         assert_eq!(
-            rejection.as_response_error().status_code(),
-            StatusCode::NOT_IMPLEMENTED
+            ClusterTokenGenerationMode::from_applicable_state_holder(&holder_with_embeddings(
+                false
+            )),
+            ClusterTokenGenerationMode::Enabled
+        );
+    }
+
+    #[test]
+    fn disabled_for_embeddings_when_embeddings_are_enabled() {
+        assert_eq!(
+            ClusterTokenGenerationMode::from_applicable_state_holder(&holder_with_embeddings(true)),
+            ClusterTokenGenerationMode::DisabledForEmbeddings
         );
     }
 }

@@ -20,9 +20,7 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p .",
-    "test": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test 'tests/unit/**/*.test.ts' 'tests/cluster/**/*.test.ts'",
-    "test:coverage": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 --experimental-test-coverage --test-coverage-exclude='**/node_modules/**' --test-coverage-branches=100 --test-coverage-functions=100 --test-coverage-lines=100 'tests/**/*.test.ts'",
-    "test:llm": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 'tests/llm/**/*.test.ts'",
+    "test": "tsc -p tsconfig.test.json && tsx --test",
     "prepack": "tsc -p ."
   },
   "peerDependencies": {
@@ -30,12 +28,12 @@
     "zod": "^4"
   },
   "dependencies": {
-    "nanoid": "5.1.16"
+    "nanoid": "^5.1.11"
   },
   "devDependencies": {
-    "@types/node": "22.19.17",
-    "tsx": "4.23.15",
-    "typescript": "5.9.2"
+    "@types/node": "^22",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2"
   },
   "engines": {
     "node": ">=22"

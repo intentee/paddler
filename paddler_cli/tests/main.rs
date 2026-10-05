@@ -1,3 +1,0 @@
-mod paddler_agent_rejects_more_slots_than_llama_cpp_can_serve;
-mod paddler_balancer_exits_with_a_failure_when_its_management_address_is_taken;
-mod paddler_without_a_subcommand_prints_help_and_exits_with_a_usage_error;

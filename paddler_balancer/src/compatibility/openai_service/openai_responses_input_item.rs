@@ -1,10 +1,8 @@
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use serde::Deserialize;
 use serde_json::json;
 
-use paddler_messaging::conversation_message::ConversationMessage;
-use paddler_messaging::conversation_message_content::ConversationMessageContent;
-
-use crate::compatibility::openai_service::assistant_role::ASSISTANT_ROLE;
 use crate::compatibility::openai_service::openai_responses_function_call_item::OpenAIResponsesFunctionCallItem;
 use crate::compatibility::openai_service::openai_responses_function_call_output_item::OpenAIResponsesFunctionCallOutputItem;
 use crate::compatibility::openai_service::openai_responses_message_item::OpenAIResponsesMessageItem;
@@ -19,10 +17,10 @@ pub enum OpenAIResponsesInputItem {
 
 impl OpenAIResponsesInputItem {
     #[must_use]
-    pub fn into_conversation_message(self) -> ConversationMessage {
+    pub fn into_conversation_message(self) -> Option<ConversationMessage> {
         match self {
             Self::Message(message) | Self::Tagged(OpenAIResponsesTaggedItem::Message(message)) => {
-                message.into_conversation_message()
+                Some(message.into_conversation_message())
             }
             Self::Tagged(OpenAIResponsesTaggedItem::FunctionCall(
                 OpenAIResponsesFunctionCallItem {
@@ -30,18 +28,19 @@ impl OpenAIResponsesInputItem {
                     name,
                     arguments,
                 },
-            )) => ConversationMessage {
+            )) => Some(ConversationMessage {
                 content: ConversationMessageContent::Text(
                     json!({ "call_id": call_id, "name": name, "arguments": arguments }).to_string(),
                 ),
-                role: ASSISTANT_ROLE.to_owned(),
-            },
+                role: "assistant".to_owned(),
+            }),
             Self::Tagged(OpenAIResponsesTaggedItem::FunctionCallOutput(
                 OpenAIResponsesFunctionCallOutputItem { output },
-            )) => ConversationMessage {
+            )) => Some(ConversationMessage {
                 content: ConversationMessageContent::Text(output.into_text()),
                 role: "tool".to_owned(),
-            },
+            }),
+            Self::Tagged(OpenAIResponsesTaggedItem::Unsupported) => None,
         }
     }
 }

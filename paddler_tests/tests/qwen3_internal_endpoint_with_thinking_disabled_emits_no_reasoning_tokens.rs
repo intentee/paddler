@@ -1,9 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
-use tokio_util::sync::CancellationToken;
-
+use anyhow::Result;
+use anyhow::anyhow;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -11,12 +9,11 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_tokens() {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
-        .await
-        .expect("the cluster must start");
+async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_tokens() -> Result<()> {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let collected = cluster
         .continue_from_conversation_history(
@@ -29,13 +26,12 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: NonZeroU32::new(100).unwrap(),
+                max_tokens: 100,
                 parse_tool_calls: false,
                 tools: vec![],
             },
         )
-        .await
-        .expect("the inference request must be accepted");
+        .await?;
 
     let reasoning_count = collected
         .token_results
@@ -57,17 +53,16 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
     let last = collected
         .token_results
         .last()
-        .expect("no token results received");
+        .ok_or_else(|| anyhow!("no token results received"))?;
     let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
+        anyhow::bail!("last result was not Done: {last:?}");
     };
 
     assert!(summary.usage.prompt_tokens > 0);
     assert_eq!(summary.usage.reasoning_tokens, 0);
     assert!(summary.usage.content_tokens > 0);
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

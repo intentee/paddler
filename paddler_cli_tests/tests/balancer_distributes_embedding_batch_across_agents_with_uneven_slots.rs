@@ -2,21 +2,21 @@
 
 use std::collections::BTreeSet;
 
-use tokio_util::sync::CancellationToken;
-
+use anyhow::Result;
+use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() {
+async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() -> Result<()> {
     let cluster = start_subprocess_embedding_cluster(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
-        EmbeddingClusterParams {
+        Qwen3EmbeddingClusterParams {
             agents: vec![
                 AgentConfig {
                     name: "agent-fat".to_owned(),
@@ -37,13 +37,12 @@ async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() 
             ],
             inference_parameters: InferenceParameters {
                 enable_embeddings: true,
-                ..InferenceParameters::deterministic()
+                ..InferenceParameters::default()
             },
-            ..EmbeddingClusterParams::default()
+            ..Qwen3EmbeddingClusterParams::default()
         },
     )
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let input_batch: Vec<EmbeddingInputDocument> = (0..8)
         .map(|index| EmbeddingInputDocument {
@@ -60,8 +59,7 @@ async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() 
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
         )
-        .await
-        .expect("the embedding batch must be accepted");
+        .await?;
 
     assert_eq!(collected.embeddings.len(), 8);
     assert!(collected.saw_done);
@@ -88,8 +86,7 @@ async fn balancer_distributes_embedding_batch_across_agents_with_uneven_slots() 
         "embedding batch must fan out across all agents even when slot counts are uneven, but only saw producers: {producers:?}",
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

@@ -25,122 +25,121 @@ use super::variables::SPACING_2X;
 use super::variables::SPACING_BASE;
 use super::variables::SPACING_HALF;
 use super::view_form_field::view_form_field;
-use crate::address_placeholder::ADDRESS_PLACEHOLDER;
-use crate::balancer_launch::BalancerLaunch;
 use crate::model_preset::ModelPreset;
 use crate::start_balancer_form_data::StartBalancerFormData;
-use crate::start_balancer_form_message::StartBalancerFormMessage;
+use crate::start_balancer_form_handler::Message;
 
-impl StartBalancerFormData {
-    pub fn view(&self) -> Element<'_, StartBalancerFormMessage> {
-        let confirm_button = match self.launch {
-            BalancerLaunch::Starting(_) => button(text("Starting...").font(BOLD))
-                .padding([SPACING_HALF, SPACING_BASE])
-                .style(style_button_primary),
-            BalancerLaunch::NotRequested => button(text("Start a cluster").font(BOLD))
-                .padding([SPACING_HALF, SPACING_BASE])
-                .style(style_button_primary)
-                .on_press(StartBalancerFormMessage::Confirm),
-        };
+pub fn view_start_balancer_form(data: &StartBalancerFormData) -> Element<'_, Message> {
+    let available_models = ModelPreset::available_presets();
 
-        let cancel_button = button(text("Cancel").font(BOLD))
+    let confirm_button = if data.starting {
+        button(text("Starting...").font(BOLD))
             .padding([SPACING_HALF, SPACING_BASE])
-            .style(button::text)
-            .on_press(StartBalancerFormMessage::Cancel);
+            .style(style_button_primary)
+    } else {
+        button(text("Start a cluster").font(BOLD))
+            .padding([SPACING_HALF, SPACING_BASE])
+            .style(style_button_primary)
+            .on_press(Message::Confirm)
+    };
 
-        let balancer_address_input = text_input(ADDRESS_PLACEHOLDER, &self.balancer_address)
-            .on_input(StartBalancerFormMessage::SetBalancerAddress)
-            .padding(SPACING_BASE)
-            .style(style_field_text_input)
-            .into();
+    let cancel_button = button(text("Cancel").font(BOLD))
+        .padding([SPACING_HALF, SPACING_BASE])
+        .style(button::text)
+        .on_press(Message::Cancel);
 
-        let inference_address_input = text_input(ADDRESS_PLACEHOLDER, &self.inference_address)
-            .on_input(StartBalancerFormMessage::SetInferenceAddress)
-            .padding(SPACING_BASE)
-            .style(style_field_text_input)
-            .into();
-
-        let web_admin_panel_address_input = text_input(
-            &self.web_admin_panel_address_placeholder,
-            &self.web_admin_panel_address,
-        )
-        .on_input(StartBalancerFormMessage::SetWebAdminPanelAddress)
+    let balancer_address_input = text_input("IP:port", &data.balancer_address)
+        .on_input(Message::SetBalancerAddress)
         .padding(SPACING_BASE)
         .style(style_field_text_input)
         .into();
 
-        let model_input: Element<'_, StartBalancerFormMessage> = if self.add_model_later {
-            text_input("Model will be added later", "")
-                .padding(SPACING_BASE)
-                .style(style_field_text_input)
-                .into()
-        } else {
-            pick_list(
-                ModelPreset::ALL,
-                self.selected_model,
-                StartBalancerFormMessage::SelectModel,
-            )
-            .placeholder("Choose a model")
-            .width(Fill)
-            .padding(SPACING_BASE)
-            .style(style_field_pick_list)
-            .menu_style(style_field_pick_list_menu)
-            .into()
-        };
-
-        let add_model_later_checkbox: Element<'_, StartBalancerFormMessage> = container(
-            checkbox(self.add_model_later)
-                .label("Add a model later")
-                .font(REGULAR)
-                .size(FONT_SIZE_BASE)
-                .text_size(FONT_SIZE_BASE)
-                .on_toggle(StartBalancerFormMessage::ToggleAddModelLater)
-                .style(style_field_checkbox),
-        )
-        .padding(Padding {
-            top: 4.0,
-            right: SPACING_BASE,
-            bottom: 0.0,
-            left: SPACING_BASE,
-        })
+    let inference_address_input = text_input("IP:port", &data.inference_address)
+        .on_input(Message::SetInferenceAddress)
+        .padding(SPACING_BASE)
+        .style(style_field_text_input)
         .into();
 
-        let model_field = column![
-            view_form_field("Model", model_input, self.model_error.as_ref()),
-            add_model_later_checkbox,
-        ]
-        .spacing(SPACING_HALF);
+    let web_admin_panel_address_input = text_input(
+        &data.web_admin_panel_address_placeholder,
+        &data.web_admin_panel_address,
+    )
+    .on_input(Message::SetWebAdminPanelAddress)
+    .padding(SPACING_BASE)
+    .style(style_field_text_input)
+    .into();
 
-        column![
-            container(text("Start a cluster").size(FONT_SIZE_L2).font(BOLD))
-                .padding([0.0, SPACING_BASE]),
-            container(
-                column![
-                    view_form_field(
-                        "Cluster address",
-                        balancer_address_input,
-                        self.balancer_address_error.as_ref()
-                    ),
-                    view_form_field(
-                        "Inference address",
-                        inference_address_input,
-                        self.inference_address_error.as_ref()
-                    ),
-                    view_form_field(
-                        "Web admin panel (optional)",
-                        web_admin_panel_address_input,
-                        self.web_admin_panel_address_error.as_ref()
-                    ),
-                    model_field,
-                    row![cancel_button, confirm_button]
-                        .align_y(Center)
-                        .spacing(SPACING_BASE),
-                ]
-                .spacing(SPACING_2X),
-            )
-            .width(FORM_WIDTH),
-        ]
-        .spacing(SPACING_2X)
+    let model_input: Element<'_, Message> = if data.add_model_later {
+        text_input("Model will be added later", "")
+            .padding(SPACING_BASE)
+            .style(style_field_text_input)
+            .into()
+    } else {
+        pick_list(
+            available_models,
+            data.selected_model.as_ref(),
+            Message::SelectModel,
+        )
+        .placeholder("Choose a model")
+        .width(Fill)
+        .padding(SPACING_BASE)
+        .style(style_field_pick_list)
+        .menu_style(style_field_pick_list_menu)
         .into()
-    }
+    };
+
+    let add_model_later_checkbox: Element<'_, Message> = container(
+        checkbox(data.add_model_later)
+            .label("Add a model later")
+            .font(REGULAR)
+            .size(FONT_SIZE_BASE)
+            .text_size(FONT_SIZE_BASE)
+            .on_toggle(Message::ToggleAddModelLater)
+            .style(style_field_checkbox),
+    )
+    .padding(Padding {
+        top: 4.0,
+        right: SPACING_BASE,
+        bottom: 0.0,
+        left: SPACING_BASE,
+    })
+    .into();
+
+    let model_field = column![
+        view_form_field("Model", model_input, data.model_error.as_ref()),
+        add_model_later_checkbox,
+    ]
+    .spacing(SPACING_HALF);
+
+    column![
+        container(text("Start a cluster").size(FONT_SIZE_L2).font(BOLD))
+            .padding([0.0, SPACING_BASE]),
+        container(
+            column![
+                view_form_field(
+                    "Cluster address",
+                    balancer_address_input,
+                    data.balancer_address_error.as_ref()
+                ),
+                view_form_field(
+                    "Inference address",
+                    inference_address_input,
+                    data.inference_address_error.as_ref()
+                ),
+                view_form_field(
+                    "Web admin panel (optional)",
+                    web_admin_panel_address_input,
+                    data.web_admin_panel_address_error.as_ref()
+                ),
+                model_field,
+                row![cancel_button, confirm_button]
+                    .align_y(Center)
+                    .spacing(SPACING_BASE),
+            ]
+            .spacing(SPACING_2X),
+        )
+        .width(FORM_WIDTH),
+    ]
+    .spacing(SPACING_2X)
+    .into()
 }

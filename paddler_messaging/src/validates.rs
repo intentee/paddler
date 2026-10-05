@@ -1,5 +1,5 @@
-use crate::request_params_validation_error::RequestParamsValidationError;
+use anyhow::Result;
 
 pub trait Validates<TOutput> {
-    fn validate(self) -> Result<TOutput, RequestParamsValidationError>;
+    fn validate(self) -> Result<TOutput>;
 }

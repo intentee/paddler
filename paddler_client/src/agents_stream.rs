@@ -1,7 +1,6 @@
 use std::pin::Pin;
 
 use futures_util::Stream;
-
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 
 use crate::error::Result;

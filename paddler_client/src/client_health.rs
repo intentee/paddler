@@ -40,7 +40,7 @@ mod tests {
 
         assert!(matches!(
             client_health.get_health(CancellationToken::new()).await,
-            Err(Error::Connect { url, .. }) if url == "http://127.0.0.1:1/health"
+            Err(Error::Connect { .. })
         ));
     }
 }

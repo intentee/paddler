@@ -1,31 +1,30 @@
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
+use anyhow::Result;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::resource_snapshot::ResourceSnapshot;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn cluster_shutdown_returns_fd_count_to_baseline() {
-    let before =
-        ResourceSnapshot::try_from_self().expect("the process resource snapshot must be readable");
+async fn cluster_shutdown_returns_fd_count_to_baseline() -> Result<()> {
+    let before = ResourceSnapshot::try_from_self()?;
 
     let cluster = start_cluster(ClusterParams {
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    .await?;
+    cluster.shutdown().await?;
 
-    let after =
-        ResourceSnapshot::try_from_self().expect("the process resource snapshot must be readable");
+    let after = ResourceSnapshot::try_from_self()?;
     let diff = after.diff(&before);
 
     assert_eq!(
-        diff.open_file_descriptors_grew_by, 0,
-        "in-process cluster lifecycle leaked file descriptors"
+        diff.open_file_descriptors_grew_by,
+        0,
+        "in-process cluster lifecycle leaked file descriptors: {summary}",
+        summary = diff.pretty_summary(),
     );
+
+    Ok(())
 }

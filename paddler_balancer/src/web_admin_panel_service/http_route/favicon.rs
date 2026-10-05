@@ -1,18 +1,19 @@
 use actix_web::HttpResponse;
 use actix_web::Responder;
+use actix_web::get;
 use actix_web::web;
-use actix_web::web::get;
 
 const FAVICON: &[u8] = include_bytes!("../../../../resources/images/favicon.svg");
 
+pub fn register(cfg: &mut web::ServiceConfig) {
+    cfg.service(respond);
+}
+
+#[get("/favicon.ico")]
 async fn respond() -> impl Responder {
     HttpResponse::Ok()
         .content_type("image/svg+xml")
         .body(FAVICON)
-}
-
-pub fn favicon(cfg: &mut web::ServiceConfig) {
-    cfg.route("/favicon.ico", get().to(respond));
 }
 
 #[cfg(test)]
@@ -26,11 +27,11 @@ mod tests {
     use actix_web::test::read_body;
 
     use super::FAVICON;
-    use super::favicon;
+    use super::register;
 
     #[actix_web::test]
     async fn serves_embedded_favicon_as_svg() {
-        let app = init_service(App::new().configure(favicon)).await;
+        let app = init_service(App::new().configure(register)).await;
         let request = TestRequest::get().uri("/favicon.ico").to_request();
         let response = call_service(&app, request).await;
 

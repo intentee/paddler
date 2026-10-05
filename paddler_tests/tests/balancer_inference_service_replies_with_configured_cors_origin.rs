@@ -1,43 +1,47 @@
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::send_cors_preflight::send_cors_preflight;
 use paddler_tests::start_cluster::start_cluster;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_inference_service_replies_with_configured_cors_origin() {
+async fn balancer_inference_service_replies_with_configured_cors_origin() -> Result<()> {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
-    .await
-    .expect("a cluster without agents must start");
-    let health_url = cluster
-        .balancer
-        .inference_base_url()
-        .expect("the inference service must have a base URL")
-        .join("health")
-        .expect("the health path must join onto the base URL");
+    .await?;
 
-    let response = send_cors_preflight(health_url, ALLOWED_ORIGIN)
+    let http_client = reqwest::Client::new();
+    let inference_health_url = cluster
+        .balancer
+        .addresses
+        .inference_base_url()?
+        .join("health")?;
+
+    let response = http_client
+        .request(reqwest::Method::OPTIONS, inference_health_url)
+        .header("Origin", ALLOWED_ORIGIN)
+        .header("Access-Control-Request-Method", "GET")
+        .send()
         .await
-        .expect("the preflight request must succeed");
+        .context("preflight request should succeed")?;
 
     assert_eq!(response.status(), 200);
-    assert_eq!(
-        response
-            .headers()
-            .get("access-control-allow-origin")
-            .expect("the preflight response must allow an origin")
-            .to_str()
-            .expect("the allowed origin must be ASCII"),
-        ALLOWED_ORIGIN
-    );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    let cors_origin = response
+        .headers()
+        .get("access-control-allow-origin")
+        .context("missing Access-Control-Allow-Origin header")?
+        .to_str()
+        .context("CORS header should be valid ASCII")?;
+
+    assert_eq!(cors_origin, ALLOWED_ORIGIN);
+
+    cluster.shutdown().await?;
+
+    Ok(())
 }

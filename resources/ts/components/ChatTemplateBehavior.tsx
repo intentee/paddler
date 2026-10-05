@@ -19,8 +19,8 @@ export function ChatTemplateBehavior() {
     useContext(ChatTemplateContext);
 
   const onRadioChange = useCallback(
-    function (event: ChangeEvent<HTMLInputElement>) {
-      switch (event.target.value) {
+    function (evt: ChangeEvent<HTMLInputElement>) {
+      switch (evt.target.value) {
         case USE_MODEL_TEMPLATE:
           setUseChatTemplateOverride(false);
           break;

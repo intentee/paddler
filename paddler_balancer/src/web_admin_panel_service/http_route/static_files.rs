@@ -1,11 +1,16 @@
 use actix_web::HttpResponse;
 use actix_web::Responder;
+use actix_web::get;
 use actix_web::web;
-use actix_web::web::get;
 use mime_guess::from_path;
 
 use crate::static_files::StaticFiles;
 
+pub fn register(cfg: &mut web::ServiceConfig) {
+    cfg.service(respond);
+}
+
+#[get("/static/{path:.*}")]
 async fn respond(path: web::Path<String>) -> impl Responder {
     let path = path.into_inner();
 
@@ -15,10 +20,6 @@ async fn respond(path: web::Path<String>) -> impl Responder {
             .body(content.data.into_owned()),
         None => HttpResponse::NotFound().body("File not found"),
     }
-}
-
-pub fn static_files(cfg: &mut web::ServiceConfig) {
-    cfg.route("/static/{path:.*}", get().to(respond));
 }
 
 #[cfg(test)]
@@ -32,7 +33,7 @@ mod tests {
     use actix_web::test::read_body;
     use mime_guess::from_path;
 
-    use super::static_files;
+    use super::register;
     use crate::static_files::StaticFiles;
 
     fn any_embedded_file_name() -> String {
@@ -46,7 +47,7 @@ mod tests {
     async fn serves_embedded_file_with_guessed_content_type() {
         let existing_file_path = any_embedded_file_name();
 
-        let app = init_service(App::new().configure(static_files)).await;
+        let app = init_service(App::new().configure(register)).await;
         let request = TestRequest::get()
             .uri(&format!("/static/{existing_file_path}"))
             .to_request();
@@ -70,7 +71,7 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_not_found_for_missing_file() {
-        let app = init_service(App::new().configure(static_files)).await;
+        let app = init_service(App::new().configure(register)).await;
         let request = TestRequest::get()
             .uri("/static/this_file_does_not_exist.txt")
             .to_request();

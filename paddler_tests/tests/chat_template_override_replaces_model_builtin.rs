@@ -1,27 +1,28 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
-use tokio_util::sync::CancellationToken;
-
-use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn chat_template_override_replaces_model_builtin() {
-    let ModelCard { reference } = qwen3_0_6b();
+async fn chat_template_override_replaces_model_builtin() -> Result<()> {
+    let ModelCard {
+        gpu_layer_count,
+        reference,
+    } = qwen3_0_6b();
 
     let chat_template = ChatTemplate {
         content: "{{ messages[0].content }}".to_owned(),
@@ -33,8 +34,8 @@ async fn chat_template_override_replaces_model_builtin() {
         desired_state: Some(BalancerDesiredState {
             chat_template_override: Some(chat_template.clone()),
             inference_parameters: InferenceParameters {
-                n_gpu_layers: ALL_GPU_LAYERS,
-                ..InferenceParameters::deterministic()
+                n_gpu_layers: gpu_layer_count,
+                ..InferenceParameters::default()
             },
             model: AgentDesiredModel::HuggingFace(reference),
             multimodal_projection: AgentDesiredModel::None,
@@ -42,20 +43,20 @@ async fn chat_template_override_replaces_model_builtin() {
         }),
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let agent_id = cluster
         .agent_ids
         .first()
-        .expect("cluster must have one registered agent")
+        .context("cluster must have one registered agent")?
         .clone();
 
     let retrieved = cluster
         .client_management
         .get_chat_template_override(CancellationToken::new(), &agent_id)
         .await
-        .expect("failed to read chat template override");
+        .map_err(anyhow::Error::new)
+        .context("failed to read chat template override")?;
 
     assert_eq!(retrieved, Some(chat_template));
 
@@ -72,13 +73,12 @@ async fn chat_template_override_replaces_model_builtin() {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: NonZeroU32::new(10).unwrap(),
+                max_tokens: 10,
                 parse_tool_calls: false,
                 tools: vec![],
             },
         )
-        .await
-        .expect("the inference request must be accepted");
+        .await?;
 
     let received_tokens = collected
         .token_results
@@ -90,8 +90,7 @@ async fn chat_template_override_replaces_model_builtin() {
         "override template should render the prompt and produce tokens"
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

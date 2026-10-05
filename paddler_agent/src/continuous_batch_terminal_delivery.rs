@@ -1,9 +1,8 @@
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use tokio::sync::mpsc;
 
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
-
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
-use crate::send_result_or_warn::send_result_or_warn;
+use crate::send_generated_token_result_or_warn::send_generated_token_result_or_warn;
 use crate::sequence_id_guard::SequenceIdGuard;
 
 pub struct ContinuousBatchTerminalDelivery {
@@ -30,7 +29,11 @@ impl ContinuousBatchTerminalDelivery {
         match self.terminal_outcome {
             ContinuousBatchTerminalOutcome::EmitNothing => {}
             ContinuousBatchTerminalOutcome::EmitToClient(terminal_result) => {
-                send_result_or_warn(agent_name, &self.generated_tokens_tx, terminal_result);
+                send_generated_token_result_or_warn(
+                    agent_name,
+                    &self.generated_tokens_tx,
+                    terminal_result,
+                );
             }
         }
     }
@@ -38,9 +41,8 @@ impl ContinuousBatchTerminalDelivery {
 
 #[cfg(test)]
 mod tests {
-    use tokio::sync::mpsc;
-
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use tokio::sync::mpsc;
 
     use super::ContinuousBatchTerminalDelivery;
     use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;

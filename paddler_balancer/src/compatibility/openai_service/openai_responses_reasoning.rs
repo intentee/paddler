@@ -1,16 +1,14 @@
 use serde::Deserialize;
 
-use crate::compatibility::openai_service::openai_reasoning_effort::OpenAIReasoningEffort;
-
 #[derive(Deserialize)]
 pub struct OpenAIResponsesReasoning {
-    pub effort: Option<OpenAIReasoningEffort>,
+    #[serde(default)]
+    pub effort: Option<String>,
 }
 
 impl OpenAIResponsesReasoning {
     #[must_use]
     pub fn enables_thinking(&self) -> bool {
-        self.effort
-            .is_none_or(OpenAIReasoningEffort::enables_thinking)
+        self.effort.as_deref() != Some("none")
     }
 }

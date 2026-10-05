@@ -1,22 +1,19 @@
-use actix_web::HttpResponse;
-use actix_web::http::StatusCode;
-use serde_json::Value;
-use serde_json::json;
-
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
-use paddler_messaging::oversized_media_details::OversizedMediaDetails;
-use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
+use paddler_messaging::oversized_image_details::OversizedImageDetails;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
-
-use crate::compatibility::openai_service::openai_error_type::OpenAIErrorType;
+use serde_json::Value;
+use serde_json::json;
 
 fn validation_failure_message(errors: &[String]) -> String {
-    errors.join("; ")
+    errors
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "tool call failed validation".to_owned())
 }
 
 fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
@@ -27,88 +24,54 @@ fn unrecognized_tool_call_format_message(raw: &RawToolCallTokens) -> String {
     )
 }
 
-fn media_exceeds_micro_batch_message(details: &OversizedMediaDetails) -> String {
+fn image_exceeds_batch_size_message(details: &OversizedImageDetails) -> String {
     format!(
-        "media required {} tokens but one agent micro batch holds {} tokens",
-        details.media_tokens, details.micro_batch_tokens,
+        "image required {} tokens but agent n_batch is {}; rerun with a larger n_batch",
+        details.image_tokens, details.n_batch,
     )
 }
 
-fn prompt_exceeds_context_size_message(details: &OversizedPromptDetails) -> String {
-    format!(
-        "prompt has {} tokens but each agent sequence holds {} tokens; shorten the prompt or raise context_size",
-        details.prompt_tokens, details.sequence_context_size,
-    )
-}
-
-const fn openai_error(error_type: OpenAIErrorType, message: String) -> OpenAIError {
-    OpenAIError {
-        error_type,
-        message,
+fn description_from_error_token(token: &GeneratedTokenResult) -> Option<&str> {
+    match token {
+        GeneratedTokenResult::ChatTemplateError(description)
+        | GeneratedTokenResult::DetokenizationFailed(description)
+        | GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
+        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
+        | GeneratedTokenResult::GrammarInitializationFailed(description)
+        | GeneratedTokenResult::GrammarSyntaxError(description)
+        | GeneratedTokenResult::ImageDecodingFailed(description)
+        | GeneratedTokenResult::MultimodalNotSupported(description)
+        | GeneratedTokenResult::SamplerError(description)
+        | GeneratedTokenResult::TokenGenerationDisabled(description)
+        | GeneratedTokenResult::ToolCallParseFailed(description)
+        | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(description),
+        _ => None,
     }
 }
 
 fn server_error_from_token(token: &GeneratedTokenResult) -> Option<OpenAIError> {
     match token {
-        GeneratedTokenResult::MediaExceedsMicroBatch(details) => Some(openai_error(
-            OpenAIErrorType::InvalidRequestError,
-            media_exceeds_micro_batch_message(details),
-        )),
-        GeneratedTokenResult::PromptExceedsContextSize(details) => Some(openai_error(
-            OpenAIErrorType::InvalidRequestError,
-            prompt_exceeds_context_size_message(details),
-        )),
-        GeneratedTokenResult::GrammarIncompatibleWithThinking(description)
-        | GeneratedTokenResult::GrammarSyntaxError(description)
-        | GeneratedTokenResult::ImageDecodingFailed(description)
-        | GeneratedTokenResult::MultimodalNotSupported(description)
-        | GeneratedTokenResult::MultimodalTokenizationFailed(description)
-        | GeneratedTokenResult::PromptTokenizationFailed(description)
-        | GeneratedTokenResult::ToolSchemaInvalid(description) => Some(openai_error(
-            OpenAIErrorType::InvalidRequestError,
-            description.clone(),
-        )),
-        GeneratedTokenResult::ToolCallValidationFailed(errors) => Some(openai_error(
-            OpenAIErrorType::ServerError,
-            validation_failure_message(errors),
-        )),
-        GeneratedTokenResult::UnrecognizedToolCallFormat(raw) => Some(openai_error(
-            OpenAIErrorType::ServerError,
-            unrecognized_tool_call_format_message(raw),
-        )),
-        GeneratedTokenResult::BatchAssemblyFailed(description)
-        | GeneratedTokenResult::ChatTemplateError(description)
-        | GeneratedTokenResult::DecodeFailed(description)
-        | GeneratedTokenResult::DetokenizationFailed(description)
-        | GeneratedTokenResult::GrammarInitializationFailed(description)
-        | GeneratedTokenResult::GrammarRejectedModelOutput(description)
-        | GeneratedTokenResult::KvCacheClearFailed(description)
-        | GeneratedTokenResult::MediaMicroBatchCheckFailed(description)
-        | GeneratedTokenResult::ModelNotLoaded(description)
-        | GeneratedTokenResult::MultimodalIngestionFailed(description)
-        | GeneratedTokenResult::NoSequenceSlotAvailable(description)
-        | GeneratedTokenResult::SamplerChainCreationFailed(description)
-        | GeneratedTokenResult::SamplerError(description)
-        | GeneratedTokenResult::SamplingCandidatesExhausted(description)
-        | GeneratedTokenResult::SchedulerUnavailable(description)
-        | GeneratedTokenResult::SequenceIdOutOfRange(description)
-        | GeneratedTokenResult::TokenGenerationDisabled(description)
-        | GeneratedTokenResult::ToolCallParseFailed(description)
-        | GeneratedTokenResult::ToolsSerializationFailed(description) => Some(openai_error(
-            OpenAIErrorType::ServerError,
-            description.clone(),
-        )),
-        GeneratedTokenResult::ContentToken(_)
-        | GeneratedTokenResult::Done(_)
-        | GeneratedTokenResult::ReasoningToken(_)
-        | GeneratedTokenResult::ToolCallParsed(_)
-        | GeneratedTokenResult::ToolCallToken(_)
-        | GeneratedTokenResult::UndeterminableToken(_) => None,
+        GeneratedTokenResult::ImageExceedsBatchSize(details) => Some(OpenAIError {
+            error_type: "server_error",
+            message: image_exceeds_batch_size_message(details),
+        }),
+        GeneratedTokenResult::ToolCallValidationFailed(errors) => Some(OpenAIError {
+            error_type: "server_error",
+            message: validation_failure_message(errors),
+        }),
+        GeneratedTokenResult::UnrecognizedToolCallFormat(raw) => Some(OpenAIError {
+            error_type: "server_error",
+            message: unrecognized_tool_call_format_message(raw),
+        }),
+        other => description_from_error_token(other).map(|description| OpenAIError {
+            error_type: "server_error",
+            message: description.to_owned(),
+        }),
     }
 }
 
 pub struct OpenAIError {
-    pub error_type: OpenAIErrorType,
+    pub error_type: &'static str,
     pub message: String,
 }
 
@@ -120,17 +83,21 @@ impl OpenAIError {
                 error: JsonRpcError { description, .. },
                 ..
             }) => Some(Self {
-                error_type: OpenAIErrorType::ServerError,
+                error_type: "server_error",
                 message: description.clone(),
             }),
             OutgoingMessage::Notification(_) => None,
             OutgoingMessage::Response(ResponseEnvelope { response, .. }) => match response {
                 OutgoingResponse::GeneratedToken(token) => server_error_from_token(token),
-                OutgoingResponse::Embedding(_) => Some(Self {
-                    error_type: OpenAIErrorType::InvalidRequestError,
-                    message: "unexpected embedding response to a token generation request"
-                        .to_owned(),
+                OutgoingResponse::Timeout => Some(Self {
+                    error_type: "timeout",
+                    message: "request timed out".to_owned(),
                 }),
+                OutgoingResponse::TooManyBufferedRequests => Some(Self {
+                    error_type: "rate_limit_error",
+                    message: "too many buffered requests".to_owned(),
+                }),
+                OutgoingResponse::Embedding(_) => None,
             },
         }
     }
@@ -146,35 +113,24 @@ impl OpenAIError {
             }
         })
     }
-
-    #[must_use]
-    pub fn to_http_response(&self, status_code: StatusCode) -> HttpResponse {
-        HttpResponse::build(status_code).json(self.to_envelope())
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
 
     use paddler_messaging::embedding_result::EmbeddingResult;
-    use paddler_messaging::generated_token_result::GeneratedTokenResult;
-    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
-    use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
-    use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
-    use paddler_messaging::oversized_media_details::OversizedMediaDetails;
-    use paddler_messaging::oversized_prompt_details::OversizedPromptDetails;
 
     use super::OpenAIError;
     use super::OutgoingMessage;
     use super::OutgoingResponse;
     use super::ResponseEnvelope;
     use super::validation_failure_message;
-    use crate::compatibility::openai_service::openai_error_type::OpenAIErrorType;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+    use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 
     fn token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
         OutgoingMessage::Response(ResponseEnvelope {
@@ -187,7 +143,7 @@ mod tests {
     #[test]
     fn to_envelope_has_the_openai_error_shape() {
         let envelope = OpenAIError {
-            error_type: OpenAIErrorType::ServerError,
+            error_type: "server_error",
             message: "something went wrong".to_owned(),
         }
         .to_envelope();
@@ -199,76 +155,18 @@ mod tests {
     }
 
     #[test]
-    fn validation_failure_message_reports_every_error() {
+    fn validation_failure_message_returns_first_error() {
         let message =
             validation_failure_message(&["first issue".to_owned(), "second issue".to_owned()]);
 
-        assert_eq!(message, "first issue; second issue");
+        assert_eq!(message, "first issue");
     }
 
     #[test]
-    fn classifies_media_exceeding_the_micro_batch_as_invalid_request() {
-        let error = OpenAIError::classify(&token_message(
-            GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
-                media_tokens: 256,
-                micro_batch_tokens: 128,
-            }),
-        ))
-        .unwrap();
+    fn validation_failure_message_falls_back_when_no_errors() {
+        let message = validation_failure_message(&[]);
 
-        assert_eq!(error.error_type, OpenAIErrorType::InvalidRequestError);
-        assert_eq!(
-            error.message,
-            "media required 256 tokens but one agent micro batch holds 128 tokens"
-        );
-    }
-
-    #[test]
-    fn classifies_client_mistakes_as_invalid_requests() {
-        for client_mistake in [
-            GeneratedTokenResult::GrammarIncompatibleWithThinking("client mistake".to_owned()),
-            GeneratedTokenResult::GrammarSyntaxError("client mistake".to_owned()),
-            GeneratedTokenResult::ImageDecodingFailed("client mistake".to_owned()),
-            GeneratedTokenResult::MultimodalNotSupported("client mistake".to_owned()),
-            GeneratedTokenResult::MultimodalTokenizationFailed("client mistake".to_owned()),
-            GeneratedTokenResult::PromptTokenizationFailed("client mistake".to_owned()),
-            GeneratedTokenResult::ToolSchemaInvalid("client mistake".to_owned()),
-        ] {
-            let error = OpenAIError::classify(&token_message(client_mistake)).unwrap();
-
-            assert_eq!(error.error_type, OpenAIErrorType::InvalidRequestError);
-            assert_eq!(error.message, "client mistake");
-        }
-    }
-
-    #[test]
-    fn classifies_agent_failures_as_server_errors() {
-        for agent_failure in [
-            GeneratedTokenResult::BatchAssemblyFailed("agent failure".to_owned()),
-            GeneratedTokenResult::ChatTemplateError("agent failure".to_owned()),
-            GeneratedTokenResult::DecodeFailed("agent failure".to_owned()),
-            GeneratedTokenResult::DetokenizationFailed("agent failure".to_owned()),
-            GeneratedTokenResult::GrammarInitializationFailed("agent failure".to_owned()),
-            GeneratedTokenResult::GrammarRejectedModelOutput("agent failure".to_owned()),
-            GeneratedTokenResult::KvCacheClearFailed("agent failure".to_owned()),
-            GeneratedTokenResult::MediaMicroBatchCheckFailed("agent failure".to_owned()),
-            GeneratedTokenResult::ModelNotLoaded("agent failure".to_owned()),
-            GeneratedTokenResult::MultimodalIngestionFailed("agent failure".to_owned()),
-            GeneratedTokenResult::NoSequenceSlotAvailable("agent failure".to_owned()),
-            GeneratedTokenResult::SamplerChainCreationFailed("agent failure".to_owned()),
-            GeneratedTokenResult::SamplerError("agent failure".to_owned()),
-            GeneratedTokenResult::SamplingCandidatesExhausted("agent failure".to_owned()),
-            GeneratedTokenResult::SchedulerUnavailable("agent failure".to_owned()),
-            GeneratedTokenResult::SequenceIdOutOfRange("agent failure".to_owned()),
-            GeneratedTokenResult::TokenGenerationDisabled("agent failure".to_owned()),
-            GeneratedTokenResult::ToolCallParseFailed("agent failure".to_owned()),
-            GeneratedTokenResult::ToolsSerializationFailed("agent failure".to_owned()),
-        ] {
-            let error = OpenAIError::classify(&token_message(agent_failure)).unwrap();
-
-            assert_eq!(error.error_type, OpenAIErrorType::ServerError);
-            assert_eq!(error.message, "agent failure");
-        }
+        assert!(message.contains("validation"));
     }
 
     #[test]
@@ -283,35 +181,44 @@ mod tests {
 
         let classified = OpenAIError::classify(&message).unwrap();
 
-        assert_eq!(classified.error_type, OpenAIErrorType::ServerError);
+        assert_eq!(classified.error_type, "server_error");
         assert_eq!(classified.message, "internal failure");
     }
 
     #[test]
-    fn classifies_oversized_prompt_as_invalid_request() {
-        let error = OpenAIError::classify(&token_message(
-            GeneratedTokenResult::PromptExceedsContextSize(OversizedPromptDetails {
-                prompt_tokens: 9895,
-                sequence_context_size: 8192,
-            }),
-        ))
-        .unwrap();
+    fn classifies_timeout_as_timeout() {
+        let message = OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "test-request".to_owned(),
+            response: OutgoingResponse::Timeout,
+        });
 
-        assert_eq!(error.error_type, OpenAIErrorType::InvalidRequestError);
-        assert_eq!(
-            error.message,
-            "prompt has 9895 tokens but each agent sequence holds 8192 tokens; shorten the prompt or raise context_size"
-        );
+        let classified = OpenAIError::classify(&message).unwrap();
+
+        assert_eq!(classified.error_type, "timeout");
     }
 
     #[test]
-    fn classifies_tool_call_validation_failure_as_server_error() {
+    fn classifies_too_many_buffered_requests_as_rate_limit() {
+        let message = OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id: "test-request".to_owned(),
+            response: OutgoingResponse::TooManyBufferedRequests,
+        });
+
+        let classified = OpenAIError::classify(&message).unwrap();
+
+        assert_eq!(classified.error_type, "rate_limit_error");
+    }
+
+    #[test]
+    fn classifies_validation_failure_with_first_message() {
         let classified = OpenAIError::classify(&token_message(
             GeneratedTokenResult::ToolCallValidationFailed(vec!["missing field x".to_owned()]),
         ))
         .unwrap();
 
-        assert_eq!(classified.error_type, OpenAIErrorType::ServerError);
+        assert_eq!(classified.error_type, "server_error");
         assert_eq!(classified.message, "missing field x");
     }
 
@@ -329,35 +236,26 @@ mod tests {
     fn does_not_classify_a_done_summary() {
         assert!(
             OpenAIError::classify(&token_message(GeneratedTokenResult::Done(
-                GenerationSummary {
-                    finish: GenerationFinish::EndOfGeneration,
-                    usage: TokenUsage::new(),
-                }
+                GenerationSummary::default()
             )))
             .is_none()
         );
     }
 
     #[test]
-    fn classifies_an_embedding_response_as_an_invalid_request() {
+    fn does_not_classify_an_embedding_response() {
         let message = OutgoingMessage::Response(ResponseEnvelope {
             generated_by: None,
             request_id: "test-request".to_owned(),
             response: OutgoingResponse::Embedding(EmbeddingResult::Done),
         });
 
-        let error = OpenAIError::classify(&message).unwrap();
-
-        assert_eq!(error.error_type, OpenAIErrorType::InvalidRequestError);
-        assert_eq!(
-            error.message,
-            "unexpected embedding response to a token generation request"
-        );
+        assert!(OpenAIError::classify(&message).is_none());
     }
 
     #[test]
-    fn does_not_classify_a_parsed_tool_call() {
-        let parsed = vec![ParsedToolCall::new(
+    fn classifies_a_tool_call_with_arguments_is_unrelated_to_errors() {
+        let parsed = vec![llama_cpp_bindings_types::ParsedToolCall::new(
             "call_x".to_owned(),
             "get_weather".to_owned(),
             ToolCallArguments::ValidJson(json!({"location": "Paris"})),

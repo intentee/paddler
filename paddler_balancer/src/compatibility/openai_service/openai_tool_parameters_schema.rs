@@ -37,14 +37,13 @@ impl OpenAIToolParametersSchema {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::from_value;
     use serde_json::json;
 
     use super::OpenAIToolParametersSchema;
 
     #[test]
     fn conversion_ignores_unknown_keywords_and_keeps_recognized_fields() {
-        let schema: OpenAIToolParametersSchema = from_value(json!({
+        let schema: OpenAIToolParametersSchema = serde_json::from_value(json!({
             "type": "object",
             "properties": {"location": {"type": "string"}},
             "required": ["location"],
@@ -65,7 +64,7 @@ mod tests {
 
     #[test]
     fn conversion_defaults_missing_type_to_object() {
-        let schema: OpenAIToolParametersSchema = from_value(json!({
+        let schema: OpenAIToolParametersSchema = serde_json::from_value(json!({
             "properties": {"location": {"type": "string"}}
         }))
         .unwrap();

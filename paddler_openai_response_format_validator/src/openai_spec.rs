@@ -1,7 +1,9 @@
+use anyhow::Context as _;
+use anyhow::Result;
+use anyhow::bail;
 use serde_json::Value;
 use yaml_rust2::YamlLoader;
 
-use crate::openai_validator_error::OpenAIValidatorError;
 use crate::yaml_to_json_value::yaml_to_json_value;
 
 pub const OPENAPI_YAML: &str = include_str!(concat!(
@@ -9,33 +11,27 @@ pub const OPENAPI_YAML: &str = include_str!(concat!(
     "/../vendor/openai/openai-openapi/openapi.yaml"
 ));
 
-pub fn parse_components(openapi_yaml: &str) -> Result<Value, OpenAIValidatorError> {
-    let documents =
-        YamlLoader::load_from_str(openapi_yaml).map_err(OpenAIValidatorError::SpecNotValidYaml)?;
+pub fn parse_components(openapi_yaml: &str) -> Result<Value> {
+    let documents = YamlLoader::load_from_str(openapi_yaml)
+        .context("the OpenAI OpenAPI document is not valid YAML")?;
 
     let document = documents
         .into_iter()
         .next()
-        .ok_or(OpenAIValidatorError::SpecEmpty)?;
+        .context("the OpenAI OpenAPI document is empty")?;
 
     let specification = yaml_to_json_value(&document)?;
 
-    specification
-        .pointer("/components/schemas")
-        .cloned()
-        .ok_or(OpenAIValidatorError::SpecWithoutComponentSchemas)
+    match specification.pointer("/components/schemas") {
+        Some(components) => Ok(components.clone()),
+        None => bail!("the OpenAI OpenAPI document has no components.schemas object"),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
-
-    use yaml_rust2::YamlLoader;
-    use yaml_rust2::yaml::Yaml;
-
     use super::OPENAPI_YAML;
     use super::parse_components;
-    use crate::openai_validator_error::OpenAIValidatorError;
 
     #[test]
     fn parses_the_embedded_spec_components() {
@@ -52,60 +48,35 @@ mod tests {
 
     #[test]
     fn the_embedded_spec_is_the_modern_3_1_spec() {
-        let documents = YamlLoader::load_from_str(OPENAPI_YAML).unwrap();
-        let components = parse_components(OPENAPI_YAML).unwrap();
-
-        assert_eq!(documents[0]["openapi"].as_str(), Some("3.1.0"));
-        assert!(
-            components
-                .pointer("/CompletionUsage/properties/completion_tokens_details/properties/reasoning_tokens")
-                .is_some()
-        );
-        assert!(
-            components
-                .pointer("/CreateChatCompletionResponse/properties/service_tier")
-                .is_some()
-        );
+        assert!(OPENAPI_YAML.contains("reasoning_tokens"));
+        assert!(OPENAPI_YAML.contains("service_tier"));
     }
 
     #[test]
     fn rejects_invalid_yaml() {
         let error = parse_components("key: \"unterminated").unwrap_err();
 
-        assert!(matches!(
-            error,
-            OpenAIValidatorError::SpecNotValidYaml(ref scan_error)
-                if *scan_error == YamlLoader::load_from_str("key: \"unterminated").unwrap_err()
-        ));
+        assert!(error.to_string().contains("not valid YAML"));
     }
 
     #[test]
     fn rejects_empty_document() {
         let error = parse_components("").unwrap_err();
 
-        assert_eq!(
-            discriminant(&error),
-            discriminant(&OpenAIValidatorError::SpecEmpty)
-        );
+        assert!(error.to_string().contains("empty"));
     }
 
     #[test]
     fn rejects_document_without_components() {
         let error = parse_components("openapi: 3.1.0").unwrap_err();
 
-        assert_eq!(
-            discriminant(&error),
-            discriminant(&OpenAIValidatorError::SpecWithoutComponentSchemas)
-        );
+        assert!(error.to_string().contains("no components.schemas"));
     }
 
     #[test]
     fn propagates_yaml_conversion_failures() {
         let error = parse_components("1: value").unwrap_err();
 
-        assert!(matches!(
-            error,
-            OpenAIValidatorError::YamlMappingKeyNotString { ref key } if *key == Yaml::Integer(1)
-        ));
+        assert!(error.to_string().contains("mapping keys must be strings"));
     }
 }

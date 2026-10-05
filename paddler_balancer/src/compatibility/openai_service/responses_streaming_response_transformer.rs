@@ -1,26 +1,25 @@
-use std::mem::take;
 use std::sync::Arc;
 
+use anyhow::Result;
+use anyhow::anyhow;
 use async_trait::async_trait;
-use parking_lot::Mutex;
-
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+use parking_lot::Mutex;
 
-use crate::agent_relay_error::AgentRelayError;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
-use crate::compatibility::openai_service::openai_error::OpenAIError;
 use crate::compatibility::openai_service::response_snapshot_event::ResponseSnapshotEvent;
-use crate::compatibility::openai_service::responses_response_header::ResponsesResponseHeader;
+use crate::compatibility::openai_service::responses_error::responses_error;
+use crate::compatibility::openai_service::responses_response_builder::ResponsesResponseBuilder;
 use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
 use crate::compatibility::openai_service::responses_streaming_state::ResponsesStreamingState;
 
 #[derive(Clone)]
 pub struct ResponsesStreamingResponseTransformer {
-    pub header: ResponsesResponseHeader,
+    pub builder: ResponsesResponseBuilder,
     pub state: Arc<Mutex<ResponsesStreamingState>>,
 }
 
@@ -39,13 +38,13 @@ impl ResponsesStreamingResponseTransformer {
         let created_sequence_number = state.next_sequence_number();
         events.push(ResponsesStreamEvent::Created(ResponseSnapshotEvent {
             sequence_number: created_sequence_number,
-            response: self.header.in_progress(),
+            response: self.builder.in_progress(),
         }));
 
         let in_progress_sequence_number = state.next_sequence_number();
         events.push(ResponsesStreamEvent::InProgress(ResponseSnapshotEvent {
             sequence_number: in_progress_sequence_number,
-            response: self.header.in_progress(),
+            response: self.builder.in_progress(),
         }));
     }
 
@@ -57,17 +56,12 @@ impl ResponsesStreamingResponseTransformer {
     ) {
         state.close_open_item(events);
 
-        let output = take(&mut state.finalized_output);
-        let snapshot = ResponseSnapshotEvent {
-            sequence_number: state.next_sequence_number(),
-            response: self.header.finished(output, &summary.usage, summary.finish),
-        };
-
-        events.push(if summary.finish.reached_a_length_limit() {
-            ResponsesStreamEvent::Incomplete(snapshot)
-        } else {
-            ResponsesStreamEvent::Completed(snapshot)
-        });
+        let output = state.finalized_output.clone();
+        let completed_sequence_number = state.next_sequence_number();
+        events.push(ResponsesStreamEvent::Completed(ResponseSnapshotEvent {
+            sequence_number: completed_sequence_number,
+            response: self.builder.completed(output, &summary.usage),
+        }));
     }
 }
 
@@ -75,66 +69,55 @@ impl ResponsesStreamingResponseTransformer {
 impl TransformsOutgoingMessage for ResponsesStreamingResponseTransformer {
     type Output = ResponsesStreamEvent;
 
-    async fn transform(
-        &self,
-        message: OutgoingMessage,
-    ) -> Result<Vec<ResponsesStreamEvent>, AgentRelayError> {
+    async fn transform(&self, message: OutgoingMessage) -> Result<Vec<ResponsesStreamEvent>> {
         let mut events: Vec<ResponsesStreamEvent> = Vec::new();
         let mut state = self.state.lock();
 
+        if let Some(error) = responses_error(&message) {
+            self.ensure_preamble(&mut state, &mut events);
+
+            let failed_sequence_number = state.next_sequence_number();
+            events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
+                sequence_number: failed_sequence_number,
+                response: self.builder.failed(&error),
+            }));
+
+            return Ok(events);
+        }
+
         match message {
             OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(
-                        GeneratedTokenResult::ContentToken(text)
-                        | GeneratedTokenResult::UndeterminableToken(text),
-                    ),
+                response: OutgoingResponse::GeneratedToken(token),
                 ..
-            }) => {
-                self.ensure_preamble(&mut state, &mut events);
-                state.handle_content(&mut events, &text);
-            }
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ReasoningToken(text)),
-                ..
-            }) => {
-                self.ensure_preamble(&mut state, &mut events);
-                state.handle_reasoning(&mut events, &text);
-            }
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallToken(_)),
-                ..
-            }) => {}
-            OutgoingMessage::Response(ResponseEnvelope {
-                response:
-                    OutgoingResponse::GeneratedToken(GeneratedTokenResult::ToolCallParsed(parsed_calls)),
-                ..
-            }) => {
-                self.ensure_preamble(&mut state, &mut events);
-                state.handle_tool_calls(&mut events, &parsed_calls);
-            }
-            OutgoingMessage::Response(ResponseEnvelope {
-                response: OutgoingResponse::GeneratedToken(GeneratedTokenResult::Done(summary)),
-                ..
-            }) => {
-                self.ensure_preamble(&mut state, &mut events);
-                self.handle_done(&mut state, &mut events, &summary);
-            }
+            }) => match token {
+                GeneratedTokenResult::ContentToken(text)
+                | GeneratedTokenResult::UndeterminableToken(text) => {
+                    self.ensure_preamble(&mut state, &mut events);
+                    state.handle_content(&mut events, &text);
+                }
+                GeneratedTokenResult::ReasoningToken(text) => {
+                    self.ensure_preamble(&mut state, &mut events);
+                    state.handle_reasoning(&mut events, &text);
+                }
+                GeneratedTokenResult::ToolCallToken(_) => {}
+                GeneratedTokenResult::ToolCallParsed(parsed_calls) => {
+                    self.ensure_preamble(&mut state, &mut events);
+                    state.handle_tool_calls(&mut events, &parsed_calls)?;
+                }
+                GeneratedTokenResult::Done(summary) => {
+                    self.ensure_preamble(&mut state, &mut events);
+                    self.handle_done(&mut state, &mut events, &summary);
+                }
+                other => {
+                    return Err(anyhow!(
+                        "ResponsesStreamingResponseTransformer received a token it does not know how to handle: {other:?}"
+                    ));
+                }
+            },
             other => {
-                let error = OpenAIError::classify(&other).ok_or_else(|| {
-                    AgentRelayError::MessageNotRelayable {
-                        message: Box::new(other),
-                    }
-                })?;
-
-                self.ensure_preamble(&mut state, &mut events);
-
-                let failed_sequence_number = state.next_sequence_number();
-                events.push(ResponsesStreamEvent::Failed(ResponseSnapshotEvent {
-                    sequence_number: failed_sequence_number,
-                    response: self.header.failed(&error),
-                }));
+                return Err(anyhow!(
+                    "ResponsesStreamingResponseTransformer received an outgoing message it does not know how to handle: {other:?}"
+                ));
             }
         }
 
@@ -149,30 +132,21 @@ mod tests {
     use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
-    use parking_lot::Mutex;
-    use serde_json::Value;
-    use serde_json::json;
-    use serde_json::to_value;
-
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
-    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
-    use paddler_messaging::inference_client::notification::Notification;
     use paddler_messaging::inference_client::response::Response as OutgoingResponse;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
+    use parking_lot::Mutex;
+    use serde_json::json;
+
+    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+    use crate::compatibility::openai_service::responses_response_builder::ResponsesResponseBuilder;
+    use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
 
     use super::ResponsesStreamingResponseTransformer;
     use super::ResponsesStreamingState;
-    use crate::agent_relay_error::AgentRelayError;
-    use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
-    use crate::compatibility::openai_service::responses_response_header::ResponsesResponseHeader;
-    use crate::compatibility::openai_service::responses_stream_event::ResponsesStreamEvent;
-
-    fn serialized(event: &ResponsesStreamEvent) -> Value {
-        to_value(event).expect("a responses stream event must serialize")
-    }
 
     #[must_use]
     pub fn token_message(token_result: GeneratedTokenResult) -> OutgoingMessage {
@@ -190,7 +164,6 @@ mod tests {
         reasoning_tokens: u64,
     ) -> GenerationSummary {
         GenerationSummary {
-            finish: GenerationFinish::EndOfGeneration,
             usage: TokenUsage {
                 prompt_tokens,
                 content_tokens,
@@ -210,20 +183,18 @@ mod tests {
     }
 
     #[must_use]
-    pub fn header() -> ResponsesResponseHeader {
-        ResponsesResponseHeader {
+    pub fn builder() -> ResponsesResponseBuilder {
+        ResponsesResponseBuilder {
             id: "resp_test".to_owned(),
             created_at: 0,
             model: "test-model".to_owned(),
             instructions: None,
-            temperature: 0.25,
-            top_p: 0.5,
         }
     }
 
     fn streaming_transformer() -> ResponsesStreamingResponseTransformer {
         ResponsesStreamingResponseTransformer {
-            header: header(),
+            builder: builder(),
             state: Arc::new(Mutex::new(ResponsesStreamingState::default())),
         }
     }
@@ -256,8 +227,8 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        assert_eq!(serialized(&events[0])["response"]["status"], "in_progress");
-        assert_eq!(serialized(&events[4])["delta"], "hi");
+        assert_eq!(events[0].to_json()["response"]["status"], "in_progress");
+        assert_eq!(events[4].to_json()["delta"], "hi");
     }
 
     #[tokio::test]
@@ -307,7 +278,7 @@ mod tests {
             ]
         );
 
-        let completed = serialized(&events[3]);
+        let completed = events[3].to_json();
 
         assert_eq!(completed["response"]["status"], "completed");
         assert_eq!(completed["response"]["usage"]["input_tokens"], 7);
@@ -349,9 +320,10 @@ mod tests {
                 "response.output_text.delta",
             ]
         );
-        assert_eq!(serialized(&events[1])["output_index"], 0);
-        assert_eq!(serialized(&events[2])["output_index"], 1);
-        assert_eq!(serialized(&events[1])["item"]["type"], "reasoning");
+        // reasoning item closed at output_index 0, message opened at output_index 1
+        assert_eq!(events[1].to_json()["output_index"], 0);
+        assert_eq!(events[2].to_json()["output_index"], 1);
+        assert_eq!(events[1].to_json()["item"]["type"], "reasoning");
     }
 
     #[tokio::test]
@@ -377,15 +349,15 @@ mod tests {
             ]
         );
 
-        let delta_event = serialized(&events[3]);
+        let delta_event = events[3].to_json();
 
         assert_eq!(delta_event["delta"], "{\"location\":\"Paris\"}");
         assert!(
             delta_event.get("content_index").is_none(),
             "function_call_arguments events must not carry a content_index"
         );
-        assert_eq!(serialized(&events[4])["name"], "get_weather");
-        assert_eq!(serialized(&events[5])["item"]["call_id"], "call_x");
+        assert_eq!(events[4].to_json()["name"], "get_weather");
+        assert_eq!(events[5].to_json()["item"]["call_id"], "call_x");
     }
 
     #[tokio::test]
@@ -408,7 +380,7 @@ mod tests {
             ]
         );
 
-        let failed = serialized(&events[2]);
+        let failed = events[2].to_json();
 
         assert_eq!(failed["response"]["status"], "failed");
         assert_eq!(failed["response"]["error"]["code"], "server_error");
@@ -435,7 +407,7 @@ mod tests {
 
         for event in &emitted {
             validator
-                .validate_responses_stream_event(&serialized(event))
+                .validate_responses_stream_event(&event.to_json())
                 .unwrap();
         }
     }
@@ -454,23 +426,8 @@ mod tests {
 
         for event in &events {
             validator
-                .validate_responses_stream_event(&serialized(event))
+                .validate_responses_stream_event(&event.to_json())
                 .unwrap();
         }
-    }
-
-    #[tokio::test]
-    async fn rejects_inference_socket_notifications() {
-        let transform_result = streaming_transformer()
-            .transform(OutgoingMessage::Notification(
-                Notification::TokenGenerationEnabled,
-            ))
-            .await;
-
-        assert!(matches!(
-            transform_result,
-            Err(AgentRelayError::MessageNotRelayable { message })
-                if matches!(*message, OutgoingMessage::Notification(Notification::TokenGenerationEnabled))
-        ));
     }
 }

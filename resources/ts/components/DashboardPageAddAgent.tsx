@@ -20,8 +20,8 @@ export function DashboardPageAddAgent() {
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
 
   const onClick = useCallback(
-    function (event: MouseEvent<HTMLButtonElement>) {
-      event.preventDefault();
+    function (evt: MouseEvent<HTMLButtonElement>) {
+      evt.preventDefault();
 
       setIsPreviewVisible(true);
     },

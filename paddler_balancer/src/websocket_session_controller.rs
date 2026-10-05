@@ -3,8 +3,6 @@ use std::marker::PhantomData;
 use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
-use serde_json::to_string;
-
 use paddler_messaging::rpc_message::RpcMessage;
 
 use crate::controls_session::ControlsSession;
@@ -36,7 +34,7 @@ where
     TResponse: RpcMessage + Sync + 'static,
 {
     async fn send_response(&mut self, message: TResponse) -> Result<()> {
-        let serialized_message = to_string(&message)?;
+        let serialized_message = serde_json::to_string(&message)?;
 
         self.session.text(serialized_message).await?;
 

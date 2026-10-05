@@ -1,13 +1,13 @@
 pub mod pyjinja_tojson;
 pub mod raise_exception;
 
+use anyhow::Context as _;
+use anyhow::Result;
 use minijinja::Environment;
-use minijinja::Error;
 use minijinja_contrib::add_to_environment;
 use minijinja_contrib::pycompat::unknown_method_callback;
-use serde::ser::Serialize;
-
 use paddler_messaging::chat_template::ChatTemplate;
+use serde::ser::Serialize;
 
 use self::pyjinja_tojson::pyjinja_tojson;
 use self::raise_exception::raise_exception;
@@ -19,7 +19,7 @@ pub struct ChatTemplateRenderer {
 }
 
 impl ChatTemplateRenderer {
-    pub fn new(ChatTemplate { content }: ChatTemplate) -> Result<Self, Error> {
+    pub fn new(ChatTemplate { content }: ChatTemplate) -> Result<Self> {
         let mut minijinja_env = Environment::new();
 
         minijinja_env.add_function("raise_exception", raise_exception);
@@ -32,10 +32,12 @@ impl ChatTemplateRenderer {
         Ok(Self { minijinja_env })
     }
 
-    pub fn render<TContext: Serialize>(&self, context: TContext) -> Result<String, Error> {
-        self.minijinja_env
+    pub fn render<TContext: Serialize>(&self, context: TContext) -> Result<String> {
+        Ok(self
+            .minijinja_env
             .get_template(CHAT_TEMPLATE_NAME)
-            .and_then(|template| template.render(context))
+            .context("chat template is not registered in the rendering environment")?
+            .render(context)?)
     }
 }
 
@@ -43,9 +45,7 @@ impl ChatTemplateRenderer {
 mod tests {
     use std::collections::HashMap;
 
-    use minijinja::ErrorKind;
     use minijinja::context;
-
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::chat_template_message::ChatTemplateMessage;
     use paddler_messaging::chat_template_message_content::ChatTemplateMessageContent;
@@ -67,14 +67,11 @@ mod tests {
             content: "{% if unclosed %}".to_owned(),
         };
 
-        assert!(
-            ChatTemplateRenderer::new(template)
-                .is_err_and(|compile_error| compile_error.kind() == ErrorKind::SyntaxError)
-        );
+        assert!(ChatTemplateRenderer::new(template).is_err());
     }
 
     #[test]
-    fn renders_the_context_values_into_the_template() {
+    fn render_produces_expected_output() {
         let template = ChatTemplate {
             content: "Hello {{ name }}!".to_owned(),
         };
@@ -149,10 +146,11 @@ mod tests {
         let render_error = template_renderer
             .render(context! {})
             .expect_err("raise_exception must turn rendering into an error");
+        let error_message = render_error.to_string();
 
-        assert_eq!(
-            render_error.detail(),
-            Some("Model's chat template raised an exception: 'boom'")
+        assert!(
+            error_message.contains("boom"),
+            "raise_exception must surface its message; got: {error_message}"
         );
     }
 
@@ -170,7 +168,11 @@ mod tests {
         let render_error = renderer
             .render(context! {})
             .expect_err("rendering must fail when the template is missing");
+        let error_message = render_error.to_string();
 
-        assert_eq!(render_error.kind(), ErrorKind::TemplateNotFound);
+        assert_eq!(
+            error_message,
+            "chat template is not registered in the rendering environment"
+        );
     }
 }

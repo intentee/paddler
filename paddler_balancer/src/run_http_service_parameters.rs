@@ -1,8 +1,8 @@
-use crate::http_listener::HttpListener;
+use std::net::SocketAddr;
 
 pub struct RunHttpServiceParameters<TAppFactory> {
     pub app_factory: TAppFactory,
-    pub http_listener: HttpListener,
+    pub bind_addr: SocketAddr,
     pub service_name: &'static str,
     pub worker_count: usize,
 }

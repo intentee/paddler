@@ -14,18 +14,14 @@
     <div
         id="paddler-dashboard"
 
-        data-buffered-request-timeout-millis="{{ template_data.buffered_request_timeout.as_millis() }}"
-        {% if let Some(compat_openai_addr) = template_data.compat_openai_addr %}
-        data-compat-openai-addr="{{ compat_openai_addr.input_addr }}"
-        {% endif %}
-        data-inference-addr="{{ template_data.inference_addr.input_addr }}"
-        data-management-addr="{{ template_data.management_addr.input_addr }}"
-        data-max-buffered-requests="{{ template_data.max_buffered_requests }}"
-        {% if let Some(statsd_service_configuration) = template_data.statsd_service_configuration %}
-        data-statsd-addr="{{ statsd_service_configuration.statsd_addr.input_addr }}"
-        data-statsd-prefix="{{ template_data.statsd_prefix }}"
-        data-statsd-reporting-interval-millis="{{ statsd_service_configuration.statsd_reporting_interval.as_millis() }}"
-        {% endif %}
+        data-buffered-request-timeout-millis="{{ buffered_request_timeout_millis }}"
+        data-compat-openai-addr="{{ compat_openai_addr }}"
+        data-inference-addr="{{ inference_addr }}"
+        data-management-addr="{{ management_addr }}"
+        data-max-buffered-requests="{{ max_buffered_requests }}"
+        data-statsd-addr="{{ statsd_addr }}"
+        data-statsd-prefix="{{ statsd_prefix }}"
+        data-statsd-reporting-interval-millis="{{ statsd_reporting_interval_millis }}"
     ></div>
 </body>
 </html>

@@ -1,10 +1,11 @@
+use anyhow::Result;
+use anyhow::anyhow;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value;
 
 use super::validated_parameters_schema::ValidatedParametersSchema;
-use crate::request_params_validation_error::RequestParamsValidationError;
 use crate::validates::Validates;
 
 #[derive(Default, Deserialize, Serialize)]
@@ -19,13 +20,11 @@ pub struct RawParametersSchema {
 }
 
 impl Validates<ValidatedParametersSchema> for RawParametersSchema {
-    fn validate(self) -> Result<ValidatedParametersSchema, RequestParamsValidationError> {
+    fn validate(self) -> Result<ValidatedParametersSchema> {
         if let (Some(required), Some(properties)) = (&self.required, &self.properties) {
             for field in required {
                 if !properties.contains_key(field) {
-                    return Err(RequestParamsValidationError::RequiredFieldNotInProperties {
-                        field: field.clone(),
-                    });
+                    return Err(anyhow!("Required field '{field}' not found in properties"));
                 }
             }
         }
@@ -41,12 +40,9 @@ impl Validates<ValidatedParametersSchema> for RawParametersSchema {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::Map;
     use serde_json::json;
 
-    use super::RawParametersSchema;
-    use crate::request_params_validation_error::RequestParamsValidationError;
-    use crate::validates::Validates;
+    use super::*;
 
     #[test]
     fn validate_passes_when_every_required_field_is_present() {
@@ -100,11 +96,11 @@ mod tests {
             additional_properties: None,
         };
 
+        let error = raw_schema.validate().unwrap_err();
+
         assert_eq!(
-            raw_schema.validate().err(),
-            Some(RequestParamsValidationError::RequiredFieldNotInProperties {
-                field: "missing_field".to_owned(),
-            })
+            error.to_string(),
+            "Required field 'missing_field' not found in properties"
         );
     }
 }

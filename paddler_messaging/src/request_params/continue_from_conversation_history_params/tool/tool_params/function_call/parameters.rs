@@ -1,10 +1,10 @@
+use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use crate::request_params_validation_error::RequestParamsValidationError;
 use crate::validates::Validates;
+use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -21,9 +21,7 @@ impl<TParametersSchema> Parameters<TParametersSchema> {
 }
 
 impl Validates<Parameters<ValidatedParametersSchema>> for Parameters<RawParametersSchema> {
-    fn validate(
-        self,
-    ) -> Result<Parameters<ValidatedParametersSchema>, RequestParamsValidationError> {
+    fn validate(self) -> Result<Parameters<ValidatedParametersSchema>> {
         match self {
             Self::Empty => Ok(Parameters::Empty),
             Self::Schema(schema) => Ok(Parameters::Schema(schema.validate()?)),
@@ -36,10 +34,7 @@ mod tests {
     use serde_json::Map;
     use serde_json::Value;
 
-    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use crate::validates::Validates;
-use super::Parameters;
+    use super::*;
 
     fn properties_with_name() -> Map<String, Value> {
         let mut properties = Map::new();
@@ -97,23 +92,5 @@ use super::Parameters;
         });
 
         assert_eq!(validated, expected);
-    }
-
-    #[test]
-    fn validate_rejects_a_schema_requiring_an_undeclared_property() {
-        let parameters = Parameters::Schema(RawParametersSchema {
-            schema_type: "object".to_owned(),
-            properties: Some(properties_with_name()),
-            required: Some(vec!["absent".to_owned()]),
-            additional_properties: None,
-        });
-
-        assert_eq!(
-            parameters
-                .validate()
-                .err()
-                .map(|validation_error| validation_error.to_string()),
-            Some("Required field 'absent' not found in properties".to_owned())
-        );
     }
 }

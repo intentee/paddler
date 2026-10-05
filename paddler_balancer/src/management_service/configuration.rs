@@ -1,7 +1,7 @@
-use crate::resolved_socket_addr::ResolvedSocketAddr;
+use std::net::SocketAddr;
 
 #[derive(Clone)]
 pub struct Configuration {
-    pub addr: ResolvedSocketAddr,
+    pub addr: SocketAddr,
     pub cors_allowed_hosts: Vec<String>,
 }

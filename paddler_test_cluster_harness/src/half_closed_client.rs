@@ -3,11 +3,8 @@ use std::net::SocketAddr;
 use anyhow::Context as _;
 use anyhow::Result;
 use serde::Serialize;
-use serde_json::to_string;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
-
-use crate::cluster_harness_error::ClusterHarnessError;
 
 pub struct HalfClosedClient {
     socket: TcpStream,
@@ -22,7 +19,7 @@ impl HalfClosedClient {
     where
         TBody: Serialize,
     {
-        let serialized_body = to_string(body)?;
+        let serialized_body = serde_json::to_string(body)?;
         let request = format!(
             "POST {path} HTTP/1.1\r\n\
              Host: {addr}\r\n\
@@ -35,9 +32,10 @@ impl HalfClosedClient {
 
         let mut socket = TcpStream::connect(addr)
             .await
-            .map_err(|source| ClusterHarnessError::HalfClosedClientUnreachable { addr, source })?;
+            .context(format!("half-closed client must reach {addr}"))?;
 
         socket.write_all(request.as_bytes()).await?;
+        socket.flush().await?;
 
         Ok(Self { socket })
     }
@@ -54,18 +52,19 @@ impl HalfClosedClient {
 mod tests {
     use std::net::SocketAddr;
 
+    use anyhow::Result;
     use serde_json::json;
     use tokio::io::AsyncReadExt as _;
     use tokio::net::TcpListener;
-    use tokio::spawn;
 
     use super::HalfClosedClient;
-    use crate::cluster_harness_error::ClusterHarnessError;
-    use crate::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 
     #[tokio::test]
-    async fn reports_the_address_it_could_not_reach() {
-        let unreachable_addr = SocketAddr::from(([127, 0, 0, 1], 1));
+    async fn reports_the_address_it_could_not_reach() -> Result<()> {
+        let unbound_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?;
+        let unreachable_addr = unbound_listener.local_addr()?;
+
+        drop(unbound_listener);
 
         let connect_error = HalfClosedClient::post_json_then_half_close(
             unreachable_addr,
@@ -73,57 +72,43 @@ mod tests {
             &json!({}),
         )
         .await
-        .err()
-        .expect("connecting to a closed port must fail");
+        .err();
 
-        assert!(matches!(
-            connect_error.downcast_ref::<ClusterHarnessError>(),
-            Some(ClusterHarnessError::HalfClosedClientUnreachable { addr, .. }) if *addr == unreachable_addr
-        ));
+        assert!(
+            connect_error
+                .is_some_and(|error| error.to_string().contains(&unreachable_addr.to_string())),
+            "connecting to a closed port must fail and name the address"
+        );
+
+        Ok(())
     }
 
     #[tokio::test]
-    async fn sends_the_request_and_leaves_the_read_side_open() {
-        let listener = TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR)
-            .await
-            .expect("the receiving socket must bind");
-        let addr = listener
-            .local_addr()
-            .expect("the receiving socket must report its address");
-        let accepted = spawn(async move {
-            let (mut accepted_socket, _peer) = listener
-                .accept()
-                .await
-                .expect("the receiving socket must accept the client");
+    async fn sends_the_request_and_leaves_the_read_side_open() -> Result<()> {
+        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await?;
+        let addr = listener.local_addr()?;
+
+        let accepted = tokio::spawn(async move {
+            let (mut accepted_socket, _peer) = listener.accept().await?;
             let mut received = Vec::new();
 
-            accepted_socket
-                .read_to_end(&mut received)
-                .await
-                .expect("the request must be readable until the client half-closes");
+            accepted_socket.read_to_end(&mut received).await?;
 
-            received
+            Ok::<Vec<u8>, anyhow::Error>(received)
         });
 
         let mut client =
             HalfClosedClient::post_json_then_half_close(addr, "/api/v1/probe", &json!({"a": 1}))
-                .await
-                .expect("the client must send its request");
+                .await?;
 
-        client
-            .half_close()
-            .await
-            .expect("the client must half-close its write side");
+        client.half_close().await?;
 
-        let received =
-            String::from_utf8(accepted.await.expect("the receiving task must not panic"))
-                .expect("the request must be text");
+        let received = String::from_utf8(accepted.await??)?;
 
-        assert_eq!(
-            received,
-            format!(
-                "POST /api/v1/probe HTTP/1.1\r\nHost: {addr}\r\nContent-Type: application/json\r\nContent-Length: 7\r\n\r\n{{\"a\":1}}"
-            )
-        );
+        assert!(received.starts_with("POST /api/v1/probe HTTP/1.1\r\n"));
+        assert!(received.contains("Content-Length: 7\r\n"));
+        assert!(received.ends_with("{\"a\":1}"));
+
+        Ok(())
     }
 }

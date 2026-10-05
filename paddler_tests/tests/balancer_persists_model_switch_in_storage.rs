@@ -1,19 +1,22 @@
-use tokio_util::sync::CancellationToken;
+#![cfg(feature = "tests_that_use_llms")]
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_persists_model_switch_in_storage() {
-    let database = StateDatabaseFile::new().expect("the state database file must be created");
+async fn balancer_persists_model_switch_in_storage() -> Result<()> {
+    let database = StateDatabaseFile::new()?;
 
-    let ModelCard { reference } = qwen3_0_6b();
+    let ModelCard { reference, .. } = qwen3_0_6b();
 
     let initial_state = BalancerDesiredState {
         chat_template_override: None,
@@ -30,14 +33,14 @@ async fn balancer_persists_model_switch_in_storage() {
         desired_state: Some(initial_state.clone()),
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let observed_initial = cluster
         .client_management
         .get_balancer_desired_state(CancellationToken::new())
         .await
-        .expect("failed to read initial desired state");
+        .map_err(anyhow::Error::new)
+        .context("failed to read initial desired state")?;
 
     assert_eq!(observed_initial.model, initial_state.model);
 
@@ -53,18 +56,19 @@ async fn balancer_persists_model_switch_in_storage() {
         .client_management
         .put_balancer_desired_state(CancellationToken::new(), &switched_state)
         .await
-        .expect("failed to switch desired model");
+        .map_err(anyhow::Error::new)
+        .context("failed to switch desired model")?;
 
     let observed_switched = cluster
         .client_management
         .get_balancer_desired_state(CancellationToken::new())
         .await
-        .expect("failed to read switched desired state");
+        .map_err(anyhow::Error::new)
+        .context("failed to read switched desired state")?;
 
     assert_eq!(observed_switched.model, switched_state.model);
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

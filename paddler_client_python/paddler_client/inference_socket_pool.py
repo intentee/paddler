@@ -2,24 +2,27 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING
+import logging
 
-from paddler_client.error import InvalidSocketPoolSizeError
-from paddler_client.inference_socket_connection import InferenceSocketConnection
+from paddler_client.error import ConnectionDroppedError
+from paddler_client.inference_socket_connection import (
+    InferenceSocketConnection,
+    ResponseStream,
+)
 
-if TYPE_CHECKING:
-    from paddler_client.response_stream import ResponseStream
+logger = logging.getLogger(__name__)
 
 
 class InferenceSocketPool:
     def __init__(self, url: str, pool_size: int) -> None:
         if pool_size < 1:
-            raise InvalidSocketPoolSizeError(pool_size)
+            msg = f"pool_size must be >= 1, got {pool_size}"
+            raise ValueError(msg)
 
         self._url = url
         self._pool_size = pool_size
         self._connections: list[InferenceSocketConnection | None] = [None] * pool_size
-        self._next_connection_index = 0
+        self._next_idx = 0
         self._lock = asyncio.Lock()
 
     async def send_request(
@@ -27,16 +30,22 @@ class InferenceSocketPool:
         request_id: str,
         message: dict[str, object],
     ) -> ResponseStream:
-        serialized_message = json.dumps(message)
+        json_str = json.dumps(message)
 
         async with self._lock:
-            connection_index = self._next_connection_index
-            self._next_connection_index = (
-                self._next_connection_index + 1
-            ) % self._pool_size
-            connection = await self._ensure_connected(connection_index)
+            idx = self._next_idx
+            self._next_idx = (self._next_idx + 1) % self._pool_size
+            connection = await self._ensure_connected(idx)
 
-        return await connection.send(request_id, serialized_message)
+        try:
+            return await connection.send(request_id, json_str)
+        except ConnectionDroppedError:
+            logger.info("Connection dropped, reconnecting...")
+
+            async with self._lock:
+                connection = await self._ensure_connected(idx, force=True)
+
+            return await connection.send(request_id, json_str)
 
     async def close(self) -> None:
         for connection in self._connections:
@@ -46,17 +55,21 @@ class InferenceSocketPool:
         self._connections = [None] * self._pool_size
 
     async def _ensure_connected(
-        self, connection_index: int
+        self,
+        idx: int,
+        *,
+        force: bool = False,
     ) -> InferenceSocketConnection:
-        connection = self._connections[connection_index]
+        connection = self._connections[idx]
 
-        if connection is not None and connection.is_connected:
+        if not force and connection is not None and connection.is_connected:
             return connection
 
         if connection is not None:
             await connection.close()
 
-        new_connection = await InferenceSocketConnection.connect(self._url)
-        self._connections[connection_index] = new_connection
+        new_connection = InferenceSocketConnection(self._url)
+        await new_connection.connect()
+        self._connections[idx] = new_connection
 
         return new_connection

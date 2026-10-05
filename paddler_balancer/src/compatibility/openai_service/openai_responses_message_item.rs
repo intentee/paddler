@@ -1,6 +1,5 @@
-use serde::Deserialize;
-
 use paddler_messaging::conversation_message::ConversationMessage;
+use serde::Deserialize;
 
 use crate::compatibility::openai_service::openai_responses_message_content::OpenAIResponsesMessageContent;
 

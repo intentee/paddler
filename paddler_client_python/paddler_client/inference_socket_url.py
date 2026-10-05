@@ -1,7 +1,5 @@
 from urllib.parse import urlparse, urlunparse
 
-from paddler_client.error import UnsupportedUrlSchemeError
-
 _SCHEME_MAP: dict[str, str] = {
     "http": "ws",
     "https": "wss",
@@ -15,7 +13,8 @@ def inference_socket_url(url: str) -> str:
     new_scheme = _SCHEME_MAP.get(parsed.scheme)
 
     if new_scheme is None:
-        raise UnsupportedUrlSchemeError(parsed.scheme)
+        msg = f"Unsupported URL scheme: {parsed.scheme}"
+        raise ValueError(msg)
 
     return urlunparse(
         (

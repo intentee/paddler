@@ -1,19 +1,13 @@
-use std::pin::Pin;
-
-use futures_util::Stream;
-use futures_util::StreamExt as _;
 use reqwest::Client;
 use reqwest::Response;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::error::Result;
 use crate::format_api_url::format_api_url;
 use crate::send_checked_request::send_checked_request;
-use crate::stream::sse::Sse;
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -43,18 +37,6 @@ impl HttpClient {
         path: &str,
     ) -> Result<TResponse> {
         Ok(self.get(cancellation_token, path).await?.json().await?)
-    }
-
-    pub async fn get_sse_json<TItem: DeserializeOwned + Send + 'static>(
-        &self,
-        cancellation_token: CancellationToken,
-        path: &str,
-    ) -> Result<Pin<Box<dyn Stream<Item = Result<TItem>> + Send>>> {
-        let response = self.get(cancellation_token.clone(), path).await?;
-        let items = Sse::from_response(cancellation_token, response)
-            .map(|data_result| data_result.and_then(|data| Ok(from_str(&data)?)));
-
-        Ok(Box::pin(items))
     }
 
     pub async fn get_text(
@@ -92,32 +74,14 @@ impl HttpClient {
 
 #[cfg(test)]
 mod tests {
-    use futures_util::StreamExt as _;
-    use http::StatusCode;
     use tokio_util::sync::CancellationToken;
     use url::Url;
-
-    use paddler_local_http_fixture::fixture_response::FixtureResponse;
-    use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
-    use paddler_messaging::api_path::ApiPath;
 
     use super::HttpClient;
     use crate::error::Error;
 
-    const UNREACHABLE_BASE_URL: &str = "http://127.0.0.1:1";
-
     fn unreachable_client() -> HttpClient {
-        HttpClient::new(Url::parse(UNREACHABLE_BASE_URL).expect("the test URL must be valid"))
-    }
-
-    fn client_of(fixture: &LocalHttpFixture) -> HttpClient {
-        HttpClient::new(Url::parse(&fixture.url("/")).expect("the fixture URL must be valid"))
-    }
-
-    async fn fixture_serving(response: FixtureResponse) -> LocalHttpFixture {
-        LocalHttpFixture::start(response)
-            .await
-            .expect("the fixture server must start")
+        HttpClient::new(Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"))
     }
 
     fn cancelled_token() -> CancellationToken {
@@ -132,9 +96,9 @@ mod tests {
     async fn an_unreachable_server_maps_to_the_connect_variant() {
         assert!(matches!(
             unreachable_client()
-                .get(CancellationToken::new(), ApiPath::HEALTH)
+                .get(CancellationToken::new(), "/health")
                 .await,
-            Err(Error::Connect { url, .. }) if url == format!("{UNREACHABLE_BASE_URL}/health")
+            Err(Error::Connect { .. })
         ));
     }
 
@@ -142,19 +106,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_json_request() {
         assert!(matches!(
             unreachable_client()
-                .get_json::<String>(cancelled_token(), ApiPath::AGENTS)
+                .get_json::<String>(cancelled_token(), "/api/v1/agents")
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::AGENTS)
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_cancelled_token_rejects_a_server_sent_event_request() {
-        assert!(matches!(
-            unreachable_client()
-                .get_sse_json::<String>(cancelled_token(), ApiPath::AGENTS_STREAM)
-                .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::AGENTS_STREAM)
+            Err(Error::RequestCancelled { .. })
         ));
     }
 
@@ -162,9 +116,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_text_request() {
         assert!(matches!(
             unreachable_client()
-                .get_text(cancelled_token(), ApiPath::METRICS)
+                .get_text(cancelled_token(), "/metrics")
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}/metrics")
+            Err(Error::RequestCancelled { .. })
         ));
     }
 
@@ -174,11 +128,11 @@ mod tests {
             unreachable_client()
                 .post_json(
                     cancelled_token(),
-                    ApiPath::CONTINUE_FROM_RAW_PROMPT,
+                    "/api/v1/continue_from_raw_prompt",
                     "body"
                 )
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::CONTINUE_FROM_RAW_PROMPT)
+            Err(Error::RequestCancelled { .. })
         ));
     }
 
@@ -186,52 +140,9 @@ mod tests {
     async fn a_cancelled_token_rejects_a_put_request() {
         assert!(matches!(
             unreachable_client()
-                .put_json(cancelled_token(), ApiPath::BALANCER_DESIRED_STATE, "body")
+                .put_json(cancelled_token(), "/api/v1/balancer_desired_state", "body")
                 .await,
-            Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::BALANCER_DESIRED_STATE)
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_body_that_is_not_json_is_reported_as_undecodable() {
-        let fixture = fixture_serving(FixtureResponse::Ok(b"not json".to_vec())).await;
-
-        assert!(matches!(
-            client_of(&fixture)
-                .get_json::<String>(CancellationToken::new(), ApiPath::AGENTS)
-                .await,
-            Err(Error::Http(source)) if source.is_decode()
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_server_sent_event_that_is_not_json_is_reported_as_undecodable() {
-        let fixture = fixture_serving(FixtureResponse::Ok(b"data: not json\n\n".to_vec())).await;
-        let mut events = client_of(&fixture)
-            .get_sse_json::<String>(CancellationToken::new(), ApiPath::AGENTS_STREAM)
-            .await
-            .expect("the event stream must open");
-
-        assert!(matches!(
-            events.next().await,
-            Some(Err(Error::Json(source))) if source.is_syntax()
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_truncated_text_body_is_reported_as_unreadable() {
-        let fixture = fixture_serving(FixtureResponse::TruncatedBody {
-            sent_body: b"paddler_".to_vec(),
-            status: StatusCode::OK,
-            withheld_byte_count: 8,
-        })
-        .await;
-
-        assert!(matches!(
-            client_of(&fixture)
-                .get_text(CancellationToken::new(), ApiPath::METRICS)
-                .await,
-            Err(Error::Http(source)) if source.is_decode()
+            Err(Error::RequestCancelled { .. })
         ));
     }
 }

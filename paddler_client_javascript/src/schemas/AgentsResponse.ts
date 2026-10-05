@@ -9,8 +9,8 @@ export const AgentsResponseSchema = z
   .strict()
   .transform(function ({ agents }) {
     return Object.freeze({
-      agents: agents.sort(function (left: Agent, right: Agent) {
-        return (left.name ?? left.id).localeCompare(right.name ?? right.id);
+      agents: agents.sort(function (a: Agent, b: Agent) {
+        return String(a.name).localeCompare(String(b.name));
       }),
     });
   });

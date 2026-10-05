@@ -1,17 +1,7 @@
-use std::net::SocketAddr;
-
 use anyhow::Result;
-use url::Url;
 
-use paddler_balancer::balancer_addresses::BalancerAddresses;
-
-use crate::cluster_harness_error::ClusterHarnessError;
+use crate::balancer_addresses::BalancerAddresses;
 use crate::managed_process::ManagedProcess;
-
-fn base_url_for(addr: SocketAddr) -> Result<Url, ClusterHarnessError> {
-    Url::parse(&format!("http://{addr}/"))
-        .map_err(|source| ClusterHarnessError::BaseUrlInvalid { addr, source })
-}
 
 pub struct RunningBalancer {
     pub addresses: BalancerAddresses,
@@ -24,25 +14,7 @@ impl RunningBalancer {
         Self { addresses, process }
     }
 
-    pub fn compat_openai_addr(&self) -> Result<SocketAddr, ClusterHarnessError> {
-        self.addresses
-            .compat_openai
-            .ok_or(ClusterHarnessError::CompatOpenAIServiceNotServed)
-    }
-
-    pub fn compat_openai_base_url(&self) -> Result<Url, ClusterHarnessError> {
-        self.compat_openai_addr().and_then(base_url_for)
-    }
-
-    pub fn inference_base_url(&self) -> Result<Url, ClusterHarnessError> {
-        base_url_for(self.addresses.inference)
-    }
-
-    pub fn management_base_url(&self) -> Result<Url, ClusterHarnessError> {
-        base_url_for(self.addresses.management)
-    }
-
-    pub async fn shutdown(self) -> Result<()> {
+    pub async fn shutdown(mut self) -> Result<()> {
         self.process.shutdown().await
     }
 }

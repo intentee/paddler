@@ -1,19 +1,14 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
-use futures_util::future::try_join_all;
-use tokio_util::sync::CancellationToken;
-
+use anyhow::Result;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_serves_four_concurrent_clients_streaming_tokens() {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 4))
-        .await
-        .expect("the cluster must start");
+async fn agent_serves_four_concurrent_clients_streaming_tokens() -> Result<()> {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 4)).await?;
 
     let prompts = ["The sky is", "Roses are", "Once upon", "In the year"];
 
@@ -22,15 +17,13 @@ async fn agent_serves_four_concurrent_clients_streaming_tokens() {
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: NonZeroU32::new(8).unwrap(),
+                max_tokens: 8,
                 raw_prompt: prompt.to_owned(),
             },
         )
     });
 
-    let collected_results = try_join_all(client_tasks)
-        .await
-        .expect("every concurrent request must succeed");
+    let collected_results = futures_util::future::try_join_all(client_tasks).await?;
 
     assert_eq!(collected_results.len(), 4);
 
@@ -44,8 +37,7 @@ async fn agent_serves_four_concurrent_clients_streaming_tokens() {
         assert!(token_count > 0);
     }
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

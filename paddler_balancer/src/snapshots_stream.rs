@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_stream::stream;
 use futures::Stream;
-use tokio::select;
+use log::error;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
@@ -20,11 +20,18 @@ where
         let mut update_rx = producer.subscribe_to_updates();
 
         loop {
-            yield producer.make_snapshot();
+            match producer.make_snapshot() {
+                Ok(snapshot) => yield snapshot,
+                Err(err) => error!("Failed to produce snapshot: {err}"),
+            }
 
-            select! {
+            tokio::select! {
                 () = shutdown.cancelled() => break,
-                Ok(()) = update_rx.changed() => {}
+                changed = update_rx.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                }
             }
         }
     }
@@ -32,70 +39,98 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::sync::atomic::AtomicI32;
+    use std::sync::atomic::Ordering;
     use std::time::Duration;
 
+    use anyhow::Result;
     use futures::StreamExt as _;
-    use tokio_util::sync::CancellationToken;
+    use tokio::sync::watch;
+    use tokio::time::timeout;
 
-    use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+    use super::*;
 
-    use super::snapshots_stream;
-    use crate::agent_controller_pool::AgentControllerPool;
-    use crate::buffered_request_manager::BufferedRequestManager;
+    const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(1);
 
-    fn buffered_request_manager() -> Arc<BufferedRequestManager> {
-        Arc::new(BufferedRequestManager::new(
-            Arc::new(AgentControllerPool::default()),
-            Duration::MAX,
-            1,
-        ))
+    struct CounterProducer {
+        update_tx: watch::Sender<()>,
+        value: AtomicI32,
+    }
+
+    impl CounterProducer {
+        fn new() -> Self {
+            let (update_tx, _initial_rx) = watch::channel(());
+
+            Self {
+                update_tx,
+                value: AtomicI32::new(0),
+            }
+        }
+
+        fn bump(&self) {
+            self.value.fetch_add(1, Ordering::AcqRel);
+            self.update_tx.send_replace(());
+        }
+    }
+
+    impl ProducesSnapshot for CounterProducer {
+        type Snapshot = i32;
+
+        fn make_snapshot(&self) -> Result<Self::Snapshot> {
+            Ok(self.value.load(Ordering::Acquire))
+        }
+    }
+
+    impl SubscribesToUpdates for CounterProducer {
+        fn subscribe_to_updates(&self) -> watch::Receiver<()> {
+            self.update_tx.subscribe()
+        }
     }
 
     #[tokio::test]
-    async fn snapshots_stream_emits_a_snapshot_after_every_update() {
-        let buffered_request_manager = buffered_request_manager();
-        let mut stream = Box::pin(snapshots_stream(
-            buffered_request_manager.clone(),
-            CancellationToken::new(),
-        ));
+    async fn snapshots_stream_emits_initial_snapshot() {
+        let producer = Arc::new(CounterProducer::new());
+        let shutdown = CancellationToken::new();
+        let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        assert_eq!(
-            stream.next().await,
-            Some(BufferedRequestManagerSnapshot {
-                buffered_requests_current: 0
-            })
-        );
+        let first = timeout(SNAPSHOT_TIMEOUT, stream.next())
+            .await
+            .unwrap()
+            .unwrap();
 
-        let _buffered_request = buffered_request_manager
-            .buffered_request_counter
-            .try_admit();
+        assert_eq!(first, 0);
+    }
 
-        assert_eq!(
-            stream.next().await,
-            Some(BufferedRequestManagerSnapshot {
-                buffered_requests_current: 1
-            })
-        );
+    #[tokio::test]
+    async fn snapshots_stream_emits_after_subscribed_signal() {
+        let producer = Arc::new(CounterProducer::new());
+        let shutdown = CancellationToken::new();
+        let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
+
+        stream.next().await.unwrap();
+
+        producer.bump();
+
+        let next = timeout(SNAPSHOT_TIMEOUT, stream.next())
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(next, 1);
     }
 
     #[tokio::test]
     async fn snapshots_stream_terminates_on_shutdown() {
+        let producer = Arc::new(CounterProducer::new());
         let shutdown = CancellationToken::new();
-        let mut stream = Box::pin(snapshots_stream(
-            buffered_request_manager(),
-            shutdown.clone(),
-        ));
+        let mut stream = Box::pin(snapshots_stream(producer.clone(), shutdown.clone()));
 
-        assert_eq!(
-            stream.next().await,
-            Some(BufferedRequestManagerSnapshot {
-                buffered_requests_current: 0
-            })
-        );
+        stream.next().await.unwrap();
 
         shutdown.cancel();
 
-        assert_eq!(stream.next().await, None);
+        let terminated = timeout(SNAPSHOT_TIMEOUT, stream.next()).await.unwrap();
+
+        assert!(terminated.is_none());
     }
 }

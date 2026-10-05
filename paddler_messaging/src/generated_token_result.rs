@@ -1,20 +1,18 @@
-use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Deserialize;
 use serde::Serialize;
 
+use llama_cpp_bindings_types::ParsedToolCall;
+
 use crate::generation_summary::GenerationSummary;
-use crate::oversized_media_details::OversizedMediaDetails;
-use crate::oversized_prompt_details::OversizedPromptDetails;
+use crate::oversized_image_details::OversizedImageDetails;
 use crate::raw_tool_call_tokens::RawToolCallTokens;
 use crate::streamable_result::StreamableResult;
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum GeneratedTokenResult {
-    BatchAssemblyFailed(String),
     ChatTemplateError(String),
     ContentToken(String),
-    DecodeFailed(String),
     DetokenizationFailed(String),
     Done(GenerationSummary),
     GrammarIncompatibleWithThinking(String),
@@ -22,29 +20,16 @@ pub enum GeneratedTokenResult {
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
-    KvCacheClearFailed(String),
-    MediaExceedsMicroBatch(OversizedMediaDetails),
-    MediaMicroBatchCheckFailed(String),
-    ModelNotLoaded(String),
-    MultimodalIngestionFailed(String),
+    ImageExceedsBatchSize(OversizedImageDetails),
     MultimodalNotSupported(String),
-    MultimodalTokenizationFailed(String),
-    NoSequenceSlotAvailable(String),
-    PromptExceedsContextSize(OversizedPromptDetails),
-    PromptTokenizationFailed(String),
     ReasoningToken(String),
-    SamplerChainCreationFailed(String),
     SamplerError(String),
-    SamplingCandidatesExhausted(String),
-    SchedulerUnavailable(String),
-    SequenceIdOutOfRange(String),
     TokenGenerationDisabled(String),
     ToolCallParseFailed(String),
     ToolCallParsed(Vec<ParsedToolCall>),
     ToolCallToken(String),
     ToolCallValidationFailed(Vec<String>),
     ToolSchemaInvalid(String),
-    ToolsSerializationFailed(String),
     UndeterminableToken(String),
     UnrecognizedToolCallFormat(RawToolCallTokens),
 }
@@ -90,9 +75,7 @@ impl StreamableResult for GeneratedTokenResult {
     fn is_done(&self) -> bool {
         matches!(
             self,
-            Self::BatchAssemblyFailed(_)
-                | Self::ChatTemplateError(_)
-                | Self::DecodeFailed(_)
+            Self::ChatTemplateError(_)
                 | Self::DetokenizationFailed(_)
                 | Self::Done(_)
                 | Self::GrammarIncompatibleWithThinking(_)
@@ -100,99 +83,104 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::GrammarRejectedModelOutput(_)
                 | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
-                | Self::KvCacheClearFailed(_)
-                | Self::MediaExceedsMicroBatch(_)
-                | Self::MediaMicroBatchCheckFailed(_)
-                | Self::ModelNotLoaded(_)
-                | Self::MultimodalIngestionFailed(_)
+                | Self::ImageExceedsBatchSize(_)
                 | Self::MultimodalNotSupported(_)
-                | Self::MultimodalTokenizationFailed(_)
-                | Self::NoSequenceSlotAvailable(_)
-                | Self::PromptExceedsContextSize(_)
-                | Self::PromptTokenizationFailed(_)
-                | Self::SamplerChainCreationFailed(_)
                 | Self::SamplerError(_)
-                | Self::SamplingCandidatesExhausted(_)
-                | Self::SchedulerUnavailable(_)
-                | Self::SequenceIdOutOfRange(_)
                 | Self::TokenGenerationDisabled(_)
                 | Self::ToolSchemaInvalid(_)
-                | Self::ToolsSerializationFailed(_)
         )
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::TokenUsage;
-
-    use super::GeneratedTokenResult;
-    use crate::generation_finish::GenerationFinish;
-    use crate::generation_summary::GenerationSummary;
-    use crate::oversized_media_details::OversizedMediaDetails;
-    use crate::oversized_prompt_details::OversizedPromptDetails;
-    use crate::raw_tool_call_tokens::RawToolCallTokens;
-    use crate::streamable_result::StreamableResult;
+    use super::*;
 
     #[test]
-    fn every_terminal_result_ends_the_stream_without_a_token() {
-        for terminal_result in [
-            GeneratedTokenResult::BatchAssemblyFailed("failure".to_owned()),
-            GeneratedTokenResult::ChatTemplateError("failure".to_owned()),
-            GeneratedTokenResult::DecodeFailed("failure".to_owned()),
-            GeneratedTokenResult::DetokenizationFailed("failure".to_owned()),
-            GeneratedTokenResult::Done(GenerationSummary {
-                finish: GenerationFinish::EndOfGeneration,
-                usage: TokenUsage::new(),
-            }),
-            GeneratedTokenResult::GrammarIncompatibleWithThinking("failure".to_owned()),
-            GeneratedTokenResult::GrammarInitializationFailed("failure".to_owned()),
-            GeneratedTokenResult::GrammarRejectedModelOutput("failure".to_owned()),
-            GeneratedTokenResult::GrammarSyntaxError("failure".to_owned()),
-            GeneratedTokenResult::ImageDecodingFailed("failure".to_owned()),
-            GeneratedTokenResult::KvCacheClearFailed("failure".to_owned()),
-            GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
-                media_tokens: 368,
-                micro_batch_tokens: 100,
-            }),
-            GeneratedTokenResult::MediaMicroBatchCheckFailed("failure".to_owned()),
-            GeneratedTokenResult::ModelNotLoaded("failure".to_owned()),
-            GeneratedTokenResult::MultimodalIngestionFailed("failure".to_owned()),
-            GeneratedTokenResult::MultimodalNotSupported("failure".to_owned()),
-            GeneratedTokenResult::MultimodalTokenizationFailed("failure".to_owned()),
-            GeneratedTokenResult::NoSequenceSlotAvailable("failure".to_owned()),
-            GeneratedTokenResult::PromptExceedsContextSize(OversizedPromptDetails {
-                prompt_tokens: 9895,
-                sequence_context_size: 8192,
-            }),
-            GeneratedTokenResult::PromptTokenizationFailed("failure".to_owned()),
-            GeneratedTokenResult::SamplerChainCreationFailed("failure".to_owned()),
-            GeneratedTokenResult::SamplerError("failure".to_owned()),
-            GeneratedTokenResult::SamplingCandidatesExhausted("failure".to_owned()),
-            GeneratedTokenResult::SchedulerUnavailable("failure".to_owned()),
-            GeneratedTokenResult::SequenceIdOutOfRange("failure".to_owned()),
-            GeneratedTokenResult::TokenGenerationDisabled("failure".to_owned()),
-            GeneratedTokenResult::ToolSchemaInvalid("failure".to_owned()),
-            GeneratedTokenResult::ToolsSerializationFailed("failure".to_owned()),
-        ] {
-            assert!(terminal_result.is_done());
-            assert!(!terminal_result.is_token());
-            assert_eq!(terminal_result.token_text(), None);
-        }
+    fn done_is_done() {
+        assert!(GeneratedTokenResult::Done(GenerationSummary::default()).is_done());
     }
 
     #[test]
-    fn every_token_carries_its_text_without_ending_the_stream() {
-        for token_result in [
-            GeneratedTokenResult::ContentToken("piece".to_owned()),
-            GeneratedTokenResult::ReasoningToken("piece".to_owned()),
-            GeneratedTokenResult::ToolCallToken("piece".to_owned()),
-            GeneratedTokenResult::UndeterminableToken("piece".to_owned()),
-        ] {
-            assert!(!token_result.is_done());
-            assert!(token_result.is_token());
-            assert_eq!(token_result.token_text(), Some("piece"));
-        }
+    fn chat_template_error_is_done() {
+        assert!(GeneratedTokenResult::ChatTemplateError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn detokenization_failed_is_done() {
+        assert!(GeneratedTokenResult::DetokenizationFailed("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_incompatible_with_thinking_is_done() {
+        assert!(GeneratedTokenResult::GrammarIncompatibleWithThinking("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_rejected_model_output_is_done() {
+        assert!(GeneratedTokenResult::GrammarRejectedModelOutput("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_initialization_failed_is_done() {
+        assert!(GeneratedTokenResult::GrammarInitializationFailed("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn grammar_syntax_error_is_done() {
+        assert!(GeneratedTokenResult::GrammarSyntaxError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn image_decoding_failed_is_done() {
+        assert!(GeneratedTokenResult::ImageDecodingFailed("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn image_exceeds_batch_size_is_done_and_not_classified_as_token() {
+        let event = GeneratedTokenResult::ImageExceedsBatchSize(OversizedImageDetails {
+            image_tokens: 368,
+            n_batch: 100,
+        });
+
+        assert!(event.is_done());
+        assert!(!event.is_token());
+        assert!(event.token_text().is_none());
+    }
+
+    #[test]
+    fn multimodal_not_supported_is_done() {
+        assert!(GeneratedTokenResult::MultimodalNotSupported("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn sampler_error_is_done() {
+        assert!(GeneratedTokenResult::SamplerError("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn token_generation_disabled_is_done() {
+        assert!(GeneratedTokenResult::TokenGenerationDisabled("err".to_owned()).is_done());
+    }
+
+    #[test]
+    fn tool_schema_invalid_is_done() {
+        assert!(GeneratedTokenResult::ToolSchemaInvalid("invalid schema".to_owned()).is_done());
+    }
+
+    #[test]
+    fn content_token_is_not_done() {
+        assert!(!GeneratedTokenResult::ContentToken("hello".to_owned()).is_done());
+    }
+
+    #[test]
+    fn reasoning_token_is_not_done() {
+        assert!(!GeneratedTokenResult::ReasoningToken("thinking".to_owned()).is_done());
+    }
+
+    #[test]
+    fn undeterminable_token_is_not_done() {
+        assert!(!GeneratedTokenResult::UndeterminableToken("ambiguous".to_owned()).is_done());
     }
 
     #[test]

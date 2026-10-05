@@ -1,10 +1,13 @@
+use anyhow::Context as _;
+use anyhow::Result;
 use llama_cpp_bindings_types::ToolCallArguments;
 
-#[must_use]
-pub fn arguments_to_tool_call_string(arguments: &ToolCallArguments) -> String {
+pub fn arguments_to_tool_call_string(arguments: &ToolCallArguments) -> Result<String> {
     match arguments {
-        ToolCallArguments::ValidJson(value) => value.to_string(),
-        ToolCallArguments::InvalidJson(raw) => raw.clone(),
+        ToolCallArguments::ValidJson(value) => {
+            serde_json::to_string(value).context("serializing tool-call arguments to OpenAI string")
+        }
+        ToolCallArguments::InvalidJson(raw) => Ok(raw.clone()),
     }
 }
 
@@ -19,7 +22,8 @@ mod tests {
     fn serializes_valid_json_arguments() {
         let serialized = arguments_to_tool_call_string(&ToolCallArguments::ValidJson(json!({
             "location": "Paris"
-        })));
+        })))
+        .unwrap();
 
         assert_eq!(serialized, "{\"location\":\"Paris\"}");
     }
@@ -27,7 +31,8 @@ mod tests {
     #[test]
     fn passes_invalid_json_through_verbatim() {
         let serialized =
-            arguments_to_tool_call_string(&ToolCallArguments::InvalidJson("{not valid".to_owned()));
+            arguments_to_tool_call_string(&ToolCallArguments::InvalidJson("{not valid".to_owned()))
+                .unwrap();
 
         assert_eq!(serialized, "{not valid");
     }

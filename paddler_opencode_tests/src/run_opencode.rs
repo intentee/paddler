@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::process::Stdio;
+use std::time::Duration;
 
 use tokio::process::Command;
 
@@ -11,6 +12,7 @@ pub async fn run_opencode(
     binary_path: &Path,
     project: &OpenCodeTestProject,
     prompt: &str,
+    timeout: Duration,
 ) -> Result<OpenCodeRunOutcome, OpenCodeTestError> {
     let mut command = Command::new(binary_path);
 
@@ -34,9 +36,11 @@ pub async fn run_opencode(
             source,
         })?;
 
-    let output = child
-        .wait_with_output()
+    let output = tokio::time::timeout(timeout, child.wait_with_output())
         .await
+        .map_err(|_| OpenCodeTestError::TimedOut {
+            seconds: timeout.as_secs(),
+        })?
         .map_err(|source| OpenCodeTestError::ProcessWaitFailed { source })?;
 
     Ok(OpenCodeRunOutcome {

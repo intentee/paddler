@@ -15,10 +15,7 @@ import {
 } from "./ModelMetadata.module.css";
 
 export function ModelMetadata({
-  agent: {
-    name,
-    status: { uses_chat_template_override },
-  },
+  agent: { name, uses_chat_template_override },
   onClose,
 }: {
   agent: Agent;

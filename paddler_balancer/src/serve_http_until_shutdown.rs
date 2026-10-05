@@ -1,24 +1,21 @@
-use std::io::Result as IoResult;
 use std::pin::pin;
 
 use actix_web::dev::Server;
-use tokio::join;
-use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 pub async fn serve_http_until_shutdown(
     shutdown: CancellationToken,
     server: Server,
-) -> IoResult<()> {
+) -> std::io::Result<()> {
     let server_handle = server.handle();
     let mut server = pin!(server);
 
-    select! {
+    tokio::select! {
         server_result = server.as_mut() => return server_result,
         () = shutdown.cancelled() => {}
     }
 
-    let (server_result, ()) = join!(server.as_mut(), server_handle.stop(true));
+    let (server_result, ()) = tokio::join!(server.as_mut(), server_handle.stop(true));
 
     server_result
 }
@@ -30,8 +27,6 @@ mod tests {
     use actix_web::App;
     use actix_web::HttpServer;
     use actix_web::dev::Server;
-    use tokio::join;
-    use tokio::spawn;
     use tokio_util::sync::CancellationToken;
 
     use super::serve_http_until_shutdown;
@@ -49,7 +44,7 @@ mod tests {
         let shutdown = CancellationToken::new();
         let requested_shutdown = shutdown.clone();
 
-        spawn(async move {
+        tokio::spawn(async move {
             requested_shutdown.cancel();
         });
 
@@ -63,7 +58,7 @@ mod tests {
         let server = bound_server();
         let server_handle = server.handle();
 
-        let (serve_result, ()) = join!(
+        let (serve_result, ()) = tokio::join!(
             serve_http_until_shutdown(CancellationToken::new(), server),
             server_handle.stop(false),
         );

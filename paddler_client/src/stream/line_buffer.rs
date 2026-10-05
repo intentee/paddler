@@ -1,7 +1,11 @@
 use bytes::BytesMut;
 
+use crate::error::Error;
 use crate::error::Result;
-use crate::stream::decode_stream_line::decode_stream_line;
+
+fn decode_line(line_bytes: BytesMut) -> Result<String> {
+    String::from_utf8(line_bytes.into()).map_err(|source| Error::NonUtf8StreamLine { source })
+}
 
 pub struct LineBuffer {
     bytes: BytesMut,
@@ -24,15 +28,15 @@ impl LineBuffer {
 
         line_bytes.truncate(newline_position);
 
-        Some(decode_stream_line(line_bytes))
+        Some(decode_line(line_bytes))
     }
 
-    pub fn take_remainder(&mut self) -> Option<BytesMut> {
+    pub fn take_remainder(&mut self) -> Option<Result<String>> {
         if self.bytes.is_empty() {
             return None;
         }
 
-        Some(self.bytes.split())
+        Some(decode_line(self.bytes.split()))
     }
 }
 
@@ -74,20 +78,22 @@ mod tests {
             line_buffer
                 .take_line()
                 .expect("a complete line must be available"),
-            Err(Error::NonUtf8StreamLine { source }) if source.as_bytes() == [0xff, 0xfe]
+            Err(Error::NonUtf8StreamLine { .. })
         ));
     }
 
     #[test]
-    fn hands_out_the_unterminated_remainder_undecoded() {
+    fn errors_on_a_remainder_that_is_not_valid_utf8() {
         let mut line_buffer = LineBuffer::new();
 
         line_buffer.push_chunk(&[0xff, 0xfe]);
 
-        assert_eq!(
-            line_buffer.take_remainder().as_deref(),
-            Some([0xff, 0xfe].as_slice())
-        );
+        assert!(matches!(
+            line_buffer
+                .take_remainder()
+                .expect("the remainder must be available"),
+            Err(Error::NonUtf8StreamLine { .. })
+        ));
     }
 
     #[test]

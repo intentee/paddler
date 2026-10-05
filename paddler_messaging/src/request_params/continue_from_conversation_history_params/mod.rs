@@ -1,17 +1,15 @@
 pub mod tool;
 
-use std::num::NonZeroU32;
-
+use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
+use self::tool::Tool;
 use crate::conversation_history::ConversationHistory;
 use crate::grammar_constraint::GrammarConstraint;
+use crate::validates::Validates;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use crate::request_params_validation_error::RequestParamsValidationError;
-use crate::validates::Validates;
-use self::tool::Tool;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -22,7 +20,7 @@ pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
     pub enable_thinking: bool,
     #[serde(default)]
     pub grammar: Option<GrammarConstraint>,
-    pub max_tokens: NonZeroU32,
+    pub max_tokens: i32,
     #[serde(default)]
     pub parse_tool_calls: bool,
     #[serde(default)]
@@ -32,16 +30,7 @@ pub struct ContinueFromConversationHistoryParams<TParametersSchema> {
 impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
     for ContinueFromConversationHistoryParams<RawParametersSchema>
 {
-    fn validate(
-        self,
-    ) -> Result<
-        ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
-        RequestParamsValidationError,
-    > {
-        if self.parse_tool_calls && self.tools.is_empty() {
-            return Err(RequestParamsValidationError::ToolCallParsingWithoutTools);
-        }
-
+    fn validate(self) -> Result<ContinueFromConversationHistoryParams<ValidatedParametersSchema>> {
         Ok(ContinueFromConversationHistoryParams {
             add_generation_prompt: self.add_generation_prompt,
             conversation_history: self.conversation_history,
@@ -53,7 +42,7 @@ impl Validates<ContinueFromConversationHistoryParams<ValidatedParametersSchema>>
                 .tools
                 .into_iter()
                 .map(Validates::validate)
-                .collect::<Result<Vec<_>, _>>()?,
+                .collect::<Result<Vec<_>>>()?,
         })
     }
 }
@@ -63,31 +52,8 @@ mod tests {
     use serde_json::from_value;
     use serde_json::json;
 
-    use crate::request_params_validation_error::RequestParamsValidationError;
     use super::ContinueFromConversationHistoryParams;
-use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
-use crate::validates::Validates as _;
-
-    #[test]
-    fn validate_fails_when_tool_call_parsing_is_requested_without_tools() {
-        let params: ContinueFromConversationHistoryParams<RawParametersSchema> =
-            from_value(json!({
-                "add_generation_prompt": true,
-                "conversation_history": [
-                    {"content": "Hello", "role": "user"}
-                ],
-                "enable_thinking": false,
-                "max_tokens": 10,
-                "parse_tool_calls": true,
-                "tools": [],
-            }))
-            .unwrap();
-
-        assert_eq!(
-            params.validate().err(),
-            Some(RequestParamsValidationError::ToolCallParsingWithoutTools)
-        );
-    }
+    use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 
     #[test]
     fn a_request_that_omits_the_grammar_field_keeps_working() {

@@ -11,12 +11,10 @@ python = "^3.11"
 openai = "==2.41.0"
 
 [tool.poetry.group.dev.dependencies]
-paddler-test-cluster = { path = "../paddler_test_cluster_python", develop = true }
-pytest = "9.0.3"
-pytest-asyncio = "1.3.0"
-pyright = "1.1.410"
+pytest = "^9"
+pyright = "^1"
 ruff = "0.15.12"
-mypy = "1.20.2"
+mypy = "^1"
 
 [tool.mypy]
 python_version = "3.11"
@@ -35,9 +33,11 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
+    "ANN401",  # Any is acceptable for loosely-typed JSON probing
     "COM812",  # trailing comma - conflicts with formatter
     "D",       # docstrings - project prefers self-documenting code
     "ISC001",  # implicit string concatenation - conflicts with formatter
+    "TRY003",  # long messages on the env-missing guard are intentional
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -48,6 +48,5 @@ ignore = [
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-v"

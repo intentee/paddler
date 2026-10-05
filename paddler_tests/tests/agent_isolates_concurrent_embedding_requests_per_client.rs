@@ -2,32 +2,30 @@
 
 use std::collections::BTreeSet;
 
-use futures_util::future::join_all;
-use tokio_util::sync::CancellationToken;
-
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use anyhow::Result;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_isolates_concurrent_embedding_requests_per_client() {
+async fn agent_isolates_concurrent_embedding_requests_per_client() -> Result<()> {
     let client_count: usize = 4;
     let docs_per_client: usize = 3;
 
-    let cluster = start_embedding_cluster(EmbeddingClusterParams {
+    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
         agents: vec![AgentConfig::single(4)],
         inference_parameters: InferenceParameters {
             enable_embeddings: true,
-            ..InferenceParameters::deterministic()
+            ..InferenceParameters::default()
         },
-        ..EmbeddingClusterParams::default()
+        ..Qwen3EmbeddingClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let client_tasks = (0..client_count).map(|client_index| {
         let input_batch: Vec<EmbeddingInputDocument> = (0..docs_per_client)
@@ -46,12 +44,12 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() {
         )
     });
 
-    let per_client_results = join_all(client_tasks).await;
+    let per_client_results = futures_util::future::join_all(client_tasks).await;
 
     assert_eq!(per_client_results.len(), client_count);
 
     for (client_index, embeddings) in per_client_results.into_iter().enumerate() {
-        let collected = embeddings.expect("the embedding batch must complete");
+        let collected = embeddings?;
 
         assert_eq!(
             collected.embeddings.len(),
@@ -74,8 +72,7 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() {
         );
     }
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

@@ -1,36 +1,38 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroUsize;
+use std::time::Duration;
 
-use tokio_util::sync::CancellationToken;
-
+use anyhow::Result;
+use anyhow::anyhow;
+use paddler_cli_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use tokio::time::timeout;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffered_requests() {
+async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffered_requests()
+-> Result<()> {
     const TOTAL_DOCUMENTS: usize = 16;
 
     let cluster = start_subprocess_embedding_cluster(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
-        EmbeddingClusterParams {
+        Qwen3EmbeddingClusterParams {
             agents: AgentConfig::uniform(4, 1),
+            buffered_request_timeout: Duration::from_secs(2),
             inference_parameters: InferenceParameters {
-                embedding_batch_size: NonZeroUsize::MIN,
+                embedding_batch_size: 1,
                 enable_embeddings: true,
-                ..InferenceParameters::deterministic()
+                ..InferenceParameters::default()
             },
             max_buffered_requests: 4,
-            ..EmbeddingClusterParams::default()
         },
     )
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let input_batch: Vec<EmbeddingInputDocument> = (0..TOTAL_DOCUMENTS)
         .map(|index| EmbeddingInputDocument {
@@ -39,16 +41,18 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
         })
         .collect();
 
-    let collected = cluster
-        .generate_embedding_batch(
+    let collected = timeout(
+        Duration::from_secs(15),
+        cluster.generate_embedding_batch(
             CancellationToken::new(),
             &GenerateEmbeddingBatchParams {
                 input_batch,
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
-        )
-        .await
-        .expect("the embedding batch must be accepted");
+        ),
+    )
+    .await
+    .map_err(|_| anyhow!("burst-overflow embedding stream did not finish within 15s"))??;
 
     let overflow_errors: Vec<_> = collected
         .wire_errors
@@ -63,7 +67,11 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
     );
 
     for overflow in &overflow_errors {
-        assert_eq!(overflow.description, "Buffered requests overflow");
+        assert!(
+            overflow.description.contains("Buffered requests overflow"),
+            "expected 503 envelope description to mention overflow, got {:?}",
+            overflow.description,
+        );
     }
 
     assert!(
@@ -80,8 +88,7 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
         overflow_errors.len(),
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

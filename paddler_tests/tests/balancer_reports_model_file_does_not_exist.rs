@@ -1,27 +1,65 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
+use paddler_messaging::inference_parameters::InferenceParameters;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_model_file_does_not_exist() {
-    let model_path_on_agent = "/nonexistent/model.gguf".to_owned();
-    let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
-        model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),
-        ..BalancerDesiredState::default()
+async fn balancer_reports_model_file_does_not_exist() -> Result<()> {
+    let mut cluster = start_cluster(ClusterParams {
+        agents: AgentConfig::uniform(1, 1),
+        wait_for_slots_ready: false,
+        desired_state: Some(BalancerDesiredState {
+            chat_template_override: None,
+            inference_parameters: InferenceParameters::default(),
+            model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_owned()),
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: false,
+        }),
+        ..ClusterParams::default()
     })
-    .await
-    .expect("a single-agent cluster must start");
+    .await?;
 
-    cluster
-        .wait_for_first_agent_issue(|issue| {
-            matches!(issue, AgentIssue::ModelFileDoesNotExist(model_path) if model_path.model_path == model_path_on_agent)
+    let agent_id = cluster
+        .agent_ids
+        .first()
+        .context("cluster must have one registered agent")?
+        .clone();
+
+    let snapshot = cluster
+        .agents_watcher
+        .until(ObservationWindow::model_load(), move |snapshot| {
+            snapshot.agents.iter().any(|agent| {
+                agent.id == agent_id
+                    && agent
+                        .issues
+                        .iter()
+                        .any(|issue| matches!(issue, AgentIssue::ModelFileDoesNotExist(_)))
+            })
         })
         .await
-        .expect("the agent must report ModelFileDoesNotExist for the configured path");
+        .context("balancer should report ModelFileDoesNotExist for nonexistent path")?;
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    let saw_expected_path = snapshot.agents.iter().any(|agent| {
+        agent.issues.iter().any(|issue| {
+            matches!(issue, AgentIssue::ModelFileDoesNotExist(model_path)
+                if model_path.model_path == "/nonexistent/model.gguf")
+        })
+    });
+
+    assert!(
+        saw_expected_path,
+        "ModelFileDoesNotExist should reference the configured path"
+    );
+
+    cluster.shutdown().await?;
+
+    Ok(())
 }

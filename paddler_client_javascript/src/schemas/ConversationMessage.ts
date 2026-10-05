@@ -4,7 +4,10 @@ import { ConversationMessageContentPartSchema } from "./ConversationMessageConte
 
 export const ConversationMessageSchema = z.object({
   role: z.string(),
-  content: z.union([z.string(), z.array(ConversationMessageContentPartSchema)]),
+  content: z.union([
+    z.string(),
+    z.array(ConversationMessageContentPartSchema),
+  ]),
 });
 
 export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;

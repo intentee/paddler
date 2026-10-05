@@ -1,14 +1,10 @@
-use if_addrs::get_if_addrs;
-use log::error;
-
 use crate::network_interface_address::NetworkInterfaceAddress;
 
-#[must_use]
 pub fn detect_network_interfaces() -> Vec<NetworkInterfaceAddress> {
-    let interfaces = match get_if_addrs() {
+    let interfaces = match if_addrs::get_if_addrs() {
         Ok(interfaces) => interfaces,
         Err(error) => {
-            error!("Failed to detect network interfaces: {error}");
+            log::error!("Failed to detect network interfaces: {error}");
 
             return Vec::new();
         }

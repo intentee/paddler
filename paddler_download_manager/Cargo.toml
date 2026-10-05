@@ -14,6 +14,7 @@ name = "integration"
 path = "tests/main.rs"
 
 [dependencies]
+anyhow = { workspace = true }
 bytes = { workspace = true }
 futures-util = { workspace = true }
 headers = { workspace = true }
@@ -24,8 +25,6 @@ tokio-util = { workspace = true }
 url = { workspace = true }
 
 [dev-dependencies]
-http = { workspace = true }
-paddler_local_http_fixture = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

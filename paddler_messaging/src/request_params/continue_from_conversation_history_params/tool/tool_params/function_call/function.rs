@@ -1,11 +1,11 @@
+use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::parameters::Parameters;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use crate::request_params_validation_error::RequestParamsValidationError;
 use crate::validates::Validates;
-use super::parameters::Parameters;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -18,7 +18,7 @@ pub struct Function<TParametersSchema> {
 }
 
 impl Validates<Function<ValidatedParametersSchema>> for Function<RawParametersSchema> {
-    fn validate(self) -> Result<Function<ValidatedParametersSchema>, RequestParamsValidationError> {
+    fn validate(self) -> Result<Function<ValidatedParametersSchema>> {
         Ok(Function {
             name: self.name,
             description: self.description,

@@ -1,11 +1,12 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::fs;
 use std::future::Future;
-use std::num::NonZeroU32;
 
+use anyhow::Context as _;
 use anyhow::Result;
-use tokio_util::sync::CancellationToken;
-
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -14,17 +15,24 @@ use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::load_fixture_data_uri::load_fixture_data_uri;
 use paddler_tests::start_cluster_with_smolvlm2::start_cluster_with_smolvlm2;
+use tokio_util::sync::CancellationToken;
 
-const MAX_TOKENS: NonZeroU32 = NonZeroU32::new(20).unwrap();
+fn load_fixture_as_data_uri(fixture_name: &str, mime_type: &str) -> Result<String> {
+    let fixture_path = format!("{}/../fixtures/{fixture_name}", env!("CARGO_MANIFEST_DIR"));
+    let bytes = fs::read(&fixture_path)
+        .with_context(|| format!("failed to read test fixture {fixture_path}"))?;
+    let encoded = BASE64_STANDARD.encode(&bytes);
+
+    Ok(format!("data:{mime_type};base64,{encoded}"))
+}
 
 fn drive_normal_image_fixture(
     cluster: &Cluster,
     fixture_name: &str,
     mime_type: &str,
 ) -> Result<impl Future<Output = Result<()>> + Send + use<>> {
-    let image_data_uri = load_fixture_data_uri(fixture_name, mime_type)?;
+    let image_data_uri = load_fixture_as_data_uri(fixture_name, mime_type)?;
     let fixture_name = fixture_name.to_owned();
 
     let generation = cluster.continue_from_conversation_history(
@@ -46,7 +54,7 @@ fn drive_normal_image_fixture(
             }]),
             enable_thinking: false,
             grammar: None,
-            max_tokens: MAX_TOKENS,
+            max_tokens: 20,
             parse_tool_calls: false,
             tools: vec![],
         },
@@ -75,22 +83,13 @@ fn drive_normal_image_fixture(
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_completes_generation_with_adequate_n_batch() {
-    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)])
-        .await
-        .expect("the cluster must start");
+async fn agent_completes_generation_with_adequate_n_batch() -> Result<()> {
+    let cluster = start_cluster_with_smolvlm2(vec![AgentConfig::single(1)]).await?;
 
-    drive_normal_image_fixture(&cluster, "sarnow.jpeg", "image/jpeg")
-        .expect("the image fixture request must complete")
-        .await
-        .expect("the message must be readable");
-    drive_normal_image_fixture(&cluster, "llamas.webp", "image/webp")
-        .expect("the image fixture request must complete")
-        .await
-        .expect("the message must be readable");
+    drive_normal_image_fixture(&cluster, "sarnow.jpeg", "image/jpeg")?.await?;
+    drive_normal_image_fixture(&cluster, "llamas.webp", "image/webp")?.await?;
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

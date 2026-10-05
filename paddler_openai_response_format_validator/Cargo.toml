@@ -10,6 +10,7 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 jsonschema = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

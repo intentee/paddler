@@ -26,8 +26,8 @@ export function InferenceParameterPoolingType({
   const { parameters, setParameter } = useContext(InferenceParametersContext);
 
   const onChange = useCallback(
-    function (event: ChangeEvent<HTMLSelectElement>) {
-      const option = event.currentTarget.value;
+    function (evt: ChangeEvent<HTMLSelectElement>) {
+      const option = evt.currentTarget.value;
 
       if (!isPoolingType(option)) {
         throw new Error(`Invalid pooling type: ${option}`);

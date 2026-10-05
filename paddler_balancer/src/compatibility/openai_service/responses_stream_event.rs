@@ -1,5 +1,5 @@
-use serde::Serialize;
-use serde::Serializer;
+use serde_json::Value;
+use serde_json::json;
 
 use crate::compatibility::openai_service::content_part_event::ContentPartEvent;
 use crate::compatibility::openai_service::function_call_arguments_delta_event::FunctionCallArgumentsDeltaEvent;
@@ -8,37 +8,6 @@ use crate::compatibility::openai_service::output_item_event::OutputItemEvent;
 use crate::compatibility::openai_service::response_snapshot_event::ResponseSnapshotEvent;
 use crate::compatibility::openai_service::text_delta_event::TextDeltaEvent;
 use crate::compatibility::openai_service::text_done_event::TextDoneEvent;
-
-fn serialize_typed<TPayload, TSerializer>(
-    event_type: &'static str,
-    payload: &TPayload,
-    serializer: TSerializer,
-) -> Result<TSerializer::Ok, TSerializer::Error>
-where
-    TPayload: Serialize,
-    TSerializer: Serializer,
-{
-    TypedEvent {
-        event_type,
-        payload,
-    }
-    .serialize(serializer)
-}
-
-#[derive(Serialize)]
-struct WithEmptyLogprobs<'event, TEvent> {
-    #[serde(flatten)]
-    event: &'event TEvent,
-    logprobs: &'static [u8],
-}
-
-#[derive(Serialize)]
-struct TypedEvent<'event, TPayload> {
-    #[serde(rename = "type")]
-    event_type: &'static str,
-    #[serde(flatten)]
-    payload: &'event TPayload,
-}
 
 #[derive(Clone, Debug)]
 pub enum ResponsesStreamEvent {
@@ -55,7 +24,6 @@ pub enum ResponsesStreamEvent {
     FunctionCallArgumentsDelta(FunctionCallArgumentsDeltaEvent),
     FunctionCallArgumentsDone(FunctionCallArgumentsDoneEvent),
     Completed(ResponseSnapshotEvent),
-    Incomplete(ResponseSnapshotEvent),
     Failed(ResponseSnapshotEvent),
 }
 
@@ -76,62 +44,87 @@ impl ResponsesStreamEvent {
             Self::FunctionCallArgumentsDelta(_) => "response.function_call_arguments.delta",
             Self::FunctionCallArgumentsDone(_) => "response.function_call_arguments.done",
             Self::Completed(_) => "response.completed",
-            Self::Incomplete(_) => "response.incomplete",
             Self::Failed(_) => "response.failed",
         }
     }
-}
 
-impl Serialize for ResponsesStreamEvent {
-    fn serialize<TSerializer>(
-        &self,
-        serializer: TSerializer,
-    ) -> Result<TSerializer::Ok, TSerializer::Error>
-    where
-        TSerializer: Serializer,
-    {
+    #[must_use]
+    pub fn to_json(&self) -> Value {
         let event_type = self.event_name();
 
         match self {
             Self::Created(snapshot)
             | Self::InProgress(snapshot)
             | Self::Completed(snapshot)
-            | Self::Incomplete(snapshot)
-            | Self::Failed(snapshot) => serialize_typed(event_type, snapshot, serializer),
-            Self::OutputItemAdded(item_event) | Self::OutputItemDone(item_event) => {
-                serialize_typed(event_type, item_event, serializer)
-            }
-            Self::ContentPartAdded(part_event) | Self::ContentPartDone(part_event) => {
-                serialize_typed(event_type, part_event, serializer)
-            }
-            Self::OutputTextDelta(delta_event) => serialize_typed(
-                event_type,
-                &WithEmptyLogprobs {
-                    event: delta_event,
-                    logprobs: &[],
-                },
-                serializer,
-            ),
-            Self::ReasoningTextDelta(delta_event) => {
-                serialize_typed(event_type, delta_event, serializer)
-            }
-            Self::OutputTextDone(done_event) => serialize_typed(
-                event_type,
-                &WithEmptyLogprobs {
-                    event: done_event,
-                    logprobs: &[],
-                },
-                serializer,
-            ),
-            Self::ReasoningTextDone(done_event) => {
-                serialize_typed(event_type, done_event, serializer)
-            }
-            Self::FunctionCallArgumentsDelta(arguments_event) => {
-                serialize_typed(event_type, arguments_event, serializer)
-            }
-            Self::FunctionCallArgumentsDone(arguments_event) => {
-                serialize_typed(event_type, arguments_event, serializer)
-            }
+            | Self::Failed(snapshot) => json!({
+                "type": event_type,
+                "sequence_number": snapshot.sequence_number,
+                "response": snapshot.response,
+            }),
+            Self::OutputItemAdded(item_event) | Self::OutputItemDone(item_event) => json!({
+                "type": event_type,
+                "sequence_number": item_event.sequence_number,
+                "output_index": item_event.output_index,
+                "item": item_event.item,
+            }),
+            Self::ContentPartAdded(part_event) | Self::ContentPartDone(part_event) => json!({
+                "type": event_type,
+                "sequence_number": part_event.sequence_number,
+                "item_id": part_event.item_id,
+                "output_index": part_event.output_index,
+                "content_index": part_event.content_index,
+                "part": part_event.part,
+            }),
+            Self::OutputTextDelta(delta_event) => json!({
+                "type": event_type,
+                "sequence_number": delta_event.sequence_number,
+                "item_id": delta_event.item_id,
+                "output_index": delta_event.output_index,
+                "content_index": delta_event.content_index,
+                "delta": delta_event.delta,
+                "logprobs": [],
+            }),
+            // Reasoning text events, unlike output-text events, do not carry a `logprobs` field.
+            Self::ReasoningTextDelta(delta_event) => json!({
+                "type": event_type,
+                "sequence_number": delta_event.sequence_number,
+                "item_id": delta_event.item_id,
+                "output_index": delta_event.output_index,
+                "content_index": delta_event.content_index,
+                "delta": delta_event.delta,
+            }),
+            Self::OutputTextDone(done_event) => json!({
+                "type": event_type,
+                "sequence_number": done_event.sequence_number,
+                "item_id": done_event.item_id,
+                "output_index": done_event.output_index,
+                "content_index": done_event.content_index,
+                "text": done_event.text,
+                "logprobs": [],
+            }),
+            Self::ReasoningTextDone(done_event) => json!({
+                "type": event_type,
+                "sequence_number": done_event.sequence_number,
+                "item_id": done_event.item_id,
+                "output_index": done_event.output_index,
+                "content_index": done_event.content_index,
+                "text": done_event.text,
+            }),
+            Self::FunctionCallArgumentsDelta(arguments_event) => json!({
+                "type": event_type,
+                "sequence_number": arguments_event.sequence_number,
+                "item_id": arguments_event.item_id,
+                "output_index": arguments_event.output_index,
+                "delta": arguments_event.delta,
+            }),
+            Self::FunctionCallArgumentsDone(arguments_event) => json!({
+                "type": event_type,
+                "sequence_number": arguments_event.sequence_number,
+                "item_id": arguments_event.item_id,
+                "output_index": arguments_event.output_index,
+                "name": arguments_event.name,
+                "arguments": arguments_event.arguments,
+            }),
         }
     }
 }
@@ -139,12 +132,10 @@ impl Serialize for ResponsesStreamEvent {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
-    use serde_json::to_value;
 
     use super::ResponseSnapshotEvent;
     use super::ResponsesStreamEvent;
     use super::TextDeltaEvent;
-    use crate::compatibility::openai_service::responses_response_header::ResponsesResponseHeader;
 
     #[test]
     fn reasoning_and_text_delta_carry_their_distinct_event_names_with_the_same_payload_shape() {
@@ -171,21 +162,13 @@ mod tests {
     }
 
     #[test]
-    fn serialized_type_field_matches_event_name() {
+    fn to_json_type_field_matches_event_name() {
         let event = ResponsesStreamEvent::Completed(ResponseSnapshotEvent {
             sequence_number: 7,
-            response: ResponsesResponseHeader {
-                created_at: 0,
-                id: "resp_0".to_owned(),
-                instructions: None,
-                model: "test-model".to_owned(),
-                temperature: 1.0,
-                top_p: 1.0,
-            }
-            .in_progress(),
+            response: json!({ "id": "resp_0" }),
         });
 
-        let serialized = to_value(&event).expect("a responses stream event must serialize");
+        let serialized = event.to_json();
 
         assert_eq!(serialized["type"], event.event_name());
         assert_eq!(serialized["sequence_number"], 7);
@@ -202,9 +185,6 @@ mod tests {
             delta: "x".to_owned(),
         });
 
-        assert_eq!(
-            to_value(&event).expect("a responses stream event must serialize")["logprobs"],
-            json!([])
-        );
+        assert_eq!(event.to_json()["logprobs"], json!([]));
     }
 }

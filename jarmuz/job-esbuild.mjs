@@ -67,14 +67,14 @@ export function jobEsbuild({ development }) {
 
     console.log("");
 
-    const buildResult = await esbuild.build(settings);
+    const result = await esbuild.build(settings);
 
-    await writeFile(metafileFilename, JSON.stringify(buildResult.metafile));
+    await writeFile(metafileFilename, JSON.stringify(result.metafile));
 
     console.log(`Build metafile written to: ${metafileFilename}`);
     console.log(`Build finished with ID: ${buildId}`);
 
-    if (buildResult.errors.length > 0 || buildResult.warnings.length > 0) {
+    if (result.errors.length > 0 || result.warnings.length > 0) {
       return false;
     }
   });

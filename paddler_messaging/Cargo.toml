@@ -9,12 +9,12 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 base64 = { workspace = true }
 encoding_rs = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
-paddler_inference_parameters = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

@@ -1,16 +1,15 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use anyhow::Result;
+use anyhow::anyhow;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
 use serde_json::json;
 
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_openai_non_streaming_usage_with_tool_calls() {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
-        .await
-        .expect("the cluster must start");
+async fn qwen3_openai_non_streaming_usage_with_tool_calls() -> Result<()> {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
 
     let response = cluster
         .openai_chat_completion_non_streaming(&json!({
@@ -36,41 +35,42 @@ async fn qwen3_openai_non_streaming_usage_with_tool_calls() {
                 }
             }]
         }))
-        .await
-        .expect("the OpenAI chat completion must succeed");
+        .await?;
 
     let tool_calls = response
         .pointer("/choices/0/message/tool_calls")
         .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("response missing message.tool_calls: {response}"));
+        .ok_or_else(|| anyhow!("response missing message.tool_calls: {response}"))?;
     assert!(!tool_calls.is_empty());
 
     let usage = response
         .get("usage")
-        .unwrap_or_else(|| panic!("response missing usage: {response}"));
+        .ok_or_else(|| anyhow!("response missing usage: {response}"))?;
 
     let prompt_tokens = usage
         .get("prompt_tokens")
         .and_then(Value::as_u64)
-        .expect("usage.prompt_tokens missing");
+        .ok_or_else(|| anyhow!("usage.prompt_tokens missing"))?;
     let completion_tokens = usage
         .get("completion_tokens")
         .and_then(Value::as_u64)
-        .expect("usage.completion_tokens missing");
+        .ok_or_else(|| anyhow!("usage.completion_tokens missing"))?;
     let total_tokens = usage
         .get("total_tokens")
         .and_then(Value::as_u64)
-        .expect("usage.total_tokens missing");
+        .ok_or_else(|| anyhow!("usage.total_tokens missing"))?;
 
     assert!(prompt_tokens > 0);
+    // A request that produced a tool call must have spent tokens generating
+    // the tool-call payload and any wrapping markers; completion_tokens
+    // therefore cannot be zero.
     assert!(
         completion_tokens > 0,
         "expected non-zero completion_tokens for a tool-call response (got {completion_tokens})"
     );
     assert_eq!(total_tokens, prompt_tokens + completion_tokens);
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

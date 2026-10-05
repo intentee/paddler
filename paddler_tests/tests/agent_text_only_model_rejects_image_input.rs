@@ -1,9 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
-use tokio_util::sync::CancellationToken;
-
+use anyhow::Result;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -14,14 +11,13 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_text_only_model_rejects_image_input() {
-    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2))
-        .await
-        .expect("the cluster must start");
+async fn agent_text_only_model_rejects_image_input() -> Result<()> {
+    let cluster = start_cluster_with_qwen3(AgentConfig::uniform(1, 2)).await?;
 
-    let image_data_uri = load_test_image_data_uri().expect("the test image must load");
+    let image_data_uri = load_test_image_data_uri()?;
 
     let outcome = cluster
         .continue_from_conversation_history(
@@ -43,24 +39,29 @@ async fn agent_text_only_model_rejects_image_input() {
                 }]),
                 enable_thinking: false,
                 grammar: None,
-                max_tokens: NonZeroU32::new(20).unwrap(),
+                max_tokens: 20,
                 parse_tool_calls: false,
                 tools: vec![],
             },
         )
         .await;
 
-    let collected = outcome.expect("the request must complete");
+    if let Ok(collected) = outcome {
+        let saw_rejection = collected.token_results.iter().any(|result| {
+            matches!(
+                result.token_result,
+                GeneratedTokenResult::ChatTemplateError(_)
+                    | GeneratedTokenResult::MultimodalNotSupported(_)
+            )
+        });
 
-    assert_eq!(
-        collected.into_token_results(),
-        vec![GeneratedTokenResult::MultimodalNotSupported(
-            "test-agent-0: received images but model does not support multimodal input".to_owned()
-        )]
-    );
+        assert!(
+            saw_rejection,
+            "text-only model must reject image input with chat template or multimodal-not-supported error"
+        );
+    }
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

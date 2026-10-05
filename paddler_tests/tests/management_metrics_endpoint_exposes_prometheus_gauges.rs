@@ -1,23 +1,24 @@
-use tokio_util::sync::CancellationToken;
-
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn management_metrics_endpoint_exposes_prometheus_gauges() {
+async fn management_metrics_endpoint_exposes_prometheus_gauges() -> Result<()> {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let metrics = cluster
         .client_management
         .get_metrics(CancellationToken::new())
         .await
-        .expect("get_metrics should succeed");
+        .map_err(anyhow::Error::new)
+        .context("get_metrics should succeed")?;
 
     assert!(
         metrics.contains("slots_processing"),
@@ -28,8 +29,7 @@ async fn management_metrics_endpoint_exposes_prometheus_gauges() {
         "metrics must contain slots_total gauge"
     );
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

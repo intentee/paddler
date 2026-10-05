@@ -8,4 +8,6 @@ pub enum OpenAIResponsesTextFormat {
     Text,
     #[serde(rename = "json_schema")]
     JsonSchema { schema: Value },
+    #[serde(other)]
+    Unsupported,
 }

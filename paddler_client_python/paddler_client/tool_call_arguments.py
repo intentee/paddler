@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from paddler_client.error import UnknownToolCallArgumentsError
-
 
 @dataclass(frozen=True)
 class ValidJson:
@@ -24,4 +22,5 @@ def parse_tool_call_arguments(payload: dict[str, Any]) -> ToolCallArguments:
         return ValidJson(payload["ValidJson"])
     if "InvalidJson" in payload:
         return InvalidJson(str(payload["InvalidJson"]))
-    raise UnknownToolCallArgumentsError(payload)
+    msg = f"Unknown ToolCallArguments shape: {payload}"
+    raise ValueError(msg)

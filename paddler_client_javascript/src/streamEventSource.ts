@@ -3,8 +3,8 @@ import type { z } from "zod";
 
 import { eventSourceConnectedState } from "./EventSourceConnectedState";
 import { eventSourceConnectionErrorState } from "./EventSourceConnectionErrorState";
+import { eventSourceDeserializationErrorState } from "./EventSourceDeserializationErrorState";
 import { eventSourceInitialState } from "./EventSourceInitialState";
-import { eventSourceMessageState } from "./eventSourceMessageState";
 import type { EventSourceState } from "./EventSourceState";
 
 export function streamEventSource<TSchema extends z.ZodType>({
@@ -27,12 +27,40 @@ export function streamEventSource<TSchema extends z.ZodType>({
       subscriber.next(eventSourceConnectionErrorState);
     });
 
-    eventSource.addEventListener(
-      "message",
-      function ({ data }: MessageEvent<string>) {
-        subscriber.next(eventSourceMessageState({ data, schema }));
-      },
-    );
+    eventSource.addEventListener("message", function (event) {
+      if ("string" !== typeof event.data) {
+        subscriber.next(eventSourceDeserializationErrorState);
+
+        return;
+      }
+
+      let parsedJson: unknown;
+
+      try {
+        parsedJson = JSON.parse(event.data);
+      } catch {
+        subscriber.next(eventSourceDeserializationErrorState);
+
+        return;
+      }
+
+      const result = schema.safeParse(parsedJson);
+
+      if (!result.success) {
+        subscriber.next(eventSourceDeserializationErrorState);
+
+        return;
+      }
+
+      subscriber.next({
+        data: result.data,
+        isConnected: true,
+        isConnectionError: false,
+        isDeserializationError: false,
+        isInitial: false,
+        isOk: true,
+      });
+    });
 
     return function () {
       eventSource.close();

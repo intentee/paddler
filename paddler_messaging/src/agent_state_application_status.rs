@@ -1,14 +1,18 @@
+use anyhow::Error;
+use anyhow::Result;
+use anyhow::anyhow;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[repr(i32)]
 pub enum AgentStateApplicationStatus {
-    Applied,
-    AttemptedAndNotAppliable,
-    AttemptedAndRetrying,
+    Applied = 0,
+    AttemptedAndNotAppliable = 1,
+    AttemptedAndRetrying = 2,
     #[default]
-    Fresh,
-    Stuck,
+    Fresh = 3,
+    Stuck = 4,
 }
 
 impl AgentStateApplicationStatus {
@@ -21,9 +25,26 @@ impl AgentStateApplicationStatus {
     }
 }
 
+impl TryFrom<i32> for AgentStateApplicationStatus {
+    type Error = Error;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Applied),
+            1 => Ok(Self::AttemptedAndNotAppliable),
+            2 => Ok(Self::AttemptedAndRetrying),
+            3 => Ok(Self::Fresh),
+            4 => Ok(Self::Stuck),
+            _ => Err(anyhow!(
+                "Invalid value for AgentStateApplicationStatus: {value}"
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::AgentStateApplicationStatus;
+    use super::*;
 
     #[test]
     fn applied_should_not_try_to_apply() {
@@ -48,5 +69,34 @@ mod tests {
     #[test]
     fn stuck_should_try_to_apply() {
         assert!(AgentStateApplicationStatus::Stuck.should_try_to_apply());
+    }
+
+    #[test]
+    fn try_from_valid_values() {
+        assert_eq!(
+            AgentStateApplicationStatus::try_from(0).unwrap(),
+            AgentStateApplicationStatus::Applied
+        );
+        assert_eq!(
+            AgentStateApplicationStatus::try_from(1).unwrap(),
+            AgentStateApplicationStatus::AttemptedAndNotAppliable
+        );
+        assert_eq!(
+            AgentStateApplicationStatus::try_from(2).unwrap(),
+            AgentStateApplicationStatus::AttemptedAndRetrying
+        );
+        assert_eq!(
+            AgentStateApplicationStatus::try_from(3).unwrap(),
+            AgentStateApplicationStatus::Fresh
+        );
+        assert_eq!(
+            AgentStateApplicationStatus::try_from(4).unwrap(),
+            AgentStateApplicationStatus::Stuck
+        );
+    }
+
+    #[test]
+    fn try_from_invalid_value_fails() {
+        assert!(AgentStateApplicationStatus::try_from(5).is_err());
     }
 }

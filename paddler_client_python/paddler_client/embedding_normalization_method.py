@@ -2,12 +2,6 @@ from typing import Any, Self, cast
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 
-from paddler_client.error import (
-    InvalidEmbeddingNormalizationMethodError,
-    InvalidRmsNormPayloadError,
-    RmsNormEpsilonMissingError,
-)
-
 
 class EmbeddingNormalizationMethod(BaseModel):
     model_config = ConfigDict(frozen=True)
@@ -28,7 +22,8 @@ class EmbeddingNormalizationMethod(BaseModel):
                 inner: object = typed_data["RmsNorm"]
 
                 if not isinstance(inner, dict) or "epsilon" not in inner:
-                    raise InvalidRmsNormPayloadError(data)
+                    msg = f"Invalid RmsNorm payload: {data}"
+                    raise ValueError(msg)
 
                 return {
                     "variant": "RmsNorm",
@@ -38,13 +33,15 @@ class EmbeddingNormalizationMethod(BaseModel):
             if "variant" in typed_data:
                 return typed_data
 
-        raise InvalidEmbeddingNormalizationMethodError(data)
+        msg = f"Invalid EmbeddingNormalizationMethod: {data}"
+        raise ValueError(msg)
 
     @model_serializer
     def to_serde(self) -> str | dict[str, Any]:
         if self.variant == "RmsNorm":
             if self.epsilon is None:
-                raise RmsNormEpsilonMissingError
+                msg = "epsilon is required for RmsNorm"
+                raise ValueError(msg)
 
             return {"RmsNorm": {"epsilon": self.epsilon}}
 

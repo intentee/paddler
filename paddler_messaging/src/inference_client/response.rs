@@ -9,6 +9,8 @@ use crate::generated_token_result::GeneratedTokenResult;
 pub enum Response {
     Embedding(EmbeddingResult),
     GeneratedToken(GeneratedTokenResult),
+    Timeout,
+    TooManyBufferedRequests,
 }
 
 impl From<EmbeddingResult> for Response {

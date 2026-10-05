@@ -1,6 +1,7 @@
-use serde::Deserialize;
-
+use anyhow::Context as _;
+use anyhow::Result;
 use paddler_messaging::grammar_constraint::GrammarConstraint;
+use serde::Deserialize;
 
 use crate::compatibility::openai_service::openai_responses_text_format::OpenAIResponsesTextFormat;
 
@@ -11,15 +12,16 @@ pub struct OpenAIResponsesTextParam {
 }
 
 impl OpenAIResponsesTextParam {
-    #[must_use]
-    pub fn into_grammar_constraint(self) -> Option<GrammarConstraint> {
+    pub fn into_grammar_constraint(self) -> Result<Option<GrammarConstraint>> {
         match self.format {
             Some(OpenAIResponsesTextFormat::JsonSchema { schema }) => {
-                Some(GrammarConstraint::JsonSchema {
-                    schema: schema.to_string(),
-                })
+                Ok(Some(GrammarConstraint::JsonSchema {
+                    schema: serde_json::to_string(&schema)
+                        .context("serializing responses text.format json schema")?,
+                }))
             }
-            Some(OpenAIResponsesTextFormat::Text) | None => None,
+            Some(OpenAIResponsesTextFormat::Text | OpenAIResponsesTextFormat::Unsupported)
+            | None => Ok(None),
         }
     }
 }

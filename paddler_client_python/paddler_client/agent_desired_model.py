@@ -2,12 +2,6 @@ from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, model_serializer, model_validator
 
-from paddler_client.error import (
-    AgentDesiredModelLocalPathMissingError,
-    AgentDesiredModelUrlMissingError,
-    InvalidAgentDesiredModelError,
-    UnknownAgentDesiredModelVariantError,
-)
 from paddler_client.huggingface_model_reference import (
     HuggingFaceModelReference,
 )
@@ -52,7 +46,8 @@ class AgentDesiredModel(BaseModel):
             if "variant" in typed_data:
                 return typed_data
 
-        raise InvalidAgentDesiredModelError(data)
+        msg = f"Invalid AgentDesiredModel: {data}"
+        raise ValueError(msg)
 
     @model_serializer
     def to_serde(self) -> str | dict[str, Any]:
@@ -64,17 +59,20 @@ class AgentDesiredModel(BaseModel):
 
         if self.variant == "LocalToAgent":
             if self.local_path is None:
-                raise AgentDesiredModelLocalPathMissingError
+                msg = "local_path is required for LocalToAgent"
+                raise ValueError(msg)
 
             return {"LocalToAgent": self.local_path}
 
         if self.variant == "Url":
             if self.url is None:
-                raise AgentDesiredModelUrlMissingError
+                msg = "url is required for Url"
+                raise ValueError(msg)
 
             return {"Url": self.url.model_dump()}
 
-        raise UnknownAgentDesiredModelVariantError(self.variant)
+        msg = f"Unknown AgentDesiredModel variant: {self.variant}"
+        raise ValueError(msg)
 
     @classmethod
     def none(cls) -> "AgentDesiredModel":

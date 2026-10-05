@@ -2,7 +2,7 @@ import { Observable } from "rxjs";
 import type { z } from "zod";
 
 import { HttpError } from "./HttpError";
-import { NdjsonDecoder } from "./NdjsonDecoder";
+import { JsonError } from "./JsonError";
 
 export function streamHttpNdjson<TSchema extends z.ZodType>({
   url,
@@ -16,12 +16,6 @@ export function streamHttpNdjson<TSchema extends z.ZodType>({
   schema: TSchema;
 }): Observable<z.infer<TSchema>> {
   return new Observable(function (subscriber) {
-    function emit(values: unknown[]): void {
-      for (const value of values) {
-        subscriber.next(schema.parse(value));
-      }
-    }
-
     fetch(url, {
       body: JSON.stringify(body),
       headers: { "Content-Type": "application/json" },
@@ -29,16 +23,20 @@ export function streamHttpNdjson<TSchema extends z.ZodType>({
       signal,
     })
       .then(async function (response) {
-        if (!response.ok || response.body === null) {
+        if (!response.ok) {
           throw new HttpError(
             response.status,
             `HTTP ${response.status} ${response.statusText}`,
           );
         }
 
+        if (!response.body) {
+          throw new HttpError(response.status, "Response has no body");
+        }
+
         const reader = response.body.getReader();
-        const textDecoder = new TextDecoder();
-        const ndjsonDecoder = new NdjsonDecoder();
+        const decoder = new TextDecoder();
+        let buffer = "";
 
         while (!signal.aborted) {
           const { done, value } = await reader.read();
@@ -47,10 +45,50 @@ export function streamHttpNdjson<TSchema extends z.ZodType>({
             break;
           }
 
-          emit(ndjsonDecoder.push(textDecoder.decode(value, { stream: true })));
+          buffer += decoder.decode(value, { stream: true });
+
+          let newlineIndex = buffer.indexOf("\n");
+
+          while (newlineIndex !== -1) {
+            const line = buffer.slice(0, newlineIndex).trim();
+            buffer = buffer.slice(newlineIndex + 1);
+
+            if (line.length > 0) {
+              let parsedJson: unknown;
+
+              try {
+                parsedJson = JSON.parse(line);
+              } catch (error: unknown) {
+                throw new JsonError(
+                  `Failed to parse NDJSON line: ${String(error)}`,
+                  line,
+                );
+              }
+
+              subscriber.next(schema.parse(parsedJson));
+            }
+
+            newlineIndex = buffer.indexOf("\n");
+          }
         }
 
-        emit(ndjsonDecoder.finish());
+        const trailing = buffer.trim();
+
+        if (trailing.length > 0) {
+          let parsedJson: unknown;
+
+          try {
+            parsedJson = JSON.parse(trailing);
+          } catch (error: unknown) {
+            throw new JsonError(
+              `Failed to parse trailing NDJSON line: ${String(error)}`,
+              trailing,
+            );
+          }
+
+          subscriber.next(schema.parse(parsedJson));
+        }
+
         subscriber.complete();
       })
       .catch(function (error: unknown) {

@@ -1,36 +1,22 @@
-use std::sync::Arc;
-
-use tokio_util::sync::CancellationToken;
-
-use paddler_balancer::balancer_addresses::BalancerAddresses;
-use paddler_bootstrap::bootstrap_error::BootstrapError;
-
-use crate::agent_running_message::AgentRunningMessage;
-use crate::home_message::HomeMessage;
-use crate::join_balancer_form_message::JoinBalancerFormMessage;
-use crate::running_balancer_message::RunningBalancerMessage;
-use crate::running_balancer_snapshot::RunningBalancerSnapshot;
-use crate::start_balancer_form_message::StartBalancerFormMessage;
+use crate::agent_running_handler;
+use crate::home_handler;
+use crate::join_balancer_form_handler;
+use crate::running_balancer_handler;
+use crate::start_balancer_form_handler;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Home(HomeMessage),
-    StartBalancerForm(StartBalancerFormMessage),
-    JoinBalancerForm(JoinBalancerFormMessage),
-    RunningBalancer(RunningBalancerMessage),
-    AgentRunning(AgentRunningMessage),
-    BalancerStarted {
-        addresses: BalancerAddresses,
-        cancellation_token: CancellationToken,
-        snapshot: Box<RunningBalancerSnapshot>,
-    },
+    Home(home_handler::Message),
+    StartBalancerForm(start_balancer_form_handler::Message),
+    JoinBalancerForm(join_balancer_form_handler::Message),
+    RunningBalancer(running_balancer_handler::Message),
+    AgentRunning(agent_running_handler::Message),
+    BalancerStarted,
     BalancerStopped,
-    BalancerFailed(Arc<BootstrapError>),
+    BalancerFailed(String),
     AgentStopped,
-    AgentFailed(Arc<BootstrapError>),
+    AgentFailed(String),
     IcedEventLoopReady,
     Quit,
-    TabPressed {
-        shift: bool,
-    },
+    TabPressed { shift: bool },
 }

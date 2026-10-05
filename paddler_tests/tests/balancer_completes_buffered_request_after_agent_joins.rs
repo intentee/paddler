@@ -1,74 +1,90 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
+use std::time::Duration;
 
+use anyhow::Context as _;
+use anyhow::Result;
 use futures_util::StreamExt as _;
-use tokio_util::sync::CancellationToken;
-
+use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_client::message::Message;
+use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_test_cluster_harness::observation_window::ObservationWindow;
+use paddler_tests::model_card::ModelCard;
+use paddler_tests::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_completes_buffered_request_after_agent_joins() {
+async fn balancer_completes_buffered_request_after_agent_joins() -> Result<()> {
+    let ModelCard {
+        gpu_layer_count,
+        reference,
+    } = qwen3_0_6b();
+
     let mut cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
+        buffered_request_timeout: Duration::from_mins(2),
         max_buffered_requests: 1,
-        desired_state: Some(qwen3_0_6b().into_desired_state()),
+        desired_state: Some(BalancerDesiredState {
+            chat_template_override: None,
+            inference_parameters: InferenceParameters {
+                n_gpu_layers: gpu_layer_count,
+                ..InferenceParameters::default()
+            },
+            model: AgentDesiredModel::HuggingFace(reference),
+            multimodal_projection: AgentDesiredModel::None,
+            use_chat_template_override: false,
+        }),
         ..ClusterParams::default()
     })
-    .await
-    .expect("the cluster must start");
+    .await?;
 
     let mut stream = cluster
         .continue_from_raw_prompt_stream(
             CancellationToken::new(),
             &ContinueFromRawPromptParams {
                 grammar: None,
-                max_tokens: NonZeroU32::new(10).unwrap(),
+                max_tokens: 10,
                 raw_prompt: "Hello".to_owned(),
             },
         )
-        .await
-        .expect("the inference request must be accepted");
+        .await?;
 
     cluster
-        .wait_for_buffered_request_count(1)
+        .wait_for_buffered_request_count(1, ObservationWindow::model_load())
         .await
-        .expect("balancer should buffer the request before any agent joins");
+        .context("balancer should buffer the request before any agent joins")?;
 
-    cluster
-        .spawn_additional_agent(&AgentConfig {
-            name: "buffered-agent".to_owned(),
-            slot_count: 4,
-        })
-        .expect("the additional agent must start");
+    cluster.spawn_additional_agent(&AgentConfig {
+        name: "buffered-agent".to_owned(),
+        slot_count: 4,
+    })?;
 
     let message = stream
         .next()
         .await
-        .expect("inference stream must yield a message after agent joins")
-        .expect("the message must be readable");
+        .context("inference stream must yield a message after agent joins")??;
 
     match message {
         Message::Response(_) => {}
         Message::Error(envelope) => {
-            panic!(
+            anyhow::bail!(
                 "expected a successful response, got error code {}: {}",
-                envelope.error.code, envelope.error.description
+                envelope.error.code,
+                envelope.error.description
             );
         }
         Message::Notification(_) => {
-            panic!("unexpected token-generation-mode notification");
+            anyhow::bail!("unexpected token-generation-mode notification");
         }
     }
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
+
+    Ok(())
 }

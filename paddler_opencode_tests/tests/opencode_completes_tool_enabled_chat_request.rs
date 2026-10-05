@@ -1,48 +1,38 @@
 #![cfg(all(feature = "tests_that_use_llms", feature = "tests_that_use_opencode"))]
 
+use std::time::Duration;
+
+use anyhow::Result;
 use paddler_opencode_tests::opencode_binary_path::opencode_binary_path;
 use paddler_opencode_tests::opencode_test_project::OpenCodeTestProject;
 use paddler_opencode_tests::run_opencode::run_opencode;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3_5_and_context_size::start_cluster_with_qwen3_5_and_context_size;
+use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
-const OPENCODE_CONTEXT_SIZE: u32 = 16384;
+const OPENCODE_RUN_TIMEOUT: Duration = Duration::from_mins(5);
 
 #[tokio::test(flavor = "multi_thread")]
-async fn opencode_completes_tool_enabled_chat_request() {
-    let binary_path = opencode_binary_path().expect("the opencode binary must be configured");
+async fn opencode_completes_tool_enabled_chat_request() -> Result<()> {
+    let binary_path = opencode_binary_path()?;
 
-    let cluster = start_cluster_with_qwen3_5_and_context_size(
-        vec![AgentConfig::single(1)],
-        false,
-        OPENCODE_CONTEXT_SIZE,
-    )
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster_with_qwen3_5(vec![AgentConfig::single(1)], false).await?;
 
     let api_base_url = cluster
         .balancer
-        .compat_openai_base_url()
-        .expect("the OpenAI compatibility service must have a base URL")
-        .join("v1")
-        .expect("every concurrent request must succeed");
+        .addresses
+        .compat_openai_base_url()?
+        .join("v1")?;
 
-    let project = OpenCodeTestProject::create(&api_base_url, "PADDLER-OPENCODE-MARKER".to_owned())
-        .expect("the opencode test project must be created");
+    let project = OpenCodeTestProject::create(&api_base_url, "PADDLER-OPENCODE-MARKER".to_owned())?;
 
     let prompt = format!(
         "Read the file {} in this directory and reply with the exact marker value it contains.",
         project.marker_file_name()
     );
 
-    let outcome = run_opencode(&binary_path, &project, &prompt)
-        .await
-        .expect("opencode must run");
+    let outcome = run_opencode(&binary_path, &project, &prompt, OPENCODE_RUN_TIMEOUT).await?;
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+    cluster.shutdown().await?;
 
     assert!(
         outcome.exit_success,
@@ -55,4 +45,6 @@ async fn opencode_completes_tool_enabled_chat_request() {
         outcome.stdout,
         outcome.stderr
     );
+
+    Ok(())
 }

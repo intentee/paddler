@@ -2,7 +2,6 @@ pub mod app_data;
 pub mod configuration;
 pub mod http_route;
 
-use std::net::SocketAddr;
 use std::sync::Arc;
 
 use actix_web::App;
@@ -15,26 +14,22 @@ use trzcina::Service;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
-use crate::cors_allowed_hosts_with_web_admin_panel::cors_allowed_hosts_with_web_admin_panel;
 use crate::create_cors_middleware::create_cors_middleware;
-use crate::http_listener::HttpListener;
-use crate::http_route::get_health::get_health;
+use crate::http_route as common_http_route;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use crate::inference_service::http_route::api::post_continue_from_conversation_history::post_continue_from_conversation_history;
-use crate::inference_service::http_route::api::post_continue_from_raw_prompt::post_continue_from_raw_prompt;
-use crate::inference_service::http_route::api::post_generate_embedding_batch::post_generate_embedding_batch;
-use crate::inference_service::http_route::api::ws_inference_socket::ws_inference_socket;
 use crate::run_http_service::run_http_service;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
+#[cfg(feature = "web_admin_panel")]
+use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 
 pub struct InferenceService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub configuration: InferenceServiceConfiguration,
-    pub http_listener: HttpListener,
-    pub web_admin_panel_addr: Option<SocketAddr>,
+    #[cfg(feature = "web_admin_panel")]
+    pub web_admin_panel_service_configuration: Option<WebAdminPanelServiceConfiguration>,
 }
 
 #[async_trait]
@@ -45,9 +40,28 @@ impl Service for InferenceService {
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let service_name = self.name();
-        let cors_allowed_hosts_arc = cors_allowed_hosts_with_web_admin_panel(
-            &self.configuration.cors_allowed_hosts,
-            self.web_admin_panel_addr,
+        let web_admin_panel_cors_allowed_hosts: Vec<String> = {
+            #[cfg(feature = "web_admin_panel")]
+            {
+                self.web_admin_panel_service_configuration
+                    .as_ref()
+                    .map(|web_admin_panel_config| format!("http://{}", web_admin_panel_config.addr))
+                    .into_iter()
+                    .collect()
+            }
+            #[cfg(not(feature = "web_admin_panel"))]
+            {
+                Vec::new()
+            }
+        };
+
+        let cors_allowed_hosts_arc = Arc::new(
+            self.configuration
+                .cors_allowed_hosts
+                .iter()
+                .cloned()
+                .chain(web_admin_panel_cors_allowed_hosts)
+                .collect::<Vec<String>>(),
         );
 
         let app_data = Data::new(AppData {
@@ -65,17 +79,95 @@ impl Service for InferenceService {
                     App::new()
                         .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                         .app_data(app_data.clone())
-                        .configure(get_health)
-                        .configure(post_continue_from_conversation_history)
-                        .configure(post_continue_from_raw_prompt)
-                        .configure(post_generate_embedding_batch)
-                        .configure(ws_inference_socket)
+                        .configure(common_http_route::get_health::register)
+                        .configure(
+                            http_route::api::post_continue_from_conversation_history::register,
+                        )
+                        .configure(http_route::api::post_continue_from_raw_prompt::register)
+                        .configure(http_route::api::post_generate_embedding_batch::register)
+                        .configure(http_route::api::ws_inference_socket::register)
                 },
-                http_listener: self.http_listener,
+                bind_addr: self.configuration.addr,
                 service_name,
                 worker_count: 16,
             },
         )
         .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::SocketAddr;
+    use std::net::TcpListener;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use tokio_util::sync::CancellationToken;
+    use trzcina::Service as _;
+
+    use super::InferenceService;
+    use crate::agent_controller_pool::AgentControllerPool;
+    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::buffered_request_manager::BufferedRequestManager;
+    use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
+    #[cfg(feature = "web_admin_panel")]
+    use crate::resolved_socket_addr::ResolvedSocketAddr;
+    #[cfg(feature = "web_admin_panel")]
+    use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+    #[cfg(feature = "web_admin_panel")]
+    use crate::web_admin_panel_service::template_data::TemplateData;
+
+    fn build_service(addr: SocketAddr) -> InferenceService {
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
+
+        InferenceService {
+            agent_controller_pool: agent_controller_pool.clone(),
+            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
+            buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                agent_controller_pool,
+                Duration::from_secs(30),
+                32,
+            )),
+            configuration: InferenceServiceConfiguration {
+                addr,
+                cors_allowed_hosts: vec!["http://127.0.0.1:8080".to_owned()],
+                inference_item_timeout: Duration::from_secs(30),
+            },
+            #[cfg(feature = "web_admin_panel")]
+            web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
+                addr: SocketAddr::from(([127, 0, 0, 1], 8081)),
+                template_data: TemplateData {
+                    buffered_request_timeout: Duration::from_secs(30),
+                    compat_openai_addr: None,
+                    inference_addr: ResolvedSocketAddr {
+                        input_addr: "127.0.0.1:0".to_owned(),
+                        socket_addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+                    },
+                    management_addr: ResolvedSocketAddr {
+                        input_addr: "127.0.0.1:0".to_owned(),
+                        socket_addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+                    },
+                    max_buffered_requests: 32,
+                    statsd_addr: None,
+                    statsd_prefix: "paddler".to_owned(),
+                    statsd_reporting_interval: Duration::from_secs(10),
+                },
+            }),
+        }
+    }
+
+    #[actix_web::test]
+    async fn run_returns_error_when_address_is_already_in_use() {
+        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
+        let occupied_addr = occupied_listener.local_addr().unwrap();
+
+        let service = Box::new(build_service(occupied_addr));
+        let result = service.run(CancellationToken::new()).await;
+
+        let error_message = result.unwrap_err().to_string();
+        let expected_addr_fragment = occupied_addr.to_string();
+
+        assert!(error_message.contains(&expected_addr_fragment));
     }
 }

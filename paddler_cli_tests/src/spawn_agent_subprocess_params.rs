@@ -4,5 +4,5 @@ pub struct SpawnAgentSubprocessParams {
     pub binary_path: String,
     pub management_addr: SocketAddr,
     pub name: String,
-    pub slots: u16,
+    pub slots: i32,
 }
