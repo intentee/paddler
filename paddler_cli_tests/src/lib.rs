@@ -2,6 +2,7 @@ pub mod paddler_command;
 pub mod read_balancer_addresses;
 pub mod spawn_agent_subprocess;
 pub mod spawn_agent_subprocess_params;
+pub mod spawn_balancer_subprocess;
 pub mod start_subprocess_cluster;
 pub mod start_subprocess_cluster_with_qwen3;
 pub mod start_subprocess_embedding_cluster;
