@@ -3,7 +3,6 @@ pub mod transform_result;
 pub mod transforms_outgoing_message;
 
 use anyhow::Result;
-use async_trait::async_trait;
 use tokio::sync::mpsc;
 
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
@@ -35,7 +34,6 @@ where
     }
 }
 
-#[async_trait]
 impl<TTransformsOutgoingMessage> ControlsSession<OutgoingMessage>
     for ChunkForwardingSessionController<TTransformsOutgoingMessage>
 where

@@ -1,6 +1,6 @@
-use crate::continuation_stop_parameters::ContinuationStopParameters;
+use crate::websocket_close_cause::WebSocketCloseCause;
 
 pub enum ContinuationDecision {
     Continue,
-    Stop(ContinuationStopParameters),
+    Stop(WebSocketCloseCause),
 }

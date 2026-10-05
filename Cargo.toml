@@ -40,7 +40,7 @@ actix-cors = "0.7"
 actix-rt = "2.11"
 actix-web = "4.13"
 actix-web-lab = "0.26"
-actix-ws = "0.3"
+actix-ws = "0.4"
 anyhow = { version = "1.0", features = ["backtrace"] }
 askama = "0.14"
 async-openai = { version = "0.40", features = ["byot", "chat-completion", "responses"] }
