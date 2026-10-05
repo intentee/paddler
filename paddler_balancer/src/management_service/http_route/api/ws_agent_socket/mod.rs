@@ -13,8 +13,6 @@ use actix_web::web::Path;
 use actix_web::web::Payload;
 use actix_web::web::ServiceConfig;
 use actix_web::web::get;
-use actix_ws::CloseCode;
-use actix_ws::CloseReason;
 use actix_ws::Session;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -51,11 +49,11 @@ use crate::agent_id_path_params::AgentIdPathParams;
 use crate::agent_response_senders::AgentResponseSenders;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::continuation_decision::ContinuationDecision;
-use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::management_service::app_data::AppData;
 use crate::response_senders::ResponseSenders;
+use crate::websocket_close_cause::WebSocketCloseCause;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 fn forward_agent_response<TResponse>(
@@ -134,9 +132,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             ) => {
                 connection_close.cancel();
 
-                return ContinuationDecision::Stop(ContinuationStopParameters {
-                    close_reason: None,
-                });
+                return ContinuationDecision::Stop(WebSocketCloseCause::AgentDeregistered);
             }
             ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
@@ -166,15 +162,9 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                             context.agent_id
                         );
 
-                        return ContinuationDecision::Stop(ContinuationStopParameters {
-                            close_reason: Some(CloseReason {
-                                code: CloseCode::Policy,
-                                description: Some(format!(
-                                    "Agent {} is already registered",
-                                    context.agent_id
-                                )),
-                            }),
-                        });
+                        return ContinuationDecision::Stop(
+                            WebSocketCloseCause::AgentAlreadyRegistered,
+                        );
                     }
                     AgentControllerRegistration::Registered(registered_agent_controller_guard) => {
                         registered_agent_controller_guard
@@ -223,15 +213,7 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                         context.agent_id
                     );
 
-                    ContinuationDecision::Stop(ContinuationStopParameters {
-                        close_reason: Some(CloseReason {
-                            code: CloseCode::Policy,
-                            description: Some(format!(
-                                "Agent {} sent its status before registering",
-                                context.agent_id
-                            )),
-                        }),
-                    })
+                    ContinuationDecision::Stop(WebSocketCloseCause::AgentStatusBeforeRegistration)
                 }
                 AgentSocketRegistration::Registered(agent_controller) => {
                     match agent_controller.update_from_slot_aggregated_status_snapshot(
@@ -303,17 +285,10 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
 
     async fn handle_undeserializable_message(
         _text: &str,
-        deserialization_error: SerdeJsonError,
+        _deserialization_error: SerdeJsonError,
         _websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
     ) -> ContinuationDecision {
-        ContinuationDecision::Stop(ContinuationStopParameters {
-            close_reason: Some(CloseReason {
-                code: CloseCode::Invalid,
-                description: Some(format!(
-                    "Agent message could not be deserialized: {deserialization_error}"
-                )),
-            }),
-        })
+        ContinuationDecision::Stop(WebSocketCloseCause::AgentMessageUndeserializable)
     }
 
     async fn on_connection_start(

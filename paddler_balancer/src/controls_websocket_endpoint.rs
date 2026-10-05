@@ -6,8 +6,6 @@ use actix_web::HttpResponse;
 use actix_web::rt;
 use actix_web::web::Payload;
 use actix_ws::AggregatedMessage;
-use actix_ws::CloseCode;
-use actix_ws::CloseReason;
 use actix_ws::ProtocolError;
 use actix_ws::Session;
 use actix_ws::handle;
@@ -30,10 +28,9 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::rpc_message::RpcMessage;
 
-use crate::close_reason_for_protocol_error::close_reason_for_protocol_error;
 use crate::continuation_decision::ContinuationDecision;
-use crate::continuation_stop_parameters::ContinuationStopParameters;
 use crate::max_websocket_message_size::MAX_WEBSOCKET_MESSAGE_SIZE;
+use crate::websocket_close_cause::WebSocketCloseCause;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 const PING_INTERVAL: Duration = Duration::from_secs(3);
@@ -64,7 +61,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         context: Arc<Self::Context>,
         msg: Option<Result<AggregatedMessage, ProtocolError>>,
         session: &mut Session,
-        continuation_stop_tx: UnboundedSender<ContinuationStopParameters>,
+        continuation_stop_tx: UnboundedSender<WebSocketCloseCause>,
     ) -> ContinuationDecision {
         match msg {
             Some(Ok(AggregatedMessage::Binary(_))) => {
@@ -73,13 +70,11 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                 ContinuationDecision::Continue
             }
             Some(Ok(AggregatedMessage::Close(_))) | None => {
-                ContinuationDecision::Stop(ContinuationStopParameters { close_reason: None })
+                ContinuationDecision::Stop(WebSocketCloseCause::PeerClosedConnection)
             }
             Some(Ok(AggregatedMessage::Ping(msg))) => {
                 if session.pong(&msg).await.is_err() {
-                    return ContinuationDecision::Stop(ContinuationStopParameters {
-                        close_reason: None,
-                    });
+                    return ContinuationDecision::Stop(WebSocketCloseCause::SessionAlreadyClosed);
                 }
 
                 ContinuationDecision::Continue
@@ -98,9 +93,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             Some(Err(protocol_error)) => {
                 error!("Error receiving message: {protocol_error:?}");
 
-                ContinuationDecision::Stop(ContinuationStopParameters {
-                    close_reason: Some(close_reason_for_protocol_error(&protocol_error)),
-                })
+                ContinuationDecision::Stop(WebSocketCloseCause::from(&protocol_error))
             }
         }
     }
@@ -110,12 +103,12 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         context: Arc<Self::Context>,
         text: &str,
         websocket_session_controller: WebSocketSessionController<Self::OutgoingMessage>,
-        continuation_stop_tx: UnboundedSender<ContinuationStopParameters>,
+        continuation_stop_tx: UnboundedSender<WebSocketCloseCause>,
     ) -> ContinuationDecision {
         match from_str::<Self::IncomingMessage>(text) {
             Ok(deserialized_message) => {
                 rt::spawn(async move {
-                    if let ContinuationDecision::Stop(stop_parameters) =
+                    if let ContinuationDecision::Stop(close_cause) =
                         Self::handle_deserialized_message(
                             connection_close,
                             context,
@@ -123,7 +116,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                             websocket_session_controller,
                         )
                         .await
-                        && continuation_stop_tx.send(stop_parameters).is_err()
+                        && continuation_stop_tx.send(close_cause).is_err()
                     {
                         debug!("The connection stopped before the handler asked it to stop");
                     }
@@ -166,58 +159,48 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             .max_continuation_size(MAX_WEBSOCKET_MESSAGE_SIZE);
 
         rt::spawn(async move {
-            let mut close_reason: Option<CloseReason> = None;
-
             Self::on_connection_start(connection_close.clone(), context.clone(), &mut session)
                 .await;
 
             let (continuation_stop_tx, mut continuation_stop_rx) =
-                mpsc::unbounded_channel::<ContinuationStopParameters>();
+                mpsc::unbounded_channel::<WebSocketCloseCause>();
             let mut ping_ticker = interval(PING_INTERVAL);
 
             ping_ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-            loop {
+            let close_cause = loop {
                 select! {
                     msg = aggregated_msg_stream.next() => {
-                        if let ContinuationDecision::Stop(stop_parameters) = Self::handle_aggregated_message(
+                        if let ContinuationDecision::Stop(close_cause) = Self::handle_aggregated_message(
                             connection_close.clone(),
                             context.clone(),
                             msg,
                             &mut session,
                             continuation_stop_tx.clone(),
                         ).await {
-                            close_reason = stop_parameters.close_reason;
-
-                            break;
+                            break close_cause;
                         }
                     }
-                    Some(stop_parameters) = continuation_stop_rx.recv() => {
-                        close_reason = stop_parameters.close_reason;
-
-                        break;
+                    Some(close_cause) = continuation_stop_rx.recv() => {
+                        break close_cause;
                     }
                     _ = ping_ticker.tick() => {
                         if session.ping(b"").await.is_err() {
-                            break;
+                            break WebSocketCloseCause::SessionAlreadyClosed;
                         }
                     }
                     () = connection_close.cancelled() => {
-                        break;
+                        break WebSocketCloseCause::ConnectionCloseRequested;
                     }
                     () = shutdown.cancelled() => {
-                        close_reason = Some(CloseReason {
-                            code: CloseCode::Away,
-                            description: Some("Server shutting down".to_owned()),
-                        });
-                        break;
+                        break WebSocketCloseCause::ServerShuttingDown;
                     }
                 }
-            }
+            };
 
             connection_close.cancel();
 
-            if let Err(close_err) = session.close(close_reason).await {
+            if let Err(close_err) = session.close(close_cause.close_reason()).await {
                 warn!(
                     "WebSocket session close failed at end of message loop (peer likely already disconnected): {close_err:?}"
                 );

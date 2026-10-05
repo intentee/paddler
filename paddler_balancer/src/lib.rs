@@ -24,11 +24,9 @@ mod buffered_request_counter;
 pub mod buffered_request_manager;
 pub mod cancellation_token_stream_guard;
 pub mod chunk_forwarding_session_controller;
-pub mod close_reason_for_protocol_error;
 pub mod cluster_token_generation_mode;
 pub mod compatibility;
 pub mod continuation_decision;
-pub mod continuation_stop_parameters;
 pub mod controls_session;
 pub mod controls_websocket_endpoint;
 pub mod cors_allowed_hosts_with_web_admin_panel;
@@ -69,4 +67,5 @@ mod unbounded_stream_from_agent;
 mod unbounded_stream_from_agent_params;
 #[cfg(feature = "web_admin_panel")]
 pub mod web_admin_panel_service;
+pub mod websocket_close_cause;
 pub mod websocket_session_controller;
