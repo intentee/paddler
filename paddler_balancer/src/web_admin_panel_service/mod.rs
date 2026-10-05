@@ -58,6 +58,7 @@ impl Service for WebAdminPanelService {
                 },
                 http_listener: self.http_listener,
                 service_name,
+                worker_count: 2,
             },
         )
         .await

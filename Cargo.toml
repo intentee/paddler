@@ -74,7 +74,7 @@ mime_guess = "2.0"
 minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
 minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
 nanoid = "0.4"
-nix = { version = "0.30", features = ["signal"] }
+nix = { version = "0.30", features = ["resource", "signal"] }
 open = "5.3"
 parking_lot = "0.12"
 quick-xml = "0.39"

@@ -23,6 +23,7 @@ pub async fn run_http_service<TAppFactory, TAppEntry, TResponseBody>(
             tcp_listener,
         },
         service_name,
+        worker_count,
     }: RunHttpServiceParameters<TAppFactory>,
 ) -> Result<()>
 where
@@ -37,6 +38,7 @@ where
     TResponseBody: MessageBody + 'static,
 {
     let server = HttpServer::new(app_factory)
+        .workers(worker_count)
         .keep_alive(KeepAlive::Disabled)
         .h1_allow_half_closed(false)
         .disable_signals()
@@ -75,6 +77,7 @@ mod tests {
                     http_listener: HttpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
                         .expect("an ephemeral loopback port must be bindable"),
                     service_name: "balancer::test_service",
+                    worker_count: 1,
                 },
             ),
             async move { requested_shutdown.cancel() },

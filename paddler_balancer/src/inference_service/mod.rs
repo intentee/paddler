@@ -73,6 +73,7 @@ impl Service for InferenceService {
                 },
                 http_listener: self.http_listener,
                 service_name,
+                worker_count: 16,
             },
         )
         .await
