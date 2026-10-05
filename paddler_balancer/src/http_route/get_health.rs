@@ -1,14 +1,15 @@
 use std::error::Error;
 
 use actix_web::Responder;
-use actix_web::get;
 use actix_web::web::ServiceConfig;
+use actix_web::web::get;
 
-pub fn register(cfg: &mut ServiceConfig) {
-    cfg.service(respond);
-}
+use paddler_messaging::api_path::ApiPath;
 
-#[get("/health")]
 async fn respond() -> Result<impl Responder, Box<dyn Error>> {
     Ok("OK")
+}
+
+pub fn get_health(cfg: &mut ServiceConfig) {
+    cfg.route(ApiPath::HEALTH, get().to(respond));
 }

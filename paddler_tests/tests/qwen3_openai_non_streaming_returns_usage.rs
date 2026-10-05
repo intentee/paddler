@@ -1,15 +1,16 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
-use anyhow::anyhow;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
 use serde_json::json;
 
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_openai_non_streaming_returns_usage() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
+async fn qwen3_openai_non_streaming_returns_usage() {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
 
     let response = cluster
         .openai_chat_completion_non_streaming(&json!({
@@ -17,24 +18,25 @@ async fn qwen3_openai_non_streaming_returns_usage() -> Result<()> {
             "messages": [{"role": "user", "content": "Say hi briefly."}],
             "max_completion_tokens": 600
         }))
-        .await?;
+        .await
+        .expect("the OpenAI chat completion must succeed");
 
     let usage = response
         .get("usage")
-        .ok_or_else(|| anyhow!("non-streaming response missing usage: {response}"))?;
+        .unwrap_or_else(|| panic!("non-streaming response missing usage: {response}"));
 
     let prompt_tokens = usage
         .get("prompt_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow!("usage.prompt_tokens missing"))?;
+        .expect("usage.prompt_tokens missing");
     let completion_tokens = usage
         .get("completion_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow!("usage.completion_tokens missing"))?;
+        .expect("usage.completion_tokens missing");
     let total_tokens = usage
         .get("total_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow!("usage.total_tokens missing"))?;
+        .expect("usage.total_tokens missing");
 
     assert!(prompt_tokens > 0);
     assert!(completion_tokens > 0);
@@ -43,14 +45,15 @@ async fn qwen3_openai_non_streaming_returns_usage() -> Result<()> {
     let content = response
         .pointer("/choices/0/message/content")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("non-streaming response missing message content"))?;
+        .expect("non-streaming response missing message content");
 
     assert!(
         !content.is_empty(),
         "non-streaming content must not be empty"
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

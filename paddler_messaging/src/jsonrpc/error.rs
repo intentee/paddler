@@ -5,7 +5,7 @@ use std::fmt::Formatter;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Error {
     pub code: i32,
@@ -20,7 +20,7 @@ impl Display for Error {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Error;
 
     #[test]
     fn formats_only_code_ignoring_description() {

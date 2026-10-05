@@ -1,33 +1,23 @@
+import { InvalidHuggingFaceUrlError } from "./InvalidHuggingFaceUrlError";
 import type { HuggingFaceModelReference } from "./schemas/HuggingFaceModelReference";
 
 export function extractHuggingFaceUrlParts({
   pathname,
 }: URL): HuggingFaceModelReference {
-  const segments = pathname.split("/").filter(function (segment) {
-    return segment.length > 0;
-  });
-
-  if (segments.length < 5) {
-    throw new Error(`Invalid Hugging Face URL format: ${pathname}`);
-  }
-
-  const [owner, repo, resourceKind, revision, ...filenameSegments] = segments;
+  const [owner, repo, resourceKind, revision, ...filenameSegments] = pathname
+    .split("/")
+    .filter(function (segment) {
+      return segment.length > 0;
+    });
 
   if (
-    owner === undefined
-    || repo === undefined
-    || resourceKind === undefined
-    || revision === undefined
+    owner === undefined ||
+    repo === undefined ||
+    revision === undefined ||
+    (resourceKind !== "blob" && resourceKind !== "resolve") ||
+    filenameSegments.length === 0
   ) {
-    throw new Error(`Invalid Hugging Face URL format: ${pathname}`);
-  }
-
-  if (resourceKind !== "blob" && resourceKind !== "resolve") {
-    throw new Error(`Invalid Hugging Face URL format: ${pathname}`);
-  }
-
-  if (filenameSegments.length < 1) {
-    throw new Error(`Invalid Hugging Face URL format: ${pathname}`);
+    throw new InvalidHuggingFaceUrlError(pathname);
   }
 
   return {

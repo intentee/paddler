@@ -6,10 +6,8 @@ import { agentListAgentStatus__progress } from "./AgentListAgentStatus.module.cs
 
 export function AgentListAgentStatus({
   agent: {
-    desired_slots_total,
     slots_processing,
-    slots_total,
-    state_application_status,
+    status: { desired_slots_total, slots_total, state_application_status },
   },
 }: {
   agent: Agent;

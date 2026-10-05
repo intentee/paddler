@@ -1,19 +1,24 @@
-use anyhow::Context as _;
-use anyhow::Result;
+use std::num::NonZeroU32;
+
 use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::SampledTokenSection;
 use llama_cpp_bindings::token::LlamaToken;
 
+use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
 use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+use crate::continuous_batch_scheduler::ingesting_contribution::IngestingContribution;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
+
+const LAST_LOGITS_BATCH_POSITION: i32 = -1;
 
 pub struct ContinuousBatchRequestState {
     pub current_token_position: i32,
-    pub i_batch: Option<i32>,
-    pub max_tokens: i32,
-    pub pending_sampled_token: Option<SampledToken>,
+    pub last_outcome_section: SampledTokenSection,
+    pub max_tokens: NonZeroU32,
     pub phase: ContinuousBatchRequestPhase,
     pub prompt_tokens: Vec<LlamaToken>,
     pub prompt_tokens_ingested: usize,
+    pub sampled_tokens: u64,
 }
 
 impl ContinuousBatchRequestState {
@@ -22,32 +27,57 @@ impl ContinuousBatchRequestState {
         &self.prompt_tokens[self.prompt_tokens_ingested..]
     }
 
-    pub const fn apply_generating_contribution(&mut self, batch_position: i32) {
-        self.pending_sampled_token = None;
-        self.i_batch = Some(batch_position);
+    pub fn apply_generating_contribution(&mut self, batch_position: i32) {
+        self.phase =
+            ContinuousBatchRequestPhase::Generating(ContinuousBatchGenerationStep::ReadyToSample {
+                batch_position,
+            });
         self.current_token_position += 1;
     }
 
     pub fn apply_ingesting_contribution(
         &mut self,
-        chunk_size: usize,
-        is_last_chunk: bool,
-        last_batch_position: i32,
-    ) -> Result<()> {
+        &IngestingContribution {
+            chunk_size,
+            is_last_chunk,
+            last_batch_position,
+            next_token_position,
+            ..
+        }: &IngestingContribution,
+    ) {
         self.prompt_tokens_ingested += chunk_size;
-        self.current_token_position +=
-            i32::try_from(chunk_size).context("chunk size does not fit in i32")?;
+        self.current_token_position = next_token_position;
 
         if is_last_chunk {
-            self.i_batch = Some(last_batch_position);
-            self.phase = ContinuousBatchRequestPhase::Generating;
+            self.phase = ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGenerationStep::ReadyToSample {
+                    batch_position: last_batch_position,
+                },
+            );
         }
-
-        Ok(())
     }
 
-    pub const fn store_pending_token(&mut self, token: SampledToken) {
-        self.pending_sampled_token = Some(token);
+    pub fn begin_generating_after_multimodal_prompt(
+        &mut self,
+        next_position: i32,
+        prompt_section: SampledTokenSection,
+    ) {
+        self.current_token_position = next_position;
+        self.last_outcome_section = prompt_section;
+        self.phase =
+            ContinuousBatchRequestPhase::Generating(ContinuousBatchGenerationStep::ReadyToSample {
+                batch_position: LAST_LOGITS_BATCH_POSITION,
+            });
+    }
+
+    pub const fn record_sampled_token(&mut self) {
+        self.sampled_tokens += 1;
+    }
+
+    pub fn await_decode_of(&mut self, sampled_token: SampledToken) {
+        self.phase = ContinuousBatchRequestPhase::Generating(
+            ContinuousBatchGenerationStep::AwaitingDecode(sampled_token),
+        );
     }
 
     pub fn mark_completed(&mut self, terminal_outcome: ContinuousBatchTerminalOutcome) {
@@ -55,7 +85,6 @@ impl ContinuousBatchRequestState {
             return;
         }
 
-        self.i_batch = None;
         self.phase = ContinuousBatchRequestPhase::Completed(terminal_outcome);
     }
 
@@ -63,7 +92,9 @@ impl ContinuousBatchRequestState {
     pub fn into_terminal_outcome(self) -> ContinuousBatchTerminalOutcome {
         match self.phase {
             ContinuousBatchRequestPhase::Completed(terminal_outcome) => terminal_outcome,
-            ContinuousBatchRequestPhase::Generating | ContinuousBatchRequestPhase::Ingesting => {
+            ContinuousBatchRequestPhase::Generating(_)
+            | ContinuousBatchRequestPhase::IngestingText
+            | ContinuousBatchRequestPhase::IngestingMultimodal(_) => {
                 ContinuousBatchTerminalOutcome::EmitNothing
             }
         }
@@ -72,25 +103,41 @@ impl ContinuousBatchRequestState {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
+    use std::num::NonZeroU32;
+
     use llama_cpp_bindings::SampledToken;
+    use llama_cpp_bindings::SampledTokenSection;
+    use llama_cpp_bindings::TokenUsage;
     use llama_cpp_bindings::token::LlamaToken;
+
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
 
     use super::ContinuousBatchRequestState;
+    use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
     use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
+    use crate::continuous_batch_scheduler::ingesting_contribution::IngestingContribution;
     use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 
     fn ingesting_state(prompt_token_count: usize) -> ContinuousBatchRequestState {
         ContinuousBatchRequestState {
             current_token_position: 0,
-            i_batch: None,
-            max_tokens: 64,
-            pending_sampled_token: None,
-            phase: ContinuousBatchRequestPhase::Ingesting,
+            last_outcome_section: SampledTokenSection::Content,
+            max_tokens: NonZeroU32::new(64).unwrap(),
+            phase: ContinuousBatchRequestPhase::IngestingText,
             prompt_tokens: vec![LlamaToken::new(1); prompt_token_count],
             prompt_tokens_ingested: 0,
+            sampled_tokens: 0,
         }
+    }
+
+    const fn done() -> GeneratedTokenResult {
+        GeneratedTokenResult::Done(GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
+            usage: TokenUsage::new(),
+        })
     }
 
     #[test]
@@ -100,9 +147,7 @@ mod tests {
         state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
             GeneratedTokenResult::SamplerError("sampler failed".to_owned()),
         ));
-        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
-            GeneratedTokenResult::Done(GenerationSummary::default()),
-        ));
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(done()));
 
         assert!(
             matches!(
@@ -126,15 +171,19 @@ mod tests {
     }
 
     #[test]
-    fn applying_a_generating_contribution_clears_pending_and_advances_position() {
+    fn applying_a_generating_contribution_readies_sampling_and_advances_position() {
         let mut state = ingesting_state(0);
         state.current_token_position = 7;
-        state.pending_sampled_token = Some(SampledToken::Content(LlamaToken::new(9)));
+        state.await_decode_of(SampledToken::Content(LlamaToken::new(9)));
 
         state.apply_generating_contribution(3);
 
-        assert!(state.pending_sampled_token.is_none());
-        assert_eq!(state.i_batch, Some(3));
+        assert!(matches!(
+            state.phase,
+            ContinuousBatchRequestPhase::Generating(ContinuousBatchGenerationStep::ReadyToSample {
+                batch_position
+            }) if batch_position == 3
+        ));
         assert_eq!(state.current_token_position, 8);
     }
 
@@ -142,15 +191,20 @@ mod tests {
     fn applying_a_non_final_ingesting_chunk_advances_without_transitioning() {
         let mut state = ingesting_state(10);
 
-        state.apply_ingesting_contribution(4, false, 99).unwrap();
+        state.apply_ingesting_contribution(&IngestingContribution {
+            request_index: 0,
+            chunk_size: 4,
+            is_last_chunk: false,
+            last_batch_position: 99,
+            next_token_position: 4,
+        });
 
         assert_eq!(state.prompt_tokens_ingested, 4);
         assert_eq!(state.current_token_position, 4);
-        assert_eq!(state.i_batch, None);
-        assert!(matches!(
-            state.phase,
-            ContinuousBatchRequestPhase::Ingesting
-        ));
+        assert_eq!(
+            discriminant(&state.phase),
+            discriminant(&ContinuousBatchRequestPhase::IngestingText)
+        );
     }
 
     #[test]
@@ -159,62 +213,61 @@ mod tests {
         state.prompt_tokens_ingested = 4;
         state.current_token_position = 4;
 
-        state.apply_ingesting_contribution(2, true, 41).unwrap();
+        state.apply_ingesting_contribution(&IngestingContribution {
+            request_index: 0,
+            chunk_size: 2,
+            is_last_chunk: true,
+            last_batch_position: 41,
+            next_token_position: 6,
+        });
 
         assert_eq!(state.prompt_tokens_ingested, 6);
         assert_eq!(state.current_token_position, 6);
-        assert_eq!(state.i_batch, Some(41));
         assert!(matches!(
             state.phase,
-            ContinuousBatchRequestPhase::Generating
+            ContinuousBatchRequestPhase::Generating(ContinuousBatchGenerationStep::ReadyToSample {
+                batch_position
+            }) if batch_position == 41
         ));
     }
 
     #[test]
-    fn applying_an_ingesting_chunk_too_large_for_i32_is_an_error() {
+    fn a_sampled_token_awaits_its_decode() {
         let mut state = ingesting_state(0);
 
-        let result = state.apply_ingesting_contribution(usize::MAX, false, 0);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn storing_a_pending_token_records_it() {
-        let mut state = ingesting_state(0);
-
-        state.store_pending_token(SampledToken::Content(LlamaToken::new(5)));
+        state.await_decode_of(SampledToken::Content(LlamaToken::new(5)));
 
         assert!(matches!(
-            state.pending_sampled_token,
-            Some(SampledToken::Content(token)) if token == LlamaToken::new(5)
+            state.phase,
+            ContinuousBatchRequestPhase::Generating(ContinuousBatchGenerationStep::AwaitingDecode(
+                SampledToken::Content(token)
+            )) if token == LlamaToken::new(5)
         ));
     }
 
     #[test]
-    fn marking_completed_clears_batch_index_and_carries_the_terminal_outcome() {
+    fn marking_a_generating_request_completed_carries_the_terminal_outcome() {
         let mut state = ingesting_state(0);
-        state.i_batch = Some(2);
-        state.phase = ContinuousBatchRequestPhase::Generating;
+        state.phase =
+            ContinuousBatchRequestPhase::Generating(ContinuousBatchGenerationStep::ReadyToSample {
+                batch_position: 2,
+            });
 
-        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(
-            GeneratedTokenResult::Done(GenerationSummary::default()),
-        ));
+        state.mark_completed(ContinuousBatchTerminalOutcome::EmitToClient(done()));
 
-        assert_eq!(state.i_batch, None);
-        assert!(matches!(
+        assert_eq!(
             state.into_terminal_outcome(),
-            ContinuousBatchTerminalOutcome::EmitToClient(GeneratedTokenResult::Done(_))
-        ));
+            ContinuousBatchTerminalOutcome::EmitToClient(done())
+        );
     }
 
     #[test]
     fn a_request_torn_down_before_it_completed_reports_nothing_to_the_client() {
         let state = ingesting_state(0);
 
-        assert!(matches!(
+        assert_eq!(
             state.into_terminal_outcome(),
             ContinuousBatchTerminalOutcome::EmitNothing
-        ));
+        );
     }
 }

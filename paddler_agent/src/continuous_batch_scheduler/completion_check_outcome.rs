@@ -1,5 +1,7 @@
+#[derive(Debug, Eq, PartialEq)]
 pub enum CompletionCheckOutcome {
     Continue,
-    ReachedEog,
+    ReachedContextLimit,
+    ReachedEndOfGeneration,
     ReachedMaxTokens,
 }

@@ -1,0 +1,14 @@
+use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+
+use crate::model_card::ModelCard;
+
+#[must_use]
+pub fn qwen3_0_6b() -> ModelCard {
+    ModelCard {
+        reference: HuggingFaceModelReference {
+            filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
+            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            revision: "main".to_owned(),
+        },
+    }
+}

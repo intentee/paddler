@@ -1,58 +1,28 @@
-#![cfg(feature = "tests_that_use_llms")]
-
-use anyhow::Context as _;
-use anyhow::Result;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::observation_window::ObservationWindow;
-use paddler_tests::start_cluster::start_cluster;
+use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() -> Result<()> {
-    let invalid_gguf_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf");
-
-    let mut cluster = start_cluster(ClusterParams {
-        agents: AgentConfig::uniform(1, 1),
-        wait_for_slots_ready: false,
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentDesiredModel::LocalToAgent(invalid_gguf_path.to_owned()),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
-        ..ClusterParams::default()
+async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
+    let model_path_on_agent =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf").to_owned();
+    let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
+        model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),
+        ..BalancerDesiredState::default()
     })
-    .await?;
-
-    let agent_id = cluster
-        .agent_ids
-        .first()
-        .context("cluster must have one registered agent")?
-        .clone();
-
-    let watch_agent_id = agent_id.clone();
-    let expected_path = invalid_gguf_path.to_owned();
+    .await
+    .expect("a single-agent cluster must start");
 
     cluster
-        .agents_watcher
-        .until(ObservationWindow::model_load(), move |snapshot| {
-            snapshot.agents.iter().any(|agent| {
-                agent.id == watch_agent_id
-                    && agent.issues.iter().any(|issue| {
-                        matches!(issue, AgentIssue::ModelCannotBeLoaded(model_path)
-                            if model_path.model_path == expected_path)
-                    })
-            })
+        .wait_for_first_agent_issue(|issue| {
+            matches!(issue, AgentIssue::ModelCannotBeLoaded(model_path) if model_path.model_path == model_path_on_agent)
         })
         .await
-        .context("balancer should report ModelCannotBeLoaded for invalid GGUF fixture")?;
+        .expect("the agent must report ModelCannotBeLoaded for the configured path");
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

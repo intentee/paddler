@@ -2,9 +2,11 @@ pub mod identity_transformer;
 pub mod transform_result;
 pub mod transforms_outgoing_message;
 
+use anyhow::Result;
 use async_trait::async_trait;
-use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use tokio::sync::mpsc;
+
+use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 
 use self::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::controls_session::ControlsSession;
@@ -39,7 +41,7 @@ impl<TTransformsOutgoingMessage> ControlsSession<OutgoingMessage>
 where
     TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync,
 {
-    async fn send_response(&mut self, message: OutgoingMessage) -> anyhow::Result<()> {
+    async fn send_response(&mut self, message: OutgoingMessage) -> Result<()> {
         for output in self.transformer.transform(message).await? {
             self.chunk_tx.send(output)?;
         }

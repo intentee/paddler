@@ -1,17 +1,14 @@
-#![cfg(feature = "tests_that_use_llms")]
+use tokio_util::sync::CancellationToken;
 
-use anyhow::Context as _;
-use anyhow::Result;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
-use tokio_util::sync::CancellationToken;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
+async fn balancer_persists_url_model_in_desired_state() {
     let configured_url = "https://example.invalid/persisted-model.gguf".to_owned();
 
     let cluster = start_cluster(ClusterParams {
@@ -28,14 +25,14 @@ async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
         }),
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let retrieved = cluster
         .client_management
         .get_balancer_desired_state(CancellationToken::new())
         .await
-        .map_err(anyhow::Error::new)
-        .context("failed to read balancer desired state")?;
+        .expect("failed to read balancer desired state");
 
     assert_eq!(
         retrieved.model,
@@ -44,7 +41,8 @@ async fn balancer_persists_url_model_in_desired_state() -> Result<()> {
         })
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

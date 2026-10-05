@@ -1,18 +1,12 @@
-use std::process::Stdio;
-
-use anyhow::Context as _;
 use anyhow::Result;
-
-use paddler_test_cluster_harness::balancer_addresses::BalancerAddresses;
-use paddler_test_cluster_harness::cluster::Cluster;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::running_balancer::RunningBalancer;
-
 use tokio_util::sync::CancellationToken;
 
-use crate::paddler_command::paddler_command;
+use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
+
+use crate::spawn_balancer_subprocess::spawn_balancer_subprocess;
 use crate::subprocess_agent_spawner::SubprocessAgentSpawner;
-use crate::subprocess_process::SubprocessProcess;
 
 pub async fn start_subprocess_cluster(
     binary_path: &str,
@@ -28,50 +22,34 @@ pub async fn start_subprocess_cluster(
         wait_for_slots_ready,
     }: ClusterParams,
 ) -> Result<Cluster> {
-    let addresses = BalancerAddresses::pick()?;
-    let management_addr = addresses.management;
+    let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
+    let mut balancer_arguments = vec![
+        "--inference-addr".to_owned(),
+        ephemeral_loopback_addr.clone(),
+        "--management-addr".to_owned(),
+        ephemeral_loopback_addr.clone(),
+        "--compat-openai-addr".to_owned(),
+        ephemeral_loopback_addr,
+        "--state-database".to_owned(),
+        state_database_url,
+        "--max-buffered-requests".to_owned(),
+        max_buffered_requests.to_string(),
+        "--buffered-request-timeout".to_owned(),
+        buffered_request_timeout.as_millis().to_string(),
+        "--inference-item-timeout".to_owned(),
+        inference_item_timeout.as_millis().to_string(),
+    ];
 
-    let mut balancer_command = paddler_command(binary_path);
-
-    balancer_command
-        .arg("balancer")
-        .arg("--inference-addr")
-        .arg(addresses.inference.to_string())
-        .arg("--management-addr")
-        .arg(addresses.management.to_string())
-        .arg("--compat-openai-addr")
-        .arg(addresses.compat_openai.to_string())
-        .arg("--state-database")
-        .arg(&state_database_url)
-        .arg("--max-buffered-requests")
-        .arg(max_buffered_requests.to_string())
-        .arg("--buffered-request-timeout")
-        .arg(buffered_request_timeout.as_millis().to_string())
-        .arg("--inference-item-timeout")
-        .arg(inference_item_timeout.as_millis().to_string())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    for allowed_host in &inference_cors_allowed_hosts {
-        balancer_command
-            .arg("--inference-cors-allowed-host")
-            .arg(allowed_host);
+    for allowed_host in inference_cors_allowed_hosts {
+        balancer_arguments.extend(["--inference-cors-allowed-host".to_owned(), allowed_host]);
     }
 
-    for allowed_host in &management_cors_allowed_hosts {
-        balancer_command
-            .arg("--management-cors-allowed-host")
-            .arg(allowed_host);
+    for allowed_host in management_cors_allowed_hosts {
+        balancer_arguments.extend(["--management-cors-allowed-host".to_owned(), allowed_host]);
     }
 
-    let balancer_subprocess = balancer_command
-        .spawn()
-        .context("failed to spawn paddler balancer subprocess")?;
-
-    let running_balancer = RunningBalancer::new(
-        addresses,
-        Box::new(SubprocessProcess::new(balancer_subprocess)),
-    );
+    let running_balancer = spawn_balancer_subprocess(binary_path, balancer_arguments).await?;
+    let management_addr = running_balancer.addresses.management;
 
     let mut cluster = Cluster::connect(
         CancellationToken::new(),
@@ -84,34 +62,9 @@ pub async fn start_subprocess_cluster(
     )
     .await?;
 
-    let expected_agent_count = agents.len();
-    let mut last_ready_snapshot = None;
-
-    for agent in &agents {
-        cluster.spawn_additional_agent(agent)?;
-
-        if wait_for_slots_ready {
-            last_ready_snapshot = Some(
-                cluster
-                    .wait_for_agent_ready(&agent.name, agent.slot_count)
-                    .await?,
-            );
-        }
-    }
-
-    let registered_snapshot = match last_ready_snapshot {
-        Some(snapshot) => snapshot,
-        None => cluster
-            .wait_for_agent_count(expected_agent_count)
-            .await
-            .context("not all subprocess agents registered")?,
-    };
-
-    cluster.agent_ids = registered_snapshot
-        .agents
-        .iter()
-        .map(|registered_agent| registered_agent.id.clone())
-        .collect();
+    cluster
+        .register_agents(&agents, wait_for_slots_ready)
+        .await?;
 
     Ok(cluster)
 }

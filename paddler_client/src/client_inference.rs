@@ -1,18 +1,20 @@
 use std::sync::Arc;
 
 use nanoid::nanoid;
+use serde::Serialize;
+use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
+
+use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
-use serde::Serialize;
-use tokio::sync::broadcast;
-use tokio_util::sync::CancellationToken;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::client_inference_params::ClientInferenceParams;
 use crate::error::Result;
@@ -114,7 +116,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            "/api/v1/continue_from_conversation_history",
+            ApiPath::CONTINUE_FROM_CONVERSATION_HISTORY,
             params,
         )
         .await
@@ -127,7 +129,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            "/api/v1/continue_from_raw_prompt",
+            ApiPath::CONTINUE_FROM_RAW_PROMPT,
             params,
         )
         .await
@@ -140,7 +142,7 @@ impl ClientInference {
     ) -> Result<InferenceMessageStream> {
         self.post_streaming(
             cancellation_token,
-            "/api/v1/generate_embedding_batch",
+            ApiPath::GENERATE_EMBEDDING_BATCH,
             params,
         )
         .await
@@ -155,17 +157,19 @@ impl ReportsHealth for ClientInference {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
     use std::num::NonZeroUsize;
 
-    use paddler_messaging::conversation_history::ConversationHistory;
-    use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
-    use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-    use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
     use tokio_util::sync::CancellationToken;
     use url::Url;
+
+    use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
     use super::ClientInference;
     use crate::client_inference_params::ClientInferenceParams;
@@ -181,7 +185,7 @@ mod tests {
     fn raw_prompt_params() -> ContinueFromRawPromptParams {
         ContinueFromRawPromptParams {
             grammar: None,
-            max_tokens: 16,
+            max_tokens: NonZeroU32::new(16).unwrap(),
             raw_prompt: "hello".to_owned(),
         }
     }
@@ -193,7 +197,7 @@ mod tests {
             conversation_history: ConversationHistory::new(Vec::new()),
             enable_thinking: false,
             grammar: None,
-            max_tokens: 16,
+            max_tokens: NonZeroU32::new(16).unwrap(),
             parse_tool_calls: false,
             tools: Vec::new(),
         }
@@ -238,11 +242,13 @@ mod tests {
 
         cancellation_token.cancel();
 
+        let rejection = unreachable_client()
+            .continue_from_raw_prompt(cancellation_token, raw_prompt_params())
+            .await;
+
         assert!(matches!(
-            unreachable_client()
-                .continue_from_raw_prompt(cancellation_token, raw_prompt_params())
-                .await,
-            Err(Error::InferenceRequestCancelled { .. })
+            rejection,
+            Err(Error::InferenceRequestCancelled { request_id }) if !request_id.is_empty()
         ));
     }
 

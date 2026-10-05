@@ -1,1 +1,4 @@
 mod opencode_completes_tool_enabled_chat_request;
+mod run_opencode_captures_output_of_a_finished_process;
+mod run_opencode_reports_spawn_failure_for_a_missing_binary;
+mod unreachable_api_opencode_test_project;

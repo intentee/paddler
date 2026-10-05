@@ -9,28 +9,36 @@ license.workspace = true
 publish = false
 repository.workspace = true
 
+[lib]
+name = "paddler_gui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "paddler_gui"
+path = "src/main.rs"
+
 [dependencies]
-actix-web = { workspace = true }
-anyhow = { workspace = true }
+async-stream = { workspace = true }
 clap = { workspace = true }
 command_handler = { workspace = true }
 env_logger = { workspace = true }
-esbuild-metafile = { workspace = true, optional = true }
 iced = { workspace = true }
 if-addrs = { workspace = true }
 log = { workspace = true }
 open = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_bootstrap = { workspace = true }
+paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
-parking_lot = { workspace = true }
+paddler_state_database = { workspace = true }
 statum = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
 
 [dev-dependencies]
-dashmap = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
 
 [lints]
 workspace = true
@@ -41,7 +49,6 @@ cuda = ["paddler_bootstrap/cuda"]
 metal = ["paddler_bootstrap/metal"]
 vulkan = ["paddler_bootstrap/vulkan"]
 web_admin_panel = [
-    "dep:esbuild-metafile",
     "paddler_balancer/web_admin_panel",
     "paddler_bootstrap/web_admin_panel",
 ]

@@ -1,0 +1,19 @@
+[package]
+name = "paddler_tool_call_validator"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+jsonschema = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
+paddler_messaging = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

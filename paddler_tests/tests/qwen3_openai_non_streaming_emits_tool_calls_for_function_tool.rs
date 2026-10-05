@@ -1,15 +1,17 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
-use anyhow::anyhow;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 use serde_json::Value;
+use serde_json::from_str;
 use serde_json::json;
 
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn qwen3_openai_non_streaming_emits_tool_calls_for_function_tool() -> Result<()> {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)]).await?;
+async fn qwen3_openai_non_streaming_emits_tool_calls_for_function_tool() {
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
+        .await
+        .expect("the cluster must start");
 
     let response = cluster
         .openai_chat_completion_non_streaming(&json!({
@@ -35,12 +37,13 @@ async fn qwen3_openai_non_streaming_emits_tool_calls_for_function_tool() -> Resu
                 }
             }]
         }))
-        .await?;
+        .await
+        .expect("the OpenAI chat completion must succeed");
 
     let tool_calls = response
         .pointer("/choices/0/message/tool_calls")
         .and_then(Value::as_array)
-        .ok_or_else(|| anyhow!("response missing message.tool_calls: {response}"))?;
+        .unwrap_or_else(|| panic!("response missing message.tool_calls: {response}"));
 
     assert_eq!(
         tool_calls.len(),
@@ -59,22 +62,23 @@ async fn qwen3_openai_non_streaming_emits_tool_calls_for_function_tool() -> Resu
     let id = first_call
         .pointer("/id")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("tool call missing id"))?;
+        .expect("tool call missing id");
     assert!(!id.is_empty(), "tool call id must not be empty");
 
     let function_name = first_call
         .pointer("/function/name")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("tool call missing function.name"))?;
+        .expect("tool call missing function.name");
 
     assert_eq!(function_name, "get_weather");
 
     let function_arguments = first_call
         .pointer("/function/arguments")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("tool call missing function.arguments"))?;
+        .expect("tool call missing function.arguments");
 
-    let parsed_arguments: Value = serde_json::from_str(function_arguments)?;
+    let parsed_arguments: Value =
+        from_str(function_arguments).expect("the output must be valid JSON");
     assert!(
         parsed_arguments.get("location").is_some(),
         "tool-call arguments JSON missing 'location' field: {function_arguments}"
@@ -83,17 +87,18 @@ async fn qwen3_openai_non_streaming_emits_tool_calls_for_function_tool() -> Resu
     let finish_reason = response
         .pointer("/choices/0/finish_reason")
         .and_then(Value::as_str)
-        .ok_or_else(|| anyhow!("response missing finish_reason"))?;
+        .expect("response missing finish_reason");
 
     assert_eq!(finish_reason, "tool_calls");
 
     let completion_tokens = response
         .pointer("/usage/completion_tokens")
         .and_then(Value::as_u64)
-        .ok_or_else(|| anyhow!("response missing usage.completion_tokens"))?;
+        .expect("response missing usage.completion_tokens");
     assert!(completion_tokens > 0);
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

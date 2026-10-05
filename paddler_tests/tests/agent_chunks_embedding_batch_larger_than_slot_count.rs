@@ -2,27 +2,28 @@
 
 use std::collections::BTreeSet;
 
-use anyhow::Result;
-use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
-use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_messaging::inference_parameters::InferenceParameters;
-use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
-use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
+use paddler_tests::start_embedding_cluster::start_embedding_cluster;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
-    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
+async fn agent_chunks_embedding_batch_larger_than_slot_count() {
+    let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(4)],
         inference_parameters: InferenceParameters {
             enable_embeddings: true,
-            ..InferenceParameters::default()
+            ..InferenceParameters::deterministic()
         },
-        ..Qwen3EmbeddingClusterParams::default()
+        ..EmbeddingClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let input_batch: Vec<EmbeddingInputDocument> = (0..12)
         .map(|index| EmbeddingInputDocument {
@@ -39,7 +40,8 @@ async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
         )
-        .await?;
+        .await
+        .expect("the embedding batch must be accepted");
 
     assert_eq!(collected.embeddings.len(), 12);
     assert!(collected.saw_done);
@@ -60,7 +62,8 @@ async fn agent_chunks_embedding_batch_larger_than_slot_count() -> Result<()> {
         assert_eq!(produced.embedding.embedding.len(), first_dimension);
     }
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

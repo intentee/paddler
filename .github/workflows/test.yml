@@ -39,6 +39,7 @@ jobs:
 
   javascript:
     name: javascript
+    needs: paddler-binary
     runs-on: ubuntu-latest
 
     steps:
@@ -53,18 +54,47 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Download the Paddler binary
+        uses: actions/download-artifact@v4
+        with:
+          name: paddler-binary
+          path: target/debug
+
+      - name: Mark the downloaded Paddler binary as built and executable
+        run: |
+          chmod +x target/debug/paddler
+          touch target/debug/paddler
+
       - name: Run JS client tests
         run: make test.client.js
 
-  python:
-    name: python (${{ matrix.python-version }})
+  paddler-binary:
+    name: paddler binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build the Paddler binary
+        run: make target/debug/paddler
+
+      - name: Upload the Paddler binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: paddler-binary
+          path: target/debug/paddler
+
+  python-lint:
+    name: python lint (${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11", "3.13"]
-    defaults:
-      run:
-        working-directory: paddler_client_python
 
     steps:
       - name: checkout code
@@ -76,16 +106,44 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
-        run: pip install poetry
+        run: pip install poetry==2.4.3
 
-      - name: Install dependencies
-        run: poetry install
+      - name: Lint the Python client
+        run: make lint.client.python
 
-      - name: Run ruff
-        run: poetry run ruff check
+      - name: Lint the OpenAI Python client suite
+        run: make lint.openai.python
 
-      - name: Run mypy
-        run: poetry run mypy paddler_client/
+  python:
+    name: python (${{ matrix.python-version }})
+    needs: paddler-binary
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
 
-      - name: Run tests
-        run: poetry run pytest tests/ -v
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: pip install poetry==2.4.3
+
+      - name: Download the Paddler binary
+        uses: actions/download-artifact@v4
+        with:
+          name: paddler-binary
+          path: target/debug
+
+      - name: Mark the downloaded Paddler binary as built and executable
+        run: |
+          chmod +x target/debug/paddler
+          touch target/debug/paddler
+
+      - name: Run Python client tests
+        run: make test.client.python

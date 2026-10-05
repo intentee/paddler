@@ -15,8 +15,8 @@ export function ModelChatTemplateOverridePreviewButton({
   const [isPreviewVisible, setIsPreviewVisible] = useState(false);
 
   const onClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       setIsPreviewVisible(true);
     },

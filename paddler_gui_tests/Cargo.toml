@@ -1,0 +1,38 @@
+[package]
+name = "paddler_gui_tests"
+autotests = false
+authors.workspace = true
+description = "Headless interface tests for the Paddler desktop application"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[features]
+default = []
+web_admin_panel = ["paddler_gui/web_admin_panel"]
+
+[dependencies]
+futures = { workspace = true }
+iced_test = { workspace = true }
+paddler_balancer = { workspace = true }
+paddler_gui = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+paddler_bootstrap = { workspace = true }
+paddler_messaging = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+trzcina = { workspace = true }
+
+[lints]
+workspace = true

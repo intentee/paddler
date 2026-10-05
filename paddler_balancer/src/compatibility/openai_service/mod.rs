@@ -1,25 +1,36 @@
 pub mod app_data;
 pub mod arguments_to_tool_call_string;
+pub mod assistant_role;
+pub mod chat_completion;
+pub mod chat_completion_chunk;
+pub mod chat_completion_chunk_choice;
+pub mod chat_completion_chunk_payload;
+pub mod chat_completion_finish_reason;
+pub mod chat_completion_tool_call;
 pub mod chat_completions_sse_response;
 pub mod configuration;
 pub mod content_part_event;
 pub mod function_call_arguments_delta_event;
 pub mod function_call_arguments_done_event;
-pub mod function_call_item;
 pub mod http_route;
-pub mod message_item_done;
 pub mod open_item;
-pub mod openai_chat_completion_function;
+pub mod openai_api_path;
 pub mod openai_chat_completion_tool;
 pub mod openai_completion_request_params;
+pub mod openai_default_max_tokens;
 pub mod openai_error;
+pub mod openai_error_type;
+pub mod openai_function_definition;
+pub mod openai_json_config;
+pub mod openai_json_response;
 pub mod openai_message;
 pub mod openai_non_streaming_response_transformer;
 pub mod openai_non_streaming_state;
+pub mod openai_reasoning_effort;
 pub mod openai_responses_function_call_item;
 pub mod openai_responses_function_call_output_item;
 pub mod openai_responses_function_output;
-pub mod openai_responses_function_tool;
+pub mod openai_responses_function_output_part;
 pub mod openai_responses_input;
 pub mod openai_responses_input_content_part;
 pub mod openai_responses_input_item;
@@ -34,20 +45,26 @@ pub mod openai_responses_tool;
 pub mod openai_streaming_response_transformer;
 pub mod openai_streaming_state;
 pub mod openai_tool_parameters_schema;
-pub mod openai_usage_json;
+pub mod openai_usage;
 pub mod output_item_event;
-pub mod output_text_part;
-pub mod reasoning_item_done;
 pub mod response_snapshot_event;
-pub mod responses_error;
+pub mod responses_content_part;
+pub mod responses_item_status;
 pub mod responses_non_streaming_response_transformer;
 pub mod responses_non_streaming_state;
+pub mod responses_output_item;
+pub mod responses_output_item_kind;
 pub mod responses_prepared_request;
-pub mod responses_response_builder;
+pub mod responses_reasoning_part;
+pub mod responses_response;
+pub mod responses_response_header;
+pub mod responses_response_progress;
+pub mod responses_response_status;
+pub mod responses_sse_response;
 pub mod responses_stream_event;
 pub mod responses_streaming_response_transformer;
 pub mod responses_streaming_state;
-pub mod sse_response_from_agent;
+pub mod responses_usage;
 pub mod stream_options;
 pub mod text_delta_event;
 pub mod text_done_event;
@@ -66,9 +83,11 @@ use trzcina::Service;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::compatibility::openai_service::app_data::AppData;
-use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use crate::compatibility::openai_service::http_route::post_chat_completions::post_chat_completions;
+use crate::compatibility::openai_service::http_route::post_responses::post_responses;
 use crate::create_cors_middleware::create_cors_middleware;
-use crate::http_route as common_http_route;
+use crate::http_listener::HttpListener;
+use crate::http_route::get_health::get_health;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::run_http_service::run_http_service;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
@@ -76,8 +95,8 @@ use crate::run_http_service_parameters::RunHttpServiceParameters;
 pub struct OpenAIService {
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
+    pub http_listener: HttpListener,
     pub inference_service_configuration: InferenceServiceConfiguration,
-    pub openai_service_configuration: OpenAIServiceConfiguration,
 }
 
 #[async_trait]
@@ -108,66 +127,15 @@ impl Service for OpenAIService {
                     App::new()
                         .wrap(create_cors_middleware(&cors_allowed_hosts_arc))
                         .app_data(app_data.clone())
-                        .configure(common_http_route::get_health::register)
-                        .configure(http_route::post_chat_completions::register)
-                        .configure(http_route::post_responses::register)
+                        .configure(get_health)
+                        .configure(post_chat_completions)
+                        .configure(post_responses)
                 },
-                bind_addr: self.openai_service_configuration.addr,
+                http_listener: self.http_listener,
                 service_name,
                 worker_count: 16,
             },
         )
         .await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::net::SocketAddr;
-    use std::net::TcpListener;
-    use std::sync::Arc;
-    use std::time::Duration;
-
-    use tokio_util::sync::CancellationToken;
-    use trzcina::Service as _;
-
-    use super::OpenAIService;
-    use crate::agent_controller_pool::AgentControllerPool;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
-    use crate::buffered_request_manager::BufferedRequestManager;
-    use crate::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
-    use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-
-    fn build_service(addr: SocketAddr) -> OpenAIService {
-        let agent_controller_pool = Arc::new(AgentControllerPool::default());
-
-        OpenAIService {
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::default()),
-            buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                agent_controller_pool,
-                Duration::from_secs(30),
-                32,
-            )),
-            inference_service_configuration: InferenceServiceConfiguration {
-                addr: SocketAddr::from(([127, 0, 0, 1], 0)),
-                cors_allowed_hosts: vec!["http://127.0.0.1:8080".to_owned()],
-                inference_item_timeout: Duration::from_secs(30),
-            },
-            openai_service_configuration: OpenAIServiceConfiguration { addr },
-        }
-    }
-
-    #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
-
-        let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
-
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
-
-        assert!(error_message.contains(&expected_addr_fragment));
     }
 }

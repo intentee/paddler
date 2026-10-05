@@ -1,22 +1,34 @@
 pub mod app_data;
 pub mod configuration;
+pub mod esbuild_meta_contents;
 pub mod http_route;
 pub mod template_data;
 
+use std::str::FromStr as _;
+use std::sync::Arc;
+
 use actix_web::App;
 use actix_web::web::Data;
+use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
+use esbuild_metafile::EsbuildMetaFile;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
+use crate::http_listener::HttpListener;
 use crate::run_http_service::run_http_service;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::web_admin_panel_service::app_data::AppData;
-use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
+use crate::web_admin_panel_service::esbuild_meta_contents::ESBUILD_META_CONTENTS;
+use crate::web_admin_panel_service::http_route::favicon::favicon;
+use crate::web_admin_panel_service::http_route::home::home;
+use crate::web_admin_panel_service::http_route::static_files::static_files;
+use crate::web_admin_panel_service::template_data::TemplateData;
 
 pub struct WebAdminPanelService {
-    pub configuration: WebAdminPanelServiceConfiguration,
+    pub http_listener: HttpListener,
+    pub template_data: TemplateData,
 }
 
 #[async_trait]
@@ -27,8 +39,11 @@ impl Service for WebAdminPanelService {
 
     async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let service_name = self.name();
+        let esbuild_metafile = EsbuildMetaFile::from_str(ESBUILD_META_CONTENTS)
+            .context("the embedded esbuild metafile does not describe the dashboard assets")?;
         let app_data: Data<AppData> = Data::new(AppData {
-            template_data: self.configuration.template_data.clone(),
+            esbuild_metafile: Arc::new(esbuild_metafile),
+            template_data: self.template_data,
         });
 
         run_http_service(
@@ -37,11 +52,11 @@ impl Service for WebAdminPanelService {
                 app_factory: move || {
                     App::new()
                         .app_data(app_data.clone())
-                        .configure(http_route::favicon::register)
-                        .configure(http_route::static_files::register)
-                        .configure(http_route::home::register)
+                        .configure(favicon)
+                        .configure(static_files)
+                        .configure(home)
                 },
-                bind_addr: self.configuration.addr,
+                http_listener: self.http_listener,
                 service_name,
                 worker_count: 2,
             },
@@ -53,74 +68,47 @@ impl Service for WebAdminPanelService {
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
-    use std::net::TcpListener;
     use std::time::Duration;
 
     use anyhow::Result;
+    use tokio::join;
     use tokio_util::sync::CancellationToken;
     use trzcina::Service as _;
 
     use super::WebAdminPanelService;
+    use crate::http_listener::HttpListener;
     use crate::resolved_socket_addr::ResolvedSocketAddr;
-    use crate::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
     use crate::web_admin_panel_service::template_data::TemplateData;
 
-    fn build_service(addr: SocketAddr) -> WebAdminPanelService {
-        let loopback_addr = ResolvedSocketAddr {
-            input_addr: "127.0.0.1:0".to_owned(),
-            socket_addr: addr,
-        };
+    fn build_service() -> WebAdminPanelService {
+        let ephemeral_loopback_addr = SocketAddr::from(([127, 0, 0, 1], 0));
 
         WebAdminPanelService {
-            configuration: WebAdminPanelServiceConfiguration {
-                addr,
-                template_data: TemplateData {
-                    buffered_request_timeout: Duration::from_secs(30),
-                    compat_openai_addr: None,
-                    inference_addr: loopback_addr.clone(),
-                    management_addr: loopback_addr,
-                    max_buffered_requests: 32,
-                    statsd_addr: None,
-                    statsd_prefix: "paddler".to_owned(),
-                    statsd_reporting_interval: Duration::from_secs(10),
-                },
+            http_listener: HttpListener::bind(ephemeral_loopback_addr)
+                .expect("an ephemeral loopback port must be bindable"),
+            template_data: TemplateData {
+                buffered_request_timeout: Duration::from_secs(30),
+                compat_openai_addr: None,
+                inference_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
+                management_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
+                max_buffered_requests: 32,
+                statsd_prefix: "paddler".to_owned(),
+                statsd_service_configuration: None,
             },
         }
     }
 
-    #[test]
-    fn name_identifies_the_web_admin_panel_service() {
-        let service = build_service(SocketAddr::from(([127, 0, 0, 1], 0)));
-
-        assert_eq!(service.name(), "balancer::web_admin_panel_service");
-    }
-
     #[actix_web::test]
     async fn run_serves_until_shutdown_is_requested() -> Result<()> {
-        let service = Box::new(build_service(SocketAddr::from(([127, 0, 0, 1], 0))));
+        let service = Box::new(build_service());
         let shutdown = CancellationToken::new();
         let requested_shutdown = shutdown.clone();
 
-        let (run_result, ()) =
-            tokio::join!(
-                service.run(shutdown),
-                async move { requested_shutdown.cancel() }
-            );
+        let (run_result, ()) = join!(
+            service.run(shutdown),
+            async move { requested_shutdown.cancel() }
+        );
 
         run_result
-    }
-
-    #[actix_web::test]
-    async fn run_returns_error_when_address_is_already_in_use() {
-        let occupied_listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
-        let occupied_addr = occupied_listener.local_addr().unwrap();
-
-        let service = Box::new(build_service(occupied_addr));
-        let result = service.run(CancellationToken::new()).await;
-
-        let error_message = result.unwrap_err().to_string();
-        let expected_addr_fragment = occupied_addr.to_string();
-
-        assert!(error_message.contains(&expected_addr_fragment));
     }
 }

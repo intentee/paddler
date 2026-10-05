@@ -1,10 +1,10 @@
 .PHONY: build
 build:
-	npm run build
-
-.PHONY: test
-test:
-	npm test
+	$(MAKE) -C .. paddler_client_javascript/dist
 
 .PHONY: check
 check: test
+
+.PHONY: test
+test:
+	$(MAKE) -C .. test.client.js

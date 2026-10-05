@@ -1,4 +1,6 @@
-#[derive(Clone, Debug)]
+use serde::Serialize;
+
+#[derive(Clone, Debug, Serialize)]
 pub struct TextDeltaEvent {
     pub sequence_number: u64,
     pub item_id: String,

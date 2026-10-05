@@ -1,0 +1,21 @@
+[package]
+name = "paddler_agent_status"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+tokio = { workspace = true }
+paddler_messaging = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+
+[lints]
+workspace = true

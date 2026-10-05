@@ -1,5 +1,6 @@
 import { extractHuggingFaceUrlParts } from "./extractHuggingFaceUrlParts";
 import type { AgentDesiredModel } from "./schemas/AgentDesiredModel";
+import { UnsupportedModelUrlError } from "./UnsupportedModelUrlError";
 
 export function urlToAgentDesiredModel(url: URL): AgentDesiredModel {
   if (url.hostname === "huggingface.co") {
@@ -20,5 +21,5 @@ export function urlToAgentDesiredModel(url: URL): AgentDesiredModel {
     };
   }
 
-  throw new Error("Unsupported URL format");
+  throw new UnsupportedModelUrlError(url.toString());
 }

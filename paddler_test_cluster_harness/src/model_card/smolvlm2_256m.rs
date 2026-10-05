@@ -1,0 +1,14 @@
+use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+
+use crate::model_card::ModelCard;
+
+#[must_use]
+pub fn smolvlm2_256m() -> ModelCard {
+    ModelCard {
+        reference: HuggingFaceModelReference {
+            filename: "SmolVLM2-256M-Video-Instruct-Q8_0.gguf".to_owned(),
+            repo_id: "ggml-org/SmolVLM2-256M-Video-Instruct-GGUF".to_owned(),
+            revision: "main".to_owned(),
+        },
+    }
+}

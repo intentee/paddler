@@ -5,7 +5,7 @@ import { GrammarConstraintSchema } from "./GrammarConstraint";
 export const ContinueFromRawPromptParamsSchema = z
   .object({
     grammar: GrammarConstraintSchema.nullable().optional(),
-    max_tokens: z.number().int(),
+    max_tokens: z.number().int().min(1),
     raw_prompt: z.string(),
   })
   .strict();

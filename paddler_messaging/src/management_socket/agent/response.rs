@@ -1,11 +1,12 @@
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::chat_template::ChatTemplate;
 use crate::embedding_result::EmbeddingResult;
 use crate::generated_token_result::GeneratedTokenResult;
 use crate::model_metadata::ModelMetadata;
-use serde::Deserialize;
-use serde::Serialize;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum Response {
     ChatTemplateOverride(Option<ChatTemplate>),
