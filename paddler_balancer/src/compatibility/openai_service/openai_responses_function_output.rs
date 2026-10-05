@@ -1,12 +1,12 @@
 use serde::Deserialize;
 
-use crate::compatibility::openai_service::openai_responses_input_content_part::OpenAIResponsesInputContentPart;
+use crate::compatibility::openai_service::openai_responses_function_output_part::OpenAIResponsesFunctionOutputPart;
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum OpenAIResponsesFunctionOutput {
     Text(String),
-    Parts(Vec<OpenAIResponsesInputContentPart>),
+    Parts(Vec<OpenAIResponsesFunctionOutputPart>),
 }
 
 impl OpenAIResponsesFunctionOutput {
@@ -16,11 +16,7 @@ impl OpenAIResponsesFunctionOutput {
             Self::Text(text) => text,
             Self::Parts(parts) => parts
                 .into_iter()
-                .filter_map(|part| match part {
-                    OpenAIResponsesInputContentPart::InputText { text } => Some(text),
-                    OpenAIResponsesInputContentPart::InputImage { .. }
-                    | OpenAIResponsesInputContentPart::Unsupported => None,
-                })
+                .map(|OpenAIResponsesFunctionOutputPart::InputText { text }| text)
                 .collect::<String>(),
         }
     }
@@ -29,7 +25,7 @@ impl OpenAIResponsesFunctionOutput {
 #[cfg(test)]
 mod tests {
     use super::OpenAIResponsesFunctionOutput;
-    use crate::compatibility::openai_service::openai_responses_input_content_part::OpenAIResponsesInputContentPart;
+    use crate::compatibility::openai_service::openai_responses_function_output_part::OpenAIResponsesFunctionOutputPart;
 
     #[test]
     fn text_output_returns_its_text() {
@@ -40,13 +36,12 @@ mod tests {
     }
 
     #[test]
-    fn parts_output_concatenates_text_and_drops_non_text() {
+    fn parts_output_concatenates_its_text() {
         let output = OpenAIResponsesFunctionOutput::Parts(vec![
-            OpenAIResponsesInputContentPart::InputText {
+            OpenAIResponsesFunctionOutputPart::InputText {
                 text: "foo".to_owned(),
             },
-            OpenAIResponsesInputContentPart::InputImage { image_url: None },
-            OpenAIResponsesInputContentPart::InputText {
+            OpenAIResponsesFunctionOutputPart::InputText {
                 text: "bar".to_owned(),
             },
         ]);

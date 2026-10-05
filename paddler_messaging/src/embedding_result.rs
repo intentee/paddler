@@ -5,7 +5,7 @@ use crate::embedding::Embedding;
 use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
 use crate::streamable_result::StreamableResult;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum EmbeddingResult {
     DocumentExceedsBatchSize(OversizedEmbeddingDocumentDetails),
@@ -14,6 +14,7 @@ pub enum EmbeddingResult {
     EmbeddingsDisabled,
     Error(String),
     EmbeddingRejectedDueToActiveTokenGeneration,
+    ModelNotLoaded(String),
     NoEmbeddingsProduced,
 }
 
@@ -25,6 +26,7 @@ impl StreamableResult for EmbeddingResult {
                 | Self::EmbeddingsDisabled
                 | Self::Error(_)
                 | Self::EmbeddingRejectedDueToActiveTokenGeneration
+                | Self::ModelNotLoaded(_)
                 | Self::NoEmbeddingsProduced,
         )
     }
@@ -32,9 +34,13 @@ impl StreamableResult for EmbeddingResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use paddler_inference_parameters::pooling_type::PoolingType;
+
+    use super::EmbeddingResult;
+    use crate::embedding::Embedding;
     use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
-    use crate::pooling_type::PoolingType;
+    use crate::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
+    use crate::streamable_result::StreamableResult;
 
     #[test]
     fn done_is_done() {
@@ -54,6 +60,11 @@ mod tests {
     #[test]
     fn embedding_rejected_due_to_active_token_generation_is_done() {
         assert!(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration.is_done());
+    }
+
+    #[test]
+    fn model_not_loaded_is_done() {
+        assert!(EmbeddingResult::ModelNotLoaded("err".to_owned()).is_done());
     }
 
     #[test]

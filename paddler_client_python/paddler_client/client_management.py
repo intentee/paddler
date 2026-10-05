@@ -17,7 +17,7 @@ from paddler_client.model_metadata import ModelMetadata
 from paddler_client.stream_sse import stream_sse
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
+    from collections.abc import AsyncGenerator
 
 
 class ClientManagement:
@@ -53,7 +53,7 @@ class ClientManagement:
 
     async def agents_stream(
         self,
-    ) -> AsyncIterator[AgentControllerPoolSnapshot]:
+    ) -> AsyncGenerator[AgentControllerPoolSnapshot, None]:
         url = f"{self._url}/api/v1/agents/stream"
 
         async with self._http_client.stream("GET", url) as response:
@@ -102,7 +102,7 @@ class ClientManagement:
 
     async def buffered_requests_stream(
         self,
-    ) -> AsyncIterator[BufferedRequestManagerSnapshot]:
+    ) -> AsyncGenerator[BufferedRequestManagerSnapshot, None]:
         url = f"{self._url}/api/v1/buffered_requests/stream"
 
         async with self._http_client.stream("GET", url) as response:

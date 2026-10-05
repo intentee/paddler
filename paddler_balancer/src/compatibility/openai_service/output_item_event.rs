@@ -1,8 +1,10 @@
-use serde_json::Value;
+use serde::Serialize;
 
-#[derive(Clone, Debug)]
+use crate::compatibility::openai_service::responses_output_item::ResponsesOutputItem;
+
+#[derive(Clone, Debug, Serialize)]
 pub struct OutputItemEvent {
     pub sequence_number: u64,
     pub output_index: usize,
-    pub item: Value,
+    pub item: ResponsesOutputItem,
 }

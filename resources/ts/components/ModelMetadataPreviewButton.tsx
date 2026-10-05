@@ -15,8 +15,8 @@ export function ModelMetadataPreviewButton({
   const [isDetailsVisible, setIsDetailsVisible] = useState(false);
 
   const onClick = useCallback(
-    function (evt: MouseEvent<HTMLButtonElement>) {
-      evt.preventDefault();
+    function (event: MouseEvent<HTMLButtonElement>) {
+      event.preventDefault();
 
       setIsDetailsVisible(true);
     },

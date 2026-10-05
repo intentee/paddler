@@ -1,12 +1,11 @@
-use std::path::PathBuf;
-
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::chat_template::ChatTemplate;
-use paddler_messaging::inference_parameters::InferenceParameters;
 
-#[derive(Clone, Debug)]
+use crate::agent_applicable_model::AgentApplicableModel;
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct AgentApplicableState {
     pub chat_template_override: Option<ChatTemplate>,
     pub inference_parameters: InferenceParameters,
-    pub multimodal_projection_path: Option<PathBuf>,
-    pub model_path: Option<PathBuf>,
+    pub model: AgentApplicableModel,
 }

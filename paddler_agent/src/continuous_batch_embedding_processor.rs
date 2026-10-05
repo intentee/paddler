@@ -1,36 +1,34 @@
-use std::sync::Arc;
-
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::anyhow;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::model::AddBos;
 use log::warn;
+use tokio::sync::mpsc;
+
 use paddler_messaging::embedding::Embedding;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
-use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
-use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use tokio::sync::mpsc;
 
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
+use crate::embedding_batch_rejection::EmbeddingBatchRejection;
 use crate::embedding_input_tokenized::EmbeddingInputTokenized;
-use crate::generate_embedding_batch_request::GenerateEmbeddingBatchRequest;
 use crate::normalization::normalize_embedding::normalize_embedding;
 use crate::plan_embedding_batches::plan_embedding_batches;
+use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
+use crate::receives_stop_request::ReceivesStopRequest as _;
 
 pub struct ContinuousBatchEmbeddingProcessor<'context> {
+    batch: &'context mut LlamaBatch<'static>,
     llama_context: &'context mut LlamaContext<'static>,
-    scheduler_context: &'context Arc<ContinuousBatchSchedulerContext>,
+    scheduler_context: &'context ContinuousBatchSchedulerContext,
 }
 
 impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
     pub const fn new(
+        batch: &'context mut LlamaBatch<'static>,
         llama_context: &'context mut LlamaContext<'static>,
-        scheduler_context: &'context Arc<ContinuousBatchSchedulerContext>,
+        scheduler_context: &'context ContinuousBatchSchedulerContext,
     ) -> Self {
         Self {
+            batch,
             llama_context,
             scheduler_context,
         }
@@ -38,105 +36,67 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
 
     pub fn process_embedding_batch(
         &mut self,
-        GenerateEmbeddingBatchRequest {
+        PreparedEmbeddingBatchRequest {
             mut generate_embedding_stop_rx,
             generated_embedding_tx,
-            params:
-                GenerateEmbeddingBatchParams {
-                    input_batch,
-                    normalization_method,
-                },
+            inputs,
+            normalization_method,
+            oversized_documents,
             slot_guard,
-        }: GenerateEmbeddingBatchRequest,
-    ) -> Result<()> {
-        // Held until this function returns so the slot is released via `Drop`.
+        }: PreparedEmbeddingBatchRequest,
+    ) -> Result<(), EmbeddingBatchRejection> {
         let _slot_guard = slot_guard;
 
-        if !self
+        for oversized_document in oversized_documents {
+            warn!(
+                "{:?}: skipped embedding document {:?}: {} tokens exceeds n_batch {}",
+                self.scheduler_context.agent_name,
+                oversized_document.source_document_id,
+                oversized_document.document_tokens,
+                oversized_document.n_batch,
+            );
+
+            generated_embedding_tx
+                .send(EmbeddingResult::DocumentExceedsBatchSize(
+                    oversized_document,
+                ))
+                .map_err(EmbeddingBatchRejection::ClientDisconnected)?;
+        }
+
+        let n_batch = self
             .scheduler_context
             .inference_parameters
-            .enable_embeddings
-        {
-            generated_embedding_tx.send(EmbeddingResult::EmbeddingsDisabled)?;
-
-            return Err(anyhow!("Embeddings are not enabled"));
-        }
-
-        let tokens_lines_list = input_batch
-            .into_iter()
-            .map(|input| {
-                match self
-                    .scheduler_context
-                    .model
-                    .str_to_token(&input.content, AddBos::Always)
-                {
-                    Ok(tokens) => Ok(EmbeddingInputTokenized {
-                        id: input.id,
-                        tokens,
-                    }),
-                    Err(err) => Err(anyhow!("Failed to tokenize input: {err:?}")),
-                }
-            })
-            .collect::<Result<Vec<EmbeddingInputTokenized>, _>>()
-            .context("failed to tokenize embedding input batch")?;
-
-        let n_batch = self.scheduler_context.inference_parameters.n_batch;
+            .n_batch
+            .tokens_usize();
         let max_sequences_per_batch = self.scheduler_context.desired_slots_total;
 
-        let mut tokens_lines_list_within_batch: Vec<EmbeddingInputTokenized> = Vec::new();
-        for input in tokens_lines_list {
-            if input.tokens.len() > n_batch {
-                let details = OversizedEmbeddingDocumentDetails {
-                    document_tokens: u32::try_from(input.tokens.len())
-                        .context("document token count does not fit in u32")?,
-                    n_batch: u32::try_from(n_batch).context("n_batch does not fit in u32")?,
-                    source_document_id: input.id.clone(),
-                };
-
-                warn!(
-                    "{:?}: skipped embedding document {:?}: {} tokens exceeds n_batch {}",
-                    self.scheduler_context.agent_name,
-                    input.id,
-                    details.document_tokens,
-                    details.n_batch,
-                );
-
-                generated_embedding_tx.send(EmbeddingResult::DocumentExceedsBatchSize(details))?;
-            } else {
-                tokens_lines_list_within_batch.push(input);
-            }
-        }
-
-        let token_counts: Vec<usize> = tokens_lines_list_within_batch
-            .iter()
-            .map(|input| input.tokens.len())
-            .collect();
+        let token_counts: Vec<usize> = inputs.iter().map(|input| input.tokens.len()).collect();
         let planned_batches =
             plan_embedding_batches(&token_counts, n_batch, max_sequences_per_batch);
-        let mut batch = LlamaBatch::new(n_batch, max_sequences_per_batch)?;
+        self.batch.clear();
 
         let mut embeddings_emitted: usize = 0;
 
         for planned_batch in planned_batches {
-            if generate_embedding_stop_rx.try_recv().is_ok() {
+            if generate_embedding_stop_rx.is_stop_requested() {
                 break;
             }
 
-            let batch_inputs: Vec<&EmbeddingInputTokenized> = tokens_lines_list_within_batch
-                [planned_batch]
-                .iter()
-                .collect();
+            let batch_inputs: Vec<&EmbeddingInputTokenized> =
+                inputs[planned_batch].iter().collect();
 
             for (sequence_index, input) in batch_inputs.iter().enumerate() {
-                batch.add_sequence(
-                    &input.tokens,
-                    i32::try_from(sequence_index).context("sequence index does not fit in i32")?,
-                    true,
-                )?;
+                self.batch
+                    .add_sequence(
+                        &input.tokens,
+                        i32::try_from(sequence_index)
+                            .map_err(EmbeddingBatchRejection::SequenceIndexOutOfRange)?,
+                        true,
+                    )
+                    .map_err(EmbeddingBatchRejection::BatchAssemblyFailed)?;
             }
 
             self.embedding_batch_decode(
-                &mut batch,
                 &batch_inputs,
                 &generated_embedding_tx,
                 &normalization_method,
@@ -145,49 +105,50 @@ impl<'context> ContinuousBatchEmbeddingProcessor<'context> {
             embeddings_emitted += batch_inputs.len();
         }
 
-        if embeddings_emitted == 0 {
-            generated_embedding_tx.send(EmbeddingResult::NoEmbeddingsProduced)?;
-        } else {
-            generated_embedding_tx.send(EmbeddingResult::Done)?;
-        }
-
-        Ok(())
+        generated_embedding_tx
+            .send(if embeddings_emitted == 0 {
+                EmbeddingResult::NoEmbeddingsProduced
+            } else {
+                EmbeddingResult::Done
+            })
+            .map_err(EmbeddingBatchRejection::ClientDisconnected)
     }
 
     fn embedding_batch_decode(
         &mut self,
-        batch: &mut LlamaBatch,
         current_batch_embeddings: &[&EmbeddingInputTokenized],
         generated_embedding_tx: &mpsc::UnboundedSender<EmbeddingResult>,
         normalization_method: &EmbeddingNormalizationMethod,
-    ) -> Result<()> {
+    ) -> Result<(), EmbeddingBatchRejection> {
         self.llama_context.clear_kv_cache();
-        self.llama_context.decode(batch)?;
+        self.llama_context
+            .decode(self.batch)
+            .map_err(EmbeddingBatchRejection::DecodeFailed)?;
 
         for (index, embedding_input_tokenized) in current_batch_embeddings.iter().enumerate() {
             let embedding = self
                 .llama_context
                 .embeddings_seq_ith(
-                    i32::try_from(index).context("embedding sequence index does not fit in i32")?,
+                    i32::try_from(index)
+                        .map_err(EmbeddingBatchRejection::SequenceIndexOutOfRange)?,
                 )
-                .context("Failed to get embeddings")?;
+                .map_err(EmbeddingBatchRejection::EmbeddingsUnavailable)?;
 
-            generated_embedding_tx.send(EmbeddingResult::Embedding(normalize_embedding(
-                Embedding {
-                    embedding: embedding.to_vec(),
-                    normalization_method: EmbeddingNormalizationMethod::None,
+            generated_embedding_tx
+                .send(EmbeddingResult::Embedding(Embedding {
+                    embedding: normalize_embedding(embedding.to_vec(), normalization_method)?,
+                    normalization_method: normalization_method.clone(),
                     pooling_type: self
                         .scheduler_context
                         .inference_parameters
                         .pooling_type
                         .clone(),
                     source_document_id: embedding_input_tokenized.id.clone(),
-                },
-                normalization_method,
-            )?))?;
+                }))
+                .map_err(EmbeddingBatchRejection::ClientDisconnected)?;
         }
 
-        batch.clear();
+        self.batch.clear();
 
         Ok(())
     }

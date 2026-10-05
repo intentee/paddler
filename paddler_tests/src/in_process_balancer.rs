@@ -1,7 +1,8 @@
+use anyhow::Error;
 use anyhow::Result;
 use async_trait::async_trait;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
 
+use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_test_cluster_harness::managed_process::ManagedProcess;
 
 pub struct InProcessBalancer {
@@ -17,8 +18,8 @@ impl InProcessBalancer {
 
 #[async_trait]
 impl ManagedProcess for InProcessBalancer {
-    async fn shutdown(&mut self) -> Result<()> {
+    async fn shutdown(self: Box<Self>) -> Result<()> {
         self.runner.cancel();
-        self.runner.wait_for_completion().await
+        self.runner.wait_for_completion().await.map_err(Error::new)
     }
 }

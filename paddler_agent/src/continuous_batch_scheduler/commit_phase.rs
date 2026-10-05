@@ -1,24 +1,34 @@
-use anyhow::Result;
-
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_scheduler::batch_pass::BatchPass;
+use crate::continuous_batch_scheduler::contributions::Contributions;
 
-pub fn run(pass: BatchPass, requests: &mut [ContinuousBatchActiveRequest]) -> Result<()> {
-    for contribution in pass.contributions.generating {
-        requests[contribution.request_index]
-            .state
-            .apply_generating_contribution(contribution.batch_position);
+pub struct CommitPhase<'requests> {
+    pub requests: &'requests mut [ContinuousBatchActiveRequest],
+}
+
+impl CommitPhase<'_> {
+    pub fn run(
+        self,
+        BatchPass {
+            contributions:
+                Contributions {
+                    generating,
+                    ingesting,
+                    ..
+                },
+            ..
+        }: BatchPass,
+    ) {
+        for contribution in generating {
+            self.requests[contribution.request_index]
+                .state
+                .apply_generating_contribution(contribution.batch_position);
+        }
+
+        for contribution in ingesting {
+            self.requests[contribution.request_index]
+                .state
+                .apply_ingesting_contribution(&contribution);
+        }
     }
-
-    for contribution in pass.contributions.ingesting {
-        requests[contribution.request_index]
-            .state
-            .apply_ingesting_contribution(
-                contribution.chunk_size,
-                contribution.is_last_chunk,
-                contribution.last_batch_position,
-            )?;
-    }
-
-    Ok(())
 }

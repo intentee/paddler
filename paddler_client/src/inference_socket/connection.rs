@@ -1,16 +1,6 @@
-#[cfg(test)]
-use std::collections::VecDeque;
 use std::sync::Arc;
-#[cfg(test)]
-use std::sync::Mutex;
 
-use dashmap::DashMap;
 use futures_util::StreamExt;
-use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
-use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
-use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use serde_json::to_string;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
@@ -20,6 +10,12 @@ use tokio::task::JoinHandle;
 use tokio_tungstenite::connect_async;
 use url::Url;
 
+use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
+use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
+use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
+
 use crate::error::Error;
 use crate::error::Result;
 use crate::inference_socket::pending_requests::PendingRequests;
@@ -28,12 +24,10 @@ use crate::inference_socket::spawn_write_task::spawn_write_task;
 use crate::inference_socket::url::url;
 
 pub struct Connection {
-    write_tx: UnboundedSender<String>,
-    pending: PendingRequests,
+    pending: Arc<PendingRequests>,
     read_task: JoinHandle<()>,
     write_task: JoinHandle<()>,
-    #[cfg(test)]
-    injected_send_errors: Mutex<VecDeque<Error>>,
+    write_tx: UnboundedSender<String>,
 }
 
 impl Connection {
@@ -44,26 +38,20 @@ impl Connection {
         let ws_url = url(connection_url)?;
         let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
         let (ws_write, ws_read) = ws_stream.split();
-
-        let pending: PendingRequests = Arc::new(DashMap::new());
+        let pending = Arc::new(PendingRequests::default());
         let (write_tx, write_rx) = mpsc::unbounded_channel::<String>();
 
-        let write_task = spawn_write_task(ws_write, write_rx);
-        let read_task = spawn_read_task(ws_read, pending.clone(), notification_tx);
-
         Ok(Self {
-            write_tx,
+            read_task: spawn_read_task(ws_read, pending.clone(), notification_tx),
+            write_task: spawn_write_task(ws_write, write_rx, pending.clone()),
             pending,
-            read_task,
-            write_task,
-            #[cfg(test)]
-            injected_send_errors: Mutex::new(VecDeque::new()),
+            write_tx,
         })
     }
 
     #[must_use]
     pub fn is_disconnected(&self) -> bool {
-        self.write_tx.is_closed() || self.read_task.is_finished()
+        self.pending.is_closed()
     }
 
     pub fn send(
@@ -71,21 +59,7 @@ impl Connection {
         request_id: String,
         json: String,
     ) -> Result<UnboundedReceiver<Result<InferenceMessage>>> {
-        #[cfg(test)]
-        {
-            let injected_error = self
-                .injected_send_errors
-                .lock()
-                .expect("the injected send error queue must not be poisoned")
-                .pop_front();
-
-            if let Some(injected_error) = injected_error {
-                return Err(injected_error);
-            }
-        }
-
-        let (response_tx, response_rx) = mpsc::unbounded_channel();
-        self.pending.insert(request_id.clone(), response_tx);
+        let response_rx = self.pending.register(request_id.clone())?;
 
         if self.write_tx.send(json).is_err() {
             self.pending.remove(&request_id);
@@ -109,26 +83,6 @@ impl Connection {
             .send(json)
             .map_err(|_closed_channel| Error::ConnectionDropped { request_id })
     }
-
-    #[cfg(test)]
-    #[must_use]
-    pub fn from_write_sender(write_tx: UnboundedSender<String>) -> Self {
-        Self {
-            write_tx,
-            pending: Arc::new(DashMap::new()),
-            read_task: tokio::spawn(std::future::pending::<()>()),
-            write_task: tokio::spawn(std::future::pending::<()>()),
-            injected_send_errors: Mutex::new(VecDeque::new()),
-        }
-    }
-
-    #[cfg(test)]
-    pub fn inject_send_errors(&self, errors: impl IntoIterator<Item = Error>) {
-        self.injected_send_errors
-            .lock()
-            .expect("the injected send error queue must not be poisoned")
-            .extend(errors);
-    }
 }
 
 impl Drop for Connection {
@@ -140,114 +94,126 @@ impl Drop for Connection {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::io::ErrorKind;
 
+    use futures_util::SinkExt as _;
     use futures_util::StreamExt as _;
     use tokio::net::TcpListener;
+    use tokio::net::TcpStream;
+    use tokio::spawn;
     use tokio::sync::broadcast;
-    use tokio::sync::mpsc;
-    use tokio::task::yield_now;
-    use tokio::time::timeout;
+    use tokio::task::JoinHandle;
+    use tokio_tungstenite::WebSocketStream;
     use tokio_tungstenite::accept_async;
+    use tokio_tungstenite::tungstenite::Error as WebSocketError;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
     use url::Url;
 
     use super::Connection;
     use crate::error::Error;
 
-    #[tokio::test]
-    async fn connect_fails_for_an_unreachable_server() {
-        let url = Url::parse("http://127.0.0.1:1").unwrap();
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
-
-        assert!(Connection::connect(url, notification_tx).await.is_err());
+    struct WebSocketFixture {
+        server: JoinHandle<WebSocketStream<TcpStream>>,
+        url: Url,
     }
 
-    #[tokio::test]
-    async fn dropping_the_connection_closes_the_websocket() {
+    async fn websocket_fixture_answering_the_first_request_with(
+        answer: Option<WsMessage>,
+    ) -> WebSocketFixture {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
-            .expect("the fixture server must bind a loopback port");
-        let address = listener
-            .local_addr()
-            .expect("the fixture server must report its address");
-
-        let server_task = tokio::spawn(async move {
-            let (tcp_stream, _peer_address) = listener
+            .expect("the fixture socket must bind");
+        let url = Url::parse(&format!(
+            "http://{}",
+            listener
+                .local_addr()
+                .expect("the fixture socket must report its address")
+        ))
+        .expect("the fixture URL must be valid");
+        let server = spawn(async move {
+            let (stream, _peer_addr) = listener
                 .accept()
                 .await
-                .expect("the fixture server must accept the connection");
-            let mut server_websocket = accept_async(tcp_stream)
+                .expect("the fixture must accept the client");
+            let mut websocket = accept_async(stream)
                 .await
-                .expect("the fixture server must complete the websocket handshake");
+                .expect("the fixture must complete the handshake");
 
-            while server_websocket.next().await.is_some() {}
+            websocket
+                .next()
+                .await
+                .expect("the client must send its request")
+                .expect("the client request must be readable");
+
+            if let Some(answer) = answer {
+                websocket
+                    .send(answer)
+                    .await
+                    .expect("the fixture must send its answer");
+            }
+
+            websocket
         });
 
-        let url = Url::parse(&format!("http://{address}")).expect("the fixture URL must be valid");
+        WebSocketFixture { server, url }
+    }
+
+    async fn connection_to(url: Url) -> Connection {
         let (notification_tx, _notification_rx) = broadcast::channel(1);
-        let connection = Connection::connect(url, notification_tx)
-            .await
-            .expect("the client must connect to the fixture server");
 
-        drop(connection);
-
-        timeout(Duration::from_secs(5), server_task)
+        Connection::connect(url, notification_tx)
             .await
-            .expect("dropping the connection must close the websocket before the deadline")
-            .expect("the fixture server task must not panic");
+            .expect("the client must connect to the fixture")
     }
 
     #[tokio::test]
-    async fn reports_a_dropped_connection_when_sending_over_a_closed_write_channel() {
-        let (write_tx, write_rx) = mpsc::unbounded_channel();
-
-        drop(write_rx);
-
-        let connection = Connection::from_write_sender(write_tx);
+    async fn connect_fails_for_an_unreachable_server() {
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
 
         assert!(matches!(
-            connection.send("abandoned_request".to_owned(), "{}".to_owned()),
-            Err(Error::ConnectionDropped { .. })
+            Connection::connect(
+                Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"),
+                notification_tx,
+            )
+            .await,
+            Err(Error::WebSocket(WebSocketError::Io(io_error)))
+                if io_error.kind() == ErrorKind::ConnectionRefused
         ));
     }
 
     #[tokio::test]
-    async fn reports_disconnected_after_the_server_closes_the_socket() {
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("the fixture server must bind a loopback port");
-        let address = listener
-            .local_addr()
-            .expect("the fixture server must report its address");
+    async fn a_binary_frame_from_the_server_drops_every_pending_request() {
+        let WebSocketFixture { server, url } = websocket_fixture_answering_the_first_request_with(
+            Some(WsMessage::Binary(vec![0].into())),
+        )
+        .await;
+        let connection = connection_to(url).await;
+        let mut response_rx = connection
+            .send("request-1".to_owned(), "{}".to_owned())
+            .expect("an open connection must accept a request");
 
-        let server_task = tokio::spawn(async move {
-            let (tcp_stream, _peer_address) = listener
-                .accept()
-                .await
-                .expect("the fixture server must accept the connection");
-            let server_websocket = accept_async(tcp_stream)
-                .await
-                .expect("the fixture server must complete the websocket handshake");
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
 
-            drop(server_websocket);
-        });
+        drop(server.await.expect("the fixture must not panic"));
+    }
 
-        let url = Url::parse(&format!("http://{address}")).expect("the fixture URL must be valid");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
-        let connection = Connection::connect(url, notification_tx)
-            .await
-            .expect("the client must connect to the fixture server");
+    #[tokio::test]
+    async fn a_connection_reset_without_a_closing_handshake_drops_every_pending_request() {
+        let WebSocketFixture { server, url } =
+            websocket_fixture_answering_the_first_request_with(None).await;
+        let connection = connection_to(url).await;
+        let mut response_rx = connection
+            .send("request-1".to_owned(), "{}".to_owned())
+            .expect("an open connection must accept a request");
 
-        server_task
-            .await
-            .expect("the fixture server task must not panic");
+        drop(server.await.expect("the fixture must not panic"));
 
-        timeout(Duration::from_secs(5), async {
-            while !connection.is_disconnected() {
-                yield_now().await;
-            }
-        })
-        .await
-        .expect("a server that closed the socket must make the connection report disconnected");
+        assert!(matches!(
+            response_rx.recv().await,
+            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
+        ));
     }
 }

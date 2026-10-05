@@ -22,8 +22,8 @@ export function InferenceParameterCacheDtype({
   const { parameters, setParameter } = useContext(InferenceParametersContext);
 
   const onChange = useCallback(
-    function (evt: ChangeEvent<HTMLSelectElement>) {
-      const option = evt.currentTarget.value;
+    function (event: ChangeEvent<HTMLSelectElement>) {
+      const option = event.currentTarget.value;
 
       if (!isCacheDtype(option)) {
         throw new Error(`Invalid cache dtype: ${option}`);

@@ -1,35 +1,32 @@
+use std::fs::DirEntry;
 use std::fs::read_dir;
+use std::io;
 
-use anyhow::Context as _;
-use anyhow::Result;
-
+use crate::cluster_harness_error::ClusterHarnessError;
 use crate::resource_snapshot_diff::ResourceSnapshotDiff;
+
+#[cfg(target_os = "macos")]
+const fn open_descriptors_directory_path() -> &'static str {
+    "/dev/fd"
+}
+
+#[cfg(target_os = "linux")]
+const fn open_descriptors_directory_path() -> &'static str {
+    "/proc/self/fd"
+}
 
 pub struct ResourceSnapshot {
     pub open_file_descriptor_count: usize,
 }
 
 impl ResourceSnapshot {
-    pub fn try_from_self() -> Result<Self> {
-        let directory_path = open_descriptors_directory_path();
-
-        let entries = read_dir(directory_path).with_context(|| {
-            format!(
-                "failed to read open-descriptors directory {directory_path:?} for the current process"
-            )
-        })?;
-
-        let mut open_file_descriptor_count: usize = 0;
-
-        for entry_result in entries {
-            entry_result
-                .context("failed to enumerate an open-descriptor entry for the current process")?;
-
-            open_file_descriptor_count += 1;
-        }
+    pub fn try_from_self() -> Result<Self, ClusterHarnessError> {
+        let open_file_descriptors = read_dir(open_descriptors_directory_path())
+            .and_then(Iterator::collect::<Result<Vec<DirEntry>, io::Error>>)
+            .map_err(ClusterHarnessError::OpenFileDescriptorsUnreadable)?;
 
         Ok(Self {
-            open_file_descriptor_count,
+            open_file_descriptor_count: open_file_descriptors.len(),
         })
     }
 
@@ -43,23 +40,14 @@ impl ResourceSnapshot {
     }
 }
 
-#[cfg(target_os = "macos")]
-const fn open_descriptors_directory_path() -> &'static str {
-    "/dev/fd"
-}
-
-#[cfg(target_os = "linux")]
-const fn open_descriptors_directory_path() -> &'static str {
-    "/proc/self/fd"
-}
-
 #[cfg(test)]
 mod tests {
     use super::ResourceSnapshot;
 
     #[test]
     fn try_from_self_counts_the_processes_open_descriptors() {
-        let snapshot = ResourceSnapshot::try_from_self().unwrap();
+        let snapshot = ResourceSnapshot::try_from_self()
+            .expect("the current process must be able to list its open file descriptors");
 
         assert!(snapshot.open_file_descriptor_count > 0);
     }

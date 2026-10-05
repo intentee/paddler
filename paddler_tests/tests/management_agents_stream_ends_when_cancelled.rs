@@ -1,18 +1,18 @@
-use anyhow::Context as _;
-use anyhow::Result;
 use futures_util::StreamExt as _;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::start_cluster::start_cluster;
 use tokio_util::sync::CancellationToken;
 
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
+
 #[tokio::test(flavor = "multi_thread")]
-async fn management_agents_stream_ends_when_cancelled() -> Result<()> {
+async fn management_agents_stream_ends_when_cancelled() {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let cancellation_token = CancellationToken::new();
 
@@ -20,14 +20,13 @@ async fn management_agents_stream_ends_when_cancelled() -> Result<()> {
         .client_management
         .get_agents_stream(cancellation_token.clone())
         .await
-        .map_err(anyhow::Error::new)
-        .context("failed to open /api/v1/agents/stream")?;
+        .expect("the agents stream must open");
 
     stream
         .next()
         .await
-        .context("the agents stream must yield an initial snapshot")?
-        .map_err(anyhow::Error::new)?;
+        .expect("the agents stream must yield an initial snapshot")
+        .expect("the message must be readable");
 
     cancellation_token.cancel();
 
@@ -36,7 +35,8 @@ async fn management_agents_stream_ends_when_cancelled() -> Result<()> {
         "a cancelled agents stream must end"
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

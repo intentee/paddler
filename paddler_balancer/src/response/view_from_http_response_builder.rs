@@ -18,6 +18,7 @@ pub fn view_from_http_response_builder<TTemplate: Template>(
 #[cfg(test)]
 mod tests {
     use std::fmt;
+    use std::fmt::Write as _;
     use std::mem::discriminant;
 
     use actix_web::HttpResponse;
@@ -25,6 +26,8 @@ mod tests {
     use actix_web::http::header::CONTENT_TYPE;
     use askama::Error as AskamaError;
     use askama::FastWritable;
+    use askama::NO_VALUES;
+    use askama::Result as AskamaResult;
     use askama::Template;
     use askama::Values;
 
@@ -52,7 +55,7 @@ mod tests {
             &self,
             destination: &mut TWriter,
             values: &dyn Values,
-        ) -> askama::Result<()> {
+        ) -> AskamaResult<()> {
             self.render_into_with_values(destination, values)
         }
     }
@@ -64,7 +67,7 @@ mod tests {
             &self,
             writer: &mut TWriter,
             _values: &dyn Values,
-        ) -> askama::Result<()> {
+        ) -> AskamaResult<()> {
             writer.write_str("<p>rendered</p>")?;
 
             Ok(())
@@ -85,7 +88,7 @@ mod tests {
             &self,
             destination: &mut TWriter,
             values: &dyn Values,
-        ) -> askama::Result<()> {
+        ) -> AskamaResult<()> {
             self.render_into_with_values(destination, values)
         }
     }
@@ -97,7 +100,7 @@ mod tests {
             &self,
             _writer: &mut TWriter,
             _values: &dyn Values,
-        ) -> askama::Result<()> {
+        ) -> AskamaResult<()> {
             Err(AskamaError::ValueMissing)
         }
     }
@@ -137,8 +140,6 @@ mod tests {
 
     #[test]
     fn displays_failing_template_as_fmt_error() {
-        use std::fmt::Write as _;
-
         let mut destination = String::new();
         let display_error = write!(destination, "{FailingTemplate}").err().unwrap();
 
@@ -149,7 +150,7 @@ mod tests {
     fn rendering_template_fast_writable_writes_markup() {
         let mut destination = String::new();
 
-        FastWritable::write_into(&RenderingTemplate, &mut destination, askama::NO_VALUES).unwrap();
+        FastWritable::write_into(&RenderingTemplate, &mut destination, NO_VALUES).unwrap();
 
         assert_eq!(destination, "<p>rendered</p>");
     }
@@ -158,10 +159,9 @@ mod tests {
     fn failing_template_fast_writable_propagates_value_missing() {
         let mut destination = String::new();
 
-        let write_error =
-            FastWritable::write_into(&FailingTemplate, &mut destination, askama::NO_VALUES)
-                .err()
-                .unwrap();
+        let write_error = FastWritable::write_into(&FailingTemplate, &mut destination, NO_VALUES)
+            .err()
+            .unwrap();
 
         assert_eq!(
             discriminant(&write_error),
@@ -174,7 +174,7 @@ mod tests {
         let mut failing_writer = FailingWriter;
 
         let write_error = RenderingTemplate
-            .render_into_with_values(&mut failing_writer, askama::NO_VALUES)
+            .render_into_with_values(&mut failing_writer, NO_VALUES)
             .err()
             .unwrap();
 

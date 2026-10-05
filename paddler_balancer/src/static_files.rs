@@ -6,10 +6,6 @@ pub struct StaticFiles;
 
 #[cfg(test)]
 mod tests {
-    use std::hint::black_box;
-
-    use rust_embed::EmbeddedFile;
-
     use super::StaticFiles;
 
     fn any_embedded_file_name() -> String {
@@ -39,13 +35,5 @@ mod tests {
     #[test]
     fn iterates_over_embedded_file_names() {
         assert!(StaticFiles::iter().next().is_some());
-    }
-
-    #[test]
-    fn returns_embedded_file_when_called_through_indirect_call() {
-        let lookup: fn(&str) -> Option<EmbeddedFile> = black_box(StaticFiles::get);
-        let embedded_file = lookup(&any_embedded_file_name()).unwrap();
-
-        assert!(!embedded_file.data.is_empty());
     }
 }

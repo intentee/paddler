@@ -22,7 +22,7 @@ fi
 echo "Device: $DEVICE"
 ```
 
-`$DEVICE` selects the Rust integration suite variant in Step 2. The other four suites don't take a device feature.
+`$DEVICE` selects the Paddler binary and the Rust feature set every suite in Step 2 runs against.
 
 ## Step 2: run the suites
 
@@ -30,19 +30,29 @@ Copy this checklist and tick each item as the suite completes:
 
 ```
 - [ ] JS client
+- [ ] JS client LLM
+- [ ] Python lint
 - [ ] Python client
+- [ ] Python client LLM
+- [ ] OpenAI Python client LLM
 - [ ] Rust unit
 - [ ] Rust integration
 ```
 
-| # | Suite            | Inner command                                                                                                                     | Working dir              |
-|---|------------------|-----------------------------------------------------------------------------------------------------------------------------------|--------------------------|
-| 1 | JS client        | `make test.client.js`                                                                                                             | repo root                |
-| 2 | Python client    | NixOS: `poetry run pytest`, `ruff`, `poetry run mypy"`. Every other OS: `poetry run pytest`, `poetry run ruff`, `poetry run mypy` | `paddler_client_python/` |
-| 3 | Rust unit        | `TEST_DEVICE=$DEVICE make test.unit`                                                                                              | repo root                |
-| 4 | Rust integration | `TEST_DEVICE=$DEVICE make test.integration`                                                                                       | repo root                |
+| # | Suite                    | Command (from the repo root)                          |
+|---|--------------------------|-------------------------------------------------------|
+| 1 | JS client                | `TEST_DEVICE=$DEVICE make test.client.js`             |
+| 2 | JS client LLM            | `TEST_DEVICE=$DEVICE make test.client.js.llm`         |
+| 3 | Python lint              | `make lint.client.python lint.openai.python`          |
+| 4 | Python client            | `TEST_DEVICE=$DEVICE make test.client.python`         |
+| 5 | Python client LLM        | `TEST_DEVICE=$DEVICE make test.client.python.llm`     |
+| 6 | OpenAI Python client LLM | `TEST_DEVICE=$DEVICE make test.openai.python.llm`     |
+| 7 | Rust unit                | `TEST_DEVICE=$DEVICE make test.unit`                  |
+| 8 | Rust integration         | `TEST_DEVICE=$DEVICE make test.integration`           |
 
-Run them in this order. Cheap suites (1, 3, 4) surface bugs quickly; the heavy GPU-bound suites (2, 5) come last.
+Run them in this order. Cheap suites (1, 3, 4, 7) surface bugs quickly; the GPU-bound suites (2, 5, 6, 8) load models.
+
+On NixOS the pinned `ruff` wheel is dynamically linked, so suite 3 needs `nix-ld`.
 
 ## Step 3: rules during the run
 

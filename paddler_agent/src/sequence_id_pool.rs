@@ -8,9 +8,9 @@ pub struct SequenceIdPool {
 
 impl SequenceIdPool {
     #[must_use]
-    pub fn new(max_sequences: i32) -> Self {
+    pub fn new(max_sequences: u16) -> Self {
         Self {
-            available_ids: Rc::new(RefCell::new((0..max_sequences).rev().collect())),
+            available_ids: Rc::new(RefCell::new((0..i32::from(max_sequences)).rev().collect())),
         }
     }
 

@@ -1,30 +1,34 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
+use std::num::NonZeroU32;
+
+use tokio_util::sync::CancellationToken;
+
+use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_messaging::inference_parameters::InferenceParameters;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::qwen3_embedding_cluster_params::Qwen3EmbeddingClusterParams;
+use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
 use paddler_tests::start_embedding_cluster::start_embedding_cluster;
-use tokio_util::sync::CancellationToken;
 
 const N_BATCH: u32 = 64;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn agent_embedding_batch_with_all_oversized_documents_reports_error() -> Result<()> {
-    let cluster = start_embedding_cluster(Qwen3EmbeddingClusterParams {
+async fn agent_embedding_batch_with_all_oversized_documents_reports_error() {
+    let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
         inference_parameters: InferenceParameters {
-            n_batch: N_BATCH as usize,
-            context_size: 4096,
+            n_batch: BatchSize::try_from(N_BATCH).expect("the value must fit its target type"),
+            context_size: NonZeroU32::try_from(2048).expect("the value must fit its target type"),
             enable_embeddings: true,
-            ..InferenceParameters::default()
+            ..InferenceParameters::deterministic()
         },
-        ..Qwen3EmbeddingClusterParams::default()
+        ..EmbeddingClusterParams::default()
     })
-    .await?;
+    .await
+    .expect("the cluster must start");
 
     let huge_content = "The quick brown fox jumps over the lazy dog. ".repeat(40);
 
@@ -45,7 +49,8 @@ async fn agent_embedding_batch_with_all_oversized_documents_reports_error() -> R
                 normalization_method: EmbeddingNormalizationMethod::None,
             },
         )
-        .await?;
+        .await
+        .expect("the embedding batch must be accepted");
 
     assert_eq!(
         collected.embeddings.len(),
@@ -73,7 +78,8 @@ async fn agent_embedding_batch_with_all_oversized_documents_reports_error() -> R
         collected.errors,
     );
 
-    cluster.shutdown().await?;
-
-    Ok(())
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

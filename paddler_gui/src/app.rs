@@ -1,8 +1,7 @@
 use std::mem;
-use std::net::SocketAddr;
 use std::sync::LazyLock;
-use std::time::Duration;
 
+use async_stream::stream;
 use command_handler::shutdown_signal::register_shutdown_signals;
 use iced::Bottom;
 use iced::Center;
@@ -11,8 +10,13 @@ use iced::Fill;
 use iced::Right;
 use iced::Subscription;
 use iced::Task;
-use iced::futures::SinkExt;
-use iced::keyboard;
+use iced::clipboard::write;
+use iced::exit;
+use iced::futures::Stream;
+use iced::keyboard::Event as KeyboardEvent;
+use iced::keyboard::Key;
+use iced::keyboard::key::Named;
+use iced::keyboard::listen;
 use iced::widget::column;
 use iced::widget::container;
 use iced::widget::image;
@@ -20,86 +24,58 @@ use iced::widget::image::Handle as ImageHandle;
 use iced::widget::operation;
 use iced::widget::stack;
 use iced::window;
-use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
-use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
-#[cfg(feature = "web_admin_panel")]
-use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_balancer::state_database_type::StateDatabaseType;
-#[cfg(feature = "web_admin_panel")]
-use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-#[cfg(feature = "web_admin_panel")]
-use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner::AgentRunnerParams;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::balancer_runner::BalancerRunnerParams;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::produces_snapshot::ProducesSnapshot;
-use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
-use tokio::sync::broadcast;
+use log::error;
+use log::info;
+use log::warn;
+use open::that;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
-use crate::agent_running_handler;
+use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
+use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
+use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
+
+use crate::agent_runner_messages::agent_runner_messages;
+use crate::agent_running_action::AgentRunningAction;
+use crate::balancer_launch::BalancerLaunch;
+use crate::balancer_runner_messages::balancer_runner_messages;
 use crate::current_screen::CurrentScreen;
-use crate::home_data::HomeData;
-use crate::home_handler;
-use crate::join_balancer_form_handler;
+use crate::home_message::HomeMessage;
+use crate::join_balancer_form_action::JoinBalancerFormAction;
 use crate::message::Message;
-use crate::running_balancer_handler;
-use crate::running_balancer_snapshot::RunningBalancerSnapshot;
+use crate::running_balancer_action::RunningBalancerAction;
 use crate::screen::AgentRunning;
 use crate::screen::Screen;
-use crate::start_balancer_form_handler;
+use crate::start_balancer_form_action::StartBalancerFormAction;
 use crate::ui::variables::SPACING_2X;
 use crate::ui::variables::SPACING_BASE;
-use crate::ui::view_agent_running::view_agent_running;
-use crate::ui::view_home::view_home;
-use crate::ui::view_join_balancer_form::view_join_balancer_form;
-use crate::ui::view_running_balancer::view_running_balancer;
-use crate::ui::view_start_balancer_form::view_start_balancer_form;
 
 static BETA_IMAGE: LazyLock<ImageHandle> = LazyLock::new(|| {
     ImageHandle::from_bytes(include_bytes!("../../resources/images/beta.png").as_slice())
 });
 
-fn shutdown_signal_stream() -> impl iced::futures::Stream<Item = Message> {
-    iced::stream::channel(1, async move |mut output| {
-        let shutdown_signals = match register_shutdown_signals() {
-            Ok(shutdown_signals) => shutdown_signals,
-            Err(error) => {
-                log::error!("failed to register shutdown signal handlers: {error}");
-
-                return;
-            }
-        };
-
-        if let Err(error) = shutdown_signals.wait().await {
-            log::error!("shutdown signal listener failed: {error}");
-
-            return;
+fn shutdown_signal_stream() -> impl Stream<Item = Message> {
+    stream! {
+        match register_shutdown_signals() {
+            Ok(shutdown_signals) => match shutdown_signals.wait().await {
+                Ok(()) => yield Message::Quit,
+                Err(error) => error!("shutdown signal listener failed: {error}"),
+            },
+            Err(error) => error!("failed to register shutdown signal handlers: {error}"),
         }
-
-        if let Err(err) = output.send(Message::Quit).await {
-            log::warn!("Failed to deliver Quit message to iced runtime (receiver dropped): {err}");
-        }
-    })
+    }
 }
 
 pub struct App {
-    agent_cancel: Option<CancellationToken>,
-    shutdown: CancellationToken,
-    balancer_cancel: Option<CancellationToken>,
     screen: CurrentScreen,
+    shutdown: CancellationToken,
 }
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
         let app = Self {
-            agent_cancel: None,
-            shutdown: CancellationToken::new(),
-            balancer_cancel: None,
             screen: CurrentScreen::default(),
+            shutdown: CancellationToken::new(),
         };
 
         (app, Task::done(Message::IcedEventLoopReady))
@@ -110,97 +86,99 @@ impl App {
 
         match (screen, message) {
             (screen, Message::IcedEventLoopReady) => {
-                log::info!("paddler_gui: iced event loop ready");
+                info!("paddler_gui: iced event loop ready");
                 self.screen = screen;
 
                 Task::none()
             }
             (_, Message::Quit) => {
                 self.shutdown.cancel();
-                self.balancer_cancel = None;
-                self.agent_cancel = None;
 
-                iced::exit()
+                exit()
             }
-            (CurrentScreen::Home(home), Message::Home(msg)) => {
-                let action = HomeData::update(msg);
+            (CurrentScreen::Home(home), Message::Home(HomeMessage::StartBalancer)) => {
+                self.screen = CurrentScreen::StartBalancerForm(home.start_balancer());
 
-                match action {
-                    home_handler::Action::StartBalancer => {
-                        self.screen = CurrentScreen::StartBalancerForm(home.start_balancer());
+                Task::none()
+            }
+            (CurrentScreen::Home(home), Message::Home(HomeMessage::JoinBalancer)) => {
+                self.screen = CurrentScreen::JoinBalancerForm(home.join_balancer());
 
-                        Task::none()
-                    }
-                    home_handler::Action::JoinBalancer => {
-                        self.screen = CurrentScreen::JoinBalancerForm(home.join_balancer());
-
-                        Task::none()
-                    }
-                }
+                Task::none()
             }
             (CurrentScreen::JoinBalancerForm(mut form), Message::JoinBalancerForm(msg)) => {
                 let action = form.state_data.update(msg);
 
                 match action {
-                    join_balancer_form_handler::Action::None => {
+                    JoinBalancerFormAction::None => {
                         self.screen = CurrentScreen::JoinBalancerForm(form);
 
                         Task::none()
                     }
-                    join_balancer_form_handler::Action::Cancel => {
+                    JoinBalancerFormAction::Cancel => {
                         self.screen = CurrentScreen::Home(form.cancel());
 
                         Task::none()
                     }
-                    join_balancer_form_handler::Action::ConnectAgent {
-                        agent_name,
-                        management_address,
-                        slots,
-                    } => self.spawn_agent(form.connect(), agent_name, management_address, slots),
+                    JoinBalancerFormAction::ConnectAgent(agent_bootstrap_config) => self
+                        .spawn_agent(
+                            form.connect(self.shutdown.child_token()),
+                            agent_bootstrap_config,
+                        ),
                 }
             }
             (CurrentScreen::StartBalancerForm(mut form), Message::StartBalancerForm(msg)) => {
                 let action = form.state_data.update(msg);
 
                 match action {
-                    start_balancer_form_handler::Action::None => {
+                    StartBalancerFormAction::None => {
                         self.screen = CurrentScreen::StartBalancerForm(form);
 
                         Task::none()
                     }
-                    start_balancer_form_handler::Action::Cancel => {
-                        if let Some(cancel) = self.balancer_cancel.as_ref() {
-                            cancel.cancel();
+                    StartBalancerFormAction::Cancel => {
+                        if let BalancerLaunch::Starting(cancellation_token) =
+                            &form.state_data.launch
+                        {
+                            cancellation_token.cancel();
                         }
                         self.screen = CurrentScreen::Home(form.cancel());
 
                         Task::none()
                     }
-                    start_balancer_form_handler::Action::StartBalancer {
-                        management_addr,
-                        inference_addr,
-                        web_admin_panel_addr,
-                        desired_state,
-                    } => {
+                    StartBalancerFormAction::StartBalancer(bootstrap_config) => {
+                        let cancellation_token = self.shutdown.child_token();
+
+                        form.state_data.launch =
+                            BalancerLaunch::Starting(cancellation_token.clone());
                         self.screen = CurrentScreen::StartBalancerForm(form);
 
-                        self.spawn_balancer(
-                            management_addr,
-                            inference_addr,
-                            web_admin_panel_addr,
-                            &desired_state,
-                        )
+                        Task::stream(balancer_runner_messages(BalancerRunnerParams {
+                            bootstrap_config: *bootstrap_config,
+                            cancellation_token,
+                            shutdown_options: ServiceShutdownOptions::default(),
+                        }))
                     }
                 }
             }
-            (CurrentScreen::StartBalancerForm(form), Message::BalancerStarted) => {
-                self.screen = CurrentScreen::RunningBalancer(form.balancer_started());
+            (
+                CurrentScreen::StartBalancerForm(form),
+                Message::BalancerStarted {
+                    addresses,
+                    cancellation_token,
+                    snapshot,
+                },
+            ) => {
+                self.screen = CurrentScreen::RunningBalancer(form.balancer_started(
+                    addresses,
+                    cancellation_token,
+                    snapshot,
+                ));
 
                 Task::none()
             }
             (CurrentScreen::StartBalancerForm(form), Message::BalancerFailed(error)) => {
-                log::error!("Balancer failed to start: {error}");
-                self.balancer_cancel = None;
+                error!("Balancer failed to start: {error}");
                 self.screen = CurrentScreen::Home(form.balancer_failed(error));
 
                 Task::none()
@@ -209,29 +187,21 @@ impl App {
                 let action = running.state_data.update(msg);
 
                 match action {
-                    running_balancer_handler::Action::None => {
+                    RunningBalancerAction::None => {
                         self.screen = CurrentScreen::RunningBalancer(running);
 
                         Task::none()
                     }
-                    running_balancer_handler::Action::Stop => {
-                        if let Some(cancel) = self.balancer_cancel.as_ref() {
-                            cancel.cancel();
-                        }
+                    RunningBalancerAction::CopyToClipboard(content) => {
                         self.screen = CurrentScreen::RunningBalancer(running);
 
-                        Task::none()
+                        write::<Message>(content).discard()
                     }
-                    running_balancer_handler::Action::CopyToClipboard(content) => {
+                    RunningBalancerAction::OpenUrl(url) => {
                         self.screen = CurrentScreen::RunningBalancer(running);
 
-                        iced::clipboard::write::<Message>(content).discard()
-                    }
-                    running_balancer_handler::Action::OpenUrl(url) => {
-                        self.screen = CurrentScreen::RunningBalancer(running);
-
-                        if let Err(error) = open::that(&url) {
-                            log::error!("Failed to open URL {url}: {error}");
+                        if let Err(error) = that(&url) {
+                            error!("Failed to open URL {url}: {error}");
                         }
 
                         Task::none()
@@ -239,14 +209,12 @@ impl App {
                 }
             }
             (CurrentScreen::RunningBalancer(running), Message::BalancerStopped) => {
-                self.balancer_cancel = None;
                 self.screen = CurrentScreen::Home(running.balancer_stopped());
 
                 Task::none()
             }
             (CurrentScreen::RunningBalancer(running), Message::BalancerFailed(error)) => {
-                log::error!("Balancer failed unexpectedly: {error}");
-                self.balancer_cancel = None;
+                error!("Balancer failed unexpectedly: {error}");
                 self.screen = CurrentScreen::Home(running.balancer_failed(error));
 
                 Task::none()
@@ -255,15 +223,12 @@ impl App {
                 let action = running.state_data.update(msg);
 
                 match action {
-                    agent_running_handler::Action::None => {
+                    AgentRunningAction::None => {
                         self.screen = CurrentScreen::AgentRunning(running);
 
                         Task::none()
                     }
-                    agent_running_handler::Action::Disconnect => {
-                        if let Some(cancel) = self.agent_cancel.as_ref() {
-                            cancel.cancel();
-                        }
+                    AgentRunningAction::Disconnect => {
                         self.screen = CurrentScreen::Home(running.disconnect());
 
                         Task::none()
@@ -271,15 +236,13 @@ impl App {
                 }
             }
             (CurrentScreen::AgentRunning(running), Message::AgentStopped) => {
-                log::info!("Agent stopped");
-                self.agent_cancel = None;
+                info!("Agent stopped");
                 self.screen = CurrentScreen::Home(running.disconnect());
 
                 Task::none()
             }
             (CurrentScreen::AgentRunning(running), Message::AgentFailed(error)) => {
-                log::error!("Agent failed: {error}");
-                self.agent_cancel = None;
+                error!("Agent failed: {error}");
                 self.screen = CurrentScreen::Home(running.agent_failed(error));
 
                 Task::none()
@@ -294,7 +257,7 @@ impl App {
                 }
             }
             (screen, message) => {
-                log::warn!("Unhandled message {message:?} for current screen");
+                warn!("Unhandled message {message:?} for current screen");
                 self.screen = screen;
 
                 Task::none()
@@ -302,15 +265,11 @@ impl App {
         }
     }
 
-    #[expect(
-        clippy::unused_self,
-        reason = "signature required by iced application API"
-    )]
     pub fn subscription(&self) -> Subscription<Message> {
         Subscription::batch([
-            keyboard::listen().filter_map(|event| match event {
-                keyboard::Event::KeyPressed {
-                    key: keyboard::Key::Named(keyboard::key::Named::Tab),
+            listen().filter_map(|event| match event {
+                KeyboardEvent::KeyPressed {
+                    key: Key::Named(Named::Tab),
                     modifiers,
                     ..
                 } => Some(Message::TabPressed {
@@ -318,7 +277,7 @@ impl App {
                 }),
                 _ => None,
             }),
-            window::close_requests().map(|_| Message::Quit),
+            window::close_requests().map(|_closed_window_id| Message::Quit),
             Subscription::run(shutdown_signal_stream),
         ])
     }
@@ -326,17 +285,17 @@ impl App {
     pub fn view(&self) -> Element<'_, Message> {
         let screen_content = match &self.screen {
             CurrentScreen::AgentRunning(screen) => {
-                view_agent_running(&screen.state_data).map(Message::AgentRunning)
+                screen.state_data.view().map(Message::AgentRunning)
             }
-            CurrentScreen::Home(screen) => view_home(&screen.state_data).map(Message::Home),
+            CurrentScreen::Home(screen) => screen.state_data.view().map(Message::Home),
             CurrentScreen::JoinBalancerForm(screen) => {
-                view_join_balancer_form(&screen.state_data).map(Message::JoinBalancerForm)
+                screen.state_data.view().map(Message::JoinBalancerForm)
             }
             CurrentScreen::StartBalancerForm(screen) => {
-                view_start_balancer_form(&screen.state_data).map(Message::StartBalancerForm)
+                screen.state_data.view().map(Message::StartBalancerForm)
             }
             CurrentScreen::RunningBalancer(screen) => {
-                view_running_balancer(&screen.state_data).map(Message::RunningBalancer)
+                screen.state_data.view().map(Message::RunningBalancer)
             }
         };
 
@@ -366,291 +325,16 @@ impl App {
     fn spawn_agent(
         &mut self,
         screen: Screen<AgentRunning>,
-        agent_name: Option<String>,
-        management_address: String,
-        slots: i32,
+        bootstrap_config: AgentBootstrapConfig,
     ) -> Task<Message> {
-        let cancel = self.shutdown.child_token();
-        self.agent_cancel = Some(cancel.clone());
+        let cancellation_token = screen.state_data.cancellation_token.clone();
+
         self.screen = CurrentScreen::AgentRunning(screen);
 
-        Task::stream(iced::stream::channel(1, async move |mut output| {
-            let mut runner = AgentRunner::start(AgentRunnerParams {
-                agent_name,
-                management_address,
-                cancellation_token: cancel,
-                slots,
-            });
-
-            let slot_aggregated_status = runner.slot_aggregated_status.clone();
-            let mut update_rx = slot_aggregated_status.subscribe_to_updates();
-            let completion_future = runner.wait_for_completion();
-            tokio::pin!(completion_future);
-
-            loop {
-                match slot_aggregated_status.make_snapshot() {
-                    Ok(snapshot) => {
-                        if output
-                            .send(Message::AgentRunning(
-                                agent_running_handler::Message::AgentStatusUpdated(snapshot),
-                            ))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("Failed to make agent status snapshot: {error}");
-
-                        return;
-                    }
-                }
-
-                tokio::select! {
-                    changed = update_rx.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    result = &mut completion_future => {
-                        match result {
-                            Ok(()) => {
-                                if let Err(err) = output.send(Message::AgentStopped).await {
-                                    log::warn!(
-                                        "Failed to deliver AgentStopped to UI (receiver dropped): {err}"
-                                    );
-                                }
-                            }
-                            Err(error) => {
-                                let detail = error.to_string();
-                                if let Err(err) = output
-                                    .send(Message::AgentFailed(detail.clone()))
-                                    .await
-                                {
-                                    log::error!(
-                                        "Failed to deliver AgentFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
-                                    );
-                                }
-                            }
-                        }
-
-                        return;
-                    }
-                }
-            }
-        }))
-    }
-
-    #[cfg(test)]
-    pub fn shutdown_token_for_test(&self) -> CancellationToken {
-        self.shutdown.clone()
-    }
-
-    fn spawn_balancer(
-        &mut self,
-        management_addr: SocketAddr,
-        inference_addr: SocketAddr,
-        #[cfg_attr(
-            not(feature = "web_admin_panel"),
-            expect(
-                unused_variables,
-                reason = "web admin panel configuration is only built when the feature is enabled"
-            )
-        )]
-        web_admin_panel_addr: Option<SocketAddr>,
-        desired_state: &BalancerDesiredState,
-    ) -> Task<Message> {
-        let cancel = self.shutdown.child_token();
-        self.balancer_cancel = Some(cancel.clone());
-
-        let buffered_request_timeout = Duration::from_secs(10);
-        let max_buffered_requests = 30;
-        let statsd_prefix = "paddler_";
-
-        #[cfg(feature = "web_admin_panel")]
-        let web_admin_panel_service_configuration =
-            web_admin_panel_addr.map(|addr| WebAdminPanelServiceConfiguration {
-                addr,
-                template_data: TemplateData {
-                    buffered_request_timeout,
-                    compat_openai_addr: None,
-                    inference_addr: ResolvedSocketAddr {
-                        input_addr: inference_addr.to_string(),
-                        socket_addr: inference_addr,
-                    },
-                    management_addr: ResolvedSocketAddr {
-                        input_addr: management_addr.to_string(),
-                        socket_addr: management_addr,
-                    },
-                    max_buffered_requests,
-                    statsd_addr: None,
-                    statsd_prefix: statsd_prefix.to_owned(),
-                    statsd_reporting_interval: Duration::from_secs(10),
-                },
-            });
-
-        let params = BalancerRunnerParams {
-            buffered_request_timeout,
-            inference_service_configuration: InferenceServiceConfiguration {
-                addr: inference_addr,
-                cors_allowed_hosts: vec![],
-                inference_item_timeout: Duration::from_secs(30),
-            },
-            management_service_configuration: ManagementServiceConfiguration {
-                addr: management_addr,
-                cors_allowed_hosts: vec![],
-            },
-            max_buffered_requests,
-            openai_service_configuration: None,
-            cancellation_token: cancel,
+        Task::stream(agent_runner_messages(AgentRunnerParams {
+            bootstrap_config,
+            cancellation_token,
             shutdown_options: ServiceShutdownOptions::default(),
-            state_database_type: StateDatabaseType::Memory(Box::new(desired_state.clone())),
-            statsd_prefix: statsd_prefix.to_owned(),
-            statsd_service_configuration: None,
-            #[cfg(feature = "web_admin_panel")]
-            web_admin_panel_service_configuration,
-        };
-
-        Task::stream(iced::stream::channel(1, async move |mut output| {
-            let mut runner = match BalancerRunner::start(params).await {
-                Ok(runner) => runner,
-                Err(error) => {
-                    let detail = error.to_string();
-                    if let Err(err) = output.send(Message::BalancerFailed(detail.clone())).await {
-                        log::error!(
-                            "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
-                        );
-                    }
-
-                    return;
-                }
-            };
-
-            let completion_future = runner.wait_for_completion();
-            tokio::pin!(completion_future);
-
-            if output.send(Message::BalancerStarted).await.is_err() {
-                return;
-            }
-
-            let mut desired_state_rx = runner.balancer_desired_state_tx.subscribe();
-            let mut current_desired_state = runner.initial_desired_state.clone();
-            let mut pool_update_rx = runner.agent_controller_pool.subscribe_to_updates();
-            let mut holder_update_rx = runner
-                .balancer_applicable_state_holder
-                .subscribe_to_updates();
-
-            loop {
-                match RunningBalancerSnapshot::build(
-                    &runner.agent_controller_pool,
-                    &runner.balancer_applicable_state_holder,
-                    current_desired_state.clone(),
-                ) {
-                    Ok(snapshot) => {
-                        if output
-                            .send(Message::RunningBalancer(
-                                running_balancer_handler::Message::SnapshotUpdated(Box::new(
-                                    snapshot,
-                                )),
-                            ))
-                            .await
-                            .is_err()
-                        {
-                            return;
-                        }
-                    }
-                    Err(error) => {
-                        log::error!("Failed to build running balancer snapshot: {error}");
-
-                        return;
-                    }
-                }
-
-                tokio::select! {
-                    changed = pool_update_rx.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    changed = holder_update_rx.changed() => {
-                        if changed.is_err() {
-                            return;
-                        }
-                    }
-                    desired_state_result = desired_state_rx.recv() => {
-                        match desired_state_result {
-                            Ok(new_desired_state) => {
-                                current_desired_state = new_desired_state;
-                            }
-                            Err(broadcast::error::RecvError::Lagged(missed)) => {
-                                log::warn!(
-                                    "Desired-state broadcast lagged by {missed} messages; \
-                                     continuing with the last known state"
-                                );
-                            }
-                            Err(broadcast::error::RecvError::Closed) => {
-                                log::info!(
-                                    "Desired-state broadcast closed; ending snapshot stream"
-                                );
-
-                                return;
-                            }
-                        }
-                    }
-                    result = &mut completion_future => {
-                        match result {
-                            Ok(()) => {
-                                if let Err(err) = output.send(Message::BalancerStopped).await {
-                                    log::warn!(
-                                        "Failed to deliver BalancerStopped to UI (receiver dropped): {err}"
-                                    );
-                                }
-                            }
-                            Err(error) => {
-                                let detail = error.to_string();
-                                if let Err(err) = output
-                                    .send(Message::BalancerFailed(detail.clone()))
-                                    .await
-                                {
-                                    log::error!(
-                                        "Failed to deliver BalancerFailed to UI (receiver dropped); lost detail: {detail}; send err: {err}"
-                                    );
-                                }
-                            }
-                        }
-
-                        return;
-                    }
-                }
-            }
         }))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn quit_message_cancels_shutdown_token() {
-        let (mut app, _initial_task) = App::new();
-        let shutdown = app.shutdown_token_for_test();
-
-        assert!(!shutdown.is_cancelled());
-
-        let _exit_task = app.update(Message::Quit);
-
-        assert!(shutdown.is_cancelled());
-    }
-
-    #[test]
-    fn quit_message_drops_both_runners() {
-        let (mut app, _initial_task) = App::new();
-
-        let _exit_task = app.update(Message::Quit);
-
-        assert!(app.agent_cancel.is_none());
-        assert!(app.balancer_cancel.is_none());
     }
 }

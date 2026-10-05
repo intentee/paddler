@@ -8,6 +8,8 @@ pub fn format_api_url(base_url: &Url, path: &str) -> String {
 mod tests {
     use url::Url;
 
+    use paddler_messaging::api_path::ApiPath;
+
     use super::format_api_url;
 
     #[test]
@@ -15,8 +17,8 @@ mod tests {
         let base_url = Url::parse("http://localhost:8080/").unwrap();
 
         assert_eq!(
-            format_api_url(&base_url, "/api/v1/health"),
-            "http://localhost:8080/api/v1/health"
+            format_api_url(&base_url, ApiPath::AGENTS),
+            format!("http://localhost:8080{}", ApiPath::AGENTS)
         );
     }
 }

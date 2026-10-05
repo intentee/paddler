@@ -1,15 +1,15 @@
 import { nanoid } from "nanoid";
 import { filter, fromEvent, map, takeWhile, type Observable } from "rxjs";
 
-import {
-  InferenceServiceGenerateTokensResponseSchema,
-  type InferenceServiceGenerateTokensResponse,
-} from "./schemas/InferenceServiceGenerateTokensResponse";
+import type { ConversationMessage } from "./schemas/ConversationMessage";
 import {
   InferenceNotificationSchema,
   type InferenceNotification,
 } from "./schemas/InferenceNotification";
-import type { ConversationMessage } from "./schemas/ConversationMessage";
+import {
+  InferenceServiceGenerateTokensResponseSchema,
+  type InferenceServiceGenerateTokensResponse,
+} from "./schemas/InferenceServiceGenerateTokensResponse";
 
 export interface InferenceSocketClient {
   clusterTokenGenerationMode$: Observable<InferenceNotification>;
@@ -68,19 +68,7 @@ export function inferenceSocketClient({
         return !isNotificationFrame(parsedFrame);
       }),
       map(function (parsedFrame: unknown) {
-        try {
-          return InferenceServiceGenerateTokensResponseSchema.parse(
-            parsedFrame,
-          );
-        } catch (error: unknown) {
-          console.error(
-            "Failed to parse token response frame:",
-            parsedFrame,
-            error,
-          );
-
-          throw error;
-        }
+        return InferenceServiceGenerateTokensResponseSchema.parse(parsedFrame);
       }),
       filter(function ({ request_id }) {
         return request_id === requestId;

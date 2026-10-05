@@ -10,6 +10,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
+use crate::http_listener::HttpListener;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::serve_http_until_shutdown::serve_http_until_shutdown;
 
@@ -17,7 +18,10 @@ pub async fn run_http_service<TAppFactory, TAppEntry, TResponseBody>(
     cancellation_token: CancellationToken,
     RunHttpServiceParameters {
         app_factory,
-        bind_addr,
+        http_listener: HttpListener {
+            local_addr,
+            tcp_listener,
+        },
         service_name,
         worker_count,
     }: RunHttpServiceParameters<TAppFactory>,
@@ -38,13 +42,13 @@ where
         .keep_alive(KeepAlive::Disabled)
         .h1_allow_half_closed(false)
         .disable_signals()
-        .bind(bind_addr)
-        .with_context(|| format!("Unable to bind {service_name} to {bind_addr}"))?
+        .listen(tcp_listener)
+        .with_context(|| format!("Unable to listen for {service_name} on {local_addr}"))?
         .run();
 
     serve_http_until_shutdown(cancellation_token, server)
         .await
-        .context(format!("Unable to serve {service_name} on {bind_addr}"))
+        .context(format!("Unable to serve {service_name} on {local_addr}"))
 }
 
 #[cfg(test)]
@@ -53,9 +57,11 @@ mod tests {
 
     use actix_web::App;
     use anyhow::Result;
+    use tokio::join;
     use tokio_util::sync::CancellationToken;
 
     use super::run_http_service;
+    use crate::http_listener::HttpListener;
     use crate::run_http_service_parameters::RunHttpServiceParameters;
 
     #[actix_web::test]
@@ -63,12 +69,13 @@ mod tests {
         let cancellation_token = CancellationToken::new();
         let requested_shutdown = cancellation_token.clone();
 
-        let (serve_result, ()) = tokio::join!(
+        let (serve_result, ()) = join!(
             run_http_service(
                 cancellation_token,
                 RunHttpServiceParameters {
                     app_factory: App::new,
-                    bind_addr: SocketAddr::from(([127, 0, 0, 1], 0)),
+                    http_listener: HttpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+                        .expect("an ephemeral loopback port must be bindable"),
                     service_name: "balancer::test_service",
                     worker_count: 1,
                 },

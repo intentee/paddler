@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
+use std::future::ready;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
 
 use futures_util::Stream;
-use futures_util::stream::unfold;
+use futures_util::StreamExt as _;
 use reqwest::Response;
 use serde::de::DeserializeOwned;
 use serde_json::from_str;
@@ -12,83 +12,22 @@ use tokio_util::sync::CancellationToken;
 
 use crate::error::Error;
 use crate::error::Result;
-use crate::stream::line_buffer::LineBuffer;
+use crate::stream::decode_stream_line::decode_stream_line;
+use crate::stream::stream_line::StreamLine;
+use crate::stream::stream_lines::stream_lines;
 
-fn parse_line<TItem: DeserializeOwned>(line_result: Result<String>) -> Option<Result<TItem>> {
-    match line_result {
-        Ok(line) => {
-            let trimmed_line = line.trim();
+fn parse_line<TItem: DeserializeOwned>(line: &str) -> Option<Result<TItem>> {
+    let trimmed_line = line.trim();
 
-            if trimmed_line.is_empty() {
-                None
-            } else {
-                Some(
-                    from_str(trimmed_line).map_err(|source| Error::NdjsonLineParseFailed {
-                        line: trimmed_line.to_owned(),
-                        source,
-                    }),
-                )
-            }
-        }
-        Err(decoding_error) => Some(Err(decoding_error)),
+    if trimmed_line.is_empty() {
+        return None;
     }
-}
 
-struct StreamState<TItem> {
-    cancellation_token: CancellationToken,
-    is_terminated: bool,
-    item_type_marker: PhantomData<TItem>,
-    line_buffer: LineBuffer,
-    response: Response,
-}
-
-fn make_stream<TItem: DeserializeOwned + Send + 'static>(
-    cancellation_token: CancellationToken,
-    response: Response,
-) -> impl Stream<Item = Result<TItem>> + Send {
-    unfold(
-        StreamState {
-            cancellation_token,
-            is_terminated: false,
-            item_type_marker: PhantomData::<TItem>,
-            line_buffer: LineBuffer::new(),
-            response,
-        },
-        |mut state| async move {
-            if state.is_terminated || state.cancellation_token.is_cancelled() {
-                return None;
-            }
-
-            loop {
-                if let Some(line_result) = state.line_buffer.take_line() {
-                    if let Some(item_result) = parse_line(line_result) {
-                        return Some((item_result, state));
-                    }
-
-                    continue;
-                }
-
-                let chunk_result = state
-                    .cancellation_token
-                    .run_until_cancelled(state.response.chunk())
-                    .await?;
-
-                match chunk_result {
-                    Ok(Some(chunk)) => state.line_buffer.push_chunk(&chunk),
-                    Ok(None) => {
-                        let remainder_result = state.line_buffer.take_remainder()?;
-                        let item_result = parse_line(remainder_result)?;
-
-                        return Some((item_result, state));
-                    }
-                    Err(transport_error) => {
-                        state.is_terminated = true;
-
-                        return Some((Err(transport_error.into()), state));
-                    }
-                }
-            }
-        },
+    Some(
+        from_str(trimmed_line).map_err(|source| Error::NdjsonLineParseFailed {
+            line: trimmed_line.to_owned(),
+            source,
+        }),
     )
 }
 
@@ -98,10 +37,19 @@ pub struct Ndjson<TItem> {
 
 impl<TItem: DeserializeOwned + Send + 'static> Ndjson<TItem> {
     pub fn from_response(cancellation_token: CancellationToken, response: Response) -> Self {
-        let stream = make_stream::<TItem>(cancellation_token, response);
+        let items = stream_lines(cancellation_token, response).filter_map(|line_result| {
+            ready(match line_result {
+                Ok(StreamLine::Terminated(line)) => parse_line(&line),
+                Ok(StreamLine::Unterminated(remainder)) => match decode_stream_line(remainder) {
+                    Ok(line) => parse_line(&line),
+                    Err(decoding_error) => Some(Err(decoding_error)),
+                },
+                Err(line_error) => Some(Err(line_error)),
+            })
+        });
 
         Self {
-            inner: Box::pin(stream),
+            inner: Box::pin(items),
         }
     }
 }
@@ -118,10 +66,16 @@ impl<TItem> Stream for Ndjson<TItem> {
 mod tests {
     use std::io::Error as IoError;
     use std::io::ErrorKind;
+    use std::io::Result as IoResult;
 
     use futures_util::StreamExt as _;
+    use futures_util::stream::iter;
+    use http::Response as HttpResponse;
+    use reqwest::Body;
+    use reqwest::Response;
     use serde_json::Value;
     use serde_json::json;
+    use tokio::spawn;
     use tokio::sync::mpsc;
     use tokio_stream::wrappers::UnboundedReceiverStream;
     use tokio_util::sync::CancellationToken;
@@ -130,18 +84,13 @@ mod tests {
     use crate::error::Error;
     use crate::error::Result;
 
-    fn response_from_chunks(
-        chunks: Vec<core::result::Result<&'static [u8], IoError>>,
-    ) -> reqwest::Response {
-        let stream =
-            futures_util::stream::iter(chunks.into_iter().map(|chunk| chunk.map(<[u8]>::to_vec)));
+    fn response_from_chunks(chunks: Vec<IoResult<&'static [u8]>>) -> Response {
+        let stream = iter(chunks.into_iter().map(|chunk| chunk.map(<[u8]>::to_vec)));
 
-        reqwest::Response::from(http::Response::new(reqwest::Body::wrap_stream(stream)))
+        Response::from(HttpResponse::new(Body::wrap_stream(stream)))
     }
 
-    async fn collect_items(
-        chunks: Vec<core::result::Result<&'static [u8], IoError>>,
-    ) -> Vec<Result<Value>> {
+    async fn collect_items(chunks: Vec<IoResult<&'static [u8]>>) -> Vec<Result<Value>> {
         Ndjson::<Value>::from_response(CancellationToken::new(), response_from_chunks(chunks))
             .collect()
             .await
@@ -168,7 +117,10 @@ mod tests {
         let items = collect_items(vec![Ok(b"{\"a\":\"\xf0\x9f\"}\n")]).await;
 
         assert_eq!(items.len(), 1);
-        assert!(matches!(items[0], Err(Error::NonUtf8StreamLine { .. })));
+        assert!(matches!(
+            &items[0],
+            Err(Error::NonUtf8StreamLine { source }) if source.as_bytes() == b"{\"a\":\"\xf0\x9f\"}"
+        ));
     }
 
     #[tokio::test]
@@ -176,7 +128,10 @@ mod tests {
         let items = collect_items(vec![Ok(b"{\"a\":\"\xf0\x9f")]).await;
 
         assert_eq!(items.len(), 1);
-        assert!(matches!(items[0], Err(Error::NonUtf8StreamLine { .. })));
+        assert!(matches!(
+            &items[0],
+            Err(Error::NonUtf8StreamLine { source }) if source.as_bytes() == b"{\"a\":\"\xf0\x9f"
+        ));
     }
 
     #[tokio::test]
@@ -247,7 +202,7 @@ mod tests {
         .await;
 
         assert_eq!(items.len(), 1);
-        assert!(matches!(items[0], Err(Error::Http(_))));
+        assert!(matches!(&items[0], Err(Error::Http(source)) if source.is_decode()));
     }
 
     #[tokio::test]
@@ -273,9 +228,8 @@ mod tests {
 
     #[tokio::test]
     async fn cancelling_the_token_while_awaiting_a_chunk_ends_the_stream() {
-        let (chunk_tx, chunk_rx) =
-            mpsc::unbounded_channel::<core::result::Result<Vec<u8>, IoError>>();
-        let response = reqwest::Response::from(http::Response::new(reqwest::Body::wrap_stream(
+        let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<IoResult<Vec<u8>>>();
+        let response = Response::from(HttpResponse::new(Body::wrap_stream(
             UnboundedReceiverStream::new(chunk_rx),
         )));
         let cancellation_token = CancellationToken::new();
@@ -283,7 +237,7 @@ mod tests {
 
         let cancelling_token = cancellation_token.clone();
 
-        tokio::spawn(async move {
+        spawn(async move {
             cancelling_token.cancel();
         });
 

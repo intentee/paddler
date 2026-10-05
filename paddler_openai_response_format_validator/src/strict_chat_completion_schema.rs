@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 
-use anyhow::Context as _;
-use anyhow::Result;
-use anyhow::bail;
 use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
+
+use crate::openai_validator_error::OpenAIValidatorError;
 
 const COMPONENT_REF_PREFIX: &str = "#/components/schemas/";
 const DIALECT: &str = "https://json-schema.org/draft/2020-12/schema";
@@ -36,6 +35,14 @@ fn unique_strings(values: &[Value]) -> Vec<Value> {
     unique
 }
 
+fn is_draft_2019_09_recursion_keyword(key: &str) -> bool {
+    matches!(key, "$recursiveAnchor" | "$recursiveRef")
+}
+
+fn is_openapi_3_0_boolean_exclusive_bound(key: &str, value: &Value) -> bool {
+    matches!(key, "exclusiveMinimum" | "exclusiveMaximum") && value.is_boolean()
+}
+
 fn transform_object(object: &Map<String, Value>) -> Value {
     let mut transformed = Map::new();
     let mut nullable = false;
@@ -43,14 +50,10 @@ fn transform_object(object: &Map<String, Value>) -> Value {
     for (key, value) in object {
         match key.as_str() {
             "nullable" => nullable = matches!(value, Value::Bool(true)),
-            // Draft 2019-09 recursion keywords the OpenAI document still carries; Draft 2020-12
-            // replaced them with `$dynamicAnchor`/`$dynamicRef`. Drop them so the assembled schema
-            // passes 2020-12 meta-validation. The schemas that use them (recursive filters) are not
-            // part of any Paddler-emitted payload, so removing the recursion is inconsequential.
-            "$recursiveAnchor" | "$recursiveRef" => {}
-            // OpenAPI 3.0 expressed exclusive bounds as booleans; Draft 2020-12 expects the bound to
-            // be the number itself. A boolean form is meaningless under 2020-12, so drop it.
-            "exclusiveMinimum" | "exclusiveMaximum" if value.is_boolean() => {}
+            draft_2019_09_recursion_keyword
+                if is_draft_2019_09_recursion_keyword(draft_2019_09_recursion_keyword) => {}
+            openapi_3_0_exclusive_bound
+                if is_openapi_3_0_boolean_exclusive_bound(openapi_3_0_exclusive_bound, value) => {}
             "required" => {
                 if let Value::Array(entries) = value {
                     transformed.insert(key.clone(), Value::Array(unique_strings(entries)));
@@ -114,7 +117,7 @@ fn collect_component_refs(node: &Value, found: &mut BTreeSet<String>) {
 fn transitive_closure<'spec>(
     components: &'spec Value,
     root_name: &str,
-) -> Result<BTreeMap<String, &'spec Value>> {
+) -> Result<BTreeMap<String, &'spec Value>, OpenAIValidatorError> {
     let mut reachable: BTreeMap<String, &'spec Value> = BTreeMap::new();
     let mut pending = vec![root_name.to_owned()];
 
@@ -125,7 +128,7 @@ fn transitive_closure<'spec>(
 
         let component = components
             .get(name.as_str())
-            .with_context(|| format!("schema references unknown component {name:?}"))?;
+            .ok_or_else(|| OpenAIValidatorError::UnknownComponent { name: name.clone() })?;
 
         reachable.insert(name.clone(), component);
 
@@ -144,7 +147,7 @@ pub fn strict_chat_completion_schema(
     components: &Value,
     root_name: &str,
     strict_pointers: &[&str],
-) -> Result<Value> {
+) -> Result<Value, OpenAIValidatorError> {
     let closure = transitive_closure(components, root_name)?;
 
     let mut definitions = Map::new();
@@ -164,8 +167,17 @@ pub fn strict_chat_completion_schema(
             Some(Value::Object(target)) => {
                 target.insert("unevaluatedProperties".to_owned(), Value::Bool(false));
             }
-            Some(other) => bail!("strict target {pointer:?} is not an object: {other}"),
-            None => bail!("strict target {pointer:?} was not found in the assembled schema"),
+            Some(other) => {
+                return Err(OpenAIValidatorError::StrictTargetNotAnObject {
+                    pointer: (*pointer).to_owned(),
+                    target: other.clone(),
+                });
+            }
+            None => {
+                return Err(OpenAIValidatorError::StrictTargetNotFound {
+                    pointer: (*pointer).to_owned(),
+                });
+            }
         }
     }
 
@@ -178,6 +190,7 @@ mod tests {
 
     use super::strict_chat_completion_schema;
     use super::transform_node;
+    use crate::openai_validator_error::OpenAIValidatorError;
 
     #[test]
     fn rewrites_component_refs_to_defs() {
@@ -332,7 +345,10 @@ mod tests {
     fn rejects_unknown_root_schema() {
         let error = strict_chat_completion_schema(&json!({}), "Root", &[]).unwrap_err();
 
-        assert!(error.to_string().contains("unknown component \"Root\""));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::UnknownComponent { ref name } if name == "Root"
+        ));
     }
 
     #[test]
@@ -341,7 +357,10 @@ mod tests {
 
         let error = strict_chat_completion_schema(&components, "Root", &[]).unwrap_err();
 
-        assert!(error.to_string().contains("unknown component \"Missing\""));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::UnknownComponent { ref name } if name == "Missing"
+        ));
     }
 
     #[test]
@@ -351,7 +370,10 @@ mod tests {
         let error =
             strict_chat_completion_schema(&components, "Root", &["/$defs/Nope"]).unwrap_err();
 
-        assert!(error.to_string().contains("was not found"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::StrictTargetNotFound { ref pointer } if pointer == "/$defs/Nope"
+        ));
     }
 
     #[test]
@@ -360,6 +382,9 @@ mod tests {
 
         let error = strict_chat_completion_schema(&components, "Root", &["/$ref"]).unwrap_err();
 
-        assert!(error.to_string().contains("is not an object"));
+        assert!(matches!(
+            error,
+            OpenAIValidatorError::StrictTargetNotAnObject { ref pointer, .. } if pointer == "/$ref"
+        ));
     }
 }
