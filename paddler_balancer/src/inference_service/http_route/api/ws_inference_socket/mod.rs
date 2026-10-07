@@ -13,7 +13,6 @@ use actix_web::web::ServiceConfig;
 use actix_web::web::get;
 use actix_ws::Session;
 use anyhow::Result;
-use async_trait::async_trait;
 use log::debug;
 use log::error;
 use serde_json::Error as SerdeJsonError;
@@ -120,7 +119,6 @@ struct InferenceSocketController {
     shutdown: CancellationToken,
 }
 
-#[async_trait]
 impl ControlsWebSocketEndpoint for InferenceSocketController {
     type Context = InferenceSocketControllerContext;
     type IncomingMessage = InferenceJsonRpcMessage;

@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
 use http::StatusCode;
+use tokio_tungstenite::tungstenite::Error as WebSocketError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
@@ -22,6 +23,14 @@ fn is_route_not_found(rejection: &ClientError) -> bool {
     )
 }
 
+fn is_socket_upgrade_not_found(rejection: &ClientError) -> bool {
+    matches!(
+        rejection,
+        ClientError::WebSocket(WebSocketError::Http(response))
+            if response.status() == StatusCode::NOT_FOUND
+    )
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn an_embeddings_cluster_serves_no_token_generation_routes() {
     let cluster = start_cluster(ClusterParams {
@@ -34,6 +43,18 @@ async fn an_embeddings_cluster_serves_no_token_generation_routes() {
     })
     .await
     .expect("a balancer serving embeddings must start");
+    let conversation_history_params = ContinueFromConversationHistoryParams {
+        add_generation_prompt: true,
+        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            content: ConversationMessageContent::Text("hello".to_owned()),
+            role: "user".to_owned(),
+        }]),
+        enable_thinking: false,
+        grammar: None,
+        max_tokens: NonZeroU32::MIN,
+        parse_tool_calls: false,
+        tools: Vec::new(),
+    };
 
     let raw_prompt_rejection = cluster
         .client_inference
@@ -52,25 +73,21 @@ async fn an_embeddings_cluster_serves_no_token_generation_routes() {
         .client_inference
         .post_continue_from_conversation_history(
             CancellationToken::new(),
-            &ContinueFromConversationHistoryParams {
-                add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("hello".to_owned()),
-                    role: "user".to_owned(),
-                }]),
-                enable_thinking: false,
-                grammar: None,
-                max_tokens: NonZeroU32::MIN,
-                parse_tool_calls: false,
-                tools: Vec::new(),
-            },
+            &conversation_history_params,
         )
         .await
         .err()
         .expect("an embeddings cluster must not serve the conversation history route");
+    let inference_socket_rejection = cluster
+        .client_inference
+        .continue_from_conversation_history(CancellationToken::new(), conversation_history_params)
+        .await
+        .err()
+        .expect("an embeddings cluster must not serve the inference socket");
 
     assert!(is_route_not_found(&raw_prompt_rejection));
     assert!(is_route_not_found(&conversation_history_rejection));
+    assert!(is_socket_upgrade_not_found(&inference_socket_rejection));
 
     cluster
         .shutdown()

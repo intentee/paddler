@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use actix_ws::Session;
 use anyhow::Result;
-use async_trait::async_trait;
 use serde_json::to_string;
 
 use paddler_messaging::rpc_message::RpcMessage;
@@ -30,7 +29,6 @@ where
     }
 }
 
-#[async_trait]
 impl<TResponse> ControlsSession<TResponse> for WebSocketSessionController<TResponse>
 where
     TResponse: RpcMessage + Sync + 'static,
