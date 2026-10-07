@@ -20,7 +20,7 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p .",
-    "test": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test 'tests/unit/**/*.test.ts' 'tests/cluster/**/*.test.ts'",
+    "test": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 'tests/unit/**/*.test.ts' 'tests/cluster/**/*.test.ts'",
     "test:coverage": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 --experimental-test-coverage --test-coverage-exclude='**/node_modules/**' --test-coverage-branches=100 --test-coverage-functions=100 --test-coverage-lines=100 'tests/**/*.test.ts'",
     "test:llm": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 'tests/llm/**/*.test.ts'",
     "prepack": "tsc -p ."

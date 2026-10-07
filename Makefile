@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := target/release/paddler
 
+.NOTPARALLEL:
+
 RUST_LOG ?= debug
 
 PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings paddler_agent_pointer_head paddler_agent_runner paddler_agent_runtime paddler_agent_status paddler_agent_text_generation paddler_balancer paddler_balancer_runner paddler_cache_dir paddler_cli paddler_client paddler_download_manager paddler_gui paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_model_source paddler_openai_translation paddler_request_registry paddler_service_thread paddler_state_database paddler_tool_call_validator paddler_typesafe_translation
@@ -15,11 +17,13 @@ LLVM_COV_THIRD_PARTY_SOURCES := /\.cargo/(registry|git)/|/\.rustup/toolchains/|^
 TEST_DEVICE ?= cpu
 
 ifeq ($(TEST_DEVICE),cpu)
+NEXTEST_PROFILE := cpu
 PADDLER_TEST_BINARY := target/debug/paddler
 RUN_WITH_TEST_CLUSTER_BINARY := target/debug/run_with_test_cluster
 TEST_DEVICE_FEATURE_SUFFIX :=
 TEST_DEVICE_TARGET_DIR :=
 else
+NEXTEST_PROFILE := default
 PADDLER_TEST_BINARY := target/$(TEST_DEVICE)/debug/paddler
 RUN_WITH_TEST_CLUSTER_BINARY := target/$(TEST_DEVICE)/debug/run_with_test_cluster
 TEST_DEVICE_FEATURE_SUFFIX := ,$(TEST_DEVICE)
@@ -188,7 +192,7 @@ test.client.js.llm: $(PADDLER_TEST_BINARY) node_modules target/test-model-cards.
 .PHONY: test.coverage
 test.coverage: esbuild-meta.json node_modules target/kev/model.gguf target/kev/pointer_head.gguf target/test-model-cards.stamp
 	cargo llvm-cov clean --workspace
-	cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
+	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
 	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --json --output-path target/llvm-cov.json
 	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --lcov --output-path target/lcov.info
 	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)'
@@ -235,11 +239,11 @@ test.coverage-clean:
 
 .PHONY: test.integration
 test.integration: target/kev/model.gguf target/kev/pointer_head.gguf target/test-model-cards.stamp
-	cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.integration.opencode
 test.integration.opencode: target/test-model-cards.stamp
-	cargo nextest run -p paddler_opencode_tests --features tests_that_use_llms,tests_that_use_opencode$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_opencode_tests --features tests_that_use_llms,tests_that_use_opencode$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.kev_converter.python.llm
 test.kev_converter.python.llm: paddler_kev_converter_python/.venv
@@ -255,7 +259,7 @@ test.typesafe.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_typesafe_clien
 
 .PHONY: test.unit
 test.unit: esbuild-meta.json
-	cargo nextest run --features web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
+	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run --features web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: watch
 watch: node_modules

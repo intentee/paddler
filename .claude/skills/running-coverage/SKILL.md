@@ -42,7 +42,7 @@ Copy this checklist and tick each item as the suite completes:
 
 ## Step 3: rules during the run
 
-- **Serialize GPU suites.** When `$DEVICE` is `cuda` or `metal`, run test suites sequentially to avoid device contention.
+- **Serialize GPU suites.** When `$DEVICE` is `cuda` or `metal`, run test suites sequentially to avoid device contention. The repository enforces one GPU test at a time: the Makefile is `.NOTPARALLEL`, nextest's default profile runs a single test (only `TEST_DEVICE=cpu` selects the parallel `cpu` profile), the JS suites run with `--test-concurrency=1`, and `.cargo/config.toml` sets `RUST_TEST_THREADS=1`. Never override that with `NEXTEST_PROFILE=cpu`, `--test-threads`, or `make -j` on a GPU build.
 - **Per-test 30 s budget.** Flag any individual test that exceeds 30 s wall-clock. That is a real bug — production or test — not flakiness.
 
 ## Step 4: report
