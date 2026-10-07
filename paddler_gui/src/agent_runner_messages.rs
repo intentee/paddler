@@ -5,8 +5,8 @@ use iced::futures::Stream;
 use tokio::pin;
 use tokio::select;
 
-use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
+use paddler_agent_runner::agent_runner::AgentRunner;
+use paddler_agent_runner::agent_runner_params::AgentRunnerParams;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 

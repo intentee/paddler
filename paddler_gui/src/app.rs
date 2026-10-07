@@ -31,9 +31,9 @@ use open::that;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
-use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
-use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
-use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
+use paddler_agent_runner::agent_runner_config::AgentRunnerConfig;
+use paddler_agent_runner::agent_runner_params::AgentRunnerParams;
+use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
 
 use crate::agent_runner_messages::agent_runner_messages;
 use crate::agent_running_action::AgentRunningAction;
@@ -120,11 +120,10 @@ impl App {
 
                         Task::none()
                     }
-                    JoinBalancerFormAction::ConnectAgent(agent_bootstrap_config) => self
-                        .spawn_agent(
-                            form.connect(self.shutdown.child_token()),
-                            agent_bootstrap_config,
-                        ),
+                    JoinBalancerFormAction::ConnectAgent(agent_runner_config) => self.spawn_agent(
+                        form.connect(self.shutdown.child_token()),
+                        agent_runner_config,
+                    ),
                 }
             }
             (CurrentScreen::StartBalancerForm(mut form), Message::StartBalancerForm(msg)) => {
@@ -146,7 +145,7 @@ impl App {
 
                         Task::none()
                     }
-                    StartBalancerFormAction::StartBalancer(bootstrap_config) => {
+                    StartBalancerFormAction::StartBalancer(runner_config) => {
                         let cancellation_token = self.shutdown.child_token();
 
                         form.state_data.launch =
@@ -154,7 +153,7 @@ impl App {
                         self.screen = CurrentScreen::StartBalancerForm(form);
 
                         Task::stream(balancer_runner_messages(BalancerRunnerParams {
-                            bootstrap_config: *bootstrap_config,
+                            runner_config: *runner_config,
                             cancellation_token,
                             shutdown_options: ServiceShutdownOptions::default(),
                         }))
@@ -325,14 +324,14 @@ impl App {
     fn spawn_agent(
         &mut self,
         screen: Screen<AgentRunning>,
-        bootstrap_config: AgentBootstrapConfig,
+        runner_config: AgentRunnerConfig,
     ) -> Task<Message> {
         let cancellation_token = screen.state_data.cancellation_token.clone();
 
         self.screen = CurrentScreen::AgentRunning(screen);
 
         Task::stream(agent_runner_messages(AgentRunnerParams {
-            bootstrap_config,
+            runner_config,
             cancellation_token,
             shutdown_options: ServiceShutdownOptions::default(),
         }))

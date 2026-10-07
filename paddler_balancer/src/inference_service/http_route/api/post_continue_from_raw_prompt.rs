@@ -16,11 +16,6 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<ContinueFromRawPromptParams>,
 ) -> Result<impl Responder, Error> {
-    app_data
-        .balancer_applicable_state_holder
-        .token_generation_mode()
-        .require_enabled()?;
-
     Ok(ndjson_response(unbounded_stream_from_agent(
         UnboundedStreamFromAgentParams {
             buffered_request_manager: app_data.buffered_request_manager.clone(),

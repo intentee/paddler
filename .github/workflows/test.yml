@@ -108,19 +108,15 @@ jobs:
       - name: Install Poetry
         run: pip install poetry==2.4.3
 
-      - name: Lint the Python client
-        run: make lint.client.python
-
       - name: Lint the OpenAI Python client suite
         run: make lint.openai.python
 
-  python:
-    name: python (${{ matrix.python-version }})
-    needs: paddler-binary
+      - name: Lint the TypeSafe Python client suite
+        run: make lint.typesafe.python
+
+  kev-converter-lint:
+    name: kev converter lint
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11", "3.13"]
 
     steps:
       - name: checkout code
@@ -129,21 +125,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
 
       - name: Install Poetry
         run: pip install poetry==2.4.3
 
-      - name: Download the Paddler binary
-        uses: actions/download-artifact@v4
-        with:
-          name: paddler-binary
-          path: target/debug
-
-      - name: Mark the downloaded Paddler binary as built and executable
-        run: |
-          chmod +x target/debug/paddler
-          touch target/debug/paddler
-
-      - name: Run Python client tests
-        run: make test.client.python
+      - name: Lint the kev converter
+        run: make lint.kev_converter.python

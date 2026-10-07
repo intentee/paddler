@@ -1,6 +1,8 @@
 import clsx from "clsx";
-import React, { ReactNode } from "react";
+import React, { ReactNode, useContext } from "react";
 import { Link } from "wouter";
+
+import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 
 import {
   workbench,
@@ -18,6 +20,8 @@ function activeClassName(isActive: boolean) {
 }
 
 export function WorkbenchLayout({ children }: { children: ReactNode }) {
+  const { inferenceMode } = useContext(PaddlerConfigurationContext);
+
   return (
     <div className={workbench}>
       <div className={workbench__header}>
@@ -33,9 +37,11 @@ export function WorkbenchLayout({ children }: { children: ReactNode }) {
           <Link className={activeClassName} href="/model">
             Model
           </Link>
-          <Link className={activeClassName} href="/prompt">
-            Prompt
-          </Link>
+          {inferenceMode === "TextGeneration" && (
+            <Link className={activeClassName} href="/prompt">
+              Prompt
+            </Link>
+          )}
         </div>
       </div>
       <div className={workbench__content}>{children}</div>

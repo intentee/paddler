@@ -5,7 +5,7 @@ use paddler_gui::home_message::HomeMessage;
 
 #[test]
 fn home_screen_offers_to_join_a_cluster() {
-    let home_data = HomeData { error: None };
+    let home_data = HomeData::Welcome;
     let mut home_screen = simulator(home_data.view());
 
     home_screen

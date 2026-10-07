@@ -9,6 +9,7 @@ use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 
@@ -29,7 +30,7 @@ async fn balancer_distributes_buffered_requests_across_two_agents() {
             ],
             wait_for_slots_ready: true,
             max_buffered_requests: 10,
-            desired_state: Some(qwen3_0_6b().into_desired_state()),
+            desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
             ..ClusterParams::default()
         },
     )
@@ -65,9 +66,6 @@ async fn balancer_distributes_buffered_requests_across_two_agents() {
                         "expected success, got error {}: {}",
                         envelope.error.code, envelope.error.description
                     );
-                }
-                Message::Notification(_) => {
-                    panic!("unexpected token-generation-mode notification");
                 }
             }
         }

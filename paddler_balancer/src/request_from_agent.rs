@@ -2,7 +2,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
-use log::error;
 use log::warn;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
@@ -53,8 +52,8 @@ where
         },
         buffered_request_agent_wait_result = buffered_request_manager.wait_for_available_agent() => {
             match buffered_request_agent_wait_result {
-                Ok(BufferedRequestAgentWaitResult::Found(dispatched_agent)) => Some(dispatched_agent),
-                Ok(BufferedRequestAgentWaitResult::BufferOverflow) => {
+                BufferedRequestAgentWaitResult::Found(dispatched_agent) => Some(dispatched_agent),
+                BufferedRequestAgentWaitResult::BufferOverflow => {
                     warn!("Too many buffered requests, dropping request: {request_id:?}");
 
                     respond_with_error(
@@ -68,27 +67,13 @@ where
 
                     None
                 }
-                Ok(BufferedRequestAgentWaitResult::Timeout) => {
+                BufferedRequestAgentWaitResult::Timeout => {
                     warn!("Buffered request {request_id:?} timed out waiting for an available slot");
 
                     respond_with_error(
                         JsonRpcError {
                             code: 504,
                             description: "Waiting for available slot timed out".to_owned(),
-                        },
-                        request_id.clone(),
-                        session_controller,
-                    ).await;
-
-                    None
-                }
-                Err(err) => {
-                    error!("Error while waiting for available agent controller for GenerateTokens request: {err}");
-
-                    respond_with_error(
-                        JsonRpcError {
-                            code: 500,
-                            description: "Internal server error".to_owned(),
                         },
                         request_id.clone(),
                         session_controller,

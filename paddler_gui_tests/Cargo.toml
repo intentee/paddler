@@ -27,8 +27,10 @@ paddler_test_cluster_harness = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-paddler_bootstrap = { workspace = true }
+paddler_agent_runner = { workspace = true }
+paddler_balancer_runner = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_service_thread = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

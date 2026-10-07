@@ -129,7 +129,8 @@ impl SnapshotsWatcher<AgentControllerPoolSnapshot> {
                     })
                 }
                 Some(registered_agent) => {
-                    Ok(registered_agent.status.slots_total == u64::from(expected_slot_count))
+                    Ok(registered_agent.status.runtime.slots_total()
+                        == u64::from(expected_slot_count))
                 }
                 None => Ok(false),
             }

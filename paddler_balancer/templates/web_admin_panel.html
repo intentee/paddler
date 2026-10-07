@@ -18,7 +18,11 @@
         {% if let Some(compat_openai_addr) = template_data.compat_openai_addr %}
         data-compat-openai-addr="{{ compat_openai_addr.input_addr }}"
         {% endif %}
+        {% if let Some(compat_typesafe_addr) = template_data.compat_typesafe_addr %}
+        data-compat-typesafe-addr="{{ compat_typesafe_addr.input_addr }}"
+        {% endif %}
         data-inference-addr="{{ template_data.inference_addr.input_addr }}"
+        data-inference-mode="{{ template_data.inference_mode_name() }}"
         data-management-addr="{{ template_data.management_addr.input_addr }}"
         data-max-buffered-requests="{{ template_data.max_buffered_requests }}"
         {% if let Some(statsd_service_configuration) = template_data.statsd_service_configuration %}

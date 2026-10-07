@@ -79,10 +79,18 @@ impl RawAgentSocket {
     }
 
     pub async fn register(&mut self) -> Result<(), ClusterHarnessError> {
+        self.register_with_status(SlotAggregatedStatusSnapshot::default())
+            .await
+    }
+
+    pub async fn register_with_status(
+        &mut self,
+        slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot,
+    ) -> Result<(), ClusterHarnessError> {
         self.send_notification(ManagementJsonRpcNotification::RegisterAgent(
             RegisterAgentParams {
                 name: None,
-                slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot::default(),
+                slot_aggregated_status_snapshot,
             },
         ))
         .await?;

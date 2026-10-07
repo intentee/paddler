@@ -6,13 +6,15 @@ use log::LevelFilter;
 use log::set_max_level;
 use tokio_util::sync::CancellationToken;
 
-use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
-use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
+use paddler_balancer_runner::balancer_runner::BalancerRunner;
+use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
+use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
+use paddler_balancer_runner::balancer_serving_mode::BalancerServingMode;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_state_database::state_database_type::StateDatabaseType;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -40,9 +42,22 @@ pub async fn start_cluster(
 
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
         .context("failed to parse state_database_url")?;
+    let serving_mode = match desired_state.inference_mode() {
+        InferenceMode::Decision => BalancerServingMode::Decision {
+            typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+            }),
+        },
+        InferenceMode::Embeddings => BalancerServingMode::Embeddings,
+        InferenceMode::TextGeneration => BalancerServingMode::TextGeneration {
+            openai_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+            }),
+        },
+    };
 
     let balancer_runner = BalancerRunner::start(BalancerRunnerParams {
-        bootstrap_config: BalancerBootstrapConfig {
+        runner_config: BalancerRunnerConfig {
             buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
@@ -54,9 +69,7 @@ pub async fn start_cluster(
                 cors_allowed_hosts: management_cors_allowed_hosts,
             },
             max_buffered_requests,
-            openai_service_configuration: Some(OpenAIServiceConfiguration {
-                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
-            }),
+            serving_mode,
             state_database_type,
             statsd_prefix: "paddler_tests_".to_owned(),
             statsd_service_configuration: None,
@@ -79,7 +92,7 @@ pub async fn start_cluster(
         CancellationToken::new(),
         running_balancer,
         Box::new(InProcessAgentSpawner::new(management_address)),
-        desired_state.as_ref(),
+        &desired_state,
     )
     .await?;
 

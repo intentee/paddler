@@ -7,9 +7,11 @@ use tokio::sync::watch;
 use tokio::sync::watch::error::RecvError;
 
 use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::atomic_value::AtomicValue;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
@@ -23,8 +25,8 @@ pub struct SlotAggregatedStatus {
     download_status: RwLock<ModelDownloadStatus>,
     issues: DashSet<AgentIssue>,
     model_path: RwLock<Option<String>>,
+    runtime: RwLock<AgentRuntimeStatus>,
     slots_processing: AtomicValue<AtomicU64>,
-    slots_total: AtomicValue<AtomicU64>,
     state_application_status: RwLock<AgentStateApplicationStatus>,
     update_tx: watch::Sender<()>,
     uses_chat_template_override: AtomicValue<AtomicBool>,
@@ -41,9 +43,9 @@ impl SlotAggregatedStatus {
             download_status: RwLock::new(ModelDownloadStatus::NotDownloading),
             issues: DashSet::new(),
             model_path: RwLock::new(None),
+            runtime: RwLock::new(AgentRuntimeStatus::Idle),
             state_application_status: RwLock::new(AgentStateApplicationStatus::Fresh),
             slots_processing: AtomicValue::<AtomicU64>::new(0),
-            slots_total: AtomicValue::<AtomicU64>::new(0),
             update_tx,
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
             version: AtomicValue::<AtomicU64>::new(0),
@@ -53,11 +55,6 @@ impl SlotAggregatedStatus {
     fn announce_change(&self) {
         self.version.increment();
         self.update_tx.send_replace(());
-    }
-
-    pub fn decrement_total_slots(&self) {
-        self.slots_total.decrement();
-        self.announce_change();
     }
 
     pub fn get_state_application_status(&self) -> AgentStateApplicationStatus {
@@ -90,11 +87,6 @@ impl SlotAggregatedStatus {
         self.announce_change();
     }
 
-    pub fn increment_total_slots(&self) {
-        self.slots_total.increment();
-        self.announce_change();
-    }
-
     pub fn register_issue(&self, issue: AgentIssue) {
         if self.issues.insert(issue) {
             self.announce_change();
@@ -114,7 +106,7 @@ impl SlotAggregatedStatus {
     pub fn reset(&self) {
         self.issues.clear();
         self.set_model_path(None);
-        self.slots_total.reset();
+        *self.runtime.write() = AgentRuntimeStatus::Idle;
         self.announce_change();
     }
 
@@ -140,6 +132,18 @@ impl SlotAggregatedStatus {
 
     pub fn set_uses_chat_template_override(&self, uses: bool) {
         self.uses_chat_template_override.set(uses);
+        self.announce_change();
+    }
+
+    pub fn start_serving(&self, inference_mode: InferenceMode) {
+        for slot_index in 0..u32::from(self.desired_slots_total) {
+            self.register_fix(&AgentIssueFix::SlotStarted(slot_index));
+        }
+
+        *self.runtime.write() = AgentRuntimeStatus::Serving {
+            inference_mode,
+            slots_total: u64::from(self.desired_slots_total),
+        };
         self.announce_change();
     }
 
@@ -184,7 +188,7 @@ impl ProducesSnapshot for SlotAggregatedStatus {
                 download_status: self.download_status.read().clone(),
                 issues: self.issues.iter().map(|item| item.clone()).collect(),
                 model_path: self.model_path.read().clone(),
-                slots_total: self.slots_total.get(),
+                runtime: *self.runtime.read(),
                 state_application_status: self.get_state_application_status(),
                 uses_chat_template_override: self.uses_chat_template_override.get(),
             },
@@ -203,7 +207,9 @@ mod tests {
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
+    use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::model_download_status::ModelDownloadStatus;
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
@@ -292,29 +298,32 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_counts_started_minus_stopped_slots() {
+    fn serving_fixes_the_slot_start_issues_of_every_desired_slot() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.increment_total_slots();
-        status.increment_total_slots();
+        for slot_index in 0..2 {
+            status.register_issue(AgentIssue::SlotCannotStart(SlotCannotStartParams {
+                error: "context creation failed".to_owned(),
+                slot_index,
+            }));
+        }
 
-        assert_eq!(status.make_snapshot().status.slots_total, 2);
+        status.start_serving(InferenceMode::TextGeneration);
 
-        status.decrement_total_slots();
-
-        assert_eq!(status.make_snapshot().status.slots_total, 1);
+        assert!(!status.has_issue_like(is_slot_cannot_start));
     }
 
     #[test]
-    fn version_increments_on_slot_changes() {
+    fn resetting_a_serving_agent_makes_it_idle() {
         let status = SlotAggregatedStatus::new(2);
 
-        let initial_version = status.make_snapshot().version;
+        status.start_serving(InferenceMode::Embeddings);
+        status.reset();
 
-        status.increment_total_slots();
-
-        let updated_version = status.make_snapshot().version;
-        assert!(updated_version > initial_version);
+        assert_eq!(
+            status.make_snapshot().status.runtime,
+            AgentRuntimeStatus::Idle
+        );
     }
 
     #[test]
@@ -322,14 +331,19 @@ mod tests {
         let status = SlotAggregatedStatus::new(4);
 
         status.set_model_path(Some("test_model".to_owned()));
-        status.increment_total_slots();
-        status.increment_total_slots();
+        status.start_serving(InferenceMode::Embeddings);
 
         let snapshot = status.make_snapshot();
 
         assert_eq!(snapshot.status.desired_slots_total, 4);
         assert_eq!(snapshot.status.model_path, Some("test_model".to_owned()));
-        assert_eq!(snapshot.status.slots_total, 2);
+        assert_eq!(
+            snapshot.status.runtime,
+            AgentRuntimeStatus::Serving {
+                inference_mode: InferenceMode::Embeddings,
+                slots_total: 4,
+            }
+        );
         assert_eq!(
             snapshot.status.state_application_status,
             AgentStateApplicationStatus::Fresh
@@ -400,7 +414,7 @@ mod tests {
         let status = SlotAggregatedStatus::new(2);
 
         status.set_model_path(Some("test_model".to_owned()));
-        status.increment_total_slots();
+        status.start_serving(InferenceMode::TextGeneration);
         status.take_slot();
         status.register_issue(AgentIssue::ModelFileDoesNotExist(model_path("model_test")));
 
@@ -408,7 +422,7 @@ mod tests {
 
         let snapshot = status.make_snapshot();
 
-        assert_eq!(snapshot.status.slots_total, 0);
+        assert_eq!(snapshot.status.runtime, AgentRuntimeStatus::Idle);
         assert_eq!(status.slots_processing_count(), 1);
         assert_eq!(snapshot.status.model_path, None);
         assert!(snapshot.status.issues.is_empty());

@@ -23,7 +23,7 @@
       crane,
     }:
     let
-      version = "4.1.0";
+      version = "5.0.0";
 
       paddlerPkgs =
         {
@@ -41,7 +41,9 @@
           // (if cudaCapabilities == [ ] then { } else { inherit cudaCapabilities; });
         };
 
-      craneLibFor = pkgs: (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml);
+      craneLibFor =
+        pkgs:
+        (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml);
 
       defaultAccelerator =
         pkgs:
@@ -77,7 +79,7 @@
             pname = "paddler-web-admin-panel";
             inherit version;
             src = self;
-            npmDepsHash = "sha256-sBDdMf388qFQVIjQ3t/BL3KC/yAqF1qj47a/40axgF8=";
+            npmDepsHash = "sha256-QqCDIIulF4bZ4F+vP+Z2/Q2zHSjzGXXb6j+AcPjpvpQ=";
             dontNpmBuild = true;
             nativeBuildInputs = [ pkgs.nodejs ];
             buildPhase = ''
@@ -165,6 +167,7 @@
             doCheck = false;
             nativeBuildInputs = [
               pkgs.cmake
+              pkgs.jq
               pkgs.pkg-config
               pkgs.llvmPackages.clang
             ]
@@ -232,11 +235,21 @@
               pkgs.pkg-config
               pkgs.llvmPackages.clang
               pkgs.openssl
+              pkgs.poetry
+              pkgs.python313
             ];
+            shellHook = ''
+              export LD_LIBRARY_PATH="${
+                pkgs.lib.makeLibraryPath [
+                  pkgs.stdenv.cc.cc.lib
+                  pkgs.zlib
+                ]
+              }:${pkgs.addDriverRunpath.driverLink}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            '';
             LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           };
 
-          formatter = pkgs.nixfmt-rfc-style;
+          formatter = pkgs.nixfmt;
         };
 
       flake =
@@ -285,6 +298,7 @@
                 in
                 [
                   "balancer"
+                  balancer.inferenceMode
                   "--management-addr"
                   balancer.managementAddr
                   "--inference-addr"
@@ -299,6 +313,10 @@
                 ++ lib.optionals (balancer.openaiCompatAddr != null) [
                   "--compat-openai-addr"
                   balancer.openaiCompatAddr
+                ]
+                ++ lib.optionals (balancer.typesafeCompatAddr != null) [
+                  "--compat-typesafe-addr"
+                  balancer.typesafeCompatAddr
                 ]
                 ++ lib.concatMap (host: [
                   "--management-cors-allowed-host"
@@ -358,10 +376,26 @@
                     description = "Address of the web admin panel. Disabled when null.";
                   };
 
+                  inferenceMode = lib.mkOption {
+                    type = lib.types.enum [
+                      "decision"
+                      "embeddings"
+                      "text-generation"
+                    ];
+                    default = "text-generation";
+                    description = "The inference mode the cluster serves. It is fixed when the balancer starts.";
+                  };
+
                   openaiCompatAddr = lib.mkOption {
                     type = lib.types.nullOr socketAddrType;
                     default = null;
-                    description = "Address of the OpenAI-compatible API server. When null it is disabled.";
+                    description = "Address of the OpenAI-compatible API server, served only in text-generation mode. When null it is disabled.";
+                  };
+
+                  typesafeCompatAddr = lib.mkOption {
+                    type = lib.types.nullOr socketAddrType;
+                    default = null;
+                    description = "Address of the TypeSafe-compatible System One API server, served only in decision mode. When null it is disabled.";
                   };
 
                   stateDatabase = lib.mkOption {
@@ -484,6 +518,18 @@
                 })
 
                 (lib.mkIf cfg.balancer.enable {
+                  assertions = [
+                    {
+                      assertion =
+                        cfg.balancer.openaiCompatAddr != null -> cfg.balancer.inferenceMode == "text-generation";
+                      message = "services.paddler.balancer.openaiCompatAddr is only served in text-generation mode.";
+                    }
+                    {
+                      assertion = cfg.balancer.typesafeCompatAddr != null -> cfg.balancer.inferenceMode == "decision";
+                      message = "services.paddler.balancer.typesafeCompatAddr is only served in decision mode.";
+                    }
+                  ];
+
                   systemd.services.paddler-balancer = {
                     description = "Paddler balancer";
                     after = [ "network-online.target" ];

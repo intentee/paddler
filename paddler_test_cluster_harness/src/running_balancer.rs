@@ -34,6 +34,16 @@ impl RunningBalancer {
         self.compat_openai_addr().and_then(base_url_for)
     }
 
+    pub fn compat_typesafe_addr(&self) -> Result<SocketAddr, ClusterHarnessError> {
+        self.addresses
+            .compat_typesafe
+            .ok_or(ClusterHarnessError::CompatTypeSafeServiceNotServed)
+    }
+
+    pub fn compat_typesafe_base_url(&self) -> Result<Url, ClusterHarnessError> {
+        self.compat_typesafe_addr().and_then(base_url_for)
+    }
+
     pub fn inference_base_url(&self) -> Result<Url, ClusterHarnessError> {
         base_url_for(self.addresses.inference)
     }

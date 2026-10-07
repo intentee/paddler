@@ -1,6 +1,7 @@
 pub mod agent_controller;
 pub mod agent_controller_pool;
 mod agent_controller_pool_total_slots;
+pub mod agent_controller_pool_updates;
 pub mod agent_controller_registration;
 pub mod agent_controller_slot_guard;
 pub mod agent_controller_update_result;
@@ -25,7 +26,6 @@ pub mod buffered_request_manager;
 pub mod cancellation_token_stream_guard;
 pub mod chunk_forwarding_session_controller;
 pub mod close_reason_for_protocol_error;
-pub mod cluster_token_generation_mode;
 pub mod compatibility;
 pub mod continuation_decision;
 pub mod continuation_stop_parameters;

@@ -6,8 +6,8 @@ use tokio::pin;
 use tokio::select;
 use tokio::sync::watch;
 
-use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
+use paddler_balancer_runner::balancer_runner::BalancerRunner;
+use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 

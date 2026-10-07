@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
 use paddler_messaging::balancer_connection::BalancerConnection;
+use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
@@ -42,12 +43,12 @@ use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_request_registry::request_delivery::RequestDelivery;
 use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
+use paddler_agent_runtime::agent_request::AgentRequest;
+use paddler_agent_status::slot_guard::SlotGuard;
 
-use crate::agent_request::AgentRequest;
 use crate::balancer_message_context::BalancerMessageContext;
-use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
 use crate::forward_management_socket_messages::forward_management_socket_messages;
-use crate::slot_guard::SlotGuard;
+use crate::pipeline_request::PipelineRequest;
 
 const BALANCER_RECONNECT_INTERVAL: Duration = Duration::from_secs(1);
 
@@ -60,13 +61,13 @@ struct IncomingMessageContext {
 impl IncomingMessageContext {
     fn generate_responses<TParams, TResponse>(self, id: String, params: TParams) -> Result<()>
     where
-        AgentRequest<TParams, TResponse>: Into<ContinuousBatchPreparationRequest>,
+        AgentRequest<TParams, TResponse>: Into<PipelineRequest>,
         TResponse: Into<JsonRpcResponse> + Send + 'static,
     {
         let Self {
             balancer_message_context:
                 BalancerMessageContext {
-                    continuous_batch_preparation_request_tx,
+                    pipeline_request_tx,
                     request_stoppers,
                     slot_aggregated_status,
                     ..
@@ -80,7 +81,7 @@ impl IncomingMessageContext {
         let stopper_guard = RequestRegistryGuard::register(&request_stoppers, id.clone(), stop_tx)
             .context(format!("Failed to register stopper for request: {id}"))?;
 
-        continuous_batch_preparation_request_tx.send(
+        pipeline_request_tx.send(
             AgentRequest {
                 params,
                 response_tx,
@@ -175,6 +176,10 @@ impl IncomingMessageContext {
             }) => self.generate_responses::<_, GeneratedTokenResult>(id, generate_tokens_params),
             JsonRpcMessage::Request(RequestEnvelope {
                 id,
+                request: JsonRpcRequest::Decide(decide_params),
+            }) => self.generate_responses::<_, DecisionResult>(id, decide_params),
+            JsonRpcMessage::Request(RequestEnvelope {
+                id,
                 request: JsonRpcRequest::GenerateEmbeddingBatch(generate_embedding_batch_params),
             }) => {
                 self.generate_responses::<_, EmbeddingResult>(id, generate_embedding_batch_params)
@@ -192,7 +197,7 @@ impl IncomingMessageContext {
                             self.balancer_message_context
                                 .agent_applicable_state_holder
                                 .get_agent_applicable_state()
-                                .chat_template_override,
+                                .chat_template_override(),
                         ),
                     }))?)
             }
@@ -455,6 +460,7 @@ mod tests {
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::agent_status::AgentStatus;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_connection::BalancerConnection;
@@ -473,28 +479,27 @@ mod tests {
     use paddler_messaging::model_metadata::ModelMetadata;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
     use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_request_registry::request_delivery::RequestDelivery;
     use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
+    use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
 
     use super::IncomingMessageContext;
     use super::ManagementSocketClientService;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
     use crate::balancer_message_context::BalancerMessageContext;
-    use crate::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
-    use crate::model_metadata_holder::ModelMetadataHolder;
+    use crate::pipeline_request::PipelineRequest;
 
     struct IncomingMessageFixture {
         agent_desired_state_rx: mpsc::UnboundedReceiver<AgentDesiredState>,
         context: IncomingMessageContext,
-        continuous_batch_preparation_request_rx:
-            mpsc::UnboundedReceiver<ContinuousBatchPreparationRequest>,
+        pipeline_request_rx: mpsc::UnboundedReceiver<PipelineRequest>,
         message_rx: mpsc::UnboundedReceiver<ManagementJsonRpcMessage>,
     }
 
     fn incoming_message_fixture() -> IncomingMessageFixture {
         let (agent_desired_state_tx, agent_desired_state_rx) = mpsc::unbounded_channel();
-        let (continuous_batch_preparation_request_tx, continuous_batch_preparation_request_rx) =
-            mpsc::unbounded_channel();
+        let (pipeline_request_tx, pipeline_request_rx) = mpsc::unbounded_channel();
         let (message_tx, message_rx) = mpsc::unbounded_channel();
 
         IncomingMessageFixture {
@@ -503,7 +508,7 @@ mod tests {
                 balancer_message_context: BalancerMessageContext {
                     agent_applicable_state_holder: Arc::new(AgentApplicableStateHolder::default()),
                     agent_desired_state_tx,
-                    continuous_batch_preparation_request_tx,
+                    pipeline_request_tx,
                     model_metadata_holder: Arc::new(ModelMetadataHolder::new()),
                     request_stoppers: Arc::default(),
                     slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(2)),
@@ -511,7 +516,7 @@ mod tests {
                 connection_close: CancellationToken::new(),
                 message_tx,
             },
-            continuous_batch_preparation_request_rx,
+            pipeline_request_rx,
             message_rx,
         }
     }
@@ -536,9 +541,15 @@ mod tests {
         }
     }
 
+    fn unconfigured_desired_state() -> AgentDesiredState {
+        AgentDesiredState::from(BalancerDesiredState::unconfigured(
+            InferenceMode::TextGeneration,
+        ))
+    }
+
     fn set_state_message() -> JsonRpcMessage {
         JsonRpcMessage::Notification(JsonRpcNotification::SetState(Box::new(SetStateParams {
-            desired_state: AgentDesiredState::default(),
+            desired_state: unconfigured_desired_state(),
         })))
     }
 
@@ -753,7 +764,7 @@ mod tests {
 
         assert_eq!(
             fixture.agent_desired_state_rx.try_recv().unwrap(),
-            AgentDesiredState::default()
+            unconfigured_desired_state()
         );
     }
 
@@ -931,7 +942,7 @@ mod tests {
 
         assert_eq!(
             fixture.agent_desired_state_rx.recv().await.unwrap(),
-            AgentDesiredState::default()
+            unconfigured_desired_state()
         );
     }
 
@@ -977,13 +988,13 @@ mod tests {
             .expect("the request must be accepted");
 
         let dispatched_request = fixture
-            .continuous_batch_preparation_request_rx
+            .pipeline_request_rx
             .try_recv()
             .expect("the request must be dispatched to the arbiter");
 
         assert!(matches!(
             &dispatched_request,
-            ContinuousBatchPreparationRequest::ContinueFromRawPrompt(request)
+            PipelineRequest::ContinueFromRawPrompt(request)
                 if request.params.raw_prompt == "hello"
         ));
         assert_eq!(
@@ -998,7 +1009,7 @@ mod tests {
     async fn generate_responses_errors_when_request_receiver_dropped() {
         let fixture = incoming_message_fixture();
 
-        drop(fixture.continuous_batch_preparation_request_rx);
+        drop(fixture.pipeline_request_rx);
 
         assert!(
             fixture

@@ -9,10 +9,15 @@ import {
 
 import type { EventSourceState } from "../src/EventSourceState";
 import type { Agent } from "../src/schemas/Agent";
+import type { AgentRuntimeStatus } from "../src/schemas/AgentRuntimeStatus";
 import type { AgentsResponseSchema } from "../src/schemas/AgentsResponse";
 import { AgentReportedIssuesError } from "./AgentReportedIssuesError";
 import { AgentsSnapshotUndeserializableError } from "./AgentsSnapshotUndeserializableError";
 import { AgentsStreamClosedError } from "./AgentsStreamClosedError";
+
+function slotsTotalOf(runtime: AgentRuntimeStatus): number {
+  return runtime === "Idle" ? 0 : runtime.Serving.slots_total;
+}
 
 export function waitForAgentReady({
   agentName,
@@ -47,7 +52,7 @@ export function waitForAgentReady({
       first(function (agent) {
         return (
           agent.status.state_application_status === "Applied" &&
-          agent.status.slots_total === expectedSlotsTotal
+          slotsTotalOf(agent.status.runtime) === expectedSlotsTotal
         );
       }),
     ),

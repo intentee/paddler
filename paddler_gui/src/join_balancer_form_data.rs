@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 use std::num::IntErrorKind;
 
-use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
-use paddler_bootstrap::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
+use paddler_agent_runner::agent_runner_config::AgentRunnerConfig;
+use paddler_agent_runner::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
 
 use crate::form_field_error::FormFieldError;
 use crate::join_balancer_form_action::JoinBalancerFormAction;
@@ -80,7 +80,7 @@ impl JoinBalancerFormData {
     fn validate_and_connect(&mut self) -> JoinBalancerFormAction {
         match (self.validated_balancer_address(), self.validated_slots()) {
             (Ok(management_address), Ok(slots)) => {
-                JoinBalancerFormAction::ConnectAgent(AgentBootstrapConfig {
+                JoinBalancerFormAction::ConnectAgent(AgentRunnerConfig {
                     agent_name: self.entered_agent_name(),
                     management_address,
                     slots,
@@ -101,8 +101,8 @@ mod tests {
     use std::mem::discriminant;
     use std::net::SocketAddr;
 
-    use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
-    use paddler_bootstrap::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
+    use paddler_agent_runner::agent_runner_config::AgentRunnerConfig;
+    use paddler_agent_runner::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
 
     use super::JoinBalancerFormData;
     use crate::form_field_error::FormFieldError;
@@ -134,7 +134,7 @@ mod tests {
 
         assert_eq!(
             form.update(JoinBalancerFormMessage::Connect),
-            JoinBalancerFormAction::ConnectAgent(AgentBootstrapConfig {
+            JoinBalancerFormAction::ConnectAgent(AgentRunnerConfig {
                 agent_name: Some("gpu-box".to_owned()),
                 management_address: "127.0.0.1:8060".to_owned(),
                 slots: 4,
@@ -148,7 +148,7 @@ mod tests {
 
         assert_eq!(
             form.update(JoinBalancerFormMessage::Connect),
-            JoinBalancerFormAction::ConnectAgent(AgentBootstrapConfig {
+            JoinBalancerFormAction::ConnectAgent(AgentRunnerConfig {
                 agent_name: None,
                 management_address: "127.0.0.1:8060".to_owned(),
                 slots: 1,

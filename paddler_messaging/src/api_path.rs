@@ -10,6 +10,7 @@ impl ApiPath {
     pub const CONTINUE_FROM_CONVERSATION_HISTORY: &str =
         "/api/v1/continue_from_conversation_history";
     pub const CONTINUE_FROM_RAW_PROMPT: &str = "/api/v1/continue_from_raw_prompt";
+    pub const DECIDE: &str = "/api/v1/decide";
     pub const GENERATE_EMBEDDING_BATCH: &str = "/api/v1/generate_embedding_batch";
     pub const HEALTH: &str = "/health";
     pub const INFERENCE_SOCKET: &str = "/api/v1/inference_socket";

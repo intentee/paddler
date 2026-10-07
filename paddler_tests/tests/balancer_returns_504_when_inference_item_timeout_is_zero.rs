@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -19,7 +20,7 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() {
         agents: AgentConfig::uniform(1, 2),
         inference_item_timeout: Duration::ZERO,
         wait_for_slots_ready: true,
-        desired_state: Some(qwen3_0_6b().into_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         ..ClusterParams::default()
     })
     .await
@@ -49,9 +50,6 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() {
         }
         Message::Response(_) => {
             panic!("expected timeout error, got success");
-        }
-        Message::Notification(_) => {
-            panic!("unexpected token-generation-mode notification");
         }
     }
 

@@ -57,6 +57,12 @@ impl AgentIssueFix {
                 }
                 _ => false,
             },
+            AgentIssue::ModelArchitectureUnsupportedForDecisions(_)
+            | AgentIssue::PointerHeadCannotBeLoaded(_)
+            | AgentIssue::PointerHeadIncompatibleWithModel(_)
+            | AgentIssue::SlotsInsufficientForDecisions(_) => {
+                matches!(self, Self::ModelStateIsReconciled)
+            }
             AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
                 matches!(self, Self::MultimodalProjectionIsLoaded(_))
             }
@@ -99,14 +105,47 @@ mod tests {
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+    use paddler_messaging::agent_issue_params::model_architecture_unsupported_for_decisions_params::ModelArchitectureUnsupportedForDecisionsParams;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
+    use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
+    use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
+    use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
 
     use super::AgentIssueFix;
 
     fn model_path(path: &str) -> ModelPath {
         ModelPath {
             model_path: path.to_owned(),
+        }
+    }
+
+    #[test]
+    fn only_reconciling_the_state_fixes_decision_configuration_issues() {
+        let decision_configuration_issues = [
+            AgentIssue::ModelArchitectureUnsupportedForDecisions(
+                ModelArchitectureUnsupportedForDecisionsParams {
+                    architecture: "qwen3".to_owned(),
+                    model_path: model_path("model_a"),
+                },
+            ),
+            AgentIssue::PointerHeadCannotBeLoaded(model_path("pointer_head")),
+            AgentIssue::PointerHeadIncompatibleWithModel(PointerHeadIncompatibleWithModelParams {
+                incompatibility: PointerHeadIncompatibility::HiddenSizeMismatch {
+                    model_hidden_size: 1024,
+                    pointer_head_hidden_size: 512,
+                },
+                pointer_head_path: model_path("pointer_head"),
+            }),
+            AgentIssue::SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams {
+                desired_slots: 1,
+                required_slots: 2,
+            }),
+        ];
+
+        for issue in &decision_configuration_issues {
+            assert!(AgentIssueFix::ModelStateIsReconciled.can_fix(issue));
+            assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(issue));
         }
     }
 

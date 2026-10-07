@@ -1,6 +1,7 @@
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
@@ -11,7 +12,7 @@ async fn balancer_reports_download_url_is_malformed() {
         model: AgentDesiredModel::Url(UrlModelReference {
             url: model_url.clone(),
         }),
-        ..BalancerDesiredState::default()
+        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
     })
     .await
     .expect("a single-agent cluster must start");

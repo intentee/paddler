@@ -4,9 +4,11 @@ use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::client_management::ClientManagement;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
+use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -34,15 +36,17 @@ async fn management_returns_balancer_desired_state_that_was_put() {
         get_balancer_desired_state(&cluster.client_management)
             .await
             .expect("the balancer must report its desired state"),
-        BalancerDesiredState::default()
+        BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
     );
 
     let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::deterministic(),
-        model: AgentDesiredModel::None,
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
+        inference_settings: BalancerInferenceSettings::TextGeneration(
+            BalancerTextGenerationSettings {
+                sampling_parameters: SamplingParameters::deterministic(),
+                ..BalancerTextGenerationSettings::default()
+            },
+        ),
+        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
     };
 
     cluster

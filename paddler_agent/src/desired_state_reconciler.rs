@@ -32,7 +32,8 @@ impl DesiredStateReconciler {
 
         match conversion {
             Ok(AgentDesiredStateConversion::Converted(applicable_state)) => {
-                let uses_chat_template_override = applicable_state.chat_template_override.is_some();
+                let uses_chat_template_override =
+                    applicable_state.chat_template_override().is_some();
 
                 self.agent_applicable_state_holder
                     .set_agent_applicable_state(applicable_state);

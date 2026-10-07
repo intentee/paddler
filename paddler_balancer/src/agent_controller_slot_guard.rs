@@ -1,22 +1,21 @@
 use std::sync::Arc;
 
-use tokio::sync::watch;
-
 use crate::agent_controller::AgentController;
+use crate::agent_controller_pool_updates::AgentControllerPoolUpdates;
 
 pub struct AgentControllerSlotGuard {
     agent_controller: Arc<AgentController>,
-    pool_update_tx: watch::Sender<()>,
+    pool_updates: Arc<AgentControllerPoolUpdates>,
 }
 
 impl AgentControllerSlotGuard {
     pub const fn new(
         agent_controller: Arc<AgentController>,
-        pool_update_tx: watch::Sender<()>,
+        pool_updates: Arc<AgentControllerPoolUpdates>,
     ) -> Self {
         Self {
             agent_controller,
-            pool_update_tx,
+            pool_updates,
         }
     }
 }
@@ -24,6 +23,6 @@ impl AgentControllerSlotGuard {
 impl Drop for AgentControllerSlotGuard {
     fn drop(&mut self) {
         self.agent_controller.slots_processing.decrement();
-        self.pool_update_tx.send_replace(());
+        self.pool_updates.signal();
     }
 }

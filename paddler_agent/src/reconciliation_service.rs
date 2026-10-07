@@ -72,10 +72,11 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use crate::agent_applicable_state::AgentApplicableState;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
@@ -84,10 +85,10 @@ mod tests {
 
     fn desired_state_with_model(model: AgentDesiredModel) -> AgentDesiredState {
         AgentDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
             model,
-            multimodal_projection: AgentDesiredModel::None,
+            ..AgentDesiredState::from(BalancerDesiredState::unconfigured(
+                InferenceMode::TextGeneration,
+            ))
         }
     }
 

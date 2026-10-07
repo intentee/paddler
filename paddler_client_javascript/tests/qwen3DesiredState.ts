@@ -1,28 +1,39 @@
 import type { BalancerDesiredState } from "../src/schemas/BalancerDesiredState";
 import { ALL_GPU_LAYERS } from "./allGpuLayers";
+import { withTextGenerationSettings } from "./withTextGenerationSettings";
 
 export function qwen3DesiredState(
   storedDesiredState: BalancerDesiredState,
 ): BalancerDesiredState {
   return {
-    ...storedDesiredState,
-    inference_parameters: {
-      ...storedDesiredState.inference_parameters,
-      min_p: 0,
-      n_gpu_layers: ALL_GPU_LAYERS,
-      penalty_frequency: 0,
-      penalty_presence: 0,
-      penalty_repeat: 1,
-      temperature: 0,
-      top_k: 1,
-      top_p: 1,
-    },
+    ...withTextGenerationSettings(
+      storedDesiredState,
+      function (textGenerationSettings) {
+        return {
+          ...textGenerationSettings,
+          sampling_parameters: {
+            min_p: 0,
+            penalty_frequency: 0,
+            penalty_last_n: 0,
+            penalty_presence: 0,
+            penalty_repeat: 1,
+            temperature: 0,
+            top_k: 1,
+            top_p: 1,
+          },
+        };
+      },
+    ),
     model: {
       HuggingFace: {
         filename: "Qwen3-0.6B-Q8_0.gguf",
         repo_id: "Qwen/Qwen3-0.6B-GGUF",
         revision: "main",
       },
+    },
+    model_runtime_parameters: {
+      ...storedDesiredState.model_runtime_parameters,
+      n_gpu_layers: ALL_GPU_LAYERS,
     },
   };
 }

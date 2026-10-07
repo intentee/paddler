@@ -4,8 +4,8 @@ use futures::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
-use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
-use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
+use paddler_agent_runner::agent_runner_config::AgentRunnerConfig;
+use paddler_agent_runner::agent_runner_params::AgentRunnerParams;
 use paddler_gui::agent_runner_messages::agent_runner_messages;
 use paddler_gui::message::Message;
 use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
@@ -16,7 +16,7 @@ async fn cancelling_an_agent_reports_that_it_stopped() {
         TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR).expect("the unresponsive balancer must bind");
     let cancellation_token = CancellationToken::new();
     let agent_messages = agent_runner_messages(AgentRunnerParams {
-        bootstrap_config: AgentBootstrapConfig {
+        runner_config: AgentRunnerConfig {
             agent_name: None,
             management_address: unresponsive_balancer
                 .local_addr()

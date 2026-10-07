@@ -42,6 +42,7 @@ mod tests {
     use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::RunningBalancerSnapshot;
 
@@ -51,16 +52,16 @@ mod tests {
         let requested_model = AgentDesiredModel::LocalToAgent("requested_model".to_owned());
 
         let snapshot = RunningBalancerSnapshot::build(
-            &AgentControllerPool::default(),
+            &AgentControllerPool::new(InferenceMode::TextGeneration),
             &BalancerApplicableStateHolder::new(BalancerApplicableState::from(
                 BalancerDesiredState {
                     model: applied_model.clone(),
-                    ..BalancerDesiredState::default()
+                    ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
                 },
             )),
             BalancerDesiredState {
                 model: requested_model.clone(),
-                ..BalancerDesiredState::default()
+                ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
             },
         );
 

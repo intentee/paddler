@@ -18,7 +18,7 @@ impl Default for CurrentScreen {
     fn default() -> Self {
         Self::Home(
             Screen::<Home>::builder()
-                .state_data(HomeData { error: None })
+                .state_data(HomeData::Welcome)
                 .build(),
         )
     }

@@ -45,9 +45,11 @@ impl AgentRunningData {
 mod tests {
     use tokio_util::sync::CancellationToken;
 
+    use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_messaging::agent_status::AgentStatus;
     use paddler_messaging::balancer_connection::BalancerConnection;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::AgentRunningData;
     use crate::agent_running_action::AgentRunningAction;
@@ -72,7 +74,10 @@ mod tests {
         let reported_status = AgentStatus {
             desired_slots_total: 4,
             model_path: Some("/models/qwen3.gguf".to_owned()),
-            slots_total: 4,
+            runtime: AgentRuntimeStatus::Serving {
+                inference_mode: InferenceMode::TextGeneration,
+                slots_total: 4,
+            },
             state_application_status: AgentStateApplicationStatus::Applied,
             ..AgentStatus::default()
         };

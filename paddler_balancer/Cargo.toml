@@ -1,5 +1,6 @@
 [package]
 name = "paddler_balancer"
+autotests = false
 authors.workspace = true
 description.workspace = true
 edition.workspace = true
@@ -7,6 +8,10 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
 
 [dependencies]
 actix-cors = { workspace = true }
@@ -30,9 +35,12 @@ mime_guess = { workspace = true, optional = true }
 nanoid = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_openai_translation = { workspace = true }
 paddler_request_registry = { workspace = true }
 paddler_state_database = { workspace = true }
+paddler_typesafe_translation = { workspace = true }
 parking_lot = { workspace = true }
+rand = { workspace = true }
 rust-embed = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

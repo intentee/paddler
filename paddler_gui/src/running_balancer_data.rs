@@ -45,6 +45,7 @@ mod tests {
     use paddler_balancer::balancer_addresses::BalancerAddresses;
     use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::RunningBalancerData;
     use crate::running_balancer_action::RunningBalancerAction;
@@ -55,6 +56,7 @@ mod tests {
         RunningBalancerData {
             addresses: BalancerAddresses {
                 compat_openai: None,
+                compat_typesafe: None,
                 inference: SocketAddr::from((Ipv4Addr::LOCALHOST, 8061)),
                 management: SocketAddr::from((Ipv4Addr::LOCALHOST, 8060)),
                 web_admin_panel: None,
@@ -63,9 +65,11 @@ mod tests {
             snapshot: Box::new(RunningBalancerSnapshot {
                 agent_snapshots: Vec::new(),
                 balancer_applicable_state: BalancerApplicableState::from(
-                    BalancerDesiredState::default(),
+                    BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
                 ),
-                balancer_desired_state: BalancerDesiredState::default(),
+                balancer_desired_state: BalancerDesiredState::unconfigured(
+                    InferenceMode::TextGeneration,
+                ),
             }),
             stopping: false,
         }

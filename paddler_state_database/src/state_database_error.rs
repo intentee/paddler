@@ -5,6 +5,8 @@ use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
 use url::ParseError;
 
+use paddler_messaging::inference_mode::InferenceMode;
+
 #[derive(Debug, Error)]
 pub enum StateDatabaseError {
     #[error("Unable to parse the state database file '{path_display}'. Either that is not a valid database file, or this version of Paddler is incompatible with it.", path_display = path.display())]
@@ -51,10 +53,26 @@ pub enum StateDatabaseError {
         #[source]
         source: io::Error,
     },
+    #[error(
+        "The desired state serves {requested_inference_mode:?}, but this cluster serves {cluster_inference_mode:?}"
+    )]
+    RequestedStateServesAnotherMode {
+        cluster_inference_mode: InferenceMode,
+        requested_inference_mode: InferenceMode,
+    },
     #[error("Failed to serialize the state database schema")]
     SchemaUnserializable(#[source] SerdeJsonError),
+    #[error("The state database file '{path_display}' uses schema version {found}, but this version of Paddler only reads version 2. Start from a new state database file.", path_display = path.display())]
+    SchemaVersionUnsupported { found: String, path: PathBuf },
     #[error("Unsupported state database scheme '{scheme}'")]
     SchemeUnsupported { scheme: String },
+    #[error(
+        "The stored desired state serves {stored_inference_mode:?}, but this cluster serves {cluster_inference_mode:?}. Start the cluster in that mode, or use a different state database."
+    )]
+    StoredStateServesAnotherMode {
+        cluster_inference_mode: InferenceMode,
+        stored_inference_mode: InferenceMode,
+    },
     #[error("Invalid state database URL '{input}'")]
     UrlInvalid {
         input: String,

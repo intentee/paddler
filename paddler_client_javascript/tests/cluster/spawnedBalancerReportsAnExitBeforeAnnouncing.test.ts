@@ -8,7 +8,10 @@ const CLAP_USAGE_ERROR_EXIT_CODE = 2;
 
 test("spawned balancer reports an exit before announcing", async function () {
   await rejects(
-    SpawnedBalancer.spawn({ bufferedRequestTimeoutMilliseconds: -1 }),
+    SpawnedBalancer.spawn({
+      bufferedRequestTimeoutMilliseconds: -1,
+      inferenceMode: "TextGeneration",
+    }),
     function (error: unknown) {
       return (
         error instanceof BalancerExitedBeforeAnnouncingError &&

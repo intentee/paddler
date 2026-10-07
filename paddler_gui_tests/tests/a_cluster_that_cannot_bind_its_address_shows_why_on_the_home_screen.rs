@@ -5,7 +5,7 @@ use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
+use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
 use paddler_gui::balancer_runner_messages::balancer_runner_messages;
 use paddler_gui::home_message::HomeMessage;
 use paddler_gui::message::Message;
@@ -32,17 +32,16 @@ async fn a_cluster_that_cannot_bind_its_address_shows_why_on_the_home_screen() {
         let _form_action = start_form.update(message);
     }
 
-    let StartBalancerFormAction::StartBalancer(mut bootstrap_config) =
+    let StartBalancerFormAction::StartBalancer(mut runner_config) =
         start_form.update(StartBalancerFormMessage::Confirm)
     else {
         panic!("a valid start form must start the cluster");
     };
 
-    bootstrap_config.management_service_configuration.addr =
-        ResolvedSocketAddr::from(occupied_addr);
+    runner_config.management_service_configuration.addr = ResolvedSocketAddr::from(occupied_addr);
 
     let cluster_messages = balancer_runner_messages(BalancerRunnerParams {
-        bootstrap_config: *bootstrap_config,
+        runner_config: *runner_config,
         cancellation_token: CancellationToken::new(),
         shutdown_options: ServiceShutdownOptions::default(),
     })

@@ -1,9 +1,10 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::url_model_reference::UrlModelReference;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -14,15 +15,12 @@ async fn balancer_persists_url_model_in_desired_state() {
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model: AgentDesiredModel::Url(UrlModelReference {
                 url: configured_url.clone(),
             }),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
+            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+        })),
         ..ClusterParams::default()
     })
     .await

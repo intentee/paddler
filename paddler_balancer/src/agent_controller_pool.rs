@@ -8,11 +8,13 @@ use tokio::sync::watch;
 
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
 use super::agent_controller::AgentController;
 use super::agent_controller_pool_total_slots::AgentControllerPoolTotalSlots;
+use crate::agent_controller_pool_updates::AgentControllerPoolUpdates;
 use crate::agent_controller_registration::AgentControllerRegistration;
 use crate::agent_controller_slot_guard::AgentControllerSlotGuard;
 use crate::desired_state_delivery::DesiredStateDelivery;
@@ -22,10 +24,20 @@ use crate::registered_agent_controller_guard::RegisteredAgentControllerGuard;
 
 pub struct AgentControllerPool {
     pub agents: DashMap<String, Arc<AgentController>>,
-    update_tx: watch::Sender<()>,
+    inference_mode: InferenceMode,
+    updates: Arc<AgentControllerPoolUpdates>,
 }
 
 impl AgentControllerPool {
+    #[must_use]
+    pub fn new(inference_mode: InferenceMode) -> Self {
+        Self {
+            agents: DashMap::new(),
+            inference_mode,
+            updates: Arc::new(AgentControllerPoolUpdates::default()),
+        }
+    }
+
     #[must_use]
     pub fn select_least_busy_with_capacity(&self) -> Option<DispatchCandidate> {
         let mut best: Option<DispatchCandidate> = None;
@@ -33,8 +45,9 @@ impl AgentControllerPool {
         for entry in &self.agents {
             let agent_controller = entry.value().clone();
             let snapshot = agent_controller.slots_processing.get();
+            let runtime = agent_controller.reported_status.read().status.runtime;
 
-            if snapshot >= agent_controller.reported_status.read().status.slots_total {
+            if !runtime.serves(self.inference_mode) || snapshot >= runtime.slots_total() {
                 continue;
             }
 
@@ -59,16 +72,28 @@ impl AgentControllerPool {
             .slots_processing
             .compare_and_swap(candidate.snapshot, candidate.snapshot + 1)
         {
-            self.update_tx.send_replace(());
+            self.updates.signal();
 
             let slot_guard = AgentControllerSlotGuard::new(
                 candidate.agent_controller.clone(),
-                self.update_tx.clone(),
+                self.updates.clone(),
             );
 
             Ok(DispatchedAgent::new(candidate.agent_controller, slot_guard))
         } else {
             Err(candidate)
+        }
+    }
+
+    pub async fn next_available_agent(&self) -> DispatchedAgent {
+        loop {
+            let agent_availability_changed = self.updates.agent_availability_changed();
+
+            if let Some(dispatched_agent) = self.take_least_busy_agent_controller() {
+                return dispatched_agent;
+            }
+
+            agent_availability_changed.await;
         }
     }
 
@@ -96,7 +121,7 @@ impl AgentControllerPool {
             Entry::Occupied(_registered_agent) => AgentControllerRegistration::DuplicateAgentId,
             Entry::Vacant(vacant_agent_slot) => {
                 vacant_agent_slot.insert(agent_controller.clone());
-                self.update_tx.send_replace(());
+                self.updates.signal();
 
                 AgentControllerRegistration::Registered(RegisteredAgentControllerGuard {
                     agent_controller,
@@ -108,7 +133,7 @@ impl AgentControllerPool {
 
     pub fn remove_agent_controller(&self, agent_id: &str) {
         self.agents.remove(agent_id);
-        self.update_tx.send_replace(());
+        self.updates.signal();
     }
 
     pub fn set_desired_state(&self, desired_state: &AgentDesiredState) {
@@ -127,7 +152,7 @@ impl AgentControllerPool {
     }
 
     pub fn signal_update(&self) {
-        self.update_tx.send_replace(());
+        self.updates.signal();
     }
 
     #[must_use]
@@ -139,7 +164,7 @@ impl AgentControllerPool {
             let agent = entry.value();
 
             slots_processing += agent.slots_processing.get();
-            slots_total += agent.reported_status.read().status.slots_total;
+            slots_total += agent.reported_status.read().status.runtime.slots_total();
         }
 
         AgentControllerPoolTotalSlots {
@@ -149,20 +174,9 @@ impl AgentControllerPool {
     }
 }
 
-impl Default for AgentControllerPool {
-    fn default() -> Self {
-        let (update_tx, _initial_rx) = watch::channel(());
-
-        Self {
-            agents: DashMap::new(),
-            update_tx,
-        }
-    }
-}
-
 impl SubscribesToUpdates for AgentControllerPool {
     fn subscribe_to_updates(&self) -> watch::Receiver<()> {
-        self.update_tx.subscribe()
+        self.updates.subscribe()
     }
 }
 
@@ -190,7 +204,11 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
+    use paddler_messaging::agent_status::AgentStatus;
     use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
     use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
     use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
@@ -206,6 +224,10 @@ mod tests {
     }
 
     fn agent_with_inbox(agent_id: &str) -> AgentWithInbox {
+        agent_reporting(agent_id, AgentRuntimeStatus::Idle)
+    }
+
+    fn agent_reporting(agent_id: &str, runtime: AgentRuntimeStatus) -> AgentWithInbox {
         let (agent_message_tx, inbox) = mpsc::unbounded_channel();
 
         AgentWithInbox {
@@ -215,16 +237,66 @@ mod tests {
                 connection_close: CancellationToken::new(),
                 id: agent_id.to_owned(),
                 name: None,
-                reported_status: RwLock::new(SlotAggregatedStatusSnapshot::default()),
+                reported_status: RwLock::new(SlotAggregatedStatusSnapshot {
+                    status: AgentStatus {
+                        runtime,
+                        ..AgentStatus::default()
+                    },
+                    version: 0,
+                }),
                 slots_processing: AtomicValue::<AtomicU64>::new(0),
             }),
             inbox,
         }
     }
 
+    fn serving(inference_mode: InferenceMode) -> AgentRuntimeStatus {
+        AgentRuntimeStatus::Serving {
+            inference_mode,
+            slots_total: 1,
+        }
+    }
+
+    #[test]
+    fn dispatches_only_to_agents_serving_the_cluster_mode() {
+        let pool = Arc::new(AgentControllerPool::new(InferenceMode::Embeddings));
+        let registrations = [
+            pool.register_agent_controller(
+                agent_reporting("text-generation", serving(InferenceMode::TextGeneration))
+                    .controller,
+            ),
+            pool.register_agent_controller(
+                agent_reporting("embeddings", serving(InferenceMode::Embeddings)).controller,
+            ),
+        ];
+
+        assert!(registrations.iter().all(|registration| matches!(
+            registration,
+            AgentControllerRegistration::Registered(_)
+        )));
+        assert_eq!(
+            pool.select_least_busy_with_capacity()
+                .map(|candidate| candidate.agent_controller.id.clone()),
+            Some("embeddings".to_owned())
+        );
+    }
+
+    #[test]
+    fn counts_only_the_slots_of_serving_agents() {
+        let pool = Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration));
+        let _registrations = [
+            pool.register_agent_controller(agent_with_inbox("idle").controller),
+            pool.register_agent_controller(
+                agent_reporting("serving", serving(InferenceMode::TextGeneration)).controller,
+            ),
+        ];
+
+        assert_eq!(pool.total_slots().slots_total, 1);
+    }
+
     #[test]
     fn delivers_the_desired_state_to_connected_agents_past_a_disconnected_one() {
-        let pool = Arc::new(AgentControllerPool::default());
+        let pool = Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration));
         let disconnected_agent = agent_with_inbox("disconnected");
         let mut connected_agent = agent_with_inbox("connected");
 
@@ -240,13 +312,15 @@ mod tests {
             AgentControllerRegistration::Registered(_)
         )));
 
-        pool.set_desired_state(&AgentDesiredState::default());
+        pool.set_desired_state(&AgentDesiredState::from(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        ));
 
         assert!(matches!(
             connected_agent.inbox.try_recv(),
             Ok(AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::SetState(set_state_params)
-            )) if set_state_params.desired_state == AgentDesiredState::default()
+            )) if set_state_params.desired_state == AgentDesiredState::from(BalancerDesiredState::unconfigured(InferenceMode::TextGeneration))
         ));
     }
 }

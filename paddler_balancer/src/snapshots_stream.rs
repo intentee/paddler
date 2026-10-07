@@ -39,6 +39,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::snapshots_stream;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -46,7 +47,7 @@ mod tests {
 
     fn buffered_request_manager() -> Arc<BufferedRequestManager> {
         Arc::new(BufferedRequestManager::new(
-            Arc::new(AgentControllerPool::default()),
+            Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
             Duration::MAX,
             1,
         ))

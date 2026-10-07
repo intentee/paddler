@@ -27,6 +27,7 @@ use super::variables::SPACING_HALF;
 use super::view_form_field::view_form_field;
 use crate::address_placeholder::ADDRESS_PLACEHOLDER;
 use crate::balancer_launch::BalancerLaunch;
+use crate::inference_mode_choice::InferenceModeChoice;
 use crate::model_preset::ModelPreset;
 use crate::start_balancer_form_data::StartBalancerFormData;
 use crate::start_balancer_form_message::StartBalancerFormMessage;
@@ -76,7 +77,7 @@ impl StartBalancerFormData {
                 .into()
         } else {
             pick_list(
-                ModelPreset::ALL,
+                ModelPreset::serving(self.inference_mode),
                 self.selected_model,
                 StartBalancerFormMessage::SelectModel,
             )
@@ -105,8 +106,23 @@ impl StartBalancerFormData {
         })
         .into();
 
+        let inference_mode_input: Element<'_, StartBalancerFormMessage> = pick_list(
+            InferenceModeChoice::ALL,
+            Some(InferenceModeChoice(self.inference_mode)),
+            StartBalancerFormMessage::SelectInferenceMode,
+        )
+        .width(Fill)
+        .padding(SPACING_BASE)
+        .style(style_field_pick_list)
+        .menu_style(style_field_pick_list_menu)
+        .into();
+
         let model_field = column![
-            view_form_field("Model", model_input, self.model_error.as_ref()),
+            row![
+                view_form_field("Inference mode", inference_mode_input, None),
+                view_form_field("Model", model_input, self.model_error.as_ref()),
+            ]
+            .spacing(SPACING_BASE),
             add_model_later_checkbox,
         ]
         .spacing(SPACING_HALF);

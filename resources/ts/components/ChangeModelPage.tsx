@@ -4,10 +4,10 @@ import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDe
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useBalancerDesiredState } from "../hooks/useBalancerDesiredState";
 import { matchFetchJsonState } from "../matchFetchJsonState";
+import { BalancerDesiredStateContextProvider } from "./BalancerDesiredStateContextProvider";
 import { ChangeModelForm } from "./ChangeModelForm";
 import { ChatTemplateContextProvider } from "./ChatTemplateContextProvider";
 import { FloatingStatus } from "./FloatingStatus";
-import { InferenceParametersContextProvider } from "./InferenceParametersContextProvider";
 
 function modelSchemaToUrl(model: AgentDesiredModel): string {
   if (model === "None") {
@@ -32,7 +32,9 @@ function modelSchemaToUrl(model: AgentDesiredModel): string {
 }
 
 export function ChangeModelPage() {
-  const { managementAddr } = useContext(PaddlerConfigurationContext);
+  const { inferenceMode, managementAddr } = useContext(
+    PaddlerConfigurationContext,
+  );
   const loadingState = useBalancerDesiredState({ managementAddr });
 
   return matchFetchJsonState(loadingState, {
@@ -49,31 +51,40 @@ export function ChangeModelPage() {
     loading() {
       return <FloatingStatus>Loading desired state...</FloatingStatus>;
     },
-    ok({
-      response: {
-        chat_template_override,
-        inference_parameters,
-        model,
-        multimodal_projection,
-        use_chat_template_override,
-      },
-    }) {
+    ok({ response: balancerDesiredState }) {
+      const changeModelForm = (
+        <ChangeModelForm
+          defaultBaseModelUri={modelSchemaToUrl(balancerDesiredState.model)}
+          defaultMultimodalProjectionUri={
+            "TextGeneration" in balancerDesiredState.inference_settings
+              ? modelSchemaToUrl(
+                  balancerDesiredState.inference_settings.TextGeneration
+                    .multimodal.projection,
+                )
+              : ""
+          }
+          defaultPointerHeadUri={
+            "Decision" in balancerDesiredState.inference_settings
+              ? modelSchemaToUrl(
+                  balancerDesiredState.inference_settings.Decision.pointer_head,
+                )
+              : ""
+          }
+        />
+      );
+
       return (
-        <ChatTemplateContextProvider
-          defaultChatTemplateOverride={chat_template_override}
-          defaultUseChatTemplateOverride={use_chat_template_override}
+        <BalancerDesiredStateContextProvider
+          defaultBalancerDesiredState={balancerDesiredState}
         >
-          <InferenceParametersContextProvider
-            defaultInferenceParameters={inference_parameters}
-          >
-            <ChangeModelForm
-              defaultBaseModelUri={modelSchemaToUrl(model)}
-              defaultMultimodalProjectionUri={modelSchemaToUrl(
-                multimodal_projection,
-              )}
-            />
-          </InferenceParametersContextProvider>
-        </ChatTemplateContextProvider>
+          {inferenceMode === "TextGeneration" ? (
+            <ChatTemplateContextProvider>
+              {changeModelForm}
+            </ChatTemplateContextProvider>
+          ) : (
+            changeModelForm
+          )}
+        </BalancerDesiredStateContextProvider>
       );
     },
   });

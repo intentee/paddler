@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_gui::message::Message;
 use paddler_gui_tests::app_driver::AppDriver;
+use paddler_service_thread::service_thread_error::ServiceThreadError;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failed_agent_shows_why_on_the_home_screen() {
@@ -12,7 +12,7 @@ async fn a_failed_agent_shows_why_on_the_home_screen() {
         .expect("the join form must offer to connect");
 
     let _failed_task = app.update(Message::AgentFailed(Arc::new(
-        BootstrapError::ServiceThreadPanicked,
+        ServiceThreadError::ServiceThreadPanicked,
     )));
 
     app.find("A Paddler service thread panicked")

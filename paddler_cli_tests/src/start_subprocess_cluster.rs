@@ -1,6 +1,7 @@
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
@@ -23,12 +24,24 @@ pub async fn start_subprocess_cluster(
     }: ClusterParams,
 ) -> Result<Cluster> {
     let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
-    let mut balancer_arguments = vec![
+    let mut balancer_arguments = match desired_state.inference_mode() {
+        InferenceMode::Decision => vec![
+            "decision".to_owned(),
+            "--compat-typesafe-addr".to_owned(),
+            ephemeral_loopback_addr.clone(),
+        ],
+        InferenceMode::Embeddings => vec!["embeddings".to_owned()],
+        InferenceMode::TextGeneration => vec![
+            "text-generation".to_owned(),
+            "--compat-openai-addr".to_owned(),
+            ephemeral_loopback_addr.clone(),
+        ],
+    };
+
+    balancer_arguments.extend([
         "--inference-addr".to_owned(),
         ephemeral_loopback_addr.clone(),
         "--management-addr".to_owned(),
-        ephemeral_loopback_addr.clone(),
-        "--compat-openai-addr".to_owned(),
         ephemeral_loopback_addr,
         "--state-database".to_owned(),
         state_database_url,
@@ -38,7 +51,7 @@ pub async fn start_subprocess_cluster(
         buffered_request_timeout.as_millis().to_string(),
         "--inference-item-timeout".to_owned(),
         inference_item_timeout.as_millis().to_string(),
-    ];
+    ]);
 
     for allowed_host in inference_cors_allowed_hosts {
         balancer_arguments.extend(["--inference-cors-allowed-host".to_owned(), allowed_host]);
@@ -58,7 +71,7 @@ pub async fn start_subprocess_cluster(
             binary_path.to_owned(),
             management_addr,
         )),
-        desired_state.as_ref(),
+        &desired_state,
     )
     .await?;
 

@@ -1,6 +1,9 @@
+mod ensure_requested_state_serves_cluster_mode;
+mod ensure_stored_state_serves_cluster_mode;
 pub mod file;
 pub mod memory;
 mod schema;
+mod schema_version_header;
 pub mod state_database;
 pub mod state_database_error;
 mod state_database_schema_version;

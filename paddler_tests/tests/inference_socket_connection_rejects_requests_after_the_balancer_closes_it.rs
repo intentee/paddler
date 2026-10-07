@@ -1,4 +1,3 @@
-use tokio::sync::broadcast;
 use tokio::task::yield_now;
 
 use paddler_client::error::Error;
@@ -15,13 +14,11 @@ async fn inference_socket_connection_rejects_requests_after_the_balancer_closes_
     })
     .await
     .expect("a cluster without agents must start");
-    let (notification_tx, _notification_rx) = broadcast::channel(1);
     let connection = Connection::connect(
         cluster
             .balancer
             .inference_base_url()
             .expect("the inference service must have a base URL"),
-        notification_tx,
     )
     .await
     .expect("the connection to the balancer must open");

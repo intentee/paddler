@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorNotImplemented;
+use actix_web::error::ErrorInternalServerError;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
 use actix_web::rt;
@@ -19,6 +19,8 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_messaging::agent_inference_settings::AgentInferenceSettings;
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
@@ -42,22 +44,22 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
-    let agent_desired_state = app_data
+    let AgentInferenceSettings::Embeddings(EmbeddingParameters {
+        embedding_batch_size,
+        ..
+    }) = app_data
         .balancer_applicable_state_holder
-        .get_agent_desired_state();
-
-    if !agent_desired_state.inference_parameters.enable_embeddings {
-        return Err(ErrorNotImplemented(
-            "Embedding generation is not enabled in the inference parameters",
+        .get_agent_desired_state()
+        .inference_settings
+    else {
+        return Err(ErrorInternalServerError(
+            "The cluster does not serve embeddings",
         ));
-    }
+    };
 
     let Some(agent_count) = NonZeroUsize::new(app_data.agent_controller_pool.agents.len()) else {
         return Err(ErrorServiceUnavailable("No agents are currently connected"));
     };
-    let embedding_batch_size = agent_desired_state
-        .inference_parameters
-        .embedding_batch_size;
 
     let connection_close = CancellationToken::new();
     let request_id: String = nanoid!();
@@ -142,7 +144,6 @@ async fn respond(
         .streaming(stream))
 }
 
-#[derive(Clone)]
 struct EmbeddingChunkBodyTransformer;
 
 #[async_trait]

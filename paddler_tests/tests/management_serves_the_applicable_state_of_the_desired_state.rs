@@ -1,6 +1,8 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -20,8 +22,12 @@ async fn management_serves_the_applicable_state_of_the_desired_state() {
         .await
         .expect("the balancer must serve its applicable state");
 
-    assert_eq!(agent_desired_state.model, AgentDesiredModel::None);
-    assert_eq!(agent_desired_state.chat_template_override, None);
+    assert_eq!(
+        agent_desired_state,
+        AgentDesiredState::from(BalancerDesiredState::unconfigured(
+            InferenceMode::TextGeneration
+        ))
+    );
 
     cluster
         .shutdown()

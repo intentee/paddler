@@ -32,23 +32,20 @@ impl AgentApplicableStateHolder {
 mod tests {
     use std::path::PathBuf;
 
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
+    use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+    use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 
     use super::AgentApplicableStateHolder;
-    use crate::agent_applicable_model::AgentApplicableModel;
     use crate::agent_applicable_state::AgentApplicableState;
 
     #[test]
     fn a_new_subscriber_sees_the_state_applied_before_it_subscribed() {
         let holder = AgentApplicableStateHolder::default();
 
-        let applied_state = AgentApplicableState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentApplicableModel::Resolved {
-                model_path: PathBuf::from("model.gguf"),
-                multimodal_projection_path: None,
-            },
+        let applied_state = AgentApplicableState::Embeddings {
+            embedding_parameters: EmbeddingParameters::default(),
+            model_path: PathBuf::from("model.gguf"),
+            model_runtime_parameters: ModelRuntimeParameters::default(),
         };
 
         holder.set_agent_applicable_state(applied_state.clone());

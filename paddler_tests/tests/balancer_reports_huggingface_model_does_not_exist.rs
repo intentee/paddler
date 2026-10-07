@@ -4,6 +4,7 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -14,7 +15,7 @@ async fn balancer_reports_huggingface_model_does_not_exist() {
             repo_id: "nonexistent-org/nonexistent-model-gguf".to_owned(),
             revision: "main".to_owned(),
         }),
-        ..BalancerDesiredState::default()
+        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
     })
     .await
     .expect("a single-agent cluster must start");

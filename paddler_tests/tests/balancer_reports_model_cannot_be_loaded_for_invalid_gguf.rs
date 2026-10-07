@@ -1,28 +1,58 @@
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
+use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
+use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
+use paddler_messaging::decision_settings::DecisionSettings;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::start_cluster::start_cluster;
+
+const DECISION_SLOTS: u16 = 2;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
     let model_path_on_agent =
         concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf").to_owned();
-    let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
-        model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),
-        ..BalancerDesiredState::default()
-    })
-    .await
-    .expect("a single-agent cluster must start");
+    let pointer_head_path_on_agent = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../fixtures/qwen3_5_0_8b_synthetic_pointer_head.gguf"
+    )
+    .to_owned();
 
-    cluster
-        .wait_for_first_agent_issue(|issue| {
-            matches!(issue, AgentIssue::ModelCannotBeLoaded(model_path) if model_path.model_path == model_path_on_agent)
+    for inference_settings in [
+        BalancerInferenceSettings::Decision(DecisionSettings {
+            pointer_head: AgentDesiredModel::LocalToAgent(pointer_head_path_on_agent.clone()),
+        }),
+        BalancerInferenceSettings::Embeddings(EmbeddingParameters::default()),
+        BalancerInferenceSettings::TextGeneration(BalancerTextGenerationSettings::default()),
+    ] {
+        let mut cluster = start_cluster(ClusterParams {
+            agents: AgentConfig::uniform(1, DECISION_SLOTS),
+            desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+                inference_settings,
+                model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),
+                model_runtime_parameters: ModelRuntimeParameters::default(),
+            })),
+            wait_for_slots_ready: false,
+            ..ClusterParams::default()
         })
         .await
-        .expect("the agent must report ModelCannotBeLoaded for the configured path");
+        .expect("a single-agent cluster must start");
 
-    cluster
-        .shutdown()
-        .await
-        .expect("the cluster must shut down cleanly");
+        cluster
+            .wait_for_first_agent_issue(|issue| {
+                matches!(issue, AgentIssue::ModelCannotBeLoaded(model_path) if model_path.model_path == model_path_on_agent)
+            })
+            .await
+            .expect("the agent must report ModelCannotBeLoaded for the configured path");
+
+        cluster
+            .shutdown()
+            .await
+            .expect("the cluster must shut down cleanly");
+    }
 }

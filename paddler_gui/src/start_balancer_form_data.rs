@@ -6,20 +6,23 @@ use paddler_balancer::management_service::configuration::Configuration as Manage
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
-use paddler_bootstrap::balancer_defaults::BalancerDefaults;
+use paddler_balancer_runner::balancer_defaults::BalancerDefaults;
+use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
+use paddler_balancer_runner::balancer_serving_mode::BalancerServingMode;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_state_database::state_database_type::StateDatabaseType;
 
 use crate::address_placeholder::ADDRESS_PLACEHOLDER;
 use crate::balancer_launch::BalancerLaunch;
 use crate::form_field_error::FormFieldError;
+use crate::inference_mode_choice::InferenceModeChoice;
 use crate::model_preset::ModelPreset;
 use crate::port_check::PortCheck;
 use crate::start_balancer_form_action::StartBalancerFormAction;
 use crate::start_balancer_form_message::StartBalancerFormMessage;
 
-fn balancer_bootstrap_config(
+fn balancer_runner_config(
     desired_state: BalancerDesiredState,
     management_addr: SocketAddr,
     inference_addr: SocketAddr,
@@ -31,8 +34,8 @@ fn balancer_bootstrap_config(
         )
     )]
     web_admin_panel_addr: Option<SocketAddr>,
-) -> BalancerBootstrapConfig {
-    BalancerBootstrapConfig {
+) -> BalancerRunnerConfig {
+    BalancerRunnerConfig {
         buffered_request_timeout: BalancerDefaults::BUFFERED_REQUEST_TIMEOUT,
         inference_service_configuration: InferenceServiceConfiguration {
             addr: ResolvedSocketAddr::from(inference_addr),
@@ -44,8 +47,16 @@ fn balancer_bootstrap_config(
             cors_allowed_hosts: vec![],
         },
         max_buffered_requests: BalancerDefaults::MAX_BUFFERED_REQUESTS,
-        openai_service_configuration: None,
-        state_database_type: StateDatabaseType::Memory(Box::new(desired_state)),
+        serving_mode: match desired_state.inference_settings.inference_mode() {
+            InferenceMode::Decision => BalancerServingMode::Decision {
+                typesafe_service_configuration: None,
+            },
+            InferenceMode::Embeddings => BalancerServingMode::Embeddings,
+            InferenceMode::TextGeneration => BalancerServingMode::TextGeneration {
+                openai_service_configuration: None,
+            },
+        },
+        state_database_type: StateDatabaseType::MemoryStartingWith(Box::new(desired_state)),
         statsd_prefix: BalancerDefaults::STATSD_PREFIX.to_owned(),
         statsd_service_configuration: None,
         #[cfg(feature = "web_admin_panel")]
@@ -80,6 +91,7 @@ pub struct StartBalancerFormData {
     pub balancer_address_error: Option<FormFieldError>,
     pub inference_address: String,
     pub inference_address_error: Option<FormFieldError>,
+    pub inference_mode: InferenceMode,
     pub launch: BalancerLaunch,
     pub model_error: Option<FormFieldError>,
     pub selected_model: Option<ModelPreset>,
@@ -103,6 +115,7 @@ impl StartBalancerFormData {
             balancer_address_error: None,
             inference_address: suggested_address_on(BalancerDefaults::INFERENCE_PORT),
             inference_address_error: None,
+            inference_mode: InferenceMode::TextGeneration,
             launch: BalancerLaunch::NotRequested,
             model_error: None,
             selected_model: None,
@@ -119,6 +132,18 @@ impl StartBalancerFormData {
 
     pub fn update(&mut self, message: StartBalancerFormMessage) -> StartBalancerFormAction {
         match message {
+            StartBalancerFormMessage::SelectInferenceMode(InferenceModeChoice(inference_mode)) => {
+                self.inference_mode = inference_mode;
+
+                if self
+                    .selected_model
+                    .is_some_and(|preset| preset.inference_mode() != inference_mode)
+                {
+                    self.selected_model = None;
+                }
+
+                StartBalancerFormAction::None
+            }
             StartBalancerFormMessage::SelectModel(preset) => {
                 self.selected_model = Some(preset);
                 self.model_error = None;
@@ -159,7 +184,7 @@ impl StartBalancerFormData {
 
     fn desired_state(&self) -> Result<BalancerDesiredState, FormFieldError> {
         if self.add_model_later {
-            return Ok(BalancerDesiredState::default());
+            return Ok(BalancerDesiredState::unconfigured(self.inference_mode));
         }
 
         self.selected_model
@@ -179,7 +204,7 @@ impl StartBalancerFormData {
                 Ok(management_addr),
                 Ok(inference_addr),
                 Ok(web_admin_panel_addr),
-            ) => StartBalancerFormAction::StartBalancer(Box::new(balancer_bootstrap_config(
+            ) => StartBalancerFormAction::StartBalancer(Box::new(balancer_runner_config(
                 desired_state,
                 management_addr,
                 inference_addr,
@@ -207,12 +232,15 @@ mod tests {
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_state_database::state_database_type::StateDatabaseType;
     use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 
     use super::StartBalancerFormData;
     use crate::balancer_launch::BalancerLaunch;
     use crate::form_field_error::FormFieldError;
+    use crate::inference_mode_choice::InferenceModeChoice;
     use crate::model_preset::ModelPreset;
     use crate::start_balancer_form_action::StartBalancerFormAction;
     use crate::start_balancer_form_message::StartBalancerFormMessage;
@@ -226,6 +254,7 @@ mod tests {
             balancer_address_error: None,
             inference_address: EPHEMERAL_LOOPBACK_ADDR.to_string(),
             inference_address_error: None,
+            inference_mode: InferenceMode::TextGeneration,
             launch: BalancerLaunch::NotRequested,
             model_error: None,
             selected_model: None,
@@ -238,7 +267,7 @@ mod tests {
     fn multimodal_preset() -> ModelPreset {
         ModelPreset::ALL
             .into_iter()
-            .find(|preset| preset.multimodal_projection().is_some())
+            .find(|preset| preset.multimodal_projection() != AgentDesiredModel::None)
             .expect("a multimodal preset must be available")
     }
 
@@ -264,13 +293,60 @@ mod tests {
 
         assert!(matches!(
             form.update(StartBalancerFormMessage::Confirm),
-            StartBalancerFormAction::StartBalancer(bootstrap_config)
+            StartBalancerFormAction::StartBalancer(runner_config)
                 if matches!(
-                    &bootstrap_config.state_database_type,
-                    StateDatabaseType::Memory(desired_state)
-                        if **desired_state == BalancerDesiredState::default()
+                    &runner_config.state_database_type,
+                    StateDatabaseType::MemoryStartingWith(desired_state)
+                        if **desired_state
+                            == BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
                 )
         ));
+    }
+
+    #[test]
+    fn starts_a_cluster_without_a_model_in_the_selected_mode() {
+        for inference_mode in [InferenceMode::Decision, InferenceMode::Embeddings] {
+            let mut form = form_on_free_ports();
+
+            form.update(StartBalancerFormMessage::SelectInferenceMode(
+                InferenceModeChoice(inference_mode),
+            ));
+            form.update(StartBalancerFormMessage::ToggleAddModelLater(true));
+
+            assert!(matches!(
+                form.update(StartBalancerFormMessage::Confirm),
+                StartBalancerFormAction::StartBalancer(runner_config)
+                    if runner_config.serving_mode.inference_mode() == inference_mode
+            ));
+        }
+    }
+
+    #[test]
+    fn switching_the_mode_drops_a_preset_of_the_other_mode() {
+        let mut form = form_on_free_ports();
+
+        form.update(StartBalancerFormMessage::SelectModel(
+            ModelPreset::Qwen3_0_6B,
+        ));
+        form.update(StartBalancerFormMessage::SelectInferenceMode(
+            InferenceModeChoice(InferenceMode::Embeddings),
+        ));
+
+        assert_eq!(form.selected_model, None);
+    }
+
+    #[test]
+    fn switching_the_mode_keeps_a_preset_of_that_mode() {
+        let mut form = form_on_free_ports();
+
+        form.update(StartBalancerFormMessage::SelectModel(
+            ModelPreset::Qwen3_0_6B,
+        ));
+        form.update(StartBalancerFormMessage::SelectInferenceMode(
+            InferenceModeChoice(InferenceMode::TextGeneration),
+        ));
+
+        assert_eq!(form.selected_model, Some(ModelPreset::Qwen3_0_6B));
     }
 
     #[test]
@@ -296,8 +372,8 @@ mod tests {
 
         assert!(matches!(
             form.update(StartBalancerFormMessage::Confirm),
-            StartBalancerFormAction::StartBalancer(bootstrap_config)
-                if bootstrap_config.web_admin_panel_service_configuration.is_none()
+            StartBalancerFormAction::StartBalancer(runner_config)
+                if runner_config.web_admin_panel_service_configuration.is_none()
         ));
     }
 
@@ -306,22 +382,23 @@ mod tests {
         let mut form = form_on_free_ports();
         let preset = multimodal_preset();
         let expected_model = AgentDesiredModel::HuggingFace(preset.model());
-        let expected_multimodal_projection = AgentDesiredModel::HuggingFace(
-            preset
-                .multimodal_projection()
-                .expect("the multimodal preset must carry a projection"),
-        );
+        let expected_multimodal_projection = preset.multimodal_projection();
 
         form.update(StartBalancerFormMessage::SelectModel(preset));
 
         assert!(matches!(
             form.update(StartBalancerFormMessage::Confirm),
-            StartBalancerFormAction::StartBalancer(bootstrap_config)
+            StartBalancerFormAction::StartBalancer(runner_config)
                 if matches!(
-                    &bootstrap_config.state_database_type,
-                    StateDatabaseType::Memory(desired_state)
+                    &runner_config.state_database_type,
+                    StateDatabaseType::MemoryStartingWith(desired_state)
                         if desired_state.model == expected_model
-                            && desired_state.multimodal_projection == expected_multimodal_projection
+                            && matches!(
+                                &desired_state.inference_settings,
+                                BalancerInferenceSettings::TextGeneration(text_generation_settings)
+                                    if text_generation_settings.multimodal.projection
+                                        == expected_multimodal_projection
+                            )
                 )
         ));
     }

@@ -29,6 +29,7 @@ async fn balancer_serves_every_service_within_the_default_macos_open_file_limit(
     let running_balancer = spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         [
+            "text-generation",
             "--compat-openai-addr",
             &ephemeral_loopback_addr,
             "--inference-addr",

@@ -6,14 +6,16 @@ use statum::transition;
 use tokio_util::sync::CancellationToken;
 
 use paddler_balancer::balancer_addresses::BalancerAddresses;
-use paddler_bootstrap::bootstrap_error::BootstrapError;
+use paddler_balancer_runner::balancer_runner_error::BalancerRunnerError;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::balancer_connection::BalancerConnection;
+use paddler_service_thread::service_thread_error::ServiceThreadError;
 
 use crate::agent_running_data::AgentRunningData;
 use crate::detect_network_interfaces::detect_network_interfaces;
 use crate::home_data::HomeData;
 use crate::join_balancer_form_data::JoinBalancerFormData;
+use crate::runner_failure::RunnerFailure;
 use crate::running_balancer_data::RunningBalancerData;
 use crate::running_balancer_snapshot::RunningBalancerSnapshot;
 use crate::start_balancer_form_data::StartBalancerFormData;
@@ -51,7 +53,7 @@ impl Screen<Home> {
 impl Screen<JoinBalancerForm> {
     #[must_use]
     pub fn cancel(self) -> Screen<Home> {
-        self.transition_with(HomeData { error: None })
+        self.transition_with(HomeData::Welcome)
     }
 
     #[must_use]
@@ -75,12 +77,14 @@ impl Screen<JoinBalancerForm> {
 impl Screen<AgentRunning> {
     #[must_use]
     pub fn disconnect(self) -> Screen<Home> {
-        self.transition_with(HomeData { error: None })
+        self.transition_with(HomeData::Welcome)
     }
 
     #[must_use]
-    pub fn agent_failed(self, error: Arc<BootstrapError>) -> Screen<Home> {
-        self.transition_with(HomeData { error: Some(error) })
+    pub fn agent_failed(self, service_thread_error: Arc<ServiceThreadError>) -> Screen<Home> {
+        self.transition_with(HomeData::ReturnedAfterFailure(RunnerFailure::Agent(
+            service_thread_error,
+        )))
     }
 }
 
@@ -88,7 +92,7 @@ impl Screen<AgentRunning> {
 impl Screen<StartBalancerForm> {
     #[must_use]
     pub fn cancel(self) -> Screen<Home> {
-        self.transition_with(HomeData { error: None })
+        self.transition_with(HomeData::Welcome)
     }
 
     #[must_use]
@@ -107,8 +111,10 @@ impl Screen<StartBalancerForm> {
     }
 
     #[must_use]
-    pub fn balancer_failed(self, error: Arc<BootstrapError>) -> Screen<Home> {
-        self.transition_with(HomeData { error: Some(error) })
+    pub fn balancer_failed(self, balancer_runner_error: Arc<BalancerRunnerError>) -> Screen<Home> {
+        self.transition_with(HomeData::ReturnedAfterFailure(RunnerFailure::Balancer(
+            balancer_runner_error,
+        )))
     }
 }
 
@@ -116,11 +122,13 @@ impl Screen<StartBalancerForm> {
 impl Screen<RunningBalancer> {
     #[must_use]
     pub fn balancer_stopped(self) -> Screen<Home> {
-        self.transition_with(HomeData { error: None })
+        self.transition_with(HomeData::Welcome)
     }
 
     #[must_use]
-    pub fn balancer_failed(self, error: Arc<BootstrapError>) -> Screen<Home> {
-        self.transition_with(HomeData { error: Some(error) })
+    pub fn balancer_failed(self, balancer_runner_error: Arc<BalancerRunnerError>) -> Screen<Home> {
+        self.transition_with(HomeData::ReturnedAfterFailure(RunnerFailure::Balancer(
+            balancer_runner_error,
+        )))
     }
 }

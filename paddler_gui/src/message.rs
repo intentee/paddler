@@ -3,7 +3,8 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use paddler_balancer::balancer_addresses::BalancerAddresses;
-use paddler_bootstrap::bootstrap_error::BootstrapError;
+use paddler_balancer_runner::balancer_runner_error::BalancerRunnerError;
+use paddler_service_thread::service_thread_error::ServiceThreadError;
 
 use crate::agent_running_message::AgentRunningMessage;
 use crate::home_message::HomeMessage;
@@ -25,9 +26,9 @@ pub enum Message {
         snapshot: Box<RunningBalancerSnapshot>,
     },
     BalancerStopped,
-    BalancerFailed(Arc<BootstrapError>),
+    BalancerFailed(Arc<BalancerRunnerError>),
     AgentStopped,
-    AgentFailed(Arc<BootstrapError>),
+    AgentFailed(Arc<ServiceThreadError>),
     IcedEventLoopReady,
     Quit,
     TabPressed {

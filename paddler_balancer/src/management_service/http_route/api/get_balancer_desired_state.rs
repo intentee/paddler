@@ -39,10 +39,10 @@ mod tests {
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_state_database::file::File;
     use paddler_state_database::memory::Memory;
     use paddler_state_database::state_database::StateDatabase;
@@ -57,12 +57,16 @@ mod tests {
 
     fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {
-            agent_controller_pool: Arc::new(AgentControllerPool::default()),
+            agent_controller_pool: Arc::new(AgentControllerPool::new(
+                InferenceMode::TextGeneration,
+            )),
             balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                BalancerApplicableState::from(BalancerDesiredState::default()),
+                BalancerApplicableState::from(BalancerDesiredState::unconfigured(
+                    InferenceMode::TextGeneration,
+                )),
             )),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                Arc::new(AgentControllerPool::default()),
+                Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
                 Duration::from_secs(1),
                 10,
             )),
@@ -75,17 +79,16 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_stored_desired_state() {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
         let stored_state = BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
             model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
+            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
         };
         let state_database = Arc::new(Memory::new(
             balancer_desired_state_notify_tx,
+            InferenceMode::TextGeneration,
             stored_state.clone(),
         ));
         let app_data = build_app_data(state_database);
@@ -109,11 +112,13 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_internal_server_error_when_reading_state_fails() {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
         let temp_dir = TempDir::new().unwrap();
         let state_database = Arc::new(File::new(
             balancer_desired_state_notify_tx,
+            InferenceMode::TextGeneration,
             temp_dir.path().to_path_buf(),
         ));
         let app_data = build_app_data(state_database);

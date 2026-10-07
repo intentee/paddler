@@ -158,8 +158,10 @@ mod tests {
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;
 
+    use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
     use paddler_messaging::agent_status::AgentStatus;
     use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
     use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
@@ -171,7 +173,10 @@ mod tests {
     fn reported(version: u64, slots_total: u64) -> SlotAggregatedStatusSnapshot {
         SlotAggregatedStatusSnapshot {
             status: AgentStatus {
-                slots_total,
+                runtime: AgentRuntimeStatus::Serving {
+                    inference_mode: InferenceMode::TextGeneration,
+                    slots_total,
+                },
                 ..AgentStatus::default()
             },
             version,

@@ -46,7 +46,7 @@ pub async fn collect_generated_tokens(
                 }
                 .into());
             }
-            unexpected_message => {
+            unexpected_message @ InferenceMessage::Response(_) => {
                 return Err(ClusterHarnessError::TokenStreamMessageUnexpected {
                     message: Box::new(unexpected_message),
                 }

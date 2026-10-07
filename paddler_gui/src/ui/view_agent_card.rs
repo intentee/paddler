@@ -110,7 +110,8 @@ pub fn view_agent_card<'card, TMessage: 'static>(
 
     let slots_label = format!(
         "{slots_processing}/{}/{}",
-        status.slots_total, status.desired_slots_total,
+        status.runtime.slots_total(),
+        status.desired_slots_total,
     );
 
     let status_row_content = row![

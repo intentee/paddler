@@ -1,6 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 
+import { InferenceModeSchema } from "@intentee/paddler-client/schemas/InferenceMode";
 import { type StatsdConfiguration } from "./StatsdConfiguration";
 import { Home } from "./components/Home";
 import { PaddlerConfigurationContext } from "./contexts/PaddlerConfigurationContext";
@@ -61,7 +62,12 @@ root.render(
       ),
       compatOpenAIAddr:
         rootNode.getOptionalStringFromDataset("compatOpenaiAddr"),
+      compatTypeSafeAddr:
+        rootNode.getOptionalStringFromDataset("compatTypesafeAddr"),
       inferenceAddr: rootNode.getStringFromDataset("inferenceAddr"),
+      inferenceMode: InferenceModeSchema.parse(
+        rootNode.getStringFromDataset("inferenceMode"),
+      ),
       managementAddr: rootNode.getStringFromDataset("managementAddr"),
       maxBufferedRequests: rootNode.getIntFromDataset("maxBufferedRequests"),
       statsd: rootNode.getStatsdConfiguration(),

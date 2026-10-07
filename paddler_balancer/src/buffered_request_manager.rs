@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Error;
-use anyhow::Result;
 use tokio::sync::watch;
 use tokio::time::error::Elapsed;
 use tokio::time::timeout;
@@ -49,32 +47,23 @@ impl BufferedRequestManager {
             .take_least_busy_agent_controller()
     }
 
-    pub async fn wait_for_available_agent(&self) -> Result<BufferedRequestAgentWaitResult> {
+    pub async fn wait_for_available_agent(&self) -> BufferedRequestAgentWaitResult {
         if let Some(dispatched_agent) = self.take_available_agent() {
-            return Ok(BufferedRequestAgentWaitResult::Found(dispatched_agent));
+            return BufferedRequestAgentWaitResult::Found(dispatched_agent);
         }
 
         let Some(_buffered_request_count_guard) = self.buffered_request_counter.try_admit() else {
-            return Ok(BufferedRequestAgentWaitResult::BufferOverflow);
+            return BufferedRequestAgentWaitResult::BufferOverflow;
         };
-        let agent_controller_pool = self.agent_controller_pool.clone();
-        let mut update_rx = agent_controller_pool.subscribe_to_updates();
 
-        match timeout(self.buffered_request_timeout, async {
-            loop {
-                if let Some(dispatched_agent) =
-                    agent_controller_pool.take_least_busy_agent_controller()
-                {
-                    return Ok::<_, Error>(BufferedRequestAgentWaitResult::Found(dispatched_agent));
-                }
-
-                update_rx.changed().await?;
-            }
-        })
+        match timeout(
+            self.buffered_request_timeout,
+            self.agent_controller_pool.next_available_agent(),
+        )
         .await
         {
-            Ok(inner_result) => Ok(inner_result?),
-            Err(Elapsed { .. }) => Ok(BufferedRequestAgentWaitResult::Timeout),
+            Ok(dispatched_agent) => BufferedRequestAgentWaitResult::Found(dispatched_agent),
+            Err(Elapsed { .. }) => BufferedRequestAgentWaitResult::Timeout,
         }
     }
 }
@@ -111,6 +100,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
     use super::BufferedRequestManager;
@@ -127,7 +117,7 @@ mod tests {
 
     fn race_callers_for_one_buffered_place(racing_callers: usize) -> RaceOutcome {
         let buffered_request_manager = BufferedRequestManager::new(
-            Arc::new(AgentControllerPool::default()),
+            Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
             Duration::MAX,
             BUFFER_CAPACITY,
         );
@@ -159,11 +149,8 @@ mod tests {
                                     buffered_request_manager.wait_for_available_agent(),
                                 )
                                 .await
-                                && discriminant(
-                                    &wait_result.expect("waiting for an agent must not fail"),
-                                ) == discriminant(
-                                    &BufferedRequestAgentWaitResult::BufferOverflow,
-                                )
+                                && discriminant(&wait_result)
+                                    == discriminant(&BufferedRequestAgentWaitResult::BufferOverflow)
                             {
                                 overflow_tx
                                     .send(())

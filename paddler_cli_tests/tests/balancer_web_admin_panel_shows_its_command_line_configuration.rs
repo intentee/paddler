@@ -20,6 +20,7 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
     let running_balancer = spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         [
+            "text-generation",
             "--buffered-request-timeout",
             "1500",
             "--compat-openai-addr",
@@ -67,6 +68,7 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
                 ("data-buffered-request-timeout-millis", "1500"),
                 ("data-compat-openai-addr", ephemeral_loopback_addr.as_str()),
                 ("data-inference-addr", ephemeral_loopback_addr.as_str()),
+                ("data-inference-mode", "TextGeneration"),
                 ("data-management-addr", ephemeral_loopback_addr.as_str()),
                 ("data-max-buffered-requests", "7"),
                 ("data-statsd-addr", statsd_addr.as_str()),

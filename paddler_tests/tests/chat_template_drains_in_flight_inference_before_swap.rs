@@ -4,7 +4,6 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -14,6 +13,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_test_cluster_harness::unending_grammar::unending_grammar;
+use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 
 const CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION: u32 = 256;
@@ -64,11 +64,11 @@ async fn chat_template_drains_in_flight_inference_before_swap() {
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &BalancerDesiredState {
-                chat_template_override: Some(swapped_template.clone()),
-                use_chat_template_override: true,
-                ..initial_desired_state
-            },
+            &desired_state_with_chat_template_override(
+                initial_desired_state,
+                swapped_template.clone(),
+            )
+            .expect("a text generation state must accept a chat template override"),
         )
         .await
         .expect("the balancer must accept the desired state");

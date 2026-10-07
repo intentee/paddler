@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use futures_util::StreamExt;
 use serde_json::to_string;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::UnboundedSender;
@@ -11,7 +10,6 @@ use tokio_tungstenite::connect_async;
 use url::Url;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -31,10 +29,7 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub async fn connect(
-        connection_url: Url,
-        notification_tx: broadcast::Sender<Notification>,
-    ) -> Result<Self> {
+    pub async fn connect(connection_url: Url) -> Result<Self> {
         let ws_url = url(connection_url)?;
         let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
         let (ws_write, ws_read) = ws_stream.split();
@@ -42,7 +37,7 @@ impl Connection {
         let (write_tx, write_rx) = mpsc::unbounded_channel::<String>();
 
         Ok(Self {
-            read_task: spawn_read_task(ws_read, pending.clone(), notification_tx),
+            read_task: spawn_read_task(ws_read, pending.clone()),
             write_task: spawn_write_task(ws_write, write_rx, pending.clone()),
             pending,
             write_tx,
@@ -101,7 +96,6 @@ mod tests {
     use tokio::net::TcpListener;
     use tokio::net::TcpStream;
     use tokio::spawn;
-    use tokio::sync::broadcast;
     use tokio::task::JoinHandle;
     use tokio_tungstenite::WebSocketStream;
     use tokio_tungstenite::accept_async;
@@ -159,23 +153,16 @@ mod tests {
     }
 
     async fn connection_to(url: Url) -> Connection {
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
-
-        Connection::connect(url, notification_tx)
+        Connection::connect(url)
             .await
             .expect("the client must connect to the fixture")
     }
 
     #[tokio::test]
     async fn connect_fails_for_an_unreachable_server() {
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
-
         assert!(matches!(
-            Connection::connect(
-                Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"),
-                notification_tx,
-            )
-            .await,
+            Connection::connect(Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"))
+                .await,
             Err(Error::WebSocket(WebSocketError::Io(io_error)))
                 if io_error.kind() == ErrorKind::ConnectionRefused
         ));

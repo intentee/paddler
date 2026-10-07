@@ -40,7 +40,7 @@ async fn balancer_serves_inference_over_websocket() {
                         token_count += 1;
                     }
                 }
-                Response::Embedding(_) => {
+                Response::Decision(_) | Response::Embedding(_) => {
                     panic!("inference over websocket produced an unexpected response variant")
                 }
             },
@@ -49,9 +49,6 @@ async fn balancer_serves_inference_over_websocket() {
                     "inference over websocket failed: code {}, description {:?}",
                     envelope.error.code, envelope.error.description
                 )
-            }
-            InferenceMessage::Notification(_) => {
-                panic!("inference over websocket produced an unexpected notification")
             }
         }
     }

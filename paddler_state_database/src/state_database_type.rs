@@ -23,7 +23,8 @@ fn relative_path_error(path: &str) -> StateDatabaseError {
 #[derive(Clone)]
 pub enum StateDatabaseType {
     File(PathBuf),
-    Memory(Box<BalancerDesiredState>),
+    Memory,
+    MemoryStartingWith(Box<BalancerDesiredState>),
 }
 
 impl FromStr for StateDatabaseType {
@@ -54,7 +55,7 @@ impl FromStr for StateDatabaseType {
 
                 Ok(Self::File(PathBuf::from(path)))
             }
-            "memory" => Ok(Self::Memory(Box::default())),
+            "memory" => Ok(Self::Memory),
             scheme => Err(StateDatabaseError::SchemeUnsupported {
                 scheme: scheme.to_owned(),
             }),
@@ -80,7 +81,7 @@ mod tests {
 
         assert_eq!(
             discriminant(&result),
-            discriminant(&StateDatabaseType::Memory(Box::default())),
+            discriminant(&StateDatabaseType::Memory),
         );
     }
 

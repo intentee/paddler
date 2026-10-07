@@ -29,7 +29,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
 where
     TParams: AgentStreamingRequest + Debug + Send + 'static,
     TParams::Response: Debug + Into<OutgoingResponse> + StreamableResult,
-    TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync + 'static,
+    TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync + 'static,
 {
     let request_id: String = nanoid!();
     let connection_close = CancellationToken::new();
@@ -69,6 +69,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -94,7 +95,7 @@ mod tests {
 
     #[actix_web::test]
     async fn spawned_task_runs_request_from_agent_and_closes_stream_on_shutdown() {
-        let pool = Arc::new(AgentControllerPool::default());
+        let pool = Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration));
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
             pool,
             Duration::from_secs(1),

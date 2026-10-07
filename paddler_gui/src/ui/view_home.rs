@@ -65,8 +65,8 @@ impl HomeData {
         ]
         .spacing(SPACING_2X);
 
-        if let Some(error) = &self.error {
-            content = content.push(view_error_message(&error.to_string()));
+        if let Self::ReturnedAfterFailure(runner_failure) = self {
+            content = content.push(view_error_message(&runner_failure.description()));
         }
 
         content.into()

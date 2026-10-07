@@ -1,7 +1,6 @@
-use std::sync::Arc;
+use crate::runner_failure::RunnerFailure;
 
-use paddler_bootstrap::bootstrap_error::BootstrapError;
-
-pub struct HomeData {
-    pub error: Option<Arc<BootstrapError>>,
+pub enum HomeData {
+    ReturnedAfterFailure(RunnerFailure),
+    Welcome,
 }

@@ -1,10 +1,11 @@
 use anyhow::Result;
 
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::gemma_3_4b_it::gemma_3_4b_it;
 use paddler_test_cluster_harness::model_card::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
@@ -20,13 +21,13 @@ pub async fn start_cluster_with_gemma_3_and_mmproj_and_n_batch(
 
     start_cluster(ClusterParams {
         agents,
-        desired_state: Some(BalancerDesiredState {
-            inference_parameters: InferenceParameters {
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            model_runtime_parameters: ModelRuntimeParameters {
                 n_batch: BatchSize::try_from(n_batch)?,
-                ..base_desired_state.inference_parameters
+                ..base_desired_state.model_runtime_parameters
             },
             ..base_desired_state
-        }),
+        })),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

@@ -1,13 +1,15 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::inference_mode::InferenceMode;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
+use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -16,23 +18,22 @@ async fn balancer_persists_chat_template_override_across_restart() {
 
     let ModelCard { reference } = qwen3_0_6b();
 
-    let template_content = "{{ messages | tojson }}".to_owned();
-
-    let desired_state = BalancerDesiredState {
-        chat_template_override: Some(ChatTemplate {
-            content: template_content.clone(),
-        }),
-        inference_parameters: InferenceParameters::default(),
-        model: AgentDesiredModel::HuggingFace(reference),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: true,
-    };
+    let desired_state = desired_state_with_chat_template_override(
+        BalancerDesiredState {
+            model: AgentDesiredModel::HuggingFace(reference),
+            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+        },
+        ChatTemplate {
+            content: "{{ messages | tojson }}".to_owned(),
+        },
+    )
+    .expect("a text generation state must accept a chat template override");
 
     let first_cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: Some(desired_state.clone()),
+        desired_state: ClusterDesiredState::Apply(Box::new(desired_state.clone())),
         ..ClusterParams::default()
     })
     .await
@@ -47,7 +48,7 @@ async fn balancer_persists_chat_template_override_across_restart() {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: None,
+        desired_state: ClusterDesiredState::KeepStored(InferenceMode::TextGeneration),
         ..ClusterParams::default()
     })
     .await
@@ -59,14 +60,7 @@ async fn balancer_persists_chat_template_override_across_restart() {
         .await
         .expect("failed to read restored desired state");
 
-    assert!(restored_state.use_chat_template_override);
-    assert_eq!(
-        restored_state
-            .chat_template_override
-            .as_ref()
-            .map(|template| template.content.as_str()),
-        Some(template_content.as_str())
-    );
+    assert_eq!(restored_state, desired_state);
 
     second_cluster
         .shutdown()

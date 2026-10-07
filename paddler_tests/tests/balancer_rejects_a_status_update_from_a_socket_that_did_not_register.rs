@@ -10,12 +10,16 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_agent_socket::RawAgentSocket;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_a_status_update_from_a_socket_that_did_not_register() {
     let cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
-        desired_state: Some(BalancerDesiredState::default()),
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState::unconfigured(
+            InferenceMode::TextGeneration,
+        ))),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })

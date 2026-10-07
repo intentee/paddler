@@ -120,7 +120,6 @@ version = "2.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5f794807f82bbd36430c12cd600c73bbab0f52fdde4f0ed49978df113f4807f"
 dependencies = [
- "actix-macros",
  "futures-core",
  "tokio",
 ]
@@ -3152,6 +3151,9 @@ dependencies = [
  "icu_properties",
  "icu_provider",
  "smallvec",
+ "utf16_iter",
+ "utf8_iter",
+ "write16",
  "zerovec",
 ]
 
@@ -3757,8 +3759,6 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 [[package]]
 name = "llama-cpp-bindings"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0cab532a93dac3f03c6e3923fd24d91434bdf4142dcec89af08842a5e791ad7"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -3781,8 +3781,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-bindings-build"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b281e0ae2b5ad140756ebe47c5e00e5e17f1a08e890cdb7601d856a2f2da59b4"
 dependencies = [
  "bindgen",
  "cc",
@@ -3795,8 +3793,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-bindings-sys"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fe502d4a74ec5d93a2a78917c9c4223826e2b9466b2c5b869357e51fb7116a8"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
@@ -3804,8 +3800,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-bindings-types"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "002e2c1fc09748fb2b9914c660a8661368cfef18d1b205d2fd14f33a979e5b48"
 dependencies = [
  "serde",
  "serde_json",
@@ -3815,8 +3809,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-error-recorder"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d181159c5b293f11fddb23d3fd012277110a8405e24a6c0a454329ce859627fe"
 dependencies = [
  "log",
 ]
@@ -3824,8 +3816,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-ffi-status"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d1c9ab4956a5f38e11df94e3064a77af2dc3d66ec900720e9409d43435e315e"
 dependencies = [
  "llama-cpp-bindings-sys",
  "thiserror 2.0.18",
@@ -3834,8 +3824,6 @@ dependencies = [
 [[package]]
 name = "llama-cpp-gbnf"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "484337250ef83f370320f9a262cb98074fc7777545b13363dfa50925b518c785"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-ffi-status",
@@ -3845,14 +3833,10 @@ dependencies = [
 [[package]]
 name = "llama-cpp-log-decoder"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af82bb7e5f57250f5d4cf0b7ae93730f0f38676367360eb512994c1c823f8132"
 
 [[package]]
 name = "llama-cpp-wrapper-sources"
 version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c490620f948a5f26cde3ce443c70fe9e91d04042bd5a195d0e6924340566130"
 dependencies = [
  "serde",
  "serde_json",
@@ -4861,55 +4845,108 @@ dependencies = [
 
 [[package]]
 name = "paddler_agent"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
- "async-stream",
  "async-trait",
- "bytes 1.11.1",
- "dashmap",
- "encoding_rs",
  "futures 0.3.32",
  "futures-util",
- "hf-hub",
- "indoc",
- "llama-cpp-bindings",
- "llama-cpp-bindings-sys",
- "llama-cpp-bindings-types",
  "log",
- "minijinja",
- "minijinja-contrib",
- "nanoid",
+ "paddler_agent_decision",
+ "paddler_agent_embeddings",
+ "paddler_agent_runtime",
  "paddler_agent_status",
- "paddler_cache_dir",
- "paddler_download_manager",
- "paddler_image_decoder",
+ "paddler_agent_text_generation",
  "paddler_inference_parameters",
- "paddler_local_http_fixture",
  "paddler_messaging",
  "paddler_model_source",
  "paddler_request_registry",
- "paddler_tool_call_validator",
- "parking_lot",
- "rand 0.9.4",
- "reqwest 0.12.28",
- "serde",
  "serde_json",
- "shellexpand",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
- "tokio-stream",
- "tokio-test",
  "tokio-tungstenite",
  "tokio-util",
  "trzcina",
- "url",
+]
+
+[[package]]
+name = "paddler_agent_decision"
+version = "5.0.0"
+dependencies = [
+ "icu_normalizer",
+ "llama-cpp-bindings",
+ "log",
+ "paddler_agent_pointer_head",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "paddler_agent_embeddings"
+version = "5.0.0"
+dependencies = [
+ "llama-cpp-bindings",
+ "log",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "paddler_agent_pointer_head"
+version = "5.0.0"
+dependencies = [
+ "llama-cpp-bindings",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "paddler_agent_runner"
+version = "5.0.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "nanoid",
+ "paddler_agent",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_messaging",
+ "paddler_service_thread",
+ "paddler_test_cluster_harness",
+ "tokio",
+ "tokio-util",
+ "trzcina",
+]
+
+[[package]]
+name = "paddler_agent_runtime"
+version = "5.0.0"
+dependencies = [
+ "llama-cpp-bindings",
+ "llama-cpp-bindings-sys",
+ "log",
+ "paddler_agent_status",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "parking_lot",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]
 name = "paddler_agent_status"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "dashmap",
  "paddler_messaging",
@@ -4919,8 +4956,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_agent_text_generation"
+version = "5.0.0"
+dependencies = [
+ "encoding_rs",
+ "llama-cpp-bindings",
+ "log",
+ "minijinja",
+ "minijinja-contrib",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
+ "paddler_image_decoder",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_tool_call_validator",
+ "rand 0.9.4",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "paddler_balancer"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -4944,9 +5004,12 @@ dependencies = [
  "paddler_inference_parameters",
  "paddler_messaging",
  "paddler_openai_response_format_validator",
+ "paddler_openai_translation",
  "paddler_request_registry",
  "paddler_state_database",
+ "paddler_typesafe_translation",
  "parking_lot",
+ "rand 0.9.4",
  "rust-embed",
  "serde",
  "serde_json",
@@ -4961,19 +5024,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "paddler_bootstrap"
-version = "4.1.0"
+name = "paddler_balancer_runner"
+version = "5.0.0"
 dependencies = [
- "actix-web",
  "anyhow",
  "async-trait",
- "log",
- "nanoid",
- "paddler_agent",
- "paddler_agent_status",
+ "paddler_agent_runner",
  "paddler_balancer",
  "paddler_inference_parameters",
  "paddler_messaging",
+ "paddler_service_thread",
  "paddler_state_database",
  "paddler_test_cluster_harness",
  "reqwest 0.12.28",
@@ -4987,7 +5047,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cache_dir"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "fslock",
  "sha2",
@@ -4999,17 +5059,18 @@ dependencies = [
 
 [[package]]
 name = "paddler_cli"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
- "actix-rt",
  "actix-web",
  "anyhow",
  "async-trait",
  "clap",
  "command_handler",
  "env_logger",
+ "paddler_agent_runner",
  "paddler_balancer",
- "paddler_bootstrap",
+ "paddler_balancer_runner",
+ "paddler_service_thread",
  "paddler_state_database",
  "tokio-util",
  "trzcina",
@@ -5017,7 +5078,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_cli_tests"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5040,7 +5101,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_client"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "bytes 1.11.1",
  "futures-util",
@@ -5063,7 +5124,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_download_manager"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "bytes 1.11.1",
  "futures-util",
@@ -5080,7 +5141,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_gui"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "async-stream",
  "clap",
@@ -5090,10 +5151,12 @@ dependencies = [
  "if-addrs",
  "log",
  "open",
+ "paddler_agent_runner",
  "paddler_balancer",
- "paddler_bootstrap",
+ "paddler_balancer_runner",
  "paddler_inference_parameters",
  "paddler_messaging",
+ "paddler_service_thread",
  "paddler_state_database",
  "paddler_test_cluster_harness",
  "statum",
@@ -5105,14 +5168,16 @@ dependencies = [
 
 [[package]]
 name = "paddler_gui_tests"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "futures 0.3.32",
  "iced_test",
+ "paddler_agent_runner",
  "paddler_balancer",
- "paddler_bootstrap",
+ "paddler_balancer_runner",
  "paddler_gui",
  "paddler_messaging",
+ "paddler_service_thread",
  "paddler_test_cluster_harness",
  "reqwest 0.12.28",
  "thiserror 2.0.18",
@@ -5123,7 +5188,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_image_decoder"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "base64",
  "image",
@@ -5135,7 +5200,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_inference_parameters"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5144,7 +5209,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_local_http_fixture"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "http 1.4.0",
  "httparse",
@@ -5153,7 +5218,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_messaging"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "base64",
  "encoding_rs",
@@ -5170,7 +5235,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_model_source"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "async-trait",
  "hf-hub",
@@ -5190,7 +5255,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_openai_response_format_validator"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "jsonschema",
  "serde_json",
@@ -5199,8 +5264,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "paddler_openai_translation"
+version = "5.0.0"
+dependencies = [
+ "llama-cpp-bindings-types",
+ "nanoid",
+ "paddler_inference_parameters",
+ "paddler_messaging",
+ "paddler_openai_response_format_validator",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "paddler_opencode_tests"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
  "paddler_test_cluster_harness",
@@ -5214,19 +5293,32 @@ dependencies = [
 
 [[package]]
 name = "paddler_request_registry"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "dashmap",
  "tokio",
 ]
 
 [[package]]
+name = "paddler_service_thread"
+version = "5.0.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "async-trait",
+ "log",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "trzcina",
+]
+
+[[package]]
 name = "paddler_state_database"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "async-trait",
  "log",
- "paddler_inference_parameters",
  "paddler_messaging",
  "parking_lot",
  "serde",
@@ -5240,7 +5332,7 @@ dependencies = [
 
 [[package]]
 name = "paddler_test_cluster_harness"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
  "async-openai",
@@ -5254,6 +5346,7 @@ dependencies = [
  "paddler_inference_parameters",
  "paddler_messaging",
  "quick-xml",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
  "tempfile",
@@ -5267,17 +5360,24 @@ dependencies = [
 
 [[package]]
 name = "paddler_tests"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "anyhow",
  "async-openai",
  "async-trait",
+ "clap",
  "futures-util",
+ "hf-hub",
  "http 1.4.0",
+ "llama-cpp-bindings",
  "llama-cpp-bindings-types",
  "log",
+ "paddler_agent_decision",
+ "paddler_agent_runner",
+ "paddler_agent_runtime",
+ "paddler_agent_status",
  "paddler_balancer",
- "paddler_bootstrap",
+ "paddler_balancer_runner",
  "paddler_client",
  "paddler_inference_parameters",
  "paddler_local_http_fixture",
@@ -5286,21 +5386,31 @@ dependencies = [
  "paddler_state_database",
  "paddler_test_cluster_harness",
  "reqwest 0.12.28",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-tungstenite",
  "tokio-util",
- "trzcina",
 ]
 
 [[package]]
 name = "paddler_tool_call_validator"
-version = "4.1.0"
+version = "5.0.0"
 dependencies = [
  "jsonschema",
  "llama-cpp-bindings-types",
  "paddler_messaging",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "paddler_typesafe_translation"
+version = "5.0.0"
+dependencies = [
+ "paddler_messaging",
+ "serde",
  "serde_json",
  "thiserror 2.0.18",
 ]
@@ -7642,6 +7752,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
+name = "utf16_iter"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8232dd3cdaed5356e0f716d285e4b40b932ac434100fe9b7e0e8e935b9e6246"
+
+[[package]]
 name = "utf8_iter"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8832,6 +8948,12 @@ dependencies = [
  "unicode-xid",
  "wasmparser",
 ]
+
+[[package]]
+name = "write16"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1890f4022759daae28ed4fe62859b1236caebfc61ede2f63ed4e695f3f6d936"
 
 [[package]]
 name = "writeable"

@@ -5,7 +5,7 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -19,11 +19,10 @@ const N_BATCH: u32 = 64;
 async fn agent_embedding_batch_with_all_oversized_documents_reports_error() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
-        inference_parameters: InferenceParameters {
+        model_runtime_parameters: ModelRuntimeParameters {
             n_batch: BatchSize::try_from(N_BATCH).expect("the value must fit its target type"),
             context_size: NonZeroU32::try_from(2048).expect("the value must fit its target type"),
-            enable_embeddings: true,
-            ..InferenceParameters::deterministic()
+            ..ModelRuntimeParameters::default()
         },
         ..EmbeddingClusterParams::default()
     })
@@ -75,7 +74,7 @@ async fn agent_embedding_batch_with_all_oversized_documents_reports_error() {
             .iter()
             .map(|details| &details.source_document_id)
             .collect::<Vec<_>>(),
-        collected.errors,
+        collected.failures,
     );
 
     cluster

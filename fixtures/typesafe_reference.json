@@ -1,0 +1,353 @@
+[
+  {
+    "request": {
+      "state": "The invoice was paid on time.",
+      "questions": {
+        "paid": {
+          "type": "noul",
+          "instructions": "Was the invoice paid?"
+        }
+      }
+    },
+    "rendered": {
+      "state": "The invoice was paid on time.",
+      "questions": [
+        {
+          "instructions": "Was the invoice paid?",
+          "options": [
+            "no",
+            "yes"
+          ]
+        }
+      ]
+    },
+    "probabilities": [
+      [
+        0.12345678,
+        0.87654322
+      ]
+    ],
+    "answers": {
+      "paid": {
+        "type": "noul",
+        "noul": 0.8765
+      }
+    }
+  },
+  {
+    "request": {
+      "state": {
+        "customer": "Ada",
+        "orders": [
+          {
+            "id": 1,
+            "total": 19.99,
+            "shipped": true
+          },
+          {
+            "id": 2,
+            "total": 100.0,
+            "shipped": false,
+            "notes": null
+          }
+        ],
+        "tags": [],
+        "metadata": {},
+        "balance": -0.0,
+        "ratio": 1e-07,
+        "population": 1e+16,
+        "huge": 1.5e+300,
+        "count": 123456789012345678
+      },
+      "questions": {
+        "sentiment": {
+          "type": "choice",
+          "instructions": {
+            "task": "Classify",
+            "hints": [
+              "be brief",
+              2
+            ]
+          },
+          "criteria": {
+            "positive": "The customer is happy",
+            "neutral": null,
+            "negative": "",
+            "mixed": {
+              "when": "both",
+              "weight": 0.5
+            }
+          }
+        },
+        "risk": {
+          "type": "score",
+          "instructions": null,
+          "criteria": [
+            "no risk",
+            {
+              "level": "some",
+              "detail": [
+                "late",
+                "partial"
+              ]
+            },
+            "high risk"
+          ]
+        },
+        "vip": {
+          "type": "noul",
+          "instructions": 42,
+          "criteria": {
+            "true": "Spends a lot",
+            "false": {
+              "reason": "rare"
+            }
+          }
+        }
+      }
+    },
+    "rendered": {
+      "state": "customer: Ada\norders:\n  - id: 1\n    total: 19.99\n    shipped: True\n  - id: 2\n    total: 100.0\n    shipped: False\n    notes: \ntags:\n\nmetadata:\n\nbalance: -0.0\nratio: 1e-07\npopulation: 1e+16\nhuge: 1.5e+300\ncount: 123456789012345678",
+      "questions": [
+        {
+          "instructions": "task: Classify\nhints:\n  - be brief\n  - 2",
+          "options": [
+            "positive: The customer is happy",
+            "neutral",
+            "negative",
+            "mixed: when: both\nweight: 0.5"
+          ]
+        },
+        {
+          "instructions": "",
+          "options": [
+            "no risk",
+            "level: some\ndetail:\n  - late\n  - partial",
+            "high risk"
+          ]
+        },
+        {
+          "instructions": "42",
+          "options": [
+            "no: reason: rare",
+            "yes: Spends a lot"
+          ]
+        }
+      ]
+    },
+    "probabilities": [
+      [
+        0.25,
+        0.25,
+        0.4,
+        0.1
+      ],
+      [
+        0.2,
+        0.3,
+        0.5
+      ],
+      [
+        0.5,
+        0.5
+      ]
+    ],
+    "answers": {
+      "sentiment": {
+        "type": "choice",
+        "choice": "negative",
+        "confidence": 0.2,
+        "probabilities": {
+          "positive": 0.25,
+          "neutral": 0.25,
+          "negative": 0.4,
+          "mixed": 0.1
+        }
+      },
+      "risk": {
+        "type": "score",
+        "score": 1.3,
+        "legend": {
+          "0": "no risk",
+          "1": "level: some\ndetail:\n  - late\n  - partial",
+          "2": "high risk"
+        },
+        "probabilities": {
+          "0": 0.2,
+          "1": 0.3,
+          "2": 0.5
+        },
+        "confidence": 0.0
+      },
+      "vip": {
+        "type": "noul",
+        "noul": 0.5
+      }
+    }
+  },
+  {
+    "request": {
+      "state": [
+        "first line\nsecond line",
+        3.5,
+        true,
+        null,
+        [
+          "nested",
+          1
+        ]
+      ],
+      "questions": {
+        "tie": {
+          "type": "choice",
+          "instructions": [
+            "pick",
+            "one"
+          ],
+          "criteria": {
+            "left": 1,
+            "right": false
+          }
+        },
+        "single": {
+          "type": "score",
+          "instructions": 2.5,
+          "criteria": [
+            "only level"
+          ]
+        }
+      }
+    },
+    "rendered": {
+      "state": "- first line\nsecond line\n- 3.5\n- True\n- \n- - nested\n  - 1",
+      "questions": [
+        {
+          "instructions": "- pick\n- one",
+          "options": [
+            "left: 1",
+            "right: False"
+          ]
+        },
+        {
+          "instructions": "2.5",
+          "options": [
+            "only level"
+          ]
+        }
+      ]
+    },
+    "probabilities": [
+      [
+        0.5,
+        0.5
+      ],
+      [
+        1.0
+      ]
+    ],
+    "answers": {
+      "tie": {
+        "type": "choice",
+        "choice": "left",
+        "confidence": 0.0,
+        "probabilities": {
+          "left": 0.5,
+          "right": 0.5
+        }
+      },
+      "single": {
+        "type": "score",
+        "score": 0.0,
+        "legend": {
+          "0": "only level"
+        },
+        "probabilities": {
+          "0": 1.0
+        },
+        "confidence": 1.0
+      }
+    }
+  },
+  {
+    "request": {
+      "state": "Zażółć gęślą jaźń 👨‍👩",
+      "questions": {
+        "lonely": {
+          "type": "choice",
+          "instructions": true,
+          "criteria": {
+            "only": "the only option"
+          }
+        },
+        "uncertain": {
+          "type": "score",
+          "instructions": "How confident?",
+          "criteria": [
+            "low",
+            "medium",
+            "high",
+            "certain"
+          ]
+        }
+      }
+    },
+    "rendered": {
+      "state": "Zażółć gęślą jaźń 👨‍👩",
+      "questions": [
+        {
+          "instructions": "True",
+          "options": [
+            "only: the only option"
+          ]
+        },
+        {
+          "instructions": "How confident?",
+          "options": [
+            "low",
+            "medium",
+            "high",
+            "certain"
+          ]
+        }
+      ]
+    },
+    "probabilities": [
+      [
+        1.0
+      ],
+      [
+        0.25,
+        0.25,
+        0.25,
+        0.25
+      ]
+    ],
+    "answers": {
+      "lonely": {
+        "type": "choice",
+        "choice": "only",
+        "confidence": 1.0,
+        "probabilities": {
+          "only": 1.0
+        }
+      },
+      "uncertain": {
+        "type": "score",
+        "score": 1.5,
+        "legend": {
+          "0": "low",
+          "1": "medium",
+          "2": "high",
+          "3": "certain"
+        },
+        "probabilities": {
+          "0": 0.25,
+          "1": 0.25,
+          "2": 0.25,
+          "3": 0.25
+        },
+        "confidence": 0.0
+      }
+    }
+  }
+]

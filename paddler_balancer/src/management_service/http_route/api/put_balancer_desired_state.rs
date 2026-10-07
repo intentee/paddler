@@ -2,12 +2,14 @@ use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::error::ErrorInternalServerError;
+use actix_web::error::ErrorUnprocessableEntity;
 use actix_web::web;
 use actix_web::web::put;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
+use paddler_state_database::state_database_error::StateDatabaseError;
 
 use crate::management_service::app_data::AppData;
 
@@ -23,7 +25,12 @@ async fn respond(
         .state_database
         .store_balancer_desired_state(&balancer_desired_state.into_inner())
         .await
-        .map_err(ErrorInternalServerError)?;
+        .map_err(|state_database_error| match state_database_error {
+            StateDatabaseError::RequestedStateServesAnotherMode { .. } => {
+                ErrorUnprocessableEntity(state_database_error)
+            }
+            unstorable_state => ErrorInternalServerError(unstorable_state),
+        })?;
 
     applied_state_rx
         .changed()
@@ -59,6 +66,7 @@ mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_state_database::file::File;
     use paddler_state_database::memory::Memory;
     use paddler_state_database::state_database::StateDatabase;
@@ -74,12 +82,16 @@ mod tests {
 
     fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
         Data::new(AppData {
-            agent_controller_pool: Arc::new(AgentControllerPool::default()),
+            agent_controller_pool: Arc::new(AgentControllerPool::new(
+                InferenceMode::TextGeneration,
+            )),
             balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                BalancerApplicableState::from(BalancerDesiredState::default()),
+                BalancerApplicableState::from(BalancerDesiredState::unconfigured(
+                    InferenceMode::TextGeneration,
+                )),
             )),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                Arc::new(AgentControllerPool::default()),
+                Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
                 Duration::from_secs(1),
                 10,
             )),
@@ -92,11 +104,13 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_once_the_stored_state_is_applicable() {
-        let (balancer_desired_state_notify_tx, balancer_desired_state_rx) =
-            watch::channel(BalancerDesiredState::default());
+        let (balancer_desired_state_notify_tx, balancer_desired_state_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
         let app_data = build_app_data(Arc::new(Memory::new(
             balancer_desired_state_notify_tx,
-            BalancerDesiredState::default(),
+            InferenceMode::TextGeneration,
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
         )));
         let reconciliation_shutdown = CancellationToken::new();
         let reconciliation = spawn(
@@ -118,7 +132,7 @@ mod tests {
             .uri(ApiPath::BALANCER_DESIRED_STATE)
             .set_json(BalancerDesiredState {
                 model: applied_model.clone(),
-                ..BalancerDesiredState::default()
+                ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
             })
             .to_request();
 
@@ -139,12 +153,14 @@ mod tests {
     }
 
     #[actix_web::test]
-    async fn responds_with_bad_request_when_inference_parameters_are_invalid() {
-        let (balancer_desired_state_notify_tx, balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
+    async fn responds_with_bad_request_when_model_runtime_parameters_are_invalid() {
+        let (balancer_desired_state_notify_tx, balancer_desired_state_notify_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
         let state_database = Arc::new(Memory::new(
             balancer_desired_state_notify_tx,
-            BalancerDesiredState::default(),
+            InferenceMode::TextGeneration,
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
         ));
         let app_data = build_app_data(state_database);
         let app = init_service(
@@ -153,9 +169,12 @@ mod tests {
                 .configure(put_balancer_desired_state),
         )
         .await;
-        let mut invalid_desired_state = to_value(BalancerDesiredState::default()).unwrap();
+        let mut invalid_desired_state = to_value(BalancerDesiredState::unconfigured(
+            InferenceMode::TextGeneration,
+        ))
+        .unwrap();
 
-        invalid_desired_state["inference_parameters"]["penalty_last_n"] = json!(-1);
+        invalid_desired_state["model_runtime_parameters"]["n_gpu_layers"] = json!(-2);
 
         let request = TestRequest::put()
             .uri(ApiPath::BALANCER_DESIRED_STATE)
@@ -170,12 +189,14 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_internal_server_error_when_store_fails() {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
         let directory_in_place_of_the_state_file =
             TempDir::new().expect("a temporary directory must be creatable");
         let app_data = build_app_data(Arc::new(File::new(
             balancer_desired_state_notify_tx,
+            InferenceMode::TextGeneration,
             directory_in_place_of_the_state_file.path().to_path_buf(),
         )));
         let app = init_service(
@@ -186,10 +207,41 @@ mod tests {
         .await;
         let request = TestRequest::put()
             .uri(ApiPath::BALANCER_DESIRED_STATE)
-            .set_json(BalancerDesiredState::default())
+            .set_json(BalancerDesiredState::unconfigured(
+                InferenceMode::TextGeneration,
+            ))
             .to_request();
         let response = call_service(&app, request).await;
 
         assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[actix_web::test]
+    async fn responds_with_unprocessable_entity_when_the_state_serves_another_mode() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
+        let app_data = build_app_data(Arc::new(Memory::new(
+            balancer_desired_state_notify_tx,
+            InferenceMode::TextGeneration,
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        )));
+        let app = init_service(
+            App::new()
+                .app_data(app_data)
+                .configure(put_balancer_desired_state),
+        )
+        .await;
+        let request = TestRequest::put()
+            .uri(ApiPath::BALANCER_DESIRED_STATE)
+            .set_json(BalancerDesiredState::unconfigured(
+                InferenceMode::Embeddings,
+            ))
+            .to_request();
+
+        assert_eq!(
+            call_service(&app, request).await.status(),
+            StatusCode::UNPROCESSABLE_ENTITY
+        );
     }
 }

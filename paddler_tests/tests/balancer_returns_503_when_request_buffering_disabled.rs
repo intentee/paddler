@@ -54,9 +54,6 @@ async fn balancer_returns_503_when_request_buffering_disabled() {
         Message::Response(_) => {
             panic!("expected buffer overflow error, got success");
         }
-        Message::Notification(_) => {
-            panic!("unexpected token-generation-mode notification");
-        }
     }
 
     cluster

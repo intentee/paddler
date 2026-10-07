@@ -28,10 +28,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Generates tokens and embeddings; connects to the balancer
+    /// Runs inference for the balancer it connects to
     Agent(Agent),
-    /// Distributes incoming requests among agents
-    Balancer(Box<Balancer>),
+    /// Distributes incoming requests among agents, serving one inference mode
+    #[command(subcommand)]
+    Balancer(Balancer),
 }
 
 pub fn run() -> Result<()> {
@@ -42,7 +43,7 @@ pub fn run() -> Result<()> {
 
         match Cli::parse().command {
             Commands::Agent(handler) => handler.handle(shutdown).await,
-            Commands::Balancer(handler) => (*handler).handle(shutdown).await,
+            Commands::Balancer(handler) => handler.handle(shutdown).await,
         }
     })
 }

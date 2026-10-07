@@ -6,6 +6,7 @@ use std::str::Utf8Error;
 use async_openai::error::OpenAIError;
 use quick_xml::Error as XmlError;
 use quick_xml::events::attributes::AttrError;
+use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
@@ -21,6 +22,10 @@ use crate::snapshots_stream::SnapshotsStream;
 
 #[derive(Debug, Error)]
 pub enum ClusterHarnessError {
+    #[error("The decision stream ended before it reported its outcome")]
+    DecisionStreamEndedWithoutTerminalResult,
+    #[error("The decision stream carried a message that is not a decision result: {message:?}")]
+    DecisionStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("The embedding stream carried a message that is not an embedding result: {message:?}")]
     EmbeddingStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("The token generation stream returned JSON-RPC error code {} ({})", error.code, error.description)]
@@ -58,6 +63,8 @@ pub enum ClusterHarnessError {
     },
     #[error("The balancer does not serve the OpenAI compatibility service")]
     CompatOpenAIServiceNotServed,
+    #[error("The balancer does not serve the TypeSafe compatibility service")]
+    CompatTypeSafeServiceNotServed,
     #[error("The web admin panel page carries a malformed attribute")]
     DashboardAttributeMalformed(#[source] AttrError),
     #[error("The web admin panel page carries an attribute whose name is not UTF-8")]
@@ -113,4 +120,6 @@ pub enum ClusterHarnessError {
         #[source]
         source: ClientError,
     },
+    #[error("The TypeSafe compatibility request failed")]
+    TypeSafeRequestFailed(#[source] ReqwestError),
 }

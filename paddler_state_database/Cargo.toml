@@ -21,7 +21,6 @@ url = { workspace = true }
 paddler_messaging = { workspace = true }
 
 [dev-dependencies]
-paddler_inference_parameters = { workspace = true }
 tempfile = { workspace = true }
 
 [lints]

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
-use paddler_bootstrap::agent_runner::AgentRunner;
-use paddler_bootstrap::agent_runner_params::AgentRunnerParams;
+use paddler_agent_runner::agent_runner::AgentRunner;
+use paddler_agent_runner::agent_runner_config::AgentRunnerConfig;
+use paddler_agent_runner::agent_runner_params::AgentRunnerParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::agent_spawner::AgentSpawner;
 use paddler_test_cluster_harness::managed_process::ManagedProcess;
@@ -25,7 +25,7 @@ impl InProcessAgentSpawner {
 impl AgentSpawner for InProcessAgentSpawner {
     fn spawn(&self, config: &AgentConfig) -> Result<Box<dyn ManagedProcess>> {
         let runner = AgentRunner::start(AgentRunnerParams {
-            bootstrap_config: AgentBootstrapConfig {
+            runner_config: AgentRunnerConfig {
                 agent_name: Some(config.name.clone()),
                 management_address: self.management_address.clone(),
                 slots: config.slot_count,

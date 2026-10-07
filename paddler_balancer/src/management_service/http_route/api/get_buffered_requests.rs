@@ -33,6 +33,7 @@ mod tests {
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_state_database::memory::Memory;
 
     use super::get_buffered_requests;
@@ -46,7 +47,7 @@ mod tests {
     #[actix_web::test]
     async fn responds_with_current_buffered_request_count() {
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
-            Arc::new(AgentControllerPool::default()),
+            Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
             Duration::from_secs(1),
             10,
         ));
@@ -58,20 +59,26 @@ mod tests {
             .buffered_request_counter
             .try_admit();
 
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
+            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+        );
 
         let app_data = Data::new(AppData {
-            agent_controller_pool: Arc::new(AgentControllerPool::default()),
+            agent_controller_pool: Arc::new(AgentControllerPool::new(
+                InferenceMode::TextGeneration,
+            )),
             balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                BalancerApplicableState::from(BalancerDesiredState::default()),
+                BalancerApplicableState::from(BalancerDesiredState::unconfigured(
+                    InferenceMode::TextGeneration,
+                )),
             )),
             buffered_request_manager,
             agent_response_senders: AgentResponseSenders::default(),
             shutdown: CancellationToken::new(),
             state_database: Arc::new(Memory::new(
                 balancer_desired_state_notify_tx,
-                BalancerDesiredState::default(),
+                InferenceMode::TextGeneration,
+                BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
             )),
             statsd_prefix: "paddler".to_owned(),
         });

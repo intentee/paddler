@@ -1,8 +1,9 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -16,18 +17,15 @@ async fn balancer_persists_model_switch_in_storage() {
     let ModelCard { reference } = qwen3_0_6b();
 
     let initial_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::default(),
         model: AgentDesiredModel::HuggingFace(reference),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
+        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
     };
 
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: Some(initial_state.clone()),
+        desired_state: ClusterDesiredState::Apply(Box::new(initial_state.clone())),
         ..ClusterParams::default()
     })
     .await
@@ -42,11 +40,8 @@ async fn balancer_persists_model_switch_in_storage() {
     assert_eq!(observed_initial.model, initial_state.model);
 
     let switched_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::default(),
         model: AgentDesiredModel::LocalToAgent("/tmp/alternative-model.gguf".to_owned()),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
+        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
     };
 
     cluster

@@ -1,9 +1,13 @@
 use std::fmt;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
+use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::multimodal_settings::MultimodalSettings;
 
 fn huggingface_model(repo_id: &str, filename: &str) -> HuggingFaceModelReference {
     HuggingFaceModelReference {
@@ -15,16 +19,41 @@ fn huggingface_model(repo_id: &str, filename: &str) -> HuggingFaceModelReference
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ModelPreset {
+    NomicEmbedTextV1_5,
     Qwen3_0_6B,
     Qwen3_5_0_8B,
 }
 
 impl ModelPreset {
-    pub const ALL: [Self; 2] = [Self::Qwen3_0_6B, Self::Qwen3_5_0_8B];
+    pub const ALL: [Self; 3] = [
+        Self::NomicEmbedTextV1_5,
+        Self::Qwen3_0_6B,
+        Self::Qwen3_5_0_8B,
+    ];
+
+    #[must_use]
+    pub fn serving(inference_mode: InferenceMode) -> Vec<Self> {
+        Self::ALL
+            .into_iter()
+            .filter(|preset| preset.inference_mode() == inference_mode)
+            .collect()
+    }
+
+    #[must_use]
+    pub const fn inference_mode(self) -> InferenceMode {
+        match self {
+            Self::NomicEmbedTextV1_5 => InferenceMode::Embeddings,
+            Self::Qwen3_0_6B | Self::Qwen3_5_0_8B => InferenceMode::TextGeneration,
+        }
+    }
 
     #[must_use]
     pub fn model(self) -> HuggingFaceModelReference {
         match self {
+            Self::NomicEmbedTextV1_5 => huggingface_model(
+                "nomic-ai/nomic-embed-text-v1.5-GGUF",
+                "nomic-embed-text-v1.5.Q8_0.gguf",
+            ),
             Self::Qwen3_0_6B => {
                 huggingface_model("unsloth/Qwen3-0.6B-GGUF", "Qwen3-0.6B-Q8_0.gguf")
             }
@@ -35,10 +64,10 @@ impl ModelPreset {
     }
 
     #[must_use]
-    pub fn multimodal_projection(self) -> Option<HuggingFaceModelReference> {
+    pub fn multimodal_projection(self) -> AgentDesiredModel {
         match self {
-            Self::Qwen3_0_6B => None,
-            Self::Qwen3_5_0_8B => Some(huggingface_model(
+            Self::NomicEmbedTextV1_5 | Self::Qwen3_0_6B => AgentDesiredModel::None,
+            Self::Qwen3_5_0_8B => AgentDesiredModel::HuggingFace(huggingface_model(
                 "unsloth/Qwen3.5-0.8B-GGUF",
                 "mmproj-F16.gguf",
             )),
@@ -47,14 +76,25 @@ impl ModelPreset {
 
     #[must_use]
     pub fn to_balancer_desired_state(self) -> BalancerDesiredState {
+        let inference_settings = match self {
+            Self::NomicEmbedTextV1_5 => {
+                BalancerInferenceSettings::Embeddings(EmbeddingParameters::default())
+            }
+            Self::Qwen3_0_6B | Self::Qwen3_5_0_8B => {
+                BalancerInferenceSettings::TextGeneration(BalancerTextGenerationSettings {
+                    multimodal: MultimodalSettings {
+                        projection: self.multimodal_projection(),
+                        ..MultimodalSettings::default()
+                    },
+                    ..BalancerTextGenerationSettings::default()
+                })
+            }
+        };
+
         BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
+            inference_settings,
             model: AgentDesiredModel::HuggingFace(self.model()),
-            multimodal_projection: self
-                .multimodal_projection()
-                .map_or(AgentDesiredModel::None, AgentDesiredModel::HuggingFace),
-            use_chat_template_override: false,
+            ..BalancerDesiredState::unconfigured(self.inference_mode())
         }
     }
 }
@@ -62,6 +102,7 @@ impl ModelPreset {
 impl fmt::Display for ModelPreset {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::NomicEmbedTextV1_5 => "Nomic Embed Text v1.5",
             Self::Qwen3_0_6B => "Qwen 3 0.6B",
             Self::Qwen3_5_0_8B => "Qwen 3.5 0.8B",
         })
@@ -71,7 +112,9 @@ impl fmt::Display for ModelPreset {
 #[cfg(test)]
 mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
+    use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
     use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::ModelPreset;
 
@@ -87,6 +130,29 @@ mod tests {
                 revision: "main".to_owned(),
             })
         );
-        assert_eq!(desired_state.multimodal_projection, AgentDesiredModel::None);
+        assert!(matches!(
+            desired_state.inference_settings,
+            BalancerInferenceSettings::TextGeneration(text_generation_settings)
+                if text_generation_settings.multimodal.projection == AgentDesiredModel::None
+        ));
+    }
+
+    #[test]
+    fn an_embedding_preset_starts_an_embeddings_cluster() {
+        assert_eq!(
+            ModelPreset::NomicEmbedTextV1_5
+                .to_balancer_desired_state()
+                .inference_settings
+                .inference_mode(),
+            InferenceMode::Embeddings
+        );
+    }
+
+    #[test]
+    fn lists_only_the_presets_serving_the_chosen_mode() {
+        assert_eq!(
+            ModelPreset::serving(InferenceMode::Embeddings),
+            vec![ModelPreset::NomicEmbedTextV1_5]
+        );
     }
 }
