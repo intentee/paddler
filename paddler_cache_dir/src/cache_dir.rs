@@ -31,12 +31,13 @@ impl CacheDir {
         self.home
             .as_ref()
             .map(|home| home.join(".cache").join("paddler"))
-            .ok_or(CacheDirError::HomeVariableUnset { variable: "HOME" })
+            .ok_or(CacheDirError::HomeVariableUnset)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
     use std::path::PathBuf;
 
     use super::CacheDir;
@@ -86,9 +87,9 @@ mod tests {
             xdg: None,
         };
 
-        assert!(matches!(
-            cache.resolve(),
-            Err(CacheDirError::HomeVariableUnset { variable }) if variable == "HOME"
-        ));
+        assert_eq!(
+            cache.resolve().err().as_ref().map(discriminant),
+            Some(discriminant(&CacheDirError::HomeVariableUnset))
+        );
     }
 }

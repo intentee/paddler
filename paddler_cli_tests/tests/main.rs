@@ -6,7 +6,7 @@ mod balancer_distributes_token_burst_evenly_across_agents;
 mod balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffered_requests;
 mod balancer_fans_out_embedding_batch_to_all_agents;
 mod balancer_registers_multiple_agents_over_time;
-#[cfg(all(unix, feature = "web_admin_panel"))]
+#[cfg(feature = "web_admin_panel")]
 mod balancer_serves_every_service_within_the_default_macos_open_file_limit;
 mod balancer_serves_on_the_addresses_it_announces;
 mod balancer_serves_typesafe_compatibility_on_the_address_it_announces;

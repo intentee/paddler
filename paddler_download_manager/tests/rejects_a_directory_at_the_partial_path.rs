@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use tempfile::TempDir;
 use tokio::fs::create_dir;
 use tokio_util::sync::CancellationToken;

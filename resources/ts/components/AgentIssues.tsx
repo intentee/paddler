@@ -417,9 +417,10 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               <strong>What can you do?</strong>{" "}
               <p>
                 Grant write permission to the cache directory (
-                <code>$XDG_CACHE_HOME/paddler</code> on Linux/macOS,{" "}
-                <code>%LOCALAPPDATA%\paddler</code> on Windows), or set{" "}
-                <code>PADDLER_CACHE_DIR</code> to a writable location.
+                <code>$XDG_CACHE_HOME/paddler</code>, or{" "}
+                <code>~/.cache/paddler</code> when <code>XDG_CACHE_HOME</code>{" "}
+                is unset), or set <code>PADDLER_CACHE_DIR</code> to a writable
+                location.
               </p>
             </li>
           );

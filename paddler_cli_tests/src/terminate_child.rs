@@ -1,20 +1,14 @@
 use anyhow::Context as _;
 use anyhow::Error;
 use anyhow::Result;
-#[cfg(unix)]
 use nix::errno::Errno;
-#[cfg(unix)]
 use nix::sys::signal::Signal;
-#[cfg(unix)]
 use nix::sys::signal::kill;
-#[cfg(unix)]
 use nix::unistd::Pid;
 use tokio::process::Child;
 
-#[cfg(unix)]
 use crate::subprocess_cluster_error::SubprocessClusterError;
 
-#[cfg(unix)]
 pub fn terminate_child(child: &mut Child) -> Result<()> {
     let Some(raw_pid) = child.id() else {
         return Ok(());
@@ -30,15 +24,4 @@ pub fn terminate_child(child: &mut Child) -> Result<()> {
         Err(errno) => Err(Error::new(errno))
             .with_context(|| format!("failed to send SIGTERM to process {raw_pid}")),
     }
-}
-
-#[cfg(windows)]
-pub fn terminate_child(child: &mut Child) -> Result<()> {
-    if child.id().is_none() {
-        return Ok(());
-    }
-
-    child
-        .start_kill()
-        .context("failed to terminate child process")
 }

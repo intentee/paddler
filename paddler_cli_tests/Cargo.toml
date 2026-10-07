@@ -29,6 +29,7 @@ web_admin_panel = ["paddler_cli/web_admin_panel"]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 log = { workspace = true }
+nix = { workspace = true }
 paddler_balancer = { workspace = true }
 paddler_cli = { workspace = true }
 paddler_inference_parameters = { workspace = true }
@@ -38,9 +39,6 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-
-[target.'cfg(unix)'.dependencies]
-nix = { workspace = true }
 
 [dev-dependencies]
 futures-util = { workspace = true }

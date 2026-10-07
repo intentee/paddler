@@ -121,19 +121,10 @@ mod tests {
 
     #[test]
     fn parses_a_file_url_with_an_absolute_path() {
-        #[cfg(unix)]
-        let expected_path = "/absolute/path";
-        #[cfg(unix)]
-        let url = "file:///absolute/path";
-        #[cfg(windows)]
-        let expected_path = "C:/absolute/path";
-        #[cfg(windows)]
-        let url = "file://C:/absolute/path";
-
-        let result = StateDatabaseType::from_str(url).unwrap();
+        let result = StateDatabaseType::from_str("file:///absolute/path").unwrap();
 
         assert!(
-            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from(expected_path))
+            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from("/absolute/path"))
         );
     }
 

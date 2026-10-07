@@ -183,9 +183,6 @@ impl ResolvesModelSource for UrlModelSource {
 mod tests {
     use std::io;
     use std::mem::discriminant;
-
-    use paddler_cache_dir::cache_dir_error::CacheDirError;
-    #[cfg(unix)]
     use std::os::unix::fs::symlink;
     use std::path::Path;
     use std::path::PathBuf;
@@ -203,6 +200,7 @@ mod tests {
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_cache_dir::cache_dir::CacheDir;
+    use paddler_cache_dir::cache_dir_error::CacheDirError;
     use paddler_cache_dir::cached_downloaded_model::CachedDownloadedModel;
     use paddler_download_manager::download_error::DownloadError;
     use paddler_local_http_fixture::fixture_response::FixtureResponse;
@@ -230,21 +228,10 @@ mod tests {
     }
 
     fn cache_dir_at(path: &Path) -> CacheDir {
-        #[cfg(unix)]
-        {
-            CacheDir {
-                explicit: Some(path.to_path_buf()),
-                home: None,
-                xdg: None,
-            }
-        }
-        #[cfg(windows)]
-        {
-            CacheDir {
-                explicit: Some(path.to_path_buf()),
-                localappdata: None,
-                userprofile: None,
-            }
+        CacheDir {
+            explicit: Some(path.to_path_buf()),
+            home: None,
+            xdg: None,
         }
     }
 
@@ -350,7 +337,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn cache_subdir_creation_failure_registers_model_cache_is_corrupted() {
         let directory = TempDir::new().unwrap();
@@ -376,7 +362,6 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn lock_open_io_error_registers_model_cache_is_corrupted() {
         let directory = TempDir::new().unwrap();
@@ -603,21 +588,10 @@ mod tests {
     }
 
     fn unresolvable_cache_dir() -> CacheDir {
-        #[cfg(unix)]
-        {
-            CacheDir {
-                explicit: None,
-                home: None,
-                xdg: None,
-            }
-        }
-        #[cfg(windows)]
-        {
-            CacheDir {
-                explicit: None,
-                localappdata: None,
-                userprofile: None,
-            }
+        CacheDir {
+            explicit: None,
+            home: None,
+            xdg: None,
         }
     }
 
@@ -636,7 +610,7 @@ mod tests {
         assert_eq!(
             result.err().as_ref().map(discriminant),
             Some(discriminant(&ModelSourceError::CacheDirectoryUnresolvable(
-                CacheDirError::HomeVariableUnset { variable: "HOME" }
+                CacheDirError::HomeVariableUnset
             )))
         );
     }

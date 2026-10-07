@@ -101,28 +101,20 @@ impl PartialFile {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(unix)]
     use std::io::ErrorKind;
-    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
     use tempfile::TempDir;
-    #[cfg(unix)]
     use tokio::fs::create_dir;
-    #[cfg(unix)]
     use tokio::fs::create_dir_all;
-    #[cfg(unix)]
     use tokio::fs::metadata;
     use tokio::fs::read;
-    #[cfg(unix)]
     use tokio::fs::remove_dir_all;
-    #[cfg(unix)]
     use tokio::fs::set_permissions;
     use tokio::fs::try_exists;
     use tokio::fs::write;
     use tokio::io::AsyncWriteExt;
 
-    #[cfg(unix)]
     use crate::download_error::DownloadError;
     use crate::partial_file::PartialFile;
 
@@ -222,7 +214,6 @@ mod tests {
         partial.remove().await.unwrap();
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn current_size_propagates_non_notfound_error() {
         let directory = TempDir::new().unwrap();
@@ -239,7 +230,6 @@ mod tests {
         ));
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn truncate_returns_io_error_when_partial_is_a_directory() {
         let directory = TempDir::new().unwrap();
@@ -251,7 +241,6 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn open_for_append_returns_io_error_when_partial_is_a_directory() {
         let directory = TempDir::new().unwrap();
@@ -263,7 +252,6 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn finalize_returns_io_error_when_final_is_a_non_empty_directory() {
         let directory = TempDir::new().unwrap();
@@ -279,7 +267,6 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn remove_propagates_non_notfound_error() {
         let directory = TempDir::new().unwrap();
@@ -300,7 +287,6 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), ErrorKind::PermissionDenied);
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn open_for_append_fails_when_parent_blocked_by_file() {
         let directory = TempDir::new().unwrap();
@@ -313,7 +299,6 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), ErrorKind::NotADirectory);
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn truncate_fails_when_parent_blocked_by_file() {
         let directory = TempDir::new().unwrap();
@@ -326,7 +311,6 @@ mod tests {
         assert_eq!(result.unwrap_err().kind(), ErrorKind::NotADirectory);
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     async fn finalize_returns_io_error_when_parent_was_deleted_mid_download() {
         let directory = TempDir::new().unwrap();
