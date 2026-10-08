@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
+use log::debug;
 use log::error;
 use log::warn;
 use serde_json::from_str;
+use tokio::sync::broadcast;
 
 use paddler_messaging::inference_client::identified_message::IdentifiedMessage;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::streamable_result::StreamableResult;
 
@@ -26,6 +29,7 @@ struct RequestScopedMessage {
 }
 
 pub struct InboundMessageRouter {
+    pub notification_tx: broadcast::Sender<Notification>,
     pub pending: Arc<PendingRequests>,
 }
 
@@ -66,6 +70,13 @@ impl InboundMessageRouter {
                 is_done: true,
                 request_id: envelope.request_id.clone(),
             },
+            InferenceMessage::Notification(notification) => {
+                if self.notification_tx.send(notification.clone()).is_err() {
+                    debug!("Dropped inference notification: no active subscribers");
+                }
+
+                return;
+            }
             InferenceMessage::Response(envelope) => RequestScopedMessage {
                 is_done: response_is_terminal(&envelope.response),
                 request_id: envelope.request_id.clone(),
@@ -90,6 +101,7 @@ mod tests {
     use std::sync::Arc;
 
     use serde_json::json;
+    use tokio::sync::broadcast;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use paddler_messaging::embedding_result::EmbeddingResult;
@@ -107,7 +119,10 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
+
         InboundMessageRouter {
+            notification_tx,
             pending: Arc::clone(&pending),
         }
         .route_text(
@@ -133,7 +148,10 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
+
         InboundMessageRouter {
+            notification_tx,
             pending: Arc::clone(&pending),
         }
         .route_text(
@@ -154,7 +172,10 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
+
         InboundMessageRouter {
+            notification_tx,
             pending: Arc::clone(&pending),
         }
         .route_text("not json");
@@ -172,7 +193,10 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
+        let (notification_tx, _notification_rx) = broadcast::channel(1);
+
         InboundMessageRouter {
+            notification_tx,
             pending: Arc::clone(&pending),
         }
         .route_text(
@@ -197,6 +221,31 @@ mod tests {
             response_rx
                 .try_recv()
                 .is_err_and(|receive_error| receive_error == TryRecvError::Disconnected)
+        );
+    }
+
+    #[test]
+    fn a_notification_nobody_listens_to_leaves_requests_pending() {
+        let pending = Arc::new(PendingRequests::default());
+        let mut response_rx = pending
+            .register("request-1".to_owned())
+            .expect("an open registry must accept a request");
+        let (notification_tx, notification_rx) = broadcast::channel(1);
+
+        drop(notification_rx);
+
+        InboundMessageRouter {
+            notification_tx,
+            pending: Arc::clone(&pending),
+        }
+        .route_text(
+            &json!({ "Notification": { "ClusterInferenceMode": "Embeddings" } }).to_string(),
+        );
+
+        assert!(
+            response_rx
+                .try_recv()
+                .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
         );
     }
 }

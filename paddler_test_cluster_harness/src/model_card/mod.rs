@@ -22,10 +22,10 @@ use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParamete
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 
 pub struct ModelCard {
@@ -40,12 +40,7 @@ impl ModelCard {
 
     #[must_use]
     pub fn into_desired_state(self) -> BalancerDesiredState {
-        self.into_desired_state_with_inference_settings(BalancerInferenceSettings::TextGeneration(
-            BalancerTextGenerationSettings {
-                sampling_parameters: SamplingParameters::deterministic(),
-                ..BalancerTextGenerationSettings::default()
-            },
-        ))
+        self.into_desired_state_serving(InferenceMode::TextGeneration)
     }
 
     #[must_use]
@@ -53,16 +48,18 @@ impl ModelCard {
         self,
         multimodal_projection: Self,
     ) -> BalancerDesiredState {
-        self.into_desired_state_with_inference_settings(BalancerInferenceSettings::TextGeneration(
-            BalancerTextGenerationSettings {
+        let desired_state = self.into_desired_state_serving(InferenceMode::TextGeneration);
+
+        BalancerDesiredState {
+            text_generation: BalancerTextGenerationSettings {
                 multimodal: MultimodalSettings {
                     projection: multimodal_projection.into_agent_desired_model(),
                     ..MultimodalSettings::default()
                 },
-                sampling_parameters: SamplingParameters::deterministic(),
-                ..BalancerTextGenerationSettings::default()
+                ..desired_state.text_generation
             },
-        ))
+            ..desired_state
+        }
     }
 
     #[must_use]
@@ -70,9 +67,10 @@ impl ModelCard {
         self,
         pointer_head: AgentDesiredModel,
     ) -> BalancerDesiredState {
-        self.into_desired_state_with_inference_settings(BalancerInferenceSettings::Decision(
-            DecisionSettings { pointer_head },
-        ))
+        BalancerDesiredState {
+            decision: DecisionSettings { pointer_head },
+            ..self.into_desired_state_serving(InferenceMode::Decision)
+        }
     }
 
     #[must_use]
@@ -80,22 +78,25 @@ impl ModelCard {
         self,
         embedding_parameters: EmbeddingParameters,
     ) -> BalancerDesiredState {
-        self.into_desired_state_with_inference_settings(BalancerInferenceSettings::Embeddings(
-            embedding_parameters,
-        ))
+        BalancerDesiredState {
+            embeddings: embedding_parameters,
+            ..self.into_desired_state_serving(InferenceMode::Embeddings)
+        }
     }
 
-    fn into_desired_state_with_inference_settings(
-        self,
-        inference_settings: BalancerInferenceSettings,
-    ) -> BalancerDesiredState {
+    fn into_desired_state_serving(self, inference_mode: InferenceMode) -> BalancerDesiredState {
         BalancerDesiredState {
-            inference_settings,
+            inference_mode,
             model: self.into_agent_desired_model(),
             model_runtime_parameters: ModelRuntimeParameters {
                 n_gpu_layers: ALL_GPU_LAYERS,
                 ..ModelRuntimeParameters::default()
             },
+            text_generation: BalancerTextGenerationSettings {
+                sampling_parameters: SamplingParameters::deterministic(),
+                ..BalancerTextGenerationSettings::default()
+            },
+            ..BalancerDesiredState::default()
         }
     }
 }

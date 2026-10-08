@@ -5,7 +5,6 @@ use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParamete
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -27,7 +26,7 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots() {
                 ..ModelRuntimeParameters::default()
             },
             model: AgentDesiredModel::HuggingFace(reference),
-            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+            ..BalancerDesiredState::default()
         })),
         wait_for_slots_ready: false,
         ..ClusterParams::default()

@@ -6,7 +6,6 @@ mod balancer_runner_fails_to_start_when_an_address_is_taken;
 mod balancer_runner_fails_to_start_when_state_database_file_is_corrupt;
 mod balancer_runner_fails_to_start_with_a_zero_statsd_reporting_interval;
 mod balancer_runner_preserves_the_persisted_desired_state;
-mod balancer_runner_refuses_a_stored_state_of_another_mode;
 mod balancer_runner_releases_its_ports_when_dropped;
 mod balancer_runner_serves_on_the_addresses_it_reports;
 mod balancer_runner_serves_the_desired_state_it_starts_with;
@@ -15,8 +14,6 @@ mod balancer_shutdown_releases_buffered_request_with_shutdown_error;
 mod balancer_web_admin_panel_omits_the_services_it_does_not_run;
 #[cfg(feature = "web_admin_panel")]
 mod balancer_web_admin_panel_shows_the_balancer_configuration;
-#[cfg(feature = "web_admin_panel")]
-mod balancer_web_admin_panel_shows_the_typesafe_compatibility_address;
 mod ephemeral_balancer_runner_params;
 #[cfg(feature = "web_admin_panel")]
 #[cfg(test)]

@@ -9,7 +9,6 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::inference_client::response::Response;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
@@ -50,7 +49,7 @@ async fn agent_keeps_serving_in_flight_inference_when_the_desired_model_is_missi
             CancellationToken::new(),
             &BalancerDesiredState {
                 model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_owned()),
-                ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+                ..BalancerDesiredState::default()
             },
         )
         .await

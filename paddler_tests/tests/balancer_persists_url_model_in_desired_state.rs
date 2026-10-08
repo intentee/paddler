@@ -2,7 +2,6 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -19,7 +18,7 @@ async fn balancer_persists_url_model_in_desired_state() {
             model: AgentDesiredModel::Url(UrlModelReference {
                 url: configured_url.clone(),
             }),
-            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+            ..BalancerDesiredState::default()
         })),
         ..ClusterParams::default()
     })

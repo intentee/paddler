@@ -2,7 +2,6 @@ import React, { useCallback, useContext } from "react";
 
 import { type SamplingParameters } from "@intentee/paddler-client/schemas/SamplingParameters";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
-import { textGenerationSettingsOf } from "../textGenerationSettingsOf";
 import { ParameterNumberInput } from "./ParameterNumberInput";
 
 const samplingParameterDescriptions: ReadonlyArray<{
@@ -35,19 +34,17 @@ export function TextGenerationSettingsFields() {
   const { balancerDesiredState, setBalancerDesiredState } = useContext(
     BalancerDesiredStateContext,
   );
-  const textGenerationSettings = textGenerationSettingsOf(balancerDesiredState);
+  const { text_generation: textGenerationSettings } = balancerDesiredState;
 
   const setSamplingParameter = useCallback(
     function (name: keyof SamplingParameters, value: number) {
       setBalancerDesiredState({
         ...balancerDesiredState,
-        inference_settings: {
-          TextGeneration: {
-            ...textGenerationSettings,
-            sampling_parameters: {
-              ...textGenerationSettings.sampling_parameters,
-              [name]: value,
-            },
+        text_generation: {
+          ...textGenerationSettings,
+          sampling_parameters: {
+            ...textGenerationSettings.sampling_parameters,
+            [name]: value,
           },
         },
       });
@@ -59,13 +56,11 @@ export function TextGenerationSettingsFields() {
     function (imageResizeToFit: number) {
       setBalancerDesiredState({
         ...balancerDesiredState,
-        inference_settings: {
-          TextGeneration: {
-            ...textGenerationSettings,
-            multimodal: {
-              ...textGenerationSettings.multimodal,
-              image_resize_to_fit: imageResizeToFit,
-            },
+        text_generation: {
+          ...textGenerationSettings,
+          multimodal: {
+            ...textGenerationSettings.multimodal,
+            image_resize_to_fit: imageResizeToFit,
           },
         },
       });

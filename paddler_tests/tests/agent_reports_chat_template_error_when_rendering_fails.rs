@@ -27,8 +27,7 @@ async fn agent_reports_chat_template_error_when_rendering_fails() {
                 ChatTemplate {
                     content: "{{ raise_exception('conversations are not supported') }}".to_owned(),
                 },
-            )
-            .expect("a text generation state must accept a chat template override"),
+            ),
         )),
         wait_for_slots_ready: true,
         ..ClusterParams::default()

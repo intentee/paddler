@@ -38,6 +38,11 @@ where
             OutgoingMessage::Error(ErrorEnvelope { error, .. }) => {
                 Ok(vec![AgentResultStreamEvent::WireError(error)])
             }
+            notification @ OutgoingMessage::Notification(_) => {
+                Err(AgentRelayError::MessageNotRelayable {
+                    message: Box::new(notification),
+                })
+            }
             OutgoingMessage::Response(ResponseEnvelope {
                 generated_by,
                 request_id,
@@ -61,7 +66,9 @@ mod tests {
     use paddler_messaging::decision_result::DecisionResult;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::inference_client::notification::Notification;
     use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
     use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
@@ -124,6 +131,24 @@ mod tests {
                     *message,
                     OutgoingMessage::Response(ResponseEnvelope { ref request_id, .. })
                         if request_id == "embedding-request"
+                )
+        ));
+    }
+
+    #[tokio::test]
+    async fn refuses_to_relay_a_cluster_notification() {
+        assert!(matches!(
+            AgentResultStreamTransformer::<DecisionResult>::default()
+                .transform(OutgoingMessage::Notification(
+                    Notification::ClusterInferenceMode(InferenceMode::Decision)
+                ))
+                .await,
+            Err(AgentRelayError::MessageNotRelayable { message })
+                if matches!(
+                    *message,
+                    OutgoingMessage::Notification(Notification::ClusterInferenceMode(
+                        InferenceMode::Decision
+                    ))
                 )
         ));
     }

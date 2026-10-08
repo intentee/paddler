@@ -22,14 +22,6 @@ impl AgentRuntimeStatus {
             Self::Serving { slots_total, .. } => *slots_total,
         }
     }
-
-    #[must_use]
-    pub fn serves(&self, served_inference_mode: InferenceMode) -> bool {
-        match self {
-            Self::Idle => false,
-            Self::Serving { inference_mode, .. } => *inference_mode == served_inference_mode,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -50,16 +42,5 @@ mod tests {
     #[test]
     fn a_serving_agent_has_its_slots() {
         assert_eq!(SERVING_EMBEDDINGS.slots_total(), 3);
-    }
-
-    #[test]
-    fn an_idle_agent_serves_no_mode() {
-        assert!(!AgentRuntimeStatus::Idle.serves(InferenceMode::Embeddings));
-    }
-
-    #[test]
-    fn a_serving_agent_serves_only_its_own_mode() {
-        assert!(SERVING_EMBEDDINGS.serves(InferenceMode::Embeddings));
-        assert!(!SERVING_EMBEDDINGS.serves(InferenceMode::TextGeneration));
     }
 }

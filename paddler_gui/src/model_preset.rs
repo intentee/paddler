@@ -1,9 +1,7 @@
 use std::fmt;
 
-use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_messaging::inference_mode::InferenceMode;
@@ -76,25 +74,17 @@ impl ModelPreset {
 
     #[must_use]
     pub fn to_balancer_desired_state(self) -> BalancerDesiredState {
-        let inference_settings = match self {
-            Self::NomicEmbedTextV1_5 => {
-                BalancerInferenceSettings::Embeddings(EmbeddingParameters::default())
-            }
-            Self::Qwen3_0_6B | Self::Qwen3_5_0_8B => {
-                BalancerInferenceSettings::TextGeneration(BalancerTextGenerationSettings {
-                    multimodal: MultimodalSettings {
-                        projection: self.multimodal_projection(),
-                        ..MultimodalSettings::default()
-                    },
-                    ..BalancerTextGenerationSettings::default()
-                })
-            }
-        };
-
         BalancerDesiredState {
-            inference_settings,
+            inference_mode: self.inference_mode(),
             model: AgentDesiredModel::HuggingFace(self.model()),
-            ..BalancerDesiredState::unconfigured(self.inference_mode())
+            text_generation: BalancerTextGenerationSettings {
+                multimodal: MultimodalSettings {
+                    projection: self.multimodal_projection(),
+                    ..MultimodalSettings::default()
+                },
+                ..BalancerTextGenerationSettings::default()
+            },
+            ..BalancerDesiredState::default()
         }
     }
 }
@@ -112,7 +102,6 @@ impl fmt::Display for ModelPreset {
 #[cfg(test)]
 mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
     use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_messaging::inference_mode::InferenceMode;
 
@@ -130,11 +119,10 @@ mod tests {
                 revision: "main".to_owned(),
             })
         );
-        assert!(matches!(
-            desired_state.inference_settings,
-            BalancerInferenceSettings::TextGeneration(text_generation_settings)
-                if text_generation_settings.multimodal.projection == AgentDesiredModel::None
-        ));
+        assert_eq!(
+            desired_state.text_generation.multimodal.projection,
+            AgentDesiredModel::None
+        );
     }
 
     #[test]
@@ -142,8 +130,7 @@ mod tests {
         assert_eq!(
             ModelPreset::NomicEmbedTextV1_5
                 .to_balancer_desired_state()
-                .inference_settings
-                .inference_mode(),
+                .inference_mode,
             InferenceMode::Embeddings
         );
     }

@@ -12,19 +12,12 @@ use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_agent_socket::RawAgentSocket;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::serving_agent_status::serving_agent_status;
 use paddler_tests::start_cluster::start_cluster;
 
 const SHORT_BUFFERED_REQUEST_TIMEOUT: Duration = Duration::from_millis(50);
 const SHORT_INFERENCE_ITEM_TIMEOUT: Duration = Duration::from_millis(50);
-
-fn agentless_cluster_params() -> ClusterParams {
-    ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    }
-}
 
 #[cfg(test)]
 async fn chat_completion_failure_status(cluster: &Cluster) -> StatusCode {
@@ -63,7 +56,7 @@ async fn chat_completion_failure_status(cluster: &Cluster) -> StatusCode {
 async fn openai_chat_completion_reports_balancer_failures_with_their_http_status() {
     let waiting_cluster = start_cluster(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
-        ..agentless_cluster_params()
+        ..cluster_without_agents_serving(InferenceMode::TextGeneration)
     })
     .await
     .expect("a balancer without agents must start");
@@ -106,7 +99,7 @@ async fn openai_chat_completion_reports_balancer_failures_with_their_http_status
 
     let overflowing_cluster = start_cluster(ClusterParams {
         max_buffered_requests: 0,
-        ..agentless_cluster_params()
+        ..cluster_without_agents_serving(InferenceMode::TextGeneration)
     })
     .await
     .expect("a balancer without agents must start");
@@ -123,7 +116,7 @@ async fn openai_chat_completion_reports_balancer_failures_with_their_http_status
 
     let stalling_cluster = start_cluster(ClusterParams {
         inference_item_timeout: SHORT_INFERENCE_ITEM_TIMEOUT,
-        ..agentless_cluster_params()
+        ..cluster_without_agents_serving(InferenceMode::TextGeneration)
     })
     .await
     .expect("a balancer without agents must start");

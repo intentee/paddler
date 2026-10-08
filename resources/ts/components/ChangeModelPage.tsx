@@ -32,9 +32,7 @@ function modelSchemaToUrl(model: AgentDesiredModel): string {
 }
 
 export function ChangeModelPage() {
-  const { inferenceMode, managementAddr } = useContext(
-    PaddlerConfigurationContext,
-  );
+  const { managementAddr } = useContext(PaddlerConfigurationContext);
   const loadingState = useBalancerDesiredState({ managementAddr });
 
   return matchFetchJsonState(loadingState, {
@@ -52,38 +50,21 @@ export function ChangeModelPage() {
       return <FloatingStatus>Loading desired state...</FloatingStatus>;
     },
     ok({ response: balancerDesiredState }) {
-      const changeModelForm = (
-        <ChangeModelForm
-          defaultBaseModelUri={modelSchemaToUrl(balancerDesiredState.model)}
-          defaultMultimodalProjectionUri={
-            "TextGeneration" in balancerDesiredState.inference_settings
-              ? modelSchemaToUrl(
-                  balancerDesiredState.inference_settings.TextGeneration
-                    .multimodal.projection,
-                )
-              : ""
-          }
-          defaultPointerHeadUri={
-            "Decision" in balancerDesiredState.inference_settings
-              ? modelSchemaToUrl(
-                  balancerDesiredState.inference_settings.Decision.pointer_head,
-                )
-              : ""
-          }
-        />
-      );
-
       return (
         <BalancerDesiredStateContextProvider
           defaultBalancerDesiredState={balancerDesiredState}
         >
-          {inferenceMode === "TextGeneration" ? (
-            <ChatTemplateContextProvider>
-              {changeModelForm}
-            </ChatTemplateContextProvider>
-          ) : (
-            changeModelForm
-          )}
+          <ChatTemplateContextProvider>
+            <ChangeModelForm
+              defaultBaseModelUri={modelSchemaToUrl(balancerDesiredState.model)}
+              defaultMultimodalProjectionUri={modelSchemaToUrl(
+                balancerDesiredState.text_generation.multimodal.projection,
+              )}
+              defaultPointerHeadUri={modelSchemaToUrl(
+                balancerDesiredState.decision.pointer_head,
+              )}
+            />
+          </ChatTemplateContextProvider>
         </BalancerDesiredStateContextProvider>
       );
     },

@@ -73,7 +73,7 @@ pub async fn collect_embedding_results(
                 request_ids.insert(request_id);
                 wire_errors.push(error);
             }
-            unexpected_message @ InferenceMessage::Response(_) => {
+            unexpected_message => {
                 return Err(ClusterHarnessError::EmbeddingStreamMessageUnexpected {
                     message: Box::new(unexpected_message),
                 }
@@ -92,4 +92,43 @@ pub async fn collect_embedding_results(
         saw_done,
         wire_errors,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::stream::iter;
+
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::response::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+    use super::collect_embedding_results;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[tokio::test]
+    async fn refuses_a_message_that_is_not_an_embedding_result() {
+        let collection_error = collect_embedding_results(Box::pin(iter([Ok(
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "generation-request".to_owned(),
+                response: InferenceResponse::GeneratedToken(GeneratedTokenResult::ContentToken(
+                    "piece".to_owned(),
+                )),
+            }),
+        )])))
+        .await
+        .err()
+        .expect("a stream of another kind of message must be refused");
+
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::EmbeddingStreamMessageUnexpected { message })
+                if matches!(
+                    message.as_ref(),
+                    InferenceMessage::Response(ResponseEnvelope { request_id, .. })
+                        if request_id == "generation-request"
+                )
+        ));
+    }
 }

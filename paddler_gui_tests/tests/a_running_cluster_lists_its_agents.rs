@@ -34,11 +34,9 @@ fn a_running_cluster_lists_its_agents() {
                 },
             }],
             balancer_applicable_state: BalancerApplicableState::from(
-                BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+                BalancerDesiredState::default(),
             ),
-            balancer_desired_state: BalancerDesiredState::unconfigured(
-                InferenceMode::TextGeneration,
-            ),
+            balancer_desired_state: BalancerDesiredState::default(),
         }),
         stopping: false,
     };

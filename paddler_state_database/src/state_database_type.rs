@@ -23,8 +23,7 @@ fn relative_path_error(path: &str) -> StateDatabaseError {
 #[derive(Clone)]
 pub enum StateDatabaseType {
     File(PathBuf),
-    Memory,
-    MemoryStartingWith(Box<BalancerDesiredState>),
+    Memory(Box<BalancerDesiredState>),
 }
 
 impl FromStr for StateDatabaseType {
@@ -55,7 +54,7 @@ impl FromStr for StateDatabaseType {
 
                 Ok(Self::File(PathBuf::from(path)))
             }
-            "memory" => Ok(Self::Memory),
+            "memory" => Ok(Self::Memory(Box::default())),
             scheme => Err(StateDatabaseError::SchemeUnsupported {
                 scheme: scheme.to_owned(),
             }),
@@ -72,17 +71,20 @@ mod tests {
 
     use tempfile::TempDir;
 
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
     use super::StateDatabaseType;
     use crate::state_database_error::StateDatabaseError;
 
     #[test]
-    fn parses_a_memory_url() {
+    fn parses_a_memory_url_into_the_default_state() {
         let result = StateDatabaseType::from_str("memory://").unwrap();
 
-        assert_eq!(
-            discriminant(&result),
-            discriminant(&StateDatabaseType::Memory),
-        );
+        assert!(matches!(
+            result,
+            StateDatabaseType::Memory(initial_desired_state)
+                if *initial_desired_state == BalancerDesiredState::default()
+        ));
     }
 
     #[test]

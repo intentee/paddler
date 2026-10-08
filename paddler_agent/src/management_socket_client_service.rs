@@ -479,7 +479,6 @@ mod tests {
     use paddler_messaging::model_metadata::ModelMetadata;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
     use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_request_registry::request_delivery::RequestDelivery;
     use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
     use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
@@ -542,9 +541,7 @@ mod tests {
     }
 
     fn unconfigured_desired_state() -> AgentDesiredState {
-        AgentDesiredState::from(BalancerDesiredState::unconfigured(
-            InferenceMode::TextGeneration,
-        ))
+        AgentDesiredState::from(BalancerDesiredState::default())
     }
 
     fn set_state_message() -> JsonRpcMessage {

@@ -5,7 +5,6 @@ import {
   type EmbeddingParameters,
 } from "@intentee/paddler-client/schemas/EmbeddingParameters";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
-import { embeddingParametersOf } from "../embeddingParametersOf";
 import { ParameterNumberInput } from "./ParameterNumberInput";
 import { ParameterSelect } from "./ParameterSelect";
 
@@ -13,7 +12,7 @@ export function EmbeddingParametersFields() {
   const { balancerDesiredState, setBalancerDesiredState } = useContext(
     BalancerDesiredStateContext,
   );
-  const embeddingParameters = embeddingParametersOf(balancerDesiredState);
+  const { embeddings: embeddingParameters } = balancerDesiredState;
 
   const setParameter = useCallback(
     function <TKey extends keyof EmbeddingParameters>(
@@ -22,11 +21,9 @@ export function EmbeddingParametersFields() {
     ) {
       setBalancerDesiredState({
         ...balancerDesiredState,
-        inference_settings: {
-          Embeddings: {
-            ...embeddingParameters,
-            [name]: value,
-          },
+        embeddings: {
+          ...embeddingParameters,
+          [name]: value,
         },
       });
     },

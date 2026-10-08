@@ -11,7 +11,7 @@ use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_test_cluster_harness::raw_agent_socket::RawAgentSocket;
-use paddler_tests::decision_cluster_without_agents_params::decision_cluster_without_agents_params;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::serving_agent_status::serving_agent_status;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -26,7 +26,7 @@ fn answer(id: &str, probabilities: Vec<f32>) -> AgentJsonRpcResponse {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_answers_questions_in_their_order() {
-    let cluster = start_cluster(decision_cluster_without_agents_params())
+    let cluster = start_cluster(cluster_without_agents_serving(InferenceMode::Decision))
         .await
         .expect("a decision balancer without agents must start");
     let mut raw_agent_socket =

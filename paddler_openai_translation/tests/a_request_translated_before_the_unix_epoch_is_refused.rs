@@ -4,8 +4,7 @@ use std::time::UNIX_EPOCH;
 use serde_json::from_value;
 use serde_json::json;
 
-use paddler_messaging::agent_inference_settings::AgentInferenceSettings;
-use paddler_messaging::agent_text_generation_settings::AgentTextGenerationSettings;
+use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 use paddler_openai_translation::responses_request::ResponsesRequest;
@@ -28,10 +27,7 @@ fn a_request_translated_before_the_unix_epoch_is_refused() {
             if clock_error.duration() == Duration::from_secs(1)
     ));
     assert!(matches!(
-        responses_request.translate(
-            before_unix_epoch,
-            &AgentInferenceSettings::TextGeneration(AgentTextGenerationSettings::default())
-        ),
+        responses_request.translate(before_unix_epoch, &SamplingParameters::default()),
         Err(OpenAITranslationError::ClockBeforeUnixEpoch(clock_error))
             if clock_error.duration() == Duration::from_secs(1)
     ));

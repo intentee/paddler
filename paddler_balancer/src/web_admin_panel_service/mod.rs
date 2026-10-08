@@ -77,7 +77,6 @@ mod tests {
 
     use super::WebAdminPanelService;
     use crate::http_listener::HttpListener;
-    use paddler_messaging::inference_mode::InferenceMode;
 
     use crate::resolved_socket_addr::ResolvedSocketAddr;
     use crate::web_admin_panel_service::template_data::TemplateData;
@@ -93,7 +92,6 @@ mod tests {
                 compat_openai_addr: None,
                 compat_typesafe_addr: None,
                 inference_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
-                inference_mode: InferenceMode::TextGeneration,
                 management_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
                 max_buffered_requests: 32,
                 statsd_prefix: "paddler".to_owned(),

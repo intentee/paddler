@@ -1,9 +1,6 @@
-use std::num::NonZeroUsize;
-
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
 use actix_web::rt;
@@ -25,6 +22,7 @@ use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
@@ -34,6 +32,7 @@ use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 use crate::controls_session::ControlsSession as _;
 use crate::embedding_chunk_dispatch::EmbeddingChunkDispatch;
 use crate::inference_service::app_data::AppData;
@@ -44,21 +43,22 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
-    let AgentInferenceSettings::Embeddings(EmbeddingParameters {
+    let EmbeddingParameters {
         embedding_batch_size,
         ..
-    }) = app_data
+    } = match app_data
         .balancer_applicable_state_holder
         .get_agent_desired_state()
         .inference_settings
-    else {
-        return Err(ErrorInternalServerError(
-            "The cluster does not serve embeddings",
-        ));
-    };
-
-    let Some(agent_count) = NonZeroUsize::new(app_data.agent_controller_pool.agents.len()) else {
-        return Err(ErrorServiceUnavailable("No agents are currently connected"));
+    {
+        AgentInferenceSettings::Embeddings(embedding_parameters) => embedding_parameters,
+        served_inference_settings @ (AgentInferenceSettings::Decision(_)
+        | AgentInferenceSettings::TextGeneration(_)) => {
+            return Err(ErrorServiceUnavailable(ClusterServesAnotherInferenceMode {
+                requested_inference_mode: InferenceMode::Embeddings,
+                served_inference_mode: served_inference_settings.inference_mode(),
+            }));
+        }
     };
 
     let connection_close = CancellationToken::new();
@@ -67,9 +67,10 @@ async fn respond(
 
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
-    let batches = params
-        .into_inner()
-        .chunk_evenly_with_cap(agent_count, embedding_batch_size);
+    let batches = params.into_inner().chunk_evenly_with_cap(
+        app_data.agent_controller_pool.agents.len(),
+        embedding_batch_size,
+    );
 
     let chunk_dispatches: Vec<EmbeddingChunkDispatch> = batches
         .into_iter()

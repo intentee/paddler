@@ -3,22 +3,16 @@ use tokio_util::sync::CancellationToken;
 use paddler_client::error::Error as ClientError;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::start_cluster::start_cluster;
 
 const BAD_REQUEST: u16 = 400;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_without_questions_is_rejected_with_bad_request() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        desired_state: ClusterDesiredState::KeepStored(InferenceMode::Decision),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster(cluster_without_agents_serving(InferenceMode::Decision))
+        .await
+        .expect("the cluster must start");
 
     let rejection = cluster
         .client_inference

@@ -6,11 +6,13 @@ use paddler_openai_translation::generation_failure::GenerationFailure;
 use paddler_openai_translation::generation_failure_cause::GenerationFailureCause;
 use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 
+use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 use crate::compatibility::openai_service::openai_error_body::OpenAIErrorBody;
 use crate::compatibility::openai_service::openai_error_type::OpenAIErrorType;
 use crate::compatibility::upstream_failure::UpstreamFailure;
 
 pub enum OpenAIFailure {
+    ClusterServesAnotherInferenceMode(ClusterServesAnotherInferenceMode),
     Generation(GenerationFailure),
     RequestUntranslatable(OpenAITranslationError),
     Unfinished,
@@ -41,6 +43,9 @@ impl OpenAIFailure {
 
     fn into_message(self) -> String {
         match self {
+            Self::ClusterServesAnotherInferenceMode(cluster_serves_another_inference_mode) => {
+                cluster_serves_another_inference_mode.to_string()
+            }
             Self::Generation(GenerationFailure { message, .. }) => message,
             Self::RequestUntranslatable(translation_error) => translation_error.to_string(),
             Self::Unfinished => "the agent stopped before it finished the generation".to_owned(),
@@ -57,11 +62,9 @@ impl OpenAIFailure {
             | Self::RequestUntranslatable(OpenAITranslationError::ToolRejected(_)) => {
                 StatusCode::BAD_REQUEST
             }
-            Self::Generation(GenerationFailure {
+            Self::ClusterServesAnotherInferenceMode(_)
+            | Self::Generation(GenerationFailure {
                 cause: GenerationFailureCause::Unavailable,
-                ..
-            })
-            | Self::RequestUntranslatable(OpenAITranslationError::InferenceModeMismatch {
                 ..
             }) => UpstreamFailure::Unavailable.status_code(),
             Self::Generation(GenerationFailure {
@@ -96,6 +99,7 @@ mod tests {
     use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
 
     use super::OpenAIFailure;
+    use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 
     fn error_body(message: &str, error_type: &str) -> Value {
         json!({
@@ -150,14 +154,15 @@ mod tests {
                 ),
             ),
             (
-                OpenAIFailure::RequestUntranslatable(
-                    OpenAITranslationError::InferenceModeMismatch {
-                        inference_mode: InferenceMode::Embeddings,
+                OpenAIFailure::ClusterServesAnotherInferenceMode(
+                    ClusterServesAnotherInferenceMode {
+                        requested_inference_mode: InferenceMode::TextGeneration,
+                        served_inference_mode: InferenceMode::Embeddings,
                     },
                 ),
                 StatusCode::SERVICE_UNAVAILABLE,
                 error_body(
-                    "the cluster serves Embeddings, not text generation",
+                    "The cluster serves Embeddings, not TextGeneration",
                     "server_error",
                 ),
             ),

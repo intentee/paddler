@@ -298,7 +298,6 @@
                 in
                 [
                   "balancer"
-                  balancer.inferenceMode
                   "--management-addr"
                   balancer.managementAddr
                   "--inference-addr"
@@ -376,26 +375,16 @@
                     description = "Address of the web admin panel. Disabled when null.";
                   };
 
-                  inferenceMode = lib.mkOption {
-                    type = lib.types.enum [
-                      "decision"
-                      "embeddings"
-                      "text-generation"
-                    ];
-                    default = "text-generation";
-                    description = "The inference mode the cluster serves. It is fixed when the balancer starts.";
-                  };
-
                   openaiCompatAddr = lib.mkOption {
                     type = lib.types.nullOr socketAddrType;
                     default = null;
-                    description = "Address of the OpenAI-compatible API server, served only in text-generation mode. When null it is disabled.";
+                    description = "Address of the OpenAI-compatible API server. When null it is disabled.";
                   };
 
                   typesafeCompatAddr = lib.mkOption {
                     type = lib.types.nullOr socketAddrType;
                     default = null;
-                    description = "Address of the TypeSafe-compatible System One API server, served only in decision mode. When null it is disabled.";
+                    description = "Address of the TypeSafe-compatible System One API server. When null it is disabled.";
                   };
 
                   stateDatabase = lib.mkOption {
@@ -425,7 +414,7 @@
                   openFirewall = lib.mkOption {
                     type = lib.types.bool;
                     default = false;
-                    description = "Open the management, inference, web admin panel and OpenAI-compatible ports in the firewall.";
+                    description = "Open the management, inference, web admin panel, OpenAI-compatible and TypeSafe-compatible ports in the firewall.";
                   };
                 };
 
@@ -518,18 +507,6 @@
                 })
 
                 (lib.mkIf cfg.balancer.enable {
-                  assertions = [
-                    {
-                      assertion =
-                        cfg.balancer.openaiCompatAddr != null -> cfg.balancer.inferenceMode == "text-generation";
-                      message = "services.paddler.balancer.openaiCompatAddr is only served in text-generation mode.";
-                    }
-                    {
-                      assertion = cfg.balancer.typesafeCompatAddr != null -> cfg.balancer.inferenceMode == "decision";
-                      message = "services.paddler.balancer.typesafeCompatAddr is only served in decision mode.";
-                    }
-                  ];
-
                   systemd.services.paddler-balancer = {
                     description = "Paddler balancer";
                     after = [ "network-online.target" ];
@@ -558,7 +535,8 @@
                         (portOf cfg.balancer.inferenceAddr)
                       ]
                       ++ lib.optional (cfg.balancer.webAdminPanelAddr != null) (portOf cfg.balancer.webAdminPanelAddr)
-                      ++ lib.optional (cfg.balancer.openaiCompatAddr != null) (portOf cfg.balancer.openaiCompatAddr);
+                      ++ lib.optional (cfg.balancer.openaiCompatAddr != null) (portOf cfg.balancer.openaiCompatAddr)
+                      ++ lib.optional (cfg.balancer.typesafeCompatAddr != null) (portOf cfg.balancer.typesafeCompatAddr);
                   };
                 })
 

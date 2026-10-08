@@ -19,8 +19,7 @@ async fn chat_template_override_applied_to_embedding_model() {
         agents: AgentConfig::uniform(1, 1),
         wait_for_slots_ready: false,
         desired_state: ClusterDesiredState::Apply(Box::new(
-            nomic_embed_desired_state_with_chat_template_override(chat_template.clone())
-                .expect("a text generation state must accept a chat template override"),
+            nomic_embed_desired_state_with_chat_template_override(chat_template.clone()),
         )),
         ..ClusterParams::default()
     })

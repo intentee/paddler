@@ -11,7 +11,6 @@ test("spawned process reports a process that ignores termination", async functio
   const balancer = await SpawnedBalancer.spawn({
     bufferedRequestTimeoutMilliseconds:
       PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS,
-    inferenceMode: "TextGeneration",
   });
 
   process.kill(balancer.process.pid, "SIGSTOP");

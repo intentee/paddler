@@ -10,7 +10,6 @@ use paddler_gui::running_balancer_snapshot::RunningBalancerSnapshot;
 use paddler_gui_tests::app_driver::AppDriver;
 use paddler_gui_tests::loopback_balancer_addresses::LOOPBACK_BALANCER_ADDRESSES;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_service_thread::service_thread_error::ServiceThreadError;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -25,11 +24,9 @@ async fn a_cluster_that_fails_while_running_shows_why_on_the_home_screen() {
             snapshot: Box::new(RunningBalancerSnapshot {
                 agent_snapshots: Vec::new(),
                 balancer_applicable_state: BalancerApplicableState::from(
-                    BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+                    BalancerDesiredState::default(),
                 ),
-                balancer_desired_state: BalancerDesiredState::unconfigured(
-                    InferenceMode::TextGeneration,
-                ),
+                balancer_desired_state: BalancerDesiredState::default(),
             }),
         },
     ] {

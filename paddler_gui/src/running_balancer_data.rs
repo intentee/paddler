@@ -45,7 +45,6 @@ mod tests {
     use paddler_balancer::balancer_addresses::BalancerAddresses;
     use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::RunningBalancerData;
     use crate::running_balancer_action::RunningBalancerAction;
@@ -65,11 +64,9 @@ mod tests {
             snapshot: Box::new(RunningBalancerSnapshot {
                 agent_snapshots: Vec::new(),
                 balancer_applicable_state: BalancerApplicableState::from(
-                    BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+                    BalancerDesiredState::default(),
                 ),
-                balancer_desired_state: BalancerDesiredState::unconfigured(
-                    InferenceMode::TextGeneration,
-                ),
+                balancer_desired_state: BalancerDesiredState::default(),
             }),
             stopping: false,
         }

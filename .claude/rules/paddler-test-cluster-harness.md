@@ -16,3 +16,4 @@ paths:
 - TypeSafe publishes no Rust SDK, so the harness's `TypeSafeApiClient` is a thin `reqwest` client built on the balancer's `TypeSafeApiPath` and `TypeSafeHeader`
 - the official `typesafe-sdk` is exercised by `paddler_typesafe_client_python_test`, which keeps the compatibility claim objective
 - both layers expose the same harness surface: `RunningBalancer::compat_<vendor>_addr()`, `compat_<vendor>_base_url()`, and `Cluster::compat_<vendor>_health_client()`
+- test clusters always serve both compatibility services; a test picks the cluster's inference mode through its desired state

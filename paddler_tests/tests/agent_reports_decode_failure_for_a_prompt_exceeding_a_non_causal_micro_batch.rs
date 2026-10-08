@@ -24,8 +24,7 @@ async fn agent_reports_decode_failure_for_a_prompt_exceeding_a_non_causal_micro_
         desired_state: ClusterDesiredState::Apply(Box::new(
             nomic_embed_desired_state_with_chat_template_override(ChatTemplate {
                 content: "{{ messages[0].content }}".to_owned(),
-            })
-            .expect("a text generation state must accept a chat template override"),
+            }),
         )),
         wait_for_slots_ready: true,
         ..ClusterParams::default()

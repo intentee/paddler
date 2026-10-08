@@ -1,7 +1,6 @@
-import React, { useContext } from "react";
+import React from "react";
 import { Route, Router, Switch } from "wouter";
 
-import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { ChangeModelPage } from "./ChangeModelPage";
 import { DashboardPage } from "./DashboardPage";
 import { PromptContextProvider } from "./PromptContextProvider";
@@ -11,8 +10,6 @@ import { PromptThinkingContextProvider } from "./PromptThinkingContextProvider";
 import { WorkbenchLayout } from "./WorkbenchLayout";
 
 export function Home() {
-  const { inferenceMode } = useContext(PaddlerConfigurationContext);
-
   return (
     <Router>
       <WorkbenchLayout>
@@ -23,17 +20,15 @@ export function Home() {
           <Route path="/model">
             <ChangeModelPage />
           </Route>
-          {inferenceMode === "TextGeneration" && (
-            <Route path="/prompt">
-              <PromptContextProvider>
-                <PromptImageContextProvider>
-                  <PromptThinkingContextProvider>
-                    <PromptPage />
-                  </PromptThinkingContextProvider>
-                </PromptImageContextProvider>
-              </PromptContextProvider>
-            </Route>
-          )}
+          <Route path="/prompt">
+            <PromptContextProvider>
+              <PromptImageContextProvider>
+                <PromptThinkingContextProvider>
+                  <PromptPage />
+                </PromptThinkingContextProvider>
+              </PromptImageContextProvider>
+            </PromptContextProvider>
+          </Route>
           <Route>404 :(</Route>
         </Switch>
       </WorkbenchLayout>

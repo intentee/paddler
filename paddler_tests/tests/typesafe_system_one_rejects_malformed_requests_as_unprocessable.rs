@@ -3,12 +3,13 @@ use reqwest::StatusCode;
 use serde_json::json;
 
 use paddler_balancer::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
-use paddler_tests::decision_cluster_without_agents_params::decision_cluster_without_agents_params;
+use paddler_messaging::inference_mode::InferenceMode;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_rejects_malformed_requests_as_unprocessable() {
-    let cluster = start_cluster(decision_cluster_without_agents_params())
+    let cluster = start_cluster(cluster_without_agents_serving(InferenceMode::Decision))
         .await
         .expect("a decision balancer without agents must start");
 

@@ -44,14 +44,10 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() {
         .expect("inference stream must yield a message")
         .expect("the message must be readable");
 
-    match message {
-        Message::Error(envelope) => {
-            assert_eq!(envelope.error.code, 504);
-        }
-        Message::Response(_) => {
-            panic!("expected timeout error, got success");
-        }
-    }
+    assert!(matches!(
+        message,
+        Message::Error(envelope) if envelope.error.code == 504
+    ));
 
     cluster
         .shutdown()

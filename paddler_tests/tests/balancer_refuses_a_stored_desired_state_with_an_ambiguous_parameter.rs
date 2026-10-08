@@ -5,7 +5,6 @@ use tokio::fs::write;
 
 use paddler_balancer_runner::balancer_runner_error::BalancerRunnerError;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_state_database::state_database_error::StateDatabaseError;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -15,13 +14,10 @@ use paddler_tests::start_cluster::start_cluster;
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
     let database = StateDatabaseFile::new().expect("the state database file must be created");
-    let mut stored_desired_state = to_value(BalancerDesiredState::unconfigured(
-        InferenceMode::TextGeneration,
-    ))
-    .expect("the value must serialize");
+    let mut stored_desired_state =
+        to_value(BalancerDesiredState::default()).expect("the value must serialize");
 
-    stored_desired_state["inference_settings"]["TextGeneration"]["multimodal"]["image_resize_to_fit"] =
-        json!(0);
+    stored_desired_state["text_generation"]["multimodal"]["image_resize_to_fit"] = json!(0);
 
     write(
         &database.path,
@@ -38,7 +34,7 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: ClusterDesiredState::KeepStored(InferenceMode::TextGeneration),
+        desired_state: ClusterDesiredState::KeepStored,
         ..ClusterParams::default()
     })
     .await

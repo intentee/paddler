@@ -1,10 +1,12 @@
 use actix_web::Error;
 use actix_web::Responder;
 use actix_web::error::ErrorBadRequest;
+use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
 use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_messaging::validates::Validates as _;
@@ -20,6 +22,11 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<ContinueFromConversationHistoryParams<RawParametersSchema>>,
 ) -> Result<impl Responder, Error> {
+    app_data
+        .balancer_applicable_state_holder
+        .require_inference_mode(InferenceMode::TextGeneration)
+        .map_err(ErrorServiceUnavailable)?;
+
     let validated_params = params.into_inner().validate().map_err(|validation_error| {
         ErrorBadRequest(invalid_request_parameters_description(&validation_error))
     })?;

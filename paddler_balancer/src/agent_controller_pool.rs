@@ -8,7 +8,6 @@ use tokio::sync::watch;
 
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
@@ -22,22 +21,13 @@ use crate::dispatch_candidate::DispatchCandidate;
 use crate::dispatched_agent::DispatchedAgent;
 use crate::registered_agent_controller_guard::RegisteredAgentControllerGuard;
 
+#[derive(Default)]
 pub struct AgentControllerPool {
     pub agents: DashMap<String, Arc<AgentController>>,
-    inference_mode: InferenceMode,
     updates: Arc<AgentControllerPoolUpdates>,
 }
 
 impl AgentControllerPool {
-    #[must_use]
-    pub fn new(inference_mode: InferenceMode) -> Self {
-        Self {
-            agents: DashMap::new(),
-            inference_mode,
-            updates: Arc::new(AgentControllerPoolUpdates::default()),
-        }
-    }
-
     #[must_use]
     pub fn select_least_busy_with_capacity(&self) -> Option<DispatchCandidate> {
         let mut best: Option<DispatchCandidate> = None;
@@ -45,9 +35,14 @@ impl AgentControllerPool {
         for entry in &self.agents {
             let agent_controller = entry.value().clone();
             let snapshot = agent_controller.slots_processing.get();
-            let runtime = agent_controller.reported_status.read().status.runtime;
+            let slots_total = agent_controller
+                .reported_status
+                .read()
+                .status
+                .runtime
+                .slots_total();
 
-            if !runtime.serves(self.inference_mode) || snapshot >= runtime.slots_total() {
+            if snapshot >= slots_total {
                 continue;
             }
 
@@ -258,13 +253,10 @@ mod tests {
     }
 
     #[test]
-    fn dispatches_only_to_agents_serving_the_cluster_mode() {
-        let pool = Arc::new(AgentControllerPool::new(InferenceMode::Embeddings));
+    fn dispatches_only_to_agents_with_free_slots() {
+        let pool = Arc::new(AgentControllerPool::default());
         let registrations = [
-            pool.register_agent_controller(
-                agent_reporting("text-generation", serving(InferenceMode::TextGeneration))
-                    .controller,
-            ),
+            pool.register_agent_controller(agent_with_inbox("idle").controller),
             pool.register_agent_controller(
                 agent_reporting("embeddings", serving(InferenceMode::Embeddings)).controller,
             ),
@@ -283,7 +275,7 @@ mod tests {
 
     #[test]
     fn counts_only_the_slots_of_serving_agents() {
-        let pool = Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration));
+        let pool = Arc::new(AgentControllerPool::default());
         let _registrations = [
             pool.register_agent_controller(agent_with_inbox("idle").controller),
             pool.register_agent_controller(
@@ -296,7 +288,7 @@ mod tests {
 
     #[test]
     fn delivers_the_desired_state_to_connected_agents_past_a_disconnected_one() {
-        let pool = Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration));
+        let pool = Arc::new(AgentControllerPool::default());
         let disconnected_agent = agent_with_inbox("disconnected");
         let mut connected_agent = agent_with_inbox("connected");
 
@@ -312,15 +304,13 @@ mod tests {
             AgentControllerRegistration::Registered(_)
         )));
 
-        pool.set_desired_state(&AgentDesiredState::from(
-            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
-        ));
+        pool.set_desired_state(&AgentDesiredState::from(BalancerDesiredState::default()));
 
         assert!(matches!(
             connected_agent.inbox.try_recv(),
             Ok(AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::SetState(set_state_params)
-            )) if set_state_params.desired_state == AgentDesiredState::from(BalancerDesiredState::unconfigured(InferenceMode::TextGeneration))
+            )) if set_state_params.desired_state == AgentDesiredState::from(BalancerDesiredState::default())
         ));
     }
 }

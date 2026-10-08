@@ -9,7 +9,6 @@ use paddler_balancer::web_admin_panel_service::configuration::Configuration as W
 use paddler_balancer_runner::balancer_runner::BalancerRunner;
 use paddler_balancer_runner::balancer_runner_error::BalancerRunnerError;
 use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
-use paddler_balancer_runner::balancer_serving_mode::BalancerServingMode;
 use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
@@ -63,11 +62,9 @@ async fn balancer_runner_fails_to_start_when_its_compat_openai_address_is_taken(
         .expect("a bound listener must report its address");
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
-    params.runner_config.serving_mode = BalancerServingMode::TextGeneration {
-        openai_service_configuration: Some(CompatibilityServiceConfiguration {
-            addr: ResolvedSocketAddr::from(taken_addr),
-        }),
-    };
+    params.runner_config.openai_service_configuration = Some(CompatibilityServiceConfiguration {
+        addr: ResolvedSocketAddr::from(taken_addr),
+    });
 
     assert!(matches!(
         start_error_of(params).await,
@@ -84,11 +81,9 @@ async fn balancer_runner_fails_to_start_when_its_compat_typesafe_address_is_take
         .expect("a bound listener must report its address");
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
-    params.runner_config.serving_mode = BalancerServingMode::Decision {
-        typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
-            addr: ResolvedSocketAddr::from(taken_addr),
-        }),
-    };
+    params.runner_config.typesafe_service_configuration = Some(CompatibilityServiceConfiguration {
+        addr: ResolvedSocketAddr::from(taken_addr),
+    });
 
     assert!(matches!(
         start_error_of(params).await,

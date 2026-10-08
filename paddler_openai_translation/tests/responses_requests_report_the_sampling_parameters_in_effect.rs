@@ -7,8 +7,6 @@ use serde_json::json;
 use serde_json::to_value;
 
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
-use paddler_messaging::agent_inference_settings::AgentInferenceSettings;
-use paddler_messaging::agent_text_generation_settings::AgentTextGenerationSettings;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_openai_translation::completes_generation::CompletesGeneration as _;
@@ -20,19 +18,15 @@ use paddler_openai_translation::responses_request::ResponsesRequest;
 
 #[cfg(test)]
 fn first_response_snapshot_of(request: Value) -> Value {
-    let agent_inference_settings =
-        AgentInferenceSettings::TextGeneration(AgentTextGenerationSettings {
-            sampling_parameters: SamplingParameters {
-                temperature: 0.25,
-                top_p: 0.5,
-                ..SamplingParameters::default()
-            },
-            ..AgentTextGenerationSettings::default()
-        });
+    let sampling_parameters = SamplingParameters {
+        temperature: 0.25,
+        top_p: 0.5,
+        ..SamplingParameters::default()
+    };
 
     match from_value::<ResponsesRequest>(request)
         .expect("the request must deserialize")
-        .translate(UNIX_EPOCH, &agent_inference_settings)
+        .translate(UNIX_EPOCH, &sampling_parameters)
         .expect("the request must translate")
         .delivery
     {

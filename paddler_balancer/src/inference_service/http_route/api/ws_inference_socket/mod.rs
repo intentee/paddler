@@ -1,4 +1,5 @@
 mod inference_socket_controller_context;
+mod spawn_cluster_inference_mode_watcher;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -20,23 +21,30 @@ use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::inference_server::identified_request::IdentifiedRequest;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use paddler_messaging::streamable_result::StreamableResult;
 use paddler_messaging::validates::Validates as _;
 use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
+use self::spawn_cluster_inference_mode_watcher::spawn_cluster_inference_mode_watcher;
 use crate::agent_streaming_request::AgentStreamingRequest;
+use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
+use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 use crate::continuation_decision::ContinuationDecision;
+use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -44,6 +52,24 @@ use crate::invalid_request_parameters_description::invalid_request_parameters_de
 use crate::request_from_agent::request_from_agent;
 use crate::respond_with_error::respond_with_error;
 use crate::websocket_session_controller::WebSocketSessionController;
+
+async fn send_inference_mode_mismatch(
+    cluster_serves_another_inference_mode: ClusterServesAnotherInferenceMode,
+    request_id: String,
+    websocket_session_controller: &mut WebSocketSessionController<OutgoingMessage>,
+) {
+    websocket_session_controller
+        .send_response_safe(OutgoingMessage::Response(ResponseEnvelope {
+            generated_by: None,
+            request_id,
+            response: OutgoingResponse::GeneratedToken(
+                GeneratedTokenResult::InferenceModeMismatch(
+                    cluster_serves_another_inference_mode.to_string(),
+                ),
+            ),
+        }))
+        .await;
+}
 
 async fn handle_inference_request<TParams>(
     connection_close: &CancellationToken,
@@ -55,6 +81,20 @@ async fn handle_inference_request<TParams>(
     TParams: AgentStreamingRequest + Debug + Send + 'static,
     TParams::Response: Debug + Into<OutgoingResponse> + StreamableResult,
 {
+    if let Err(cluster_serves_another_inference_mode) = context
+        .balancer_applicable_state_holder
+        .require_inference_mode(InferenceMode::TextGeneration)
+    {
+        send_inference_mode_mismatch(
+            cluster_serves_another_inference_mode,
+            request_id,
+            &mut websocket_session_controller,
+        )
+        .await;
+
+        return;
+    }
+
     let request_close = connection_close.child_token();
 
     let Some(request_registration) = RequestRegistryGuard::register(
@@ -101,6 +141,7 @@ async fn respond(
     http_request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let inference_socket_controller = InferenceSocketController {
+        balancer_applicable_state_holder: app_data.balancer_applicable_state_holder.clone(),
         buffered_request_manager: app_data.buffered_request_manager.clone(),
         inference_service_configuration: app_data.inference_service_configuration.clone(),
         shutdown: app_data.shutdown.clone(),
@@ -114,6 +155,7 @@ type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
 type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 
 struct InferenceSocketController {
+    balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     buffered_request_manager: Arc<BufferedRequestManager>,
     inference_service_configuration: InferenceServiceConfiguration,
     shutdown: CancellationToken,
@@ -126,6 +168,7 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 
     fn create_context(&self) -> Self::Context {
         InferenceSocketControllerContext {
+            balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.inference_service_configuration.clone(),
             request_cancellation_tokens: Arc::default(),
@@ -232,10 +275,15 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
     }
 
     async fn on_connection_start(
-        _connection_close: CancellationToken,
-        _context: Arc<Self::Context>,
-        _session: &mut Session,
+        connection_close: CancellationToken,
+        context: Arc<Self::Context>,
+        session: &mut Session,
     ) {
+        spawn_cluster_inference_mode_watcher(
+            context.balancer_applicable_state_holder.clone(),
+            connection_close,
+            session.clone(),
+        );
     }
 }
 

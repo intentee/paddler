@@ -42,18 +42,18 @@ You can obtain the binary by:
 
 Once you have made the binary available in your system, you can start using Paddler. The entire Paddler functionality is available through the `paddler` command (running `paddler --help` will list all available commands).
 
-There are only two deployable components, the `balancer` (which distributes the incoming requests), and the `agent` (which generates tokens or embeddings through slots).
+There are only two deployable components, the `balancer` (which distributes the incoming requests), and the `agent` (which generates tokens, embeddings, or decisions through slots).
 
-Each cluster serves one inference mode, chosen when the balancer starts: `text-generation`, `embeddings`, or `decision`. To start a balancer that generates text, run:
+To start the balancer, run:
 
 ```sh
-paddler balancer text-generation --inference-addr 127.0.0.1:8061 --management-addr 127.0.0.1:8060 --compat-openai-addr 127.0.0.1:8063 --web-admin-panel-addr 127.0.0.1:8062
+paddler balancer --inference-addr 127.0.0.1:8061 --management-addr 127.0.0.1:8060 --compat-openai-addr 127.0.0.1:8063 --compat-typesafe-addr 127.0.0.1:8009 --web-admin-panel-addr 127.0.0.1:8062
 ```
-The `--web-admin-panel-addr` flag is optional, but it will allow you to view your setup in a web browser. The `--compat-openai-addr` flag is optional too; it serves the OpenAI-compatible API (`POST /v1/chat/completions` and `POST /v1/responses`), so OpenAI clients only need to change their base URL.
+The `--web-admin-panel-addr` flag is optional, but it will allow you to view your setup in a web browser. The `--compat-openai-addr` flag is optional too; it serves the OpenAI-compatible API (`POST /v1/chat/completions` and `POST /v1/responses`), so OpenAI clients only need to change their base URL. The `--compat-typesafe-addr` flag serves the TypeSafe-compatible System One API (`POST /v1/systemone`) the same way.
 
-To serve embeddings instead, start the balancer with `paddler balancer embeddings` and the same flags (without `--compat-openai-addr`). The state database remembers the mode, and a balancer refuses to start from a state database of another mode.
+A cluster serves one inference mode at a time: `TextGeneration` (the default), `Embeddings`, or `Decision`. The mode is part of the balancer desired state, next to the settings of every mode, so you can switch it at runtime on the web admin panel's Model page or with `PUT /api/v1/balancer_desired_state`. Agents reload into the new mode, requests already running finish, and requests of another mode are answered with `503 Service Unavailable`. Inference socket clients are notified of the cluster's inference mode when they connect and whenever it changes.
 
-`paddler balancer decision` serves [kev](https://github.com/jaredpalmer/kev) decision models: it reads a document and answers multiple-choice questions about it with calibrated probabilities, without generating text (`POST /api/v1/decide`). A decision model is a Qwen3.5 GGUF plus its pointer head; `make target/kev/model.gguf target/kev/pointer_head.gguf` converts a kev checkpoint into both files. Decision agents need at least two slots. Add `--compat-typesafe-addr` to serve the TypeSafe-compatible System One API (`POST /v1/systemone`) as well.
+The `Decision` mode serves [kev](https://github.com/jaredpalmer/kev) decision models: it reads a document and answers multiple-choice questions about it with calibrated probabilities, without generating text (`POST /api/v1/decide`). A decision model is a Qwen3.5 GGUF plus its pointer head; `make target/kev/model.gguf target/kev/pointer_head.gguf` converts a kev checkpoint into both files. Decision agents need at least two slots.
 
 And to start an agent with, for example, 4 slots, run:
 
@@ -71,14 +71,14 @@ Paddler serves [kev](https://github.com/jaredpalmer/kev) decision models behind 
 make target/kev/model.gguf target/kev/pointer_head.gguf
 ```
 
-Start a decision balancer with the TypeSafe-compatible API, and an agent with at least two slots:
+Start a balancer with the TypeSafe-compatible API, and an agent with at least two slots:
 
 ```sh
-paddler balancer decision --inference-addr 127.0.0.1:8061 --management-addr 127.0.0.1:8060 --compat-typesafe-addr 127.0.0.1:8009 --web-admin-panel-addr 127.0.0.1:8062
+paddler balancer --inference-addr 127.0.0.1:8061 --management-addr 127.0.0.1:8060 --compat-typesafe-addr 127.0.0.1:8009 --web-admin-panel-addr 127.0.0.1:8062
 paddler agent --management-addr 127.0.0.1:8060 --slots 2
 ```
 
-In the web admin panel, set the model to `agent:///absolute/path/to/target/kev/model.gguf` and the pointer head to `agent:///absolute/path/to/target/kev/pointer_head.gguf`, then ask questions with a TypeSafe client or `curl`:
+In the web admin panel, choose the `Decision` inference mode, set the model to `agent:///absolute/path/to/target/kev/model.gguf` and the pointer head to `agent:///absolute/path/to/target/kev/pointer_head.gguf`, then ask questions with a TypeSafe client or `curl`:
 
 ```sh
 curl -s localhost:8009/v1/systemone -H 'content-type: application/json' -d '{

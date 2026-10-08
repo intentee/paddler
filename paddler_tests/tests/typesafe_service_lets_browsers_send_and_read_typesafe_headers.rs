@@ -5,8 +5,9 @@ use reqwest::header::HeaderValue;
 
 use paddler_balancer::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
 use paddler_balancer::compatibility::typesafe_service::typesafe_header::TypeSafeHeader;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::decision_cluster_without_agents_params::decision_cluster_without_agents_params;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::start_cluster::start_cluster;
 
 const ALLOWED_ORIGIN: &str = "http://example.com";
@@ -15,7 +16,7 @@ const ALLOWED_ORIGIN: &str = "http://example.com";
 async fn typesafe_service_lets_browsers_send_and_read_typesafe_headers() {
     let cluster = start_cluster(ClusterParams {
         inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
-        ..decision_cluster_without_agents_params()
+        ..cluster_without_agents_serving(InferenceMode::Decision)
     })
     .await
     .expect("a decision balancer without agents must start");

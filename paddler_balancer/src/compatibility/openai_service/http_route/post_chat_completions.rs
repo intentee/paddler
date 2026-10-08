@@ -4,6 +4,7 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_openai_translation::chat_completion_delivery::ChatCompletionDelivery;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::translated_chat_completion_request::TranslatedChatCompletionRequest;
@@ -19,6 +20,16 @@ async fn respond(
     app_data: web::Data<CompatibilityAppData>,
     chat_completion_request: web::Json<ChatCompletionRequest>,
 ) -> HttpResponse {
+    if let Err(cluster_serves_another_inference_mode) = app_data
+        .balancer_applicable_state_holder
+        .require_inference_mode(InferenceMode::TextGeneration)
+    {
+        return OpenAIFailure::ClusterServesAnotherInferenceMode(
+            cluster_serves_another_inference_mode,
+        )
+        .into_http_response();
+    }
+
     match chat_completion_request
         .into_inner()
         .translate(SystemTime::now())
@@ -70,7 +81,6 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
 
     use super::CompatibilityAppData;
@@ -86,12 +96,10 @@ mod tests {
     fn app_data_without_agents(max_buffered_requests: u64) -> CompatibilityAppData {
         CompatibilityAppData {
             balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                BalancerApplicableState::from(BalancerDesiredState::unconfigured(
-                    InferenceMode::TextGeneration,
-                )),
+                BalancerApplicableState::from(BalancerDesiredState::default()),
             )),
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
+                Arc::new(AgentControllerPool::default()),
                 Duration::ZERO,
                 max_buffered_requests,
             )),

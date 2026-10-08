@@ -29,8 +29,9 @@ async fn balancer_serves_every_service_within_the_default_macos_open_file_limit(
     let running_balancer = spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         [
-            "text-generation",
             "--compat-openai-addr",
+            &ephemeral_loopback_addr,
+            "--compat-typesafe-addr",
             &ephemeral_loopback_addr,
             "--inference-addr",
             &ephemeral_loopback_addr,
@@ -57,6 +58,9 @@ async fn balancer_serves_every_service_within_the_default_macos_open_file_limit(
         running_balancer
             .compat_openai_base_url()
             .expect("the OpenAI compatibility address must form a base URL"),
+        running_balancer
+            .compat_typesafe_base_url()
+            .expect("the TypeSafe compatibility address must form a base URL"),
     ];
     let mut health_checks = Vec::new();
 
@@ -79,6 +83,6 @@ async fn balancer_serves_every_service_within_the_default_macos_open_file_limit(
         .await
         .expect("the balancer subprocess must shut down");
 
-    assert_eq!(health_checks, ["OK", "OK", "OK"]);
+    assert_eq!(health_checks, ["OK", "OK", "OK", "OK"]);
     assert_eq!(dashboard_status, StatusCode::OK);
 }

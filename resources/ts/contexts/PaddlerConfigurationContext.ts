@@ -1,6 +1,5 @@
 import { createContext } from "react";
 
-import { type InferenceMode } from "@intentee/paddler-client/schemas/InferenceMode";
 import { type StatsdConfiguration } from "../StatsdConfiguration";
 
 export type PaddlerConfigurationContextValue = {
@@ -8,7 +7,6 @@ export type PaddlerConfigurationContextValue = {
   compatOpenAIAddr: string | null;
   compatTypeSafeAddr: string | null;
   inferenceAddr: string;
-  inferenceMode: InferenceMode;
   managementAddr: string;
   maxBufferedRequests: number;
   statsd: StatsdConfiguration | null;
@@ -26,9 +24,6 @@ export const PaddlerConfigurationContext =
       throw new Error("PaddlerConfigurationContext not provided");
     },
     get inferenceAddr(): never {
-      throw new Error("PaddlerConfigurationContext not provided");
-    },
-    get inferenceMode(): never {
       throw new Error("PaddlerConfigurationContext not provided");
     },
     get managementAddr(): never {

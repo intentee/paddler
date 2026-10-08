@@ -1,8 +1,5 @@
 use std::time::Duration;
 
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
-
 use crate::agent_config::AgentConfig;
 use crate::cluster_desired_state::ClusterDesiredState;
 use crate::longer_than_any_test_run::LONGER_THAN_ANY_TEST_RUN;
@@ -24,9 +21,7 @@ impl Default for ClusterParams {
         Self {
             agents: AgentConfig::uniform(1, 4),
             buffered_request_timeout: LONGER_THAN_ANY_TEST_RUN,
-            desired_state: ClusterDesiredState::Apply(Box::new(
-                BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
-            )),
+            desired_state: ClusterDesiredState::Apply(Box::default()),
             inference_cors_allowed_hosts: Vec::new(),
             inference_item_timeout: LONGER_THAN_ANY_TEST_RUN,
             management_cors_allowed_hosts: Vec::new(),

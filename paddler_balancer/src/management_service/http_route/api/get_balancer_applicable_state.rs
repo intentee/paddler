@@ -39,7 +39,6 @@ mod tests {
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_state_database::memory::Memory;
 
     use super::get_balancer_applicable_state;
@@ -53,17 +52,14 @@ mod tests {
     fn build_app_data(
         balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     ) -> Data<AppData> {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
-            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
-        );
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            watch::channel(BalancerDesiredState::default());
 
         Data::new(AppData {
-            agent_controller_pool: Arc::new(AgentControllerPool::new(
-                InferenceMode::TextGeneration,
-            )),
+            agent_controller_pool: Arc::new(AgentControllerPool::default()),
             balancer_applicable_state_holder,
             buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
+                Arc::new(AgentControllerPool::default()),
                 Duration::from_secs(1),
                 10,
             )),
@@ -71,8 +67,7 @@ mod tests {
             shutdown: CancellationToken::new(),
             state_database: Arc::new(Memory::new(
                 balancer_desired_state_notify_tx,
-                InferenceMode::TextGeneration,
-                BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
+                BalancerDesiredState::default(),
             )),
             statsd_prefix: "paddler".to_owned(),
         })
@@ -81,17 +76,13 @@ mod tests {
     #[actix_web::test]
     async fn responds_with_stored_agent_desired_state() {
         let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::new(
-            BalancerApplicableState::from(BalancerDesiredState::unconfigured(
-                InferenceMode::TextGeneration,
-            )),
+            BalancerApplicableState::from(BalancerDesiredState::default()),
         ));
 
         balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
             agent_desired_state: AgentDesiredState {
                 model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                ..AgentDesiredState::from(BalancerDesiredState::unconfigured(
-                    InferenceMode::TextGeneration,
-                ))
+                ..AgentDesiredState::from(BalancerDesiredState::default())
             },
         });
 

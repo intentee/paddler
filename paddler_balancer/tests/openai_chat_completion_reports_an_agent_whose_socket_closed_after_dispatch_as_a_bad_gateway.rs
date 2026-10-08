@@ -40,7 +40,7 @@ const LONGER_THAN_THE_TEST: Duration = Duration::from_hours(1);
 #[actix_web::test]
 async fn openai_chat_completion_reports_an_agent_whose_socket_closed_after_dispatch_as_a_bad_gateway()
  {
-    let agent_controller_pool = Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration));
+    let agent_controller_pool = Arc::new(AgentControllerPool::default());
     let (agent_message_tx, agent_message_rx) = mpsc::unbounded_channel();
 
     drop(agent_message_rx);
@@ -68,9 +68,7 @@ async fn openai_chat_completion_reports_an_agent_whose_socket_closed_after_dispa
         App::new()
             .app_data(Data::new(CompatibilityAppData {
                 balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                    BalancerApplicableState::from(BalancerDesiredState::unconfigured(
-                        InferenceMode::TextGeneration,
-                    )),
+                    BalancerApplicableState::from(BalancerDesiredState::default()),
                 )),
                 buffered_request_manager: Arc::new(BufferedRequestManager::new(
                     agent_controller_pool,

@@ -1,9 +1,11 @@
 use actix_web::Error;
 use actix_web::Responder;
+use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
 use paddler_messaging::api_path::ApiPath;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
@@ -16,6 +18,11 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<ContinueFromRawPromptParams>,
 ) -> Result<impl Responder, Error> {
+    app_data
+        .balancer_applicable_state_holder
+        .require_inference_mode(InferenceMode::TextGeneration)
+        .map_err(ErrorServiceUnavailable)?;
+
     Ok(ndjson_response(unbounded_stream_from_agent(
         UnboundedStreamFromAgentParams {
             buffered_request_manager: app_data.buffered_request_manager.clone(),

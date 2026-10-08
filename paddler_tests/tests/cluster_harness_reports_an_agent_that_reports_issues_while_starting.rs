@@ -4,7 +4,6 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
@@ -23,7 +22,7 @@ async fn cluster_harness_reports_an_agent_that_reports_issues_while_starting() {
         }],
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
             model: AgentDesiredModel::LocalToAgent(MISSING_MODEL_PATH.to_owned()),
-            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+            ..BalancerDesiredState::default()
         })),
         wait_for_slots_ready: true,
         ..ClusterParams::default()

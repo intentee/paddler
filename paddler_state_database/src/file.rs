@@ -13,10 +13,7 @@ use tokio::sync::RwLock;
 use tokio::sync::watch;
 
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 
-use crate::ensure_requested_state_serves_cluster_mode::ensure_requested_state_serves_cluster_mode;
-use crate::ensure_stored_state_serves_cluster_mode::ensure_stored_state_serves_cluster_mode;
 use crate::schema::Schema;
 use crate::schema_version_header::SchemaVersionHeader;
 use crate::state_database::StateDatabase;
@@ -25,7 +22,6 @@ use crate::state_database_schema_version::StateDatabaseSchemaVersion;
 
 pub struct File {
     balancer_desired_state_notify_tx: watch::Sender<BalancerDesiredState>,
-    cluster_inference_mode: InferenceMode,
     path: PathBuf,
     write_lock: RwLock<()>,
 }
@@ -34,12 +30,10 @@ impl File {
     #[must_use]
     pub fn new(
         balancer_desired_state_notify_tx: watch::Sender<BalancerDesiredState>,
-        cluster_inference_mode: InferenceMode,
         path: PathBuf,
     ) -> Self {
         Self {
             balancer_desired_state_notify_tx,
-            cluster_inference_mode,
             path,
             write_lock: RwLock::new(()),
         }
@@ -70,11 +64,11 @@ impl File {
             Ok(content) => self.parse_schema(&content),
             Err(read_error) if read_error.kind() == ErrorKind::NotFound => {
                 warn!(
-                    "State database file not found; trying to store an unconfigured state: '{}'",
+                    "State database file not found; trying to store the default state: '{}'",
                     self.path.display()
                 );
 
-                self.store_unconfigured_schema().await
+                self.store_default_schema().await
             }
             Err(source) => Err(StateDatabaseError::FileReadFailed {
                 path: self.path.clone(),
@@ -83,8 +77,8 @@ impl File {
         }
     }
 
-    async fn store_unconfigured_schema(&self) -> Result<Schema, StateDatabaseError> {
-        let schema = Schema::unconfigured(self.cluster_inference_mode);
+    async fn store_default_schema(&self) -> Result<Schema, StateDatabaseError> {
+        let schema = Schema::default();
 
         self.store_schema(&schema).await?;
 
@@ -131,23 +125,15 @@ impl StateDatabase for File {
     async fn read_balancer_desired_state(
         &self,
     ) -> Result<BalancerDesiredState, StateDatabaseError> {
-        let schema = self.read_schema_from_file().await?;
-
-        ensure_stored_state_serves_cluster_mode(
-            self.cluster_inference_mode,
-            schema.balancer_desired_state,
-        )
+        self.read_schema_from_file()
+            .await
+            .map(|schema| schema.balancer_desired_state)
     }
 
     async fn store_balancer_desired_state(
         &self,
         balancer_desired_state: &BalancerDesiredState,
     ) -> Result<(), StateDatabaseError> {
-        ensure_requested_state_serves_cluster_mode(
-            self.cluster_inference_mode,
-            balancer_desired_state,
-        )?;
-
         let mut schema = self.read_schema_from_file().await?;
 
         schema.balancer_desired_state = balancer_desired_state.clone();
@@ -170,9 +156,9 @@ mod tests {
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
     use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
     use paddler_messaging::chat_template::ChatTemplate;
+    use paddler_messaging::decision_settings::DecisionSettings;
     use paddler_messaging::inference_mode::InferenceMode;
 
     use super::File;
@@ -180,22 +166,17 @@ mod tests {
     use crate::state_database::StateDatabase;
     use crate::state_database_error::StateDatabaseError;
 
-    fn text_generation_file(path: PathBuf) -> File {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) = watch::channel(
-            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
-        );
+    fn state_file(path: PathBuf) -> File {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            watch::channel(BalancerDesiredState::default());
 
-        File::new(
-            balancer_desired_state_notify_tx,
-            InferenceMode::TextGeneration,
-            path,
-        )
+        File::new(balancer_desired_state_notify_tx, path)
     }
 
-    fn text_generation_state_with_model(model_path: &str) -> BalancerDesiredState {
+    fn state_with_model(model_path: &str) -> BalancerDesiredState {
         BalancerDesiredState {
             model: AgentDesiredModel::LocalToAgent(model_path.to_owned()),
-            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+            ..BalancerDesiredState::default()
         }
     }
 
@@ -203,9 +184,9 @@ mod tests {
     async fn reads_back_the_stored_desired_state_from_the_file() {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("state.json");
-        let database = text_generation_file(path.clone());
+        let database = state_file(path.clone());
 
-        let desired_state = text_generation_state_with_model("stored_model_path");
+        let desired_state = state_with_model("stored_model_path");
 
         database
             .store_balancer_desired_state(&desired_state)
@@ -219,17 +200,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reading_missing_file_stores_and_returns_an_unconfigured_state() {
+    async fn reading_missing_file_stores_and_returns_the_default_state() {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("not_yet_created.json");
-        let database = text_generation_file(path.clone());
+        let database = state_file(path.clone());
 
         let read_state = database.read_balancer_desired_state().await.unwrap();
 
-        assert_eq!(
-            read_state,
-            BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
-        );
+        assert_eq!(read_state, BalancerDesiredState::default());
         assert!(metadata(&path).await.unwrap().is_file());
     }
 
@@ -238,7 +216,7 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_path_buf();
         write(&path, b"this is not valid json").await.unwrap();
-        let database = text_generation_file(path.clone());
+        let database = state_file(path.clone());
 
         let read_result = database.read_balancer_desired_state().await;
 
@@ -252,7 +230,7 @@ mod tests {
     async fn reading_an_empty_file_fails_and_leaves_the_file_untouched() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_path_buf();
-        let database = text_generation_file(path.clone());
+        let database = state_file(path.clone());
 
         let read_result = database.read_balancer_desired_state().await;
 
@@ -266,7 +244,7 @@ mod tests {
     #[tokio::test]
     async fn reading_a_directory_path_returns_non_not_found_error() {
         let temp_dir = TempDir::new().unwrap();
-        let database = text_generation_file(temp_dir.path().to_path_buf());
+        let database = state_file(temp_dir.path().to_path_buf());
 
         let read_result = database.read_balancer_desired_state().await;
 
@@ -278,10 +256,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn storing_an_unconfigured_state_fails_when_parent_directory_is_missing() {
+    async fn storing_the_default_state_fails_when_parent_directory_is_missing() {
         let temp_dir = TempDir::new().unwrap();
         let path: PathBuf = temp_dir.path().join("missing_directory").join("state.json");
-        let database = text_generation_file(path.clone());
+        let database = state_file(path.clone());
 
         let read_result = database.read_balancer_desired_state().await;
 
@@ -295,12 +273,10 @@ mod tests {
     #[tokio::test]
     async fn updating_schema_fails_when_path_is_a_directory() {
         let temp_dir = TempDir::new().unwrap();
-        let database = text_generation_file(temp_dir.path().to_path_buf());
+        let database = state_file(temp_dir.path().to_path_buf());
 
         let store_result = database
-            .store_balancer_desired_state(&BalancerDesiredState::unconfigured(
-                InferenceMode::TextGeneration,
-            ))
+            .store_balancer_desired_state(&BalancerDesiredState::default())
             .await;
 
         assert!(matches!(
@@ -313,11 +289,9 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn storing_a_small_schema_on_a_character_device_fails_to_sync() {
-        let database = text_generation_file(PathBuf::from("/dev/full"));
+        let database = state_file(PathBuf::from("/dev/full"));
 
-        let store_result = database
-            .store_schema(&Schema::unconfigured(InferenceMode::TextGeneration))
-            .await;
+        let store_result = database.store_schema(&Schema::default()).await;
 
         assert!(matches!(
             store_result,
@@ -331,9 +305,9 @@ mod tests {
     async fn storing_a_large_schema_surfaces_the_write_error_during_write_all() {
         const TOKIO_FILE_BUFFER_BYTES: usize = 2 * 1024 * 1024;
 
-        let database = text_generation_file(PathBuf::from("/dev/full"));
+        let database = state_file(PathBuf::from("/dev/full"));
 
-        let mut schema = Schema::unconfigured(InferenceMode::TextGeneration);
+        let mut schema = Schema::default();
         schema.balancer_desired_state.model =
             AgentDesiredModel::LocalToAgent("x".repeat(TOKIO_FILE_BUFFER_BYTES * 2));
 
@@ -349,11 +323,9 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn storing_to_dev_full_surfaces_permission_denied() {
-        let database = text_generation_file(PathBuf::from("/dev/full"));
+        let database = state_file(PathBuf::from("/dev/full"));
 
-        let store_result = database
-            .store_schema(&Schema::unconfigured(InferenceMode::TextGeneration))
-            .await;
+        let store_result = database.store_schema(&Schema::default()).await;
 
         assert!(matches!(
             store_result,
@@ -363,30 +335,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persists_the_chat_template_override_across_instances() {
+    async fn persists_the_settings_of_inactive_inference_modes_across_instances() {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("state.json");
-        let chat_template_override = Some(ChatTemplate {
-            content: "{% for message in messages %}{{ message.content }}{% endfor %}".to_owned(),
-        });
         let desired_state = BalancerDesiredState {
-            inference_settings: BalancerInferenceSettings::TextGeneration(
-                BalancerTextGenerationSettings {
-                    chat_template_override,
-                    use_chat_template_override: true,
-                    ..BalancerTextGenerationSettings::default()
-                },
-            ),
-            ..text_generation_state_with_model("test_model_path")
+            decision: DecisionSettings {
+                pointer_head: AgentDesiredModel::LocalToAgent("pointer_head.gguf".to_owned()),
+            },
+            inference_mode: InferenceMode::Embeddings,
+            text_generation: BalancerTextGenerationSettings {
+                chat_template_override: Some(ChatTemplate {
+                    content: "{% for message in messages %}{{ message.content }}{% endfor %}"
+                        .to_owned(),
+                }),
+                use_chat_template_override: true,
+                ..BalancerTextGenerationSettings::default()
+            },
+            ..state_with_model("test_model_path")
         };
 
-        text_generation_file(path.clone())
+        state_file(path.clone())
             .store_balancer_desired_state(&desired_state)
             .await
             .unwrap();
 
         assert_eq!(
-            text_generation_file(path)
+            state_file(path)
                 .read_balancer_desired_state()
                 .await
                 .unwrap(),
@@ -402,36 +376,12 @@ mod tests {
             .await
             .unwrap();
 
-        let read_result = text_generation_file(path.clone())
-            .read_balancer_desired_state()
-            .await;
+        let read_result = state_file(path.clone()).read_balancer_desired_state().await;
 
         assert!(matches!(
             read_result,
             Err(StateDatabaseError::SchemaVersionUnsupported { found, path: unsupported_path })
                 if found == r#""1""# && unsupported_path == path
         ));
-    }
-
-    #[tokio::test]
-    async fn storing_a_state_of_another_mode_is_refused_and_leaves_the_file_untouched() {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path().join("state.json");
-        let database = text_generation_file(path.clone());
-
-        let store_result = database
-            .store_balancer_desired_state(&BalancerDesiredState::unconfigured(
-                InferenceMode::Embeddings,
-            ))
-            .await;
-
-        assert!(matches!(
-            store_result,
-            Err(StateDatabaseError::RequestedStateServesAnotherMode {
-                cluster_inference_mode: InferenceMode::TextGeneration,
-                requested_inference_mode: InferenceMode::Embeddings,
-            })
-        ));
-        assert!(metadata(&path).await.is_err());
     }
 }

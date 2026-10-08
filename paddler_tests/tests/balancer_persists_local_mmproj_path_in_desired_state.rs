@@ -2,7 +2,6 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
@@ -19,11 +18,10 @@ async fn balancer_persists_local_mmproj_path_in_desired_state() {
     let desired_state = desired_state_with_multimodal_projection(
         BalancerDesiredState {
             model: AgentDesiredModel::HuggingFace(reference),
-            ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+            ..BalancerDesiredState::default()
         },
         AgentDesiredModel::LocalToAgent(local_mmproj_path),
-    )
-    .expect("a text generation state must accept a multimodal projection");
+    );
 
     let cluster = start_cluster(ClusterParams {
         agents: Vec::new(),

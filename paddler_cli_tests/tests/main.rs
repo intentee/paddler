@@ -9,7 +9,7 @@ mod balancer_registers_multiple_agents_over_time;
 #[cfg(feature = "web_admin_panel")]
 mod balancer_serves_every_service_within_the_default_macos_open_file_limit;
 mod balancer_serves_on_the_addresses_it_announces;
-mod balancer_serves_typesafe_compatibility_on_the_address_it_announces;
 #[cfg(feature = "web_admin_panel")]
 mod balancer_web_admin_panel_shows_its_command_line_configuration;
+mod balancer_without_compatibility_flags_serves_no_compatibility_services;
 mod management_metrics_endpoint_sums_the_slots_of_registered_agents;

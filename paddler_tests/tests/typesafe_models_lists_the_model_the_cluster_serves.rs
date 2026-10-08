@@ -9,7 +9,7 @@ use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::decision_cluster_without_agents_params::decision_cluster_without_agents_params;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -38,9 +38,10 @@ async fn typesafe_models_lists_the_model_the_cluster_serves() {
         let cluster = start_cluster(ClusterParams {
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
                 model,
-                ..BalancerDesiredState::unconfigured(InferenceMode::Decision)
+                inference_mode: InferenceMode::Decision,
+                ..BalancerDesiredState::default()
             })),
-            ..decision_cluster_without_agents_params()
+            ..cluster_without_agents_serving(InferenceMode::Decision)
         })
         .await
         .expect("a decision balancer without agents must start");

@@ -60,10 +60,11 @@ impl BalancerServiceBundle {
             inference_service_configuration,
             management_service_configuration,
             max_buffered_requests,
-            serving_mode,
+            openai_service_configuration,
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
+            typesafe_service_configuration,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         }: BalancerRunnerConfig,
@@ -79,32 +80,21 @@ impl BalancerServiceBundle {
             return Err(BalancerRunnerError::StatsdReportingIntervalIsZero);
         }
 
-        let inference_mode = serving_mode.inference_mode();
-        let openai_service_configuration = serving_mode.openai_service_configuration();
-        let typesafe_service_configuration = serving_mode.typesafe_service_configuration();
         let (balancer_desired_state_tx, _initial_desired_state_rx) =
-            watch::channel(BalancerDesiredState::unconfigured(inference_mode));
+            watch::channel(BalancerDesiredState::default());
 
-        let agent_controller_pool = Arc::new(AgentControllerPool::new(inference_mode));
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
         let buffered_request_manager = Arc::new(BufferedRequestManager::new(
             agent_controller_pool.clone(),
             buffered_request_timeout,
             max_buffered_requests,
         ));
         let state_database: Arc<dyn StateDatabase> = match state_database_type {
-            StateDatabaseType::File(path) => Arc::new(File::new(
+            StateDatabaseType::File(path) => {
+                Arc::new(File::new(balancer_desired_state_tx.clone(), path))
+            }
+            StateDatabaseType::Memory(initial_desired_state) => Arc::new(Memory::new(
                 balancer_desired_state_tx.clone(),
-                inference_mode,
-                path,
-            )),
-            StateDatabaseType::Memory => Arc::new(Memory::new(
-                balancer_desired_state_tx.clone(),
-                inference_mode,
-                BalancerDesiredState::unconfigured(inference_mode),
-            )),
-            StateDatabaseType::MemoryStartingWith(initial_desired_state) => Arc::new(Memory::new(
-                balancer_desired_state_tx.clone(),
-                inference_mode,
                 *initial_desired_state,
             )),
         };
@@ -173,7 +163,6 @@ impl BalancerServiceBundle {
                             compat_typesafe_addr: typesafe_service_configuration
                                 .map(|CompatibilityServiceConfiguration { addr }| addr),
                             inference_addr: inference_service_configuration.addr.clone(),
-                            inference_mode,
                             management_addr: management_service_configuration.addr.clone(),
                             max_buffered_requests,
                             statsd_prefix: statsd_prefix.clone(),
@@ -208,7 +197,6 @@ impl BalancerServiceBundle {
             buffered_request_manager: buffered_request_manager.clone(),
             configuration: inference_service_configuration.clone(),
             http_listener: inference_http_listener,
-            inference_mode,
             web_admin_panel_addr,
         };
 
@@ -319,12 +307,11 @@ mod tests {
 
     use super::BalancerServiceBundle;
     use crate::balancer_runner_config::BalancerRunnerConfig;
-    use crate::balancer_serving_mode::BalancerServingMode;
 
     #[cfg(feature = "web_admin_panel")]
-    const EXPECTED_SERVICE_COUNT: usize = 6;
+    const EXPECTED_SERVICE_COUNT: usize = 7;
     #[cfg(not(feature = "web_admin_panel"))]
-    const EXPECTED_SERVICE_COUNT: usize = 5;
+    const EXPECTED_SERVICE_COUNT: usize = 6;
 
     fn fully_configured_runner_config() -> BalancerRunnerConfig {
         BalancerRunnerConfig {
@@ -339,16 +326,17 @@ mod tests {
                 cors_allowed_hosts: vec![],
             },
             max_buffered_requests: 30,
-            serving_mode: BalancerServingMode::TextGeneration {
-                openai_service_configuration: Some(CompatibilityServiceConfiguration {
-                    addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
-                }),
-            },
-            state_database_type: StateDatabaseType::Memory,
+            openai_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+            }),
+            state_database_type: StateDatabaseType::Memory(Box::default()),
             statsd_prefix: "paddler_balancer_runner_test_".to_owned(),
             statsd_service_configuration: Some(StatsdServiceConfiguration {
                 statsd_addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
                 statsd_reporting_interval: Duration::from_secs(10),
+            }),
+            typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
             }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
@@ -382,6 +370,10 @@ mod tests {
                 .addresses
                 .compat_openai
                 .map(|compat_openai| compat_openai.port()),
+            bundle
+                .addresses
+                .compat_typesafe
+                .map(|compat_typesafe| compat_typesafe.port()),
             Some(bundle.addresses.inference.port()),
             Some(bundle.addresses.management.port()),
             #[cfg(feature = "web_admin_panel")]
@@ -395,27 +387,6 @@ mod tests {
             bound_ports
                 .iter()
                 .all(|bound_port| bound_port.is_some_and(|port| port != 0))
-        );
-    }
-
-    #[tokio::test]
-    async fn reports_the_bound_address_of_the_typesafe_service() {
-        let bundle = BalancerServiceBundle::new(BalancerRunnerConfig {
-            serving_mode: BalancerServingMode::Decision {
-                typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
-                    addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
-                }),
-            },
-            ..fully_configured_runner_config()
-        })
-        .await
-        .expect("a decision bundle must bind its ephemeral addresses");
-
-        assert!(
-            bundle
-                .addresses
-                .compat_typesafe
-                .is_some_and(|compat_typesafe| compat_typesafe.port() != 0)
         );
     }
 }

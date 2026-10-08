@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use nanoid::nanoid;
 use serde::Serialize;
+use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
+use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
@@ -77,6 +79,11 @@ impl ClientInference {
         self.inference_socket_pool
             .send_request(cancellation_token, request_id, message)
             .await
+    }
+
+    #[must_use]
+    pub fn subscribe_to_cluster_inference_mode(&self) -> broadcast::Receiver<Notification> {
+        self.inference_socket_pool.subscribe_to_notifications()
     }
 
     pub async fn continue_from_conversation_history(

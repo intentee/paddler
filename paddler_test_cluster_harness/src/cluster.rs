@@ -15,8 +15,11 @@ use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
+use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -393,6 +396,33 @@ impl Cluster {
     where
         TIssueMatcher: Fn(&AgentIssue) -> bool,
     {
+        self.wait_for_first_agent(|agent| agent.status.issues.iter().any(&issue_matcher))
+            .await
+    }
+
+    pub async fn wait_for_first_agent_to_serve(
+        &mut self,
+        inference_mode: InferenceMode,
+    ) -> Result<AgentControllerPoolSnapshot> {
+        self.wait_for_first_agent(|agent| {
+            matches!(
+                agent.status.runtime,
+                AgentRuntimeStatus::Serving {
+                    inference_mode: served_inference_mode,
+                    ..
+                } if served_inference_mode == inference_mode
+            )
+        })
+        .await
+    }
+
+    async fn wait_for_first_agent<TAgentMatcher>(
+        &mut self,
+        agent_matcher: TAgentMatcher,
+    ) -> Result<AgentControllerPoolSnapshot>
+    where
+        TAgentMatcher: Fn(&AgentControllerSnapshot) -> bool,
+    {
         let agent_id = self
             .agent_ids
             .first()
@@ -402,9 +432,10 @@ impl Cluster {
         Ok(self
             .agents_watcher
             .until_agent(&agent_id, |snapshot| {
-                snapshot.agents.iter().any(|agent| {
-                    agent.id == agent_id && agent.status.issues.iter().any(&issue_matcher)
-                })
+                snapshot
+                    .agents
+                    .iter()
+                    .any(|agent| agent.id == agent_id && agent_matcher(agent))
             })
             .await?)
     }

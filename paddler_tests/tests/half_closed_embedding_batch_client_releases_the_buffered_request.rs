@@ -14,9 +14,10 @@ use paddler_tests::start_cluster::start_cluster;
 async fn half_closed_embedding_batch_client_releases_the_buffered_request() {
     let mut cluster = start_cluster(ClusterParams {
         agents: Vec::new(),
-        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState::unconfigured(
-            InferenceMode::Embeddings,
-        ))),
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            inference_mode: InferenceMode::Embeddings,
+            ..BalancerDesiredState::default()
+        })),
         wait_for_slots_ready: false,
         ..ClusterParams::default()
     })

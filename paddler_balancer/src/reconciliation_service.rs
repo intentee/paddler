@@ -64,7 +64,6 @@ mod tests {
     use trzcina::Service as _;
 
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::ReconciliationService;
     use crate::agent_controller_pool::AgentControllerPool;
@@ -76,22 +75,17 @@ mod tests {
     #[tokio::test]
     async fn stops_cleanly_when_its_state_database_closes_during_shutdown() {
         for _ in 0..RUNS_TO_EXERCISE_EVERY_BRANCH_ORDER {
-            let (balancer_desired_state_tx, balancer_desired_state_rx) = watch::channel(
-                BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
-            );
+            let (balancer_desired_state_tx, balancer_desired_state_rx) =
+                watch::channel(BalancerDesiredState::default());
             let shutdown = CancellationToken::new();
 
             shutdown.cancel();
             drop(balancer_desired_state_tx);
 
             Box::new(ReconciliationService {
-                agent_controller_pool: Arc::new(AgentControllerPool::new(
-                    InferenceMode::TextGeneration,
-                )),
+                agent_controller_pool: Arc::new(AgentControllerPool::default()),
                 balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                    BalancerApplicableState::from(BalancerDesiredState::unconfigured(
-                        InferenceMode::TextGeneration,
-                    )),
+                    BalancerApplicableState::from(BalancerDesiredState::default()),
                 )),
                 balancer_desired_state_rx,
             })

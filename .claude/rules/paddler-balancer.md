@@ -7,7 +7,15 @@ paths:
 
 - `paddler_balancer` crate is responsible for starting inference, and management servers
 - Paddler Agents connect to the balancer in order to handle the requests that the balancer dispatches
-- `paddler_balancer` provides compatibility services that expose vendor-compatible APIs: OpenAI compatibility in text-generation mode (built on `paddler_openai_translation`), and TypeSafe System One compatibility in decision mode (built on `paddler_typesafe_translation`)
+- `paddler_balancer` provides compatibility services that expose vendor-compatible APIs: OpenAI compatibility (built on `paddler_openai_translation`), and TypeSafe System One compatibility (built on `paddler_typesafe_translation`); each one is served whenever its address is configured
+
+# Inference Modes
+
+- the balancer desired state is the only source of truth for the inference mode; reconciliation transforms it into the applicable state, and agents receive only the active mode's settings
+- every route is registered in every mode; each handler first checks the applied mode with `BalancerApplicableStateHolder::require_inference_mode`, or reads the applied settings once and matches the variant it needs
+- a request of another mode is refused with `ClusterServesAnotherInferenceMode`: 503 over HTTP and in every compatibility layer, an in-band `InferenceModeMismatch` over the inference socket
+- the agent pool dispatches by free capacity only; an agent still serving the previous mode answers `InferenceModeMismatch`
+- the inference socket notifies its clients of the cluster's inference mode on connect and whenever it changes
 
 # Compatibility Layers
 

@@ -7,7 +7,6 @@ import {
   ChatTemplateContext,
   type ChatTemplateContextValue,
 } from "../contexts/ChatTemplateContext";
-import { textGenerationSettingsOf } from "../textGenerationSettingsOf";
 
 export function ChatTemplateContextProvider({
   children,
@@ -20,19 +19,16 @@ export function ChatTemplateContextProvider({
 
   const value = useMemo<ChatTemplateContextValue>(
     function () {
-      const textGenerationSettings =
-        textGenerationSettingsOf(balancerDesiredState);
+      const { text_generation: textGenerationSettings } = balancerDesiredState;
 
       function setTextGenerationSettings(
         changedSettings: Partial<BalancerTextGenerationSettings>,
       ) {
         setBalancerDesiredState({
           ...balancerDesiredState,
-          inference_settings: {
-            TextGeneration: {
-              ...textGenerationSettings,
-              ...changedSettings,
-            },
+          text_generation: {
+            ...textGenerationSettings,
+            ...changedSettings,
           },
         });
       }

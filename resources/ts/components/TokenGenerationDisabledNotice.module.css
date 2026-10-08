@@ -1,0 +1,8 @@
+.tokenGenerationDisabledNotice {
+  background-color: var(--color-highlight-1);
+  border: 2px solid var(--color-border);
+  border-bottom: none;
+  box-shadow: 4px 4px 0 var(--color-border);
+  margin: 0 var(--spacing-half);
+  padding: var(--spacing-half) var(--spacing-base);
+}

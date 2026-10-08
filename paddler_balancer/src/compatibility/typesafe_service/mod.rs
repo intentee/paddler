@@ -1,4 +1,5 @@
 pub mod http_route;
+pub mod inference_mode_refusal_http_response;
 pub mod system_one_http_response;
 pub mod typesafe_api_path;
 pub mod typesafe_compatibility_layer;

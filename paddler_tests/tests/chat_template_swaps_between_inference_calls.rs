@@ -68,8 +68,7 @@ async fn chat_template_swaps_between_inference_calls() {
             &desired_state_with_chat_template_override(
                 qwen3_desired_state(),
                 swapped_template.clone(),
-            )
-            .expect("a text generation state must accept a chat template override"),
+            ),
         )
         .await
         .expect("the balancer must accept the desired state");

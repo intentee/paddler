@@ -2,15 +2,14 @@
 
 use std::num::NonZeroU32;
 
-use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_cluster::start_subprocess_cluster;
-use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -55,23 +54,13 @@ async fn balancer_distributes_buffered_requests_across_two_agents() {
         streams.push(stream);
     }
 
-    let mut successful_responses = 0;
-
-    for mut stream in streams {
-        if let Some(item) = stream.next().await {
-            match item.expect("the message must be readable") {
-                Message::Response(_) => successful_responses += 1,
-                Message::Error(envelope) => {
-                    panic!(
-                        "expected success, got error {}: {}",
-                        envelope.error.code, envelope.error.description
-                    );
-                }
-            }
-        }
+    for stream in streams {
+        collect_generated_tokens(stream)
+            .await
+            .expect("every buffered request must be served")
+            .summary()
+            .expect("every served request must finish with a summary");
     }
-
-    assert_eq!(successful_responses, 5);
 
     cluster
         .shutdown()

@@ -5,7 +5,6 @@ use paddler_balancer::management_service::configuration::Configuration as Manage
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
 use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
-use paddler_balancer_runner::balancer_serving_mode::BalancerServingMode;
 use paddler_state_database::state_database_type::StateDatabaseType;
 use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
 use paddler_test_cluster_harness::longer_than_any_test_run::LONGER_THAN_ANY_TEST_RUN;
@@ -27,12 +26,11 @@ pub fn ephemeral_balancer_runner_params(
                 cors_allowed_hosts: vec![],
             },
             max_buffered_requests: 30,
-            serving_mode: BalancerServingMode::TextGeneration {
-                openai_service_configuration: None,
-            },
-            state_database_type: StateDatabaseType::Memory,
+            openai_service_configuration: None,
+            state_database_type: StateDatabaseType::Memory(Box::default()),
             statsd_prefix: "paddler_balancer_runner_test_".to_owned(),
             statsd_service_configuration: None,
+            typesafe_service_configuration: None,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: None,
         },

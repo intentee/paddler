@@ -25,12 +25,13 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 
 use crate::cluster_harness_error::ClusterHarnessError;
 
-const fn answered_request_id(message: &InferenceClientMessage) -> &str {
+const fn answered_request_id(message: &InferenceClientMessage) -> Option<&str> {
     match message {
         InferenceClientMessage::Error(ErrorEnvelope { request_id, .. })
         | InferenceClientMessage::Response(ResponseEnvelope { request_id, .. }) => {
-            request_id.as_str()
+            Some(request_id.as_str())
         }
+        InferenceClientMessage::Notification(_) => None,
     }
 }
 
@@ -49,9 +50,13 @@ impl RawInferenceSocket {
     }
 
     pub async fn next_answer(&mut self) -> Result<InferenceClientMessage, ClusterHarnessError> {
-        self.next_message()
-            .await?
-            .ok_or(ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer)
+        while let Some(message) = self.next_message().await? {
+            if answered_request_id(&message).is_some() {
+                return Ok(message);
+            }
+        }
+
+        Err(ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer)
     }
 
     pub async fn next_answer_to(
@@ -59,7 +64,7 @@ impl RawInferenceSocket {
         request_id: &str,
     ) -> Result<InferenceClientMessage, ClusterHarnessError> {
         while let Some(message) = self.next_message().await? {
-            if answered_request_id(&message) == request_id {
+            if answered_request_id(&message) == Some(request_id) {
                 return Ok(message);
             }
         }

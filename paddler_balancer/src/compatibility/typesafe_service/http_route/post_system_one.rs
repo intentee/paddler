@@ -3,9 +3,11 @@ use actix_web::http::StatusCode;
 use actix_web::web;
 use actix_web::web::post;
 
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
+use crate::compatibility::typesafe_service::inference_mode_refusal_http_response::inference_mode_refusal_http_response;
 use crate::compatibility::typesafe_service::system_one_http_response::system_one_http_response;
 use crate::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
 use crate::compatibility::typesafe_service::typesafe_error_body::TypeSafeErrorBody;
@@ -15,6 +17,13 @@ async fn respond(
     app_data: web::Data<CompatibilityAppData>,
     system_one_request: web::Json<SystemOneRequest>,
 ) -> HttpResponse {
+    if let Err(cluster_serves_another_inference_mode) = app_data
+        .balancer_applicable_state_holder
+        .require_inference_mode(InferenceMode::Decision)
+    {
+        return inference_mode_refusal_http_response(cluster_serves_another_inference_mode);
+    }
+
     match system_one_request.into_inner().translate() {
         Ok(translated) => {
             let decision_results = app_data.agent_result_stream(translated.decide_params.clone());

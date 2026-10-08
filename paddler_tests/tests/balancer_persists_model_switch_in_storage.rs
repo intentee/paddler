@@ -2,7 +2,6 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
@@ -18,7 +17,7 @@ async fn balancer_persists_model_switch_in_storage() {
 
     let initial_state = BalancerDesiredState {
         model: AgentDesiredModel::HuggingFace(reference),
-        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+        ..BalancerDesiredState::default()
     };
 
     let cluster = start_cluster(ClusterParams {
@@ -41,7 +40,7 @@ async fn balancer_persists_model_switch_in_storage() {
 
     let switched_state = BalancerDesiredState {
         model: AgentDesiredModel::LocalToAgent("/tmp/alternative-model.gguf".to_owned()),
-        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+        ..BalancerDesiredState::default()
     };
 
     cluster

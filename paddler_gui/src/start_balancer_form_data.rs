@@ -8,7 +8,6 @@ use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 use paddler_balancer_runner::balancer_defaults::BalancerDefaults;
 use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
-use paddler_balancer_runner::balancer_serving_mode::BalancerServingMode;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_state_database::state_database_type::StateDatabaseType;
@@ -47,18 +46,11 @@ fn balancer_runner_config(
             cors_allowed_hosts: vec![],
         },
         max_buffered_requests: BalancerDefaults::MAX_BUFFERED_REQUESTS,
-        serving_mode: match desired_state.inference_settings.inference_mode() {
-            InferenceMode::Decision => BalancerServingMode::Decision {
-                typesafe_service_configuration: None,
-            },
-            InferenceMode::Embeddings => BalancerServingMode::Embeddings,
-            InferenceMode::TextGeneration => BalancerServingMode::TextGeneration {
-                openai_service_configuration: None,
-            },
-        },
-        state_database_type: StateDatabaseType::MemoryStartingWith(Box::new(desired_state)),
+        openai_service_configuration: None,
+        state_database_type: StateDatabaseType::Memory(Box::new(desired_state)),
         statsd_prefix: BalancerDefaults::STATSD_PREFIX.to_owned(),
         statsd_service_configuration: None,
+        typesafe_service_configuration: None,
         #[cfg(feature = "web_admin_panel")]
         web_admin_panel_service_configuration: web_admin_panel_addr
             .map(|addr| WebAdminPanelServiceConfiguration { addr }),
@@ -115,7 +107,7 @@ impl StartBalancerFormData {
             balancer_address_error: None,
             inference_address: suggested_address_on(BalancerDefaults::INFERENCE_PORT),
             inference_address_error: None,
-            inference_mode: InferenceMode::TextGeneration,
+            inference_mode: InferenceMode::default(),
             launch: BalancerLaunch::NotRequested,
             model_error: None,
             selected_model: None,
@@ -184,7 +176,10 @@ impl StartBalancerFormData {
 
     fn desired_state(&self) -> Result<BalancerDesiredState, FormFieldError> {
         if self.add_model_later {
-            return Ok(BalancerDesiredState::unconfigured(self.inference_mode));
+            return Ok(BalancerDesiredState {
+                inference_mode: self.inference_mode,
+                ..BalancerDesiredState::default()
+            });
         }
 
         self.selected_model
@@ -232,7 +227,6 @@ mod tests {
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
     use paddler_messaging::inference_mode::InferenceMode;
     use paddler_state_database::state_database_type::StateDatabaseType;
     use paddler_test_cluster_harness::ephemeral_loopback_addr::EPHEMERAL_LOOPBACK_ADDR;
@@ -296,9 +290,9 @@ mod tests {
             StartBalancerFormAction::StartBalancer(runner_config)
                 if matches!(
                     &runner_config.state_database_type,
-                    StateDatabaseType::MemoryStartingWith(desired_state)
+                    StateDatabaseType::Memory(desired_state)
                         if **desired_state
-                            == BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+                            == BalancerDesiredState::default()
                 )
         ));
     }
@@ -316,7 +310,11 @@ mod tests {
             assert!(matches!(
                 form.update(StartBalancerFormMessage::Confirm),
                 StartBalancerFormAction::StartBalancer(runner_config)
-                    if runner_config.serving_mode.inference_mode() == inference_mode
+                    if matches!(
+                        &runner_config.state_database_type,
+                        StateDatabaseType::Memory(desired_state)
+                            if desired_state.inference_mode == inference_mode
+                    )
             ));
         }
     }
@@ -391,14 +389,10 @@ mod tests {
             StartBalancerFormAction::StartBalancer(runner_config)
                 if matches!(
                     &runner_config.state_database_type,
-                    StateDatabaseType::MemoryStartingWith(desired_state)
+                    StateDatabaseType::Memory(desired_state)
                         if desired_state.model == expected_model
-                            && matches!(
-                                &desired_state.inference_settings,
-                                BalancerInferenceSettings::TextGeneration(text_generation_settings)
-                                    if text_generation_settings.multimodal.projection
-                                        == expected_multimodal_projection
-                            )
+                            && desired_state.text_generation.multimodal.projection
+                                == expected_multimodal_projection
                 )
         ));
     }

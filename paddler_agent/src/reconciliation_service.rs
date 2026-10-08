@@ -76,7 +76,6 @@ mod tests {
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
-    use paddler_messaging::inference_mode::InferenceMode;
 
     use crate::agent_applicable_state::AgentApplicableState;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
@@ -86,9 +85,7 @@ mod tests {
     fn desired_state_with_model(model: AgentDesiredModel) -> AgentDesiredState {
         AgentDesiredState {
             model,
-            ..AgentDesiredState::from(BalancerDesiredState::unconfigured(
-                InferenceMode::TextGeneration,
-            ))
+            ..AgentDesiredState::from(BalancerDesiredState::default())
         }
     }
 

@@ -24,13 +24,20 @@ async fn balancer_serves_on_the_addresses_it_announces() {
         .expect("the announced inference address must serve health checks");
     let compat_openai_health = cluster
         .compat_openai_health_client()
-        .expect("a text generation cluster must serve OpenAI compatibility")
+        .expect("the balancer must serve OpenAI compatibility")
         .get_health(CancellationToken::new())
         .await
         .expect("the announced OpenAI compatibility address must serve health checks");
+    let compat_typesafe_health = cluster
+        .compat_typesafe_health_client()
+        .expect("the balancer must serve TypeSafe compatibility")
+        .get_health(CancellationToken::new())
+        .await
+        .expect("the announced TypeSafe compatibility address must serve health checks");
 
     assert_eq!(inference_health, "OK");
     assert_eq!(compat_openai_health, "OK");
+    assert_eq!(compat_typesafe_health, "OK");
 
     cluster
         .shutdown()

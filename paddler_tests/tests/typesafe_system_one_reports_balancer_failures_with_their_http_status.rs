@@ -8,7 +8,7 @@ use tokio::join;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_agent_socket::RawAgentSocket;
-use paddler_tests::decision_cluster_without_agents_params::decision_cluster_without_agents_params;
+use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::serving_agent_status::serving_agent_status;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -22,7 +22,7 @@ fn noul_request() -> Value {
 async fn typesafe_system_one_reports_balancer_failures_with_their_http_status() {
     let waiting_cluster = start_cluster(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
-        ..decision_cluster_without_agents_params()
+        ..cluster_without_agents_serving(InferenceMode::Decision)
     })
     .await
     .expect("a decision balancer without agents must start");
@@ -75,7 +75,7 @@ async fn typesafe_system_one_reports_balancer_failures_with_their_http_status() 
 
     let overflowing_cluster = start_cluster(ClusterParams {
         max_buffered_requests: 0,
-        ..decision_cluster_without_agents_params()
+        ..cluster_without_agents_serving(InferenceMode::Decision)
     })
     .await
     .expect("a decision balancer without agents must start");

@@ -100,7 +100,6 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::atomic_value::AtomicValue;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
     use super::BufferedRequestManager;
@@ -117,7 +116,7 @@ mod tests {
 
     fn race_callers_for_one_buffered_place(racing_callers: usize) -> RaceOutcome {
         let buffered_request_manager = BufferedRequestManager::new(
-            Arc::new(AgentControllerPool::new(InferenceMode::TextGeneration)),
+            Arc::new(AgentControllerPool::default()),
             Duration::MAX,
             BUFFER_CAPACITY,
         );

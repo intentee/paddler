@@ -7,15 +7,15 @@ import React, {
 } from "react";
 import { useLocation } from "wouter";
 
-import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
 import { type BalancerDesiredState } from "@intentee/paddler-client/schemas/BalancerDesiredState";
-import { type BalancerInferenceSettings } from "@intentee/paddler-client/schemas/BalancerInferenceSettings";
+import { inferenceModes } from "@intentee/paddler-client/schemas/InferenceMode";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
 import { EmbeddingParametersFields } from "./EmbeddingParametersFields";
 import { ModelRuntimeParametersFields } from "./ModelRuntimeParametersFields";
+import { ParameterSelect } from "./ParameterSelect";
 import { TextGenerationSettingsFields } from "./TextGenerationSettingsFields";
 
 import {
@@ -33,41 +33,6 @@ import {
   changeModelForm__submitButton,
 } from "./ChangeModelForm.module.css";
 
-function withMultimodalProjection(
-  inferenceSettings: BalancerInferenceSettings,
-  projection: AgentDesiredModel,
-): BalancerInferenceSettings {
-  if (!("TextGeneration" in inferenceSettings)) {
-    return inferenceSettings;
-  }
-
-  return {
-    TextGeneration: {
-      ...inferenceSettings.TextGeneration,
-      multimodal: {
-        ...inferenceSettings.TextGeneration.multimodal,
-        projection,
-      },
-    },
-  };
-}
-
-function withPointerHead(
-  inferenceSettings: BalancerInferenceSettings,
-  pointerHead: AgentDesiredModel,
-): BalancerInferenceSettings {
-  if (!("Decision" in inferenceSettings)) {
-    return inferenceSettings;
-  }
-
-  return {
-    Decision: {
-      ...inferenceSettings.Decision,
-      pointer_head: pointerHead,
-    },
-  };
-}
-
 export function ChangeModelForm({
   defaultBaseModelUri,
   defaultMultimodalProjectionUri,
@@ -78,12 +43,12 @@ export function ChangeModelForm({
   defaultPointerHeadUri: null | string;
 }) {
   const [, navigate] = useLocation();
-  const { balancerDesiredState: editedDesiredState } = useContext(
-    BalancerDesiredStateContext,
-  );
-  const { inferenceMode, managementAddr } = useContext(
-    PaddlerConfigurationContext,
-  );
+  const {
+    balancerDesiredState: editedDesiredState,
+    setBalancerDesiredState: setEditedDesiredState,
+  } = useContext(BalancerDesiredStateContext);
+  const { inference_mode: inferenceMode } = editedDesiredState;
+  const { managementAddr } = useContext(PaddlerConfigurationContext);
   const {
     agentDesiredModelState: baseModelAgentDesiredModelState,
     modelUri: baseModelUri,
@@ -139,14 +104,19 @@ export function ChangeModelForm({
 
       const desiredState: BalancerDesiredState = Object.freeze({
         ...editedDesiredState,
-        inference_settings: withPointerHead(
-          withMultimodalProjection(
-            editedDesiredState.inference_settings,
-            multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
-          ),
-          pointerHeadAgentDesiredModelState.agentDesiredModel,
-        ),
+        decision: {
+          ...editedDesiredState.decision,
+          pointer_head: pointerHeadAgentDesiredModelState.agentDesiredModel,
+        },
         model: baseModelAgentDesiredModelState.agentDesiredModel,
+        text_generation: {
+          ...editedDesiredState.text_generation,
+          multimodal: {
+            ...editedDesiredState.text_generation.multimodal,
+            projection:
+              multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
+          },
+        },
       });
 
       return desiredState;
@@ -238,6 +208,21 @@ export function ChangeModelForm({
       </aside>
       <main className={changeModelForm__main}>
         <form className={changeModelForm__form} onSubmit={onSubmit}>
+          <fieldset className={changeModelForm__parameters}>
+            <legend>Inference Mode</legend>
+            <ParameterSelect
+              description="What the cluster serves; switching it reloads every agent, and requests of the other modes are refused"
+              name="inference_mode"
+              onValue={function (selectedInferenceMode) {
+                setEditedDesiredState({
+                  ...editedDesiredState,
+                  inference_mode: selectedInferenceMode,
+                });
+              }}
+              options={inferenceModes}
+              value={inferenceMode}
+            />
+          </fieldset>
           <label className={changeModelForm__formLabel}>
             <div className={changeModelForm__formLabel__title}>
               Base Model URI

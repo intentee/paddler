@@ -51,8 +51,7 @@ async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_reques
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &desired_state_with_halved_image_resize(initial_desired_state)
-                .expect("the desired state must be derivable"),
+            &desired_state_with_halved_image_resize(initial_desired_state),
         )
         .await
         .expect("the balancer must accept the desired state");

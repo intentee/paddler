@@ -5,8 +5,6 @@ use nanoid::nanoid;
 use serde::Deserialize;
 
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
-use paddler_messaging::agent_inference_settings::AgentInferenceSettings;
-use paddler_messaging::agent_text_generation_settings::AgentTextGenerationSettings;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -49,7 +47,9 @@ impl ResponsesRequest {
     pub fn translate(
         self,
         now: SystemTime,
-        agent_inference_settings: &AgentInferenceSettings,
+        SamplingParameters {
+            temperature, top_p, ..
+        }: &SamplingParameters,
     ) -> Result<TranslatedResponsesRequest, OpenAITranslationError> {
         let Self {
             model,
@@ -94,18 +94,6 @@ impl ResponsesRequest {
             .collect::<Result<Vec<_>, _>>()?;
 
         let created_at = timestamp_from(now)?;
-        let AgentInferenceSettings::TextGeneration(AgentTextGenerationSettings {
-            sampling_parameters:
-                SamplingParameters {
-                    temperature, top_p, ..
-                },
-            ..
-        }) = agent_inference_settings
-        else {
-            return Err(OpenAITranslationError::InferenceModeMismatch {
-                inference_mode: agent_inference_settings.inference_mode(),
-            });
-        };
         let header = ResponsesResponseHeader {
             created_at,
             id: format!("resp_{}", nanoid!()),
@@ -147,8 +135,7 @@ mod tests {
     use serde_json::from_value;
     use serde_json::json;
 
-    use paddler_messaging::agent_inference_settings::AgentInferenceSettings;
-    use paddler_messaging::agent_text_generation_settings::AgentTextGenerationSettings;
+    use paddler_inference_parameters::sampling_parameters::SamplingParameters;
     use paddler_messaging::conversation_message_content::ConversationMessageContent;
     use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
     use paddler_messaging::grammar_constraint::GrammarConstraint;
@@ -160,15 +147,11 @@ mod tests {
     use crate::openai_translation_error::OpenAITranslationError;
     use crate::translated_responses_request::TranslatedResponsesRequest;
 
-    fn text_generation_settings() -> AgentInferenceSettings {
-        AgentInferenceSettings::TextGeneration(AgentTextGenerationSettings::default())
-    }
-
     fn translated_from(value: Value) -> TranslatedResponsesRequest {
         let params: ResponsesRequest = from_value(value).unwrap();
 
         params
-            .translate(UNIX_EPOCH, &text_generation_settings())
+            .translate(UNIX_EPOCH, &SamplingParameters::default())
             .unwrap()
     }
 
@@ -453,7 +436,7 @@ mod tests {
         .unwrap();
 
         assert!(matches!(
-            params.translate(UNIX_EPOCH, &text_generation_settings()),
+            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
             Err(OpenAITranslationError::ToolRejected(
                 RequestParamsValidationError::RequiredFieldNotInProperties { field }
             )) if field == "absent"

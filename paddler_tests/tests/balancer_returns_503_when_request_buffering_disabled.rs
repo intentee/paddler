@@ -47,14 +47,10 @@ async fn balancer_returns_503_when_request_buffering_disabled() {
         .expect("inference stream must yield a message")
         .expect("the message must be readable");
 
-    match message {
-        Message::Error(envelope) => {
-            assert_eq!(envelope.error.code, 503);
-        }
-        Message::Response(_) => {
-            panic!("expected buffer overflow error, got success");
-        }
-    }
+    assert!(matches!(
+        message,
+        Message::Error(envelope) if envelope.error.code == 503
+    ));
 
     cluster
         .shutdown()

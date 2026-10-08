@@ -5,10 +5,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_balancer_runner::balancer_runner::BalancerRunner;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::chat_template::ChatTemplate;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_state_database::file::File as StateDatabaseFile;
 use paddler_state_database::state_database::StateDatabase as _;
 use paddler_state_database::state_database_type::StateDatabaseType;
@@ -21,26 +19,20 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
         TempDir::new().expect("a temporary state database directory must be creatable");
     let state_database_path = state_database_directory.path().join("state.json");
     let persisted_state = BalancerDesiredState {
-        inference_settings: BalancerInferenceSettings::TextGeneration(
-            BalancerTextGenerationSettings {
-                chat_template_override: Some(ChatTemplate {
-                    content: "persisted-chat-template".to_owned(),
-                }),
-                use_chat_template_override: true,
-                ..BalancerTextGenerationSettings::default()
-            },
-        ),
         model: AgentDesiredModel::LocalToAgent("persisted-model".to_owned()),
-        ..BalancerDesiredState::unconfigured(InferenceMode::TextGeneration)
+        text_generation: BalancerTextGenerationSettings {
+            chat_template_override: Some(ChatTemplate {
+                content: "persisted-chat-template".to_owned(),
+            }),
+            use_chat_template_override: true,
+            ..BalancerTextGenerationSettings::default()
+        },
+        ..BalancerDesiredState::default()
     };
-    let (balancer_desired_state_tx, _balancer_desired_state_rx) = watch::channel(
-        BalancerDesiredState::unconfigured(InferenceMode::TextGeneration),
-    );
-    let state_database = StateDatabaseFile::new(
-        balancer_desired_state_tx,
-        InferenceMode::TextGeneration,
-        state_database_path.clone(),
-    );
+    let (balancer_desired_state_tx, _balancer_desired_state_rx) =
+        watch::channel(BalancerDesiredState::default());
+    let state_database =
+        StateDatabaseFile::new(balancer_desired_state_tx, state_database_path.clone());
 
     state_database
         .store_balancer_desired_state(&persisted_state)

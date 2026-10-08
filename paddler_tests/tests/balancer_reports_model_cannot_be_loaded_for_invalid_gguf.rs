@@ -1,11 +1,8 @@
-use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::balancer_inference_settings::BalancerInferenceSettings;
-use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::decision_settings::DecisionSettings;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -23,19 +20,22 @@ async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
     )
     .to_owned();
 
-    for inference_settings in [
-        BalancerInferenceSettings::Decision(DecisionSettings {
-            pointer_head: AgentDesiredModel::LocalToAgent(pointer_head_path_on_agent.clone()),
-        }),
-        BalancerInferenceSettings::Embeddings(EmbeddingParameters::default()),
-        BalancerInferenceSettings::TextGeneration(BalancerTextGenerationSettings::default()),
+    for inference_mode in [
+        InferenceMode::Decision,
+        InferenceMode::Embeddings,
+        InferenceMode::TextGeneration,
     ] {
         let mut cluster = start_cluster(ClusterParams {
             agents: AgentConfig::uniform(1, DECISION_SLOTS),
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-                inference_settings,
+                decision: DecisionSettings {
+                    pointer_head: AgentDesiredModel::LocalToAgent(
+                        pointer_head_path_on_agent.clone(),
+                    ),
+                },
+                inference_mode,
                 model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),
-                model_runtime_parameters: ModelRuntimeParameters::default(),
+                ..BalancerDesiredState::default()
             })),
             wait_for_slots_ready: false,
             ..ClusterParams::default()

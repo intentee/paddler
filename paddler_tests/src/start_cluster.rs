@@ -13,8 +13,6 @@ use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer_runner::balancer_runner::BalancerRunner;
 use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
 use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
-use paddler_balancer_runner::balancer_serving_mode::BalancerServingMode;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_state_database::state_database_type::StateDatabaseType;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -42,20 +40,6 @@ pub async fn start_cluster(
 
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
         .context("failed to parse state_database_url")?;
-    let serving_mode = match desired_state.inference_mode() {
-        InferenceMode::Decision => BalancerServingMode::Decision {
-            typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
-                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
-            }),
-        },
-        InferenceMode::Embeddings => BalancerServingMode::Embeddings,
-        InferenceMode::TextGeneration => BalancerServingMode::TextGeneration {
-            openai_service_configuration: Some(CompatibilityServiceConfiguration {
-                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
-            }),
-        },
-    };
-
     let balancer_runner = BalancerRunner::start(BalancerRunnerParams {
         runner_config: BalancerRunnerConfig {
             buffered_request_timeout,
@@ -69,10 +53,15 @@ pub async fn start_cluster(
                 cors_allowed_hosts: management_cors_allowed_hosts,
             },
             max_buffered_requests,
-            serving_mode,
+            openai_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+            }),
             state_database_type,
             statsd_prefix: "paddler_tests_".to_owned(),
             statsd_service_configuration: None,
+            typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+            }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: None,
         },
