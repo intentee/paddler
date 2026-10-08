@@ -4,7 +4,7 @@
 
 RUST_LOG ?= debug
 
-PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings paddler_agent_pointer_head paddler_agent_runner paddler_agent_runtime paddler_agent_status paddler_agent_text_generation paddler_balancer paddler_balancer_runner paddler_cache_dir paddler_cli paddler_client paddler_download_manager paddler_gui paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_model_source paddler_openai_translation paddler_request_registry paddler_service_thread paddler_state_database paddler_tool_call_validator paddler_typesafe_translation
+PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings paddler_agent_pointer_head paddler_agent_runtime paddler_agent_status paddler_agent_text_generation paddler_balancer paddler_bootstrap paddler_cache_dir paddler_cli paddler_client paddler_download_manager paddler_image_decoder paddler_inference_parameters paddler_messaging paddler_model_source paddler_openai_translation paddler_request_registry paddler_state_database paddler_tool_call_validator paddler_typesafe_translation
 PADDLER_SOURCES := $(shell find $(addsuffix /src,$(PADDLER_CRATES)) -name '*.rs') $(addsuffix /Cargo.toml,$(PADDLER_CRATES)) Cargo.toml Cargo.lock
 FRONTEND_SOURCES := $(shell find resources paddler_client_javascript/src -type f) paddler_client_javascript/package.json $(wildcard jarmuz/*.mjs)
 JS_CLIENT_SOURCES := $(shell find paddler_client_javascript/src -type f) paddler_client_javascript/package.json paddler_client_javascript/tsconfig.json
@@ -104,9 +104,6 @@ target/cuda/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/cuda/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features cuda,web_admin_panel --target-dir target/cuda
 
-target/cuda/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_gui --features cuda,web_admin_panel --target-dir target/cuda
-
 target/debug/paddler: $(PADDLER_SOURCES)
 	cargo build -p paddler_cli
 
@@ -122,14 +119,8 @@ target/metal/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/metal/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
 
-target/metal/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_gui --features metal,web_admin_panel --target-dir target/metal
-
 target/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build --release -p paddler_cli --features web_admin_panel
-
-target/release/paddler_gui: $(PADDLER_SOURCES) esbuild-meta.json
-	cargo build --release -p paddler_gui --features web_admin_panel
 
 target/test-model-cards.stamp: $(wildcard paddler_test_cluster_harness/src/model_card/*.rs) paddler_test_cluster_harness/tests/every_model_card_resolves_from_the_hugging_face_cache.rs
 	cargo test -p paddler_test_cluster_harness --features tests_that_use_llms --test every_model_card_resolves_from_the_hugging_face_cache
@@ -202,19 +193,16 @@ test.coverage: esbuild-meta.json node_modules target/kev/model.gguf target/kev/p
 		--gated paddler_agent_decision=95.99 \
 		--gated paddler_agent_embeddings=98.04 \
 		--gated paddler_agent_pointer_head=100 \
-		--gated paddler_agent_runner=100 \
 		--gated paddler_agent_runtime=99 \
 		--gated paddler_agent_status=100 \
 		--gated paddler_agent_text_generation=96.77 \
 		--gated paddler_balancer=99 \
-		--gated paddler_balancer_runner=100 \
+		--gated paddler_bootstrap=100 \
 		--gated paddler_cache_dir=100 \
 		--gated paddler_cli=99 \
 		--gated paddler_cli_tests=94 \
 		--gated paddler_client=99 \
 		--gated paddler_download_manager=99 \
-		--gated paddler_gui=91 \
-		--gated paddler_gui_tests=97 \
 		--gated paddler_image_decoder=100 \
 		--gated paddler_inference_parameters=100 \
 		--gated paddler_local_http_fixture=89 \
@@ -224,7 +212,6 @@ test.coverage: esbuild-meta.json node_modules target/kev/model.gguf target/kev/p
 		--gated paddler_openai_translation=100 \
 		--gated paddler_opencode_tests=79 \
 		--gated paddler_request_registry=100 \
-		--gated paddler_service_thread=100 \
 		--gated paddler_state_database=99 \
 		--gated paddler_test_cluster_harness=94 \
 		--gated paddler_tests=98 \

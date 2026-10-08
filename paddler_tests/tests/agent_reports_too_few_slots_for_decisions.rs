@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use paddler_agent_decision::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -21,7 +22,7 @@ async fn agent_reports_too_few_slots_for_decisions() {
             *issue
                 == AgentIssue::SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams {
                     desired_slots: 1,
-                    required_slots: 2,
+                    required_slots: DECISION_SLOTS_MINIMUM,
                 })
         })
         .await

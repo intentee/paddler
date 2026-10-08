@@ -27,18 +27,19 @@ pub mod load_test_image_data_uri;
 pub mod longer_than_any_test_run;
 pub mod managed_process;
 pub mod model_card;
+pub mod noul_system_one_request;
 pub mod openai_api_client;
+pub mod pointer_head_fixture;
 pub mod raw_agent_socket;
 pub mod raw_inference_socket;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot;
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub mod resource_snapshot_diff;
 pub mod running_agent;
 pub mod running_balancer;
 pub mod snapshots_stream;
 pub mod snapshots_watcher;
 pub mod state_database_file;
+pub mod synthetic_pointer_head_fixture;
 pub mod token_result_with_producer;
 pub mod typesafe_api_client;
 pub mod typesafe_api_response;

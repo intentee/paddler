@@ -6,10 +6,11 @@ use actix_web::web;
 use actix_web::web::post;
 
 use paddler_messaging::api_path::ApiPath;
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::validates::Validates as _;
 
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::inference_service::app_data::AppData;
 use crate::invalid_request_parameters_description::invalid_request_parameters_description;
@@ -23,7 +24,7 @@ async fn respond(
 ) -> Result<impl Responder, Error> {
     app_data
         .balancer_applicable_state_holder
-        .require_inference_mode(InferenceMode::Decision)
+        .require_inference_mode(DecideParams::INFERENCE_MODE)
         .map_err(ErrorServiceUnavailable)?;
 
     let validated_params = params.into_inner().validate().map_err(|validation_error| {

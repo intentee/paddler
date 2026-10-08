@@ -43,7 +43,8 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
         ],
     )
     .await
-    .expect("the balancer must start and announce its addresses");
+    .expect("the balancer must start and announce its addresses")
+    .running_balancer;
     let web_admin_panel_addr = running_balancer
         .addresses
         .web_admin_panel

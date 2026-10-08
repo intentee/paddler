@@ -1,7 +1,6 @@
 use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 
-use crate::arguments_to_tool_call_string::arguments_to_tool_call_string;
 use crate::assistant_role::ASSISTANT_ROLE;
 use crate::responses_content_part::ResponsesContentPart;
 use crate::responses_item_status::ResponsesItemStatus;
@@ -33,9 +32,13 @@ pub enum ResponsesOutputItem {
 
 impl ResponsesOutputItem {
     #[must_use]
-    pub fn completed_function_call(id: String, parsed_tool_call: &ParsedToolCall) -> Self {
+    pub fn completed_function_call(
+        id: String,
+        parsed_tool_call: &ParsedToolCall,
+        arguments: String,
+    ) -> Self {
         Self::FunctionCall {
-            arguments: arguments_to_tool_call_string(&parsed_tool_call.arguments),
+            arguments,
             call_id: parsed_tool_call.id.clone(),
             id,
             name: parsed_tool_call.name.clone(),

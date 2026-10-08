@@ -15,7 +15,7 @@ requests = "==2.34.2"
 sentencepiece = "==0.2.2"
 torch = [
     { version = "==2.11.0+cpu", source = "pytorch-cpu", markers = "sys_platform == 'linux'" },
-    { version = "==2.11.0", source = "PyPI", markers = "sys_platform != 'linux'" },
+    { version = "==2.11.0", source = "PyPI", markers = "sys_platform == 'darwin'" },
 ]
 tqdm = "==4.70.1"
 transformers = "==4.57.6"

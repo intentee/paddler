@@ -48,6 +48,7 @@ impl ActiveDecisionRequest {
             layout,
             slot_guard,
             started_at,
+            ..
         }: PreparedDecisionRequest,
         DecisionAdmission {
             promised_cells,

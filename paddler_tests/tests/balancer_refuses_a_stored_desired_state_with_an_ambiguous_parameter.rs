@@ -3,7 +3,7 @@ use serde_json::to_string;
 use serde_json::to_value;
 use tokio::fs::write;
 
-use paddler_balancer_runner::balancer_runner_error::BalancerRunnerError;
+use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_state_database::state_database_error::StateDatabaseError;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
@@ -44,8 +44,8 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
         matches!(
             start_error
                 .as_ref()
-                .and_then(|error| error.downcast_ref::<BalancerRunnerError>()),
-            Some(BalancerRunnerError::StateDatabaseReadFailed {
+                .and_then(|error| error.downcast_ref::<BootstrapError>()),
+            Some(BootstrapError::StateDatabaseReadFailed {
                 source: StateDatabaseError::FileContentsInvalid { .. }
             })
         ),

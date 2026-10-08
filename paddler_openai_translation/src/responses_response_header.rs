@@ -3,6 +3,7 @@ use llama_cpp_bindings_types::TokenUsage;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
 
+use crate::arguments_to_tool_call_string::arguments_to_tool_call_string;
 use crate::completes_generation::CompletesGeneration;
 use crate::generated_output::GeneratedOutput;
 use crate::responses_output_item::ResponsesOutputItem;
@@ -89,6 +90,7 @@ impl CompletesGeneration for ResponsesResponseHeader {
             output.push(ResponsesOutputItem::completed_function_call(
                 ResponsesOutputItemKind::FunctionCall.item_id(output.len()),
                 parsed_call,
+                arguments_to_tool_call_string(&parsed_call.arguments),
             ));
         }
 

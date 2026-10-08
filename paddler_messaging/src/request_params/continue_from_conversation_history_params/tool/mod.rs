@@ -2,6 +2,7 @@ pub mod tool_params;
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -21,6 +22,14 @@ impl Validates<Tool<ValidatedParametersSchema>> for Tool<RawParametersSchema> {
     fn validate(self) -> Result<Tool<ValidatedParametersSchema>, RequestParamsValidationError> {
         match self {
             Self::Function(function_call) => Ok(Tool::Function(function_call.validate()?)),
+        }
+    }
+}
+
+impl From<&Tool<ValidatedParametersSchema>> for Tool<Value> {
+    fn from(tool: &Tool<ValidatedParametersSchema>) -> Self {
+        match tool {
+            Tool::Function(function_call) => Self::Function(FunctionCall::from(function_call)),
         }
     }
 }

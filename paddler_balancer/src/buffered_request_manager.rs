@@ -6,6 +6,7 @@ use tokio::time::error::Elapsed;
 use tokio::time::timeout;
 
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
@@ -42,13 +43,16 @@ impl BufferedRequestManager {
     }
 
     #[must_use]
-    pub fn take_available_agent(&self) -> Option<DispatchedAgent> {
+    pub fn take_available_agent(&self, inference_mode: InferenceMode) -> Option<DispatchedAgent> {
         self.agent_controller_pool
-            .take_least_busy_agent_controller()
+            .take_least_busy_agent_controller(inference_mode)
     }
 
-    pub async fn wait_for_available_agent(&self) -> BufferedRequestAgentWaitResult {
-        if let Some(dispatched_agent) = self.take_available_agent() {
+    pub async fn wait_for_available_agent(
+        &self,
+        inference_mode: InferenceMode,
+    ) -> BufferedRequestAgentWaitResult {
+        if let Some(dispatched_agent) = self.take_available_agent(inference_mode) {
             return BufferedRequestAgentWaitResult::Found(dispatched_agent);
         }
 
@@ -58,7 +62,8 @@ impl BufferedRequestManager {
 
         match timeout(
             self.buffered_request_timeout,
-            self.agent_controller_pool.next_available_agent(),
+            self.agent_controller_pool
+                .next_available_agent(inference_mode),
         )
         .await
         {
@@ -100,6 +105,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
     use super::BufferedRequestManager;
@@ -145,7 +151,8 @@ mod tests {
                         caller_runtime.block_on(async {
                             if let Some(wait_result) = admitted_callers_release
                                 .run_until_cancelled(
-                                    buffered_request_manager.wait_for_available_agent(),
+                                    buffered_request_manager
+                                        .wait_for_available_agent(InferenceMode::TextGeneration),
                                 )
                                 .await
                                 && discriminant(&wait_result)

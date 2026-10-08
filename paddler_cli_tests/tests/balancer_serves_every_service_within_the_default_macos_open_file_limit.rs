@@ -42,7 +42,8 @@ async fn balancer_serves_every_service_within_the_default_macos_open_file_limit(
         ],
     )
     .await
-    .expect("the balancer must start and announce its addresses");
+    .expect("the balancer must start and announce its addresses")
+    .running_balancer;
     let web_admin_panel_addr = running_balancer
         .addresses
         .web_admin_panel

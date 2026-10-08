@@ -15,7 +15,8 @@ async fn balancer_without_compatibility_flags_serves_no_compatibility_services()
         ],
     )
     .await
-    .expect("the balancer must start and announce its addresses");
+    .expect("the balancer must start and announce its addresses")
+    .running_balancer;
 
     let compat_openai_addr = running_balancer.compat_openai_addr();
     let compat_typesafe_addr = running_balancer.compat_typesafe_addr();

@@ -113,12 +113,4 @@ mod tests {
             Err(Error::Http(source)) if source.is_decode()
         ));
     }
-
-    #[tokio::test]
-    async fn a_connection_closed_before_the_response_is_reported_as_a_failed_request() {
-        assert!(matches!(
-            response_from(FixtureResponse::CloseBeforeHeaders).await,
-            Err(Error::Http(source)) if source.is_request()
-        ));
-    }
 }

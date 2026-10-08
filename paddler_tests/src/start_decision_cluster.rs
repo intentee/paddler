@@ -1,11 +1,11 @@
 use anyhow::Result;
 
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
 
 use crate::decision_cluster_params::DecisionClusterParams;
 use crate::start_cluster::start_cluster;
@@ -16,15 +16,12 @@ pub async fn start_decision_cluster(
         context_size,
         model_card,
         n_batch,
-        pointer_head_fixture,
+        pointer_head_fixture: pointer_head_fixture_name,
         wait_for_slots_ready,
     }: DecisionClusterParams,
 ) -> Result<Cluster> {
     let desired_state =
-        model_card.into_decision_desired_state(AgentDesiredModel::LocalToAgent(format!(
-            "{}/../fixtures/{pointer_head_fixture}",
-            env!("CARGO_MANIFEST_DIR")
-        )));
+        model_card.into_decision_desired_state(pointer_head_fixture(pointer_head_fixture_name));
 
     start_cluster(ClusterParams {
         agents,

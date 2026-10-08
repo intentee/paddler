@@ -5,6 +5,7 @@ use llama_cpp_bindings::ChatMessageParser;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
 use rand::Rng as _;
 use rand::rng;
+use serde_json::Value;
 use serde_json::to_string;
 
 use paddler_image_decoder::decoded_image::DecodedImage;
@@ -119,11 +120,12 @@ impl GenerationRequestPreparer {
             .into_chat_template_conversation(&chat_prompt_renderer.media_marker);
         let prompt_modality = self.image_input.prompt_modality_for(&image_urls)?;
 
+        let tools_with_schema_documents: Vec<Tool<Value>> = tools.iter().map(Tool::from).collect();
         let raw_prompt = chat_prompt_renderer.render(ChatPromptRenderRequest {
             add_generation_prompt,
             enable_thinking,
             messages: &messages,
-            tools: &tools,
+            tools: &tools_with_schema_documents,
         })?;
 
         let prompt = match prompt_modality {
@@ -150,7 +152,7 @@ impl GenerationRequestPreparer {
 
         let token_sampling = self.build_token_sampling(grammar)?;
         let tool_call_handling = if parse_tool_calls {
-            ToolCallHandling::Parsed(self.build_tool_call_pipeline(&tools)?)
+            ToolCallHandling::Parsed(self.build_tool_call_pipeline(&tools_with_schema_documents)?)
         } else {
             ToolCallHandling::Streamed
         };
@@ -218,7 +220,7 @@ impl GenerationRequestPreparer {
 
     fn build_tool_call_pipeline(
         &self,
-        tools: &[Tool<ValidatedParametersSchema>],
+        tools: &[Tool<Value>],
     ) -> Result<ToolCallPipeline, TextGenerationError> {
         let validator =
             ToolCallValidator::from_tools(tools).map_err(TextGenerationError::ToolSchemaInvalid)?;

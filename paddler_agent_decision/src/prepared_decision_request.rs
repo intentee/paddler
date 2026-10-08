@@ -6,10 +6,12 @@ use paddler_agent_runtime::scheduler_command::SchedulerCommand;
 use paddler_agent_status::slot_guard::SlotGuard;
 use paddler_messaging::decision_result::DecisionResult;
 
+use crate::decision_capacity_demand::DecisionCapacityDemand;
 use crate::decision_error::DecisionError;
 use crate::decision_token_layout::DecisionTokenLayout;
 
 pub struct PreparedDecisionRequest {
+    pub capacity_demand: DecisionCapacityDemand,
     pub decision_result_tx: mpsc::UnboundedSender<DecisionResult>,
     pub decision_stop_rx: mpsc::UnboundedReceiver<()>,
     pub layout: DecisionTokenLayout,
@@ -38,6 +40,7 @@ mod tests {
     use paddler_messaging::decision_result::DecisionResult;
 
     use super::PreparedDecisionRequest;
+    use crate::decision_capacity_demand::DecisionCapacityDemand;
     use crate::decision_question_row::DecisionQuestionRow;
     use crate::decision_token_layout::DecisionTokenLayout;
 
@@ -47,6 +50,10 @@ mod tests {
         let (_decision_stop_tx, decision_stop_rx) = mpsc::unbounded_channel();
 
         PreparedDecisionRequest {
+            capacity_demand: DecisionCapacityDemand {
+                needs_question_lane: false,
+                required_cells: 1,
+            },
             decision_result_tx,
             decision_stop_rx,
             layout: DecisionTokenLayout {

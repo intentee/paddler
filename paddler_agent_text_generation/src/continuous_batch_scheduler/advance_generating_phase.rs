@@ -109,7 +109,7 @@ impl AdvanceGeneratingPhase<'_> {
 
         let completion = CompletionCheckPhase {
             request_state: &request.state,
-            sequence_context_size: self.llama_context.n_ctx_seq(),
+            sequence_context_size: self.scheduler_context.sequence_context_size,
             usage: request.token_classifier.usage(),
         }
         .run(progress);

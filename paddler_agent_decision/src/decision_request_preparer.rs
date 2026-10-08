@@ -1,4 +1,8 @@
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::time::Instant;
+
+use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
@@ -21,8 +25,24 @@ pub struct DecisionRequestPreparer {
 }
 
 impl DecisionRequestPreparer {
+    fn tokenize_once(
+        &self,
+        tokens_by_text: &mut HashMap<String, Vec<LlamaToken>>,
+        text: String,
+    ) -> Result<Vec<LlamaToken>, DecisionError> {
+        match tokens_by_text.entry(text) {
+            Entry::Occupied(tokenized_text) => Ok(tokenized_text.get().clone()),
+            Entry::Vacant(untokenized_text) => {
+                let tokens = self.text_tokenizer.tokenize(untokenized_text.key())?;
+
+                Ok(untokenized_text.insert(tokens).clone())
+            }
+        }
+    }
+
     fn tokenize_question(
         &self,
+        tokens_by_text: &mut HashMap<String, Vec<LlamaToken>>,
         DecisionQuestion {
             id,
             instructions,
@@ -31,10 +51,10 @@ impl DecisionRequestPreparer {
     ) -> Result<TokenizedDecisionQuestion, DecisionError> {
         Ok(TokenizedDecisionQuestion {
             id,
-            instructions: self.text_tokenizer.tokenize(&instructions)?,
+            instructions: self.tokenize_once(tokens_by_text, instructions)?,
             options: options
-                .iter()
-                .map(|option| self.text_tokenizer.tokenize(option))
+                .into_iter()
+                .map(|option| self.tokenize_once(tokens_by_text, option))
                 .collect::<Result<Vec<_>, _>>()?,
         })
     }
@@ -54,27 +74,29 @@ impl DecisionRequestPreparer {
         }: AgentRequest<DecideParams, DecisionResult>,
     ) -> Result<PreparedDecisionRequest, DecisionError> {
         let started_at = Instant::now();
+        let mut tokens_by_text = HashMap::new();
         let layout = DecisionTokenLayout::new(
             &self.delimiter_tokens,
             self.text_tokenizer.tokenize(&state)?,
             leading_questions
                 .into_iter()
-                .map(|question| self.tokenize_question(question))
+                .map(|question| self.tokenize_question(&mut tokens_by_text, question))
                 .collect::<Result<Vec<_>, _>>()?,
-            self.tokenize_question(last_question)?,
+            self.tokenize_question(&mut tokens_by_text, last_question)?,
         );
-        let required_tokens = layout.required_cells();
+        let capacity_demand = layout.capacity_demand();
 
-        if required_tokens > self.context_cells as usize {
+        if capacity_demand.required_cells > self.context_cells as usize {
             return Err(DecisionError::RequestExceedsContext {
                 details: OversizedDecisionDetails {
                     context_size: self.context_cells,
-                    required_tokens,
+                    required_tokens: capacity_demand.required_cells,
                 },
             });
         }
 
         Ok(PreparedDecisionRequest {
+            capacity_demand,
             decision_result_tx,
             decision_stop_rx,
             layout,

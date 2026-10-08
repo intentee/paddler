@@ -26,7 +26,7 @@ pub struct SlotAggregatedStatus {
     issues: DashSet<AgentIssue>,
     model_path: RwLock<Option<String>>,
     runtime: RwLock<AgentRuntimeStatus>,
-    slots_processing: AtomicValue<AtomicU64>,
+    slots_processing_tx: watch::Sender<u64>,
     state_application_status: RwLock<AgentStateApplicationStatus>,
     update_tx: watch::Sender<()>,
     uses_chat_template_override: AtomicValue<AtomicBool>,
@@ -37,6 +37,7 @@ impl SlotAggregatedStatus {
     #[must_use]
     pub fn new(desired_slots_total: u16) -> Self {
         let (update_tx, _initial_rx) = watch::channel(());
+        let (slots_processing_tx, _initial_slots_processing_rx) = watch::channel(0);
 
         Self {
             desired_slots_total,
@@ -45,7 +46,7 @@ impl SlotAggregatedStatus {
             model_path: RwLock::new(None),
             runtime: RwLock::new(AgentRuntimeStatus::Idle),
             state_application_status: RwLock::new(AgentStateApplicationStatus::Fresh),
-            slots_processing: AtomicValue::<AtomicU64>::new(0),
+            slots_processing_tx,
             update_tx,
             uses_chat_template_override: AtomicValue::<AtomicBool>::new(false),
             version: AtomicValue::<AtomicU64>::new(0),
@@ -148,13 +149,13 @@ impl SlotAggregatedStatus {
     }
 
     pub fn slots_processing_count(&self) -> u64 {
-        self.slots_processing.get()
+        *self.slots_processing_tx.borrow()
     }
 
     pub async fn wait_until_no_slots_are_processing(&self) -> Result<(), RecvError> {
-        self.update_tx
+        self.slots_processing_tx
             .subscribe()
-            .wait_for(|()| self.slots_processing.get() == 0)
+            .wait_for(|slots_processing| *slots_processing == 0)
             .await
             .map(drop)
     }
@@ -162,13 +163,13 @@ impl SlotAggregatedStatus {
 
 impl DispensesSlots for SlotAggregatedStatus {
     fn release_slot(&self) {
-        self.slots_processing.decrement();
-        self.announce_change();
+        self.slots_processing_tx
+            .send_modify(|slots_processing| *slots_processing -= 1);
     }
 
     fn take_slot(&self) {
-        self.slots_processing.increment();
-        self.announce_change();
+        self.slots_processing_tx
+            .send_modify(|slots_processing| *slots_processing += 1);
     }
 }
 
@@ -235,13 +236,13 @@ mod tests {
     }
 
     #[test]
-    fn take_slot_notifies_subscribers() {
+    fn taking_a_slot_does_not_announce_a_status_change() {
         let status = SlotAggregatedStatus::new(2);
         let update_rx = status.subscribe_to_updates();
 
         status.take_slot();
 
-        assert!(update_rx.has_changed().unwrap());
+        assert!(!update_rx.has_changed().unwrap());
     }
 
     fn model_path(path: &str) -> ModelPath {

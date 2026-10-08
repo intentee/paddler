@@ -3,6 +3,7 @@
 use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 
+use paddler_agent_decision::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -13,8 +14,6 @@ use paddler_tests::kev_parity_record::KevParityRecord;
 use paddler_tests::start_cluster::start_cluster;
 
 const KEV_DOCUMENTED_GPU_BF16_DEVIATION: f32 = 0.03;
-const DECISION_SLOTS: u16 = 2;
-
 fn most_probable_option(probabilities: &[f32]) -> Option<usize> {
     probabilities
         .iter()
@@ -30,7 +29,7 @@ async fn kev_decisions_match_the_fp32_reference() {
     ))
     .expect("the parity reference must parse");
     let cluster = start_cluster(ClusterParams {
-        agents: AgentConfig::uniform(1, DECISION_SLOTS),
+        agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM),
         desired_state: ClusterDesiredState::Apply(Box::new(kev_0_8b_desired_state())),
         ..ClusterParams::default()
     })

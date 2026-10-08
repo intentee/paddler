@@ -4,11 +4,13 @@ use actix_web::HttpResponse;
 use actix_web::web;
 use actix_web::web::post;
 
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_openai_translation::chat_completion_delivery::ChatCompletionDelivery;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_openai_translation::translated_chat_completion_request::TranslatedChatCompletionRequest;
 
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
 use crate::compatibility::openai_service::chat_completions_sse_response::chat_completions_sse_response;
 use crate::compatibility::openai_service::openai_api_path::OpenAIApiPath;
@@ -22,7 +24,9 @@ async fn respond(
 ) -> HttpResponse {
     if let Err(cluster_serves_another_inference_mode) = app_data
         .balancer_applicable_state_holder
-        .require_inference_mode(InferenceMode::TextGeneration)
+        .require_inference_mode(
+            ContinueFromConversationHistoryParams::<ValidatedParametersSchema>::INFERENCE_MODE,
+        )
     {
         return OpenAIFailure::ClusterServesAnotherInferenceMode(
             cluster_serves_another_inference_mode,

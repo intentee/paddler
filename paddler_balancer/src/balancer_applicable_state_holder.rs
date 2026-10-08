@@ -31,10 +31,6 @@ impl BalancerApplicableStateHolder {
             .clone()
     }
 
-    pub fn get_balancer_applicable_state(&self) -> BalancerApplicableState {
-        self.balancer_applicable_state.read().clone()
-    }
-
     #[must_use]
     pub fn inference_mode(&self) -> InferenceMode {
         self.balancer_applicable_state

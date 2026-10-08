@@ -15,7 +15,15 @@ impl AgentApplicableStateHolder {
 
     pub fn set_agent_applicable_state(&self, agent_applicable_state: AgentApplicableState) {
         self.agent_applicable_state_tx
-            .send_replace(agent_applicable_state);
+            .send_if_modified(|current_agent_applicable_state| {
+                if *current_agent_applicable_state == agent_applicable_state {
+                    return false;
+                }
+
+                *current_agent_applicable_state = agent_applicable_state;
+
+                true
+            });
     }
 
     #[must_use]
@@ -54,5 +62,24 @@ mod tests {
 
         assert!(agent_applicable_state_rx.has_changed().unwrap());
         assert_eq!(*agent_applicable_state_rx.borrow(), applied_state);
+    }
+
+    #[test]
+    fn an_identical_state_is_not_applied_again() {
+        let holder = AgentApplicableStateHolder::default();
+        let applied_state = AgentApplicableState::Embeddings {
+            embedding_parameters: EmbeddingParameters::default(),
+            model_path: PathBuf::from("model.gguf"),
+            model_runtime_parameters: ModelRuntimeParameters::default(),
+        };
+
+        holder.set_agent_applicable_state(applied_state.clone());
+
+        let mut agent_applicable_state_rx = holder.subscribe();
+
+        agent_applicable_state_rx.borrow_and_update();
+        holder.set_agent_applicable_state(applied_state);
+
+        assert!(!agent_applicable_state_rx.has_changed().unwrap());
     }
 }

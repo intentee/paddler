@@ -6,11 +6,11 @@ use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
-use paddler_agent_runner::agent_runner_config::AgentRunnerConfig;
-use paddler_agent_runner::agent_service_bundle::AgentServiceBundle;
-use paddler_agent_runner::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_service_thread::run_service_manager::run_service_manager;
+use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
+use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
+use paddler_bootstrap::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
+use paddler_bootstrap::run_service_manager::run_service_manager;
 
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
@@ -39,7 +39,7 @@ impl Handler for Agent {
         } = self;
 
         run_service_manager(
-            AgentServiceBundle::new(AgentRunnerConfig {
+            AgentServiceBundle::new(AgentBootstrapConfig {
                 agent_name: name,
                 management_address: management_addr.socket_addr.to_string(),
                 slots,

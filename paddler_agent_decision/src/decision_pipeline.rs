@@ -35,10 +35,10 @@ use crate::decision_error::DecisionError;
 use crate::decision_request_preparer::DecisionRequestPreparer;
 use crate::decision_scheduler::DecisionScheduler;
 use crate::decision_scheduler_context::DecisionSchedulerContext;
+use crate::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use crate::decision_text_tokenizer::DecisionTextTokenizer;
 
 const DECISION_ARCHITECTURES: [&str; 2] = ["qwen35", "qwen35moe"];
-const DECISION_SLOTS_MINIMUM: u16 = 2;
 
 pub struct DecisionPipeline {
     pub inference_runtime_context: InferenceRuntimeContext,

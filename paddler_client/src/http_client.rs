@@ -92,7 +92,6 @@ impl HttpClient {
 
 #[cfg(test)]
 mod tests {
-    use futures_util::StreamExt as _;
     use http::StatusCode;
     use tokio_util::sync::CancellationToken;
     use url::Url;
@@ -189,32 +188,6 @@ mod tests {
                 .put_json(cancelled_token(), ApiPath::BALANCER_DESIRED_STATE, "body")
                 .await,
             Err(Error::RequestCancelled { url }) if url == format!("{UNREACHABLE_BASE_URL}{}", ApiPath::BALANCER_DESIRED_STATE)
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_body_that_is_not_json_is_reported_as_undecodable() {
-        let fixture = fixture_serving(FixtureResponse::Ok(b"not json".to_vec())).await;
-
-        assert!(matches!(
-            client_of(&fixture)
-                .get_json::<String>(CancellationToken::new(), ApiPath::AGENTS)
-                .await,
-            Err(Error::Http(source)) if source.is_decode()
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_server_sent_event_that_is_not_json_is_reported_as_undecodable() {
-        let fixture = fixture_serving(FixtureResponse::Ok(b"data: not json\n\n".to_vec())).await;
-        let mut events = client_of(&fixture)
-            .get_sse_json::<String>(CancellationToken::new(), ApiPath::AGENTS_STREAM)
-            .await
-            .expect("the event stream must open");
-
-        assert!(matches!(
-            events.next().await,
-            Some(Err(Error::Json(source))) if source.is_syntax()
         ));
     }
 

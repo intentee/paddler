@@ -3,6 +3,7 @@ use std::sync::Arc;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -14,6 +15,8 @@ use crate::agent_response_senders::AgentResponseSenders;
 use crate::response_senders::ResponseSenders;
 
 pub trait AgentStreamingRequest: Into<AgentJsonRpcRequest> {
+    const INFERENCE_MODE: InferenceMode;
+
     type Response: Send + 'static;
 
     fn response_senders(
@@ -22,6 +25,8 @@ pub trait AgentStreamingRequest: Into<AgentJsonRpcRequest> {
 }
 
 impl AgentStreamingRequest for ContinueFromConversationHistoryParams<ValidatedParametersSchema> {
+    const INFERENCE_MODE: InferenceMode = InferenceMode::TextGeneration;
+
     type Response = GeneratedTokenResult;
 
     fn response_senders(
@@ -32,6 +37,8 @@ impl AgentStreamingRequest for ContinueFromConversationHistoryParams<ValidatedPa
 }
 
 impl AgentStreamingRequest for ContinueFromRawPromptParams {
+    const INFERENCE_MODE: InferenceMode = InferenceMode::TextGeneration;
+
     type Response = GeneratedTokenResult;
 
     fn response_senders(
@@ -42,6 +49,8 @@ impl AgentStreamingRequest for ContinueFromRawPromptParams {
 }
 
 impl AgentStreamingRequest for DecideParams {
+    const INFERENCE_MODE: InferenceMode = InferenceMode::Decision;
+
     type Response = DecisionResult;
 
     fn response_senders(
@@ -52,6 +61,8 @@ impl AgentStreamingRequest for DecideParams {
 }
 
 impl AgentStreamingRequest for GenerateEmbeddingBatchParams {
+    const INFERENCE_MODE: InferenceMode = InferenceMode::Embeddings;
+
     type Response = EmbeddingResult;
 
     fn response_senders(

@@ -7,6 +7,7 @@ pub mod balancer_message_context;
 pub mod desired_state_reconciler;
 pub mod desired_state_reconciliation;
 pub mod forward_management_socket_messages;
+pub mod last_announced_agent_status;
 pub mod llamacpp_arbiter_service;
 pub mod management_socket_client_service;
 pub mod pipeline_arbiter_state;

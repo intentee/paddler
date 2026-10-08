@@ -83,7 +83,7 @@ impl DecisionScheduler<'_> {
                 continue;
             }
 
-            let Some(admission) = self.capacity_ledger.admit(&request.layout) else {
+            let Some(admission) = self.capacity_ledger.admit(&request.capacity_demand) else {
                 self.pending_requests.push_front(request);
 
                 break;

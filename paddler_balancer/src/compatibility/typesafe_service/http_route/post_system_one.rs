@@ -3,9 +3,10 @@ use actix_web::http::StatusCode;
 use actix_web::web;
 use actix_web::web::post;
 
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::request_params::decide_params::DecideParams;
 use paddler_typesafe_translation::system_one_request::SystemOneRequest;
 
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::compatibility::compatibility_app_data::CompatibilityAppData;
 use crate::compatibility::typesafe_service::inference_mode_refusal_http_response::inference_mode_refusal_http_response;
 use crate::compatibility::typesafe_service::system_one_http_response::system_one_http_response;
@@ -19,7 +20,7 @@ async fn respond(
 ) -> HttpResponse {
     if let Err(cluster_serves_another_inference_mode) = app_data
         .balancer_applicable_state_holder
-        .require_inference_mode(InferenceMode::Decision)
+        .require_inference_mode(DecideParams::INFERENCE_MODE)
     {
         return inference_mode_refusal_http_response(cluster_serves_another_inference_mode);
     }

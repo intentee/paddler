@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use llama_cpp_bindings::token::LlamaToken;
 
+use crate::decision_capacity_demand::DecisionCapacityDemand;
 use crate::decision_delimiter_tokens::DecisionDelimiterTokens;
 use crate::decision_question_row::DecisionQuestionRow;
 use crate::tokenized_decision_question::TokenizedDecisionQuestion;
@@ -76,6 +77,14 @@ impl DecisionTokenLayout {
             first_question,
             remaining_questions,
             state: state_tokens,
+        }
+    }
+
+    #[must_use]
+    pub fn capacity_demand(&self) -> DecisionCapacityDemand {
+        DecisionCapacityDemand {
+            needs_question_lane: self.needs_question_lane(),
+            required_cells: self.required_cells(),
         }
     }
 

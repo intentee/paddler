@@ -9,4 +9,5 @@ pub struct ContinuousBatchSchedulerContext {
     pub desired_slots_total: u16,
     pub model: Arc<LlamaModel>,
     pub n_batch: BatchSize,
+    pub sequence_context_size: u32,
 }

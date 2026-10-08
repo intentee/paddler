@@ -18,7 +18,7 @@ numpy = "==2.5.3"
 peft = "==0.21.0"
 torch = [
     { version = "==2.8.0+cpu", source = "pytorch-cpu", markers = "sys_platform == 'linux'" },
-    { version = "==2.8.0", source = "PyPI", markers = "sys_platform != 'linux'" },
+    { version = "==2.8.0", source = "PyPI", markers = "sys_platform == 'darwin'" },
 ]
 transformers = "==5.17.0"
 

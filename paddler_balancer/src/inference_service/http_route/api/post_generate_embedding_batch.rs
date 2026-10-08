@@ -22,11 +22,11 @@ use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::agent_relay_error::AgentRelayError;
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
@@ -55,7 +55,7 @@ async fn respond(
         served_inference_settings @ (AgentInferenceSettings::Decision(_)
         | AgentInferenceSettings::TextGeneration(_)) => {
             return Err(ErrorServiceUnavailable(ClusterServesAnotherInferenceMode {
-                requested_inference_mode: InferenceMode::Embeddings,
+                requested_inference_mode: GenerateEmbeddingBatchParams::INFERENCE_MODE,
                 served_inference_mode: served_inference_settings.inference_mode(),
             }));
         }
@@ -74,15 +74,18 @@ async fn respond(
 
     let chunk_dispatches: Vec<EmbeddingChunkDispatch> = batches
         .into_iter()
-        .map(
-            |batch| match app_data.buffered_request_manager.take_available_agent() {
+        .map(|batch| {
+            match app_data
+                .buffered_request_manager
+                .take_available_agent(GenerateEmbeddingBatchParams::INFERENCE_MODE)
+            {
                 Some(dispatched_agent) => EmbeddingChunkDispatch::Claimed {
                     batch,
                     dispatched_agent,
                 },
                 None => EmbeddingChunkDispatch::Buffered { batch },
-            },
-        )
+            }
+        })
         .collect();
 
     for chunk_dispatch in chunk_dispatches {

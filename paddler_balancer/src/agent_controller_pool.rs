@@ -8,6 +8,7 @@ use tokio::sync::watch;
 
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 
@@ -29,20 +30,23 @@ pub struct AgentControllerPool {
 
 impl AgentControllerPool {
     #[must_use]
-    pub fn select_least_busy_with_capacity(&self) -> Option<DispatchCandidate> {
+    pub fn select_least_busy_with_capacity(
+        &self,
+        inference_mode: InferenceMode,
+    ) -> Option<DispatchCandidate> {
         let mut best: Option<DispatchCandidate> = None;
 
         for entry in &self.agents {
             let agent_controller = entry.value().clone();
             let snapshot = agent_controller.slots_processing.get();
-            let slots_total = agent_controller
+            let slots_serving = agent_controller
                 .reported_status
                 .read()
                 .status
                 .runtime
-                .slots_total();
+                .slots_serving(inference_mode);
 
-            if snapshot >= slots_total {
+            if snapshot >= slots_serving {
                 continue;
             }
 
@@ -80,11 +84,11 @@ impl AgentControllerPool {
         }
     }
 
-    pub async fn next_available_agent(&self) -> DispatchedAgent {
+    pub async fn next_available_agent(&self, inference_mode: InferenceMode) -> DispatchedAgent {
         loop {
             let agent_availability_changed = self.updates.agent_availability_changed();
 
-            if let Some(dispatched_agent) = self.take_least_busy_agent_controller() {
+            if let Some(dispatched_agent) = self.take_least_busy_agent_controller(inference_mode) {
                 return dispatched_agent;
             }
 
@@ -93,9 +97,12 @@ impl AgentControllerPool {
     }
 
     #[must_use]
-    pub fn take_least_busy_agent_controller(&self) -> Option<DispatchedAgent> {
+    pub fn take_least_busy_agent_controller(
+        &self,
+        inference_mode: InferenceMode,
+    ) -> Option<DispatchedAgent> {
         loop {
-            let candidate = self.select_least_busy_with_capacity()?;
+            let candidate = self.select_least_busy_with_capacity(inference_mode)?;
 
             if let Ok(dispatched) = self.try_claim(candidate) {
                 return Some(dispatched);
@@ -267,9 +274,26 @@ mod tests {
             AgentControllerRegistration::Registered(_)
         )));
         assert_eq!(
-            pool.select_least_busy_with_capacity()
+            pool.select_least_busy_with_capacity(InferenceMode::Embeddings)
                 .map(|candidate| candidate.agent_controller.id.clone()),
             Some("embeddings".to_owned())
+        );
+    }
+
+    #[test]
+    fn does_not_dispatch_to_agents_serving_another_inference_mode() {
+        let pool = Arc::new(AgentControllerPool::default());
+        let registration = pool.register_agent_controller(
+            agent_reporting("decision", serving(InferenceMode::Decision)).controller,
+        );
+
+        assert!(matches!(
+            registration,
+            AgentControllerRegistration::Registered(_)
+        ));
+        assert!(
+            pool.select_least_busy_with_capacity(InferenceMode::TextGeneration)
+                .is_none()
         );
     }
 

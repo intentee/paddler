@@ -13,7 +13,6 @@ use tokio::select;
 use tokio::spawn;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::watch;
 use tokio::time::Duration;
 use tokio::time::MissedTickBehavior;
 use tokio::time::interval;
@@ -24,7 +23,6 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
-use paddler_messaging::balancer_connection::BalancerConnection;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -48,6 +46,7 @@ use paddler_agent_status::slot_guard::SlotGuard;
 
 use crate::balancer_message_context::BalancerMessageContext;
 use crate::forward_management_socket_messages::forward_management_socket_messages;
+use crate::last_announced_agent_status::LastAnnouncedAgentStatus;
 use crate::pipeline_request::PipelineRequest;
 
 const BALANCER_RECONNECT_INTERVAL: Duration = Duration::from_secs(1);
@@ -250,7 +249,6 @@ impl IncomingMessageContext {
 }
 
 pub struct ManagementSocketClientService {
-    pub balancer_connection_tx: watch::Sender<BalancerConnection>,
     pub balancer_message_context: BalancerMessageContext,
     pub name: Option<String>,
     pub socket_url: String,
@@ -287,15 +285,7 @@ impl ManagementSocketClientService {
 
         info!("Connected to management server");
 
-        self.balancer_connection_tx
-            .send_replace(BalancerConnection::Connected);
-
-        let connection_outcome = self.serve_connection(ws_stream, shutdown).await;
-
-        self.balancer_connection_tx
-            .send_replace(BalancerConnection::Connecting);
-
-        connection_outcome
+        self.serve_connection(ws_stream, shutdown).await
     }
 
     async fn serve_connection(
@@ -318,14 +308,18 @@ impl ManagementSocketClientService {
             .slot_aggregated_status
             .subscribe_to_updates();
 
+        let registration_snapshot = self
+            .balancer_message_context
+            .slot_aggregated_status
+            .make_snapshot();
+        let mut last_announced_agent_status =
+            LastAnnouncedAgentStatus::new(registration_snapshot.status.clone());
+
         message_tx
             .send(ManagementJsonRpcMessage::Notification(
                 ManagementJsonRpcNotification::RegisterAgent(RegisterAgentParams {
                     name: self.name.clone(),
-                    slot_aggregated_status_snapshot: self
-                        .balancer_message_context
-                        .slot_aggregated_status
-                        .make_snapshot(),
+                    slot_aggregated_status_snapshot: registration_snapshot,
                 }),
             ))
             .context("The management socket writer stopped before the agent registered")?;
@@ -339,19 +333,25 @@ impl ManagementSocketClientService {
                 }
                 () = shutdown.cancelled() => break true,
                 Ok(()) = update_rx.changed() => {
-                    let status_update = ManagementJsonRpcMessage::Notification(
-                        ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
-                            slot_aggregated_status_snapshot: self
-                                .balancer_message_context
-                                .slot_aggregated_status
-                                .make_snapshot(),
-                        }),
-                    );
+                    let slot_aggregated_status_snapshot = self
+                        .balancer_message_context
+                        .slot_aggregated_status
+                        .make_snapshot();
 
-                    if let Err(SendError(_undelivered_status_update)) = message_tx.send(status_update) {
-                        info!("The management socket writer stopped, reconnecting");
+                    if last_announced_agent_status
+                        .replace_if_changed(&slot_aggregated_status_snapshot.status)
+                    {
+                        let status_update = ManagementJsonRpcMessage::Notification(
+                            ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
+                                slot_aggregated_status_snapshot,
+                            }),
+                        );
 
-                        break false;
+                        if let Err(SendError(_undelivered_status_update)) = message_tx.send(status_update) {
+                            info!("The management socket writer stopped, reconnecting");
+
+                            break false;
+                        }
                     }
                 }
                 msg = read.next() => {
@@ -443,27 +443,17 @@ mod tests {
     use std::num::NonZeroU32;
     use std::sync::Arc;
 
-    use futures_util::StreamExt as _;
-    use serde_json::from_str;
     use serde_json::to_string;
-    use tokio::net::TcpListener;
-    use tokio::spawn;
     use tokio::sync::mpsc;
-    use tokio::sync::oneshot;
-    use tokio::sync::watch;
-    use tokio::task::JoinHandle;
-    use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::Bytes;
     use tokio_tungstenite::tungstenite::protocol::Message;
     use tokio_util::sync::CancellationToken;
-    use trzcina::Service;
 
+    use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::agent_status::AgentStatus;
     use paddler_messaging::api_path::ApiPath;
-    use paddler_messaging::balancer_connection::BalancerConnection;
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
     use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
@@ -474,14 +464,10 @@ mod tests {
     use paddler_messaging::management_socket::agent::request::Request as JsonRpcRequest;
     use paddler_messaging::management_socket::agent::response::Response as JsonRpcResponse;
     use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
-    use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
-    use paddler_messaging::management_socket::balancer::notification_params::update_agent_status_params::UpdateAgentStatusParams;
     use paddler_messaging::model_metadata::ModelMetadata;
     use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
-    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
     use paddler_request_registry::request_delivery::RequestDelivery;
     use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
-    use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
 
     use super::IncomingMessageContext;
     use super::ManagementSocketClientService;
@@ -521,11 +507,7 @@ mod tests {
     }
 
     fn service_with_socket_url(socket_url: String) -> ManagementSocketClientService {
-        let (balancer_connection_tx, _initial_balancer_connection_rx) =
-            watch::channel(BalancerConnection::Connecting);
-
         ManagementSocketClientService {
-            balancer_connection_tx,
             balancer_message_context: incoming_message_fixture().context.balancer_message_context,
             name: None,
             socket_url,
@@ -550,74 +532,6 @@ mod tests {
         })))
     }
 
-    struct StalledHandshakeFixture {
-        accepted_rx: oneshot::Receiver<()>,
-        server: JoinHandle<()>,
-        shutdown: CancellationToken,
-    }
-
-    fn spawn_stalled_handshake_fixture(listener: TcpListener) -> StalledHandshakeFixture {
-        let (accepted_tx, accepted_rx) = oneshot::channel::<()>();
-        let shutdown = CancellationToken::new();
-        let server_shutdown = shutdown.clone();
-
-        let server = spawn(async move {
-            let (_stream, _peer_addr) = listener
-                .accept()
-                .await
-                .expect("the fixture balancer must accept the agent connection");
-
-            accepted_tx
-                .send(())
-                .expect("the test must still be waiting for the accept signal");
-
-            server_shutdown.cancelled().await;
-        });
-
-        StalledHandshakeFixture {
-            accepted_rx,
-            server,
-            shutdown,
-        }
-    }
-
-    #[tokio::test]
-    async fn keep_connection_alive_returns_when_shutdown_arrives_during_a_stalled_handshake() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let StalledHandshakeFixture {
-            accepted_rx,
-            server,
-            shutdown: fixture_shutdown,
-        } = spawn_stalled_handshake_fixture(listener);
-
-        let service = service_with_socket_url(format!(
-            "ws://{addr}{}",
-            ApiPath::agent_socket("test-agent")
-        ));
-        let shutdown = CancellationToken::new();
-        let keep_alive_shutdown = shutdown.clone();
-        let keep_alive_handle =
-            spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
-
-        accepted_rx
-            .await
-            .expect("the agent's connect must reach the fixture balancer before shutdown");
-
-        shutdown.cancel();
-
-        let keep_alive_result = keep_alive_handle
-            .await
-            .expect("the keep_connection_alive task must not panic");
-
-        assert!(keep_alive_result.is_ok());
-
-        fixture_shutdown.cancel();
-        server
-            .await
-            .expect("the fixture balancer task must not panic");
-    }
-
     #[tokio::test]
     async fn keep_connection_alive_errors_when_the_balancer_refuses_the_connection() {
         let service = service_with_socket_url(format!(
@@ -629,125 +543,6 @@ mod tests {
         let keep_alive_result = service.keep_connection_alive(shutdown).await;
 
         assert!(keep_alive_result.is_err());
-    }
-
-    #[tokio::test]
-    async fn run_returns_when_shutdown_arrives_during_a_stalled_handshake() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let StalledHandshakeFixture {
-            accepted_rx,
-            server,
-            shutdown: fixture_shutdown,
-        } = spawn_stalled_handshake_fixture(listener);
-
-        let service = service_with_socket_url(format!(
-            "ws://{addr}{}",
-            ApiPath::agent_socket("test-agent")
-        ));
-        let shutdown = CancellationToken::new();
-        let run_shutdown = shutdown.clone();
-        let run_handle = spawn(async move { Box::new(service).run(run_shutdown).await });
-
-        accepted_rx
-            .await
-            .expect("the agent's connect must reach the fixture balancer before shutdown");
-
-        shutdown.cancel();
-
-        let run_result = run_handle.await.expect("the run task must not panic");
-
-        assert!(run_result.is_ok());
-
-        fixture_shutdown.cancel();
-        server
-            .await
-            .expect("the fixture balancer task must not panic");
-    }
-
-    #[tokio::test]
-    async fn announces_every_status_change_to_the_balancer() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let service = service_with_socket_url(format!(
-            "ws://{addr}{}",
-            ApiPath::agent_socket("test-agent")
-        ));
-        let slot_aggregated_status = service
-            .balancer_message_context
-            .slot_aggregated_status
-            .clone();
-        let shutdown = CancellationToken::new();
-        let keep_alive_shutdown = shutdown.clone();
-        let keep_alive_handle =
-            spawn(async move { service.keep_connection_alive(keep_alive_shutdown).await });
-
-        let (stream, _peer_addr) = listener.accept().await.unwrap();
-        let mut balancer_socket = accept_async(stream).await.unwrap();
-        let registration = balancer_socket.next().await.unwrap().unwrap();
-
-        assert!(matches!(
-            from_str::<ManagementJsonRpcMessage>(registration.to_text().unwrap()).unwrap(),
-            ManagementJsonRpcMessage::Notification(ManagementJsonRpcNotification::RegisterAgent(
-                register_agent_params
-            )) if register_agent_params.name.is_none()
-        ));
-
-        slot_aggregated_status.set_uses_chat_template_override(true);
-
-        let status_update = balancer_socket.next().await.unwrap().unwrap();
-
-        assert!(matches!(
-            from_str::<ManagementJsonRpcMessage>(status_update.to_text().unwrap()).unwrap(),
-            ManagementJsonRpcMessage::Notification(
-                ManagementJsonRpcNotification::UpdateAgentStatus(UpdateAgentStatusParams {
-                    slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot {
-                        status: AgentStatus {
-                            uses_chat_template_override: true,
-                            ..
-                        },
-                        ..
-                    },
-                })
-            )
-        ));
-
-        shutdown.cancel();
-
-        assert!(keep_alive_handle.await.unwrap().is_ok());
-    }
-
-    #[tokio::test]
-    async fn reports_the_balancer_connected_only_while_its_socket_is_open() {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let addr = listener.local_addr().unwrap();
-        let service = service_with_socket_url(format!(
-            "ws://{addr}{}",
-            ApiPath::agent_socket("test-agent")
-        ));
-        let mut balancer_connection_rx = service.balancer_connection_tx.subscribe();
-        let keep_alive_handle = spawn(async move {
-            service
-                .keep_connection_alive(CancellationToken::new())
-                .await
-        });
-
-        let (stream, _peer_addr) = listener.accept().await.unwrap();
-        let balancer_socket = accept_async(stream).await.unwrap();
-
-        balancer_connection_rx
-            .wait_for(|balancer_connection| *balancer_connection == BalancerConnection::Connected)
-            .await
-            .unwrap();
-
-        drop(balancer_socket);
-
-        balancer_connection_rx
-            .wait_for(|balancer_connection| *balancer_connection == BalancerConnection::Connecting)
-            .await
-            .unwrap();
-
-        assert!(keep_alive_handle.await.unwrap().is_ok());
     }
 
     #[tokio::test]

@@ -10,9 +10,9 @@ use paddler_balancer::compatibility::compatibility_service_configuration::Compat
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
-use paddler_balancer_runner::balancer_runner::BalancerRunner;
-use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
-use paddler_balancer_runner::balancer_runner_params::BalancerRunnerParams;
+use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
+use paddler_bootstrap::balancer_runner::BalancerRunner;
+use paddler_bootstrap::balancer_runner_params::BalancerRunnerParams;
 use paddler_state_database::state_database_type::StateDatabaseType;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -41,7 +41,7 @@ pub async fn start_cluster(
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
         .context("failed to parse state_database_url")?;
     let balancer_runner = BalancerRunner::start(BalancerRunnerParams {
-        runner_config: BalancerRunnerConfig {
+        bootstrap_config: BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),

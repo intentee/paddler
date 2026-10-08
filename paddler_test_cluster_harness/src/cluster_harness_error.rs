@@ -46,8 +46,6 @@ pub enum ClusterHarnessError {
     AgentSocketMessageUndeserializable(#[source] SerdeJsonError),
     #[error("The raw agent socket could not receive a frame")]
     AgentSocketReceiveFailed(#[source] WebSocketError),
-    #[error("The raw agent socket could not serialize a response")]
-    AgentSocketResponseUnserializable(#[source] SerdeJsonError),
     #[error("The raw agent socket could not send a frame")]
     AgentSocketSendFailed(#[source] WebSocketError),
     #[error("Agent {agent_name:?} reported issues while starting: {issues:?}")]

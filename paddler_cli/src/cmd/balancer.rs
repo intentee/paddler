@@ -17,10 +17,10 @@ use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_balancer::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
-use paddler_balancer_runner::balancer_defaults::BalancerDefaults;
-use paddler_balancer_runner::balancer_runner_config::BalancerRunnerConfig;
-use paddler_balancer_runner::balancer_service_bundle::BalancerServiceBundle;
-use paddler_service_thread::run_service_manager::run_service_manager;
+use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
+use paddler_bootstrap::balancer_defaults::BalancerDefaults;
+use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
+use paddler_bootstrap::run_service_manager::run_service_manager;
 use paddler_state_database::state_database_type::StateDatabaseType;
 
 use super::value_parser::parse_duration::parse_duration;
@@ -135,7 +135,7 @@ impl Handler for Balancer {
             web_admin_panel_addr,
         } = self;
 
-        let bundle = BalancerServiceBundle::new(BalancerRunnerConfig {
+        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: inference_addr,

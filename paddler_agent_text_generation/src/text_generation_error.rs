@@ -435,19 +435,20 @@ mod tests {
 
         properties.insert("location".to_owned(), json!({"type": 123}));
 
-        let schema_error = ToolCallValidator::from_tools(&[Tool::Function(FunctionCall {
-            function: Function {
-                name: "get_weather".to_owned(),
-                description: "fetch weather".to_owned(),
-                parameters: Parameters::Schema(ValidatedParametersSchema {
-                    schema_type: "object".to_owned(),
-                    properties: Some(properties),
-                    ..ValidatedParametersSchema::default()
-                }),
-            },
-        })])
-        .err()
-        .expect("a property typed as a number is not a valid JSON Schema");
+        let schema_error =
+            ToolCallValidator::from_tools(&[Tool::from(&Tool::Function(FunctionCall {
+                function: Function {
+                    name: "get_weather".to_owned(),
+                    description: "fetch weather".to_owned(),
+                    parameters: Parameters::Schema(ValidatedParametersSchema {
+                        schema_type: "object".to_owned(),
+                        properties: Some(properties),
+                        ..ValidatedParametersSchema::default()
+                    }),
+                },
+            }))])
+            .err()
+            .expect("a property typed as a number is not a valid JSON Schema");
         let expected_message = agent_message(&schema_error.to_string());
 
         assert_eq!(

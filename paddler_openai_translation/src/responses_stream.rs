@@ -294,13 +294,13 @@ impl ResponsesStream {
                     item_id: item_id.clone(),
                     output_index,
                     name: call.name.clone(),
-                    arguments,
+                    arguments: arguments.clone(),
                 },
             ));
 
             self.finish_item(
                 events,
-                ResponsesOutputItem::completed_function_call(item_id, call),
+                ResponsesOutputItem::completed_function_call(item_id, call, arguments),
             );
         }
     }

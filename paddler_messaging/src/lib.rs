@@ -11,7 +11,6 @@ pub mod agent_status;
 pub mod agent_text_generation_settings;
 pub mod api_path;
 pub mod atomic_value;
-pub mod balancer_connection;
 pub mod balancer_desired_state;
 pub mod balancer_text_generation_settings;
 pub mod buffered_request_manager_snapshot;

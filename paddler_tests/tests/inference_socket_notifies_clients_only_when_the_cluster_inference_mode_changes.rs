@@ -1,23 +1,15 @@
-use std::num::NonZeroU32;
 use std::num::NonZeroUsize;
 
-use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_mode::InferenceMode;
-use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
+use paddler_tests::desired_state_serving::desired_state_serving;
+use paddler_tests::inference_socket_round_trip::inference_socket_round_trip;
 use paddler_tests::start_cluster::start_cluster;
-
-fn desired_state_serving(inference_mode: InferenceMode) -> BalancerDesiredState {
-    BalancerDesiredState {
-        inference_mode,
-        ..BalancerDesiredState::default()
-    }
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_notifies_clients_only_when_the_cluster_inference_mode_changes() {
@@ -28,22 +20,9 @@ async fn inference_socket_notifies_clients_only_when_the_cluster_inference_mode_
         .client_inference
         .subscribe_to_cluster_inference_mode();
 
-    cluster
-        .client_inference
-        .continue_from_raw_prompt(
-            CancellationToken::new(),
-            ContinueFromRawPromptParams {
-                grammar: None,
-                max_tokens: NonZeroU32::MIN,
-                raw_prompt: "open the inference socket".to_owned(),
-            },
-        )
+    inference_socket_round_trip(&cluster.client_inference)
         .await
-        .expect("the inference socket must accept a request while serving embeddings")
-        .next()
-        .await
-        .expect("the inference socket must answer while serving embeddings")
-        .expect("the answer must be readable");
+        .expect("the inference socket must answer while serving embeddings");
 
     let connect_notification = cluster_inference_mode_rx
         .recv()

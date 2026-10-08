@@ -69,11 +69,15 @@ impl SystemOneAnswerLayout {
         }
 
         Ok(match self {
-            Self::Choice { keys, .. } => SystemOneAnswer::Choice {
-                choice: keys[most_likely_option(&probabilities)].clone(),
-                confidence: round_probability(choice_confidence(&probabilities)),
-                probabilities: rounded_probabilities(keys.iter(), &probabilities),
-            },
+            Self::Choice { keys, .. } => {
+                let most_likely = most_likely_option(&probabilities);
+
+                SystemOneAnswer::Choice {
+                    choice: keys[most_likely].clone(),
+                    confidence: round_probability(choice_confidence(&probabilities, most_likely)),
+                    probabilities: rounded_probabilities(keys.iter(), &probabilities),
+                }
+            }
             Self::Noul { .. } => SystemOneAnswer::Noul {
                 noul: round_probability(probabilities[1]),
             },

@@ -14,11 +14,9 @@ use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
-use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
 use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
 use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
-use paddler_messaging::management_socket::agent::response::Response as AgentJsonRpcResponse;
 use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
 use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
 use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
@@ -79,18 +77,10 @@ impl RawAgentSocket {
     }
 
     pub async fn register(&mut self) -> Result<(), ClusterHarnessError> {
-        self.register_with_status(SlotAggregatedStatusSnapshot::default())
-            .await
-    }
-
-    pub async fn register_with_status(
-        &mut self,
-        slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot,
-    ) -> Result<(), ClusterHarnessError> {
         self.send_notification(ManagementJsonRpcNotification::RegisterAgent(
             RegisterAgentParams {
                 name: None,
-                slot_aggregated_status_snapshot,
+                slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot::default(),
             },
         ))
         .await?;
@@ -120,15 +110,5 @@ impl RawAgentSocket {
                 .map_err(ClusterHarnessError::AgentSocketNotificationUnserializable)?;
 
         self.send(Message::text(serialized_notification)).await
-    }
-
-    pub async fn send_response(
-        &mut self,
-        response_envelope: ResponseEnvelope<AgentJsonRpcResponse>,
-    ) -> Result<(), ClusterHarnessError> {
-        let serialized_response = to_string(&ManagementJsonRpcMessage::Response(response_envelope))
-            .map_err(ClusterHarnessError::AgentSocketResponseUnserializable)?;
-
-        self.send(Message::text(serialized_response)).await
     }
 }

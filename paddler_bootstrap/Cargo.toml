@@ -1,0 +1,48 @@
+[package]
+name = "paddler_bootstrap"
+autotests = false
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Starts and runs the Paddler balancer and agent services"
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]
+actix-web = { workspace = true }
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+log = { workspace = true }
+nanoid = { workspace = true }
+paddler_agent = { workspace = true }
+paddler_agent_runtime = { workspace = true }
+paddler_agent_status = { workspace = true }
+paddler_balancer = { workspace = true }
+paddler_messaging = { workspace = true }
+paddler_state_database = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+trzcina = { workspace = true }
+
+[dev-dependencies]
+paddler_inference_parameters = { workspace = true }
+paddler_test_cluster_harness = { workspace = true }
+reqwest = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+cuda = ["paddler_agent/cuda"]
+metal = ["paddler_agent/metal"]
+vulkan = ["paddler_agent/vulkan"]
+web_admin_panel = ["paddler_balancer/web_admin_panel"]

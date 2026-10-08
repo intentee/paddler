@@ -24,10 +24,8 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 command_handler = { workspace = true }
 env_logger = { workspace = true }
-paddler_agent_runner = { workspace = true }
 paddler_balancer = { workspace = true }
-paddler_balancer_runner = { workspace = true }
-paddler_service_thread = { workspace = true }
+paddler_bootstrap = { workspace = true }
 paddler_state_database = { workspace = true }
 tokio-util = { workspace = true }
 trzcina = { workspace = true }
@@ -37,10 +35,10 @@ workspace = true
 
 [features]
 default = []
-cuda = ["paddler_agent_runner/cuda"]
-metal = ["paddler_agent_runner/metal"]
-vulkan = ["paddler_agent_runner/vulkan"]
+cuda = ["paddler_bootstrap/cuda"]
+metal = ["paddler_bootstrap/metal"]
+vulkan = ["paddler_bootstrap/vulkan"]
 web_admin_panel = [
     "paddler_balancer/web_admin_panel",
-    "paddler_balancer_runner/web_admin_panel",
+    "paddler_bootstrap/web_admin_panel",
 ]

@@ -1,5 +1,5 @@
 mod inference_socket_controller_context;
-mod spawn_cluster_inference_mode_watcher;
+mod report_cluster_inference_mode;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -24,7 +24,6 @@ use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::inference_server::identified_request::IdentifiedRequest;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
@@ -38,7 +37,7 @@ use paddler_messaging::validates::Validates as _;
 use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
-use self::spawn_cluster_inference_mode_watcher::spawn_cluster_inference_mode_watcher;
+use self::report_cluster_inference_mode::report_cluster_inference_mode;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
@@ -83,7 +82,7 @@ async fn handle_inference_request<TParams>(
 {
     if let Err(cluster_serves_another_inference_mode) = context
         .balancer_applicable_state_holder
-        .require_inference_mode(InferenceMode::TextGeneration)
+        .require_inference_mode(TParams::INFERENCE_MODE)
     {
         send_inference_mode_mismatch(
             cluster_serves_another_inference_mode,
@@ -279,11 +278,12 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         context: Arc<Self::Context>,
         session: &mut Session,
     ) {
-        spawn_cluster_inference_mode_watcher(
+        report_cluster_inference_mode(
             context.balancer_applicable_state_holder.clone(),
             connection_close,
             session.clone(),
-        );
+        )
+        .await;
     }
 }
 
