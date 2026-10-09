@@ -28,6 +28,7 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 
 use crate::agent_config::AgentConfig;
 use crate::agent_count_is::agent_count_is;
+use crate::agent_readiness::AgentReadiness;
 use crate::agent_slots_processing_is::agent_slots_processing_is;
 use crate::agent_spawner::AgentSpawner;
 use crate::buffered_request_count_is::buffered_request_count_is;
@@ -343,16 +344,6 @@ impl Cluster {
             .await
     }
 
-    pub async fn wait_for_agent_ready(
-        &mut self,
-        agent_name: &str,
-        expected_slot_count: u16,
-    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
-        self.agents_watcher
-            .wait_for_agent_ready(agent_name, expected_slot_count)
-            .await
-    }
-
     pub async fn wait_for_slots_processing(
         &mut self,
         agent_id: &str,
@@ -445,32 +436,21 @@ impl Cluster {
         agents: &[AgentConfig],
         wait_for_slots_ready: bool,
     ) -> Result<()> {
-        let mut last_ready_snapshot = None;
+        for agent_config in agents {
+            let mut running_agent = RunningAgent::new(
+                agent_config.clone(),
+                self.agent_spawner.spawn(agent_config)?,
+            );
+            let ready_agent = running_agent
+                .wait_until_ready(
+                    &mut self.agents_watcher,
+                    AgentReadiness::of_registration(agent_config.slot_count, wait_for_slots_ready),
+                )
+                .await?;
 
-        for agent in agents {
-            self.spawn_additional_agent(agent)?;
-
-            if wait_for_slots_ready {
-                last_ready_snapshot = Some(
-                    self.wait_for_agent_ready(&agent.name, agent.slot_count)
-                        .await?,
-                );
-            }
+            self.agent_ids.push(ready_agent.id);
+            self.agents.push(running_agent);
         }
-
-        let registered_snapshot = match last_ready_snapshot {
-            Some(snapshot) => snapshot,
-            None => self
-                .wait_for_agent_count(agents.len())
-                .await
-                .context("not all agents registered")?,
-        };
-
-        self.agent_ids = registered_snapshot
-            .agents
-            .iter()
-            .map(|registered_agent| registered_agent.id.clone())
-            .collect();
 
         Ok(())
     }

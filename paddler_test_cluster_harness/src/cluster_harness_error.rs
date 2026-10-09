@@ -18,6 +18,7 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 
+use crate::process_end::ProcessEnd;
 use crate::snapshots_stream::SnapshotsStream;
 
 #[derive(Debug, Error)]
@@ -48,6 +49,11 @@ pub enum ClusterHarnessError {
     AgentSocketReceiveFailed(#[source] WebSocketError),
     #[error("The raw agent socket could not send a frame")]
     AgentSocketSendFailed(#[source] WebSocketError),
+    #[error("Agent {agent_name:?} exited before it was ready: {process_end:?}")]
+    AgentExitedBeforeReady {
+        agent_name: String,
+        process_end: ProcessEnd,
+    },
     #[error("Agent {agent_name:?} reported issues while starting: {issues:?}")]
     AgentReportedIssues {
         agent_name: String,

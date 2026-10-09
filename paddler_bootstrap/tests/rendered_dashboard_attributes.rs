@@ -17,7 +17,7 @@ pub async fn rendered_dashboard_attributes(
         addr: EPHEMERAL_LOOPBACK_ADDR,
     });
 
-    let runner = BalancerRunner::start(params)
+    let mut runner = BalancerRunner::start(params)
         .await
         .expect("a runner with the web admin panel must start");
     let web_admin_panel_addr = runner

@@ -1,5 +1,5 @@
 use std::io;
-use std::num::TryFromIntError;
+use std::process::ExitStatus;
 
 use nix::errno::Errno;
 use nix::sys::signal::Signal;
@@ -10,6 +10,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SubprocessClusterError {
+    #[error("The balancer subprocess exited with {exit_status} before announcing its addresses")]
+    BalancerExitedBeforeAnnouncing { exit_status: ExitStatus },
     #[error("The subprocess {pid} reported {status:?} instead of stopping")]
     ProcessDidNotStop { pid: Pid, status: WaitStatus },
     #[error("The subprocess was already reaped, so it can no longer be signalled")]
@@ -27,12 +29,10 @@ pub enum SubprocessClusterError {
         #[source]
         source: Errno,
     },
-    #[error("The subprocess PID {raw_pid} does not fit into a signal target")]
-    ProcessIdOutOfRange {
-        raw_pid: u32,
-        #[source]
-        source: TryFromIntError,
-    },
+    #[error("The subprocess exited with {exit_status}")]
+    ProcessExitedWithFailure { exit_status: ExitStatus },
+    #[error("Unable to observe how the subprocess exited")]
+    ProcessExitUnobservable(#[source] io::Error),
     #[error(
         "The balancer subprocess announcement is not valid balancer addresses: {announcement:?}"
     )]
@@ -46,10 +46,6 @@ pub enum SubprocessClusterError {
         #[source]
         source: io::Error,
     },
-    #[error("The agent {agent_name} was reported ready but is missing from the agents snapshot")]
-    ReadyAgentMissing { agent_name: String },
-    #[error("The balancer subprocess closed its stdout before announcing its addresses")]
-    StdoutClosedBeforeAnnouncement,
     #[error("The balancer subprocess stdout is not piped")]
     StdoutNotPiped,
 }

@@ -7,7 +7,7 @@ use crate::agent_runner_params_for_unreachable_balancer::agent_runner_params_for
 #[tokio::test]
 async fn agent_runner_completes_when_its_parent_token_is_cancelled() {
     let parent_token = CancellationToken::new();
-    let runner = AgentRunner::start(agent_runner_params_for_unreachable_balancer(
+    let mut runner = AgentRunner::start(agent_runner_params_for_unreachable_balancer(
         parent_token.clone(),
     ));
 

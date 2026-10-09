@@ -6,6 +6,7 @@ import { eventSourceConnectionErrorState } from "../../src/EventSourceConnection
 import { eventSourceInitialState } from "../../src/EventSourceInitialState";
 import { AgentsResponseSchema } from "../../src/schemas/AgentsResponse";
 import { streamEventSource } from "../../src/streamEventSource";
+import { agentsStreamUrl } from "../agentsStreamUrl";
 
 const UNREACHABLE_ADDRESS = "127.0.0.1:1";
 
@@ -14,7 +15,7 @@ test("streamEventSource reports a connection error", async function () {
     await firstValueFrom(
       streamEventSource({
         schema: AgentsResponseSchema,
-        url: `http://${UNREACHABLE_ADDRESS}/api/v1/agents/stream`,
+        url: agentsStreamUrl(UNREACHABLE_ADDRESS),
       }).pipe(take(2), toArray()),
     ),
     [eventSourceInitialState, eventSourceConnectionErrorState],

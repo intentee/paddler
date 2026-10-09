@@ -26,7 +26,7 @@ impl AgentRunner {
         Self { thread }
     }
 
-    pub async fn wait_for_completion(self) -> Result<(), BootstrapError> {
+    pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
         self.thread.wait_for_completion().await
     }
 

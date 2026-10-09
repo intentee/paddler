@@ -7,6 +7,7 @@ import { AgentsResponseSchema } from "../../src/schemas/AgentsResponse";
 import { BalancerDesiredStateSchema } from "../../src/schemas/BalancerDesiredState";
 import { streamEventSource } from "../../src/streamEventSource";
 import { AgentReportedIssuesError } from "../AgentReportedIssuesError";
+import { agentsStreamUrl } from "../agentsStreamUrl";
 import { putBalancerDesiredState } from "../putBalancerDesiredState";
 import { spawnAgent } from "../spawnAgent";
 import { PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS } from "../SpawnedBalancer";
@@ -45,9 +46,10 @@ test("waitForAgentReady reports agent issues", async function () {
         await rejects(
           waitForAgentReady({
             agentName: AGENT.name,
+            agentProcess,
             agentsStates: streamEventSource({
               schema: AgentsResponseSchema,
-              url: `http://${management}/api/v1/agents/stream`,
+              url: agentsStreamUrl(management),
             }),
             expectedSlotsTotal: AGENT.slots,
           }),

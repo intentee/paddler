@@ -1,5 +1,6 @@
 pub mod agent_config;
 mod agent_count_is;
+pub mod agent_readiness;
 mod agent_slots_processing_is;
 pub mod agent_spawner;
 pub mod budgeted_inference_message_stream;
@@ -30,6 +31,7 @@ pub mod model_card;
 pub mod noul_system_one_request;
 pub mod openai_api_client;
 pub mod pointer_head_fixture;
+pub mod process_end;
 pub mod raw_agent_socket;
 pub mod raw_inference_socket;
 pub mod resource_snapshot;

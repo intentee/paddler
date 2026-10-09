@@ -39,7 +39,7 @@ impl ServiceThread {
         }
     }
 
-    pub async fn wait_for_completion(mut self) -> Result<(), BootstrapError> {
+    pub async fn wait_for_completion(&mut self) -> Result<(), BootstrapError> {
         let Err(_thread_finished) = (&mut self.finished_rx).await;
 
         self.join_thread()
@@ -128,7 +128,7 @@ mod tests {
 
     #[tokio::test]
     async fn waiting_reports_the_error_of_a_failed_run() {
-        let service_thread =
+        let mut service_thread =
             ServiceThread::spawn(CancellationToken::new(), |_task_cancellation_token| async {
                 Err(ServiceRunFailed.into())
             });
@@ -147,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn wait_for_completion_errors_when_service_thread_panics() {
-        let service_thread =
+        let mut service_thread =
             ServiceThread::spawn(CancellationToken::new(), |_task_cancellation_token| async {
                 panic!("service thread crashed")
             });
@@ -162,7 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn cancel_stops_the_running_service_thread() {
-        let service_thread = ServiceThread::spawn(
+        let mut service_thread = ServiceThread::spawn(
             CancellationToken::new(),
             |task_cancellation_token| async move {
                 task_cancellation_token.cancelled().await;

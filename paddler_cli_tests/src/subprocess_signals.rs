@@ -1,27 +1,24 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+
 use nix::sys::signal::Signal;
 use nix::sys::signal::kill;
 use nix::sys::wait::WaitPidFlag;
 use nix::sys::wait::WaitStatus;
 use nix::sys::wait::waitpid;
 use nix::unistd::Pid;
-use tokio::process::Child;
 
-use crate::child_pid::child_pid;
 use crate::subprocess_cluster_error::SubprocessClusterError;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct SubprocessSignals {
-    pid: Pid,
+    pub kill_requested: Arc<AtomicBool>,
+    pub pid: Pid,
 }
 
 impl SubprocessSignals {
-    pub fn of(child: &Child) -> Result<Self, SubprocessClusterError> {
-        let pid = child_pid(child)?.ok_or(SubprocessClusterError::ProcessAlreadyReaped)?;
-
-        Ok(Self { pid })
-    }
-
-    pub fn pause(self) -> Result<(), SubprocessClusterError> {
+    pub fn pause(&self) -> Result<(), SubprocessClusterError> {
         self.send(Signal::SIGSTOP)?;
 
         match waitpid(self.pid, Some(WaitPidFlag::WUNTRACED)) {
@@ -37,15 +34,21 @@ impl SubprocessSignals {
         }
     }
 
-    pub fn resume(self) -> Result<(), SubprocessClusterError> {
+    pub fn resume(&self) -> Result<(), SubprocessClusterError> {
         self.send(Signal::SIGCONT)
     }
 
-    pub fn kill(self) -> Result<(), SubprocessClusterError> {
+    pub fn kill(&self) -> Result<(), SubprocessClusterError> {
+        self.kill_requested.store(true, Ordering::Release);
+
         self.send(Signal::SIGKILL)
     }
 
-    fn send(self, signal: Signal) -> Result<(), SubprocessClusterError> {
+    pub fn terminate(&self) -> Result<(), SubprocessClusterError> {
+        self.send(Signal::SIGTERM)
+    }
+
+    fn send(&self, signal: Signal) -> Result<(), SubprocessClusterError> {
         kill(self.pid, signal).map_err(|source| SubprocessClusterError::SignalUndeliverable {
             pid: self.pid,
             signal,

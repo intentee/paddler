@@ -20,7 +20,7 @@ async fn balancer_runner_serves_the_desired_state_it_starts_with() {
     params.bootstrap_config.state_database_type =
         StateDatabaseType::Memory(Box::new(initial_desired_state.clone()));
 
-    let runner = BalancerRunner::start(params)
+    let mut runner = BalancerRunner::start(params)
         .await
         .expect("a runner starting with a desired state must start");
 

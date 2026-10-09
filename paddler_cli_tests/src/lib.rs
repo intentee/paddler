@@ -1,10 +1,12 @@
-pub mod child_pid;
+pub mod agent_exited_before_ready_with_code;
+pub mod clap_usage_error_exit_code;
 pub mod paddler_command;
 pub mod pausable_agent;
 pub mod pausable_agent_cluster;
 pub mod pausable_agent_cluster_params;
 pub mod pausable_agent_params;
 pub mod read_balancer_addresses;
+pub mod restart_balancer;
 pub mod spawn_agent_subprocess;
 pub mod spawn_agent_subprocess_params;
 pub mod spawn_balancer_subprocess;
@@ -19,4 +21,3 @@ pub mod subprocess_cluster;
 pub mod subprocess_cluster_error;
 pub mod subprocess_process;
 pub mod subprocess_signals;
-pub mod terminate_child;

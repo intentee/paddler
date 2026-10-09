@@ -2,7 +2,6 @@
 
 use std::num::NonZeroU32;
 
-use tokio::select;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
@@ -49,7 +48,7 @@ async fn a_request_waits_while_agents_still_serve_the_previous_inference_mode() 
         .await
         .expect("the agent must keep serving decisions while the desired model is missing");
 
-    let mut generation = spawn(cluster.continue_from_raw_prompt(
+    let generation = spawn(cluster.continue_from_raw_prompt(
         CancellationToken::new(),
         &ContinueFromRawPromptParams {
             grammar: None,
@@ -58,17 +57,10 @@ async fn a_request_waits_while_agents_still_serve_the_previous_inference_mode() 
         },
     ));
 
-    select! {
-        answered_early = &mut generation => {
-            let early_outcome = answered_early
-                .map(|generated| generated.map(|collected| collected.summary()));
-
-            panic!("the request must wait for an agent serving text generation, but it ended with: {early_outcome:?}");
-        }
-        buffered = cluster.wait_for_buffered_request_count(1) => {
-            buffered.expect("the request must wait in the buffer");
-        }
-    }
+    cluster
+        .wait_for_buffered_request_count(1)
+        .await
+        .expect("the request must wait in the buffer");
 
     cluster
         .client_management

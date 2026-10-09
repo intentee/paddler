@@ -6,7 +6,7 @@ use crate::agent_runner_params_for_unreachable_balancer::agent_runner_params_for
 
 #[tokio::test]
 async fn agent_runner_completes_when_cancelled() {
-    let runner = AgentRunner::start(agent_runner_params_for_unreachable_balancer(
+    let mut runner = AgentRunner::start(agent_runner_params_for_unreachable_balancer(
         CancellationToken::new(),
     ));
 

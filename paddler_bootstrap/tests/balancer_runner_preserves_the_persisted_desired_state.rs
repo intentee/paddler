@@ -43,7 +43,7 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
 
     params.bootstrap_config.state_database_type = StateDatabaseType::File(state_database_path);
 
-    let runner = BalancerRunner::start(params)
+    let mut runner = BalancerRunner::start(params)
         .await
         .expect("a runner with a valid state database must start");
 

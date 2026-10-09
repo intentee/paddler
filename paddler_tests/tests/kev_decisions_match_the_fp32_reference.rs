@@ -3,17 +3,14 @@
 use serde_json::from_str;
 use tokio_util::sync::CancellationToken;
 
-use paddler_agent_decision::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
 use paddler_tests::kev_parity_record::KevParityRecord;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_tests::test_cluster_preset::TestClusterPreset;
 
 const KEV_DOCUMENTED_GPU_BF16_DEVIATION: f32 = 0.03;
+
 fn most_probable_option(probabilities: &[f32]) -> Option<usize> {
     probabilities
         .iter()
@@ -28,13 +25,9 @@ async fn kev_decisions_match_the_fp32_reference() {
         "../../fixtures/kev_0_8b_parity_reference.json"
     ))
     .expect("the parity reference must parse");
-    let cluster = start_cluster(ClusterParams {
-        agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM),
-        desired_state: ClusterDesiredState::Apply(Box::new(kev_0_8b_desired_state())),
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("the Kev cluster must start");
+    let cluster = start_cluster(TestClusterPreset::Kev0_8b.cluster_params())
+        .await
+        .expect("the Kev cluster must start");
 
     for KevParityRecord {
         probabilities,

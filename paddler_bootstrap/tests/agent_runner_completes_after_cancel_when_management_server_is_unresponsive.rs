@@ -16,7 +16,7 @@ async fn agent_runner_completes_after_cancel_when_management_server_is_unrespons
         .local_addr()
         .expect("a bound listener must report its address");
 
-    let runner = AgentRunner::start(AgentRunnerParams {
+    let mut runner = AgentRunner::start(AgentRunnerParams {
         bootstrap_config: AgentBootstrapConfig {
             agent_name: Some("test-agent".to_owned()),
             management_address: management_addr.to_string(),

@@ -15,9 +15,10 @@ use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
 #[tokio::test]
 async fn balancer_shutdown_releases_buffered_request_with_shutdown_error() {
-    let runner = BalancerRunner::start(ephemeral_balancer_runner_params(CancellationToken::new()))
-        .await
-        .expect("a runner on ephemeral ports must start");
+    let mut runner =
+        BalancerRunner::start(ephemeral_balancer_runner_params(CancellationToken::new()))
+            .await
+            .expect("a runner on ephemeral ports must start");
     let held_response = Client::new()
         .post(format!(
             "http://{}{}",
