@@ -11,14 +11,14 @@ use tokio_util::task::TaskTracker;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::await_scheduler_startup::await_scheduler_startup;
+use paddler_agent_runtime::continue_startup_unless_shutting_down::continue_startup_unless_shutting_down;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::inference_thread_count::inference_thread_count;
 use paddler_agent_runtime::llama_context_settings::LlamaContextSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_agent_runtime::run_scheduler_unless_startup_abandoned::run_scheduler_unless_startup_abandoned;
 use paddler_agent_runtime::scheduler_request_preparer::SchedulerRequestPreparer;
 use paddler_agent_runtime::scheduler_spawn_outcome::SchedulerSpawnOutcome;
-use paddler_agent_runtime::send_startup_signal::send_startup_signal;
-use paddler_agent_runtime::startup_signal_delivery::StartupSignalDelivery;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
@@ -71,72 +71,79 @@ impl EmbeddingPipeline {
             .slot_aggregated_status
             .desired_slots_total;
         let n_batch = model_runtime_parameters.n_batch.tokens_usize();
-        let thread_count = inference_thread_count()?;
-        let loaded_llama_model = LoadedLlamaModel::load(
-            &inference_runtime_context,
-            &model_path,
-            &LlamaModelParams::default().with_n_gpu_layers(model_runtime_parameters.n_gpu_layers),
-        )?;
 
-        inference_runtime_context
-            .slot_aggregated_status
-            .set_model_path(Some(ModelPath::from(model_path.as_path()).model_path));
+        continue_startup_unless_shutting_down(agent_shutdown, || {
+            let thread_count = inference_thread_count()?;
+            let loaded_llama_model = LoadedLlamaModel::load(
+                &inference_runtime_context,
+                &model_path,
+                &LlamaModelParams::default()
+                    .with_n_gpu_layers(model_runtime_parameters.n_gpu_layers),
+            )?;
 
-        let mut llama_context = loaded_llama_model.create_llama_context(
-            &inference_runtime_context,
-            LlamaContextSettings {
-                model_runtime_parameters: &model_runtime_parameters,
-                n_seq_max: u32::from(desired_slots_total),
-                thread_count,
-            }
-            .into_llama_context_params()
-            .with_embeddings(true)
-            .with_n_ubatch(model_runtime_parameters.n_batch.tokens().get())
-            .with_pooling_type(
-                AgentPoolingType(embedding_parameters.pooling_type.clone()).to_llama_pooling_type(),
-            ),
-        )?;
-        let mut batch = LlamaBatch::new(n_batch, i32::from(desired_slots_total))
-            .map_err(AgentRuntimeError::BatchAllocationFailed)?;
+            continue_startup_unless_shutting_down(agent_shutdown, || {
+                inference_runtime_context
+                    .slot_aggregated_status
+                    .set_model_path(Some(ModelPath::from(model_path.as_path()).model_path));
 
-        loaded_llama_model.warm_up_llama_context(
-            &mut llama_context,
-            &mut batch,
-            desired_slots_total,
-        );
+                let mut llama_context = loaded_llama_model.create_llama_context(
+                    &inference_runtime_context,
+                    LlamaContextSettings {
+                        model_runtime_parameters: &model_runtime_parameters,
+                        n_seq_max: u32::from(desired_slots_total),
+                        thread_count,
+                    }
+                    .into_llama_context_params()
+                    .with_embeddings(true)
+                    .with_n_ubatch(model_runtime_parameters.n_batch.tokens().get())
+                    .with_pooling_type(
+                        AgentPoolingType(embedding_parameters.pooling_type.clone())
+                            .to_llama_pooling_type(),
+                    ),
+                )?;
+                let mut batch = LlamaBatch::new(n_batch, i32::from(desired_slots_total))
+                    .map_err(AgentRuntimeError::BatchAllocationFailed)?;
 
-        let (scheduler_message_tx, scheduler_message_rx) = channel();
-        let request_preparer = Arc::new(SchedulerRequestPreparer {
-            agent_name: inference_runtime_context.agent_name.clone(),
-            preparation: EmbeddingBatchPreparer {
-                loaded_llama_model: loaded_llama_model.clone(),
-                n_batch,
-            },
-            preparation_tasks: TaskTracker::new(),
-            scheduler_message_tx,
-        });
+                continue_startup_unless_shutting_down(agent_shutdown, || {
+                    loaded_llama_model.warm_up_llama_context(
+                        &mut llama_context,
+                        &mut batch,
+                        desired_slots_total,
+                    );
 
-        if matches!(
-            send_startup_signal(scheduler_ready_tx, request_preparer),
-            StartupSignalDelivery::Abandoned
-        ) {
-            return Ok(());
-        }
+                    let (scheduler_message_tx, scheduler_message_rx) = channel();
 
-        EmbeddingScheduler {
-            agent_shutdown: agent_shutdown.clone(),
-            batch,
-            scheduler_message_rx,
-            llama_context,
-            scheduler_context: EmbeddingSchedulerContext {
-                agent_name: inference_runtime_context.agent_name,
-                desired_slots_total,
-                n_batch,
-                pooling_type: embedding_parameters.pooling_type,
-            },
-        }
-        .run();
+                    run_scheduler_unless_startup_abandoned(
+                        scheduler_ready_tx,
+                        Arc::new(SchedulerRequestPreparer {
+                            agent_name: inference_runtime_context.agent_name.clone(),
+                            preparation: EmbeddingBatchPreparer {
+                                loaded_llama_model: loaded_llama_model.clone(),
+                                n_batch,
+                            },
+                            preparation_tasks: TaskTracker::new(),
+                            scheduler_message_tx,
+                        }),
+                        || {
+                            EmbeddingScheduler {
+                                agent_shutdown: agent_shutdown.clone(),
+                                batch,
+                                scheduler_message_rx,
+                                llama_context,
+                                scheduler_context: EmbeddingSchedulerContext {
+                                    agent_name: inference_runtime_context.agent_name,
+                                    desired_slots_total,
+                                    n_batch,
+                                    pooling_type: embedding_parameters.pooling_type,
+                                },
+                            }
+                            .run();
+                        },
+                    );
 
-        Ok(())
+                    Ok(())
+                })
+            })
+        })
     }
 }

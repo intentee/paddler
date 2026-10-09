@@ -8,11 +8,11 @@ use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
 use paddler_agent::desired_state_reconciliation::DesiredStateReconciliation;
 use paddler_agent::pipeline_arbiter_state::PipelineArbiterState;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
-use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
-use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_agent_status::slot_guard::SlotGuard;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
+use crate::agent_inference_runtime_context::agent_inference_runtime_context;
 
 pub struct ServingPipelineArbiter {
     pub desired_state_reconciliation: DesiredStateReconciliation,
@@ -23,11 +23,7 @@ pub struct ServingPipelineArbiter {
 impl ServingPipelineArbiter {
     pub async fn start(desired_state: BalancerDesiredState, slots: u16) -> Self {
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
-        let inference_runtime_context = InferenceRuntimeContext {
-            agent_name: Some("agent".to_owned()),
-            model_metadata_holder: Arc::new(ModelMetadataHolder::default()),
-            slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(slots)),
-        };
+        let inference_runtime_context = agent_inference_runtime_context(slots);
         let desired_state_reconciliation = DesiredStateReconciler {
             agent_applicable_state_holder: agent_applicable_state_holder.clone(),
             slot_aggregated_status: inference_runtime_context.slot_aggregated_status.clone(),

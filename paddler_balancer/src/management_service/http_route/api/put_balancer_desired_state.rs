@@ -4,11 +4,13 @@ use actix_web::Responder;
 use actix_web::error::ErrorInternalServerError;
 use actix_web::web;
 use actix_web::web::put;
+use tokio::select;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
+use crate::balancer_shutdown_error::balancer_shutdown_error;
 use crate::management_service::app_data::AppData;
 
 async fn respond(
@@ -25,12 +27,17 @@ async fn respond(
         .await
         .map_err(ErrorInternalServerError)?;
 
-    applied_state_rx
-        .changed()
-        .await
-        .map_err(ErrorInternalServerError)?;
+    select! {
+        biased;
+        applied_state_change = applied_state_rx.changed() => {
+            applied_state_change.map_err(ErrorInternalServerError)?;
 
-    Ok(HttpResponse::NoContent().finish())
+            Ok(HttpResponse::NoContent().finish())
+        }
+        () = app_data.shutdown.cancelled() => {
+            Ok(HttpResponse::ServiceUnavailable().json(balancer_shutdown_error()))
+        }
+    }
 }
 
 pub fn put_balancer_desired_state(cfg: &mut web::ServiceConfig) {
@@ -136,6 +143,33 @@ mod tests {
 
         reconciliation_shutdown.cancel();
         reconciliation.await.unwrap().unwrap();
+    }
+
+    #[actix_web::test]
+    async fn responds_with_service_unavailable_when_the_balancer_shuts_down_before_applying() {
+        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
+            watch::channel(BalancerDesiredState::default());
+        let app_data = build_app_data(Arc::new(Memory::new(
+            balancer_desired_state_notify_tx,
+            BalancerDesiredState::default(),
+        )));
+        let app = init_service(
+            App::new()
+                .app_data(app_data.clone())
+                .configure(put_balancer_desired_state),
+        )
+        .await;
+        let request = TestRequest::put()
+            .uri(ApiPath::BALANCER_DESIRED_STATE)
+            .set_json(BalancerDesiredState::default())
+            .to_request();
+
+        app_data.shutdown.cancel();
+
+        assert_eq!(
+            call_service(&app, request).await.status(),
+            StatusCode::SERVICE_UNAVAILABLE
+        );
     }
 
     #[actix_web::test]

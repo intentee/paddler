@@ -13,14 +13,14 @@ use tokio_util::task::TaskTracker;
 use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_agent_runtime::await_scheduler_startup::await_scheduler_startup;
+use paddler_agent_runtime::continue_startup_unless_shutting_down::continue_startup_unless_shutting_down;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::inference_thread_count::inference_thread_count;
 use paddler_agent_runtime::llama_context_settings::LlamaContextSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_agent_runtime::run_scheduler_unless_startup_abandoned::run_scheduler_unless_startup_abandoned;
 use paddler_agent_runtime::scheduler_request_preparer::SchedulerRequestPreparer;
 use paddler_agent_runtime::scheduler_spawn_outcome::SchedulerSpawnOutcome;
-use paddler_agent_runtime::send_startup_signal::send_startup_signal;
-use paddler_agent_runtime::startup_signal_delivery::StartupSignalDelivery;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_architecture_unsupported_for_decisions_params::ModelArchitectureUnsupportedForDecisionsParams;
@@ -174,89 +174,94 @@ impl DecisionPipeline {
         agent_shutdown: &CancellationToken,
         scheduler_ready_tx: oneshot::Sender<Arc<SchedulerRequestPreparer<DecisionRequestPreparer>>>,
     ) -> Result<(), DecisionError> {
-        let desired_slots_total = self.require_enough_slots()?;
-        let pointer_head = self.load_pointer_head()?;
-        let n_batch = self.model_runtime_parameters.n_batch.tokens_usize();
-        let thread_count = inference_thread_count()?;
-        let loaded_llama_model = LoadedLlamaModel::load(
-            &self.inference_runtime_context,
-            &self.model_path,
-            &LlamaModelParams::default()
-                .with_n_gpu_layers(self.model_runtime_parameters.n_gpu_layers),
-        )?;
+        continue_startup_unless_shutting_down(agent_shutdown, || {
+            let desired_slots_total = self.require_enough_slots()?;
+            let pointer_head = self.load_pointer_head()?;
+            let n_batch = self.model_runtime_parameters.n_batch.tokens_usize();
+            let thread_count = inference_thread_count()?;
+            let loaded_llama_model = LoadedLlamaModel::load(
+                &self.inference_runtime_context,
+                &self.model_path,
+                &LlamaModelParams::default()
+                    .with_n_gpu_layers(self.model_runtime_parameters.n_gpu_layers),
+            )?;
 
-        self.inference_runtime_context
-            .slot_aggregated_status
-            .set_model_path(Some(ModelPath::from(self.model_path.as_path()).model_path));
-        self.require_decision_architecture(&loaded_llama_model)?;
+            continue_startup_unless_shutting_down(agent_shutdown, || {
+                self.inference_runtime_context
+                    .slot_aggregated_status
+                    .set_model_path(Some(ModelPath::from(self.model_path.as_path()).model_path));
+                self.require_decision_architecture(&loaded_llama_model)?;
 
-        let delimiter_tokens = self.resolve_delimiter_tokens(&loaded_llama_model, &pointer_head)?;
-        let mut llama_context = loaded_llama_model.create_llama_context(
-            &self.inference_runtime_context,
-            LlamaContextSettings {
-                model_runtime_parameters: &self.model_runtime_parameters,
-                n_seq_max: u32::from(desired_slots_total),
-                thread_count,
-            }
-            .into_llama_context_params()
-            .with_kv_unified(true),
-        )?;
+                let delimiter_tokens =
+                    self.resolve_delimiter_tokens(&loaded_llama_model, &pointer_head)?;
+                let mut llama_context = loaded_llama_model.create_llama_context(
+                    &self.inference_runtime_context,
+                    LlamaContextSettings {
+                        model_runtime_parameters: &self.model_runtime_parameters,
+                        n_seq_max: u32::from(desired_slots_total),
+                        thread_count,
+                    }
+                    .into_llama_context_params()
+                    .with_kv_unified(true),
+                )?;
 
-        llama_context
-            .enable_masked_nextn_embeddings()
-            .map_err(DecisionError::HiddenStatesUnsupported)?;
+                llama_context
+                    .enable_masked_nextn_embeddings()
+                    .map_err(DecisionError::HiddenStatesUnsupported)?;
 
-        let mut batch =
-            LlamaBatch::new(n_batch, 1).map_err(AgentRuntimeError::BatchAllocationFailed)?;
+                let mut batch = LlamaBatch::new(n_batch, 1)
+                    .map_err(AgentRuntimeError::BatchAllocationFailed)?;
 
-        loaded_llama_model.warm_up_llama_context(
-            &mut llama_context,
-            &mut batch,
-            desired_slots_total,
-        );
+                continue_startup_unless_shutting_down(agent_shutdown, || {
+                    loaded_llama_model.warm_up_llama_context(
+                        &mut llama_context,
+                        &mut batch,
+                        desired_slots_total,
+                    );
 
-        let context_cells = llama_context.n_ctx();
-        let (scheduler_message_tx, scheduler_message_rx) = channel();
-        let request_preparer = Arc::new(SchedulerRequestPreparer {
-            agent_name: self.inference_runtime_context.agent_name.clone(),
-            preparation: DecisionRequestPreparer {
-                context_cells,
-                delimiter_tokens,
-                text_tokenizer: DecisionTextTokenizer {
-                    loaded_llama_model: loaded_llama_model.clone(),
-                },
-            },
-            preparation_tasks: TaskTracker::new(),
-            scheduler_message_tx,
-        });
+                    let context_cells = llama_context.n_ctx();
+                    let (scheduler_message_tx, scheduler_message_rx) = channel();
 
-        if matches!(
-            send_startup_signal(scheduler_ready_tx, request_preparer),
-            StartupSignalDelivery::Abandoned
-        ) {
-            return Ok(());
-        }
+                    run_scheduler_unless_startup_abandoned(
+                        scheduler_ready_tx,
+                        Arc::new(SchedulerRequestPreparer {
+                            agent_name: self.inference_runtime_context.agent_name.clone(),
+                            preparation: DecisionRequestPreparer {
+                                context_cells,
+                                delimiter_tokens,
+                                text_tokenizer: DecisionTextTokenizer {
+                                    loaded_llama_model: loaded_llama_model.clone(),
+                                },
+                            },
+                            preparation_tasks: TaskTracker::new(),
+                            scheduler_message_tx,
+                        }),
+                        || {
+                            DecisionScheduler {
+                                active_requests: VecDeque::new(),
+                                agent_shutdown: agent_shutdown.clone(),
+                                batch,
+                                capacity_ledger: DecisionCapacityLedger::new(
+                                    context_cells as usize,
+                                    desired_slots_total,
+                                ),
+                                llama_context,
+                                pending_requests: VecDeque::new(),
+                                scheduler_context: DecisionSchedulerContext {
+                                    agent_name: self.inference_runtime_context.agent_name,
+                                    n_batch,
+                                    pointer_head,
+                                },
+                                scheduler_message_rx,
+                                shutdown_requested: false,
+                            }
+                            .run();
+                        },
+                    );
 
-        DecisionScheduler {
-            active_requests: VecDeque::new(),
-            agent_shutdown: agent_shutdown.clone(),
-            batch,
-            capacity_ledger: DecisionCapacityLedger::new(
-                context_cells as usize,
-                desired_slots_total,
-            ),
-            llama_context,
-            pending_requests: VecDeque::new(),
-            scheduler_context: DecisionSchedulerContext {
-                agent_name: self.inference_runtime_context.agent_name,
-                n_batch,
-                pointer_head,
-            },
-            scheduler_message_rx,
-            shutdown_requested: false,
-        }
-        .run();
-
-        Ok(())
+                    Ok(())
+                })
+            })
+        })
     }
 }

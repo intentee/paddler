@@ -1,3 +1,4 @@
+pub mod agent_inference_runtime_context;
 pub mod batch_size_within_context;
 pub mod cluster_without_agents_serving;
 pub mod conversation_with_a_tool_requiring_an_undeclared_property;
