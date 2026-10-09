@@ -5,6 +5,8 @@ use tokio::fs::write;
 
 use paddler_bootstrap::bootstrap_error::BootstrapError;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_state_database::state_database_error::StateDatabaseError;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
@@ -15,13 +17,13 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
     let mut stored_desired_state =
         to_value(BalancerDesiredState::default()).expect("the value must serialize");
 
-    stored_desired_state["inference_parameters"]["image_resize_to_fit"] = json!(0);
+    stored_desired_state["text_generation"]["multimodal"]["image_resize_to_fit"] = json!(0);
 
     write(
         &database.path,
         to_string(&json!({
             "balancer_desired_state": stored_desired_state,
-            "version": "1",
+            "version": "2",
         }))
         .expect("the value must serialize"),
     )
@@ -32,7 +34,7 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: None,
+        desired_state: ClusterDesiredState::KeepStored,
         ..ClusterParams::default()
     })
     .await
@@ -43,7 +45,9 @@ async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
             start_error
                 .as_ref()
                 .and_then(|error| error.downcast_ref::<BootstrapError>()),
-            Some(BootstrapError::StateDatabaseReadFailed { .. })
+            Some(BootstrapError::StateDatabaseReadFailed {
+                source: StateDatabaseError::FileContentsInvalid { .. }
+            })
         ),
         "{start_error:?}"
     );

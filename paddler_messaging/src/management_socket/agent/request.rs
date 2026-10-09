@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use crate::request_params::decide_params::DecideParams;
 use crate::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use crate::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -13,6 +14,7 @@ pub enum Request {
         ContinueFromConversationHistoryParams<ValidatedParametersSchema>,
     ),
     ContinueFromRawPrompt(ContinueFromRawPromptParams),
+    Decide(DecideParams),
     GenerateEmbeddingBatch(GenerateEmbeddingBatchParams),
     GetChatTemplateOverride,
     GetModelMetadata,
@@ -27,6 +29,12 @@ impl From<ContinueFromConversationHistoryParams<ValidatedParametersSchema>> for 
 impl From<ContinueFromRawPromptParams> for Request {
     fn from(params: ContinueFromRawPromptParams) -> Self {
         Self::ContinueFromRawPrompt(params)
+    }
+}
+
+impl From<DecideParams> for Request {
+    fn from(params: DecideParams) -> Self {
+        Self::Decide(params)
     }
 }
 

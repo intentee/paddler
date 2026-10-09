@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::agent_issue::AgentIssue;
+use crate::agent_runtime_status::AgentRuntimeStatus;
 use crate::agent_state_application_status::AgentStateApplicationStatus;
 use crate::model_download_status::ModelDownloadStatus;
 
@@ -14,7 +15,7 @@ pub struct AgentStatus {
     pub download_status: ModelDownloadStatus,
     pub issues: BTreeSet<AgentIssue>,
     pub model_path: Option<String>,
-    pub slots_total: u64,
+    pub runtime: AgentRuntimeStatus,
     pub state_application_status: AgentStateApplicationStatus,
     pub uses_chat_template_override: bool,
 }

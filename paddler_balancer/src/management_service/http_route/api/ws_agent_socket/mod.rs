@@ -234,6 +234,19 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
             }
             ManagementJsonRpcMessage::Response(ResponseEnvelope {
                 request_id,
+                response: AgentJsonRpcResponse::Decision(decision_result),
+                ..
+            }) => {
+                forward_agent_response(
+                    &context.agent_response_senders.decision,
+                    &request_id,
+                    decision_result,
+                );
+
+                ContinuationDecision::Continue
+            }
+            ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                request_id,
                 response: AgentJsonRpcResponse::Embedding(embedding_result),
                 ..
             }) => {

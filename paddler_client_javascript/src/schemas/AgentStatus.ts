@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { AgentIssueSchema } from "./AgentIssue";
+import { AgentRuntimeStatusSchema } from "./AgentRuntimeStatus";
 import { ModelDownloadStatusSchema } from "./ModelDownloadStatus";
 
 export const AgentStatusSchema = z
@@ -9,7 +10,7 @@ export const AgentStatusSchema = z
     download_status: ModelDownloadStatusSchema,
     issues: z.array(AgentIssueSchema),
     model_path: z.string().nullable(),
-    slots_total: z.number(),
+    runtime: AgentRuntimeStatusSchema,
     state_application_status: z.enum([
       "Applied",
       "AttemptedAndNotAppliable",

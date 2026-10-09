@@ -6,7 +6,7 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -18,11 +18,10 @@ use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 async fn agent_embedding_batch_distribution_independent_of_context_size() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(4)],
-        inference_parameters: InferenceParameters {
+        model_runtime_parameters: ModelRuntimeParameters {
             n_batch: BatchSize::try_from(64).expect("the value must fit its target type"),
             context_size: NonZeroU32::try_from(512).expect("the value must fit its target type"),
-            enable_embeddings: true,
-            ..InferenceParameters::deterministic()
+            ..ModelRuntimeParameters::default()
         },
         ..EmbeddingClusterParams::default()
     })
@@ -55,7 +54,7 @@ async fn agent_embedding_batch_distribution_independent_of_context_size() {
 
     assert_eq!(collected.embeddings.len(), 4);
     assert!(collected.saw_done);
-    assert!(collected.errors.is_empty());
+    assert!(collected.failures.is_empty());
 
     let returned_ids: BTreeSet<String> = collected
         .embeddings

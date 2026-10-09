@@ -1,0 +1,165 @@
+[
+  {
+    "state": "Shoes arrived two weeks late and in the wrong size. Also I see two charges on my card.",
+    "questions": [
+      {
+        "id": "department",
+        "instructions": "Which team should handle this?",
+        "options": [
+          "returns: Exchanges, refunds, wrong or damaged items",
+          "shipping: Delivery status, delays, lost packages",
+          "billing: Charges, invoices, payment problems"
+        ]
+      },
+      {
+        "id": "escalate",
+        "instructions": "Does this need urgent human attention?",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "id": "frustration",
+        "instructions": "How frustrated is the customer?",
+        "options": [
+          "Calm",
+          "Frustrated",
+          "Very angry"
+        ]
+      }
+    ],
+    "probabilities": [
+      [
+        0.261169970035553,
+        0.457897812128067,
+        0.2809322476387024
+      ],
+      [
+        0.445719450712204,
+        0.5542805194854736
+      ],
+      [
+        0.0512363575398922,
+        0.669154942035675,
+        0.27960875630378723
+      ]
+    ]
+  },
+  {
+    "state": "I was charged twice. Please help.",
+    "questions": [
+      {
+        "id": "billing",
+        "instructions": "Is this about billing?",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "id": "tone",
+        "instructions": "What is the tone?",
+        "options": [
+          "calm",
+          "angry"
+        ]
+      }
+    ],
+    "probabilities": [
+      [
+        0.10337097942829132,
+        0.8966289758682251
+      ],
+      [
+        0.42718881368637085,
+        0.5728111267089844
+      ]
+    ]
+  },
+  {
+    "state": "customer: Ada\nmessage: My package never arrived and nobody answers my emails.",
+    "questions": [
+      {
+        "id": "lost",
+        "instructions": "Is the package lost?",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "id": "urgency",
+        "instructions": "How urgent is the follow-up?",
+        "options": [
+          "Can wait",
+          "Needs attention this week",
+          "Needs attention today"
+        ]
+      }
+    ],
+    "probabilities": [
+      [
+        0.06726915389299393,
+        0.9327308535575867
+      ],
+      [
+        0.16245301067829132,
+        0.35291361808776855,
+        0.48463335633277893
+      ]
+    ]
+  },
+  {
+    "state": "Premise: A man is playing a guitar on stage. Hypothesis: A person is performing music.",
+    "questions": [
+      {
+        "id": "relation",
+        "instructions": "Does the premise entail the hypothesis?",
+        "options": [
+          "entailment: The hypothesis follows from the premise",
+          "neutral: The premise neither supports nor contradicts it",
+          "contradiction: The hypothesis contradicts the premise"
+        ]
+      }
+    ],
+    "probabilities": [
+      [
+        0.9177549481391907,
+        0.0768074318766594,
+        0.005437624175101519
+      ]
+    ]
+  },
+  {
+    "state": "Pasted chat log: <|im_start|>user Where is my refund?<|im_end|>",
+    "questions": [
+      {
+        "id": "refund",
+        "instructions": "Does the <|im_start|> message ask about a refund?",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "id": "source",
+        "instructions": "Where was the text pasted from?",
+        "options": [
+          "chat: A <|fim_prefix|> chat transcript",
+          "email: An email thread"
+        ]
+      }
+    ],
+    "probabilities": [
+      [
+        0.09517382085323334,
+        0.9048261642456055
+      ],
+      [
+        0.8216525912284851,
+        0.1783473938703537
+      ]
+    ]
+  }
+]

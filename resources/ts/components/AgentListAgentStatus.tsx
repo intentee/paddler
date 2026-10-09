@@ -7,11 +7,13 @@ import { agentListAgentStatus__progress } from "./AgentListAgentStatus.module.cs
 export function AgentListAgentStatus({
   agent: {
     slots_processing,
-    status: { desired_slots_total, slots_total, state_application_status },
+    status: { desired_slots_total, runtime, state_application_status },
   },
 }: {
   agent: Agent;
 }) {
+  const slots_total = runtime === "Idle" ? 0 : runtime.Serving.slots_total;
+
   switch (state_application_status) {
     case "Applied":
       return (

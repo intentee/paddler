@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
@@ -32,7 +33,7 @@ fn waiting_prompt() -> ContinueFromRawPromptParams {
 async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(SLOT_COUNT)],
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

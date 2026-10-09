@@ -19,9 +19,7 @@ pub async fn collect_embedding_results(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedEmbeddingResults> {
     let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
-    let mut embeddings_disabled = false;
-    let mut errors: Vec<String> = Vec::new();
-    let mut embedding_rejected_due_to_active_token_generation_count: usize = 0;
+    let mut failures: Vec<EmbeddingResult> = Vec::new();
     let mut model_not_loaded_count: usize = 0;
     let mut no_embeddings_produced_count: usize = 0;
     let mut oversized_documents = Vec::new();
@@ -53,14 +51,15 @@ pub async fn collect_embedding_results(
                     EmbeddingResult::DocumentExceedsBatchSize(details) => {
                         oversized_documents.push(details);
                     }
-                    EmbeddingResult::EmbeddingsDisabled => {
-                        embeddings_disabled = true;
-                    }
-                    EmbeddingResult::Error(message) => {
-                        errors.push(message);
-                    }
-                    EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration => {
-                        embedding_rejected_due_to_active_token_generation_count += 1;
+                    failure @ (EmbeddingResult::AgentRuntimeFailed(_)
+                    | EmbeddingResult::BatchAssemblyFailed(_)
+                    | EmbeddingResult::DecodeFailed(_)
+                    | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+                    | EmbeddingResult::EmbeddingsUnavailable(_)
+                    | EmbeddingResult::InferenceModeMismatch(_)
+                    | EmbeddingResult::InputTokenizationFailed(_)
+                    | EmbeddingResult::SchedulerUnavailable(_)) => {
+                        failures.push(failure);
                     }
                     EmbeddingResult::ModelNotLoaded(_) => {
                         model_not_loaded_count += 1;
@@ -85,9 +84,7 @@ pub async fn collect_embedding_results(
 
     Ok(CollectedEmbeddingResults {
         embeddings,
-        embeddings_disabled,
-        errors,
-        embedding_rejected_due_to_active_token_generation_count,
+        failures,
         model_not_loaded_count,
         no_embeddings_produced_count,
         oversized_documents,
@@ -95,4 +92,43 @@ pub async fn collect_embedding_results(
         saw_done,
         wire_errors,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::stream::iter;
+
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::response::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+    use super::collect_embedding_results;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[tokio::test]
+    async fn refuses_a_message_that_is_not_an_embedding_result() {
+        let collection_error = collect_embedding_results(Box::pin(iter([Ok(
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "generation-request".to_owned(),
+                response: InferenceResponse::GeneratedToken(GeneratedTokenResult::ContentToken(
+                    "piece".to_owned(),
+                )),
+            }),
+        )])))
+        .await
+        .err()
+        .expect("a stream of another kind of message must be refused");
+
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::EmbeddingStreamMessageUnexpected { message })
+                if matches!(
+                    message.as_ref(),
+                    InferenceMessage::Response(ResponseEnvelope { request_id, .. })
+                        if request_id == "generation-request"
+                )
+        ));
+    }
 }

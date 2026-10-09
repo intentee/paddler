@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "paddler-llama-cpp-converter"
+version = "5.0.0"
+description = "Runs the Hugging Face to GGUF converter shipped with the llama.cpp sources Paddler's bindings build"
+authors = ["Intentee"]
+license = "Apache-2.0"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+numpy = "==2.5.3"
+protobuf = "==4.25.9"
+pyyaml = "==6.0.3"
+requests = "==2.34.2"
+sentencepiece = "==0.2.2"
+torch = [
+    { version = "==2.11.0+cpu", source = "pytorch-cpu", markers = "sys_platform == 'linux'" },
+    { version = "==2.11.0", source = "PyPI", markers = "sys_platform == 'darwin'" },
+]
+tqdm = "==4.70.1"
+transformers = "==4.57.6"
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -32,7 +32,8 @@ impl DesiredStateReconciler {
 
         match conversion {
             Ok(AgentDesiredStateConversion::Converted(applicable_state)) => {
-                let uses_chat_template_override = applicable_state.chat_template_override.is_some();
+                let uses_chat_template_override =
+                    applicable_state.chat_template_override().is_some();
 
                 self.agent_applicable_state_holder
                     .set_agent_applicable_state(applicable_state);
@@ -52,5 +53,17 @@ impl DesiredStateReconciler {
                 DesiredStateReconciliation::Pending(Box::new(agent_desired_state))
             }
         }
+    }
+
+    pub async fn reconcile_replacement(
+        &self,
+        cancellation_token: &CancellationToken,
+        agent_desired_state: AgentDesiredState,
+    ) -> DesiredStateReconciliation {
+        self.slot_aggregated_status
+            .register_fix(&AgentIssueFix::DesiredStateIsReplaced);
+
+        self.reconcile(cancellation_token, agent_desired_state)
+            .await
     }
 }

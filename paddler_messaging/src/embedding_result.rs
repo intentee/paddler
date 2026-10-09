@@ -8,26 +8,36 @@ use crate::streamable_result::StreamableResult;
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum EmbeddingResult {
+    AgentRuntimeFailed(String),
+    BatchAssemblyFailed(String),
+    DecodeFailed(String),
     DocumentExceedsBatchSize(OversizedEmbeddingDocumentDetails),
     Done,
     Embedding(Embedding),
-    EmbeddingsDisabled,
-    Error(String),
-    EmbeddingRejectedDueToActiveTokenGeneration,
+    EmbeddingTooLongForRmsNormalization(String),
+    EmbeddingsUnavailable(String),
+    InferenceModeMismatch(String),
+    InputTokenizationFailed(String),
     ModelNotLoaded(String),
     NoEmbeddingsProduced,
+    SchedulerUnavailable(String),
 }
 
 impl StreamableResult for EmbeddingResult {
     fn is_done(&self) -> bool {
         matches!(
             self,
-            Self::Done
-                | Self::EmbeddingsDisabled
-                | Self::Error(_)
-                | Self::EmbeddingRejectedDueToActiveTokenGeneration
+            Self::AgentRuntimeFailed(_)
+                | Self::BatchAssemblyFailed(_)
+                | Self::DecodeFailed(_)
+                | Self::Done
+                | Self::EmbeddingTooLongForRmsNormalization(_)
+                | Self::EmbeddingsUnavailable(_)
+                | Self::InferenceModeMismatch(_)
+                | Self::InputTokenizationFailed(_)
                 | Self::ModelNotLoaded(_)
-                | Self::NoEmbeddingsProduced,
+                | Self::NoEmbeddingsProduced
+                | Self::SchedulerUnavailable(_),
         )
     }
 }
@@ -43,33 +53,25 @@ mod tests {
     use crate::streamable_result::StreamableResult;
 
     #[test]
-    fn done_is_done() {
-        assert!(EmbeddingResult::Done.is_done());
-    }
-
-    #[test]
-    fn error_is_done() {
-        assert!(EmbeddingResult::Error("fail".to_owned()).is_done());
-    }
-
-    #[test]
-    fn embeddings_disabled_is_done() {
-        assert!(EmbeddingResult::EmbeddingsDisabled.is_done());
-    }
-
-    #[test]
-    fn embedding_rejected_due_to_active_token_generation_is_done() {
-        assert!(EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration.is_done());
-    }
-
-    #[test]
-    fn model_not_loaded_is_done() {
-        assert!(EmbeddingResult::ModelNotLoaded("err".to_owned()).is_done());
-    }
-
-    #[test]
-    fn no_embeddings_produced_is_done() {
-        assert!(EmbeddingResult::NoEmbeddingsProduced.is_done());
+    fn every_terminal_result_ends_the_stream() {
+        for terminal_result in [
+            EmbeddingResult::AgentRuntimeFailed("failure".to_owned()),
+            EmbeddingResult::BatchAssemblyFailed("failure".to_owned()),
+            EmbeddingResult::DecodeFailed("failure".to_owned()),
+            EmbeddingResult::Done,
+            EmbeddingResult::EmbeddingTooLongForRmsNormalization("failure".to_owned()),
+            EmbeddingResult::EmbeddingsUnavailable("failure".to_owned()),
+            EmbeddingResult::InferenceModeMismatch("failure".to_owned()),
+            EmbeddingResult::InputTokenizationFailed("failure".to_owned()),
+            EmbeddingResult::ModelNotLoaded("failure".to_owned()),
+            EmbeddingResult::NoEmbeddingsProduced,
+            EmbeddingResult::SchedulerUnavailable("failure".to_owned()),
+        ] {
+            assert!(
+                terminal_result.is_done(),
+                "{terminal_result:?} must end the stream"
+            );
+        }
     }
 
     #[test]

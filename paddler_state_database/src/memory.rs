@@ -56,6 +56,7 @@ mod tests {
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::Memory;
     use crate::state_database::StateDatabase;
@@ -66,7 +67,8 @@ mod tests {
             watch::channel(BalancerDesiredState::default());
         let database = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
         let desired_state = BalancerDesiredState {
-            model: AgentDesiredModel::LocalToAgent("test_model_path".to_owned()),
+            inference_mode: InferenceMode::Embeddings,
+            model: AgentDesiredModel::Uri("test_model_path".to_owned()),
             ..BalancerDesiredState::default()
         };
 

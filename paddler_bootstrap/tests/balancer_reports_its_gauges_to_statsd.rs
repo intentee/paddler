@@ -31,7 +31,7 @@ async fn balancer_reports_its_gauges_to_statsd() {
         statsd_reporting_interval: REPORTING_INTERVAL_LONGER_THAN_THE_TEST,
     });
 
-    let runner = BalancerRunner::start(params)
+    let mut runner = BalancerRunner::start(params)
         .await
         .expect("a runner reporting to statsd must start");
     let mut received_gauges = BTreeSet::new();

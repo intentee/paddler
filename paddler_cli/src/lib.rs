@@ -28,7 +28,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Generates tokens and embeddings; connects to the balancer
+    /// Runs inference for the balancer it connects to
     Agent(Agent),
     /// Distributes incoming requests among agents
     Balancer(Box<Balancer>),

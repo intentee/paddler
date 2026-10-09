@@ -18,7 +18,6 @@ impl HttpListener {
     pub fn bind(addr: SocketAddr) -> io::Result<Self> {
         let socket = Socket::new(Domain::for_address(addr), Type::STREAM, Some(Protocol::TCP))?;
 
-        #[cfg(not(windows))]
         socket.set_reuse_address(true)?;
 
         socket.bind(&addr.into())?;

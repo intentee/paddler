@@ -1,0 +1,1 @@
+export const CLAP_USAGE_ERROR_EXIT_CODE = 2;

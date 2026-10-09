@@ -2,6 +2,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::chat_template::ChatTemplate;
+use crate::decision_result::DecisionResult;
 use crate::embedding_result::EmbeddingResult;
 use crate::generated_token_result::GeneratedTokenResult;
 use crate::model_metadata::ModelMetadata;
@@ -10,6 +11,7 @@ use crate::model_metadata::ModelMetadata;
 #[serde(deny_unknown_fields)]
 pub enum Response {
     ChatTemplateOverride(Option<ChatTemplate>),
+    Decision(DecisionResult),
     Embedding(EmbeddingResult),
     GeneratedToken(GeneratedTokenResult),
     ModelMetadata(Option<ModelMetadata>),
@@ -18,6 +20,12 @@ pub enum Response {
 impl From<Option<ChatTemplate>> for Response {
     fn from(chat_template: Option<ChatTemplate>) -> Self {
         Self::ChatTemplateOverride(chat_template)
+    }
+}
+
+impl From<DecisionResult> for Response {
+    fn from(decision_result: DecisionResult) -> Self {
+        Self::Decision(decision_result)
     }
 }
 
@@ -52,9 +60,10 @@ mod tests {
     fn chat_template_payload(response: &Response) -> Option<&ChatTemplate> {
         match response {
             Response::ChatTemplateOverride(chat_template) => chat_template.as_ref(),
-            Response::Embedding(_) | Response::GeneratedToken(_) | Response::ModelMetadata(_) => {
-                None
-            }
+            Response::Decision(_)
+            | Response::Embedding(_)
+            | Response::GeneratedToken(_)
+            | Response::ModelMetadata(_) => None,
         }
     }
 
@@ -62,6 +71,7 @@ mod tests {
         match response {
             Response::ModelMetadata(model_metadata) => model_metadata.as_ref(),
             Response::ChatTemplateOverride(_)
+            | Response::Decision(_)
             | Response::Embedding(_)
             | Response::GeneratedToken(_) => None,
         }

@@ -5,6 +5,7 @@ import { type StatsdConfiguration } from "../StatsdConfiguration";
 export type PaddlerConfigurationContextValue = {
   bufferedRequestTimeoutMillis: number;
   compatOpenAIAddr: string | null;
+  compatTypeSafeAddr: string | null;
   inferenceAddr: string;
   managementAddr: string;
   maxBufferedRequests: number;
@@ -17,6 +18,9 @@ export const PaddlerConfigurationContext =
       throw new Error("PaddlerConfigurationContext not provided");
     },
     get compatOpenAIAddr(): never {
+      throw new Error("PaddlerConfigurationContext not provided");
+    },
+    get compatTypeSafeAddr(): never {
       throw new Error("PaddlerConfigurationContext not provided");
     },
     get inferenceAddr(): never {

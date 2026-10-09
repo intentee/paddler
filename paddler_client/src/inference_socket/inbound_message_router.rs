@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use log::debug;
 use log::error;
 use log::warn;
 use serde_json::from_str;
-use tokio::sync::broadcast;
 
 use paddler_messaging::inference_client::identified_message::IdentifiedMessage;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
@@ -13,10 +11,12 @@ use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::streamable_result::StreamableResult;
 
 use crate::error::Error;
+use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
 use crate::inference_socket::pending_requests::PendingRequests;
 
 fn response_is_terminal(response: &Response) -> bool {
     match response {
+        Response::Decision(result) => result.is_done(),
         Response::Embedding(result) => result.is_done(),
         Response::GeneratedToken(result) => result.is_done(),
     }
@@ -28,7 +28,7 @@ struct RequestScopedMessage {
 }
 
 pub struct InboundMessageRouter {
-    pub notification_tx: broadcast::Sender<Notification>,
+    pub cluster_inference_mode_broadcaster: Arc<ClusterInferenceModeBroadcaster>,
     pub pending: Arc<PendingRequests>,
 }
 
@@ -69,10 +69,9 @@ impl InboundMessageRouter {
                 is_done: true,
                 request_id: envelope.request_id.clone(),
             },
-            InferenceMessage::Notification(notification) => {
-                if self.notification_tx.send(notification.clone()).is_err() {
-                    debug!("Dropped inference notification: no active subscribers");
-                }
+            InferenceMessage::Notification(Notification::ClusterInferenceMode(inference_mode)) => {
+                self.cluster_inference_mode_broadcaster
+                    .publish(*inference_mode);
 
                 return;
             }
@@ -100,7 +99,6 @@ mod tests {
     use std::sync::Arc;
 
     use serde_json::json;
-    use tokio::sync::broadcast;
     use tokio::sync::mpsc::error::TryRecvError;
 
     use paddler_messaging::embedding_result::EmbeddingResult;
@@ -110,7 +108,15 @@ mod tests {
 
     use super::InboundMessageRouter;
     use crate::error::Error;
+    use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
     use crate::inference_socket::pending_requests::PendingRequests;
+
+    fn router_for(pending: &Arc<PendingRequests>) -> InboundMessageRouter {
+        InboundMessageRouter {
+            cluster_inference_mode_broadcaster: Arc::new(ClusterInferenceModeBroadcaster::default()),
+            pending: Arc::clone(pending),
+        }
+    }
 
     #[test]
     fn fails_the_request_whose_message_cannot_be_decoded() {
@@ -118,13 +124,8 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(
+        router_for(&pending).route_text(
             &json!({
                 "Response": {
                     "generated_by": null,
@@ -147,13 +148,8 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(
+        router_for(&pending).route_text(
             &json!({ "Error": { "request_id": "request-2", "error": { "NoSuchError": {} } } })
                 .to_string(),
         );
@@ -171,13 +167,8 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text("not json");
+        router_for(&pending).route_text("not json");
 
         assert!(
             response_rx
@@ -192,13 +183,8 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(
+        router_for(&pending).route_text(
             &json!({
                 "Response": {
                     "generated_by": null,
@@ -229,15 +215,10 @@ mod tests {
         let mut response_rx = pending
             .register("request-1".to_owned())
             .expect("an open registry must accept a request");
-        let (notification_tx, notification_rx) = broadcast::channel(1);
 
-        drop(notification_rx);
-
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(&json!({ "Notification": "TokenGenerationDisabled" }).to_string());
+        router_for(&pending).route_text(
+            &json!({ "Notification": { "ClusterInferenceMode": "Embeddings" } }).to_string(),
+        );
 
         assert!(
             response_rx

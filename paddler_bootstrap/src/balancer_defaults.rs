@@ -10,5 +10,4 @@ impl BalancerDefaults {
     pub const MAX_BUFFERED_REQUESTS: u64 = 30;
     pub const STATSD_PREFIX: &str = "paddler_";
     pub const STATSD_REPORTING_INTERVAL: Duration = Duration::from_secs(10);
-    pub const WEB_ADMIN_PANEL_PORT: u16 = 8062;
 }

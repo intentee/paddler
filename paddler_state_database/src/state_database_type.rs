@@ -71,17 +71,20 @@ mod tests {
 
     use tempfile::TempDir;
 
+    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+
     use super::StateDatabaseType;
     use crate::state_database_error::StateDatabaseError;
 
     #[test]
-    fn parses_a_memory_url() {
+    fn parses_a_memory_url_into_the_default_state() {
         let result = StateDatabaseType::from_str("memory://").unwrap();
 
-        assert_eq!(
-            discriminant(&result),
-            discriminant(&StateDatabaseType::Memory(Box::default())),
-        );
+        assert!(matches!(
+            result,
+            StateDatabaseType::Memory(initial_desired_state)
+                if *initial_desired_state == BalancerDesiredState::default()
+        ));
     }
 
     #[test]
@@ -120,19 +123,10 @@ mod tests {
 
     #[test]
     fn parses_a_file_url_with_an_absolute_path() {
-        #[cfg(unix)]
-        let expected_path = "/absolute/path";
-        #[cfg(unix)]
-        let url = "file:///absolute/path";
-        #[cfg(windows)]
-        let expected_path = "C:/absolute/path";
-        #[cfg(windows)]
-        let url = "file://C:/absolute/path";
-
-        let result = StateDatabaseType::from_str(url).unwrap();
+        let result = StateDatabaseType::from_str("file:///absolute/path").unwrap();
 
         assert!(
-            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from(expected_path))
+            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from("/absolute/path"))
         );
     }
 

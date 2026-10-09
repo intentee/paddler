@@ -14,6 +14,12 @@ pub enum BootstrapError {
         #[source]
         source: io::Error,
     },
+    #[error("Unable to bind the TypeSafe compatibility service to {addr}")]
+    CompatTypeSafeBindFailed {
+        addr: SocketAddr,
+        #[source]
+        source: io::Error,
+    },
     #[error("Unable to bind the inference service to {addr}")]
     InferenceBindFailed {
         addr: SocketAddr,

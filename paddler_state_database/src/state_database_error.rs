@@ -53,6 +53,8 @@ pub enum StateDatabaseError {
     },
     #[error("Failed to serialize the state database schema")]
     SchemaUnserializable(#[source] SerdeJsonError),
+    #[error("The state database file '{path_display}' uses schema version {found}, but this version of Paddler only reads version 2. Start from a new state database file.", path_display = path.display())]
+    SchemaVersionUnsupported { found: String, path: PathBuf },
     #[error("Unsupported state database scheme '{scheme}'")]
     SchemeUnsupported { scheme: String },
     #[error("Invalid state database URL '{input}'")]

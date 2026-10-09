@@ -14,13 +14,14 @@ use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_test_cluster_harness::unending_grammar::unending_grammar;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_client_stops_conversation_history_generation_before_max_tokens() {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(1)],
         wait_for_slots_ready: true,
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         ..ClusterParams::default()
     })
     .await

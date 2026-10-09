@@ -2,13 +2,13 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
-use log::error;
 use log::warn;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 use paddler_messaging::streamable_result::StreamableResult;
 
@@ -25,6 +25,7 @@ use crate::respond_with_error::respond_with_error;
 async fn wait_for_agent_controller<TControlsSession>(
     buffered_request_manager: Arc<BufferedRequestManager>,
     connection_close: CancellationToken,
+    inference_mode: InferenceMode,
     request_id: String,
     session_controller: &mut TControlsSession,
     shutdown: CancellationToken,
@@ -51,10 +52,10 @@ where
 
             None
         },
-        buffered_request_agent_wait_result = buffered_request_manager.wait_for_available_agent() => {
+        buffered_request_agent_wait_result = buffered_request_manager.wait_for_available_agent(inference_mode) => {
             match buffered_request_agent_wait_result {
-                Ok(BufferedRequestAgentWaitResult::Found(dispatched_agent)) => Some(dispatched_agent),
-                Ok(BufferedRequestAgentWaitResult::BufferOverflow) => {
+                BufferedRequestAgentWaitResult::Found(dispatched_agent) => Some(dispatched_agent),
+                BufferedRequestAgentWaitResult::BufferOverflow => {
                     warn!("Too many buffered requests, dropping request: {request_id:?}");
 
                     respond_with_error(
@@ -68,27 +69,13 @@ where
 
                     None
                 }
-                Ok(BufferedRequestAgentWaitResult::Timeout) => {
+                BufferedRequestAgentWaitResult::Timeout => {
                     warn!("Buffered request {request_id:?} timed out waiting for an available slot");
 
                     respond_with_error(
                         JsonRpcError {
                             code: 504,
                             description: "Waiting for available slot timed out".to_owned(),
-                        },
-                        request_id.clone(),
-                        session_controller,
-                    ).await;
-
-                    None
-                }
-                Err(err) => {
-                    error!("Error while waiting for available agent controller for GenerateTokens request: {err}");
-
-                    respond_with_error(
-                        JsonRpcError {
-                            code: 500,
-                            description: "Internal server error".to_owned(),
                         },
                         request_id.clone(),
                         session_controller,
@@ -117,6 +104,7 @@ pub async fn request_from_agent<TControlsSession, TParams>(
     let Some(dispatched_agent) = wait_for_agent_controller(
         buffered_request_manager.clone(),
         connection_close.clone(),
+        TParams::INFERENCE_MODE,
         request_id.clone(),
         &mut session_controller,
         shutdown.clone(),

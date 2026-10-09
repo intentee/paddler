@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use std::fs::Permissions;
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt as _;

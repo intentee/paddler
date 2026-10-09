@@ -27,9 +27,9 @@ test("putBalancerDesiredState rejects an invalid state", async function () {
         putBalancerDesiredState({
           desiredState: {
             ...storedDesiredState,
-            inference_parameters: {
-              ...storedDesiredState.inference_parameters,
-              embedding_batch_size: 0,
+            model_runtime_parameters: {
+              ...storedDesiredState.model_runtime_parameters,
+              n_gpu_layers: -2,
             },
           },
           managementAddress: management,

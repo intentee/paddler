@@ -1,0 +1,1 @@
+pub const DECISION_SLOTS_MINIMUM: u16 = 2;

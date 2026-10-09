@@ -13,7 +13,7 @@ function agent({ id, name }: { id: string; name: string | null }): unknown {
       download_status: "NotDownloading",
       issues: [],
       model_path: null,
-      slots_total: 0,
+      runtime: "Idle",
       state_application_status: "Applied",
       uses_chat_template_override: false,
     },

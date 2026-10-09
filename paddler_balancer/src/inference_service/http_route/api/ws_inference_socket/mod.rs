@@ -1,5 +1,5 @@
 mod inference_socket_controller_context;
-mod spawn_token_generation_mode_watcher;
+mod report_cluster_inference_mode;
 
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -37,12 +37,11 @@ use paddler_messaging::validates::Validates as _;
 use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
-use self::spawn_token_generation_mode_watcher::spawn_token_generation_mode_watcher;
+use self::report_cluster_inference_mode::report_cluster_inference_mode;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
-use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
-use crate::cluster_token_generation_mode::TOKEN_GENERATION_DISABLED_MESSAGE;
+use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_session::ControlsSession as _;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
@@ -53,7 +52,8 @@ use crate::request_from_agent::request_from_agent;
 use crate::respond_with_error::respond_with_error;
 use crate::websocket_session_controller::WebSocketSessionController;
 
-async fn send_token_generation_disabled(
+async fn send_inference_mode_mismatch(
+    cluster_serves_another_inference_mode: ClusterServesAnotherInferenceMode,
     request_id: String,
     websocket_session_controller: &mut WebSocketSessionController<OutgoingMessage>,
 ) {
@@ -62,8 +62,8 @@ async fn send_token_generation_disabled(
             generated_by: None,
             request_id,
             response: OutgoingResponse::GeneratedToken(
-                GeneratedTokenResult::TokenGenerationDisabled(
-                    TOKEN_GENERATION_DISABLED_MESSAGE.to_owned(),
+                GeneratedTokenResult::InferenceModeMismatch(
+                    cluster_serves_another_inference_mode.to_string(),
                 ),
             ),
         }))
@@ -80,54 +80,58 @@ async fn handle_inference_request<TParams>(
     TParams: AgentStreamingRequest + Debug + Send + 'static,
     TParams::Response: Debug + Into<OutgoingResponse> + StreamableResult,
 {
-    match context
+    if let Err(cluster_serves_another_inference_mode) = context
         .balancer_applicable_state_holder
-        .token_generation_mode()
+        .require_inference_mode(TParams::INFERENCE_MODE)
     {
-        ClusterTokenGenerationMode::DisabledForEmbeddings => {
-            send_token_generation_disabled(request_id, &mut websocket_session_controller).await;
-        }
-        ClusterTokenGenerationMode::Enabled => {
-            let request_close = connection_close.child_token();
+        send_inference_mode_mismatch(
+            cluster_serves_another_inference_mode,
+            request_id,
+            &mut websocket_session_controller,
+        )
+        .await;
 
-            let Some(request_registration) = RequestRegistryGuard::register(
-                &context.request_cancellation_tokens,
-                request_id.clone(),
-                request_close.clone(),
-            ) else {
-                error!("Rejecting duplicate inference request {request_id:?}");
-
-                respond_with_error(
-                    JsonRpcError {
-                        code: 400,
-                        description: format!(
-                            "Request id {request_id:?} is already in flight on this connection"
-                        ),
-                    },
-                    request_id,
-                    &mut websocket_session_controller,
-                )
-                .await;
-
-                return;
-            };
-
-            rt::spawn(async move {
-                let _request_registration = request_registration;
-
-                request_from_agent(
-                    context.buffered_request_manager.clone(),
-                    request_close,
-                    context.inference_service_configuration.clone(),
-                    params,
-                    request_id,
-                    websocket_session_controller,
-                    context.shutdown.clone(),
-                )
-                .await;
-            });
-        }
+        return;
     }
+
+    let request_close = connection_close.child_token();
+
+    let Some(request_registration) = RequestRegistryGuard::register(
+        &context.request_cancellation_tokens,
+        request_id.clone(),
+        request_close.clone(),
+    ) else {
+        error!("Rejecting duplicate inference request {request_id:?}");
+
+        respond_with_error(
+            JsonRpcError {
+                code: 400,
+                description: format!(
+                    "Request id {request_id:?} is already in flight on this connection"
+                ),
+            },
+            request_id,
+            &mut websocket_session_controller,
+        )
+        .await;
+
+        return;
+    };
+
+    rt::spawn(async move {
+        let _request_registration = request_registration;
+
+        request_from_agent(
+            context.buffered_request_manager.clone(),
+            request_close,
+            context.inference_service_configuration.clone(),
+            params,
+            request_id,
+            websocket_session_controller,
+            context.shutdown.clone(),
+        )
+        .await;
+    });
 }
 
 async fn respond(
@@ -274,11 +278,12 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
         context: Arc<Self::Context>,
         session: &mut Session,
     ) {
-        spawn_token_generation_mode_watcher(
+        report_cluster_inference_mode(
             context.balancer_applicable_state_holder.clone(),
             connection_close,
             session.clone(),
-        );
+        )
+        .await;
     }
 }
 

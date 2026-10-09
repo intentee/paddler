@@ -1,8 +1,16 @@
 import { z } from "zod";
 
-export const InferenceNotificationSchema = z.object({
-  Notification: z.enum(["TokenGenerationDisabled", "TokenGenerationEnabled"]),
-});
+import { InferenceModeSchema } from "./InferenceMode";
+
+export const InferenceNotificationSchema = z
+  .object({
+    Notification: z
+      .object({
+        ClusterInferenceMode: InferenceModeSchema,
+      })
+      .strict(),
+  })
+  .strict();
 
 export type InferenceNotification = z.infer<
   typeof InferenceNotificationSchema

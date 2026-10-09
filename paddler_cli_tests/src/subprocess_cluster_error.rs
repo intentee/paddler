@@ -1,17 +1,38 @@
 use std::io;
-use std::num::TryFromIntError;
+use std::process::ExitStatus;
 
+use nix::errno::Errno;
+use nix::sys::signal::Signal;
+use nix::sys::wait::WaitStatus;
+use nix::unistd::Pid;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SubprocessClusterError {
-    #[error("The subprocess PID {raw_pid} does not fit into a signal target")]
-    ProcessIdOutOfRange {
-        raw_pid: u32,
+    #[error("The balancer subprocess exited with {exit_status} before announcing its addresses")]
+    BalancerExitedBeforeAnnouncing { exit_status: ExitStatus },
+    #[error("The subprocess {pid} reported {status:?} instead of stopping")]
+    ProcessDidNotStop { pid: Pid, status: WaitStatus },
+    #[error("The subprocess was already reaped, so it can no longer be signalled")]
+    ProcessAlreadyReaped,
+    #[error("Unable to observe the state of subprocess {pid}")]
+    ProcessUnobservable {
+        pid: Pid,
         #[source]
-        source: TryFromIntError,
+        source: Errno,
     },
+    #[error("Unable to send {signal} to subprocess {pid}")]
+    SignalUndeliverable {
+        pid: Pid,
+        signal: Signal,
+        #[source]
+        source: Errno,
+    },
+    #[error("The subprocess exited with {exit_status}")]
+    ProcessExitedWithFailure { exit_status: ExitStatus },
+    #[error("Unable to observe how the subprocess exited")]
+    ProcessExitUnobservable(#[source] io::Error),
     #[error(
         "The balancer subprocess announcement is not valid balancer addresses: {announcement:?}"
     )]
@@ -25,8 +46,6 @@ pub enum SubprocessClusterError {
         #[source]
         source: io::Error,
     },
-    #[error("The balancer subprocess closed its stdout before announcing its addresses")]
-    StdoutClosedBeforeAnnouncement,
     #[error("The balancer subprocess stdout is not piped")]
     StdoutNotPiped,
 }

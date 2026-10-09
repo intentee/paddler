@@ -5,10 +5,11 @@ use std::num::NonZeroU32;
 use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::batch_size::BatchSize;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
@@ -20,15 +21,15 @@ async fn agent_finishes_a_generation_that_fills_its_sequence_context() {
 
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(1)],
-        desired_state: Some(BalancerDesiredState {
-            inference_parameters: InferenceParameters {
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            model_runtime_parameters: ModelRuntimeParameters {
                 n_batch: BatchSize::try_from(256).expect("the value must fit its target type"),
                 context_size: NonZeroU32::try_from(256)
                     .expect("the value must fit its target type"),
-                ..base_desired_state.inference_parameters
+                ..base_desired_state.model_runtime_parameters
             },
             ..base_desired_state
-        }),
+        })),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

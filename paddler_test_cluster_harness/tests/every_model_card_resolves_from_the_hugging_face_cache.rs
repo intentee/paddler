@@ -6,7 +6,7 @@ use hf_hub::Repo;
 use hf_hub::RepoType;
 use hf_hub::api::tokio::ApiBuilder;
 
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::every_model_card::every_model_card;
 

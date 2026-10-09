@@ -2,27 +2,30 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_chat_template_does_not_compile_recovers_when_template_replaced() {
     let ModelCard { reference } = qwen3_0_6b();
-    let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
-        chat_template_override: Some(ChatTemplate {
-            content: "{{invalid jinja template".to_owned(),
-        }),
-        model: AgentDesiredModel::HuggingFace(reference.clone()),
-        use_chat_template_override: true,
-        ..BalancerDesiredState::default()
-    })
-    .await
-    .expect("a single-agent cluster must start");
+    let mut cluster =
+        start_single_agent_cluster_with_desired_state(desired_state_with_chat_template_override(
+            BalancerDesiredState {
+                model: ModelSource::HuggingFace(reference.clone()).into_agent_desired_model(),
+                ..BalancerDesiredState::default()
+            },
+            ChatTemplate {
+                content: "{{invalid jinja template".to_owned(),
+            },
+        ))
+        .await
+        .expect("a single-agent cluster must start");
 
     cluster
         .wait_for_first_agent_issue(|issue| {
@@ -35,15 +38,16 @@ async fn balancer_reports_chat_template_does_not_compile_recovers_when_template_
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &BalancerDesiredState {
-                chat_template_override: Some(ChatTemplate {
+            &desired_state_with_chat_template_override(
+                BalancerDesiredState {
+                    model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
+                    ..BalancerDesiredState::default()
+                },
+                ChatTemplate {
                     content: "{% for message in messages %}{{ message.content }}{% endfor %}"
                         .to_owned(),
-                }),
-                model: AgentDesiredModel::HuggingFace(reference),
-                use_chat_template_override: true,
-                ..BalancerDesiredState::default()
-            },
+                },
+            ),
         )
         .await
         .expect("the balancer must accept the desired state with a valid template");

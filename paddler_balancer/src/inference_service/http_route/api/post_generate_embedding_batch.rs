@@ -1,9 +1,6 @@
-use std::num::NonZeroUsize;
-
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorNotImplemented;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
 use actix_web::rt;
@@ -19,6 +16,8 @@ use tokio::task::JoinSet;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_messaging::agent_inference_settings::AgentInferenceSettings;
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::inference_client::message::Message as OutgoingMessage;
@@ -27,11 +26,13 @@ use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::agent_relay_error::AgentRelayError;
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
+use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 use crate::controls_session::ControlsSession as _;
 use crate::embedding_chunk_dispatch::EmbeddingChunkDispatch;
 use crate::inference_service::app_data::AppData;
@@ -42,22 +43,23 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
-    let agent_desired_state = app_data
+    let EmbeddingParameters {
+        embedding_batch_size,
+        ..
+    } = match app_data
         .balancer_applicable_state_holder
-        .get_agent_desired_state();
-
-    if !agent_desired_state.inference_parameters.enable_embeddings {
-        return Err(ErrorNotImplemented(
-            "Embedding generation is not enabled in the inference parameters",
-        ));
-    }
-
-    let Some(agent_count) = NonZeroUsize::new(app_data.agent_controller_pool.agents.len()) else {
-        return Err(ErrorServiceUnavailable("No agents are currently connected"));
+        .get_agent_desired_state()
+        .inference_settings
+    {
+        AgentInferenceSettings::Embeddings(embedding_parameters) => embedding_parameters,
+        served_inference_settings @ (AgentInferenceSettings::Decision(_)
+        | AgentInferenceSettings::TextGeneration(_)) => {
+            return Err(ErrorServiceUnavailable(ClusterServesAnotherInferenceMode {
+                requested_inference_mode: GenerateEmbeddingBatchParams::INFERENCE_MODE,
+                served_inference_mode: served_inference_settings.inference_mode(),
+            }));
+        }
     };
-    let embedding_batch_size = agent_desired_state
-        .inference_parameters
-        .embedding_batch_size;
 
     let connection_close = CancellationToken::new();
     let request_id: String = nanoid!();
@@ -65,21 +67,25 @@ async fn respond(
 
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
-    let batches = params
-        .into_inner()
-        .chunk_evenly_with_cap(agent_count, embedding_batch_size);
+    let batches = params.into_inner().chunk_evenly_with_cap(
+        app_data.agent_controller_pool.agents.len(),
+        embedding_batch_size,
+    );
 
     let chunk_dispatches: Vec<EmbeddingChunkDispatch> = batches
         .into_iter()
-        .map(
-            |batch| match app_data.buffered_request_manager.take_available_agent() {
+        .map(|batch| {
+            match app_data
+                .buffered_request_manager
+                .take_available_agent(GenerateEmbeddingBatchParams::INFERENCE_MODE)
+            {
                 Some(dispatched_agent) => EmbeddingChunkDispatch::Claimed {
                     batch,
                     dispatched_agent,
                 },
                 None => EmbeddingChunkDispatch::Buffered { batch },
-            },
-        )
+            }
+        })
         .collect();
 
     for chunk_dispatch in chunk_dispatches {
@@ -142,7 +148,6 @@ async fn respond(
         .streaming(stream))
 }
 
-#[derive(Clone)]
 struct EmbeddingChunkBodyTransformer;
 
 #[async_trait]

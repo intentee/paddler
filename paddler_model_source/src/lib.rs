@@ -1,7 +1,10 @@
 pub mod desired_model_resolution;
+pub mod download_error_agent_issue;
 pub mod huggingface_download_progress;
+pub mod huggingface_model_reference;
 pub mod huggingface_model_source;
 pub mod local_model_path;
+pub mod model_source;
 pub mod model_source_error;
 pub mod resolve_desired_model;
 pub mod resolves_model_source;

@@ -15,8 +15,8 @@ export function TokenGenerationDisabledNotice() {
 
   return (
     <div className={tokenGenerationDisabledNotice}>
-      Token generation is disabled while the embeddings are enabled. Learn more
-      in the{" "}
+      Token generation is disabled while the cluster serves another inference
+      mode. Learn more in the{" "}
       <a
         href="https://paddler.intentee.com/docs/starting-out/generating-tokens-and-embeddings/"
         target="_blank"

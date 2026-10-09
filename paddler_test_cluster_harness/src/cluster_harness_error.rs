@@ -6,6 +6,7 @@ use std::str::Utf8Error;
 use async_openai::error::OpenAIError;
 use quick_xml::Error as XmlError;
 use quick_xml::events::attributes::AttrError;
+use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
@@ -17,10 +18,15 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 
+use crate::process_end::ProcessEnd;
 use crate::snapshots_stream::SnapshotsStream;
 
 #[derive(Debug, Error)]
 pub enum ClusterHarnessError {
+    #[error("The decision stream ended before it reported its outcome")]
+    DecisionStreamEndedWithoutTerminalResult,
+    #[error("The decision stream carried a message that is not a decision result: {message:?}")]
+    DecisionStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("The embedding stream carried a message that is not an embedding result: {message:?}")]
     EmbeddingStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("The token generation stream returned JSON-RPC error code {} ({})", error.code, error.description)]
@@ -31,20 +37,19 @@ pub enum ClusterHarnessError {
     TokenStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("Agent {agent_id} left the balancer's pool while it was being observed")]
     AgentLeftThePool { agent_id: String },
-    #[error("The raw agent socket could not serialize a notification")]
+    #[error("The untrusted agent socket client could not serialize a notification")]
     AgentSocketNotificationUnserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket ended without a close frame")]
+    #[error("The untrusted agent socket client ended without a close frame")]
     AgentSocketEndedWithoutClosing,
-    #[error("The raw agent socket ended before the balancer sent a message")]
-    AgentSocketEndedWithoutMessage,
-    #[error("The raw agent socket could not deserialize a balancer message")]
-    AgentSocketMessageUndeserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket could not receive a frame")]
+    #[error("The untrusted agent socket client could not receive a frame")]
     AgentSocketReceiveFailed(#[source] WebSocketError),
-    #[error("The raw agent socket could not serialize a response")]
-    AgentSocketResponseUnserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket could not send a frame")]
+    #[error("The untrusted agent socket client could not send a frame")]
     AgentSocketSendFailed(#[source] WebSocketError),
+    #[error("Agent {agent_name:?} exited before it was ready: {process_end:?}")]
+    AgentExitedBeforeReady {
+        agent_name: String,
+        process_end: ProcessEnd,
+    },
     #[error("Agent {agent_name:?} reported issues while starting: {issues:?}")]
     AgentReportedIssues {
         agent_name: String,
@@ -58,6 +63,8 @@ pub enum ClusterHarnessError {
     },
     #[error("The balancer does not serve the OpenAI compatibility service")]
     CompatOpenAIServiceNotServed,
+    #[error("The balancer does not serve the TypeSafe compatibility service")]
+    CompatTypeSafeServiceNotServed,
     #[error("The web admin panel page carries a malformed attribute")]
     DashboardAttributeMalformed(#[source] AttrError),
     #[error("The web admin panel page carries an attribute whose name is not UTF-8")]
@@ -113,4 +120,6 @@ pub enum ClusterHarnessError {
         #[source]
         source: ClientError,
     },
+    #[error("The TypeSafe compatibility request failed")]
+    TypeSafeRequestFailed(#[source] ReqwestError),
 }

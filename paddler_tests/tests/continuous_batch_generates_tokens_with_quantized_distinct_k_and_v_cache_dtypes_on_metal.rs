@@ -6,43 +6,37 @@ use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_generates_tokens_with_quantized_distinct_k_and_v_cache_dtypes_on_metal() {
-    let ModelCard { reference } = qwen3_0_6b();
-
-    let mut inference_parameters = InferenceParameters {
+    let mut model_runtime_parameters = ModelRuntimeParameters {
         n_gpu_layers: ALL_GPU_LAYERS,
-        ..InferenceParameters::deterministic()
+        ..ModelRuntimeParameters::default()
     };
 
-    inference_parameters.k_cache_dtype = KvCacheDtype::Q80;
-    inference_parameters.v_cache_dtype = KvCacheDtype::Q40;
+    model_runtime_parameters.k_cache_dtype = KvCacheDtype::Q80;
+    model_runtime_parameters.v_cache_dtype = KvCacheDtype::Q40;
 
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 1,
         }],
-        desired_state: Some(BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters,
-            model: AgentDesiredModel::HuggingFace(reference),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
-        }),
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            model_runtime_parameters,
+            ..qwen3_0_6b().into_desired_state()
+        })),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

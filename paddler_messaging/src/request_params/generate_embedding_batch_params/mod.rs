@@ -17,7 +17,7 @@ impl GenerateEmbeddingBatchParams {
     #[must_use]
     pub fn chunk_evenly_with_cap(
         self,
-        agent_count: NonZeroUsize,
+        agent_count: usize,
         max_documents_per_chunk: NonZeroUsize,
     ) -> Vec<Self> {
         let Self {
@@ -31,7 +31,7 @@ impl GenerateEmbeddingBatchParams {
         }
 
         let chunks_to_honor_cap = document_count.div_ceil(max_documents_per_chunk.get());
-        let chunk_count = document_count.min(agent_count.get().max(chunks_to_honor_cap));
+        let chunk_count = document_count.min(agent_count.max(chunks_to_honor_cap));
 
         let quotient = document_count / chunk_count;
         let remainder = document_count % chunk_count;
@@ -63,10 +63,6 @@ mod tests {
     use crate::embedding_input_document::EmbeddingInputDocument;
     use crate::embedding_normalization_method::EmbeddingNormalizationMethod;
 
-    fn agents(agent_count: usize) -> NonZeroUsize {
-        NonZeroUsize::new(agent_count).expect("an agent count must be non-zero")
-    }
-
     fn chunk_cap(max_documents_per_chunk: usize) -> NonZeroUsize {
         NonZeroUsize::new(max_documents_per_chunk).expect("a chunk cap must be non-zero")
     }
@@ -95,7 +91,7 @@ mod tests {
     fn chunk_evenly_with_cap_empty_input() {
         let params = make_params(vec![]);
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         assert!(sub_batches.is_empty());
     }
@@ -104,7 +100,7 @@ mod tests {
     fn chunk_evenly_with_cap_single_doc_single_agent() {
         let params = make_params(vec![make_doc("only", "content")]);
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(1), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(1, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 1);
         assert_eq!(sub_batches[0].input_batch.len(), 1);
@@ -115,7 +111,7 @@ mod tests {
     fn chunk_evenly_with_cap_single_doc_many_agents() {
         let params = make_params(vec![make_doc("only", "content")]);
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(5), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(5, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 1);
         assert_eq!(sub_batches[0].input_batch.len(), 1);
@@ -126,7 +122,7 @@ mod tests {
     fn chunk_evenly_with_cap_more_agents_than_docs_uses_n_chunks() {
         let params = make_params(make_docs(3));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(5), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(5, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 3);
         for sub_batch in &sub_batches {
@@ -138,7 +134,7 @@ mod tests {
     fn chunk_evenly_with_cap_below_cap_splits_per_agent() {
         let params = make_params(make_docs(4));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 4);
         for sub_batch in &sub_batches {
@@ -150,7 +146,7 @@ mod tests {
     fn chunk_evenly_with_cap_below_cap_uneven_split() {
         let params = make_params(make_docs(11));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 4);
         assert_eq!(sub_batches[0].input_batch.len(), 3);
@@ -163,7 +159,7 @@ mod tests {
     fn chunk_evenly_with_cap_splits_a_batch_below_the_cap_across_every_agent() {
         let params = make_params(make_docs(80));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(100));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(100));
 
         assert_eq!(sub_batches.len(), 4);
         for sub_batch in &sub_batches {
@@ -175,7 +171,7 @@ mod tests {
     fn chunk_evenly_with_cap_splits_a_batch_above_the_cap_into_capped_chunks() {
         let params = make_params(make_docs(1000));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(100));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(100));
 
         assert_eq!(sub_batches.len(), 10);
         for sub_batch in &sub_batches {
@@ -187,7 +183,7 @@ mod tests {
     fn chunk_evenly_with_cap_at_cap_boundary_uses_agent_count() {
         let params = make_params(make_docs(1024));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 4);
         for sub_batch in &sub_batches {
@@ -199,7 +195,7 @@ mod tests {
     fn chunk_evenly_with_cap_above_cap_boundary_creates_extra_chunks() {
         let params = make_params(make_docs(2000));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 8);
         for sub_batch in &sub_batches {
@@ -211,7 +207,7 @@ mod tests {
     fn chunk_evenly_with_cap_far_above_cap_distributes_evenly() {
         let params = make_params(make_docs(1100));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 5);
         for sub_batch in &sub_batches {
@@ -223,7 +219,7 @@ mod tests {
     fn chunk_evenly_with_cap_extreme_large_n_small_cap() {
         let params = make_params(make_docs(10_000));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(1));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(1));
 
         assert_eq!(sub_batches.len(), 10_000);
         for sub_batch in &sub_batches {
@@ -235,7 +231,7 @@ mod tests {
     fn chunk_evenly_with_cap_extreme_one_doc_per_chunk() {
         let params = make_params(make_docs(100));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(100), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(100, chunk_cap(256));
 
         assert_eq!(sub_batches.len(), 100);
         for sub_batch in &sub_batches {
@@ -246,7 +242,7 @@ mod tests {
     #[test]
     fn chunk_evenly_with_cap_no_sub_batch_exceeds_cap_sweep() {
         let document_counts: Vec<usize> = (0..=50).chain([256, 257, 1000, 2001]).collect();
-        let agent_counts: Vec<usize> = (1..=8).collect();
+        let agent_counts: Vec<usize> = (0..=8).collect();
         let caps: Vec<usize> = vec![1, 2, 4, 100, 256];
 
         for &document_count in &document_counts {
@@ -254,8 +250,7 @@ mod tests {
                 for &cap in &caps {
                     let params = make_params(make_docs(document_count));
 
-                    let sub_batches =
-                        params.chunk_evenly_with_cap(agents(agent_count), chunk_cap(cap));
+                    let sub_batches = params.chunk_evenly_with_cap(agent_count, chunk_cap(cap));
 
                     let total_documents: usize =
                         sub_batches.iter().map(|sub| sub.input_batch.len()).sum();
@@ -306,13 +301,26 @@ mod tests {
     }
 
     #[test]
+    fn chunk_evenly_with_cap_without_agents_splits_only_to_honor_the_cap() {
+        let params = make_params(make_docs(600));
+
+        let sub_batches = params.chunk_evenly_with_cap(0, chunk_cap(256));
+
+        let sizes: Vec<usize> = sub_batches
+            .iter()
+            .map(|sub_batch| sub_batch.input_batch.len())
+            .collect();
+        assert_eq!(sizes, vec![200, 200, 200]);
+    }
+
+    #[test]
     fn chunk_evenly_with_cap_preserves_normalization_method() {
         let params = GenerateEmbeddingBatchParams {
             input_batch: make_docs(8),
             normalization_method: EmbeddingNormalizationMethod::L2,
         };
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(4), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(4, chunk_cap(256));
 
         let is_l2 = |normalization_method: &EmbeddingNormalizationMethod| {
             matches!(normalization_method, EmbeddingNormalizationMethod::L2)
@@ -331,7 +339,7 @@ mod tests {
     fn chunk_evenly_with_cap_preserves_document_ids_and_order() {
         let params = make_params(make_docs(12));
 
-        let sub_batches = params.chunk_evenly_with_cap(agents(5), chunk_cap(256));
+        let sub_batches = params.chunk_evenly_with_cap(5, chunk_cap(256));
 
         let collected_ids: Vec<String> = sub_batches
             .iter()

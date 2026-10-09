@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "paddler-typesafe-client-python-test"
+version = "5.0.0"
+description = "Drives Paddler's TypeSafe-compatible endpoints with the official TypeSafe SDK to verify real-client compatibility"
+authors = ["Intentee"]
+license = "Apache-2.0"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+typesafe-sdk = "==0.7.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "9.0.3"
+pyright = "1.1.410"
+ruff = "0.15.12"
+mypy = "1.20.2"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+extra_checks = true
+
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "strict"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # trailing comma - conflicts with formatter
+    "D",       # docstrings - project prefers self-documenting code
+    "ISC001",  # implicit string concatenation - conflicts with formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "INP001",  # the tests directory is a pytest suite, not an importable package
+    "PLR2004", # magic values are fine in test assertions
+    "S101",    # assert statements are the point of a test suite
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

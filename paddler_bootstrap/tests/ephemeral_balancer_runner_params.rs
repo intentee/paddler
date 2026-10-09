@@ -30,6 +30,7 @@ pub fn ephemeral_balancer_runner_params(
             state_database_type: StateDatabaseType::Memory(Box::default()),
             statsd_prefix: "paddler_bootstrap_test_".to_owned(),
             statsd_service_configuration: None,
+            typesafe_service_configuration: None,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: None,
         },

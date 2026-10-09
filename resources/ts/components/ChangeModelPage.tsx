@@ -1,35 +1,12 @@
 import React, { useContext } from "react";
 
-import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useBalancerDesiredState } from "../hooks/useBalancerDesiredState";
 import { matchFetchJsonState } from "../matchFetchJsonState";
+import { BalancerDesiredStateContextProvider } from "./BalancerDesiredStateContextProvider";
 import { ChangeModelForm } from "./ChangeModelForm";
 import { ChatTemplateContextProvider } from "./ChatTemplateContextProvider";
 import { FloatingStatus } from "./FloatingStatus";
-import { InferenceParametersContextProvider } from "./InferenceParametersContextProvider";
-
-function modelSchemaToUrl(model: AgentDesiredModel): string {
-  if (model === "None") {
-    return "";
-  }
-
-  if ("HuggingFace" in model) {
-    const { HuggingFace } = model;
-
-    return `https://huggingface.co/${HuggingFace.repo_id}/blob/${HuggingFace.revision}/${HuggingFace.filename}`;
-  }
-
-  if ("LocalToAgent" in model) {
-    return `agent://${model.LocalToAgent}`;
-  }
-
-  if ("Url" in model) {
-    return model.Url.url;
-  }
-
-  throw new Error(`Unsupported model schema: ${JSON.stringify(model)}`);
-}
 
 export function ChangeModelPage() {
   const { managementAddr } = useContext(PaddlerConfigurationContext);
@@ -49,31 +26,15 @@ export function ChangeModelPage() {
     loading() {
       return <FloatingStatus>Loading desired state...</FloatingStatus>;
     },
-    ok({
-      response: {
-        chat_template_override,
-        inference_parameters,
-        model,
-        multimodal_projection,
-        use_chat_template_override,
-      },
-    }) {
+    ok({ response: balancerDesiredState }) {
       return (
-        <ChatTemplateContextProvider
-          defaultChatTemplateOverride={chat_template_override}
-          defaultUseChatTemplateOverride={use_chat_template_override}
+        <BalancerDesiredStateContextProvider
+          defaultBalancerDesiredState={balancerDesiredState}
         >
-          <InferenceParametersContextProvider
-            defaultInferenceParameters={inference_parameters}
-          >
-            <ChangeModelForm
-              defaultBaseModelUri={modelSchemaToUrl(model)}
-              defaultMultimodalProjectionUri={modelSchemaToUrl(
-                multimodal_projection,
-              )}
-            />
-          </InferenceParametersContextProvider>
-        </ChatTemplateContextProvider>
+          <ChatTemplateContextProvider>
+            <ChangeModelForm />
+          </ChatTemplateContextProvider>
+        </BalancerDesiredStateContextProvider>
       );
     },
   });

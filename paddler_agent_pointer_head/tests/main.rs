@@ -1,0 +1,8 @@
+mod a_pointer_head_with_f16_tensors_is_refused;
+mod a_pointer_head_with_mismatched_projections_is_refused;
+mod a_pointer_head_with_zero_temperature_is_refused;
+mod a_pointer_head_without_its_delimiters_is_refused;
+mod a_pointer_head_without_its_temperature_is_refused;
+mod an_unreadable_pointer_head_file_is_refused;
+mod fixture_path;
+mod loading_the_synthetic_pointer_head_reads_its_contract;

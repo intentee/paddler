@@ -8,8 +8,10 @@ use paddler_client::agents_stream::AgentsStream;
 use paddler_client::buffered_requests_stream::BufferedRequestsStream;
 use paddler_client::error::Result as ClientResult;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
+use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
 
+use crate::agent_readiness::AgentReadiness;
 use crate::cluster_harness_error::ClusterHarnessError;
 use crate::snapshots_stream::SnapshotsStream;
 
@@ -71,9 +73,20 @@ impl<TSnapshot: Clone> SnapshotsWatcher<TSnapshot> {
     where
         TVerdict: FnMut(&TSnapshot) -> Result<bool, ClusterHarnessError>,
     {
+        self.until_found(|snapshot| Ok(verdict(snapshot)?.then(|| snapshot.clone())))
+            .await
+    }
+
+    async fn until_found<TFound, TFinder>(
+        &mut self,
+        mut finder: TFinder,
+    ) -> Result<TFound, ClusterHarnessError>
+    where
+        TFinder: FnMut(&TSnapshot) -> Result<Option<TFound>, ClusterHarnessError>,
+    {
         loop {
-            if verdict(&self.newest_snapshot)? {
-                return Ok(self.newest_snapshot.clone());
+            if let Some(found) = finder(&self.newest_snapshot)? {
+                return Ok(found);
             }
 
             self.newest_snapshot =
@@ -111,27 +124,21 @@ impl SnapshotsWatcher<AgentControllerPoolSnapshot> {
         .await
     }
 
-    pub async fn wait_for_agent_ready(
+    pub async fn wait_for_agent(
         &mut self,
         agent_name: &str,
-        expected_slot_count: u16,
-    ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
-        self.until_verdict(|snapshot| {
+        readiness: &AgentReadiness,
+    ) -> Result<AgentControllerSnapshot, ClusterHarnessError> {
+        self.until_found(|snapshot| {
             match snapshot
                 .agents
                 .iter()
                 .find(|registered_agent| registered_agent.name.as_deref() == Some(agent_name))
             {
-                Some(registered_agent) if !registered_agent.status.issues.is_empty() => {
-                    Err(ClusterHarnessError::AgentReportedIssues {
-                        agent_name: agent_name.to_owned(),
-                        issues: registered_agent.status.issues.clone(),
-                    })
-                }
-                Some(registered_agent) => {
-                    Ok(registered_agent.status.slots_total == u64::from(expected_slot_count))
-                }
-                None => Ok(false),
+                Some(registered_agent) => Ok(readiness
+                    .is_met_by(agent_name, registered_agent)?
+                    .then(|| registered_agent.clone())),
+                None => Ok(None),
             }
         })
         .await

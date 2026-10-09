@@ -24,6 +24,8 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
             "1500",
             "--compat-openai-addr",
             &ephemeral_loopback_addr,
+            "--compat-typesafe-addr",
+            &ephemeral_loopback_addr,
             "--inference-addr",
             &ephemeral_loopback_addr,
             "--management-addr",
@@ -41,7 +43,8 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
         ],
     )
     .await
-    .expect("the balancer must start and announce its addresses");
+    .expect("the balancer must start and announce its addresses")
+    .running_balancer;
     let web_admin_panel_addr = running_balancer
         .addresses
         .web_admin_panel
@@ -66,6 +69,10 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
             [
                 ("data-buffered-request-timeout-millis", "1500"),
                 ("data-compat-openai-addr", ephemeral_loopback_addr.as_str()),
+                (
+                    "data-compat-typesafe-addr",
+                    ephemeral_loopback_addr.as_str()
+                ),
                 ("data-inference-addr", ephemeral_loopback_addr.as_str()),
                 ("data-management-addr", ephemeral_loopback_addr.as_str()),
                 ("data-max-buffered-requests", "7"),

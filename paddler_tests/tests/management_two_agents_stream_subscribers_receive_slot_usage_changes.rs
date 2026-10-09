@@ -3,6 +3,7 @@
 use tokio_util::sync::CancellationToken;
 
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
@@ -13,7 +14,7 @@ use paddler_tests::start_cluster::start_cluster;
 async fn management_two_agents_stream_subscribers_receive_slot_usage_changes() {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(1)],
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

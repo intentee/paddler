@@ -18,7 +18,6 @@ name = "integration"
 path = "tests/main.rs"
 
 [dependencies]
-actix-rt = { workspace = true }
 actix-web = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }

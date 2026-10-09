@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
 
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::raw_parameters_schema::RawParametersSchema;
 use crate::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
@@ -24,5 +25,21 @@ impl Validates<Function<ValidatedParametersSchema>> for Function<RawParametersSc
             description: self.description,
             parameters: self.parameters.validate()?,
         })
+    }
+}
+
+impl From<&Function<ValidatedParametersSchema>> for Function<Value> {
+    fn from(
+        Function {
+            name,
+            description,
+            parameters,
+        }: &Function<ValidatedParametersSchema>,
+    ) -> Self {
+        Self {
+            name: name.clone(),
+            description: description.clone(),
+            parameters: Parameters::from(parameters),
+        }
     }
 }

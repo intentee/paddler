@@ -12,9 +12,11 @@ use paddler_balancer::balancer_addresses::BalancerAddresses;
 use paddler_balancer::balancer_applicable_state::BalancerApplicableState;
 use paddler_balancer::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use paddler_balancer::buffered_request_manager::BufferedRequestManager;
-use paddler_balancer::compatibility::openai_service::OpenAIService;
+use paddler_balancer::compatibility::compatibility_service::CompatibilityService;
 #[cfg(feature = "web_admin_panel")]
-use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
+use paddler_balancer::compatibility::openai_service::openai_compatibility_layer::OpenAICompatibilityLayer;
+use paddler_balancer::compatibility::typesafe_service::typesafe_compatibility_layer::TypeSafeCompatibilityLayer;
 use paddler_balancer::http_listener::HttpListener;
 use paddler_balancer::inference_service::InferenceService;
 use paddler_balancer::management_service::ManagementService;
@@ -37,15 +39,14 @@ use crate::bootstrap_error::BootstrapError;
 
 pub struct BalancerServiceBundle {
     pub addresses: BalancerAddresses,
-    pub agent_controller_pool: Arc<AgentControllerPool>,
-    pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     pub balancer_desired_state_tx: watch::Sender<BalancerDesiredState>,
     pub state_database: Arc<dyn StateDatabase>,
     inference_service: InferenceService,
     management_service: ManagementService,
     reconciliation_service: ReconciliationService,
-    openai_service: Option<OpenAIService>,
+    openai_service: Option<CompatibilityService<OpenAICompatibilityLayer>>,
     statsd_service: Option<StatsdService>,
+    typesafe_service: Option<CompatibilityService<TypeSafeCompatibilityLayer>>,
     #[cfg(feature = "web_admin_panel")]
     web_admin_panel_service: Option<WebAdminPanelService>,
 }
@@ -61,6 +62,7 @@ impl BalancerServiceBundle {
             state_database_type,
             statsd_prefix,
             statsd_service_configuration,
+            typesafe_service_configuration,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration,
         }: BalancerBootstrapConfig,
@@ -133,6 +135,19 @@ impl BalancerServiceBundle {
                 })
             })
             .transpose()?;
+        let typesafe_http_listener = typesafe_service_configuration
+            .as_ref()
+            .map(|typesafe_service_configuration| {
+                let typesafe_addr = typesafe_service_configuration.addr.socket_addr;
+
+                HttpListener::bind(typesafe_addr).map_err(|source| {
+                    BootstrapError::CompatTypeSafeBindFailed {
+                        addr: typesafe_addr,
+                        source,
+                    }
+                })
+            })
+            .transpose()?;
         #[cfg(feature = "web_admin_panel")]
         let web_admin_panel_service = web_admin_panel_service_configuration
             .map(|WebAdminPanelServiceConfiguration { addr }| {
@@ -142,7 +157,9 @@ impl BalancerServiceBundle {
                         template_data: TemplateData {
                             buffered_request_timeout,
                             compat_openai_addr: openai_service_configuration
-                                .map(|OpenAIServiceConfiguration { addr }| addr),
+                                .map(|CompatibilityServiceConfiguration { addr }| addr),
+                            compat_typesafe_addr: typesafe_service_configuration
+                                .map(|CompatibilityServiceConfiguration { addr }| addr),
                             inference_addr: inference_service_configuration.addr.clone(),
                             management_addr: management_service_configuration.addr.clone(),
                             max_buffered_requests,
@@ -164,6 +181,9 @@ impl BalancerServiceBundle {
             compat_openai: openai_http_listener
                 .as_ref()
                 .map(|openai_http_listener| openai_http_listener.local_addr),
+            compat_typesafe: typesafe_http_listener
+                .as_ref()
+                .map(|typesafe_http_listener| typesafe_http_listener.local_addr),
             inference: inference_http_listener.local_addr,
             management: management_http_listener.local_addr,
             web_admin_panel: web_admin_panel_addr,
@@ -196,9 +216,18 @@ impl BalancerServiceBundle {
             balancer_desired_state_rx: balancer_desired_state_tx.subscribe(),
         };
 
-        let openai_service = openai_http_listener.map(|http_listener| OpenAIService {
+        let openai_service = openai_http_listener.map(|http_listener| CompatibilityService {
             balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
             buffered_request_manager: buffered_request_manager.clone(),
+            compatibility_layer: OpenAICompatibilityLayer,
+            http_listener,
+            inference_service_configuration: inference_service_configuration.clone(),
+        });
+
+        let typesafe_service = typesafe_http_listener.map(|http_listener| CompatibilityService {
+            balancer_applicable_state_holder: balancer_applicable_state_holder.clone(),
+            buffered_request_manager: buffered_request_manager.clone(),
+            compatibility_layer: TypeSafeCompatibilityLayer,
             http_listener,
             inference_service_configuration,
         });
@@ -212,8 +241,6 @@ impl BalancerServiceBundle {
 
         Ok(Self {
             addresses,
-            agent_controller_pool,
-            balancer_applicable_state_holder,
             balancer_desired_state_tx,
             state_database,
             inference_service,
@@ -221,6 +248,7 @@ impl BalancerServiceBundle {
             reconciliation_service,
             openai_service,
             statsd_service,
+            typesafe_service,
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service,
         })
@@ -244,6 +272,10 @@ impl ServiceBundle for BalancerServiceBundle {
             services.push(Box::new(service));
         }
 
+        if let Some(service) = self.typesafe_service {
+            services.push(Box::new(service));
+        }
+
         #[cfg(feature = "web_admin_panel")]
         if let Some(service) = self.web_admin_panel_service {
             services.push(Box::new(service));
@@ -259,7 +291,7 @@ mod tests {
 
     use trzcina::ServiceBundle as _;
 
-    use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+    use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
     use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
     use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
     use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
@@ -273,11 +305,11 @@ mod tests {
     use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
 
     #[cfg(feature = "web_admin_panel")]
-    const EXPECTED_SERVICE_COUNT: usize = 6;
+    const EXPECTED_SERVICE_COUNT: usize = 7;
     #[cfg(not(feature = "web_admin_panel"))]
-    const EXPECTED_SERVICE_COUNT: usize = 5;
+    const EXPECTED_SERVICE_COUNT: usize = 6;
 
-    fn fully_configured_bootstrap_config() -> BalancerBootstrapConfig {
+    fn fully_configured_runner_config() -> BalancerBootstrapConfig {
         BalancerBootstrapConfig {
             buffered_request_timeout: Duration::from_secs(10),
             inference_service_configuration: InferenceServiceConfiguration {
@@ -290,7 +322,7 @@ mod tests {
                 cors_allowed_hosts: vec![],
             },
             max_buffered_requests: 30,
-            openai_service_configuration: Some(OpenAIServiceConfiguration {
+            openai_service_configuration: Some(CompatibilityServiceConfiguration {
                 addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
             }),
             state_database_type: StateDatabaseType::Memory(Box::default()),
@@ -298,6 +330,9 @@ mod tests {
             statsd_service_configuration: Some(StatsdServiceConfiguration {
                 statsd_addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
                 statsd_reporting_interval: Duration::from_secs(10),
+            }),
+            typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
             }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: Some(WebAdminPanelServiceConfiguration {
@@ -308,7 +343,7 @@ mod tests {
 
     #[tokio::test]
     async fn services_includes_every_optional_service_when_configured() {
-        let bundle = BalancerServiceBundle::new(fully_configured_bootstrap_config())
+        let bundle = BalancerServiceBundle::new(fully_configured_runner_config())
             .await
             .expect("a fully configured bundle must bind its ephemeral addresses");
 
@@ -322,7 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn reports_the_bound_address_of_every_configured_service() {
-        let bundle = BalancerServiceBundle::new(fully_configured_bootstrap_config())
+        let bundle = BalancerServiceBundle::new(fully_configured_runner_config())
             .await
             .expect("a fully configured bundle must bind its ephemeral addresses");
 
@@ -331,6 +366,10 @@ mod tests {
                 .addresses
                 .compat_openai
                 .map(|compat_openai| compat_openai.port()),
+            bundle
+                .addresses
+                .compat_typesafe
+                .map(|compat_typesafe| compat_typesafe.port()),
             Some(bundle.addresses.inference.port()),
             Some(bundle.addresses.management.port()),
             #[cfg(feature = "web_admin_panel")]

@@ -77,6 +77,7 @@ mod tests {
 
     use super::WebAdminPanelService;
     use crate::http_listener::HttpListener;
+
     use crate::resolved_socket_addr::ResolvedSocketAddr;
     use crate::web_admin_panel_service::template_data::TemplateData;
 
@@ -89,6 +90,7 @@ mod tests {
             template_data: TemplateData {
                 buffered_request_timeout: Duration::from_secs(30),
                 compat_openai_addr: None,
+                compat_typesafe_addr: None,
                 inference_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
                 management_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
                 max_buffered_requests: 32,

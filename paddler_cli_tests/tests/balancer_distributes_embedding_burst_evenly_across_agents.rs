@@ -6,7 +6,6 @@ use futures_util::future;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -23,10 +22,7 @@ async fn balancer_distributes_embedding_burst_evenly_across_agents() {
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         EmbeddingClusterParams {
             agents: AgentConfig::uniform(AGENT_COUNT, SLOTS_PER_AGENT),
-            inference_parameters: InferenceParameters {
-                enable_embeddings: true,
-                ..InferenceParameters::deterministic()
-            },
+
             max_buffered_requests: 32,
             ..EmbeddingClusterParams::default()
         },
@@ -72,7 +68,7 @@ async fn balancer_distributes_embedding_burst_evenly_across_agents() {
 
     for collected in &collected_streams {
         assert!(collected.saw_done);
-        assert!(collected.errors.is_empty());
+        assert!(collected.failures.is_empty());
         assert_eq!(collected.embeddings.len(), 4);
     }
 

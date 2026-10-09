@@ -1,5 +1,3 @@
-#![cfg(any(target_os = "macos", target_os = "linux"))]
-
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::resource_snapshot::ResourceSnapshot;
 use paddler_tests::start_cluster::start_cluster;

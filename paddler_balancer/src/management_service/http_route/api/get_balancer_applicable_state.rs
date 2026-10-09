@@ -35,7 +35,6 @@ mod tests {
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::api_path::ApiPath;
@@ -82,10 +81,8 @@ mod tests {
 
         balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
             agent_desired_state: AgentDesiredState {
-                chat_template_override: None,
-                inference_parameters: InferenceParameters::default(),
-                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                multimodal_projection: AgentDesiredModel::None,
+                model: AgentDesiredModel::Uri("model.gguf".to_owned()),
+                ..AgentDesiredState::from(BalancerDesiredState::default())
             },
         });
 
@@ -107,7 +104,7 @@ mod tests {
 
         assert_eq!(
             agent_desired_state.model,
-            AgentDesiredModel::LocalToAgent("model.gguf".to_owned())
+            AgentDesiredModel::Uri("model.gguf".to_owned())
         );
     }
 }

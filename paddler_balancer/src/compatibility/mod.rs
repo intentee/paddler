@@ -1,1 +1,11 @@
+pub mod agent_result_stream_event;
+pub mod agent_result_stream_transformer;
+pub mod attach_request_id;
+pub mod compatibility_app_data;
+pub mod compatibility_service;
+pub mod compatibility_service_configuration;
+pub mod create_compatibility_cors_middleware;
 pub mod openai_service;
+pub mod serves_compatibility_layer;
+pub mod typesafe_service;
+pub mod upstream_failure;

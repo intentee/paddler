@@ -10,6 +10,7 @@ use serde_json::to_writer;
 #[serde(deny_unknown_fields)]
 pub struct BalancerAddresses {
     pub compat_openai: Option<SocketAddr>,
+    pub compat_typesafe: Option<SocketAddr>,
     pub inference: SocketAddr,
     pub management: SocketAddr,
     pub web_admin_panel: Option<SocketAddr>,
@@ -34,6 +35,7 @@ mod tests {
     fn inference_and_management_only() -> BalancerAddresses {
         BalancerAddresses {
             compat_openai: None,
+            compat_typesafe: None,
             inference: SocketAddr::from((Ipv4Addr::LOCALHOST, 8061)),
             management: SocketAddr::from((Ipv4Addr::LOCALHOST, 8060)),
             web_admin_panel: None,
@@ -50,7 +52,7 @@ mod tests {
 
         assert_eq!(
             String::from_utf8(announcement).expect("the announcement must be UTF-8"),
-            "{\"compat_openai\":null,\"inference\":\"127.0.0.1:8061\",\"management\":\"127.0.0.1:8060\",\"web_admin_panel\":null}\n"
+            "{\"compat_openai\":null,\"compat_typesafe\":null,\"inference\":\"127.0.0.1:8061\",\"management\":\"127.0.0.1:8060\",\"web_admin_panel\":null}\n"
         );
     }
 

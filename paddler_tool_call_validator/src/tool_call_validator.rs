@@ -8,7 +8,6 @@ use serde_json::Value;
 
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
 use crate::tool_call_validation_error::ToolCallValidationError;
 
@@ -22,9 +21,7 @@ pub struct ToolCallValidator {
 }
 
 impl ToolCallValidator {
-    pub fn from_tools(
-        tools: &[Tool<ValidatedParametersSchema>],
-    ) -> Result<Self, ToolCallValidationError> {
+    pub fn from_tools(tools: &[Tool<Value>]) -> Result<Self, ToolCallValidationError> {
         let mut strategies = HashMap::with_capacity(tools.len());
 
         for tool in tools {
@@ -34,7 +31,7 @@ impl ToolCallValidator {
             let strategy = match &function.parameters {
                 Parameters::Empty => ValidationStrategy::JsonObjectOnly,
                 Parameters::Schema(schema) => {
-                    let compiled = validator_for(&Value::from(schema)).map_err(|source| {
+                    let compiled = validator_for(schema).map_err(|source| {
                         ToolCallValidationError::InvalidSchema {
                             tool_name: function.name.clone(),
                             source: Box::new(source),
@@ -119,14 +116,14 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
         ToolCallArguments::ValidJson(value)
     }
 
-    fn weather_tool_with_schema() -> Tool<ValidatedParametersSchema> {
+    fn weather_tool_with_schema() -> Tool<Value> {
         let mut properties = Map::new();
         properties.insert(
             "location".to_owned(),
             json!({"type": "string", "description": "city"}),
         );
 
-        Tool::Function(FunctionCall {
+        Tool::from(&Tool::Function(FunctionCall {
             function: Function {
                 name: "get_weather".to_owned(),
                 description: "fetch weather".to_owned(),
@@ -137,17 +134,17 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
                     additional_properties: Some(Value::Bool(false)),
                 }),
             },
-        })
+        }))
     }
 
-    fn schemaless_tool() -> Tool<ValidatedParametersSchema> {
-        Tool::Function(FunctionCall {
+    fn schemaless_tool() -> Tool<Value> {
+        Tool::from(&Tool::Function(FunctionCall {
             function: Function {
                 name: "freeform".to_owned(),
                 description: "tool with no schema".to_owned(),
                 parameters: Parameters::Empty,
             },
-        })
+        }))
     }
 
     #[test]
@@ -290,11 +287,11 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
         ));
     }
 
-    fn tool_with_invalid_property_schema() -> Tool<ValidatedParametersSchema> {
+    fn tool_with_invalid_property_schema() -> Tool<Value> {
         let mut properties = Map::new();
         properties.insert("location".to_owned(), json!({"type": 42}));
 
-        Tool::Function(FunctionCall {
+        Tool::from(&Tool::Function(FunctionCall {
             function: Function {
                 name: "broken_tool".to_owned(),
                 description: "tool whose property schema is not valid JSON Schema".to_owned(),
@@ -305,7 +302,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
                     additional_properties: None,
                 }),
             },
-        })
+        }))
     }
 
     #[test]
@@ -320,8 +317,8 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
         ));
     }
 
-    fn tool_with_invalid_additional_properties_schema() -> Tool<ValidatedParametersSchema> {
-        Tool::Function(FunctionCall {
+    fn tool_with_invalid_additional_properties_schema() -> Tool<Value> {
+        Tool::from(&Tool::Function(FunctionCall {
             function: Function {
                 name: "broken_additional".to_owned(),
                 description: "tool whose additionalProperties schema is invalid".to_owned(),
@@ -332,7 +329,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
                     additional_properties: Some(json!({"type": "not_a_type"})),
                 }),
             },
-        })
+        }))
     }
 
     #[test]

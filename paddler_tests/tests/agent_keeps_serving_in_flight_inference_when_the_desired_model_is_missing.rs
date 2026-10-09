@@ -3,14 +3,13 @@
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::inference_client::message::Message;
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_test_cluster_harness::is_unending_generation_text::is_unending_generation_text;
@@ -49,11 +48,9 @@ async fn agent_keeps_serving_in_flight_inference_when_the_desired_model_is_missi
         .put_balancer_desired_state(
             CancellationToken::new(),
             &BalancerDesiredState {
-                chat_template_override: None,
-                inference_parameters: InferenceParameters::default(),
-                model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_owned()),
-                multimodal_projection: AgentDesiredModel::None,
-                use_chat_template_override: false,
+                model: ModelSource::LocalToAgent("/nonexistent/model.gguf".to_owned())
+                    .into_agent_desired_model(),
+                ..BalancerDesiredState::default()
             },
         )
         .await

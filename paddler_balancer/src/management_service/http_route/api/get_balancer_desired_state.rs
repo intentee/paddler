@@ -39,7 +39,6 @@ mod tests {
     use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -78,11 +77,8 @@ mod tests {
         let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
             watch::channel(BalancerDesiredState::default());
         let stored_state = BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
+            model: AgentDesiredModel::Uri("model.gguf".to_owned()),
+            ..BalancerDesiredState::default()
         };
         let state_database = Arc::new(Memory::new(
             balancer_desired_state_notify_tx,

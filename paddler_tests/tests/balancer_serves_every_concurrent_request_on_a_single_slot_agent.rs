@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
@@ -20,7 +21,7 @@ const CONCURRENT_REQUESTS: usize = 256;
 async fn balancer_serves_every_concurrent_request_on_a_single_slot_agent() {
     let cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, 1),
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         max_buffered_requests: u64::try_from(CONCURRENT_REQUESTS)
             .expect("the value must fit its target type"),
         wait_for_slots_ready: true,

@@ -61,6 +61,8 @@ root.render(
       ),
       compatOpenAIAddr:
         rootNode.getOptionalStringFromDataset("compatOpenaiAddr"),
+      compatTypeSafeAddr:
+        rootNode.getOptionalStringFromDataset("compatTypesafeAddr"),
       inferenceAddr: rootNode.getStringFromDataset("inferenceAddr"),
       managementAddr: rootNode.getStringFromDataset("managementAddr"),
       maxBufferedRequests: rootNode.getIntFromDataset("maxBufferedRequests"),
