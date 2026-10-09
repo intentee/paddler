@@ -5,6 +5,8 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::inference_mode::InferenceMode;
 
+use crate::kev_0_8b_model_path::KEV_0_8B_MODEL_PATH;
+
 #[must_use]
 pub fn kev_0_8b_desired_state() -> BalancerDesiredState {
     BalancerDesiredState {
@@ -12,15 +14,13 @@ pub fn kev_0_8b_desired_state() -> BalancerDesiredState {
             pointer_head: AgentDesiredModel::LocalToAgent(
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
-                    "/../target/kev/pointer_head.gguf"
+                    "/../target/kev_0_8b/pointer_head.gguf"
                 )
                 .to_owned(),
             ),
         },
         inference_mode: InferenceMode::Decision,
-        model: AgentDesiredModel::LocalToAgent(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/../target/kev/model.gguf").to_owned(),
-        ),
+        model: AgentDesiredModel::LocalToAgent(KEV_0_8B_MODEL_PATH.to_owned()),
         model_runtime_parameters: ModelRuntimeParameters {
             n_gpu_layers: ALL_GPU_LAYERS,
             ..ModelRuntimeParameters::default()

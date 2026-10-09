@@ -7,7 +7,7 @@ from paddler_kev_converter.error import TrainedTokenEmbeddingsUnsupportedError
 from tests.conftest import rewrite_adapter_config
 
 
-def test_a_checkpoint_training_token_embeddings_is_refused(
+def test_a_lora_checkpoint_training_token_embeddings_is_refused(
     kev_checkpoint_copy: Path,
 ) -> None:
     rewrite_adapter_config(

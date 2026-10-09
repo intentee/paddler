@@ -12,7 +12,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::SYNTHETIC_POINTER_HEAD_FIXTURE;
+use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::start_cluster::start_cluster;
 
 const SLOTS: u16 = 2;
@@ -20,8 +20,9 @@ const SLOTS: u16 = 2;
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_slot_cannot_start_for_a_batch_smaller_than_its_slots() {
     for desired_state in [
-        qwen3_5_0_8b()
-            .into_decision_desired_state(pointer_head_fixture(SYNTHETIC_POINTER_HEAD_FIXTURE)),
+        qwen3_5_0_8b().into_decision_desired_state(pointer_head_fixture(
+            QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE,
+        )),
         nomic_embed_text_v1_5().into_embeddings_desired_state(EmbeddingParameters::default()),
     ] {
         let mut cluster = start_cluster(ClusterParams {

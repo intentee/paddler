@@ -4,7 +4,7 @@ from pathlib import Path
 from typesafe_sdk import TypeSafeClient
 
 KEV_0_8B_MODEL_PATH = normpath(
-    Path(__file__).parents[2] / "target" / "kev" / "model.gguf"
+    Path(__file__).parents[2] / "target" / "kev_0_8b" / "model.gguf"
 )
 
 

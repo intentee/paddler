@@ -12,14 +12,15 @@ use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::SYNTHETIC_POINTER_HEAD_FIXTURE;
+use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_decisions_rejects_embedding_batches() {
     let serving_pipeline_arbiter = ServingPipelineArbiter::start(
-        qwen3_5_0_8b()
-            .into_decision_desired_state(pointer_head_fixture(SYNTHETIC_POINTER_HEAD_FIXTURE)),
+        qwen3_5_0_8b().into_decision_desired_state(pointer_head_fixture(
+            QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE,
+        )),
         DECISION_SLOTS_MINIMUM,
     )
     .await;

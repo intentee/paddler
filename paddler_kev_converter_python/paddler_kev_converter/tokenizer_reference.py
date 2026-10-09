@@ -1,7 +1,6 @@
 import json
 from pathlib import Path
 
-from kev.checkpoint import Checkpoint
 from kev.model import load_tokenizer
 
 REFERENCE_TEXTS = [
@@ -21,12 +20,13 @@ REFERENCE_TEXTS = [
     '{"key": [1, 2.5, true, null], "nested": {"a": "b"}}',
     "def add(left, right):\n    return left + right\n",
     "supercalifragilisticexpialidocious antidisestablishmentarianism",
+    "<think>check the invoice first</think> then answer",
+    '<tool_call>{"name": "lookup"}</tool_call> <tool_response>found</tool_response>',
 ]
 
 
-def write_tokenizer_reference(checkpoint_run: str, path: Path) -> None:
-    meta = Checkpoint(checkpoint_run).meta
-    tokenizer = load_tokenizer(meta.base, revision=meta.base_revision)
+def write_tokenizer_reference(base: str, base_revision: str, path: Path) -> None:
+    tokenizer = load_tokenizer(base, revision=base_revision)
 
     path.write_text(
         json.dumps(

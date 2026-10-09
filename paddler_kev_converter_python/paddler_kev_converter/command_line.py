@@ -37,7 +37,9 @@ def _write_synthetic_pointer_head(parsed_arguments: Namespace) -> None:
 
 
 def _write_tokenizer_reference(parsed_arguments: Namespace) -> None:
-    write_tokenizer_reference(parsed_arguments.checkpoint, parsed_arguments.output)
+    write_tokenizer_reference(
+        parsed_arguments.base, parsed_arguments.base_revision, parsed_arguments.output
+    )
 
 
 def _write_typesafe_reference(parsed_arguments: Namespace) -> None:
@@ -71,7 +73,8 @@ def main(arguments: list[str] | None = None) -> None:
     synthetic.set_defaults(handle=_write_synthetic_pointer_head)
 
     tokenizer = commands.add_parser("tokenizer-reference")
-    tokenizer.add_argument("--checkpoint", required=True)
+    tokenizer.add_argument("--base", required=True)
+    tokenizer.add_argument("--base-revision", required=True)
     tokenizer.add_argument("--output", required=True, type=Path)
     tokenizer.set_defaults(handle=_write_tokenizer_reference)
 

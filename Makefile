@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := target/release/paddler
 
+.NOTINTERMEDIATE: target/kev_%/backbone/config.json
+
 .NOTPARALLEL:
 
 RUST_LOG ?= debug
@@ -8,8 +10,13 @@ PADDLER_CRATES := paddler_agent paddler_agent_decision paddler_agent_embeddings 
 PADDLER_SOURCES := $(shell find $(addsuffix /src,$(PADDLER_CRATES)) -name '*.rs') $(addsuffix /Cargo.toml,$(PADDLER_CRATES)) Cargo.toml Cargo.lock
 FRONTEND_SOURCES := $(shell find resources paddler_client_javascript/src -type f) paddler_client_javascript/package.json $(wildcard jarmuz/*.mjs)
 JS_CLIENT_SOURCES := $(shell find paddler_client_javascript/src -type f) paddler_client_javascript/package.json paddler_client_javascript/tsconfig.json
-KEV_CHECKPOINT := jaredpalmer/kev-0.8b@788ddbdd65715bb03a56788c822f6c632c9a551d
+KEV_CHECKPOINT_0_8b := jaredpalmer/kev-0.8b@788ddbdd65715bb03a56788c822f6c632c9a551d
+KEV_CHECKPOINT_27b := jaredpalmer/kev-27b@af0e6d551bdc2cc724f3e9d7a8bee1cd4fb8f7bf
 KEV_CONVERTER_SOURCES := $(shell find paddler_kev_converter_python/paddler_kev_converter -name '*.py')
+QWEN3_5_BASE := Qwen/Qwen3.5-0.8B-Base
+QWEN3_5_BASE_REVISION := dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68
+QWEN3_8_BASE := Qwen/Qwen3.8-27B
+QWEN3_8_BASE_REVISION := 1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0
 LLAMA_CPP_SOURCE_DIRECTORY = $(dir $(shell cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "llama-cpp-bindings-sys") | .manifest_path'))llama.cpp
 RUN_WITH_TEST_CLUSTER_SOURCES := $(shell find paddler_tests/src paddler_test_cluster_harness/src -name '*.rs') paddler_tests/Cargo.toml paddler_test_cluster_harness/Cargo.toml
 LLVM_COV_THIRD_PARTY_SOURCES := /\.cargo/(registry|git)/|/\.rustup/toolchains/|^/rustc/|^/nix/store/|^$(CURDIR)/target/
@@ -35,8 +42,8 @@ PADDLER_BINARY_ENVIRONMENT := PADDLER_BINARY=$(CURDIR)/$(PADDLER_TEST_BINARY)
 esbuild-meta.json: $(FRONTEND_SOURCES) jarmuz-static.mjs tsconfig.json package.json node_modules
 	./jarmuz-static.mjs
 
-fixtures/kev_0_8b_parity_reference.json: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
-	poetry -C paddler_kev_converter_python run paddler-kev-converter parity-reference --checkpoint $(KEV_CHECKPOINT) --output $(CURDIR)/$@
+fixtures/kev_%_parity_reference.json: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
+	poetry -C paddler_kev_converter_python run paddler-kev-converter parity-reference --checkpoint $(KEV_CHECKPOINT_$*) --output $(CURDIR)/$@
 
 fixtures/pointer_head_with_f16_tensors.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter malformed-pointer-head --defect f16-tensors --hidden-size 64 --output $(CURDIR)/$@
@@ -62,8 +69,11 @@ fixtures/qwen3_5_0_8b_synthetic_pointer_head.gguf: $(KEV_CONVERTER_SOURCES) padd
 fixtures/qwen3_5_0_8b_synthetic_pointer_head_with_wrong_hidden_size.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter synthetic-pointer-head --hidden-size 512 --output $(CURDIR)/$@
 
-fixtures/qwen3_5_tokenizer_reference.json: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
-	poetry -C paddler_kev_converter_python run paddler-kev-converter tokenizer-reference --checkpoint $(KEV_CHECKPOINT) --output $(CURDIR)/$@
+fixtures/qwen3_8_27b_synthetic_pointer_head.gguf: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
+	poetry -C paddler_kev_converter_python run paddler-kev-converter synthetic-pointer-head --hidden-size 5120 --output $(CURDIR)/$@
+
+fixtures/qwen3_%_tokenizer_reference.json: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
+	poetry -C paddler_kev_converter_python run paddler-kev-converter tokenizer-reference --base $(QWEN3_$*_BASE) --base-revision $(QWEN3_$*_BASE_REVISION) --output $(CURDIR)/$@
 
 fixtures/typesafe_reference.json: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
 	poetry -C paddler_kev_converter_python run paddler-kev-converter typesafe-reference --output $(CURDIR)/$@
@@ -107,11 +117,11 @@ target/cuda/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 target/debug/paddler: $(PADDLER_SOURCES)
 	cargo build -p paddler_cli
 
-target/kev/backbone/config.json target/kev/pointer_head.gguf &: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
-	poetry -C paddler_kev_converter_python run paddler-kev-converter convert --checkpoint $(KEV_CHECKPOINT) --backbone-directory $(CURDIR)/target/kev/backbone --pointer-head $(CURDIR)/target/kev/pointer_head.gguf
+target/kev_%/backbone/config.json target/kev_%/pointer_head.gguf &: $(KEV_CONVERTER_SOURCES) paddler_kev_converter_python/.venv
+	poetry -C paddler_kev_converter_python run paddler-kev-converter convert --checkpoint $(KEV_CHECKPOINT_$*) --backbone-directory $(CURDIR)/target/kev_$*/backbone --pointer-head $(CURDIR)/target/kev_$*/pointer_head.gguf
 
-target/kev/model.gguf: target/kev/backbone/config.json paddler_llama_cpp_converter_python/.venv
-	poetry -C paddler_llama_cpp_converter_python run python $(LLAMA_CPP_SOURCE_DIRECTORY)/convert_hf_to_gguf.py $(CURDIR)/target/kev/backbone --no-mtp --outtype bf16 --outfile $(CURDIR)/$@
+target/kev_%/model.gguf: target/kev_%/backbone/config.json paddler_llama_cpp_converter_python/.venv
+	poetry -C paddler_llama_cpp_converter_python run python $(LLAMA_CPP_SOURCE_DIRECTORY)/convert_hf_to_gguf.py $(CURDIR)/target/kev_$*/backbone --no-mtp --outtype bf16 --outfile $(CURDIR)/$@
 
 target/metal/debug/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 	cargo build -p paddler_cli --features metal,web_admin_panel --target-dir target/metal
@@ -181,7 +191,7 @@ test.client.js.llm: $(PADDLER_TEST_BINARY) node_modules target/test-model-cards.
 	$(PADDLER_BINARY_ENVIRONMENT) npm --workspace @intentee/paddler-client run test:llm
 
 .PHONY: test.coverage
-test.coverage: esbuild-meta.json node_modules target/kev/model.gguf target/kev/pointer_head.gguf target/test-model-cards.stamp
+test.coverage: esbuild-meta.json node_modules target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/test-model-cards.stamp
 	cargo llvm-cov clean --workspace
 	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo llvm-cov nextest --features tests_that_use_llms,web_admin_panel$(TEST_DEVICE_FEATURE_SUFFIX) --no-report --workspace
 	cargo llvm-cov report --no-default-ignore-filename-regex --ignore-filename-regex '$(LLVM_COV_THIRD_PARTY_SOURCES)' --json --output-path target/llvm-cov.json
@@ -225,7 +235,7 @@ test.coverage-clean:
 	rm -f target/llvm-cov.json target/lcov.info
 
 .PHONY: test.integration
-test.integration: target/kev/model.gguf target/kev/pointer_head.gguf target/test-model-cards.stamp
+test.integration: target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf target/test-model-cards.stamp
 	NEXTEST_PROFILE=$(NEXTEST_PROFILE) cargo nextest run -p paddler_tests -p paddler_cli_tests --features tests_that_use_llms$(TEST_DEVICE_FEATURE_SUFFIX) $(TEST_DEVICE_TARGET_DIR)
 
 .PHONY: test.integration.opencode
@@ -234,14 +244,14 @@ test.integration.opencode: target/test-model-cards.stamp
 
 .PHONY: test.kev_converter.python.llm
 test.kev_converter.python.llm: paddler_kev_converter_python/.venv
-	PADDLER_KEV_CHECKPOINT=$(KEV_CHECKPOINT) poetry -C paddler_kev_converter_python run pytest --cov
+	PADDLER_KEV_CHECKPOINT=$(KEV_CHECKPOINT_0_8b) poetry -C paddler_kev_converter_python run pytest --cov
 
 .PHONY: test.openai.python.llm
 test.openai.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_openai_client_python_test/.venv target/test-model-cards.stamp
 	$(RUN_WITH_TEST_CLUSTER_BINARY) qwen3-0-6b -- poetry -C paddler_openai_client_python_test run pytest
 
 .PHONY: test.typesafe.python.llm
-test.typesafe.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_typesafe_client_python_test/.venv target/kev/model.gguf target/kev/pointer_head.gguf
+test.typesafe.python.llm: $(RUN_WITH_TEST_CLUSTER_BINARY) paddler_typesafe_client_python_test/.venv target/kev_0_8b/model.gguf target/kev_0_8b/pointer_head.gguf
 	$(RUN_WITH_TEST_CLUSTER_BINARY) kev-0-8b -- poetry -C paddler_typesafe_client_python_test run pytest
 
 .PHONY: test.unit

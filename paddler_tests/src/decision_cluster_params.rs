@@ -6,7 +6,7 @@ use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParamete
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::SYNTHETIC_POINTER_HEAD_FIXTURE;
+use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 
 pub struct DecisionClusterParams {
     pub agents: Vec<AgentConfig>,
@@ -24,7 +24,7 @@ impl Default for DecisionClusterParams {
             context_size: ModelRuntimeParameters::default().context_size,
             model_card: qwen3_5_0_8b(),
             n_batch: BatchSize::DEFAULT,
-            pointer_head_fixture: SYNTHETIC_POINTER_HEAD_FIXTURE,
+            pointer_head_fixture: QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE,
             wait_for_slots_ready: true,
         }
     }

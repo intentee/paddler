@@ -13,6 +13,7 @@ pub mod qwen2_5_vl_3b_mmproj;
 pub mod qwen3_0_6b;
 pub mod qwen3_5_0_8b;
 pub mod qwen3_5_0_8b_mmproj;
+pub mod qwen3_8_27b;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;
 

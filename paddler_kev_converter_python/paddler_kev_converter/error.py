@@ -2,15 +2,6 @@ class KevConversionError(Exception):
     pass
 
 
-class FullWeightCheckpointUnsupportedError(KevConversionError):
-    def __init__(self, checkpoint_path: str) -> None:
-        self.checkpoint_path = checkpoint_path
-        super().__init__(
-            f"{checkpoint_path} holds full backbone weights; "
-            "only LoRA checkpoints can be converted"
-        )
-
-
 class BackboneDtypeUnsupportedError(KevConversionError):
     def __init__(self, checkpoint_path: str, weights_dtype: str) -> None:
         self.checkpoint_path = checkpoint_path
@@ -39,10 +30,11 @@ class TrainedTokenEmbeddingsUnsupportedError(KevConversionError):
         )
 
 
-class BaseArchitectureUnsupportedError(KevConversionError):
-    def __init__(self, base: str, text_model_type: str) -> None:
-        self.base = base
+class BackboneArchitectureUnsupportedError(KevConversionError):
+    def __init__(self, backbone: str, text_model_type: str) -> None:
+        self.backbone = backbone
         self.text_model_type = text_model_type
         super().__init__(
-            f"{base} is a {text_model_type} model; only qwen3_5_text bases convert"
+            f"{backbone} is a {text_model_type} model; "
+            "only qwen3_5_text backbones convert"
         )

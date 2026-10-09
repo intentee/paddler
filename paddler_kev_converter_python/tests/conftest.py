@@ -4,7 +4,8 @@ from pathlib import Path
 from shutil import copyfile
 
 import pytest
-from kev.checkpoint import Checkpoint
+import torch
+from kev.checkpoint import Checkpoint, LoadOptions, read_meta, write_meta
 
 from paddler_kev_converter.command_line import main
 
@@ -17,13 +18,44 @@ def kev_checkpoint() -> Checkpoint:
 
 
 @pytest.fixture(scope="session")
-def converted_backbone_directory(tmp_path_factory: pytest.TempPathFactory) -> Path:
+def lora_kev_run() -> str:
+    return KEV_CHECKPOINT
+
+
+@pytest.fixture(scope="session")
+def full_weight_kev_run(
+    kev_checkpoint: Checkpoint, tmp_path_factory: pytest.TempPathFactory
+) -> str:
+    full_weight_directory = tmp_path_factory.mktemp("full_weight")
+    _, decision_model = kev_checkpoint.load("cpu", LoadOptions(dtype=torch.bfloat16))
+    backbone = decision_model.lm
+    backbone.config.tie_word_embeddings = False
+    backbone.save_pretrained(full_weight_directory)
+    meta = read_meta(kev_checkpoint.path)
+    meta.weights = "full"
+    meta.weights_dtype = "bf16"
+    write_meta(str(full_weight_directory), meta)
+
+    return str(full_weight_directory)
+
+
+@pytest.fixture(scope="session", params=["lora_kev_run", "full_weight_kev_run"])
+def convertible_kev_run(request: pytest.FixtureRequest) -> str:
+    run: str = request.getfixturevalue(request.param)
+
+    return run
+
+
+@pytest.fixture(scope="session")
+def converted_backbone_directory(
+    convertible_kev_run: str, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
     conversion_directory = tmp_path_factory.mktemp("converted")
     main(
         [
             "convert",
             "--checkpoint",
-            KEV_CHECKPOINT,
+            convertible_kev_run,
             "--backbone-directory",
             str(conversion_directory / "backbone"),
             "--pointer-head",

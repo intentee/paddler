@@ -8,7 +8,7 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::SYNTHETIC_POINTER_HEAD_FIXTURE;
+use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -25,7 +25,7 @@ async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
             agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM),
             desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
                 decision: DecisionSettings {
-                    pointer_head: pointer_head_fixture(SYNTHETIC_POINTER_HEAD_FIXTURE),
+                    pointer_head: pointer_head_fixture(QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE),
                 },
                 inference_mode,
                 model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),

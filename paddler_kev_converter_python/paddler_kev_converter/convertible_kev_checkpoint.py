@@ -10,9 +10,8 @@ from peft import LoraConfig
 from transformers import AutoConfig, PreTrainedModel, Qwen3_5ForCausalLM
 
 from paddler_kev_converter.error import (
+    BackboneArchitectureUnsupportedError,
     BackboneDtypeUnsupportedError,
-    BaseArchitectureUnsupportedError,
-    FullWeightCheckpointUnsupportedError,
     OptionIsolationUnsupportedError,
     TrainedTokenEmbeddingsUnsupportedError,
 )
@@ -26,8 +25,17 @@ BASE_TOKENIZER_FILES = [
 ]
 CONVERTIBLE_TEXT_MODEL_TYPE = "qwen3_5_text"
 EXACTLY_MERGING_BACKBONE_DTYPE = "fp32"
-LORA_WEIGHTS = "lora"
 CAUSAL_LANGUAGE_MODEL_CLASS: type[PreTrainedModel] = Qwen3_5ForCausalLM
+
+
+def _require_exactly_mergeable_adapter(checkpoint: Checkpoint) -> None:
+    if checkpoint.meta.weights_dtype != EXACTLY_MERGING_BACKBONE_DTYPE:
+        raise BackboneDtypeUnsupportedError(
+            checkpoint.path, checkpoint.meta.weights_dtype
+        )
+
+    if LoraConfig.from_pretrained(checkpoint.path).trainable_token_indices:
+        raise TrainedTokenEmbeddingsUnsupportedError(checkpoint.path)
 
 
 @dataclass(frozen=True)
@@ -39,26 +47,23 @@ class ConvertibleKevCheckpoint:
         checkpoint = Checkpoint(run)
         meta = checkpoint.meta
 
-        if meta.weights != LORA_WEIGHTS:
-            raise FullWeightCheckpointUnsupportedError(checkpoint.path)
-
-        if meta.weights_dtype != EXACTLY_MERGING_BACKBONE_DTYPE:
-            raise BackboneDtypeUnsupportedError(checkpoint.path, meta.weights_dtype)
-
         if meta.option_isolation:
             raise OptionIsolationUnsupportedError(checkpoint.path)
 
-        if LoraConfig.from_pretrained(checkpoint.path).trainable_token_indices:
-            raise TrainedTokenEmbeddingsUnsupportedError(checkpoint.path)
+        if checkpoint.full:
+            backbone_config = AutoConfig.from_pretrained(checkpoint.path)
+        else:
+            _require_exactly_mergeable_adapter(checkpoint)
+            backbone_config = AutoConfig.from_pretrained(
+                meta.base, revision=meta.base_revision
+            )
 
-        text_model_type = (
-            AutoConfig.from_pretrained(meta.base, revision=meta.base_revision)
-            .get_text_config()
-            .model_type
-        )
+        text_model_type = backbone_config.get_text_config().model_type
 
         if text_model_type != CONVERTIBLE_TEXT_MODEL_TYPE:
-            raise BaseArchitectureUnsupportedError(meta.base, text_model_type)
+            raise BackboneArchitectureUnsupportedError(
+                backbone_config.name_or_path, text_model_type
+            )
 
         return cls(checkpoint=checkpoint)
 
@@ -76,13 +81,15 @@ class ConvertibleKevCheckpoint:
 
     def write_backbone(self, directory: Path) -> None:
         _, decision_model = self.checkpoint.load("cpu", LoadOptions())
+        decision_backbone = decision_model.lm
+        decision_backbone.config.tie_word_embeddings = True
 
         with torch.device("meta"):
             causal_language_model = CAUSAL_LANGUAGE_MODEL_CLASS(
-                decision_model.lm.config
+                decision_backbone.config
             )
 
-        causal_language_model.model = decision_model.lm
+        causal_language_model.model = decision_backbone
         causal_language_model.tie_weights()
         causal_language_model.save_pretrained(directory)
 

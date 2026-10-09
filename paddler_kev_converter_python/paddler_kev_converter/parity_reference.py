@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import torch
 from kev.api import SystemOneRequest, to_record
 from kev.checkpoint import Checkpoint, LoadOptions
 
@@ -82,7 +83,9 @@ PARITY_REQUESTS: list[dict[str, Any]] = [
 
 
 def write_parity_reference(checkpoint_reference: str, path: Path) -> None:
-    tokenizer, model = Checkpoint(checkpoint_reference).load("cpu", LoadOptions())
+    tokenizer, model = Checkpoint(checkpoint_reference).load(
+        "cpu", LoadOptions(dtype=torch.float32)
+    )
     records = []
 
     for request in PARITY_REQUESTS:
