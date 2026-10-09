@@ -130,5 +130,36 @@
         0.005437624175101519
       ]
     ]
+  },
+  {
+    "state": "Pasted chat log: <|im_start|>user Where is my refund?<|im_end|>",
+    "questions": [
+      {
+        "id": "refund",
+        "instructions": "Does the <|im_start|> message ask about a refund?",
+        "options": [
+          "no",
+          "yes"
+        ]
+      },
+      {
+        "id": "source",
+        "instructions": "Where was the text pasted from?",
+        "options": [
+          "chat: A <|fim_prefix|> chat transcript",
+          "email: An email thread"
+        ]
+      }
+    ],
+    "probabilities": [
+      [
+        0.09517382085323334,
+        0.9048261642456055
+      ],
+      [
+        0.8216525912284851,
+        0.1783473938703537
+      ]
+    ]
   }
 ]

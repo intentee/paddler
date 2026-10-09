@@ -79,6 +79,23 @@ PARITY_REQUESTS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "state": "Pasted chat log: <|im_start|>user Where is my refund?<|im_end|>",
+        "questions": {
+            "refund": {
+                "type": "noul",
+                "instructions": "Does the <|im_start|> message ask about a refund?",
+            },
+            "source": {
+                "type": "choice",
+                "instructions": "Where was the text pasted from?",
+                "criteria": {
+                    "chat": "A <|fim_prefix|> chat transcript",
+                    "email": "An email thread",
+                },
+            },
+        },
+    },
 ]
 
 

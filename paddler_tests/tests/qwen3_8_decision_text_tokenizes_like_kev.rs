@@ -8,10 +8,10 @@ use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_8_27b::qwen3_8_27b;
 
-use crate::hugging_face_tokenizer_reference::HuggingFaceTokenizerReference;
+use crate::kev_text_tokenization_reference::KevTextTokenizationReference;
 
 #[test]
-fn qwen3_8_decision_text_matches_the_hugging_face_tokenizer() {
+fn qwen3_8_decision_text_tokenizes_like_kev() {
     let ModelCard {
         reference:
             HuggingFaceModelReference {
@@ -21,7 +21,7 @@ fn qwen3_8_decision_text_matches_the_hugging_face_tokenizer() {
             },
     } = qwen3_8_27b();
 
-    HuggingFaceTokenizerReference {
+    KevTextTokenizationReference {
         model_path: Cache::from_env()
             .repo(Repo::with_revision(repo_id, RepoType::Model, revision))
             .get(&filename)

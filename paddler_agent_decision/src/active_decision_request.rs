@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 
 use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_runtime::receives_stop_request::ReceivesStopRequest as _;
+use paddler_agent_runtime::send_result_or_warn::send_result_or_warn;
 use paddler_agent_runtime::sequence_id_guard::SequenceIdGuard;
 use paddler_agent_status::slot_guard::SlotGuard;
 use paddler_messaging::decision_answer::DecisionAnswer;
@@ -116,6 +117,18 @@ impl ActiveDecisionRequest {
                     self.answer_last_question(decoder, pointer_head, next_offset)
                 }
             },
+        }
+    }
+
+    pub fn finish_with(
+        self,
+        decoder: &mut DecisionDecoder,
+        agent_name: Option<&str>,
+        terminal_result: DecisionResult,
+    ) {
+        match self.release_sequences(decoder) {
+            Ok(()) => send_result_or_warn(agent_name, &self.decision_result_tx, terminal_result),
+            Err(release_error) => release_error.report(agent_name, &self.decision_result_tx),
         }
     }
 

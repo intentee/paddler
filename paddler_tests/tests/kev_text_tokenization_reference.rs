@@ -14,12 +14,12 @@ use paddler_agent_runtime::model_metadata_holder::ModelMetadataHolder;
 use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
 use paddler_tests::tokenizer_reference_entry::TokenizerReferenceEntry;
 
-pub struct HuggingFaceTokenizerReference {
+pub struct KevTextTokenizationReference {
     pub model_path: PathBuf,
     pub reference_fixture: &'static str,
 }
 
-impl HuggingFaceTokenizerReference {
+impl KevTextTokenizationReference {
     pub fn assert_matched_by_the_decision_text_tokenizer(self) {
         let text_tokenizer = DecisionTextTokenizer {
             loaded_llama_model: LoadedLlamaModel::load(

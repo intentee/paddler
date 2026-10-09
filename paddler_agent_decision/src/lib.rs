@@ -15,6 +15,7 @@ pub mod decision_scheduler_context;
 pub mod decision_slots_minimum;
 pub mod decision_text_tokenizer;
 pub mod decision_token_layout;
+pub mod escape_special_token_lookalikes;
 pub mod prepared_decision_request;
 pub mod promised_decision_cells;
 pub mod question_lane;

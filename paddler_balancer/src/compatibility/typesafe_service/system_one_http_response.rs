@@ -85,6 +85,10 @@ where
                     | DecisionResult::KvCacheRemovalFailed(detail),
                 ..
             } => return error_response(UpstreamFailure::AgentFailed.status_code(), detail),
+            AgentResultStreamEvent::Result {
+                result: DecisionResult::StopRequested,
+                ..
+            } => break,
             AgentResultStreamEvent::WireError(wire_error) => {
                 return error_response(
                     UpstreamFailure::from(&wire_error).status_code(),
@@ -264,6 +268,21 @@ mod tests {
             (
                 StatusCode::GATEWAY_TIMEOUT,
                 json!({"detail": "wire failure"})
+            )
+        );
+    }
+
+    #[actix_web::test]
+    async fn answers_a_bad_gateway_when_the_agent_stops_the_decision() {
+        assert_eq!(
+            status_and_body(vec![
+                answered("paid"),
+                decision_result(DecisionResult::StopRequested)
+            ])
+            .await,
+            (
+                StatusCode::BAD_GATEWAY,
+                json!({"detail": "the agent stopped before it finished the decision"})
             )
         );
     }

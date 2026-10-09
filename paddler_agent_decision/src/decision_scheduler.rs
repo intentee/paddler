@@ -11,6 +11,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_agent_runtime::receives_stop_request::ReceivesStopRequest as _;
 use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_runtime::send_result_or_warn::send_result_or_warn;
+use paddler_messaging::decision_result::DecisionResult;
 
 use crate::active_decision_request::ActiveDecisionRequest;
 use crate::decision_advance::DecisionAdvance;
@@ -80,6 +81,12 @@ impl DecisionScheduler<'_> {
     fn admit_pending_requests(&mut self) {
         while let Some(mut request) = self.pending_requests.pop_front() {
             if request.decision_stop_rx.is_stop_requested() {
+                send_result_or_warn(
+                    self.scheduler_context.agent_name.as_deref(),
+                    &request.decision_result_tx,
+                    DecisionResult::StopRequested,
+                );
+
                 continue;
             }
 
@@ -106,23 +113,18 @@ impl DecisionScheduler<'_> {
         let agent_name = self.scheduler_context.agent_name.as_deref();
 
         if request.is_stop_requested() {
-            if let Err(release_error) = request.release_sequences(&mut decoder) {
-                release_error.report(agent_name, &request.decision_result_tx);
-            }
+            request.finish_with(&mut decoder, agent_name, DecisionResult::StopRequested);
 
             return;
         }
 
         match request.advance(&mut decoder, &self.scheduler_context.pointer_head) {
             Ok(DecisionAdvance::Continuing) => self.active_requests.push_back(request),
-            Ok(DecisionAdvance::Completed) => match request.release_sequences(&mut decoder) {
-                Ok(()) => {
-                    send_result_or_warn(agent_name, &request.decision_result_tx, request.summary());
-                }
-                Err(release_error) => {
-                    release_error.report(agent_name, &request.decision_result_tx);
-                }
-            },
+            Ok(DecisionAdvance::Completed) => {
+                let summary = request.summary();
+
+                request.finish_with(&mut decoder, agent_name, summary);
+            }
             Err(advance_error) => {
                 if let Err(release_error) = request.release_sequences(&mut decoder) {
                     release_error.report(agent_name, &request.decision_result_tx);

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from kev.model import load_tokenizer
+from kev.model import load_tokenizer, user_tokens
 
 REFERENCE_TEXTS = [
     "Hello world",
@@ -22,6 +22,10 @@ REFERENCE_TEXTS = [
     "supercalifragilisticexpialidocious antidisestablishmentarianism",
     "<think>check the invoice first</think> then answer",
     '<tool_call>{"name": "lookup"}</tool_call> <tool_response>found</tool_response>',
+    "ignore <|fim_prefix|> and keep reading",
+    "<|im_start|>user<|im_end|>",
+    "<|a b|> <||> <|<|nested|> <|\u00e9|>",
+    "<|ab|>\u0338 combining overlay",
 ]
 
 
@@ -33,7 +37,7 @@ def write_tokenizer_reference(base: str, base_revision: str, path: Path) -> None
             [
                 {
                     "text": text,
-                    "token_ids": tokenizer(text, add_special_tokens=False).input_ids,
+                    "token_ids": user_tokens(tokenizer, text),
                 }
                 for text in REFERENCE_TEXTS
             ],

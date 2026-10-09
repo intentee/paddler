@@ -6,6 +6,7 @@ use llama_cpp_bindings::token::LlamaToken;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 
 use crate::decision_error::DecisionError;
+use crate::escape_special_token_lookalikes::escape_special_token_lookalikes;
 
 pub struct DecisionTextTokenizer {
     pub loaded_llama_model: LoadedLlamaModel,
@@ -16,7 +17,8 @@ impl DecisionTextTokenizer {
         self.loaded_llama_model
             .model
             .str_to_token(
-                &ComposingNormalizerBorrowed::new_nfc().normalize(text),
+                &ComposingNormalizerBorrowed::new_nfc()
+                    .normalize(&escape_special_token_lookalikes(text)),
                 AddBos::Never,
                 ParseSpecialTokens::Never,
             )

@@ -22,6 +22,7 @@ pub enum DecisionResult {
     QuestionAnswered(DecisionAnswer),
     RequestExceedsContext(OversizedDecisionDetails),
     SchedulerUnavailable(String),
+    StopRequested,
 }
 
 impl StreamableResult for DecisionResult {

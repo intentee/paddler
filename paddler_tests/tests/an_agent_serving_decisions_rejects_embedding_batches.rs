@@ -2,34 +2,19 @@
 
 use tokio::sync::mpsc;
 
-use paddler_agent::desired_state_reconciliation::DesiredStateReconciliation;
 use paddler_agent::pipeline_request::PipelineRequest;
-use paddler_agent_decision::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
-use paddler_test_cluster_harness::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
-use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
-use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
-use paddler_tests::serving_pipeline_arbiter::ServingPipelineArbiter;
+
+use crate::serving_decision_agent::ServingDecisionAgent;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_decisions_rejects_embedding_batches() {
-    let serving_pipeline_arbiter = ServingPipelineArbiter::start(
-        qwen3_5_0_8b().into_decision_desired_state(pointer_head_fixture(
-            QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE,
-        )),
-        DECISION_SLOTS_MINIMUM,
-    )
-    .await;
-
-    assert_eq!(
-        serving_pipeline_arbiter.desired_state_reconciliation,
-        DesiredStateReconciliation::Reconciled
-    );
-
+    let serving_decision_agent = ServingDecisionAgent::start().await;
+    let serving_pipeline_arbiter = &serving_decision_agent.serving_pipeline_arbiter;
     let (response_tx, mut response_rx) = mpsc::unbounded_channel();
     let (_stop_tx, stop_rx) = mpsc::unbounded_channel();
 
@@ -59,8 +44,5 @@ async fn an_agent_serving_decisions_rejects_embedding_batches() {
         ))
     );
 
-    serving_pipeline_arbiter
-        .shut_down()
-        .await
-        .expect("the agent must shut down cleanly");
+    serving_decision_agent.shut_down().await;
 }

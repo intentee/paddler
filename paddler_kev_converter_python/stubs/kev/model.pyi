@@ -8,6 +8,7 @@ SPECIAL: list[str]
 def load_tokenizer(
     name: str, revision: str | None = None
 ) -> PreTrainedTokenizerBase: ...
+def user_tokens(tok: PreTrainedTokenizerBase, text: str) -> list[int]: ...
 
 class DecisionModel:
     lm: PreTrainedModel
