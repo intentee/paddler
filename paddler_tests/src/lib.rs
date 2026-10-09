@@ -19,6 +19,7 @@ pub mod kev_0_8b_model_path;
 pub mod kev_parity_record;
 pub mod many_question_decision;
 pub mod ministral_3_cluster_params;
+pub mod next_reported_cluster_inference_mode;
 pub mod nomic_embed_desired_state_with_chat_template_override;
 pub mod openai_chat_completion_failure_status;
 pub mod qwen3_desired_state;

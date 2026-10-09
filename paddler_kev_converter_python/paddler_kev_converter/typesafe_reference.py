@@ -102,6 +102,31 @@ REFERENCE_CASES: list[dict[str, Any]] = [
         },
         "probabilities": [[1.0], [0.25, 0.25, 0.25, 0.25]],
     },
+    {
+        "request": {
+            "state": {
+                "precise": 123.45678901234567,
+                "halfway": 1000000000000.6562,
+                "power_of_two": 7.120236347223045e-307,
+            },
+            "questions": {
+                "measure": {
+                    "type": "score",
+                    "instructions": 1000000000000.6562,
+                    "criteria": [123.45678901234567, 7.120236347223045e-307],
+                },
+                "pick": {
+                    "type": "choice",
+                    "instructions": "Which value is exact?",
+                    "criteria": {
+                        "halfway": 1000000000000.6562,
+                        "precise": 123.45678901234567,
+                    },
+                },
+            },
+        },
+        "probabilities": [[0.5, 0.5], [0.5, 0.5]],
+    },
 ]
 
 

@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use nanoid::nanoid;
 use serde::Serialize;
-use tokio::sync::broadcast;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
@@ -22,6 +21,7 @@ use crate::error::Result;
 use crate::http_client::HttpClient;
 use crate::inference_message_stream::InferenceMessageStream;
 use crate::inference_socket::pool::Pool;
+use crate::inference_socket::reported_cluster_inference_mode::ReportedClusterInferenceMode;
 use crate::reports_health::ReportsHealth;
 use crate::stream::ndjson::Ndjson;
 
@@ -82,8 +82,11 @@ impl ClientInference {
     }
 
     #[must_use]
-    pub fn subscribe_to_cluster_inference_mode(&self) -> broadcast::Receiver<Notification> {
-        self.inference_socket_pool.subscribe_to_notifications()
+    pub fn subscribe_to_cluster_inference_mode(
+        &self,
+    ) -> watch::Receiver<ReportedClusterInferenceMode> {
+        self.inference_socket_pool
+            .subscribe_to_cluster_inference_mode()
     }
 
     pub async fn continue_from_conversation_history(

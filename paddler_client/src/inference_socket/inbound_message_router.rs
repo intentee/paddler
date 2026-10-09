@@ -96,7 +96,6 @@ impl InboundMessageRouter {
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroUsize;
     use std::sync::Arc;
 
     use serde_json::json;
@@ -114,9 +113,7 @@ mod tests {
 
     fn router_for(pending: &Arc<PendingRequests>) -> InboundMessageRouter {
         InboundMessageRouter {
-            cluster_inference_mode_broadcaster: Arc::new(ClusterInferenceModeBroadcaster::new(
-                NonZeroUsize::MIN,
-            )),
+            cluster_inference_mode_broadcaster: Arc::new(ClusterInferenceModeBroadcaster::default()),
             pending: Arc::clone(pending),
         }
     }

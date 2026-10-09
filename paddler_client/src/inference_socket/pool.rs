@@ -6,13 +6,12 @@ use std::sync::atomic::Ordering;
 use serde::Serialize;
 use serde_json::to_string;
 use tokio::sync::Mutex;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -20,6 +19,7 @@ use crate::inference_message_stream::InferenceMessageStream;
 use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
 use crate::inference_socket::connection::Connection;
 use crate::inference_socket::connection_slot::ConnectionSlot;
+use crate::inference_socket::reported_cluster_inference_mode::ReportedClusterInferenceMode;
 use crate::inference_socket::response_stream::response_stream;
 
 struct EstablishedRequest {
@@ -38,9 +38,7 @@ impl Pool {
     #[must_use]
     pub fn new(url: Url, capacity: NonZeroUsize) -> Self {
         Self {
-            cluster_inference_mode_broadcaster: Arc::new(ClusterInferenceModeBroadcaster::new(
-                capacity,
-            )),
+            cluster_inference_mode_broadcaster: Arc::new(ClusterInferenceModeBroadcaster::default()),
             connection_slots: (0..capacity.get())
                 .map(|_slot_index| Mutex::new(ConnectionSlot::Empty))
                 .collect(),
@@ -49,7 +47,9 @@ impl Pool {
         }
     }
 
-    pub fn subscribe_to_notifications(&self) -> broadcast::Receiver<Notification> {
+    pub fn subscribe_to_cluster_inference_mode(
+        &self,
+    ) -> watch::Receiver<ReportedClusterInferenceMode> {
         self.cluster_inference_mode_broadcaster.subscribe()
     }
 

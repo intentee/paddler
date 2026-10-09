@@ -15,7 +15,7 @@ path = "tests/main.rs"
 
 [dependencies]
 serde = { workspace = true }
-serde_json = { workspace = true }
+serde_json = { workspace = true, features = ["float_roundtrip"] }
 thiserror = { workspace = true }
 paddler_messaging = { workspace = true }
 

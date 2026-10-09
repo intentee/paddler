@@ -2,13 +2,14 @@ use std::num::NonZeroUsize;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_client::inference_socket::reported_cluster_inference_mode::ReportedClusterInferenceMode;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::desired_state_serving::desired_state_serving;
 use paddler_tests::inference_socket_round_trip::inference_socket_round_trip;
+use paddler_tests::next_reported_cluster_inference_mode::next_reported_cluster_inference_mode;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -24,8 +25,7 @@ async fn inference_socket_notifies_clients_only_when_the_cluster_inference_mode_
         .await
         .expect("the inference socket must answer while serving embeddings");
 
-    let connect_notification = cluster_inference_mode_rx
-        .recv()
+    let connect_notification = next_reported_cluster_inference_mode(&mut cluster_inference_mode_rx)
         .await
         .expect("the client must be told on connect which inference mode the cluster serves");
 
@@ -54,8 +54,7 @@ async fn inference_socket_notifies_clients_only_when_the_cluster_inference_mode_
             .await
             .expect("the balancer must apply the desired state");
 
-        cluster_inference_mode_rx
-            .recv()
+        next_reported_cluster_inference_mode(&mut cluster_inference_mode_rx)
             .await
             .expect("the client must receive the inference mode change")
     };
@@ -70,9 +69,9 @@ async fn inference_socket_notifies_clients_only_when_the_cluster_inference_mode_
             decision_notification,
         ],
         [
-            Notification::ClusterInferenceMode(InferenceMode::Embeddings),
-            Notification::ClusterInferenceMode(InferenceMode::TextGeneration),
-            Notification::ClusterInferenceMode(InferenceMode::Decision),
+            ReportedClusterInferenceMode::Reported(InferenceMode::Embeddings),
+            ReportedClusterInferenceMode::Reported(InferenceMode::TextGeneration),
+            ReportedClusterInferenceMode::Reported(InferenceMode::Decision),
         ]
     );
 

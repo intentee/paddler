@@ -1,4 +1,3 @@
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use tokio::task::yield_now;
@@ -23,7 +22,7 @@ async fn inference_socket_connection_rejects_requests_after_the_balancer_closes_
             .balancer
             .inference_base_url()
             .expect("the inference service must have a base URL"),
-        Arc::new(ClusterInferenceModeBroadcaster::new(NonZeroUsize::MIN)),
+        Arc::new(ClusterInferenceModeBroadcaster::default()),
     )
     .await
     .expect("the connection to the balancer must open");

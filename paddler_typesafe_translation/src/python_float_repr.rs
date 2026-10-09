@@ -33,31 +33,61 @@ fn positional_notation(digits: &str, decimal_point_position: i64) -> String {
     }
 }
 
-#[must_use]
-pub fn python_float_repr(value: f64) -> String {
-    let mut digits = String::new();
-    let mut exponent_magnitude = 0_i64;
-    let mut exponent_is_negative = false;
-    let mut reading_exponent = false;
+struct ScientificDigits {
+    digits: String,
+    exponent: i64,
+}
 
-    for character in format!("{:e}", value.abs()).chars() {
-        match (reading_exponent, character) {
-            (false, 'e') => reading_exponent = true,
-            (false, '.') => {}
-            (false, digit) => digits.push(digit),
-            (true, '-') => exponent_is_negative = true,
-            (true, digit) => {
-                exponent_magnitude =
-                    exponent_magnitude * 10 + i64::from(u32::from(digit) - u32::from('0'));
+impl ScientificDigits {
+    fn parse(scientific_notation: &str) -> Self {
+        let mut digits = String::new();
+        let mut exponent_magnitude = 0_i64;
+        let mut exponent_is_negative = false;
+        let mut reading_exponent = false;
+
+        for character in scientific_notation.chars() {
+            match (reading_exponent, character) {
+                (false, 'e') => reading_exponent = true,
+                (false, '.') => {}
+                (false, digit) => digits.push(digit),
+                (true, '-') => exponent_is_negative = true,
+                (true, digit) => {
+                    exponent_magnitude =
+                        exponent_magnitude * 10 + i64::from(u32::from(digit) - u32::from('0'));
+                }
             }
+        }
+
+        Self {
+            digits,
+            exponent: if exponent_is_negative {
+                -exponent_magnitude
+            } else {
+                exponent_magnitude
+            },
         }
     }
 
-    let exponent = if exponent_is_negative {
-        -exponent_magnitude
-    } else {
-        exponent_magnitude
-    };
+    fn shortest_with_ties_to_even(magnitude: f64) -> Self {
+        let shortest = format!("{magnitude:e}");
+        let shortest_digits = Self::parse(&shortest);
+        let ties_to_even = format!(
+            "{magnitude:.precision$e}",
+            precision = shortest_digits.digits.len() - 1
+        );
+
+        if ties_to_even.parse::<f64>() == Ok(magnitude) {
+            Self::parse(&ties_to_even)
+        } else {
+            shortest_digits
+        }
+    }
+}
+
+#[must_use]
+pub fn python_float_repr(value: f64) -> String {
+    let ScientificDigits { digits, exponent } =
+        ScientificDigits::shortest_with_ties_to_even(value.abs());
     let decimal_point_position = exponent + 1;
     let sign = if value.is_sign_negative() { "-" } else { "" };
     let unsigned = if decimal_point_position <= -4 || decimal_point_position > 16 {
@@ -89,6 +119,9 @@ mod tests {
             (1.5e300, "1.5e+300"),
             (-2.5, "-2.5"),
             (123_456_789.123, "123456789.123"),
+            (123.456_789_012_345_67, "123.45678901234567"),
+            (1_000_000_000_000.656_2, "1000000000000.6562"),
+            (7.120_236_347_223_045e-307, "7.120236347223045e-307"),
         ] {
             assert_eq!(python_float_repr(value), python_repr, "{value}");
         }

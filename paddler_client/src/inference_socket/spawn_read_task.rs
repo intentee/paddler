@@ -52,7 +52,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::num::NonZeroUsize;
     use std::sync::Arc;
 
     use futures_util::StreamExt as _;
@@ -75,7 +74,7 @@ mod tests {
         spawn_read_task(
             iter([Ok(WsMessage::Binary(vec![0].into()))]).chain(pending()),
             pending_requests,
-            Arc::new(ClusterInferenceModeBroadcaster::new(NonZeroUsize::MIN)),
+            Arc::new(ClusterInferenceModeBroadcaster::default()),
         )
         .await
         .expect("the read task must not panic");

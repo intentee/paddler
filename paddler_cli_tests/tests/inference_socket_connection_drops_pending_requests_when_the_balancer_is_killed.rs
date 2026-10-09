@@ -1,5 +1,4 @@
 use std::num::NonZeroU32;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 use serde_json::to_string;
@@ -38,7 +37,7 @@ async fn inference_socket_connection_drops_pending_requests_when_the_balancer_is
             .balancer
             .inference_base_url()
             .expect("the balancer must expose its inference address"),
-        Arc::new(ClusterInferenceModeBroadcaster::new(NonZeroUsize::MIN)),
+        Arc::new(ClusterInferenceModeBroadcaster::default()),
     )
     .await
     .expect("the inference socket must connect");

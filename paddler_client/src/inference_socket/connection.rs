@@ -98,7 +98,6 @@ impl Drop for Connection {
 #[cfg(test)]
 mod tests {
     use std::io::ErrorKind;
-    use std::num::NonZeroUsize;
     use std::sync::Arc;
 
     use tokio_tungstenite::tungstenite::Error as WebSocketError;
@@ -113,7 +112,7 @@ mod tests {
         assert!(matches!(
             Connection::connect(
                 Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"),
-                Arc::new(ClusterInferenceModeBroadcaster::new(NonZeroUsize::MIN)),
+                Arc::new(ClusterInferenceModeBroadcaster::default()),
             )
             .await,
             Err(Error::WebSocket(WebSocketError::Io(io_error)))
