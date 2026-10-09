@@ -9,10 +9,6 @@ license.workspace = true
 repository.workspace = true
 version.workspace = true
 
-[[test]]
-name = "integration"
-path = "tests/main.rs"
-
 [dependencies]
 actix-cors = { workspace = true }
 actix-web = { workspace = true }

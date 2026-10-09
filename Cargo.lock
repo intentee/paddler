@@ -3437,7 +3437,6 @@ dependencies = [
  "http 1.4.0",
  "log",
  "nanoid",
- "paddler_local_http_fixture",
  "paddler_messaging",
  "parking_lot",
  "reqwest 0.12.28",

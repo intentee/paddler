@@ -5,7 +5,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::Data;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::OpCode;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_agent_socket::RawAgentSocket;
+use paddler_test_cluster_harness::untrusted_agent_socket_client::UntrustedAgentSocketClient;
 use paddler_tests::start_cluster::start_cluster;
 
 const FIRST_RESERVED_DATA_OPCODE: u8 = 3;
@@ -20,7 +20,7 @@ async fn balancer_closes_an_agent_socket_that_sends_a_reserved_opcode_frame_as_a
     })
     .await
     .expect("the cluster must start");
-    let mut agent_socket = RawAgentSocket::connect(
+    let mut agent_socket = UntrustedAgentSocketClient::connect(
         cluster.balancer.addresses.management,
         "protocol-violating-agent",
     )

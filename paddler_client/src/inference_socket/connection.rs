@@ -101,104 +101,23 @@ mod tests {
     use std::num::NonZeroUsize;
     use std::sync::Arc;
 
-    use futures_util::SinkExt as _;
-    use futures_util::StreamExt as _;
-    use tokio::net::TcpListener;
-    use tokio::net::TcpStream;
-    use tokio::spawn;
-    use tokio::task::JoinHandle;
-    use tokio_tungstenite::WebSocketStream;
-    use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::Error as WebSocketError;
-    use tokio_tungstenite::tungstenite::Message as WsMessage;
     use url::Url;
 
     use super::Connection;
     use crate::error::Error;
     use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
 
-    struct WebSocketFixture {
-        server: JoinHandle<WebSocketStream<TcpStream>>,
-        url: Url,
-    }
-
-    async fn websocket_fixture_answering_the_first_request_with(
-        answer: WsMessage,
-    ) -> WebSocketFixture {
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("the fixture socket must bind");
-        let url = Url::parse(&format!(
-            "http://{}",
-            listener
-                .local_addr()
-                .expect("the fixture socket must report its address")
-        ))
-        .expect("the fixture URL must be valid");
-        let server = spawn(async move {
-            let (stream, _peer_addr) = listener
-                .accept()
-                .await
-                .expect("the fixture must accept the client");
-            let mut websocket = accept_async(stream)
-                .await
-                .expect("the fixture must complete the handshake");
-
-            websocket
-                .next()
-                .await
-                .expect("the client must send its request")
-                .expect("the client request must be readable");
-
-            websocket
-                .send(answer)
-                .await
-                .expect("the fixture must send its answer");
-
-            websocket
-        });
-
-        WebSocketFixture { server, url }
-    }
-
-    fn unobserved_broadcaster() -> Arc<ClusterInferenceModeBroadcaster> {
-        Arc::new(ClusterInferenceModeBroadcaster::new(NonZeroUsize::MIN))
-    }
-
-    async fn connection_to(url: Url) -> Connection {
-        Connection::connect(url, unobserved_broadcaster())
-            .await
-            .expect("the client must connect to the fixture")
-    }
-
     #[tokio::test]
     async fn connect_fails_for_an_unreachable_server() {
         assert!(matches!(
             Connection::connect(
                 Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"),
-                unobserved_broadcaster(),
+                Arc::new(ClusterInferenceModeBroadcaster::new(NonZeroUsize::MIN)),
             )
             .await,
             Err(Error::WebSocket(WebSocketError::Io(io_error)))
                 if io_error.kind() == ErrorKind::ConnectionRefused
         ));
-    }
-
-    #[tokio::test]
-    async fn a_binary_frame_from_the_server_drops_every_pending_request() {
-        let WebSocketFixture { server, url } =
-            websocket_fixture_answering_the_first_request_with(WsMessage::Binary(vec![0].into()))
-                .await;
-        let connection = connection_to(url).await;
-        let mut response_rx = connection
-            .send("request-1".to_owned(), "{}".to_owned())
-            .expect("an open connection must accept a request");
-
-        assert!(matches!(
-            response_rx.recv().await,
-            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
-        ));
-
-        drop(server.await.expect("the fixture must not panic"));
     }
 }

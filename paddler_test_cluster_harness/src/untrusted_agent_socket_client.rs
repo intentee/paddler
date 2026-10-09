@@ -2,7 +2,6 @@ use std::net::SocketAddr;
 
 use futures_util::SinkExt as _;
 use futures_util::StreamExt as _;
-use serde_json::from_str;
 use serde_json::to_string;
 use tokio::net::TcpStream;
 use tokio_tungstenite::MaybeTlsStream;
@@ -13,22 +12,16 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 
 use paddler_messaging::api_path::ApiPath;
-use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
-use paddler_messaging::management_socket::agent::message::Message as AgentJsonRpcMessage;
-use paddler_messaging::management_socket::agent::notification::Notification as AgentJsonRpcNotification;
-use paddler_messaging::management_socket::agent::request::Request as AgentJsonRpcRequest;
 use paddler_messaging::management_socket::balancer::message::Message as ManagementJsonRpcMessage;
 use paddler_messaging::management_socket::balancer::notification::Notification as ManagementJsonRpcNotification;
-use paddler_messaging::management_socket::balancer::notification_params::register_agent_params::RegisterAgentParams;
-use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
 
 use crate::cluster_harness_error::ClusterHarnessError;
 
-pub struct RawAgentSocket {
+pub struct UntrustedAgentSocketClient {
     websocket: WebSocketStream<MaybeTlsStream<TcpStream>>,
 }
 
-impl RawAgentSocket {
+impl UntrustedAgentSocketClient {
     pub async fn connect(
         management_addr: SocketAddr,
         agent_id: &str,
@@ -39,19 +32,6 @@ impl RawAgentSocket {
         ))
         .await
         .map(|(websocket, _handshake_response)| Self { websocket })
-    }
-
-    async fn next_message(&mut self) -> Result<AgentJsonRpcMessage, ClusterHarnessError> {
-        while let Some(frame) = self.websocket.next().await {
-            if let Message::Text(text) =
-                frame.map_err(ClusterHarnessError::AgentSocketReceiveFailed)?
-            {
-                return from_str(&text)
-                    .map_err(ClusterHarnessError::AgentSocketMessageUndeserializable);
-            }
-        }
-
-        Err(ClusterHarnessError::AgentSocketEndedWithoutMessage)
     }
 
     pub async fn next_close_frame(&mut self) -> Result<Option<CloseFrame>, ClusterHarnessError> {
@@ -66,34 +46,6 @@ impl RawAgentSocket {
         Err(ClusterHarnessError::AgentSocketEndedWithoutClosing)
     }
 
-    pub async fn next_request(
-        &mut self,
-    ) -> Result<RequestEnvelope<AgentJsonRpcRequest>, ClusterHarnessError> {
-        loop {
-            if let AgentJsonRpcMessage::Request(request_envelope) = self.next_message().await? {
-                return Ok(request_envelope);
-            }
-        }
-    }
-
-    pub async fn register(&mut self) -> Result<(), ClusterHarnessError> {
-        self.send_notification(ManagementJsonRpcNotification::RegisterAgent(
-            RegisterAgentParams {
-                name: None,
-                slot_aggregated_status_snapshot: SlotAggregatedStatusSnapshot::default(),
-            },
-        ))
-        .await?;
-
-        loop {
-            if let AgentJsonRpcMessage::Notification(AgentJsonRpcNotification::SetState(_)) =
-                self.next_message().await?
-            {
-                return Ok(());
-            }
-        }
-    }
-
     pub async fn send(&mut self, message: Message) -> Result<(), ClusterHarnessError> {
         self.websocket
             .send(message)
@@ -101,7 +53,7 @@ impl RawAgentSocket {
             .map_err(ClusterHarnessError::AgentSocketSendFailed)
     }
 
-    pub async fn send_notification(
+    pub async fn send_forged_notification(
         &mut self,
         notification: ManagementJsonRpcNotification,
     ) -> Result<(), ClusterHarnessError> {

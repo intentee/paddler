@@ -21,6 +21,14 @@ async fn rejection(response: Response, url: String) -> Result<Error> {
     }
 }
 
+async fn checked_response(response: Response, url: String) -> Result<Response> {
+    if response.status().is_success() {
+        return Ok(response);
+    }
+
+    Err(rejection(response, url).await?)
+}
+
 pub async fn send_checked_request(
     cancellation_token: CancellationToken,
     url: String,
@@ -34,8 +42,7 @@ pub async fn send_checked_request(
     };
 
     match send_result {
-        Ok(response) if response.status().is_success() => Ok(response),
-        Ok(response) => Err(rejection(response, url).await?),
+        Ok(response) => checked_response(response, url).await,
         Err(source) if source.is_connect() => Err(Error::Connect { url, source }),
         Err(source) => Err(Error::Http(source)),
     }
@@ -43,30 +50,22 @@ pub async fn send_checked_request(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Error as IoError;
+    use std::io::ErrorKind;
+    use std::io::Result as IoResult;
+
+    use futures_util::stream::iter;
+    use http::Response as HttpResponse;
     use http::StatusCode;
+    use reqwest::Body;
     use reqwest::Client;
-    use reqwest::Response;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_local_http_fixture::fixture_response::FixtureResponse;
-    use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
-    use paddler_messaging::api_path::ApiPath;
-
+    use super::checked_response;
     use super::send_checked_request;
     use crate::error::Error;
-    use crate::error::Result;
 
     const UNREACHABLE_HEALTH_URL: &str = "http://127.0.0.1:1/health";
-
-    async fn response_from(fixture_response: FixtureResponse) -> Result<Response> {
-        let fixture = LocalHttpFixture::start(fixture_response)
-            .await
-            .expect("the fixture server must start");
-        let url = fixture.url(ApiPath::HEALTH);
-        let request_builder = Client::new().get(&url);
-
-        send_checked_request(CancellationToken::new(), url, request_builder).await
-    }
 
     #[tokio::test]
     async fn a_refused_connection_maps_to_the_connect_variant() {
@@ -103,13 +102,17 @@ mod tests {
 
     #[tokio::test]
     async fn a_rejection_whose_body_cannot_be_read_is_reported_as_undecodable() {
+        let chunks: [IoResult<Vec<u8>>; 2] = [
+            Ok(b"inter".to_vec()),
+            Err(IoError::from(ErrorKind::UnexpectedEof)),
+        ];
+        let rejection = HttpResponse::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(Body::wrap_stream(iter(chunks)))
+            .expect("the rejection must be buildable");
+
         assert!(matches!(
-            response_from(FixtureResponse::TruncatedBody {
-                sent_body: b"inter".to_vec(),
-                status: StatusCode::INTERNAL_SERVER_ERROR,
-                withheld_byte_count: 5,
-            })
-            .await,
+            checked_response(rejection.into(), UNREACHABLE_HEALTH_URL.to_owned()).await,
             Err(Error::Http(source)) if source.is_decode()
         ));
     }

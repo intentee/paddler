@@ -37,17 +37,13 @@ pub enum ClusterHarnessError {
     TokenStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("Agent {agent_id} left the balancer's pool while it was being observed")]
     AgentLeftThePool { agent_id: String },
-    #[error("The raw agent socket could not serialize a notification")]
+    #[error("The untrusted agent socket client could not serialize a notification")]
     AgentSocketNotificationUnserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket ended without a close frame")]
+    #[error("The untrusted agent socket client ended without a close frame")]
     AgentSocketEndedWithoutClosing,
-    #[error("The raw agent socket ended before the balancer sent a message")]
-    AgentSocketEndedWithoutMessage,
-    #[error("The raw agent socket could not deserialize a balancer message")]
-    AgentSocketMessageUndeserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket could not receive a frame")]
+    #[error("The untrusted agent socket client could not receive a frame")]
     AgentSocketReceiveFailed(#[source] WebSocketError),
-    #[error("The raw agent socket could not send a frame")]
+    #[error("The untrusted agent socket client could not send a frame")]
     AgentSocketSendFailed(#[source] WebSocketError),
     #[error("Agent {agent_name:?} exited before it was ready: {process_end:?}")]
     AgentExitedBeforeReady {
