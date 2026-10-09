@@ -137,7 +137,6 @@ impl AgentDesiredStateConverter {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::discriminant;
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -159,8 +158,9 @@ mod tests {
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::chat_template_source::ChatTemplateSource;
     use paddler_messaging::decision_settings::DecisionSettings;
-    use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
     use paddler_messaging::multimodal_settings::MultimodalSettings;
+    use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
+    use paddler_model_source::model_source::ModelSource;
     use paddler_model_source::model_source_error::ModelSourceError;
 
     use crate::agent_applicable_state::AgentApplicableState;
@@ -213,7 +213,8 @@ mod tests {
             path: missing_path,
         } = nonexistent_path_in_temp_dir("model");
         let desired = desired_state(
-            AgentDesiredModel::LocalToAgent(missing_path.display().to_string()),
+            ModelSource::LocalToAgent(missing_path.display().to_string())
+                .into_agent_desired_model(),
             AgentDesiredModel::None,
         );
         let converter = AgentDesiredStateConverter {
@@ -251,7 +252,8 @@ mod tests {
         } = nonexistent_path_in_temp_dir("projection");
         let desired = desired_state(
             AgentDesiredModel::None,
-            AgentDesiredModel::LocalToAgent(missing_path.display().to_string()),
+            ModelSource::LocalToAgent(missing_path.display().to_string())
+                .into_agent_desired_model(),
         );
         let converter = AgentDesiredStateConverter {
             cancellation_token: CancellationToken::new(),
@@ -280,49 +282,71 @@ mod tests {
 
     #[tokio::test]
     async fn cancelling_while_the_multimodal_projection_resolves_cancels_the_conversion() {
-        let cancellation_token = CancellationToken::new();
-        let desired = desired_state(
-            AgentDesiredModel::None,
-            AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-                filename: "projection.gguf".to_owned(),
-                repo_id: "owner/repo".to_owned(),
-                revision: "main".to_owned(),
-            }),
+        assert_eq!(
+            conversion(
+                cancelled_token(),
+                &desired_state(AgentDesiredModel::None, uncached_hugging_face_model()),
+            )
+            .await,
+            Some(AgentDesiredStateConversion::Cancelled)
         );
+    }
 
-        cancellation_token.cancel();
-
-        let outcome = AgentDesiredStateConverter {
-            cancellation_token,
-            slot_aggregated_status: fresh_status(),
-        }
-        .convert(&desired)
-        .await;
-
-        assert!(outcome.is_ok_and(|conversion| {
-            discriminant(&conversion) == discriminant(&AgentDesiredStateConversion::Cancelled)
-        }));
+    #[tokio::test]
+    async fn cancelling_while_the_pointer_head_resolves_cancels_the_conversion() {
+        assert_eq!(
+            conversion(
+                cancelled_token(),
+                &AgentDesiredState {
+                    inference_settings: AgentInferenceSettings::Decision(DecisionSettings {
+                        pointer_head: uncached_hugging_face_model(),
+                    }),
+                    model: AgentDesiredModel::None,
+                    model_runtime_parameters: ModelRuntimeParameters::default(),
+                },
+            )
+            .await,
+            Some(AgentDesiredStateConversion::Cancelled)
+        );
     }
 
     fn local_model(model_file: &NamedTempFile) -> AgentDesiredModel {
-        AgentDesiredModel::LocalToAgent(model_file.path().display().to_string())
+        ModelSource::LocalToAgent(model_file.path().display().to_string())
+            .into_agent_desired_model()
     }
 
-    async fn converted(desired: &AgentDesiredState) -> AgentApplicableState {
-        let outcome = AgentDesiredStateConverter {
-            cancellation_token: CancellationToken::new(),
+    fn cancelled_token() -> CancellationToken {
+        let cancellation_token = CancellationToken::new();
+
+        cancellation_token.cancel();
+
+        cancellation_token
+    }
+
+    fn uncached_hugging_face_model() -> AgentDesiredModel {
+        ModelSource::HuggingFace(HuggingFaceModelReference {
+            filename: "uncached.gguf".to_owned(),
+            repo_id: "owner/repo".to_owned(),
+            revision: "main".to_owned(),
+        })
+        .into_agent_desired_model()
+    }
+
+    async fn conversion(
+        cancellation_token: CancellationToken,
+        desired: &AgentDesiredState,
+    ) -> Option<AgentDesiredStateConversion> {
+        AgentDesiredStateConverter {
+            cancellation_token,
             slot_aggregated_status: fresh_status(),
         }
         .convert(desired)
-        .await;
+        .await
+        .ok()
+    }
 
-        match outcome {
-            Ok(AgentDesiredStateConversion::Converted(applicable_state)) => applicable_state,
-            Ok(AgentDesiredStateConversion::Cancelled) => {
-                panic!("the conversion must not be cancelled")
-            }
-            Err(conversion_error) => panic!("the conversion must succeed: {conversion_error}"),
-        }
+    async fn converted(desired: &AgentDesiredState) -> Option<AgentDesiredStateConversion> {
+        conversion(CancellationToken::new(), desired).await
     }
 
     #[tokio::test]
@@ -336,7 +360,9 @@ mod tests {
                 model_runtime_parameters: ModelRuntimeParameters::default(),
             })
             .await,
-            AgentApplicableState::NotConfigured
+            Some(AgentDesiredStateConversion::Converted(
+                AgentApplicableState::NotConfigured
+            ))
         );
     }
 
@@ -353,11 +379,13 @@ mod tests {
                 model_runtime_parameters: ModelRuntimeParameters::default(),
             })
             .await,
-            AgentApplicableState::Embeddings {
-                embedding_parameters: EmbeddingParameters::default(),
-                model_path: model_file.path().to_path_buf(),
-                model_runtime_parameters: ModelRuntimeParameters::default(),
-            }
+            Some(AgentDesiredStateConversion::Converted(
+                AgentApplicableState::Embeddings {
+                    embedding_parameters: EmbeddingParameters::default(),
+                    model_path: model_file.path().to_path_buf(),
+                    model_runtime_parameters: ModelRuntimeParameters::default(),
+                }
+            ))
         );
     }
 
@@ -366,19 +394,19 @@ mod tests {
         let model_file = NamedTempFile::new().unwrap();
         let projection_file = NamedTempFile::new().unwrap();
 
-        let applicable_state = converted(&desired_state(
+        let conversion = converted(&desired_state(
             local_model(&model_file),
             local_model(&projection_file),
         ))
         .await;
 
         assert!(matches!(
-            applicable_state,
-            AgentApplicableState::TextGeneration {
+            conversion,
+            Some(AgentDesiredStateConversion::Converted(AgentApplicableState::TextGeneration {
                 model_path,
                 text_generation_settings,
                 ..
-            } if model_path == model_file.path()
+            })) if model_path == model_file.path()
                 && text_generation_settings.multimodal_projection
                     == MultimodalProjection::File(projection_file.path().to_path_buf())
         ));
@@ -401,9 +429,12 @@ mod tests {
                 model: AgentDesiredModel::None,
                 model_runtime_parameters: ModelRuntimeParameters::default(),
             })
-            .await
-            .chat_template_override(),
-            Some(chat_template)
+            .await,
+            Some(AgentDesiredStateConversion::Converted(
+                AgentApplicableState::TextGenerationWithoutModel {
+                    chat_template_source: ChatTemplateSource::Override(chat_template),
+                }
+            ))
         );
     }
 
@@ -421,11 +452,13 @@ mod tests {
                 model_runtime_parameters: ModelRuntimeParameters::default(),
             })
             .await,
-            AgentApplicableState::Decision {
-                model_path: model_file.path().to_path_buf(),
-                model_runtime_parameters: ModelRuntimeParameters::default(),
-                pointer_head_path: pointer_head_file.path().to_path_buf(),
-            }
+            Some(AgentDesiredStateConversion::Converted(
+                AgentApplicableState::Decision {
+                    model_path: model_file.path().to_path_buf(),
+                    model_runtime_parameters: ModelRuntimeParameters::default(),
+                    pointer_head_path: pointer_head_file.path().to_path_buf(),
+                }
+            ))
         );
     }
 
@@ -440,7 +473,9 @@ mod tests {
                 model_runtime_parameters: ModelRuntimeParameters::default(),
             })
             .await,
-            AgentApplicableState::NotConfigured
+            Some(AgentDesiredStateConversion::Converted(
+                AgentApplicableState::NotConfigured
+            ))
         );
     }
 }

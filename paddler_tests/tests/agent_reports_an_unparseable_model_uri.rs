@@ -1,20 +1,13 @@
-use http::StatusCode;
-
-use paddler_local_http_fixture::fixture_response::FixtureResponse;
-use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn balancer_reports_download_server_denied_access() {
-    let fixture = LocalHttpFixture::start(FixtureResponse::Status(StatusCode::FORBIDDEN))
-        .await
-        .expect("the local HTTP fixture must start");
-    let model_url = fixture.url("/private.gguf");
+async fn agent_reports_an_unparseable_model_uri() {
+    let model_uri = "not a valid uri".to_owned();
     let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
-        model: AgentDesiredModel::Uri(model_url.clone()),
+        model: AgentDesiredModel::Uri(model_uri.clone()),
         ..BalancerDesiredState::default()
     })
     .await
@@ -22,10 +15,10 @@ async fn balancer_reports_download_server_denied_access() {
 
     cluster
         .wait_for_first_agent_issue(|issue| {
-            matches!(issue, AgentIssue::DownloadServerDeniedAccess(model_path) if model_path.model_path == model_url)
+            matches!(issue, AgentIssue::ModelUriIsUnparseable(model_path) if model_path.model_path == model_uri)
         })
         .await
-        .expect("the agent must report DownloadServerDeniedAccess for the configured URL");
+        .expect("the agent must report that the model URI cannot be parsed");
 
     cluster
         .shutdown()

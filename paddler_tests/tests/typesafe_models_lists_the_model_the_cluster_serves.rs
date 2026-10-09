@@ -4,35 +4,21 @@ use serde_json::json;
 use paddler_balancer::compatibility::typesafe_service::typesafe_header::TypeSafeHeader;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_messaging::inference_mode::InferenceMode;
-use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::start_cluster::start_cluster;
+
+const KEV_MODEL_URI: &str = "https://huggingface.co/intentee/kev/blob/main/kev-0.8b.gguf";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_models_lists_the_model_the_cluster_serves() {
     for (model, expected_names) in [
         (AgentDesiredModel::None, Vec::<&str>::new()),
         (
-            AgentDesiredModel::HuggingFace(HuggingFaceModelReference {
-                filename: "kev-0.8b.gguf".to_owned(),
-                repo_id: "intentee/kev".to_owned(),
-                revision: "main".to_owned(),
-            }),
-            vec!["intentee/kev/main/kev-0.8b.gguf"],
-        ),
-        (
-            AgentDesiredModel::LocalToAgent("/models/kev-0.8b.gguf".to_owned()),
-            vec!["/models/kev-0.8b.gguf"],
-        ),
-        (
-            AgentDesiredModel::Url(UrlModelReference {
-                url: "https://example.com/kev-0.8b.gguf".to_owned(),
-            }),
-            vec!["https://example.com/kev-0.8b.gguf"],
+            AgentDesiredModel::Uri(KEV_MODEL_URI.to_owned()),
+            vec![KEV_MODEL_URI],
         ),
     ] {
         let cluster = start_cluster(ClusterParams {

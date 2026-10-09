@@ -175,7 +175,7 @@ mod tests {
 
     fn state_with_model(model_path: &str) -> BalancerDesiredState {
         BalancerDesiredState {
-            model: AgentDesiredModel::LocalToAgent(model_path.to_owned()),
+            model: AgentDesiredModel::Uri(model_path.to_owned()),
             ..BalancerDesiredState::default()
         }
     }
@@ -309,7 +309,7 @@ mod tests {
 
         let mut schema = Schema::default();
         schema.balancer_desired_state.model =
-            AgentDesiredModel::LocalToAgent("x".repeat(TOKIO_FILE_BUFFER_BYTES * 2));
+            AgentDesiredModel::Uri("x".repeat(TOKIO_FILE_BUFFER_BYTES * 2));
 
         let store_result = database.store_schema(&schema).await;
 
@@ -340,7 +340,7 @@ mod tests {
         let path = temp_dir.path().join("state.json");
         let desired_state = BalancerDesiredState {
             decision: DecisionSettings {
-                pointer_head: AgentDesiredModel::LocalToAgent("pointer_head.gguf".to_owned()),
+                pointer_head: AgentDesiredModel::Uri("pointer_head.gguf".to_owned()),
             },
             inference_mode: InferenceMode::Embeddings,
             text_generation: BalancerTextGenerationSettings {

@@ -224,6 +224,49 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
+        if ("HuggingFaceModelUriIsMalformed" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Hugging Face model URI does not point at a file:{" "}
+                {issue.HuggingFaceModelUriIsMalformed.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will not load the model until the URI points at a file.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">
+                  Edit the model URI on the model configuration page
+                </Link>{" "}
+                to the form
+                https://huggingface.co/owner/repository/blob/revision/file.gguf.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ModelUriIsUnparseable" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Model URI cannot be parsed:{" "}
+                {issue.ModelUriIsUnparseable.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>Paddler will not load the model until the URI is valid.</p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">
+                  Edit the model URI on the model configuration page
+                </Link>{" "}
+                to a Hugging Face, agent:// or http(s) URI.
+              </p>
+            </li>
+          );
+        }
+
         if ("DownloadUrlIsMalformed" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>

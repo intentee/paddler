@@ -16,6 +16,7 @@ reqwest = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+url = { workspace = true }
 paddler_agent_status = { workspace = true }
 paddler_cache_dir = { workspace = true }
 paddler_download_manager = { workspace = true }
@@ -24,7 +25,6 @@ paddler_messaging = { workspace = true }
 [dev-dependencies]
 paddler_local_http_fixture = { workspace = true }
 tempfile = { workspace = true }
-url = { workspace = true }
 
 [lints]
 workspace = true

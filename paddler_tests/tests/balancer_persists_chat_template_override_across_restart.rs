@@ -1,8 +1,8 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
@@ -19,7 +19,7 @@ async fn balancer_persists_chat_template_override_across_restart() {
 
     let desired_state = desired_state_with_chat_template_override(
         BalancerDesiredState {
-            model: AgentDesiredModel::HuggingFace(reference),
+            model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
             ..BalancerDesiredState::default()
         },
         ChatTemplate {

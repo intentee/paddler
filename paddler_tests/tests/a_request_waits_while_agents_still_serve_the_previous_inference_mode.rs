@@ -5,11 +5,11 @@ use std::num::NonZeroU32;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_model_source::model_source::ModelSource;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
 
@@ -36,7 +36,8 @@ async fn a_request_waits_while_agents_still_serve_the_previous_inference_mode() 
         .put_balancer_desired_state(
             CancellationToken::new(),
             &BalancerDesiredState {
-                model: AgentDesiredModel::LocalToAgent("/nonexistent/model.gguf".to_owned()),
+                model: ModelSource::LocalToAgent("/nonexistent/model.gguf".to_owned())
+                    .into_agent_desired_model(),
                 ..text_generation_desired_state.clone()
             },
         )

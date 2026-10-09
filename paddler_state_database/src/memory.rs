@@ -68,7 +68,7 @@ mod tests {
         let database = Memory::new(balancer_desired_state_tx, BalancerDesiredState::default());
         let desired_state = BalancerDesiredState {
             inference_mode: InferenceMode::Embeddings,
-            model: AgentDesiredModel::LocalToAgent("test_model_path".to_owned()),
+            model: AgentDesiredModel::Uri("test_model_path".to_owned()),
             ..BalancerDesiredState::default()
         };
 

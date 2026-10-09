@@ -1,20 +1,20 @@
 use paddler_agent_decision::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::inference_mode::InferenceMode;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_test_cluster_harness::pointer_head_fixture::pointer_head_fixture;
 use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
-    let model_path_on_agent =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../fixtures/invalid.gguf").to_owned();
+    let model_path_on_agent = fixture_path("invalid.gguf").display().to_string();
 
     for inference_mode in [
         InferenceMode::Decision,
@@ -28,7 +28,8 @@ async fn balancer_reports_model_cannot_be_loaded_for_invalid_gguf() {
                     pointer_head: pointer_head_fixture(QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE),
                 },
                 inference_mode,
-                model: AgentDesiredModel::LocalToAgent(model_path_on_agent.clone()),
+                model: ModelSource::LocalToAgent(model_path_on_agent.clone())
+                    .into_agent_desired_model(),
                 ..BalancerDesiredState::default()
             })),
             wait_for_slots_ready: false,

@@ -21,6 +21,7 @@ pub mod dashboard_attributes;
 pub mod embedding_cluster_params;
 pub mod embedding_with_producer;
 pub mod ephemeral_loopback_addr;
+pub mod fixture_path;
 pub mod half_closed_client;
 pub mod is_unending_generation_text;
 pub mod load_fixture_data_uri;

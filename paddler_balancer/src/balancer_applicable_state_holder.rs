@@ -96,7 +96,7 @@ mod tests {
         let update_rx = holder.subscribe_to_updates();
 
         holder.set_balancer_applicable_state(BalancerApplicableState::from(BalancerDesiredState {
-            model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+            model: AgentDesiredModel::Uri("model.gguf".to_owned()),
             ..BalancerDesiredState::default()
         }));
 
@@ -107,7 +107,7 @@ mod tests {
         );
         assert_eq!(
             holder.get_agent_desired_state().model,
-            AgentDesiredModel::LocalToAgent("model.gguf".to_owned())
+            AgentDesiredModel::Uri("model.gguf".to_owned())
         );
     }
 

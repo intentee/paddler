@@ -2,9 +2,9 @@
 
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -25,7 +25,7 @@ async fn agent_reports_slot_cannot_start_for_excessive_slots() {
                 n_gpu_layers: ALL_GPU_LAYERS,
                 ..ModelRuntimeParameters::default()
             },
-            model: AgentDesiredModel::HuggingFace(reference),
+            model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
             ..BalancerDesiredState::default()
         })),
         wait_for_slots_ready: false,

@@ -77,7 +77,7 @@ mod tests {
         let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
             watch::channel(BalancerDesiredState::default());
         let stored_state = BalancerDesiredState {
-            model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
+            model: AgentDesiredModel::Uri("model.gguf".to_owned()),
             ..BalancerDesiredState::default()
         };
         let state_database = Arc::new(Memory::new(

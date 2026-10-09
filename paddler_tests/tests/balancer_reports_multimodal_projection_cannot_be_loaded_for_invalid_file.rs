@@ -1,8 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_source::model_source::ModelSource;
+use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::desired_state_with_multimodal_projection::desired_state_with_multimodal_projection;
@@ -11,18 +12,14 @@ use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_a
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_multimodal_projection_cannot_be_loaded_for_invalid_file() {
     let ModelCard { reference } = qwen3_0_6b();
-    let projection_path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../fixtures/invalid_mmproj.gguf"
-    )
-    .to_owned();
+    let projection_path = fixture_path("invalid_mmproj.gguf").display().to_string();
     let mut cluster =
         start_single_agent_cluster_with_desired_state(desired_state_with_multimodal_projection(
             BalancerDesiredState {
-                model: AgentDesiredModel::HuggingFace(reference),
+                model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
                 ..BalancerDesiredState::default()
             },
-            AgentDesiredModel::LocalToAgent(projection_path.clone()),
+            ModelSource::LocalToAgent(projection_path.clone()).into_agent_desired_model(),
         ))
         .await
         .expect("a single-agent cluster must start");

@@ -19,7 +19,7 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
         TempDir::new().expect("a temporary state database directory must be creatable");
     let state_database_path = state_database_directory.path().join("state.json");
     let persisted_state = BalancerDesiredState {
-        model: AgentDesiredModel::LocalToAgent("persisted-model".to_owned()),
+        model: AgentDesiredModel::Uri("persisted-model".to_owned()),
         text_generation: BalancerTextGenerationSettings {
             chat_template_override: Some(ChatTemplate {
                 content: "persisted-chat-template".to_owned(),

@@ -2,7 +2,6 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::url_model_reference::UrlModelReference;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
@@ -15,9 +14,7 @@ async fn balancer_persists_url_model_in_desired_state() {
         agents: Vec::new(),
         wait_for_slots_ready: false,
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-            model: AgentDesiredModel::Url(UrlModelReference {
-                url: configured_url.clone(),
-            }),
+            model: AgentDesiredModel::Uri(configured_url.clone()),
             ..BalancerDesiredState::default()
         })),
         ..ClusterParams::default()
@@ -31,12 +28,7 @@ async fn balancer_persists_url_model_in_desired_state() {
         .await
         .expect("failed to read balancer desired state");
 
-    assert_eq!(
-        retrieved.model,
-        AgentDesiredModel::Url(UrlModelReference {
-            url: configured_url,
-        })
-    );
+    assert_eq!(retrieved.model, AgentDesiredModel::Uri(configured_url));
 
     cluster
         .shutdown()

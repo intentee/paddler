@@ -1,4 +1,4 @@
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
 
 use crate::model_card::ModelCard;
 

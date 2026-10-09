@@ -19,6 +19,7 @@ paddler_balancer = { workspace = true }
 paddler_client = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_model_source = { workspace = true }
 quick-xml = { workspace = true }
 reqwest = { workspace = true }
 serde = { workspace = true }

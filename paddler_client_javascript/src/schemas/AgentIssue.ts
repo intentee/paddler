@@ -45,6 +45,9 @@ export const AgentIssueSchema = z.union([
     HuggingFaceModelDoesNotExist: AgentIssueModelPathSchema,
   }),
   z.object({
+    HuggingFaceModelUriIsMalformed: AgentIssueModelPathSchema,
+  }),
+  z.object({
     HuggingFacePermissions: AgentIssueModelPathSchema,
   }),
   z.object({
@@ -64,6 +67,9 @@ export const AgentIssueSchema = z.union([
   }),
   z.object({
     ModelFileDoesNotExist: AgentIssueModelPathSchema,
+  }),
+  z.object({
+    ModelUriIsUnparseable: AgentIssueModelPathSchema,
   }),
   z.object({
     MultimodalProjectionCannotBeLoaded: AgentIssueModelPathSchema,

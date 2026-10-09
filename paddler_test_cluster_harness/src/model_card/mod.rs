@@ -25,9 +25,10 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
+use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_model_source::model_source::ModelSource;
 
 pub struct ModelCard {
     pub reference: HuggingFaceModelReference,
@@ -36,7 +37,7 @@ pub struct ModelCard {
 impl ModelCard {
     #[must_use]
     pub fn into_agent_desired_model(self) -> AgentDesiredModel {
-        AgentDesiredModel::HuggingFace(self.reference)
+        ModelSource::HuggingFace(self.reference).into_agent_desired_model()
     }
 
     #[must_use]

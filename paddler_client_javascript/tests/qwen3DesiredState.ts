@@ -8,11 +8,7 @@ export function qwen3DesiredState(
     ...storedDesiredState,
     inference_mode: "TextGeneration",
     model: {
-      HuggingFace: {
-        filename: "Qwen3-0.6B-Q8_0.gguf",
-        repo_id: "Qwen/Qwen3-0.6B-GGUF",
-        revision: "main",
-      },
+      Uri: "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/Qwen3-0.6B-Q8_0.gguf",
     },
     model_runtime_parameters: {
       ...storedDesiredState.model_runtime_parameters,

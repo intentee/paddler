@@ -32,7 +32,7 @@ test("waitForAgentReady reports agent issues", async function () {
       await putBalancerDesiredState({
         desiredState: {
           ...storedDesiredState,
-          model: { LocalToAgent: "/nonexistent/model.gguf" },
+          model: { Uri: "agent:///nonexistent/model.gguf" },
         },
         managementAddress: management,
       });

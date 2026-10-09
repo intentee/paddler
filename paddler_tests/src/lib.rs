@@ -15,7 +15,7 @@ pub mod in_process_agent_spawner;
 pub mod in_process_balancer;
 pub mod inference_socket_round_trip;
 pub mod kev_0_8b_desired_state;
-pub mod kev_0_8b_model_path;
+pub mod kev_0_8b_target_path;
 pub mod kev_parity_record;
 pub mod many_question_decision;
 pub mod ministral_3_cluster_params;

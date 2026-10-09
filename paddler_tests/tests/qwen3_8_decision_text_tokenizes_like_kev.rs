@@ -4,7 +4,7 @@ use hf_hub::Cache;
 use hf_hub::Repo;
 use hf_hub::RepoType;
 
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
+use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_8_27b::qwen3_8_27b;
 

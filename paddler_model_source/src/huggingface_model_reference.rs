@@ -1,10 +1,6 @@
-use serde::Deserialize;
-use serde::Serialize;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
-use crate::agent_issue_params::model_path::ModelPath;
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HuggingFaceModelReference {
     pub filename: String,
     pub repo_id: String,
@@ -29,7 +25,7 @@ impl HuggingFaceModelReference {
 #[cfg(test)]
 mod tests {
     use super::HuggingFaceModelReference;
-    use crate::agent_issue_params::model_path::ModelPath;
+    use paddler_messaging::agent_issue_params::model_path::ModelPath;
 
     #[test]
     fn names_the_model_path_after_its_repository_revision_and_filename() {

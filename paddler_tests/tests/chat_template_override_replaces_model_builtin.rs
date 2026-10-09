@@ -6,13 +6,13 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -39,7 +39,7 @@ async fn chat_template_override_replaces_model_builtin() {
                         n_gpu_layers: ALL_GPU_LAYERS,
                         ..ModelRuntimeParameters::default()
                     },
-                    model: AgentDesiredModel::HuggingFace(reference),
+                    model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
                     ..BalancerDesiredState::default()
                 },
                 chat_template.clone(),

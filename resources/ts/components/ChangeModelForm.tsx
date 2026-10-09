@@ -1,20 +1,14 @@
-import React, {
-  useCallback,
-  useContext,
-  useMemo,
-  type FormEvent,
-  type InputEvent,
-} from "react";
+import React, { useCallback, useContext, type FormEvent } from "react";
 import { useLocation } from "wouter";
 
-import { type BalancerDesiredState } from "@intentee/paddler-client/schemas/BalancerDesiredState";
+import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
 import { inferenceModes } from "@intentee/paddler-client/schemas/InferenceMode";
 import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
-import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
 import { EmbeddingParametersFields } from "./EmbeddingParametersFields";
 import { ModelRuntimeParametersFields } from "./ModelRuntimeParametersFields";
+import { ModelUriInput } from "./ModelUriInput";
 import { ParameterSelect } from "./ParameterSelect";
 import { TextGenerationSettingsFields } from "./TextGenerationSettingsFields";
 
@@ -27,21 +21,12 @@ import {
   changeModelForm__formControls,
   changeModelForm__formLabel,
   changeModelForm__formLabel__title,
-  changeModelForm__input,
   changeModelForm__main,
   changeModelForm__parameters,
   changeModelForm__submitButton,
 } from "./ChangeModelForm.module.css";
 
-export function ChangeModelForm({
-  defaultBaseModelUri,
-  defaultMultimodalProjectionUri,
-  defaultPointerHeadUri,
-}: {
-  defaultBaseModelUri: null | string;
-  defaultMultimodalProjectionUri: null | string;
-  defaultPointerHeadUri: null | string;
-}) {
+export function ChangeModelForm() {
   const [, navigate] = useLocation();
   const {
     balancerDesiredState: editedDesiredState,
@@ -49,100 +34,50 @@ export function ChangeModelForm({
   } = useContext(BalancerDesiredStateContext);
   const { inference_mode: inferenceMode } = editedDesiredState;
   const { managementAddr } = useContext(PaddlerConfigurationContext);
-  const {
-    agentDesiredModelState: baseModelAgentDesiredModelState,
-    modelUri: baseModelUri,
-    setModelUri: setBaseModelUri,
-  } = useAgentDesiredModelUrl({
-    defaultModelUri: defaultBaseModelUri,
-  });
-  const {
-    agentDesiredModelState: multimodalProjecttionAgentDesiredModelState,
-    modelUri: multimodalProjectionModelUri,
-    setModelUri: setMultimodalProjectionModelUri,
-  } = useAgentDesiredModelUrl({
-    defaultModelUri: defaultMultimodalProjectionUri,
-  });
-  const {
-    agentDesiredModelState: pointerHeadAgentDesiredModelState,
-    modelUri: pointerHeadModelUri,
-    setModelUri: setPointerHeadModelUri,
-  } = useAgentDesiredModelUrl({
-    defaultModelUri: defaultPointerHeadUri,
-  });
 
-  const onBaseModelUriInput = useCallback(
-    function (event: InputEvent<HTMLInputElement>) {
-      setBaseModelUri(event.currentTarget.value);
+  const onBaseModel = useCallback(
+    function (model: AgentDesiredModel) {
+      setEditedDesiredState({ ...editedDesiredState, model });
     },
-    [setBaseModelUri],
+    [editedDesiredState, setEditedDesiredState],
   );
 
-  const onMultimodalProjectionUriInput = useCallback(
-    function (event: InputEvent<HTMLInputElement>) {
-      setMultimodalProjectionModelUri(event.currentTarget.value);
-    },
-    [setMultimodalProjectionModelUri],
-  );
-
-  const onPointerHeadUriInput = useCallback(
-    function (event: InputEvent<HTMLInputElement>) {
-      setPointerHeadModelUri(event.currentTarget.value);
-    },
-    [setPointerHeadModelUri],
-  );
-
-  const balancerDesiredState: null | BalancerDesiredState = useMemo(
-    function () {
-      if (
-        !baseModelAgentDesiredModelState.ok ||
-        !multimodalProjecttionAgentDesiredModelState.ok ||
-        !pointerHeadAgentDesiredModelState.ok
-      ) {
-        return null;
-      }
-
-      const desiredState: BalancerDesiredState = Object.freeze({
+  const onMultimodalProjection = useCallback(
+    function (projection: AgentDesiredModel) {
+      setEditedDesiredState({
         ...editedDesiredState,
-        decision: {
-          ...editedDesiredState.decision,
-          pointer_head: pointerHeadAgentDesiredModelState.agentDesiredModel,
-        },
-        model: baseModelAgentDesiredModelState.agentDesiredModel,
         text_generation: {
           ...editedDesiredState.text_generation,
           multimodal: {
             ...editedDesiredState.text_generation.multimodal,
-            projection:
-              multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
+            projection,
           },
         },
       });
-
-      return desiredState;
     },
-    [
-      baseModelAgentDesiredModelState,
-      editedDesiredState,
-      multimodalProjecttionAgentDesiredModelState,
-      pointerHeadAgentDesiredModelState,
-    ],
+    [editedDesiredState, setEditedDesiredState],
+  );
+
+  const onPointerHead = useCallback(
+    function (pointer_head: AgentDesiredModel) {
+      setEditedDesiredState({
+        ...editedDesiredState,
+        decision: { ...editedDesiredState.decision, pointer_head },
+      });
+    },
+    [editedDesiredState, setEditedDesiredState],
   );
 
   const onSubmit = useCallback(
     function (event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
 
-      if (!balancerDesiredState) {
-        return;
-      }
-
       fetch(`//${managementAddr}/api/v1/balancer_desired_state`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(balancerDesiredState),
+        body: JSON.stringify(editedDesiredState),
       })
         .then(function (response) {
           if (response.ok) {
@@ -157,7 +92,7 @@ export function ChangeModelForm({
           console.error("Error updating agent desired state:", error);
         });
     },
-    [managementAddr, navigate, balancerDesiredState],
+    [editedDesiredState, managementAddr, navigate],
   );
 
   return (
@@ -227,14 +162,11 @@ export function ChangeModelForm({
             <div className={changeModelForm__formLabel__title}>
               Base Model URI
             </div>
-            <input
-              className={changeModelForm__input}
+            <ModelUriInput
+              model={editedDesiredState.model}
               name="model_uri"
-              onInput={onBaseModelUriInput}
-              placeholder="https://huggingface.co/..."
+              onModel={onBaseModel}
               required
-              type="url"
-              value={String(baseModelUri)}
             />
           </label>
           {inferenceMode === "Decision" && (
@@ -242,14 +174,11 @@ export function ChangeModelForm({
               <div className={changeModelForm__formLabel__title}>
                 Pointer Head URI
               </div>
-              <input
-                className={changeModelForm__input}
+              <ModelUriInput
+                model={editedDesiredState.decision.pointer_head}
                 name="pointer_head_uri"
-                onInput={onPointerHeadUriInput}
-                placeholder="https://huggingface.co/..."
+                onModel={onPointerHead}
                 required
-                type="url"
-                value={String(pointerHeadModelUri)}
               />
             </label>
           )}
@@ -259,13 +188,13 @@ export function ChangeModelForm({
                 <div className={changeModelForm__formLabel__title}>
                   Multimodal Projection URI (optional)
                 </div>
-                <input
-                  className={changeModelForm__input}
+                <ModelUriInput
+                  model={
+                    editedDesiredState.text_generation.multimodal.projection
+                  }
                   name="multimodal_projection_uri"
-                  onInput={onMultimodalProjectionUriInput}
-                  placeholder="https://huggingface.co/..."
-                  type="url"
-                  value={String(multimodalProjectionModelUri)}
+                  onModel={onMultimodalProjection}
+                  required={false}
                 />
               </label>
               <fieldset className={changeModelForm__chatTemplate}>

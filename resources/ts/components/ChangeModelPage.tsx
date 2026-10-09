@@ -1,6 +1,5 @@
 import React, { useContext } from "react";
 
-import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
 import { useBalancerDesiredState } from "../hooks/useBalancerDesiredState";
 import { matchFetchJsonState } from "../matchFetchJsonState";
@@ -8,28 +7,6 @@ import { BalancerDesiredStateContextProvider } from "./BalancerDesiredStateConte
 import { ChangeModelForm } from "./ChangeModelForm";
 import { ChatTemplateContextProvider } from "./ChatTemplateContextProvider";
 import { FloatingStatus } from "./FloatingStatus";
-
-function modelSchemaToUrl(model: AgentDesiredModel): string {
-  if (model === "None") {
-    return "";
-  }
-
-  if ("HuggingFace" in model) {
-    const { HuggingFace } = model;
-
-    return `https://huggingface.co/${HuggingFace.repo_id}/blob/${HuggingFace.revision}/${HuggingFace.filename}`;
-  }
-
-  if ("LocalToAgent" in model) {
-    return `agent://${model.LocalToAgent}`;
-  }
-
-  if ("Url" in model) {
-    return model.Url.url;
-  }
-
-  throw new Error(`Unsupported model schema: ${JSON.stringify(model)}`);
-}
 
 export function ChangeModelPage() {
   const { managementAddr } = useContext(PaddlerConfigurationContext);
@@ -55,15 +32,7 @@ export function ChangeModelPage() {
           defaultBalancerDesiredState={balancerDesiredState}
         >
           <ChatTemplateContextProvider>
-            <ChangeModelForm
-              defaultBaseModelUri={modelSchemaToUrl(balancerDesiredState.model)}
-              defaultMultimodalProjectionUri={modelSchemaToUrl(
-                balancerDesiredState.text_generation.multimodal.projection,
-              )}
-              defaultPointerHeadUri={modelSchemaToUrl(
-                balancerDesiredState.decision.pointer_head,
-              )}
-            />
+            <ChangeModelForm />
           </ChatTemplateContextProvider>
         </BalancerDesiredStateContextProvider>
       );

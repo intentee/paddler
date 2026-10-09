@@ -17,11 +17,11 @@ use paddler_cache_dir::download_lock_wait_outcome::DownloadLockWaitOutcome;
 use paddler_cache_dir::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::huggingface_download_progress::HuggingFaceDownloadProgress;
+use crate::huggingface_model_reference::HuggingFaceModelReference;
 use crate::model_source_error::ModelSourceError;
 use crate::resolves_model_source::ResolvesModelSource;
 
@@ -160,10 +160,10 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
-    use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
 
     use super::HuggingFaceModelSource;
     use crate::desired_model_resolution::DesiredModelResolution;
+    use crate::huggingface_model_reference::HuggingFaceModelReference;
     use crate::resolves_model_source::ResolvesModelSource as _;
 
     fn cache_model_file_at_revision(cache: &Cache, revision: &str, commit_hash: &str) -> PathBuf {

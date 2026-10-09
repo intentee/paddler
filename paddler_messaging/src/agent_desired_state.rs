@@ -61,7 +61,7 @@ mod tests {
 
     fn decision_settings() -> DecisionSettings {
         DecisionSettings {
-            pointer_head: AgentDesiredModel::LocalToAgent("pointer_head.gguf".to_owned()),
+            pointer_head: AgentDesiredModel::Uri("pointer_head.gguf".to_owned()),
         }
     }
 

@@ -120,7 +120,7 @@ mod tests {
                 .configure(put_balancer_desired_state),
         )
         .await;
-        let applied_model = AgentDesiredModel::LocalToAgent("applied-model".to_owned());
+        let applied_model = AgentDesiredModel::Uri("applied-model".to_owned());
         let request = TestRequest::put()
             .uri(ApiPath::BALANCER_DESIRED_STATE)
             .set_json(BalancerDesiredState {

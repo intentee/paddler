@@ -11,7 +11,7 @@ use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 #[tokio::test]
 async fn balancer_runner_serves_the_desired_state_it_starts_with() {
     let initial_desired_state = BalancerDesiredState {
-        model: AgentDesiredModel::LocalToAgent("initial-embedding-model".to_owned()),
+        model: AgentDesiredModel::Uri("initial-embedding-model".to_owned()),
         inference_mode: InferenceMode::Embeddings,
         ..BalancerDesiredState::default()
     };

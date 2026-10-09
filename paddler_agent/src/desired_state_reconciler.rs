@@ -54,4 +54,16 @@ impl DesiredStateReconciler {
             }
         }
     }
+
+    pub async fn reconcile_replacement(
+        &self,
+        cancellation_token: &CancellationToken,
+        agent_desired_state: AgentDesiredState,
+    ) -> DesiredStateReconciliation {
+        self.slot_aggregated_status
+            .register_fix(&AgentIssueFix::DesiredStateIsReplaced);
+
+        self.reconcile(cancellation_token, agent_desired_state)
+            .await
+    }
 }

@@ -1,7 +1,7 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_source::model_source::ModelSource;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
@@ -17,10 +17,10 @@ async fn balancer_persists_local_mmproj_path_in_desired_state() {
 
     let desired_state = desired_state_with_multimodal_projection(
         BalancerDesiredState {
-            model: AgentDesiredModel::HuggingFace(reference),
+            model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
             ..BalancerDesiredState::default()
         },
-        AgentDesiredModel::LocalToAgent(local_mmproj_path),
+        ModelSource::LocalToAgent(local_mmproj_path).into_agent_desired_model(),
     );
 
     let cluster = start_cluster(ClusterParams {
