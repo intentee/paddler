@@ -3,8 +3,9 @@ use async_openai::config::OpenAIConfig;
 use async_openai::error::OpenAIError;
 use futures_util::TryStreamExt as _;
 use serde_json::Value;
-use url::ParseError;
 use url::Url;
+
+const OPENAI_API_BASE_PATH: &str = "/v1";
 
 #[derive(Clone)]
 pub struct OpenAIApiClient {
@@ -12,14 +13,17 @@ pub struct OpenAIApiClient {
 }
 
 impl OpenAIApiClient {
-    pub fn new(openai_base_url: &Url) -> Result<Self, ParseError> {
-        Ok(Self {
+    #[must_use]
+    pub fn new(mut openai_base_url: Url) -> Self {
+        openai_base_url.set_path(OPENAI_API_BASE_PATH);
+
+        Self {
             client: Client::with_config(
                 OpenAIConfig::default()
-                    .with_api_base(openai_base_url.join("v1")?)
+                    .with_api_base(openai_base_url)
                     .with_api_key("paddler"),
             ),
-        })
+        }
     }
 
     pub async fn chat_completion_non_streaming(&self, body: &Value) -> Result<Value, OpenAIError> {

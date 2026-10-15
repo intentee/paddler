@@ -22,6 +22,7 @@ pub enum GeneratedTokenResult {
     GrammarRejectedModelOutput(String),
     GrammarSyntaxError(String),
     ImageDecodingFailed(String),
+    InferenceModeMismatch(String),
     KvCacheClearFailed(String),
     MediaExceedsMicroBatch(OversizedMediaDetails),
     MediaMicroBatchCheckFailed(String),
@@ -37,8 +38,6 @@ pub enum GeneratedTokenResult {
     SamplerError(String),
     SamplingCandidatesExhausted(String),
     SchedulerUnavailable(String),
-    SequenceIdOutOfRange(String),
-    TokenGenerationDisabled(String),
     ToolCallParseFailed(String),
     ToolCallParsed(Vec<ParsedToolCall>),
     ToolCallToken(String),
@@ -100,6 +99,7 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::GrammarRejectedModelOutput(_)
                 | Self::GrammarSyntaxError(_)
                 | Self::ImageDecodingFailed(_)
+                | Self::InferenceModeMismatch(_)
                 | Self::KvCacheClearFailed(_)
                 | Self::MediaExceedsMicroBatch(_)
                 | Self::MediaMicroBatchCheckFailed(_)
@@ -114,8 +114,6 @@ impl StreamableResult for GeneratedTokenResult {
                 | Self::SamplerError(_)
                 | Self::SamplingCandidatesExhausted(_)
                 | Self::SchedulerUnavailable(_)
-                | Self::SequenceIdOutOfRange(_)
-                | Self::TokenGenerationDisabled(_)
                 | Self::ToolSchemaInvalid(_)
                 | Self::ToolsSerializationFailed(_)
         )
@@ -150,6 +148,7 @@ mod tests {
             GeneratedTokenResult::GrammarRejectedModelOutput("failure".to_owned()),
             GeneratedTokenResult::GrammarSyntaxError("failure".to_owned()),
             GeneratedTokenResult::ImageDecodingFailed("failure".to_owned()),
+            GeneratedTokenResult::InferenceModeMismatch("failure".to_owned()),
             GeneratedTokenResult::KvCacheClearFailed("failure".to_owned()),
             GeneratedTokenResult::MediaExceedsMicroBatch(OversizedMediaDetails {
                 media_tokens: 368,
@@ -170,8 +169,6 @@ mod tests {
             GeneratedTokenResult::SamplerError("failure".to_owned()),
             GeneratedTokenResult::SamplingCandidatesExhausted("failure".to_owned()),
             GeneratedTokenResult::SchedulerUnavailable("failure".to_owned()),
-            GeneratedTokenResult::SequenceIdOutOfRange("failure".to_owned()),
-            GeneratedTokenResult::TokenGenerationDisabled("failure".to_owned()),
             GeneratedTokenResult::ToolSchemaInvalid("failure".to_owned()),
             GeneratedTokenResult::ToolsSerializationFailed("failure".to_owned()),
         ] {

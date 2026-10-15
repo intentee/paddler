@@ -23,7 +23,7 @@
       crane,
     }:
     let
-      version = "4.1.0";
+      version = "5.0.0";
 
       paddlerPkgs =
         {
@@ -41,7 +41,9 @@
           // (if cudaCapabilities == [ ] then { } else { inherit cudaCapabilities; });
         };
 
-      craneLibFor = pkgs: (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml);
+      craneLibFor =
+        pkgs:
+        (crane.mkLib pkgs).overrideToolchain (pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml);
 
       defaultAccelerator =
         pkgs:
@@ -77,7 +79,7 @@
             pname = "paddler-web-admin-panel";
             inherit version;
             src = self;
-            npmDepsHash = "sha256-sBDdMf388qFQVIjQ3t/BL3KC/yAqF1qj47a/40axgF8=";
+            npmDepsHash = "sha256-QqCDIIulF4bZ4F+vP+Z2/Q2zHSjzGXXb6j+AcPjpvpQ=";
             dontNpmBuild = true;
             nativeBuildInputs = [ pkgs.nodejs ];
             buildPhase = ''
@@ -165,6 +167,7 @@
             doCheck = false;
             nativeBuildInputs = [
               pkgs.cmake
+              pkgs.jq
               pkgs.pkg-config
               pkgs.llvmPackages.clang
             ]
@@ -232,11 +235,21 @@
               pkgs.pkg-config
               pkgs.llvmPackages.clang
               pkgs.openssl
+              pkgs.poetry
+              pkgs.python313
             ];
+            shellHook = ''
+              export LD_LIBRARY_PATH="${
+                pkgs.lib.makeLibraryPath [
+                  pkgs.stdenv.cc.cc.lib
+                  pkgs.zlib
+                ]
+              }:${pkgs.addDriverRunpath.driverLink}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+            '';
             LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
           };
 
-          formatter = pkgs.nixfmt-rfc-style;
+          formatter = pkgs.nixfmt;
         };
 
       flake =
@@ -299,6 +312,10 @@
                 ++ lib.optionals (balancer.openaiCompatAddr != null) [
                   "--compat-openai-addr"
                   balancer.openaiCompatAddr
+                ]
+                ++ lib.optionals (balancer.typesafeCompatAddr != null) [
+                  "--compat-typesafe-addr"
+                  balancer.typesafeCompatAddr
                 ]
                 ++ lib.concatMap (host: [
                   "--management-cors-allowed-host"
@@ -364,6 +381,12 @@
                     description = "Address of the OpenAI-compatible API server. When null it is disabled.";
                   };
 
+                  typesafeCompatAddr = lib.mkOption {
+                    type = lib.types.nullOr socketAddrType;
+                    default = null;
+                    description = "Address of the TypeSafe-compatible System One API server. When null it is disabled.";
+                  };
+
                   stateDatabase = lib.mkOption {
                     type = lib.types.str;
                     default = "file:///var/lib/paddler/state.db";
@@ -391,7 +414,7 @@
                   openFirewall = lib.mkOption {
                     type = lib.types.bool;
                     default = false;
-                    description = "Open the management, inference, web admin panel and OpenAI-compatible ports in the firewall.";
+                    description = "Open the management, inference, web admin panel, OpenAI-compatible and TypeSafe-compatible ports in the firewall.";
                   };
                 };
 
@@ -512,7 +535,8 @@
                         (portOf cfg.balancer.inferenceAddr)
                       ]
                       ++ lib.optional (cfg.balancer.webAdminPanelAddr != null) (portOf cfg.balancer.webAdminPanelAddr)
-                      ++ lib.optional (cfg.balancer.openaiCompatAddr != null) (portOf cfg.balancer.openaiCompatAddr);
+                      ++ lib.optional (cfg.balancer.openaiCompatAddr != null) (portOf cfg.balancer.openaiCompatAddr)
+                      ++ lib.optional (cfg.balancer.typesafeCompatAddr != null) (portOf cfg.balancer.typesafeCompatAddr);
                   };
                 })
 

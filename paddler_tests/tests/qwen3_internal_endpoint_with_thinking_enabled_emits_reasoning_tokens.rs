@@ -50,13 +50,9 @@ async fn qwen3_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens() 
         "expected at least one reasoning token when thinking is enabled (got {reasoning_count})"
     );
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert!(summary.usage.reasoning_tokens > 0);

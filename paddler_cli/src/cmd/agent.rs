@@ -11,6 +11,7 @@ use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
 use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
 use paddler_bootstrap::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
 use paddler_bootstrap::run_service_manager::run_service_manager;
+use paddler_cache_dir::cache_dir::CacheDir;
 
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
@@ -41,6 +42,7 @@ impl Handler for Agent {
         run_service_manager(
             AgentServiceBundle::new(AgentBootstrapConfig {
                 agent_name: name,
+                cache_dir: CacheDir::from_process_env(),
                 management_address: management_addr.socket_addr.to_string(),
                 slots,
             }),

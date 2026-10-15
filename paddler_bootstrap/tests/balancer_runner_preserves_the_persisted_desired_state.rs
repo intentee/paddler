@@ -1,15 +1,16 @@
 use tempfile::TempDir;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use paddler_bootstrap::balancer_runner::BalancerRunner;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::chat_template::ChatTemplate;
+use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_state_database::file::File as StateDatabaseFile;
 use paddler_state_database::state_database::StateDatabase as _;
 use paddler_state_database::state_database_type::StateDatabaseType;
+use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
 use crate::ephemeral_balancer_runner_params::ephemeral_balancer_runner_params;
 
@@ -19,18 +20,16 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
         TempDir::new().expect("a temporary state database directory must be creatable");
     let state_database_path = state_database_directory.path().join("state.json");
     let persisted_state = BalancerDesiredState {
-        chat_template_override: Some(ChatTemplate {
-            content: "persisted-chat-template".to_owned(),
-        }),
-        inference_parameters: InferenceParameters::default(),
-        model: AgentDesiredModel::LocalToAgent("persisted-model".to_owned()),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: true,
+        model: AgentDesiredModel::Uri("persisted-model".to_owned()),
+        text_generation: BalancerTextGenerationSettings {
+            chat_template_source: ChatTemplateSource::Override(ChatTemplate {
+                content: "persisted-chat-template".to_owned(),
+            }),
+            ..BalancerTextGenerationSettings::default()
+        },
+        ..BalancerDesiredState::default()
     };
-    let (balancer_desired_state_tx, _balancer_desired_state_rx) =
-        watch::channel(BalancerDesiredState::default());
-    let state_database =
-        StateDatabaseFile::new(balancer_desired_state_tx, state_database_path.clone());
+    let state_database = StateDatabaseFile::new(state_database_path.clone());
 
     state_database
         .store_balancer_desired_state(&persisted_state)
@@ -41,11 +40,16 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
 
     params.bootstrap_config.state_database_type = StateDatabaseType::File(state_database_path);
 
-    let runner = BalancerRunner::start(params)
+    let mut runner = BalancerRunner::start(params)
         .await
         .expect("a runner with a valid state database must start");
 
-    assert_eq!(*runner.balancer_desired_state_tx.borrow(), persisted_state);
+    assert_eq!(
+        runner
+            .balancer_applicable_state_holder
+            .get_balancer_desired_state(),
+        persisted_state
+    );
 
     runner.cancel();
     runner
@@ -58,6 +62,6 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
             .read_balancer_desired_state()
             .await
             .expect("the state database must stay readable after the runner stops"),
-        persisted_state
+        StoredBalancerDesiredState::Stored(persisted_state)
     );
 }

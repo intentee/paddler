@@ -31,4 +31,10 @@ async fn rejects_a_final_path_without_a_file_name_without_a_request() {
         recorded_download.result,
         Err(DownloadError::FinalPathHasNoFileName { final_path }) if final_path == destination
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

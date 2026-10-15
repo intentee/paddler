@@ -1,13 +1,7 @@
 import { createContext } from "react";
 
-import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
-
 export type ChatTemplateContextValue = {
-  chatTemplateOverride: null | ChatTemplate;
-  setChatTemplateOverride(
-    this: void,
-    chatTemplateOverride: null | ChatTemplate,
-  ): void;
+  chatTemplateOverrideContent: string;
   setChatTemplateOverrideContent(this: void, content: string): void;
   setUseChatTemplateOverride(
     this: void,
@@ -17,13 +11,10 @@ export type ChatTemplateContextValue = {
 };
 
 export const ChatTemplateContext = createContext<ChatTemplateContextValue>({
-  get chatTemplateOverride(): never {
+  get chatTemplateOverrideContent(): never {
     throw new Error("ChatTemplateContext not provided");
   },
   get useChatTemplateOverride(): never {
-    throw new Error("ChatTemplateContext not provided");
-  },
-  setChatTemplateOverride(): void {
     throw new Error("ChatTemplateContext not provided");
   },
   setChatTemplateOverrideContent(): void {

@@ -1,16 +1,20 @@
 import { z } from "zod";
 
 import { AgentDesiredModelSchema } from "./AgentDesiredModel";
-import { ChatTemplateSchema } from "./ChatTemplate";
-import { InferenceParametersSchema } from "./InferenceParameters";
+import { BalancerTextGenerationSettingsSchema } from "./BalancerTextGenerationSettings";
+import { DecisionSettingsSchema } from "./DecisionSettings";
+import { EmbeddingParametersSchema } from "./EmbeddingParameters";
+import { InferenceModeSchema } from "./InferenceMode";
+import { ModelRuntimeParametersSchema } from "./ModelRuntimeParameters";
 
 export const BalancerDesiredStateSchema = z
   .object({
-    chat_template_override: ChatTemplateSchema.nullable(),
-    inference_parameters: InferenceParametersSchema,
+    decision: DecisionSettingsSchema,
+    embeddings: EmbeddingParametersSchema,
+    inference_mode: InferenceModeSchema,
     model: AgentDesiredModelSchema,
-    multimodal_projection: AgentDesiredModelSchema,
-    use_chat_template_override: z.boolean(),
+    model_runtime_parameters: ModelRuntimeParametersSchema,
+    text_generation: BalancerTextGenerationSettingsSchema,
   })
   .strict();
 

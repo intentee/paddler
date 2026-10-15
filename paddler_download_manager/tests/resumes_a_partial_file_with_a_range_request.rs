@@ -55,4 +55,10 @@ async fn resumes_a_partial_file_with_a_range_request() {
             total_bytes: Some(22),
         })
     );
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

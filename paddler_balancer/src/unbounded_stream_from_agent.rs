@@ -29,7 +29,7 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
 where
     TParams: AgentStreamingRequest + Debug + Send + 'static,
     TParams::Response: Debug + Into<OutgoingResponse> + StreamableResult,
-    TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync + 'static,
+    TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync + 'static,
 {
     let request_id: String = nanoid!();
     let connection_close = CancellationToken::new();

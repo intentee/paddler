@@ -50,13 +50,9 @@ async fn deepseek_r1_distill_llama_8b_internal_endpoint_emits_reasoning_tokens()
         "DeepSeek-R1-8B: expected at least one reasoning token from a `<think>` block (got {reasoning_count})"
     );
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert!(summary.usage.reasoning_tokens > 0);
@@ -67,22 +63,8 @@ async fn deepseek_r1_distill_llama_8b_internal_endpoint_emits_reasoning_tokens()
             + summary.usage.undeterminable_tokens
     );
 
-    let reasoning_stream: String = collected
-        .token_results
-        .iter()
-        .filter_map(|result| match &result.token_result {
-            GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
-            _ => None,
-        })
-        .collect();
-    let content_stream: String = collected
-        .token_results
-        .iter()
-        .filter_map(|result| match &result.token_result {
-            GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
-            _ => None,
-        })
-        .collect();
+    let reasoning_stream = collected.reasoning_text();
+    let content_stream = collected.content_text();
 
     for forbidden in ["<think>", "</think>"] {
         assert!(

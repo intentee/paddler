@@ -1,22 +1,16 @@
-import React, {
-  useCallback,
-  useContext,
-  useMemo,
-  type FormEvent,
-  type InputEvent,
-} from "react";
+import React, { useCallback, useContext, type FormEvent } from "react";
 import { useLocation } from "wouter";
 
-import { type BalancerDesiredState } from "@intentee/paddler-client/schemas/BalancerDesiredState";
-import { ChatTemplateContext } from "../contexts/ChatTemplateContext";
-import { InferenceParametersContext } from "../contexts/InferenceParametersContext";
+import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
+import { inferenceModes } from "@intentee/paddler-client/schemas/InferenceMode";
+import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
 import { PaddlerConfigurationContext } from "../contexts/PaddlerConfigurationContext";
-import { useAgentDesiredModelUrl } from "../hooks/useAgentDesiredModelUrl";
 import { ChatTemplateBehavior } from "./ChatTemplateBehavior";
-import { InferenceParameterCacheDtype } from "./InferenceParameterCacheDtype";
-import { InferenceParameterCheckbox } from "./InferenceParameterCheckbox";
-import { InferenceParameterInput } from "./InferenceParameterInput";
-import { InferenceParameterPoolingType } from "./InferenceParameterPoolingType";
+import { EmbeddingParametersFields } from "./EmbeddingParametersFields";
+import { ModelRuntimeParametersFields } from "./ModelRuntimeParametersFields";
+import { ModelUriInput } from "./ModelUriInput";
+import { ParameterSelect } from "./ParameterSelect";
+import { TextGenerationSettingsFields } from "./TextGenerationSettingsFields";
 
 import {
   changeModelForm,
@@ -27,96 +21,63 @@ import {
   changeModelForm__formControls,
   changeModelForm__formLabel,
   changeModelForm__formLabel__title,
-  changeModelForm__input,
   changeModelForm__main,
   changeModelForm__parameters,
   changeModelForm__submitButton,
 } from "./ChangeModelForm.module.css";
 
-export function ChangeModelForm({
-  defaultBaseModelUri,
-  defaultMultimodalProjectionUri,
-}: {
-  defaultBaseModelUri: null | string;
-  defaultMultimodalProjectionUri: null | string;
-}) {
+export function ChangeModelForm() {
   const [, navigate] = useLocation();
-  const { chatTemplateOverride, useChatTemplateOverride } =
-    useContext(ChatTemplateContext);
-  const { parameters } = useContext(InferenceParametersContext);
+  const {
+    balancerDesiredState: editedDesiredState,
+    setBalancerDesiredState: setEditedDesiredState,
+  } = useContext(BalancerDesiredStateContext);
+  const { inference_mode: inferenceMode } = editedDesiredState;
   const { managementAddr } = useContext(PaddlerConfigurationContext);
-  const {
-    agentDesiredModelState: baseModelAgentDesiredModelState,
-    modelUri: baseModelUri,
-    setModelUri: setBaseModelUri,
-  } = useAgentDesiredModelUrl({
-    defaultModelUri: defaultBaseModelUri,
-  });
-  const {
-    agentDesiredModelState: multimodalProjecttionAgentDesiredModelState,
-    modelUri: multimodalProjectionModelUri,
-    setModelUri: setMultimodalProjectionModelUri,
-  } = useAgentDesiredModelUrl({
-    defaultModelUri: defaultMultimodalProjectionUri,
-  });
 
-  const onBaseModelUriInput = useCallback(
-    function (event: InputEvent<HTMLInputElement>) {
-      setBaseModelUri(event.currentTarget.value);
+  const onBaseModel = useCallback(
+    function (model: AgentDesiredModel) {
+      setEditedDesiredState({ ...editedDesiredState, model });
     },
-    [setBaseModelUri],
+    [editedDesiredState, setEditedDesiredState],
   );
 
-  const onMultimodalProjectionUriInput = useCallback(
-    function (event: InputEvent<HTMLInputElement>) {
-      setMultimodalProjectionModelUri(event.currentTarget.value);
-    },
-    [setMultimodalProjectionModelUri],
-  );
-
-  const balancerDesiredState: null | BalancerDesiredState = useMemo(
-    function () {
-      if (
-        !baseModelAgentDesiredModelState.ok ||
-        !multimodalProjecttionAgentDesiredModelState.ok
-      ) {
-        return null;
-      }
-
-      const desiredState: BalancerDesiredState = Object.freeze({
-        chat_template_override: chatTemplateOverride,
-        inference_parameters: parameters,
-        model: baseModelAgentDesiredModelState.agentDesiredModel,
-        multimodal_projection:
-          multimodalProjecttionAgentDesiredModelState.agentDesiredModel,
-        use_chat_template_override: useChatTemplateOverride,
+  const onMultimodalProjection = useCallback(
+    function (projection: AgentDesiredModel) {
+      setEditedDesiredState({
+        ...editedDesiredState,
+        text_generation: {
+          ...editedDesiredState.text_generation,
+          multimodal: {
+            ...editedDesiredState.text_generation.multimodal,
+            projection,
+          },
+        },
       });
-
-      return desiredState;
     },
-    [
-      baseModelAgentDesiredModelState,
-      chatTemplateOverride,
-      multimodalProjecttionAgentDesiredModelState,
-      parameters,
-      useChatTemplateOverride,
-    ],
+    [editedDesiredState, setEditedDesiredState],
+  );
+
+  const onPointerHead = useCallback(
+    function (pointer_head: AgentDesiredModel) {
+      setEditedDesiredState({
+        ...editedDesiredState,
+        decision: { ...editedDesiredState.decision, pointer_head },
+      });
+    },
+    [editedDesiredState, setEditedDesiredState],
   );
 
   const onSubmit = useCallback(
     function (event: FormEvent<HTMLFormElement>) {
       event.preventDefault();
 
-      if (!balancerDesiredState) {
-        return;
-      }
-
       fetch(`//${managementAddr}/api/v1/balancer_desired_state`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(balancerDesiredState),
+        body: JSON.stringify(editedDesiredState),
       })
         .then(function (response) {
           if (response.ok) {
@@ -131,7 +92,7 @@ export function ChangeModelForm({
           console.error("Error updating agent desired state:", error);
         });
     },
-    [managementAddr, navigate, balancerDesiredState],
+    [editedDesiredState, managementAddr, navigate],
   );
 
   return (
@@ -182,125 +143,95 @@ export function ChangeModelForm({
       </aside>
       <main className={changeModelForm__main}>
         <form className={changeModelForm__form} onSubmit={onSubmit}>
+          <fieldset className={changeModelForm__parameters}>
+            <legend>Inference Mode</legend>
+            <ParameterSelect
+              description="What the cluster serves; switching it reloads every agent, and requests of the other modes are refused"
+              name="inference_mode"
+              onValue={function (selectedInferenceMode) {
+                setEditedDesiredState({
+                  ...editedDesiredState,
+                  inference_mode: selectedInferenceMode,
+                });
+              }}
+              options={inferenceModes}
+              value={inferenceMode}
+            />
+          </fieldset>
           <label className={changeModelForm__formLabel}>
             <div className={changeModelForm__formLabel__title}>
               Base Model URI
             </div>
-            <input
-              className={changeModelForm__input}
+            <ModelUriInput
+              model={editedDesiredState.model}
               name="model_uri"
-              onInput={onBaseModelUriInput}
-              placeholder="https://huggingface.co/..."
+              onModel={onBaseModel}
               required
-              type="url"
-              value={String(baseModelUri)}
             />
           </label>
-          <label className={changeModelForm__formLabel}>
-            <div className={changeModelForm__formLabel__title}>
-              Multimodal Projection URI (optional)
-            </div>
-            <input
-              className={changeModelForm__input}
-              name="multimodal_projection_uri"
-              onInput={onMultimodalProjectionUriInput}
-              placeholder="https://huggingface.co/..."
-              type="url"
-              value={String(multimodalProjectionModelUri)}
-            />
-          </label>
-          <fieldset className={changeModelForm__chatTemplate}>
-            <legend>Chat Template</legend>
-            <ChatTemplateBehavior />
-          </fieldset>
+          {inferenceMode === "Decision" && (
+            <label className={changeModelForm__formLabel}>
+              <div className={changeModelForm__formLabel__title}>
+                Pointer Head URI
+              </div>
+              <ModelUriInput
+                model={editedDesiredState.decision.pointer_head}
+                name="pointer_head_uri"
+                onModel={onPointerHead}
+                required
+              />
+            </label>
+          )}
+          {inferenceMode === "TextGeneration" && (
+            <>
+              <label className={changeModelForm__formLabel}>
+                <div className={changeModelForm__formLabel__title}>
+                  Multimodal Projection URI (optional)
+                </div>
+                <ModelUriInput
+                  model={
+                    editedDesiredState.text_generation.multimodal.projection
+                  }
+                  name="multimodal_projection_uri"
+                  onModel={onMultimodalProjection}
+                  required={false}
+                />
+              </label>
+              <fieldset className={changeModelForm__chatTemplate}>
+                <legend>Chat Template</legend>
+                <ChatTemplateBehavior />
+              </fieldset>
+            </>
+          )}
           <fieldset className={changeModelForm__parameters}>
-            <legend>Inference Parameters</legend>
+            <legend>Model Parameters</legend>
             <details className={changeModelForm__details}>
               <summary>What are these parameters?</summary>
               <p>
-                These parameters control how the model behaves during inference.
-                They can affect the quality, speed, and memory usage of the
-                model.
+                These parameters control how the model is loaded and how much
+                memory it uses. In text generation, the context is shared
+                between the slots of each agent.
               </p>
               <p>
                 They are usually model-specific and are usually provided by the
                 model authors, although Paddler provides some reasonable
                 defaults.
               </p>
-              <p>
-                Experimenting with these settings is worth exploring to optimize
-                performance for your specific needs.
-              </p>
             </details>
-            <InferenceParameterInput
-              description="Batch Size (higher = more memory usage, lower = less inference speed)"
-              name="n_batch"
-            />
-            <InferenceParameterInput
-              description="Context Size (higher = longer chat history, lower = less memory usage)"
-              name="context_size"
-            />
-            <InferenceParameterInput
-              description="Max image dimension in pixels before resizing"
-              name="image_resize_to_fit"
-            />
-            <InferenceParameterInput
-              description="Minimum token probability to consider for selection"
-              name="min_p"
-            />
-            <InferenceParameterInput
-              description="Number of model layers to offload to GPU (0 = CPU only; -1 = all layers)"
-              name="n_gpu_layers"
-            />
-            <InferenceParameterInput
-              description="Frequency Penalty"
-              name="penalty_frequency"
-            />
-            <InferenceParameterInput
-              description="Number of last tokens to consider for penalty (0 = disabled)"
-              name="penalty_last_n"
-            />
-            <InferenceParameterInput
-              description="Presence Penalty"
-              name="penalty_presence"
-            />
-            <InferenceParameterInput
-              description="Repeated Token Penalty"
-              name="penalty_repeat"
-            />
-            <InferenceParameterInput
-              description="Temperature"
-              name="temperature"
-            />
-            <InferenceParameterInput
-              description="Number of tokens to consider for selection"
-              name="top_k"
-            />
-            <InferenceParameterInput
-              description="Probability threshold for selecting tokens"
-              name="top_p"
-            />
-            <InferenceParameterCheckbox
-              description="You need embeddings for stuff like semantic search, RAG, and more"
-              name="enable_embeddings"
-            />
-            <InferenceParameterInput
-              description="Max documents per embedding sub-batch (cap; balancer fans out larger requests across agents and chunks beyond this size)"
-              name="embedding_batch_size"
-            />
-            <InferenceParameterPoolingType
-              description="How to combine token embeddings"
-              disabled={!parameters.enable_embeddings}
-            />
-            <InferenceParameterCacheDtype
-              name="k_cache_dtype"
-              description="Datatype for K cache tensors"
-            />
-            <InferenceParameterCacheDtype
-              name="v_cache_dtype"
-              description="Datatype for V cache tensors"
-            />
+            <ModelRuntimeParametersFields />
           </fieldset>
+          {inferenceMode === "TextGeneration" && (
+            <fieldset className={changeModelForm__parameters}>
+              <legend>Text Generation Parameters</legend>
+              <TextGenerationSettingsFields />
+            </fieldset>
+          )}
+          {inferenceMode === "Embeddings" && (
+            <fieldset className={changeModelForm__parameters}>
+              <legend>Embedding Parameters</legend>
+              <EmbeddingParametersFields />
+            </fieldset>
+          )}
           <div className={changeModelForm__formControls}>
             <button className={changeModelForm__submitButton}>
               Apply changes

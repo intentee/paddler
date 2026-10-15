@@ -1,64 +1,53 @@
 use serde::Deserialize;
 use serde::Serialize;
-use serde::Serializer;
 use serde_json::Map;
 use serde_json::Value;
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ValidatedParametersSchema {
     #[serde(rename = "type")]
     pub schema_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<Map<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
-    #[serde(rename = "additionalProperties")]
+    #[serde(
+        rename = "additionalProperties",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub additional_properties: Option<Value>,
 }
 
-impl From<&ValidatedParametersSchema> for Value {
+impl From<ValidatedParametersSchema> for Value {
     fn from(
         ValidatedParametersSchema {
             schema_type,
             properties,
             required,
             additional_properties,
-        }: &ValidatedParametersSchema,
+        }: ValidatedParametersSchema,
     ) -> Self {
         let mut keywords = Map::new();
 
-        keywords.insert("type".to_owned(), Self::String(schema_type.clone()));
+        keywords.insert("type".to_owned(), Self::String(schema_type));
 
         if let Some(properties) = properties {
-            keywords.insert("properties".to_owned(), Self::Object(properties.clone()));
+            keywords.insert("properties".to_owned(), Self::Object(properties));
         }
 
         if let Some(required) = required {
             keywords.insert(
                 "required".to_owned(),
-                Self::Array(required.iter().cloned().map(Self::String).collect()),
+                Self::Array(required.into_iter().map(Self::String).collect()),
             );
         }
 
         if let Some(additional_properties) = additional_properties {
-            keywords.insert(
-                "additionalProperties".to_owned(),
-                additional_properties.clone(),
-            );
+            keywords.insert("additionalProperties".to_owned(), additional_properties);
         }
 
         Self::Object(keywords)
-    }
-}
-
-impl Serialize for ValidatedParametersSchema {
-    fn serialize<TSerializer>(
-        &self,
-        serializer: TSerializer,
-    ) -> Result<TSerializer::Ok, TSerializer::Error>
-    where
-        TSerializer: Serializer,
-    {
-        Value::from(self).serialize(serializer)
     }
 }
 

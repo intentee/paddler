@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo, useState, type ReactNode } from "react";
+import React, { useContext, useMemo, useState, type ReactNode } from "react";
 
-import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
+import { type ChatTemplateSource } from "@intentee/paddler-client/schemas/ChatTemplateSource";
+import { BalancerDesiredStateContext } from "../contexts/BalancerDesiredStateContext";
 import {
   ChatTemplateContext,
   type ChatTemplateContextValue,
@@ -8,45 +9,63 @@ import {
 
 export function ChatTemplateContextProvider({
   children,
-  defaultChatTemplateOverride,
-  defaultUseChatTemplateOverride,
 }: {
   children: ReactNode;
-  defaultChatTemplateOverride: null | ChatTemplate;
-  defaultUseChatTemplateOverride: boolean;
 }) {
-  const [chatTemplateOverride, setChatTemplateOverride] =
-    useState<null | ChatTemplate>(defaultChatTemplateOverride);
-  const [useChatTemplateOverride, setUseChatTemplateOverride] =
-    useState<boolean>(defaultUseChatTemplateOverride);
-
-  const setChatTemplateOverrideContent = useCallback(
-    function (content: string) {
-      setChatTemplateOverride(function () {
-        return {
-          content,
-        };
-      });
-    },
-    [setChatTemplateOverride],
+  const { balancerDesiredState, setBalancerDesiredState } = useContext(
+    BalancerDesiredStateContext,
   );
+  const [
+    overrideContentWhileUsingTheModelTemplate,
+    setOverrideContentWhileUsingTheModelTemplate,
+  ] = useState("");
 
   const value = useMemo<ChatTemplateContextValue>(
     function () {
+      const { text_generation: textGenerationSettings } = balancerDesiredState;
+      const { chat_template_source: chatTemplateSource } =
+        textGenerationSettings;
+      const chatTemplateOverrideContent =
+        chatTemplateSource === "EmbeddedInModel"
+          ? overrideContentWhileUsingTheModelTemplate
+          : chatTemplateSource.Override.content;
+
+      function setChatTemplateSource(
+        changedChatTemplateSource: ChatTemplateSource,
+      ) {
+        setBalancerDesiredState({
+          ...balancerDesiredState,
+          text_generation: {
+            ...textGenerationSettings,
+            chat_template_source: changedChatTemplateSource,
+          },
+        });
+      }
+
       return Object.freeze({
-        chatTemplateOverride,
-        setChatTemplateOverride,
-        setChatTemplateOverrideContent,
-        setUseChatTemplateOverride,
-        useChatTemplateOverride,
+        chatTemplateOverrideContent,
+        setChatTemplateOverrideContent(content: string) {
+          setChatTemplateSource({ Override: { content } });
+        },
+        setUseChatTemplateOverride(useChatTemplateOverride: boolean) {
+          if (useChatTemplateOverride) {
+            setChatTemplateSource({
+              Override: { content: chatTemplateOverrideContent },
+            });
+          } else {
+            setOverrideContentWhileUsingTheModelTemplate(
+              chatTemplateOverrideContent,
+            );
+            setChatTemplateSource("EmbeddedInModel");
+          }
+        },
+        useChatTemplateOverride: chatTemplateSource !== "EmbeddedInModel",
       });
     },
     [
-      chatTemplateOverride,
-      setChatTemplateOverride,
-      setChatTemplateOverrideContent,
-      setUseChatTemplateOverride,
-      useChatTemplateOverride,
+      balancerDesiredState,
+      overrideContentWhileUsingTheModelTemplate,
+      setBalancerDesiredState,
     ],
   );
 

@@ -54,6 +54,26 @@ mod tests {
     }
 
     #[test]
+    fn adds_downloaded_bytes_to_a_download_of_known_size() {
+        let mut download_status = ModelDownloadStatus::Downloading {
+            downloaded_bytes: 100,
+            model_path: "https://example.com/model.gguf".to_owned(),
+            total_bytes: 400,
+        };
+
+        download_status.add_downloaded_bytes(50);
+
+        assert_eq!(
+            download_status,
+            ModelDownloadStatus::Downloading {
+                downloaded_bytes: 150,
+                model_path: "https://example.com/model.gguf".to_owned(),
+                total_bytes: 400,
+            }
+        );
+    }
+
+    #[test]
     fn bytes_arriving_after_the_download_stopped_do_not_restart_it() {
         let mut download_status = ModelDownloadStatus::NotDownloading;
 

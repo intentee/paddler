@@ -25,10 +25,10 @@ export function TokenGenerationDisabledContextProvider({
       }
 
       const socketClient = inferenceSocketClient({ webSocket });
-      const subscription = socketClient.clusterTokenGenerationMode$.subscribe(
-        function (notification) {
+      const subscription = socketClient.clusterInferenceMode$.subscribe(
+        function (clusterInferenceMode) {
           setIsTokenGenerationDisabled(
-            "TokenGenerationDisabled" === notification,
+            "TextGeneration" !== clusterInferenceMode,
           );
         },
       );

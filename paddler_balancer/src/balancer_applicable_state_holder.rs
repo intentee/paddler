@@ -1,132 +1,104 @@
-use parking_lot::RwLock;
+use std::sync::Arc;
+
 use tokio::sync::watch;
 
 use paddler_messaging::agent_desired_state::AgentDesiredState;
-use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::inference_mode::InferenceMode;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
-use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
+use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 
 pub struct BalancerApplicableStateHolder {
-    balancer_applicable_state: RwLock<BalancerApplicableState>,
-    update_tx: watch::Sender<()>,
+    balancer_applicable_state_rx: watch::Receiver<Arc<BalancerApplicableState>>,
 }
 
 impl BalancerApplicableStateHolder {
     #[must_use]
-    pub fn new(balancer_applicable_state: BalancerApplicableState) -> Self {
-        let (update_tx, _initial_rx) = watch::channel(());
-
+    pub const fn new(
+        balancer_applicable_state_rx: watch::Receiver<Arc<BalancerApplicableState>>,
+    ) -> Self {
         Self {
-            balancer_applicable_state: RwLock::new(balancer_applicable_state),
-            update_tx,
+            balancer_applicable_state_rx,
         }
     }
 
+    #[must_use]
     pub fn get_agent_desired_state(&self) -> AgentDesiredState {
-        self.balancer_applicable_state
-            .read()
+        self.balancer_applicable_state_rx
+            .borrow()
             .agent_desired_state
             .clone()
     }
 
-    pub fn get_balancer_applicable_state(&self) -> BalancerApplicableState {
-        self.balancer_applicable_state.read().clone()
+    #[must_use]
+    pub fn get_balancer_desired_state(&self) -> BalancerDesiredState {
+        self.balancer_applicable_state_rx
+            .borrow()
+            .balancer_desired_state
+            .clone()
     }
 
-    #[must_use]
-    pub fn token_generation_mode(&self) -> ClusterTokenGenerationMode {
-        if self
-            .balancer_applicable_state
-            .read()
-            .agent_desired_state
-            .inference_parameters
-            .enable_embeddings
-        {
-            ClusterTokenGenerationMode::DisabledForEmbeddings
+    pub fn require_inference_mode(
+        &self,
+        requested_inference_mode: InferenceMode,
+    ) -> Result<Arc<BalancerApplicableState>, ClusterServesAnotherInferenceMode> {
+        let balancer_applicable_state = self.balancer_applicable_state_rx.borrow().clone();
+        let served_inference_mode = balancer_applicable_state.inference_mode();
+
+        if served_inference_mode == requested_inference_mode {
+            Ok(balancer_applicable_state)
         } else {
-            ClusterTokenGenerationMode::Enabled
+            Err(ClusterServesAnotherInferenceMode {
+                requested_inference_mode,
+                served_inference_mode,
+            })
         }
     }
 
-    pub fn set_balancer_applicable_state(
-        &self,
-        balancer_applicable_state: BalancerApplicableState,
-    ) {
-        *self.balancer_applicable_state.write() = balancer_applicable_state;
-
-        self.update_tx.send_replace(());
-    }
-}
-
-impl SubscribesToUpdates for BalancerApplicableStateHolder {
-    fn subscribe_to_updates(&self) -> watch::Receiver<()> {
-        self.update_tx.subscribe()
+    #[must_use]
+    pub fn subscribe(&self) -> watch::Receiver<Arc<BalancerApplicableState>> {
+        self.balancer_applicable_state_rx.clone()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
-    use paddler_messaging::agent_desired_model::AgentDesiredModel;
-    use paddler_messaging::agent_desired_state::AgentDesiredState;
+    use std::sync::Arc;
+
+    use tokio::sync::watch;
+
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
+    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::BalancerApplicableStateHolder;
     use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::cluster_token_generation_mode::ClusterTokenGenerationMode;
-
-    fn holder_with_embeddings(enable_embeddings: bool) -> BalancerApplicableStateHolder {
-        BalancerApplicableStateHolder::new(BalancerApplicableState {
-            agent_desired_state: AgentDesiredState {
-                chat_template_override: None,
-                inference_parameters: InferenceParameters {
-                    enable_embeddings,
-                    ..InferenceParameters::default()
-                },
-                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                multimodal_projection: AgentDesiredModel::None,
-            },
-        })
-    }
+    use crate::cluster_serves_another_inference_mode::ClusterServesAnotherInferenceMode;
 
     #[test]
-    fn generates_tokens_when_embeddings_are_disabled() {
-        assert_eq!(
-            holder_with_embeddings(false).token_generation_mode(),
-            ClusterTokenGenerationMode::Enabled
+    fn requires_the_inference_mode_the_applied_state_serves() {
+        let (_balancer_applicable_state_tx, balancer_applicable_state_rx) = watch::channel(
+            Arc::new(BalancerApplicableState::from(BalancerDesiredState {
+                inference_mode: InferenceMode::Embeddings,
+                ..BalancerDesiredState::default()
+            })),
         );
-    }
+        let holder = BalancerApplicableStateHolder::new(balancer_applicable_state_rx);
 
-    #[test]
-    fn disables_token_generation_when_embeddings_are_enabled() {
         assert_eq!(
-            holder_with_embeddings(true).token_generation_mode(),
-            ClusterTokenGenerationMode::DisabledForEmbeddings
-        );
-    }
-
-    #[test]
-    fn replacing_the_state_notifies_subscribers_and_is_read_back() {
-        let holder = BalancerApplicableStateHolder::new(BalancerApplicableState::from(
-            BalancerDesiredState::default(),
-        ));
-        let update_rx = holder.subscribe_to_updates();
-
-        holder.set_balancer_applicable_state(BalancerApplicableState::from(BalancerDesiredState {
-            model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-            ..BalancerDesiredState::default()
-        }));
-
-        assert!(
-            update_rx
-                .has_changed()
-                .expect("the holder must keep its update sender")
+            holder
+                .require_inference_mode(InferenceMode::Embeddings)
+                .map(|balancer_applicable_state| balancer_applicable_state.inference_mode()),
+            Ok(InferenceMode::Embeddings)
         );
         assert_eq!(
-            holder.get_agent_desired_state().model,
-            AgentDesiredModel::LocalToAgent("model.gguf".to_owned())
+            holder
+                .require_inference_mode(InferenceMode::TextGeneration)
+                .err(),
+            Some(ClusterServesAnotherInferenceMode {
+                requested_inference_mode: InferenceMode::TextGeneration,
+                served_inference_mode: InferenceMode::Embeddings,
+            })
         );
     }
 }

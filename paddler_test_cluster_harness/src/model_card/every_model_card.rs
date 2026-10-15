@@ -13,6 +13,7 @@ use crate::model_card::qwen2_5_vl_3b_mmproj::qwen2_5_vl_3b_mmproj;
 use crate::model_card::qwen3_0_6b::qwen3_0_6b;
 use crate::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use crate::model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
+use crate::model_card::qwen3_8_27b::qwen3_8_27b;
 use crate::model_card::smolvlm2_256m::smolvlm2_256m;
 use crate::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 
@@ -33,6 +34,7 @@ pub fn every_model_card() -> Vec<ModelCard> {
         qwen3_0_6b(),
         qwen3_5_0_8b(),
         qwen3_5_0_8b_mmproj(),
+        qwen3_8_27b(),
         smolvlm2_256m(),
         smolvlm2_256m_mmproj(),
     ]

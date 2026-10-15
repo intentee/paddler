@@ -1,0 +1,1 @@
+pub const CLAP_USAGE_ERROR_EXIT_CODE: i32 = 2;

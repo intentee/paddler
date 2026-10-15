@@ -1,0 +1,17 @@
+use std::thread::JoinHandle;
+
+use crate::join_scheduler_thread::join_scheduler_thread;
+use crate::spawn_blocking_resuming_panic::spawn_blocking_resuming_panic;
+
+pub async fn join_scheduler_thread_in_background<TReleasedFirst>(
+    released_first: TReleasedFirst,
+    scheduler_thread_handle: JoinHandle<()>,
+) where
+    TReleasedFirst: Send + 'static,
+{
+    spawn_blocking_resuming_panic(move || {
+        drop(released_first);
+        join_scheduler_thread(scheduler_thread_handle);
+    })
+    .await;
+}

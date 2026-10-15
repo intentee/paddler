@@ -1,0 +1,6 @@
+mod a_malformed_question_is_refused_with_its_id;
+mod a_noul_question_with_null_criteria_describes_neither_outcome;
+mod a_system_one_request_without_questions_is_refused;
+mod answers_that_do_not_fit_the_questions_are_refused;
+mod questions_with_too_many_or_no_criteria_are_refused;
+mod translation_matches_the_kev_typesafe_reference;

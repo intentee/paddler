@@ -7,7 +7,7 @@ use super::transform_result::TransformResult;
 use super::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::agent_relay_error::AgentRelayError;
 
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct IdentityTransformer;
 
 impl IdentityTransformer {

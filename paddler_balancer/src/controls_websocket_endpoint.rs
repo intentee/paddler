@@ -8,7 +8,6 @@ use actix_web::rt;
 use actix_web::web::Payload;
 use actix_ws::AggregatedMessage;
 use actix_ws::ProtocolError;
-use actix_ws::Session;
 use actix_ws::handle;
 use anyhow::Result;
 use futures_util::StreamExt as _;
@@ -20,15 +19,23 @@ use serde_json::from_str;
 use tokio::select;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::time::Instant;
+use tokio::time::MissedTickBehavior;
+use tokio::time::interval_at;
 use tokio_util::sync::CancellationToken;
 
+use paddler_messaging::ping_interval::PING_INTERVAL;
+use paddler_messaging::ping_liveness::PingLiveness;
+use paddler_messaging::ping_turn::PingTurn;
 use paddler_messaging::rpc_message::RpcMessage;
 
 use crate::continuation_decision::ContinuationDecision;
+use crate::enqueue_websocket_frame::enqueue_websocket_frame;
 use crate::max_websocket_message_size::MAX_WEBSOCKET_MESSAGE_SIZE;
-use crate::session_keep_alive::SessionKeepAlive;
 use crate::websocket_close_cause::WebSocketCloseCause;
+use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 use crate::websocket_session_controller::WebSocketSessionController;
+use crate::write_websocket_session::write_websocket_session;
 
 pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     type Context: Send + Sync + 'static;
@@ -54,7 +61,8 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
         msg: Option<Result<AggregatedMessage, ProtocolError>>,
-        session: &mut Session,
+        outbound_tx: &UnboundedSender<WebSocketOutboundFrame>,
+        ping_liveness: &mut PingLiveness,
         continuation_stop_tx: UnboundedSender<WebSocketCloseCause>,
     ) -> impl Future<Output = ContinuationDecision> + Send {
         async move {
@@ -68,18 +76,21 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                     ContinuationDecision::Stop(WebSocketCloseCause::PeerClosedConnection)
                 }
                 Some(Ok(AggregatedMessage::Ping(ping_payload))) => {
-                    session.pong(&ping_payload).await.map_or(
-                        ContinuationDecision::Stop(WebSocketCloseCause::SessionAlreadyClosed),
-                        |()| ContinuationDecision::Continue,
-                    )
+                    enqueue_websocket_frame(outbound_tx, WebSocketOutboundFrame::Pong(ping_payload))
                 }
-                Some(Ok(AggregatedMessage::Pong(_))) => ContinuationDecision::Continue,
+                Some(Ok(AggregatedMessage::Pong(_))) => {
+                    ping_liveness.record_pong();
+
+                    ContinuationDecision::Continue
+                }
                 Some(Ok(AggregatedMessage::Text(text))) => {
                     Self::handle_text_message(
                         connection_close,
                         context,
                         &text,
-                        WebSocketSessionController::<Self::OutgoingMessage>::new(session.clone()),
+                        WebSocketSessionController::<Self::OutgoingMessage>::new(
+                            outbound_tx.clone(),
+                        ),
                         continuation_stop_tx,
                     )
                     .await
@@ -139,7 +150,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     fn on_connection_start(
         connection_close: CancellationToken,
         context: Arc<Self::Context>,
-        session: &mut Session,
+        outbound_tx: &UnboundedSender<WebSocketOutboundFrame>,
     ) -> impl Future<Output = ()> + Send;
 
     fn respond(
@@ -150,7 +161,7 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
     ) -> Result<HttpResponse, Error> {
         let connection_close = CancellationToken::new();
         let context = Arc::new(self.create_context());
-        let (res, mut session, msg_stream) = handle(&req, payload)?;
+        let (res, session, msg_stream) = handle(&req, payload)?;
 
         let mut aggregated_msg_stream = msg_stream
             .max_frame_size(MAX_WEBSOCKET_MESSAGE_SIZE)
@@ -158,19 +169,23 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
             .max_continuation_size(MAX_WEBSOCKET_MESSAGE_SIZE);
 
         rt::spawn(async move {
-            Self::on_connection_start(connection_close.clone(), context.clone(), &mut session)
-                .await;
+            let (outbound_tx, outbound_rx) = mpsc::unbounded_channel::<WebSocketOutboundFrame>();
 
-            rt::spawn(
-                SessionKeepAlive {
-                    connection_close: connection_close.clone(),
-                    session: session.clone(),
-                }
-                .run(),
-            );
+            rt::spawn(write_websocket_session(
+                connection_close.clone(),
+                outbound_rx,
+                session,
+            ));
+
+            Self::on_connection_start(connection_close.clone(), context.clone(), &outbound_tx)
+                .await;
 
             let (continuation_stop_tx, mut continuation_stop_rx) =
                 mpsc::unbounded_channel::<WebSocketCloseCause>();
+            let mut ping_liveness = PingLiveness::default();
+            let mut ping_ticker = interval_at(Instant::now() + PING_INTERVAL, PING_INTERVAL);
+
+            ping_ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
             let close_cause = loop {
                 select! {
@@ -179,9 +194,24 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
                             connection_close.clone(),
                             context.clone(),
                             msg,
-                            &mut session,
+                            &outbound_tx,
+                            &mut ping_liveness,
                             continuation_stop_tx.clone(),
                         ).await {
+                            break close_cause;
+                        }
+                    }
+                    _ = ping_ticker.tick() => {
+                        let ping_decision = match ping_liveness.next_ping() {
+                            PingTurn::PeerStoppedAnswering => {
+                                ContinuationDecision::Stop(WebSocketCloseCause::PeerStoppedAnsweringPings)
+                            }
+                            PingTurn::SendPing => {
+                                enqueue_websocket_frame(&outbound_tx, WebSocketOutboundFrame::Ping)
+                            }
+                        };
+
+                        if let ContinuationDecision::Stop(close_cause) = ping_decision {
                             break close_cause;
                         }
                     }
@@ -199,9 +229,10 @@ pub trait ControlsWebSocketEndpoint: Send + Sync + 'static {
 
             connection_close.cancel();
 
-            let close_outcome = session.close(close_cause.close_reason()).await;
+            let close_frame_delivery =
+                outbound_tx.send(WebSocketOutboundFrame::Close(close_cause.close_reason()));
 
-            debug!("Closed the WebSocket session after {close_cause:?}: {close_outcome:?}");
+            debug!("Closing the WebSocket session after {close_cause:?}: {close_frame_delivery:?}");
         });
 
         Ok(res)

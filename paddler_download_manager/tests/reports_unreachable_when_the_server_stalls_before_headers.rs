@@ -33,4 +33,10 @@ async fn reports_unreachable_when_the_server_stalls_before_headers() {
             if reported_url == url
     ));
     assert!(recorded_download.progress.is_empty());
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

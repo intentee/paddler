@@ -76,13 +76,9 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
         "Qwen3.5 thinking-disabled: classifier must stream at least one content token"
     );
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert_eq!(
@@ -102,22 +98,8 @@ async fn qwen35_internal_endpoint_with_thinking_disabled_emits_only_content_toke
          reasoning and undeterminable are zero"
     );
 
-    let reasoning_stream: String = collected
-        .token_results
-        .iter()
-        .filter_map(|result| match &result.token_result {
-            GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
-            _ => None,
-        })
-        .collect();
-    let content_stream: String = collected
-        .token_results
-        .iter()
-        .filter_map(|result| match &result.token_result {
-            GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
-            _ => None,
-        })
-        .collect();
+    let reasoning_stream = collected.reasoning_text();
+    let content_stream = collected.content_text();
 
     for forbidden in ["<think>", "</think>"] {
         assert!(

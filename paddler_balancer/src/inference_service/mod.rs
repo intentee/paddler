@@ -23,6 +23,7 @@ use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::inference_service::http_route::api::post_continue_from_conversation_history::post_continue_from_conversation_history;
 use crate::inference_service::http_route::api::post_continue_from_raw_prompt::post_continue_from_raw_prompt;
+use crate::inference_service::http_route::api::post_decide::post_decide;
 use crate::inference_service::http_route::api::post_generate_embedding_batch::post_generate_embedding_batch;
 use crate::inference_service::http_route::api::ws_inference_socket::ws_inference_socket;
 use crate::run_http_service::run_http_service;
@@ -68,6 +69,7 @@ impl Service for InferenceService {
                         .configure(get_health)
                         .configure(post_continue_from_conversation_history)
                         .configure(post_continue_from_raw_prompt)
+                        .configure(post_decide)
                         .configure(post_generate_embedding_batch)
                         .configure(ws_inference_socket)
                 },

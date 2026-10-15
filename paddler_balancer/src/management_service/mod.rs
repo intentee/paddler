@@ -12,11 +12,10 @@ use async_trait::async_trait;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
-use paddler_state_database::state_database::StateDatabase;
-
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_response_senders::AgentResponseSenders;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+use crate::balancer_desired_state_store::BalancerDesiredStateStore;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::cors_allowed_hosts_with_web_admin_panel::cors_allowed_hosts_with_web_admin_panel;
 use crate::create_cors_middleware::create_cors_middleware;
@@ -41,11 +40,11 @@ use crate::run_http_service_parameters::RunHttpServiceParameters;
 pub struct ManagementService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
     pub balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
+    pub balancer_desired_state_store: Arc<BalancerDesiredStateStore>,
     pub buffered_request_manager: Arc<BufferedRequestManager>,
     pub agent_response_senders: AgentResponseSenders,
     pub configuration: ManagementServiceConfiguration,
     pub http_listener: HttpListener,
-    pub state_database: Arc<dyn StateDatabase>,
     pub statsd_prefix: String,
     pub web_admin_panel_addr: Option<SocketAddr>,
 }
@@ -66,10 +65,10 @@ impl Service for ManagementService {
         let app_data = Data::new(AppData {
             agent_controller_pool: self.agent_controller_pool.clone(),
             balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
+            balancer_desired_state_store: self.balancer_desired_state_store.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             agent_response_senders: self.agent_response_senders.clone(),
             shutdown: shutdown.clone(),
-            state_database: self.state_database.clone(),
             statsd_prefix: self.statsd_prefix.clone(),
         });
 

@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use std::fs::Permissions;
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt as _;
@@ -50,4 +48,10 @@ async fn reports_cache_permission_denied_when_the_cache_directory_is_read_only()
         recorded_download.result,
         Err(DownloadError::CachePermissionDenied { source, .. }) if source.kind() == ErrorKind::PermissionDenied
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

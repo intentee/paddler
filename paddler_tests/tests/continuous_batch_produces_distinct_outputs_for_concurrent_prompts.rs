@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -20,7 +21,7 @@ async fn continuous_batch_produces_distinct_outputs_for_concurrent_prompts() {
             name: "test-agent".to_owned(),
             slot_count: 2,
         }],
-        desired_state: Some(desired_state),
+        desired_state: ClusterDesiredState::Apply(Box::new(desired_state)),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

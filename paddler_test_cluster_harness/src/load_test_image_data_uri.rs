@@ -10,6 +10,8 @@ pub fn load_test_image_data_uri() -> Result<String> {
 mod tests {
     use std::fs::read;
 
+    use crate::fixture_path::fixture_path;
+
     use data_url::DataUrl;
 
     use super::load_test_image_data_uri;
@@ -22,13 +24,6 @@ mod tests {
 
         assert_eq!(parsed_fixture.mime_type().type_, "image");
         assert_eq!(parsed_fixture.mime_type().subtype, "jpeg");
-        assert_eq!(
-            body,
-            read(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/../fixtures/llamas.jpg"
-            ))
-            .unwrap()
-        );
+        assert_eq!(body, read(fixture_path("llamas.jpg")).unwrap());
     }
 }

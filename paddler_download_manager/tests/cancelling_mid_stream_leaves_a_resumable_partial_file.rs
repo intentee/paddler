@@ -71,4 +71,10 @@ async fn cancelling_mid_stream_leaves_a_resumable_partial_file() {
         recorded_download.progress.last(),
         Some(&DownloadProgress::Finished)
     );
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

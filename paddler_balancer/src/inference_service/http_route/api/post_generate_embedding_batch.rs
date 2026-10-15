@@ -1,9 +1,8 @@
-use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorNotImplemented;
 use actix_web::error::ErrorServiceUnavailable;
 use actix_web::http::header;
 use actix_web::rt;
@@ -27,13 +26,16 @@ use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::agent_relay_error::AgentRelayError;
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::controls_session::ControlsSession as _;
+use crate::distinct_embedding_documents::DistinctEmbeddingDocuments;
 use crate::embedding_chunk_dispatch::EmbeddingChunkDispatch;
+use crate::embedding_document_duplicates::EmbeddingDocumentDuplicates;
 use crate::inference_service::app_data::AppData;
 use crate::request_from_agent::request_from_agent;
 use crate::request_from_dispatched_agent::request_from_dispatched_agent;
@@ -42,21 +44,12 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<GenerateEmbeddingBatchParams>,
 ) -> Result<impl Responder, Error> {
-    let agent_desired_state = app_data
+    let embedding_batch_size = app_data
         .balancer_applicable_state_holder
-        .get_agent_desired_state();
-
-    if !agent_desired_state.inference_parameters.enable_embeddings {
-        return Err(ErrorNotImplemented(
-            "Embedding generation is not enabled in the inference parameters",
-        ));
-    }
-
-    let Some(agent_count) = NonZeroUsize::new(app_data.agent_controller_pool.agents.len()) else {
-        return Err(ErrorServiceUnavailable("No agents are currently connected"));
-    };
-    let embedding_batch_size = agent_desired_state
-        .inference_parameters
+        .require_inference_mode(GenerateEmbeddingBatchParams::INFERENCE_MODE)
+        .map_err(ErrorServiceUnavailable)?
+        .balancer_desired_state
+        .embeddings
         .embedding_batch_size;
 
     let connection_close = CancellationToken::new();
@@ -65,26 +58,39 @@ async fn respond(
 
     let mut chunk_tasks: JoinSet<()> = JoinSet::new();
 
-    let batches = params
-        .into_inner()
-        .chunk_evenly_with_cap(agent_count, embedding_batch_size);
+    let DistinctEmbeddingDocuments {
+        duplicates,
+        params: distinct_params,
+    } = DistinctEmbeddingDocuments::from(params.into_inner());
+    let embedding_document_duplicates = Arc::new(duplicates);
+    let batches = distinct_params.chunk_evenly_with_cap(
+        app_data.agent_controller_pool.agent_count(),
+        embedding_batch_size,
+    );
 
     let chunk_dispatches: Vec<EmbeddingChunkDispatch> = batches
         .into_iter()
-        .map(
-            |batch| match app_data.buffered_request_manager.take_available_agent() {
+        .map(|batch| {
+            match app_data
+                .buffered_request_manager
+                .take_available_agent(GenerateEmbeddingBatchParams::INFERENCE_MODE)
+            {
                 Some(dispatched_agent) => EmbeddingChunkDispatch::Claimed {
                     batch,
                     dispatched_agent,
                 },
                 None => EmbeddingChunkDispatch::Buffered { batch },
-            },
-        )
+            }
+        })
         .collect();
 
     for chunk_dispatch in chunk_dispatches {
-        let session_controller =
-            ChunkForwardingSessionController::new(chunk_tx.clone(), EmbeddingChunkBodyTransformer);
+        let session_controller = ChunkForwardingSessionController::new(
+            chunk_tx.clone(),
+            EmbeddingChunkBodyTransformer {
+                embedding_document_duplicates: embedding_document_duplicates.clone(),
+            },
+        );
 
         match chunk_dispatch {
             EmbeddingChunkDispatch::Claimed {
@@ -142,8 +148,9 @@ async fn respond(
         .streaming(stream))
 }
 
-#[derive(Clone)]
-struct EmbeddingChunkBodyTransformer;
+struct EmbeddingChunkBodyTransformer {
+    embedding_document_duplicates: Arc<EmbeddingDocumentDuplicates>,
+}
 
 #[async_trait]
 impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
@@ -161,9 +168,15 @@ impl TransformsOutgoingMessage for EmbeddingChunkBodyTransformer {
             return Ok(vec![TransformResult::Discard]);
         }
 
-        to_string(&message)
-            .map(|serialized| vec![TransformResult::Chunk(serialized)])
-            .map_err(AgentRelayError::MessageUnserializable)
+        self.embedding_document_duplicates
+            .fan_out(message)
+            .iter()
+            .map(|fanned_out_message| {
+                to_string(fanned_out_message)
+                    .map(TransformResult::Chunk)
+                    .map_err(AgentRelayError::MessageUnserializable)
+            })
+            .collect()
     }
 }
 

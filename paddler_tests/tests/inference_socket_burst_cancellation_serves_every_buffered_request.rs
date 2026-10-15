@@ -5,11 +5,9 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
@@ -97,17 +95,9 @@ async fn inference_socket_burst_cancellation_serves_every_buffered_request() {
             .await
             .expect("the generated tokens must be collected");
 
-        assert!(
-            matches!(
-                collected.token_results.last(),
-                Some(TokenResultWithProducer {
-                    token_result: GeneratedTokenResult::Done(_),
-                    ..
-                })
-            ),
-            "every buffered request must run to completion once a slot frees, not end with an error: {:?}",
-            collected.token_results.last()
-        );
+        collected
+            .summary()
+            .expect("every buffered request must run to completion once a slot frees, not end with an error");
         assert!(
             collected
                 .token_results

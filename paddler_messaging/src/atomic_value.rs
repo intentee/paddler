@@ -56,10 +56,6 @@ impl AtomicValue<AtomicU64> {
             })
             .is_ok()
     }
-
-    pub fn reset(&self) {
-        self.value.store(0, Ordering::SeqCst);
-    }
 }
 
 #[cfg(test)]

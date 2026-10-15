@@ -1,7 +1,12 @@
 pub mod agent_controller;
+#[cfg(test)]
+mod agent_controller_fixture;
 pub mod agent_controller_pool;
 mod agent_controller_pool_total_slots;
+pub mod agent_controller_pool_updates;
 pub mod agent_controller_registration;
+#[cfg(test)]
+mod agent_controller_registration_agent_id;
 pub mod agent_controller_slot_guard;
 pub mod agent_controller_update_result;
 pub mod agent_desired_state_notification;
@@ -15,6 +20,7 @@ pub mod agent_streaming_request;
 pub mod balancer_addresses;
 pub mod balancer_applicable_state;
 pub mod balancer_applicable_state_holder;
+pub mod balancer_desired_state_store;
 pub mod balancer_gauge;
 pub mod balancer_metrics;
 pub mod balancer_shutdown_error;
@@ -24,17 +30,19 @@ mod buffered_request_counter;
 pub mod buffered_request_manager;
 pub mod cancellation_token_stream_guard;
 pub mod chunk_forwarding_session_controller;
-pub mod cluster_token_generation_mode;
+pub mod cluster_serves_another_inference_mode;
 pub mod compatibility;
 pub mod continuation_decision;
 pub mod controls_session;
 pub mod controls_websocket_endpoint;
 pub mod cors_allowed_hosts_with_web_admin_panel;
 pub mod create_cors_middleware;
-pub mod desired_state_delivery;
 pub mod dispatch_candidate;
 pub mod dispatched_agent;
+pub mod distinct_embedding_documents;
 pub mod embedding_chunk_dispatch;
+pub mod embedding_document_duplicates;
+pub mod enqueue_websocket_frame;
 pub mod forward_responses_stream;
 pub mod forwarding_event;
 pub mod forwarding_plan;
@@ -58,7 +66,6 @@ pub mod response_senders;
 pub mod run_http_service;
 pub mod run_http_service_parameters;
 pub mod serve_http_until_shutdown;
-pub mod session_keep_alive;
 pub mod snapshots_stream;
 pub mod sse_response_from_snapshots;
 #[cfg(feature = "web_admin_panel")]
@@ -66,7 +73,11 @@ pub mod static_files;
 pub mod statsd_service;
 mod unbounded_stream_from_agent;
 mod unbounded_stream_from_agent_params;
+#[cfg(test)]
+mod unexpiring_inference_service_configuration;
 #[cfg(feature = "web_admin_panel")]
 pub mod web_admin_panel_service;
 pub mod websocket_close_cause;
+pub mod websocket_outbound_frame;
 pub mod websocket_session_controller;
+pub mod write_websocket_session;

@@ -1,8 +1,12 @@
+use std::time::Duration;
+
 use http::StatusCode;
 
 #[derive(Clone)]
 pub enum FixtureResponse {
-    CloseBeforeHeaders,
+    EndlessTrickle {
+        byte_interval: Duration,
+    },
     Ok(Vec<u8>),
     PartialContent {
         body: Vec<u8>,

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "paddler-openai-client-python-test"
-version = "4.0.1"
+version = "5.0.0"
 description = "Drives Paddler's OpenAI-compatible endpoints with the OpenAI client to verify real-client compatibility"
 authors = ["Intentee"]
 license = "Apache-2.0"
@@ -11,9 +11,7 @@ python = "^3.11"
 openai = "==2.41.0"
 
 [tool.poetry.group.dev.dependencies]
-paddler-test-cluster = { path = "../paddler_test_cluster_python", develop = true }
 pytest = "9.0.3"
-pytest-asyncio = "1.3.0"
 pyright = "1.1.410"
 ruff = "0.15.12"
 mypy = "1.20.2"
@@ -48,6 +46,5 @@ ignore = [
 ]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "-v"

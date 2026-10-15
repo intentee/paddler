@@ -27,19 +27,17 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body_json;
     use actix_web::web::Data;
-    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::api_path::ApiPath;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
     use paddler_state_database::memory::Memory;
+    use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::get_buffered_requests;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::agent_response_senders::AgentResponseSenders;
-    use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::balancer_desired_state_store::BalancerDesiredStateStore;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::management_service::app_data::AppData;
 
@@ -58,21 +56,20 @@ mod tests {
             .buffered_request_counter
             .try_admit();
 
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
-
+        let balancer_desired_state_store = BalancerDesiredStateStore::load(Arc::new(Memory::new(
+            StoredBalancerDesiredState::NothingStored,
+        )))
+        .await
+        .expect("the desired state store must load");
         let app_data = Data::new(AppData {
             agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                BalancerApplicableState::from(BalancerDesiredState::default()),
-            )),
+            balancer_applicable_state_holder: Arc::new(
+                balancer_desired_state_store.applicable_state_holder(),
+            ),
+            balancer_desired_state_store: Arc::new(balancer_desired_state_store),
             buffered_request_manager,
             agent_response_senders: AgentResponseSenders::default(),
             shutdown: CancellationToken::new(),
-            state_database: Arc::new(Memory::new(
-                balancer_desired_state_notify_tx,
-                BalancerDesiredState::default(),
-            )),
             statsd_prefix: "paddler".to_owned(),
         });
 

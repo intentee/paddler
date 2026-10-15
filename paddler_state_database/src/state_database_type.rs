@@ -6,9 +6,8 @@ use std::str::FromStr;
 use shellexpand::tilde;
 use url::Url;
 
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
 use crate::state_database_error::StateDatabaseError;
+use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
 
 fn relative_path_error(path: &str) -> StateDatabaseError {
     match absolute(tilde(path).to_string()) {
@@ -20,10 +19,10 @@ fn relative_path_error(path: &str) -> StateDatabaseError {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum StateDatabaseType {
     File(PathBuf),
-    Memory(Box<BalancerDesiredState>),
+    Memory(Box<StoredBalancerDesiredState>),
 }
 
 impl FromStr for StateDatabaseType {
@@ -54,7 +53,9 @@ impl FromStr for StateDatabaseType {
 
                 Ok(Self::File(PathBuf::from(path)))
             }
-            "memory" => Ok(Self::Memory(Box::default())),
+            "memory" => Ok(Self::Memory(Box::new(
+                StoredBalancerDesiredState::NothingStored,
+            ))),
             scheme => Err(StateDatabaseError::SchemeUnsupported {
                 scheme: scheme.to_owned(),
             }),
@@ -73,14 +74,13 @@ mod tests {
 
     use super::StateDatabaseType;
     use crate::state_database_error::StateDatabaseError;
+    use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     #[test]
-    fn parses_a_memory_url() {
-        let result = StateDatabaseType::from_str("memory://").unwrap();
-
+    fn parses_a_memory_url_into_an_empty_database() {
         assert_eq!(
-            discriminant(&result),
-            discriminant(&StateDatabaseType::Memory(Box::default())),
+            StateDatabaseType::from_str("memory://").unwrap(),
+            StateDatabaseType::Memory(Box::new(StoredBalancerDesiredState::NothingStored))
         );
     }
 
@@ -120,19 +120,9 @@ mod tests {
 
     #[test]
     fn parses_a_file_url_with_an_absolute_path() {
-        #[cfg(unix)]
-        let expected_path = "/absolute/path";
-        #[cfg(unix)]
-        let url = "file:///absolute/path";
-        #[cfg(windows)]
-        let expected_path = "C:/absolute/path";
-        #[cfg(windows)]
-        let url = "file://C:/absolute/path";
-
-        let result = StateDatabaseType::from_str(url).unwrap();
-
-        assert!(
-            matches!(&result, StateDatabaseType::File(path) if path == &PathBuf::from(expected_path))
+        assert_eq!(
+            StateDatabaseType::from_str("file:///absolute/path").unwrap(),
+            StateDatabaseType::File(PathBuf::from("/absolute/path"))
         );
     }
 

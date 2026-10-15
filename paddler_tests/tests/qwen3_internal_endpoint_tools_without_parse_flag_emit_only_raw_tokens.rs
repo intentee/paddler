@@ -41,27 +41,24 @@ async fn qwen3_internal_endpoint_tools_without_parse_flag_emit_only_raw_tokens()
         .await
         .expect("the inference request must be accepted");
 
-    for event in &collected.token_results {
-        match &event.token_result {
-            GeneratedTokenResult::ToolCallParsed(_)
-            | GeneratedTokenResult::ToolCallParseFailed(_)
-            | GeneratedTokenResult::ToolSchemaInvalid(_)
-            | GeneratedTokenResult::ToolCallValidationFailed(_) => {
-                panic!(
-                    "expected no parsed/parse-failed/schema-invalid/validation-failed events when parse_tool_calls=false, got: {event:?}"
-                );
-            }
-            _ => {}
-        }
-    }
+    assert_eq!(
+        collected
+            .token_results
+            .iter()
+            .map(|event| &event.token_result)
+            .filter(|token_result| {
+                token_result.is_tool_call_parsed()
+                    || token_result.is_tool_call_failure()
+                    || matches!(token_result, GeneratedTokenResult::ToolSchemaInvalid(_))
+            })
+            .collect::<Vec<_>>(),
+        Vec::<&GeneratedTokenResult>::new(),
+        "expected no parsed/parse-failed/schema-invalid/validation-failed events when parse_tool_calls=false"
+    );
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(_) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     cluster
         .shutdown()

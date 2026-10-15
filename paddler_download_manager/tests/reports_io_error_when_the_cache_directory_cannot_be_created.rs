@@ -42,4 +42,10 @@ async fn reports_io_error_when_the_cache_directory_cannot_be_created() {
             if path == destination.with_extension("partial")
                 && source.kind() == ErrorKind::NotADirectory
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

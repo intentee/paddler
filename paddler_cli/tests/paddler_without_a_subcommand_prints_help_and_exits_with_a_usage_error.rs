@@ -1,6 +1,6 @@
 use std::process::Command;
 
-const CLAP_USAGE_ERROR_EXIT_CODE: i32 = 2;
+use crate::clap_usage_error_exit_code::CLAP_USAGE_ERROR_EXIT_CODE;
 
 #[test]
 fn paddler_without_a_subcommand_prints_help_and_exits_with_a_usage_error() {

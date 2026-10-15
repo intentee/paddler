@@ -6,7 +6,7 @@ use crate::jsonrpc::response_envelope::ResponseEnvelope;
 use crate::management_socket::agent::response::Response;
 use crate::rpc_message::RpcMessage;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum Message {
     Notification(Notification),

@@ -32,4 +32,10 @@ async fn reports_rejected_request_for_other_client_errors_without_retrying() {
     ));
     assert_eq!(fixture.request_count(), 1);
     assert!(recorded_download.progress.is_empty());
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

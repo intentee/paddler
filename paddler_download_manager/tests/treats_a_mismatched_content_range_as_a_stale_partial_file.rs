@@ -47,4 +47,10 @@ async fn treats_a_mismatched_content_range_as_a_stale_partial_file() {
             .expect("the partial path must be inspectable")
     );
     assert!(recorded_download.progress.is_empty());
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

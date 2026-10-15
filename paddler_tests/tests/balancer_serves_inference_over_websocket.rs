@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use std::mem::discriminant;
 use std::num::NonZeroU32;
 
 use futures_util::StreamExt as _;
@@ -7,8 +8,10 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::generation_done_discriminant::generation_done_discriminant;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -17,7 +20,7 @@ async fn balancer_serves_inference_over_websocket() {
         .await
         .expect("the cluster must start");
 
-    let mut stream = cluster
+    let stream = cluster
         .client_inference
         .continue_from_raw_prompt(
             CancellationToken::new(),
@@ -30,33 +33,33 @@ async fn balancer_serves_inference_over_websocket() {
         .await
         .expect("the inference request must be accepted");
 
-    let mut token_count: usize = 0;
+    let messages: Vec<InferenceMessage> = stream
+        .map(|message_result| message_result.expect("the message must be readable"))
+        .collect()
+        .await;
 
-    while let Some(message_result) = stream.next().await {
-        match message_result.expect("the message must be readable") {
-            InferenceMessage::Response(envelope) => match envelope.response {
-                Response::GeneratedToken(generated_token_result) => {
-                    if generated_token_result.is_token() {
-                        token_count += 1;
-                    }
-                }
-                Response::Embedding(_) => {
-                    panic!("inference over websocket produced an unexpected response variant")
-                }
-            },
-            InferenceMessage::Error(envelope) => {
-                panic!(
-                    "inference over websocket failed: code {}, description {:?}",
-                    envelope.error.code, envelope.error.description
-                )
-            }
-            InferenceMessage::Notification(_) => {
-                panic!("inference over websocket produced an unexpected notification")
-            }
-        }
-    }
-
-    assert!(token_count > 0);
+    assert!(messages.iter().all(|message| matches!(
+        message,
+        InferenceMessage::Response(ResponseEnvelope {
+            generated_by: Some(agent_name),
+            response: Response::GeneratedToken(_),
+            ..
+        }) if agent_name == "test-agent-0"
+    )));
+    assert!(messages.iter().any(|message| matches!(
+        message,
+        InferenceMessage::Response(ResponseEnvelope {
+            response: Response::GeneratedToken(token_result),
+            ..
+        }) if token_result.is_token()
+    )));
+    assert!(matches!(
+        messages.last(),
+        Some(InferenceMessage::Response(ResponseEnvelope {
+            response: Response::GeneratedToken(token_result),
+            ..
+        })) if discriminant(token_result) == generation_done_discriminant()
+    ));
 
     cluster
         .shutdown()

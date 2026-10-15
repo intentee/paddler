@@ -6,6 +6,7 @@ import {
 } from "../src/schemas/BalancerDesiredState";
 import { streamEventSource } from "../src/streamEventSource";
 import type { AgentSpec } from "./AgentSpec";
+import { agentsStreamUrl } from "./agentsStreamUrl";
 import type { BalancerAddresses } from "./BalancerAddresses";
 import { putBalancerDesiredState } from "./putBalancerDesiredState";
 import { spawnAgent } from "./spawnAgent";
@@ -47,13 +48,16 @@ export function withPaddlerCluster<TResult>(
         await putBalancerDesiredState({ desiredState, managementAddress });
 
         for (const agent of agents) {
-          agentProcesses.push(spawnAgent({ agent, managementAddress }));
+          const agentProcess = spawnAgent({ agent, managementAddress });
+
+          agentProcesses.push(agentProcess);
 
           await waitForAgentReady({
             agentName: agent.name,
+            agentProcess,
             agentsStates: streamEventSource({
               schema: AgentsResponseSchema,
-              url: `http://${managementAddress}/api/v1/agents/stream`,
+              url: agentsStreamUrl(managementAddress),
             }),
             expectedSlotsTotal: desiredState.model === "None" ? 0 : agent.slots,
           });

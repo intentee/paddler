@@ -32,25 +32,27 @@ Copy this checklist and tick each item as the suite completes:
 - [ ] JS client
 - [ ] JS client LLM
 - [ ] Python lint
-- [ ] Python client
-- [ ] Python client LLM
 - [ ] OpenAI Python client LLM
+- [ ] TypeSafe Python client LLM
+- [ ] kev converter Python LLM
 - [ ] Rust unit
 - [ ] Rust integration
+- [ ] OpenCode integration
 ```
 
-| # | Suite                    | Command (from the repo root)                          |
-|---|--------------------------|-------------------------------------------------------|
-| 1 | JS client                | `TEST_DEVICE=$DEVICE make test.client.js`             |
-| 2 | JS client LLM            | `TEST_DEVICE=$DEVICE make test.client.js.llm`         |
-| 3 | Python lint              | `make lint.client.python lint.openai.python`          |
-| 4 | Python client            | `TEST_DEVICE=$DEVICE make test.client.python`         |
-| 5 | Python client LLM        | `TEST_DEVICE=$DEVICE make test.client.python.llm`     |
-| 6 | OpenAI Python client LLM | `TEST_DEVICE=$DEVICE make test.openai.python.llm`     |
-| 7 | Rust unit                | `TEST_DEVICE=$DEVICE make test.unit`                  |
-| 8 | Rust integration         | `TEST_DEVICE=$DEVICE make test.integration`           |
+| # | Suite                      | Command (from the repo root)                                                                     |
+|---|----------------------------|--------------------------------------------------------------------------------------------------|
+| 1 | JS client                  | `TEST_DEVICE=$DEVICE make test.client.js`                                                        |
+| 2 | JS client LLM              | `TEST_DEVICE=$DEVICE make test.client.js.llm`                                                    |
+| 3 | Python lint                | `make lint.openai.python lint.typesafe.python lint.kev_converter.python`                         |
+| 4 | OpenAI Python client LLM   | `TEST_DEVICE=$DEVICE make test.openai.python.llm`                                                |
+| 5 | TypeSafe Python client LLM | `TEST_DEVICE=$DEVICE make test.typesafe.python.llm`                                              |
+| 6 | kev converter Python LLM   | `make test.kev_converter.python.llm`                                                             |
+| 7 | Rust unit                  | `TEST_DEVICE=$DEVICE make test.unit`                                                             |
+| 8 | Rust integration           | `TEST_DEVICE=$DEVICE make test.integration`                                                      |
+| 9 | OpenCode integration       | `PADDLER_OPENCODE_BINARY=$(command -v opencode) TEST_DEVICE=$DEVICE make test.integration.opencode` |
 
-Run them in this order. Cheap suites (1, 3, 4, 7) surface bugs quickly; the GPU-bound suites (2, 5, 6, 8) load models.
+Run them in this order. Cheap suites (1, 3, 7) surface bugs quickly; the GPU-bound suites (2, 4, 5, 6, 8, 9) load models.
 
 On NixOS the pinned `ruff` wheel is dynamically linked, so suite 3 needs `nix-ld`.
 

@@ -45,4 +45,10 @@ async fn reports_cache_disk_full_when_a_body_chunk_cannot_be_written() {
         recorded_download.result,
         Err(DownloadError::CacheDiskFull { source, .. }) if source.kind() == ErrorKind::StorageFull
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

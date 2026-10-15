@@ -7,8 +7,6 @@ use serde_json::Value;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -23,23 +21,16 @@ use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_tool_call_validation_failure() {
-    let base_desired_state = qwen3_0_6b().into_desired_state();
-
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 1,
         }],
-        desired_state: Some(BalancerDesiredState {
-            inference_parameters: InferenceParameters {
-                temperature: 0.0,
-                ..base_desired_state.inference_parameters
-            },
-            ..base_desired_state
-        }),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

@@ -53,3 +53,19 @@ pub fn dashboard_attributes(page: &str) -> Result<BTreeMap<String, String>, Clus
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::mem::discriminant;
+
+    use super::dashboard_attributes;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[test]
+    fn a_page_without_the_dashboard_reports_it_missing() {
+        assert_eq!(
+            discriminant(&dashboard_attributes("<html><body></body></html>").unwrap_err()),
+            discriminant(&ClusterHarnessError::DashboardElementMissing)
+        );
+    }
+}

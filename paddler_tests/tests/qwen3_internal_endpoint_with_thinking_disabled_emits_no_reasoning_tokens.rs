@@ -54,13 +54,9 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
     );
     assert!(content_count > 0, "expected content tokens to be produced");
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert_eq!(summary.usage.reasoning_tokens, 0);

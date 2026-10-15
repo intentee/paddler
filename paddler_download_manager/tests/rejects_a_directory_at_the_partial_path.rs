@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use tempfile::TempDir;
 use tokio::fs::create_dir;
 use tokio_util::sync::CancellationToken;
@@ -41,4 +39,10 @@ async fn rejects_a_directory_at_the_partial_path() {
         Err(DownloadError::PartialPathIsADirectory { partial_path: rejected_path })
             if rejected_path == partial_path
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

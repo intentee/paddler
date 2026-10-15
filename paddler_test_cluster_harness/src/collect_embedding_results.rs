@@ -19,11 +19,9 @@ pub async fn collect_embedding_results(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedEmbeddingResults> {
     let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
-    let mut embeddings_disabled = false;
-    let mut errors: Vec<String> = Vec::new();
-    let mut embedding_rejected_due_to_active_token_generation_count: usize = 0;
-    let mut model_not_loaded_count: usize = 0;
+    let mut failures: Vec<EmbeddingResult> = Vec::new();
     let mut no_embeddings_produced_count: usize = 0;
+    let mut documents_exceeding_sequence_context = Vec::new();
     let mut oversized_documents = Vec::new();
     let mut request_ids = BTreeSet::new();
     let mut saw_done = false;
@@ -53,17 +51,19 @@ pub async fn collect_embedding_results(
                     EmbeddingResult::DocumentExceedsBatchSize(details) => {
                         oversized_documents.push(details);
                     }
-                    EmbeddingResult::EmbeddingsDisabled => {
-                        embeddings_disabled = true;
+                    EmbeddingResult::DocumentExceedsSequenceContext(details) => {
+                        documents_exceeding_sequence_context.push(details);
                     }
-                    EmbeddingResult::Error(message) => {
-                        errors.push(message);
-                    }
-                    EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration => {
-                        embedding_rejected_due_to_active_token_generation_count += 1;
-                    }
-                    EmbeddingResult::ModelNotLoaded(_) => {
-                        model_not_loaded_count += 1;
+                    failure @ (EmbeddingResult::AgentRuntimeFailed(_)
+                    | EmbeddingResult::BatchAssemblyFailed(_)
+                    | EmbeddingResult::DecodeFailed(_)
+                    | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+                    | EmbeddingResult::EmbeddingsUnavailable(_)
+                    | EmbeddingResult::InferenceModeMismatch(_)
+                    | EmbeddingResult::InputTokenizationFailed(_)
+                    | EmbeddingResult::ModelNotLoaded(_)
+                    | EmbeddingResult::SchedulerUnavailable(_)) => {
+                        failures.push(failure);
                     }
                     EmbeddingResult::NoEmbeddingsProduced => {
                         no_embeddings_produced_count += 1;
@@ -84,15 +84,56 @@ pub async fn collect_embedding_results(
     }
 
     Ok(CollectedEmbeddingResults {
+        documents_exceeding_sequence_context,
         embeddings,
-        embeddings_disabled,
-        errors,
-        embedding_rejected_due_to_active_token_generation_count,
-        model_not_loaded_count,
+        failures,
         no_embeddings_produced_count,
         oversized_documents,
         request_ids,
         saw_done,
         wire_errors,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::stream::iter;
+
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::response::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+    use super::collect_embedding_results;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[tokio::test]
+    async fn refuses_a_message_that_is_not_an_embedding_result() {
+        let generated_content_token = || {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "generation-request".to_owned(),
+                response: InferenceResponse::GeneratedToken(GeneratedTokenResult::ContentToken(
+                    "piece".to_owned(),
+                )),
+            })
+        };
+        let collection_error =
+            collect_embedding_results(Box::pin(iter([Ok(generated_content_token())])))
+                .await
+                .err()
+                .expect("a stream of another kind of message must be refused");
+
+        assert_eq!(
+            collection_error
+                .downcast_ref::<ClusterHarnessError>()
+                .map(ToString::to_string),
+            Some(
+                ClusterHarnessError::EmbeddingStreamMessageUnexpected {
+                    message: Box::new(generated_content_token()),
+                }
+                .to_string()
+            )
+        );
+    }
 }

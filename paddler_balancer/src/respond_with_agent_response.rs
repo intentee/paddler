@@ -40,3 +40,46 @@ where
         Err(err) => HttpResponse::InternalServerError().body(format!("{err}")),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use actix_web::body::to_bytes;
+    use actix_web::http::StatusCode;
+    use actix_web::web::Bytes;
+
+    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+
+    use super::respond_with_agent_response;
+    use crate::agent_controller_fixture::AgentControllerFixture;
+    use crate::agent_controller_pool::AgentControllerPool;
+
+    #[tokio::test]
+    async fn asking_an_agent_whose_socket_closed_answers_with_an_internal_error() {
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
+        let _registration = agent_controller_pool.register_agent_controller(
+            AgentControllerFixture::whose_socket_is_gone(
+                "agent",
+                SlotAggregatedStatusSnapshot::default(),
+            ),
+        );
+
+        let response =
+            respond_with_agent_response(&agent_controller_pool, "agent", |agent_controller| {
+                agent_controller.get_model_metadata()
+            })
+            .await;
+
+        assert_eq!(
+            (
+                response.status(),
+                to_bytes(response.into_body()).await.unwrap()
+            ),
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Bytes::from_static(b"The socket of agent agent is closed")
+            )
+        );
+    }
+}

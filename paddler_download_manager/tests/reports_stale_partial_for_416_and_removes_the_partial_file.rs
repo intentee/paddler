@@ -45,4 +45,10 @@ async fn reports_stale_partial_for_416_and_removes_the_partial_file() {
             .await
             .expect("the partial path must be inspectable")
     );
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

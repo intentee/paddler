@@ -91,7 +91,7 @@ mod tests {
             model_path: progress.model_path.clone(),
         });
 
-        status.register_issue(lock_issue.clone());
+        status.register_desired_state_issue(lock_issue.clone());
 
         progress.init(1000, "model.gguf").await;
 

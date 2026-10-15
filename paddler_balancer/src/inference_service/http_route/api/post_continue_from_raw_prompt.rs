@@ -1,11 +1,13 @@
 use actix_web::Error;
 use actix_web::Responder;
+use actix_web::error::ErrorServiceUnavailable;
 use actix_web::web;
 use actix_web::web::post;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 
+use crate::agent_streaming_request::AgentStreamingRequest as _;
 use crate::chunk_forwarding_session_controller::identity_transformer::IdentityTransformer;
 use crate::inference_service::app_data::AppData;
 use crate::ndjson_response::ndjson_response;
@@ -18,8 +20,8 @@ async fn respond(
 ) -> Result<impl Responder, Error> {
     app_data
         .balancer_applicable_state_holder
-        .token_generation_mode()
-        .require_enabled()?;
+        .require_inference_mode(ContinueFromRawPromptParams::INFERENCE_MODE)
+        .map_err(ErrorServiceUnavailable)?;
 
     Ok(ndjson_response(unbounded_stream_from_agent(
         UnboundedStreamFromAgentParams {

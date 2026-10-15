@@ -7,6 +7,7 @@ use crate::statsd_service::configuration::Configuration as StatsdServiceConfigur
 pub struct TemplateData {
     pub buffered_request_timeout: Duration,
     pub compat_openai_addr: Option<ResolvedSocketAddr>,
+    pub compat_typesafe_addr: Option<ResolvedSocketAddr>,
     pub inference_addr: ResolvedSocketAddr,
     pub management_addr: ResolvedSocketAddr,
     pub max_buffered_requests: u64,

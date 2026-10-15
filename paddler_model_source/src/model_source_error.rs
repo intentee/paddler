@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use hf_hub::api::tokio::ApiError;
 use reqwest::Error as ReqwestError;
 use thiserror::Error;
+use url::ParseError;
 
 use paddler_cache_dir::cache_dir_error::CacheDirError;
 use paddler_download_manager::download_error::DownloadError;
@@ -40,6 +41,10 @@ pub enum ModelSourceError {
     HuggingFaceModelKnownToBeMissing { model_path: String },
     #[error("Model '{model_path}' does not exist on Hugging Face.")]
     HuggingFaceModelMissing { model_path: String },
+    #[error(
+        "Hugging Face model URI '{uri}' must point at a file: https://huggingface.co/<owner>/<repo>/blob/<revision>/<file>"
+    )]
+    HuggingFaceModelUriMalformed { uri: String },
     #[error("You do not have enough permissions to download '{model_path}' from Hugging Face.")]
     HuggingFacePermissionDenied { model_path: String },
     #[error("Local file does not exist: {path_display}", path_display = path.display())]
@@ -49,5 +54,17 @@ pub enum ModelSourceError {
         path: PathBuf,
         #[source]
         source: io::Error,
+    },
+    #[error("Model URI '{uri}' is neither a Hugging Face, an agent:// nor a downloadable URI")]
+    ModelUriNotDownloadable {
+        uri: String,
+        #[source]
+        source: DownloadError,
+    },
+    #[error("Model URI '{uri}' cannot be parsed")]
+    ModelUriUnparseable {
+        uri: String,
+        #[source]
+        source: ParseError,
     },
 }

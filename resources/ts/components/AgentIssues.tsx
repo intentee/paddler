@@ -224,6 +224,49 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
+        if ("HuggingFaceModelUriIsMalformed" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Hugging Face model URI does not point at a file:{" "}
+                {issue.HuggingFaceModelUriIsMalformed.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will not load the model until the URI points at a file.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">
+                  Edit the model URI on the model configuration page
+                </Link>{" "}
+                to the form
+                https://huggingface.co/owner/repository/blob/revision/file.gguf.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ModelUriIsUnparseable" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Model URI cannot be parsed:{" "}
+                {issue.ModelUriIsUnparseable.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>Paddler will not load the model until the URI is valid.</p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">
+                  Edit the model URI on the model configuration page
+                </Link>{" "}
+                to a Hugging Face, agent:// or http(s) URI.
+              </p>
+            </li>
+          );
+        }
+
         if ("DownloadUrlIsMalformed" in issue) {
           return (
             <li className={agentIssues__issue} key={index}>
@@ -417,9 +460,10 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
               <strong>What can you do?</strong>{" "}
               <p>
                 Grant write permission to the cache directory (
-                <code>$XDG_CACHE_HOME/paddler</code> on Linux/macOS,{" "}
-                <code>%LOCALAPPDATA%\paddler</code> on Windows), or set{" "}
-                <code>PADDLER_CACHE_DIR</code> to a writable location.
+                <code>$XDG_CACHE_HOME/paddler</code>, or{" "}
+                <code>~/.cache/paddler</code> when <code>XDG_CACHE_HOME</code>{" "}
+                is unset), or set <code>PADDLER_CACHE_DIR</code> to a writable
+                location.
               </p>
             </li>
           );
@@ -460,6 +504,82 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
                 If the issue persists, manually clear the{" "}
                 <code>downloaded-models</code> subdirectory of the cache and let
                 Paddler rebuild it.
+              </p>
+            </li>
+          );
+        }
+
+        if ("ModelArchitectureUnsupportedForDecisions" in issue) {
+          const { architecture, model_path } =
+            issue.ModelArchitectureUnsupportedForDecisions;
+
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                {model_path.model_path} is a {architecture} model, which cannot
+                serve decisions
+              </strong>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">Change the model</Link> to a Qwen3.5
+                decision model.
+              </p>
+            </li>
+          );
+        }
+
+        if ("PointerHeadCannotBeLoaded" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Pointer head cannot be loaded:{" "}
+                {issue.PointerHeadCannotBeLoaded.model_path}
+              </strong>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Either ensure that the file is a pointer head available to the
+                agent, or <Link href="/model">change the pointer head</Link>.
+              </p>
+            </li>
+          );
+        }
+
+        if ("PointerHeadIncompatibleWithModel" in issue) {
+          const { incompatibility, pointer_head_path } =
+            issue.PointerHeadIncompatibleWithModel;
+
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Pointer head {pointer_head_path.model_path} does not fit the
+                model:{" "}
+                {"HiddenSizeMismatch" in incompatibility
+                  ? `it reads ${incompatibility.HiddenSizeMismatch.pointer_head_hidden_size}-dimensional hidden states, the model produces ${incompatibility.HiddenSizeMismatch.model_hidden_size}`
+                  : `its delimiter ${incompatibility.DelimiterIsNotAControlToken.delimiter} is not a control token of the model`}
+              </strong>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                <Link href="/model">Use the pointer head</Link> that was
+                converted together with the model.
+              </p>
+            </li>
+          );
+        }
+
+        if ("SlotsInsufficientForDecisions" in issue) {
+          const { desired_slots, required_slots } =
+            issue.SlotsInsufficientForDecisions;
+
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Decisions need at least {required_slots} slots, the agent runs{" "}
+                {desired_slots}
+              </strong>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Restart the agent with <code>--slots {required_slots}</code> or
+                more.
               </p>
             </li>
           );

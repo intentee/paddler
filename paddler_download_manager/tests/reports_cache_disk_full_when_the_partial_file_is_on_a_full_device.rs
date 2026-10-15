@@ -41,4 +41,10 @@ async fn reports_cache_disk_full_when_the_partial_file_is_on_a_full_device() {
         recorded_download.result,
         Err(DownloadError::CacheDiskFull { source, .. }) if source.kind() == ErrorKind::StorageFull
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

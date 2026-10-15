@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use std::io::ErrorKind;
 
 use tempfile::TempDir;
@@ -46,4 +44,10 @@ async fn reports_io_error_when_the_destination_is_a_non_empty_directory() {
             if path == destination.with_extension("partial")
                 && source.kind() == ErrorKind::IsADirectory
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

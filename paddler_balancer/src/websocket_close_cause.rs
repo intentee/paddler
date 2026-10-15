@@ -11,7 +11,7 @@ const fn described_close_reason(code: CloseCode, description: String) -> CloseRe
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum WebSocketCloseCause {
     AgentAlreadyRegistered,
     AgentDeregistered,
@@ -21,6 +21,7 @@ pub enum WebSocketCloseCause {
     IncomingMessageTooBig,
     IncomingStreamFailed,
     PeerClosedConnection,
+    PeerStoppedAnsweringPings,
     ProtocolViolated,
     ServerShuttingDown,
     SessionAlreadyClosed,
@@ -55,6 +56,10 @@ impl WebSocketCloseCause {
             Self::IncomingStreamFailed => Some(described_close_reason(
                 CloseCode::Error,
                 "Failed to read the incoming message stream".to_owned(),
+            )),
+            Self::PeerStoppedAnsweringPings => Some(described_close_reason(
+                CloseCode::Policy,
+                "Peer stopped answering pings".to_owned(),
             )),
             Self::ProtocolViolated => Some(described_close_reason(
                 CloseCode::Protocol,

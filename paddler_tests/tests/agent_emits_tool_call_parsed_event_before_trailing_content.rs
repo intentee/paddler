@@ -1,21 +1,17 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use std::num::NonZeroU32;
-
+use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::ToolCallArguments;
 use serde_json::json;
-use serde_json::to_string;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::conversation_history::ConversationHistory;
-use paddler_messaging::conversation_message::ConversationMessage;
-use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::grammar_constraint::GrammarConstraint;
-use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::get_weather_tool::get_weather_tool;
+use paddler_tests::max_tokens_for_forced_text::max_tokens_for_forced_text;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::weather_question_conversation::weather_question_conversation;
 
 const TOOL_CALL_FOLLOWED_BY_CONTENT: &str = "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Paris\"}}\n</tool_call>\nI asked for the weather in Paris.";
 
@@ -28,30 +24,11 @@ async fn agent_emits_tool_call_parsed_event_before_trailing_content() {
     let collected = cluster
         .continue_from_conversation_history(
             CancellationToken::new(),
-            &ContinueFromConversationHistoryParams {
-                add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "What is the weather in Paris?".to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
-                enable_thinking: false,
-                grammar: Some(GrammarConstraint::Gbnf {
-                    grammar: format!(
-                        "root ::= {}",
-                        to_string(TOOL_CALL_FOLLOWED_BY_CONTENT).expect("the value must serialize")
-                    ),
-                    root: "root".to_owned(),
-                }),
-                max_tokens: NonZeroU32::try_from(
-                    u32::try_from(TOOL_CALL_FOLLOWED_BY_CONTENT.len())
-                        .expect("the value must fit its target type"),
-                )
-                .expect("the value must fit its target type"),
-                parse_tool_calls: true,
-                tools: vec![get_weather_tool()],
-            },
+            &weather_question_conversation(
+                gbnf_literal(TOOL_CALL_FOLLOWED_BY_CONTENT),
+                max_tokens_for_forced_text(TOOL_CALL_FOLLOWED_BY_CONTENT),
+                vec![get_weather_tool()],
+            ),
         )
         .await
         .expect("the inference request must be accepted");
@@ -70,11 +47,14 @@ async fn agent_emits_tool_call_parsed_event_before_trailing_content() {
         "expected content after the parsed tool call, got {token_results:?}"
     );
 
-    let Some(GeneratedTokenResult::ToolCallParsed(parsed_tool_calls)) =
-        tool_call_position.map(|position| &token_results[position])
-    else {
-        panic!("expected a parsed tool call, got {token_results:?}");
-    };
+    let parsed_tool_calls: Vec<&ParsedToolCall> = token_results
+        .iter()
+        .filter_map(|token_result| match token_result {
+            GeneratedTokenResult::ToolCallParsed(parsed_tool_calls) => Some(parsed_tool_calls),
+            _ => None,
+        })
+        .flatten()
+        .collect();
 
     assert_eq!(parsed_tool_calls.len(), 1);
     assert_eq!(parsed_tool_calls[0].name, "get_weather");

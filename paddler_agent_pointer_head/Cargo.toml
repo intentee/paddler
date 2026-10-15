@@ -1,0 +1,27 @@
+[package]
+name = "paddler_agent_pointer_head"
+autotests = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]
+llama-cpp-bindings = { workspace = true }
+thiserror = { workspace = true }
+
+[features]
+default = []
+cuda = ["llama-cpp-bindings/cuda"]
+metal = ["llama-cpp-bindings/metal"]
+vulkan = ["llama-cpp-bindings/vulkan"]
+
+[lints]
+workspace = true

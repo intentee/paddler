@@ -5,6 +5,8 @@ use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::inference_client::message::Message;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -47,17 +49,15 @@ async fn balancer_returns_503_when_request_buffering_disabled() {
         .expect("inference stream must yield a message")
         .expect("the message must be readable");
 
-    match message {
-        Message::Error(envelope) => {
-            assert_eq!(envelope.error.code, 503);
-        }
-        Message::Response(_) => {
-            panic!("expected buffer overflow error, got success");
-        }
-        Message::Notification(_) => {
-            panic!("unexpected token-generation-mode notification");
-        }
-    }
+    let expected_error = JsonRpcError {
+        code: 503,
+        description: "Buffered requests overflow".to_owned(),
+    };
+
+    assert!(matches!(
+        message,
+        Message::Error(ErrorEnvelope { error, .. }) if error == expected_error
+    ));
 
     cluster
         .shutdown()

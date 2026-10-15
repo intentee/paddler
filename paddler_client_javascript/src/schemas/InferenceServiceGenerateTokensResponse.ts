@@ -58,6 +58,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ GrammarRejectedModelOutput: z.string() }),
   z.object({ GrammarSyntaxError: z.string() }),
   z.object({ ImageDecodingFailed: z.string() }),
+  z.object({ InferenceModeMismatch: z.string() }),
   z.object({ MediaExceedsMicroBatch: OversizedMediaDetailsSchema }),
   z.object({ ModelNotLoaded: z.string() }),
   z.object({ MultimodalNotSupported: z.string() }),
@@ -72,10 +73,8 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ SamplerChainCreationFailed: z.string() }),
   z.object({ SamplingCandidatesExhausted: z.string() }),
   z.object({ SchedulerUnavailable: z.string() }),
-  z.object({ SequenceIdOutOfRange: z.string() }),
   z.object({ ToolsSerializationFailed: z.string() }),
   z.object({ SamplerError: z.string() }),
-  z.object({ TokenGenerationDisabled: z.string() }),
   z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
@@ -462,15 +461,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
-    if ("SequenceIdOutOfRange" in variant) {
-      return terminalError(
-        request_id,
-        generated_by,
-        500,
-        variant.SequenceIdOutOfRange,
-      );
-    }
-
     if ("ToolsSerializationFailed" in variant) {
       return terminalError(
         request_id,
@@ -585,12 +575,12 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
-    if ("TokenGenerationDisabled" in variant) {
+    if ("InferenceModeMismatch" in variant) {
       return terminalError(
         request_id,
         generated_by,
-        501,
-        variant.TokenGenerationDisabled,
+        503,
+        variant.InferenceModeMismatch,
       );
     }
 

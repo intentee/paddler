@@ -1,9 +1,11 @@
 use std::future::pending;
 use std::io;
+use std::time::Duration;
 
 use http::StatusCode;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
+use tokio::time::interval;
 
 use crate::fixture_response::FixtureResponse;
 use crate::observed_requests::ObservedRequests;
@@ -17,6 +19,28 @@ fn status_line_and_headers(
     format!(
         "HTTP/1.1 {status}\r\nContent-Length: {content_length}\r\n{extra_headers}Connection: close\r\n\r\n"
     )
+}
+
+const ENDLESS_CHUNKED_RESPONSE_HEAD: &str =
+    "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n";
+const ONE_BYTE_CHUNK: &[u8] = b"1\r\n\0\r\n";
+
+async fn trickle_until_the_client_stops_receiving(
+    stream: &mut TcpStream,
+    byte_interval: Duration,
+) -> io::Error {
+    let mut trickle = interval(byte_interval);
+    let mut next_trickled_bytes = ENDLESS_CHUNKED_RESPONSE_HEAD.as_bytes();
+
+    loop {
+        trickle.tick().await;
+
+        if let Err(client_departure) = stream.write_all(next_trickled_bytes).await {
+            return client_departure;
+        }
+
+        next_trickled_bytes = ONE_BYTE_CHUNK;
+    }
 }
 
 async fn write_complete_body(stream: &mut TcpStream, head: &str, body: &[u8]) -> io::Result<()> {
@@ -47,7 +71,13 @@ pub async fn serve_connection(
     observed_requests.record(read_range_header(&mut stream).await?);
 
     match response {
-        FixtureResponse::CloseBeforeHeaders => stream.shutdown().await,
+        FixtureResponse::EndlessTrickle { byte_interval } => {
+            observed_requests.record_abandoned_trickle(
+                &trickle_until_the_client_stops_receiving(&mut stream, *byte_interval).await,
+            );
+
+            Ok(())
+        }
         FixtureResponse::Ok(body) => {
             write_complete_body(
                 &mut stream,

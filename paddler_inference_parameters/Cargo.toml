@@ -9,6 +9,7 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
+llama-cpp-bindings-types = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

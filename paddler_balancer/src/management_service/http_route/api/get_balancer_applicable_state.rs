@@ -32,74 +32,59 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body_json;
     use actix_web::web::Data;
-    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_state_database::memory::Memory;
+    use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::get_balancer_applicable_state;
     use crate::agent_controller_pool::AgentControllerPool;
     use crate::agent_response_senders::AgentResponseSenders;
-    use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::balancer_desired_state_store::BalancerDesiredStateStore;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::management_service::app_data::AppData;
 
-    fn build_app_data(
-        balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
-    ) -> Data<AppData> {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
-
-        Data::new(AppData {
-            agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            balancer_applicable_state_holder,
-            buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                Arc::new(AgentControllerPool::default()),
-                Duration::from_secs(1),
-                10,
-            )),
-            agent_response_senders: AgentResponseSenders::default(),
-            shutdown: CancellationToken::new(),
-            state_database: Arc::new(Memory::new(
-                balancer_desired_state_notify_tx,
-                BalancerDesiredState::default(),
-            )),
-            statsd_prefix: "paddler".to_owned(),
-        })
-    }
-
     #[actix_web::test]
-    async fn responds_with_stored_agent_desired_state() {
-        let balancer_applicable_state_holder = Arc::new(BalancerApplicableStateHolder::new(
-            BalancerApplicableState::from(BalancerDesiredState::default()),
-        ));
-
-        balancer_applicable_state_holder.set_balancer_applicable_state(BalancerApplicableState {
-            agent_desired_state: AgentDesiredState {
-                chat_template_override: None,
-                inference_parameters: InferenceParameters::default(),
-                model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-                multimodal_projection: AgentDesiredModel::None,
-            },
-        });
-
-        let app_data = build_app_data(balancer_applicable_state_holder);
+    async fn responds_with_the_agent_desired_state_derived_from_the_desired_state() {
+        let balancer_desired_state_store = BalancerDesiredStateStore::load(Arc::new(Memory::new(
+            StoredBalancerDesiredState::Stored(BalancerDesiredState {
+                model: AgentDesiredModel::Uri("model.gguf".to_owned()),
+                ..BalancerDesiredState::default()
+            }),
+        )))
+        .await
+        .expect("the desired state store must load");
         let app = init_service(
             App::new()
-                .app_data(app_data)
+                .app_data(Data::new(AppData {
+                    agent_controller_pool: Arc::new(AgentControllerPool::default()),
+                    balancer_applicable_state_holder: Arc::new(
+                        balancer_desired_state_store.applicable_state_holder(),
+                    ),
+                    balancer_desired_state_store: Arc::new(balancer_desired_state_store),
+                    buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                        Arc::new(AgentControllerPool::default()),
+                        Duration::from_secs(1),
+                        10,
+                    )),
+                    agent_response_senders: AgentResponseSenders::default(),
+                    shutdown: CancellationToken::new(),
+                    statsd_prefix: "paddler".to_owned(),
+                }))
                 .configure(get_balancer_applicable_state),
         )
         .await;
-        let request = TestRequest::get()
-            .uri(ApiPath::BALANCER_APPLICABLE_STATE)
-            .to_request();
-        let response = call_service(&app, request).await;
+        let response = call_service(
+            &app,
+            TestRequest::get()
+                .uri(ApiPath::BALANCER_APPLICABLE_STATE)
+                .to_request(),
+        )
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
@@ -107,7 +92,7 @@ mod tests {
 
         assert_eq!(
             agent_desired_state.model,
-            AgentDesiredModel::LocalToAgent("model.gguf".to_owned())
+            AgentDesiredModel::Uri("model.gguf".to_owned())
         );
     }
 }

@@ -13,7 +13,6 @@ use actix_web::web::Path;
 use actix_web::web::Payload;
 use actix_web::web::ServiceConfig;
 use actix_web::web::get;
-use actix_ws::Session;
 use anyhow::Result;
 use log::error;
 use log::info;
@@ -22,6 +21,7 @@ use parking_lot::RwLock;
 use serde_json::Error as SerdeJsonError;
 use tokio::select;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::api_path::ApiPath;
@@ -43,7 +43,6 @@ use crate::agent_controller::AgentController;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::agent_controller_registration::AgentControllerRegistration;
 use crate::agent_controller_update_result::AgentControllerUpdateResult;
-use crate::agent_desired_state_notification::agent_desired_state_notification;
 use crate::agent_id_path_params::AgentIdPathParams;
 use crate::agent_response_senders::AgentResponseSenders;
 use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
@@ -53,6 +52,7 @@ use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
 use crate::management_service::app_data::AppData;
 use crate::response_senders::ResponseSenders;
 use crate::websocket_close_cause::WebSocketCloseCause;
+use crate::websocket_outbound_frame::WebSocketOutboundFrame;
 use crate::websocket_session_controller::WebSocketSessionController;
 
 fn forward_agent_response<TResponse>(
@@ -160,24 +160,20 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     }
                 };
 
+                agent_controller.set_desired_state(
+                    context
+                        .balancer_applicable_state_holder
+                        .get_agent_desired_state(),
+                );
                 *context.registration.write() =
                     AgentSocketRegistration::Registered(agent_controller);
 
                 info!("Registered agent: {}", context.agent_id);
 
-                let agent_desired_state = agent_desired_state_notification(
-                    context
-                        .balancer_applicable_state_holder
-                        .get_agent_desired_state(),
-                );
                 let forwarder_close = connection_close;
 
                 rt::spawn(async move {
                     let _registered_agent_controller_guard = registered_agent_controller_guard;
-
-                    websocket_session_controller
-                        .send_response_safe(agent_desired_state)
-                        .await;
 
                     loop {
                         select! {
@@ -228,6 +224,19 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
                     &context.agent_response_senders.chat_template_override,
                     &request_id,
                     chat_template_override,
+                );
+
+                ContinuationDecision::Continue
+            }
+            ManagementJsonRpcMessage::Response(ResponseEnvelope {
+                request_id,
+                response: AgentJsonRpcResponse::Decision(decision_result),
+                ..
+            }) => {
+                forward_agent_response(
+                    &context.agent_response_senders.decision,
+                    &request_id,
+                    decision_result,
                 );
 
                 ContinuationDecision::Continue
@@ -285,9 +294,9 @@ impl ControlsWebSocketEndpoint for AgentSocketController {
     async fn on_connection_start(
         _connection_close: CancellationToken,
         _context: Arc<Self::Context>,
-        session: &mut Session,
+        outbound_tx: &UnboundedSender<WebSocketOutboundFrame>,
     ) {
-        WebSocketSessionController::new(session.clone())
+        WebSocketSessionController::new(outbound_tx.clone())
             .send_response_safe(AgentJsonRpcMessage::Notification(
                 AgentJsonRpcNotification::Version(VersionParams {
                     version: env!("CARGO_PKG_VERSION").to_owned(),

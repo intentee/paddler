@@ -1,0 +1,95 @@
+#![cfg(feature = "tests_that_use_llms")]
+
+use std::num::NonZeroU32;
+
+use tokio_util::sync::CancellationToken;
+
+use paddler_inference_parameters::batch_size::BatchSize;
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
+use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
+use paddler_tests::start_cluster::start_cluster;
+
+const CONTEXT_SIZE: u32 = 512;
+const SLOTS: u16 = 4;
+const LLAMA_CPP_SEQUENCE_CONTEXT_SIZE: usize = 256;
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_reports_a_document_exceeding_its_sequence_context_and_embeds_the_rest() {
+    let context_size =
+        NonZeroU32::new(CONTEXT_SIZE).expect("the context size must be greater than zero");
+    let desired_state = qwen3_0_6b().into_embeddings_desired_state(EmbeddingParameters::default());
+    let cluster = start_cluster(ClusterParams {
+        agents: AgentConfig::uniform(1, SLOTS),
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            model_runtime_parameters: ModelRuntimeParameters {
+                context_size,
+                n_batch: BatchSize::default().at_most(context_size),
+                ..desired_state.model_runtime_parameters
+            },
+            ..desired_state
+        })),
+        wait_for_slots_ready: true,
+        ..ClusterParams::default()
+    })
+    .await
+    .expect("the cluster must start");
+
+    let collected = cluster
+        .generate_embedding_batch(
+            CancellationToken::new(),
+            &GenerateEmbeddingBatchParams {
+                input_batch: vec![
+                    EmbeddingInputDocument {
+                        content: "ok".to_owned(),
+                        id: "tiny".to_owned(),
+                    },
+                    EmbeddingInputDocument {
+                        content: "The quick brown fox jumps over the lazy dog. ".repeat(30),
+                        id: "longer-than-a-sequence".to_owned(),
+                    },
+                ],
+                normalization_method: EmbeddingNormalizationMethod::None,
+            },
+        )
+        .await
+        .expect("the embedding batch must be accepted");
+
+    assert_eq!(collected.failures, vec![]);
+    assert_eq!(
+        collected
+            .documents_exceeding_sequence_context
+            .iter()
+            .map(|details| details.source_document_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["longer-than-a-sequence"]
+    );
+
+    let exceeding_document = &collected.documents_exceeding_sequence_context[0];
+
+    assert_eq!(
+        exceeding_document.sequence_context_size,
+        LLAMA_CPP_SEQUENCE_CONTEXT_SIZE
+    );
+    assert!(exceeding_document.document_tokens > exceeding_document.sequence_context_size);
+    assert_eq!(
+        collected
+            .embeddings
+            .iter()
+            .map(|produced| produced.embedding.source_document_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["tiny"]
+    );
+
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
+}

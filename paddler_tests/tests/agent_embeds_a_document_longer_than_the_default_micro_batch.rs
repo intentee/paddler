@@ -4,7 +4,7 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -19,11 +19,10 @@ const SENTENCES_EXCEEDING_THE_DEFAULT_MICRO_BATCH: usize = 100;
 async fn agent_embeds_a_document_longer_than_the_default_micro_batch() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
-        inference_parameters: InferenceParameters {
+        model_runtime_parameters: ModelRuntimeParameters {
             context_size: NonZeroU32::try_from(NOMIC_TRAINING_CONTEXT_SIZE)
                 .expect("the value must fit its target type"),
-            enable_embeddings: true,
-            ..InferenceParameters::deterministic()
+            ..ModelRuntimeParameters::default()
         },
         ..EmbeddingClusterParams::default()
     })

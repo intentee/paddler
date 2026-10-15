@@ -152,3 +152,158 @@ pub async fn forward_responses_stream<TControlsSession, TResponse>(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use llama_cpp_bindings_types::TokenUsage;
+    use serde_json::to_string;
+    use tokio::sync::mpsc::unbounded_channel;
+    use tokio_util::sync::CancellationToken;
+
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
+    use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::inference_client::message::Message as OutgoingMessage;
+    use paddler_messaging::inference_client::response::Response as OutgoingResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+    use paddler_messaging::slot_aggregated_status_snapshot::SlotAggregatedStatusSnapshot;
+    use paddler_request_registry::request_delivery::RequestDelivery;
+
+    use super::forward_responses_stream;
+    use crate::agent_controller_fixture::AgentControllerFixture;
+    use crate::agent_controller_pool_updates::AgentControllerPoolUpdates;
+    use crate::agent_controller_slot_guard::AgentControllerSlotGuard;
+    use crate::agent_response_receiver::AgentResponseReceiver;
+    use crate::dispatched_agent::DispatchedAgent;
+    use crate::unexpiring_inference_service_configuration::unexpiring_inference_service_configuration;
+    use crate::websocket_outbound_frame::WebSocketOutboundFrame;
+    use crate::websocket_session_controller::WebSocketSessionController;
+
+    fn client_frame(generated_token_result: GeneratedTokenResult) -> WebSocketOutboundFrame {
+        WebSocketOutboundFrame::Text(
+            to_string(&OutgoingMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "client-request".to_owned(),
+                response: OutgoingResponse::from(generated_token_result),
+            }))
+            .unwrap(),
+        )
+    }
+
+    fn finished_generation() -> GeneratedTokenResult {
+        GeneratedTokenResult::Done(GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
+            usage: TokenUsage::new(),
+        })
+    }
+
+    #[tokio::test]
+    async fn forwarding_to_a_gone_client_for_a_gone_agent_releases_the_agent_slot() {
+        let agent_controller = AgentControllerFixture::whose_socket_is_gone(
+            "agent",
+            SlotAggregatedStatusSnapshot::default(),
+        );
+        let receive_response_controller = AgentResponseReceiver::register(
+            &agent_controller.agent_response_senders.generated_tokens,
+            "agent-request".to_owned(),
+        )
+        .unwrap();
+        let (outbound_tx, outbound_rx) = unbounded_channel();
+
+        drop(outbound_rx);
+        agent_controller.slots_processing.increment();
+
+        assert_eq!(
+            agent_controller
+                .agent_response_senders
+                .generated_tokens
+                .send_to(
+                    "agent-request",
+                    GeneratedTokenResult::ContentToken("piece".to_owned())
+                ),
+            RequestDelivery::Delivered
+        );
+
+        forward_responses_stream(
+            CancellationToken::new(),
+            DispatchedAgent::new(
+                agent_controller.clone(),
+                AgentControllerSlotGuard::new(
+                    agent_controller.clone(),
+                    Arc::new(AgentControllerPoolUpdates::default()),
+                ),
+            ),
+            unexpiring_inference_service_configuration(),
+            receive_response_controller,
+            "client-request".to_owned(),
+            WebSocketSessionController::<OutgoingMessage>::new(outbound_tx),
+            CancellationToken::new(),
+        )
+        .await;
+
+        assert_eq!(agent_controller.slots_processing.get(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_client_that_reads_nothing_does_not_hold_the_agent_slot_after_the_generation() {
+        let agent_controller =
+            AgentControllerFixture::reporting("agent", SlotAggregatedStatusSnapshot::default())
+                .agent_controller;
+        let receive_response_controller = AgentResponseReceiver::register(
+            &agent_controller.agent_response_senders.generated_tokens,
+            "agent-request".to_owned(),
+        )
+        .unwrap();
+        let (outbound_tx, mut unread_outbound_rx) = unbounded_channel();
+
+        agent_controller.slots_processing.increment();
+
+        for generated_token_result in [
+            GeneratedTokenResult::ContentToken("piece".to_owned()),
+            finished_generation(),
+        ] {
+            assert_eq!(
+                agent_controller
+                    .agent_response_senders
+                    .generated_tokens
+                    .send_to("agent-request", generated_token_result),
+                RequestDelivery::Delivered
+            );
+        }
+
+        forward_responses_stream(
+            CancellationToken::new(),
+            DispatchedAgent::new(
+                agent_controller.clone(),
+                AgentControllerSlotGuard::new(
+                    agent_controller.clone(),
+                    Arc::new(AgentControllerPoolUpdates::default()),
+                ),
+            ),
+            unexpiring_inference_service_configuration(),
+            receive_response_controller,
+            "client-request".to_owned(),
+            WebSocketSessionController::<OutgoingMessage>::new(outbound_tx),
+            CancellationToken::new(),
+        )
+        .await;
+
+        assert_eq!(agent_controller.slots_processing.get(), 0);
+        assert_eq!(
+            [
+                unread_outbound_rx.try_recv().ok(),
+                unread_outbound_rx.try_recv().ok(),
+                unread_outbound_rx.try_recv().ok(),
+            ],
+            [
+                Some(client_frame(GeneratedTokenResult::ContentToken(
+                    "piece".to_owned()
+                ))),
+                Some(client_frame(finished_generation())),
+                None,
+            ]
+        );
+    }
+}

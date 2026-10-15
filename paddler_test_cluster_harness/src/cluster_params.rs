@@ -1,14 +1,13 @@
 use std::time::Duration;
 
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-
 use crate::agent_config::AgentConfig;
+use crate::cluster_desired_state::ClusterDesiredState;
 use crate::longer_than_any_test_run::LONGER_THAN_ANY_TEST_RUN;
 
 pub struct ClusterParams {
     pub agents: Vec<AgentConfig>,
     pub buffered_request_timeout: Duration,
-    pub desired_state: Option<BalancerDesiredState>,
+    pub desired_state: ClusterDesiredState,
     pub inference_cors_allowed_hosts: Vec<String>,
     pub inference_item_timeout: Duration,
     pub management_cors_allowed_hosts: Vec<String>,
@@ -22,7 +21,7 @@ impl Default for ClusterParams {
         Self {
             agents: AgentConfig::uniform(1, 4),
             buffered_request_timeout: LONGER_THAN_ANY_TEST_RUN,
-            desired_state: Some(BalancerDesiredState::default()),
+            desired_state: ClusterDesiredState::Apply(Box::default()),
             inference_cors_allowed_hosts: Vec::new(),
             inference_item_timeout: LONGER_THAN_ANY_TEST_RUN,
             management_cors_allowed_hosts: Vec::new(),

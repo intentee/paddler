@@ -18,6 +18,32 @@ impl CollectedGeneratedTokens {
             .collect()
     }
 
+    #[must_use]
+    pub fn content_text(&self) -> String {
+        self.token_results
+            .iter()
+            .filter_map(|token_result_with_producer| {
+                match &token_result_with_producer.token_result {
+                    GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
+    #[must_use]
+    pub fn reasoning_text(&self) -> String {
+        self.token_results
+            .iter()
+            .filter_map(|token_result_with_producer| {
+                match &token_result_with_producer.token_result {
+                    GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
+                    _ => None,
+                }
+            })
+            .collect()
+    }
+
     pub fn summary(&self) -> Result<GenerationSummary, ClusterHarnessError> {
         match self
             .token_results
@@ -56,5 +82,26 @@ mod tests {
                 last_token_result: Some(GeneratedTokenResult::SamplerError(_)),
             })
         ));
+    }
+
+    #[test]
+    fn content_and_reasoning_text_keep_only_their_own_pieces() {
+        let produced = |token_result| TokenResultWithProducer {
+            token_result,
+            generated_by: None,
+        };
+        let collected = CollectedGeneratedTokens {
+            text: String::new(),
+            token_results: vec![
+                produced(GeneratedTokenResult::ReasoningToken("think".to_owned())),
+                produced(GeneratedTokenResult::ContentToken("say".to_owned())),
+                produced(GeneratedTokenResult::ReasoningToken("ing".to_owned())),
+            ],
+        };
+
+        assert_eq!(
+            [collected.reasoning_text(), collected.content_text()],
+            ["thinking".to_owned(), "say".to_owned()]
+        );
     }
 }

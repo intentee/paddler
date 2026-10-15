@@ -1,0 +1,18 @@
+import { z } from "zod";
+
+export const poolingTypes = [
+  "Cls",
+  "Last",
+  "Mean",
+  "Rank",
+  "Unspecified",
+] as const;
+
+export const EmbeddingParametersSchema = z
+  .object({
+    embedding_batch_size: z.number().int(),
+    pooling_type: z.enum(poolingTypes),
+  })
+  .strict();
+
+export type EmbeddingParameters = z.infer<typeof EmbeddingParametersSchema>;

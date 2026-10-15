@@ -2,7 +2,7 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::raw_agent_socket::RawAgentSocket;
+use paddler_test_cluster_harness::untrusted_agent_socket_client::UntrustedAgentSocketClient;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -14,7 +14,7 @@ async fn balancer_closes_an_agent_socket_that_sends_an_undeserializable_message(
     })
     .await
     .expect("the cluster must start");
-    let mut agent_socket = RawAgentSocket::connect(
+    let mut agent_socket = UntrustedAgentSocketClient::connect(
         cluster.balancer.addresses.management,
         "undeserializable-agent",
     )

@@ -4,9 +4,10 @@ use anyhow::Context as _;
 use anyhow::Result;
 use log::LevelFilter;
 use log::set_max_level;
+use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
-use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
@@ -40,7 +41,6 @@ pub async fn start_cluster(
 
     let state_database_type = StateDatabaseType::from_str(&state_database_url)
         .context("failed to parse state_database_url")?;
-
     let balancer_runner = BalancerRunner::start(BalancerRunnerParams {
         bootstrap_config: BalancerBootstrapConfig {
             buffered_request_timeout,
@@ -54,12 +54,15 @@ pub async fn start_cluster(
                 cors_allowed_hosts: management_cors_allowed_hosts,
             },
             max_buffered_requests,
-            openai_service_configuration: Some(OpenAIServiceConfiguration {
+            openai_service_configuration: Some(CompatibilityServiceConfiguration {
                 addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
             }),
             state_database_type,
             statsd_prefix: "paddler_tests_".to_owned(),
             statsd_service_configuration: None,
+            typesafe_service_configuration: Some(CompatibilityServiceConfiguration {
+                addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
+            }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: None,
         },
@@ -78,8 +81,11 @@ pub async fn start_cluster(
     let mut cluster = Cluster::connect(
         CancellationToken::new(),
         running_balancer,
-        Box::new(InProcessAgentSpawner::new(management_address)),
-        desired_state.as_ref(),
+        Box::new(InProcessAgentSpawner {
+            downloaded_models: TempDir::new()?,
+            management_address,
+        }),
+        &desired_state,
     )
     .await?;
 

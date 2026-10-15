@@ -2,7 +2,6 @@
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -14,10 +13,7 @@ use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 async fn agent_l2_normalized_embeddings_have_unit_norm() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
-        inference_parameters: InferenceParameters {
-            enable_embeddings: true,
-            ..InferenceParameters::deterministic()
-        },
+
         ..EmbeddingClusterParams::default()
     })
     .await

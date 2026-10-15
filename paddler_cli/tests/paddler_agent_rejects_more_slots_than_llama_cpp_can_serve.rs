@@ -1,6 +1,6 @@
 use std::process::Command;
 
-const CLAP_USAGE_ERROR_EXIT_CODE: i32 = 2;
+use crate::clap_usage_error_exit_code::CLAP_USAGE_ERROR_EXIT_CODE;
 
 #[test]
 fn paddler_agent_rejects_more_slots_than_llama_cpp_can_serve() {

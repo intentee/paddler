@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -16,10 +16,9 @@ use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 async fn balancer_reports_one_request_id_across_a_chunked_embedding_batch() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(2)],
-        inference_parameters: InferenceParameters {
+        embedding_parameters: EmbeddingParameters {
             embedding_batch_size: NonZeroUsize::MIN,
-            enable_embeddings: true,
-            ..InferenceParameters::deterministic()
+            ..EmbeddingParameters::default()
         },
         ..EmbeddingClusterParams::default()
     })

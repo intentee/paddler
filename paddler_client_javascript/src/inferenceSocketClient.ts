@@ -2,17 +2,15 @@ import { nanoid } from "nanoid";
 import { filter, fromEvent, map, takeWhile, type Observable } from "rxjs";
 
 import type { ConversationMessage } from "./schemas/ConversationMessage";
-import {
-  InferenceNotificationSchema,
-  type InferenceNotification,
-} from "./schemas/InferenceNotification";
+import type { InferenceMode } from "./schemas/InferenceMode";
+import { InferenceNotificationSchema } from "./schemas/InferenceNotification";
 import {
   InferenceServiceGenerateTokensResponseSchema,
   type InferenceServiceGenerateTokensResponse,
 } from "./schemas/InferenceServiceGenerateTokensResponse";
 
 export interface InferenceSocketClient {
-  clusterTokenGenerationMode$: Observable<InferenceNotification>;
+  clusterInferenceMode$: Observable<InferenceMode>;
   continueConversation(params: {
     enableThinking: boolean;
     messages: ConversationMessage[];
@@ -47,13 +45,13 @@ export function inferenceSocketClient({
     }),
   );
 
-  const clusterTokenGenerationMode$: Observable<InferenceNotification> =
-    parsedFrames$.pipe(
-      filter(isNotificationFrame),
-      map(function (parsedFrame: unknown): InferenceNotification {
-        return InferenceNotificationSchema.parse(parsedFrame).Notification;
-      }),
-    );
+  const clusterInferenceMode$: Observable<InferenceMode> = parsedFrames$.pipe(
+    filter(isNotificationFrame),
+    map(function (parsedFrame: unknown): InferenceMode {
+      return InferenceNotificationSchema.parse(parsedFrame).Notification
+        .ClusterInferenceMode;
+    }),
+  );
 
   function continueConversation({
     enableThinking,
@@ -98,7 +96,7 @@ export function inferenceSocketClient({
   }
 
   return Object.freeze({
-    clusterTokenGenerationMode$,
+    clusterInferenceMode$,
     continueConversation,
   });
 }

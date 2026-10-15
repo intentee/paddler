@@ -72,21 +72,10 @@ mod tests {
     use crate::download_lock_acquisition::DownloadLockAcquisition;
 
     fn cache_dir_at(path: &Path) -> CacheDir {
-        #[cfg(unix)]
-        {
-            CacheDir {
-                explicit: Some(path.to_path_buf()),
-                home: None,
-                xdg: None,
-            }
-        }
-        #[cfg(windows)]
-        {
-            CacheDir {
-                explicit: Some(path.to_path_buf()),
-                localappdata: None,
-                userprofile: None,
-            }
+        CacheDir {
+            explicit: Some(path.to_path_buf()),
+            home: None,
+            xdg: None,
         }
     }
 
@@ -222,31 +211,17 @@ mod tests {
 
     #[test]
     fn new_returns_error_when_cache_dir_cannot_resolve() {
-        let unresolvable;
-        #[cfg(unix)]
-        {
-            unresolvable = CacheDir {
-                explicit: None,
-                home: None,
-                xdg: None,
-            };
-        }
-        #[cfg(windows)]
-        {
-            unresolvable = CacheDir {
-                explicit: None,
-                localappdata: None,
-                userprofile: None,
-            };
-        }
+        let unresolvable = CacheDir {
+            explicit: None,
+            home: None,
+            xdg: None,
+        };
 
         let result = CachedDownloadedModel::new(&unresolvable, "https://host.example/m.gguf");
 
         assert_eq!(
             result.err().as_ref().map(discriminant),
-            Some(discriminant(&CacheDirError::HomeVariableUnset {
-                variable: "HOME"
-            }))
+            Some(discriminant(&CacheDirError::HomeVariableUnset))
         );
     }
 

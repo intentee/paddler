@@ -19,6 +19,7 @@ spawner(async function ({ buildId, command }) {
     command(`
       target/debug/paddler balancer
         --compat-openai-addr 127.0.0.1:8063
+        --compat-typesafe-addr 127.0.0.1:8009
         --inference-addr 127.0.0.1:8061
         --inference-item-timeout 30000
         --management-addr 127.0.0.1:8060

@@ -44,4 +44,10 @@ async fn reports_interrupted_when_the_body_stream_drops() {
         recorded_download.progress.last(),
         Some(&DownloadProgress::Finished)
     );
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

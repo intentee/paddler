@@ -1,8 +1,11 @@
+use std::error::Error;
+use std::io::Error as IoError;
+use std::io::ErrorKind;
 use std::net::TcpListener;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
@@ -64,14 +67,51 @@ async fn balancer_runner_fails_to_start_when_its_compat_openai_address_is_taken(
         .expect("a bound listener must report its address");
     let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
 
-    params.bootstrap_config.openai_service_configuration = Some(OpenAIServiceConfiguration {
-        addr: ResolvedSocketAddr::from(taken_addr),
-    });
+    params.bootstrap_config.openai_service_configuration =
+        Some(CompatibilityServiceConfiguration {
+            addr: ResolvedSocketAddr::from(taken_addr),
+        });
 
     assert!(matches!(
         start_error_of(params).await,
         Some(BootstrapError::CompatOpenAIBindFailed { addr, .. }) if addr == taken_addr
     ));
+}
+
+#[tokio::test]
+async fn balancer_runner_fails_to_start_when_its_compat_typesafe_address_is_taken() {
+    let occupying_listener =
+        TcpListener::bind(EPHEMERAL_LOOPBACK_ADDR).expect("an ephemeral loopback port must bind");
+    let taken_addr = occupying_listener
+        .local_addr()
+        .expect("a bound listener must report its address");
+    let mut params = ephemeral_balancer_runner_params(CancellationToken::new());
+
+    params.bootstrap_config.typesafe_service_configuration =
+        Some(CompatibilityServiceConfiguration {
+            addr: ResolvedSocketAddr::from(taken_addr),
+        });
+
+    let start_error = start_error_of(params).await;
+
+    assert_eq!(
+        start_error.as_ref().map(ToString::to_string),
+        Some(
+            BootstrapError::CompatTypeSafeBindFailed {
+                addr: taken_addr,
+                source: IoError::from(ErrorKind::AddrInUse),
+            }
+            .to_string()
+        )
+    );
+    assert_eq!(
+        start_error
+            .as_ref()
+            .and_then(Error::source)
+            .and_then(|source| source.downcast_ref::<IoError>())
+            .map(IoError::kind),
+        Some(ErrorKind::AddrInUse)
+    );
 }
 
 #[cfg(feature = "web_admin_panel")]

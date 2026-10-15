@@ -12,7 +12,6 @@ pub enum AgentIssueFix {
     ModelIsLoaded(ModelPath),
     ModelDownloadCompleted(ModelPath),
     ModelDownloadStarted(ModelPath),
-    ModelStateIsReconciled,
     MultimodalProjectionIsLoaded(ModelPath),
     SlotStarted(u32),
 }
@@ -25,7 +24,6 @@ impl AgentIssueFix {
                 Self::ChatTemplateIsCompiled(fix_model_path) => {
                     issue_params.model_path.eq(fix_model_path)
                 }
-                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::HuggingFaceCannotAcquireLock(hugging_face_download_lock) => match self {
@@ -33,7 +31,6 @@ impl AgentIssueFix {
                 | Self::HuggingFaceStartedDownloading(fix_model_path) => {
                     hugging_face_download_lock.model_path.eq(fix_model_path)
                 }
-                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::HuggingFaceModelDoesNotExist(issue_model_path)
@@ -43,7 +40,6 @@ impl AgentIssueFix {
                 | Self::MultimodalProjectionIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
-                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::ModelCannotBeLoaded(issue_model_path) => match self {
@@ -57,6 +53,12 @@ impl AgentIssueFix {
                 }
                 _ => false,
             },
+            AgentIssue::HuggingFaceModelUriIsMalformed(_)
+            | AgentIssue::ModelArchitectureUnsupportedForDecisions(_)
+            | AgentIssue::ModelUriIsUnparseable(_)
+            | AgentIssue::PointerHeadCannotBeLoaded(_)
+            | AgentIssue::PointerHeadIncompatibleWithModel(_)
+            | AgentIssue::SlotsInsufficientForDecisions(_) => false,
             AgentIssue::MultimodalProjectionCannotBeLoaded(_) => {
                 matches!(self, Self::MultimodalProjectionIsLoaded(_))
             }
@@ -71,7 +73,6 @@ impl AgentIssueFix {
                 Self::ModelChatTemplateIsLoaded(fix_model_path) => {
                     issue_model_path.eq(fix_model_path)
                 }
-                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
             AgentIssue::CacheCannotAcquireLock(issue_model_path)
@@ -87,7 +88,6 @@ impl AgentIssueFix {
             | AgentIssue::ModelDoesNotExistAtUrl(issue_model_path) => match self {
                 Self::ModelDownloadCompleted(fix_model_path)
                 | Self::ModelDownloadStarted(fix_model_path) => issue_model_path.eq(fix_model_path),
-                Self::ModelStateIsReconciled => true,
                 _ => false,
             },
         }
@@ -99,14 +99,63 @@ mod tests {
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+    use paddler_messaging::agent_issue_params::model_architecture_unsupported_for_decisions_params::ModelArchitectureUnsupportedForDecisionsParams;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
+    use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
+    use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
+    use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
 
     use super::AgentIssueFix;
 
     fn model_path(path: &str) -> ModelPath {
         ModelPath {
             model_path: path.to_owned(),
+        }
+    }
+
+    #[test]
+    fn configuration_issues_are_cleared_only_with_their_scope() {
+        let issue_path = model_path("model_a");
+        let configuration_issues = [
+            AgentIssue::HuggingFaceModelUriIsMalformed(issue_path.clone()),
+            AgentIssue::ModelArchitectureUnsupportedForDecisions(
+                ModelArchitectureUnsupportedForDecisionsParams {
+                    architecture: "qwen3".to_owned(),
+                    model_path: issue_path.clone(),
+                },
+            ),
+            AgentIssue::ModelUriIsUnparseable(issue_path.clone()),
+            AgentIssue::PointerHeadCannotBeLoaded(issue_path.clone()),
+            AgentIssue::PointerHeadIncompatibleWithModel(PointerHeadIncompatibleWithModelParams {
+                incompatibility: PointerHeadIncompatibility::HiddenSizeMismatch {
+                    model_hidden_size: 1024,
+                    pointer_head_hidden_size: 512,
+                },
+                pointer_head_path: issue_path.clone(),
+            }),
+            AgentIssue::SlotsInsufficientForDecisions(SlotsInsufficientForDecisionsParams {
+                desired_slots: 1,
+                required_slots: 2,
+            }),
+        ];
+        let targeted_fixes = [
+            AgentIssueFix::ChatTemplateIsCompiled(issue_path.clone()),
+            AgentIssueFix::HuggingFaceDownloadedModel(issue_path.clone()),
+            AgentIssueFix::HuggingFaceStartedDownloading(issue_path.clone()),
+            AgentIssueFix::ModelChatTemplateIsLoaded(issue_path.clone()),
+            AgentIssueFix::ModelDownloadCompleted(issue_path.clone()),
+            AgentIssueFix::ModelDownloadStarted(issue_path.clone()),
+            AgentIssueFix::ModelFileExists(issue_path.clone()),
+            AgentIssueFix::ModelIsLoaded(issue_path.clone()),
+            AgentIssueFix::MultimodalProjectionIsLoaded(issue_path),
+            AgentIssueFix::SlotStarted(0),
+        ];
+
+        for issue in &configuration_issues {
+            for fix in &targeted_fixes {
+                assert!(!fix.can_fix(issue), "{fix:?} must not fix {issue:?}");
+            }
         }
     }
 
@@ -132,26 +181,6 @@ mod tests {
         });
 
         assert!(!fix.can_fix(&issue));
-    }
-
-    #[test]
-    fn model_state_is_reconciled_fixes_chat_template_issue() {
-        let fix = AgentIssueFix::ModelStateIsReconciled;
-        let issue = AgentIssue::ChatTemplateDoesNotCompile(ChatTemplateDoesNotCompileParams {
-            error: "error".to_owned(),
-            model_path: model_path("any_model"),
-            template_content: "template".to_owned(),
-        });
-
-        assert!(fix.can_fix(&issue));
-    }
-
-    #[test]
-    fn model_state_is_reconciled_fixes_unable_to_find_chat_template() {
-        let fix = AgentIssueFix::ModelStateIsReconciled;
-        let issue = AgentIssue::UnableToFindChatTemplate(model_path("any_model"));
-
-        assert!(fix.can_fix(&issue));
     }
 
     #[test]
@@ -278,14 +307,6 @@ mod tests {
     }
 
     #[test]
-    fn model_state_is_reconciled_fixes_model_cache_is_corrupted() {
-        let fix = AgentIssueFix::ModelStateIsReconciled;
-        let issue = AgentIssue::ModelCacheIsCorrupted(model_path("https://example.com/m.gguf"));
-
-        assert!(fix.can_fix(&issue));
-    }
-
-    #[test]
     fn model_download_started_fixes_cache_cannot_acquire_lock() {
         let fix = AgentIssueFix::ModelDownloadStarted(model_path("https://example.com/m.gguf"));
         let issue = AgentIssue::CacheCannotAcquireLock(model_path("https://example.com/m.gguf"));
@@ -333,7 +354,6 @@ mod tests {
         assert!(
             AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_a")).can_fix(&issue)
         );
-        assert!(AgentIssueFix::ModelStateIsReconciled.can_fix(&issue));
         assert!(
             !AgentIssueFix::HuggingFaceStartedDownloading(model_path("model_b")).can_fix(&issue)
         );
@@ -346,7 +366,6 @@ mod tests {
 
         assert!(AgentIssueFix::HuggingFaceDownloadedModel(model_path("model_a")).can_fix(&issue));
         assert!(AgentIssueFix::MultimodalProjectionIsLoaded(model_path("model_a")).can_fix(&issue));
-        assert!(AgentIssueFix::ModelStateIsReconciled.can_fix(&issue));
         assert!(!AgentIssueFix::ModelIsLoaded(model_path("model_a")).can_fix(&issue));
     }
 
