@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, type FormEvent } from "react";
+import React, { useCallback, useContext, type SubmitEvent } from "react";
 import { useLocation } from "wouter";
 
 import { type AgentDesiredModel } from "@intentee/paddler-client/schemas/AgentDesiredModel";
@@ -69,7 +69,7 @@ export function ChangeModelForm() {
   );
 
   const onSubmit = useCallback(
-    function (event: FormEvent<HTMLFormElement>) {
+    function (event: SubmitEvent<HTMLFormElement>) {
       event.preventDefault();
 
       fetch(`//${managementAddr}/api/v1/balancer_desired_state`, {

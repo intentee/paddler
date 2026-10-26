@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, type ReactNode } from "react";
+import React, { useMemo, useState, type ReactNode } from "react";
 
 import {
   PromptContext,
@@ -15,13 +15,6 @@ export function PromptContextProvider({ children }: { children: ReactNode }) {
     version: 0,
   });
 
-  useEffect(
-    function () {
-      setCurrentPrompt("");
-    },
-    [submittedPrompt, setCurrentPrompt],
-  );
-
   const value = useMemo<PromptContextValue>(
     function () {
       return Object.freeze({
@@ -29,6 +22,7 @@ export function PromptContextProvider({ children }: { children: ReactNode }) {
         isCurrentPromptEmpty: currentPrompt.trim() === "",
         setCurrentPrompt,
         setSubmittedPrompt(prompt: string | null) {
+          setCurrentPrompt("");
           setSubmittedPrompt(function ({ version }) {
             return Object.freeze({
               prompt,

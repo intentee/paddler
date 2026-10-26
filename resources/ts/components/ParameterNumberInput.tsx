@@ -1,4 +1,4 @@
-import React, { useCallback, type FormEvent } from "react";
+import React, { useCallback, type InputEvent } from "react";
 
 import {
   inferenceParameterInput,
@@ -18,7 +18,7 @@ export function ParameterNumberInput({
   value: number;
 }) {
   const onInput = useCallback(
-    function (event: FormEvent<HTMLInputElement>) {
+    function (event: InputEvent<HTMLInputElement>) {
       event.preventDefault();
 
       onValue(parseFloat(event.currentTarget.value));

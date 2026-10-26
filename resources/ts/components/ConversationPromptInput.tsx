@@ -1,4 +1,9 @@
-import React, { useCallback, useContext, type FormEvent } from "react";
+import React, {
+  useCallback,
+  useContext,
+  type InputEvent,
+  type SubmitEvent,
+} from "react";
 
 import {
   conversationPromptInput,
@@ -37,7 +42,7 @@ export function ConversationPromptInput() {
   );
 
   const onSubmit = useCallback(
-    function (event: FormEvent<HTMLFormElement>) {
+    function (event: SubmitEvent<HTMLFormElement>) {
       event.preventDefault();
 
       if (currentPrompt.trim() === "") {
@@ -62,7 +67,7 @@ export function ConversationPromptInput() {
   );
 
   const onTextareaInput = useCallback(
-    function (event: FormEvent<HTMLInputElement>) {
+    function (event: InputEvent<HTMLInputElement>) {
       setCurrentPrompt(event.currentTarget.value);
     },
     [setCurrentPrompt],

@@ -3,10 +3,7 @@ import { z } from "zod";
 import { ParsedToolCallSchema } from "./ParsedToolCall";
 
 export type GeneratedTokenKind =
-  | "content"
-  | "reasoning"
-  | "tool_call"
-  | "undeterminable";
+  "content" | "reasoning" | "tool_call" | "undeterminable";
 
 const TokenUsageSchema = z.object({
   prompt_tokens: z.number(),

@@ -1,7 +1,6 @@
 import React, {
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type MouseEvent,
@@ -30,13 +29,14 @@ export function ChatTemplateEditButton() {
   const [temporaryContent, setTemporaryContent] = useState(
     chatTemplateOverrideContent,
   );
-
-  useEffect(
-    function () {
-      setTemporaryContent(chatTemplateOverrideContent);
-    },
-    [chatTemplateOverrideContent, setTemporaryContent],
+  const [editedContentSource, setEditedContentSource] = useState(
+    chatTemplateOverrideContent,
   );
+
+  if (editedContentSource !== chatTemplateOverrideContent) {
+    setEditedContentSource(chatTemplateOverrideContent);
+    setTemporaryContent(chatTemplateOverrideContent);
+  }
 
   const onClick = useCallback(
     function (event: MouseEvent<HTMLButtonElement>) {

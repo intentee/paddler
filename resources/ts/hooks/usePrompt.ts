@@ -13,12 +13,24 @@ export function usePrompt({
   systemPrompt: string;
 }) {
   const [message, setMessage] = useState<string>("");
+  const [streamedRequest, setStreamedRequest] = useState({
+    inferenceAddr,
+    prompt,
+    systemPrompt,
+  });
+
+  if (
+    streamedRequest.inferenceAddr !== inferenceAddr ||
+    streamedRequest.prompt !== prompt ||
+    streamedRequest.systemPrompt !== systemPrompt
+  ) {
+    setStreamedRequest({ inferenceAddr, prompt, systemPrompt });
+    setMessage("");
+  }
 
   useEffect(
     function () {
       const abortController = new AbortController();
-
-      setMessage("");
 
       const subscription = streamHttpNdjson({
         url: `//${inferenceAddr}/api/v1/continue_from_conversation_history`,
