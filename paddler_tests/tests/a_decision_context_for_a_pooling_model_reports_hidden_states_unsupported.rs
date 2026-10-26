@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::context::params::LlamaPoolingType;
 use llama_cpp_bindings::error::EmbeddingsError;
 
@@ -13,8 +12,7 @@ use paddler_tests::llama_runtime::LlamaRuntime;
 fn a_decision_context_for_a_pooling_model_reports_hidden_states_unsupported() {
     let runtime = LlamaRuntime::load(
         &nomic_embed_text_v1_5()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the nomic embedding model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )

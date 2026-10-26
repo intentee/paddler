@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use hf_hub::Cache;
-use hf_hub::api::tokio::ApiBuilder;
-use hf_hub::api::tokio::ApiError;
+use hf_hub::HFClient;
+use hf_hub::HFError;
 use log::warn;
-use reqwest::StatusCode;
 use tokio::time::Duration;
 use tokio_util::sync::CancellationToken;
 
@@ -14,10 +12,12 @@ use paddler_cache_dir::download_lock_wait_outcome::DownloadLockWaitOutcome;
 use paddler_cache_dir::wait_for_download_lock_retry::wait_for_download_lock_retry;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 
 use crate::desired_model_resolution::DesiredModelResolution;
 use crate::huggingface_download_progress::HuggingFaceDownloadProgress;
+use crate::huggingface_hub::HuggingFaceHub;
 use crate::huggingface_model_reference::HuggingFaceModelReference;
 use crate::model_source_error::ModelSourceError;
 use crate::resolves_model_source::ResolvesModelSource;
@@ -25,61 +25,51 @@ use crate::resolves_model_source::ResolvesModelSource;
 const LOCK_RETRY_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct HuggingFaceModelSource {
-    pub cache: Cache,
-    pub endpoint: String,
+    pub hub: HuggingFaceHub,
     pub reference: HuggingFaceModelReference,
 }
 
-impl ResolvesModelSource for HuggingFaceModelSource {
-    async fn resolve(
+impl HuggingFaceModelSource {
+    async fn resolve_through(
         &self,
+        client: &HFClient,
+        model_path: ModelPath,
         cancellation_token: &CancellationToken,
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution, ModelSourceError> {
-        let Self {
-            cache,
-            endpoint,
-            reference,
-        } = self;
-        let model_path = reference.model_path();
+        let reference = &self.reference;
 
-        if slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelDoesNotExist(
-            model_path.clone(),
-        )) {
-            return Err(ModelSourceError::HuggingFaceModelKnownToBeMissing {
-                model_path: model_path.model_path,
-            });
+        match reference.cached_path(client).await {
+            Ok(cached_path) => {
+                slot_aggregated_status.set_download_status(ModelDownloadStatus::NotDownloading);
+
+                return Ok(DesiredModelResolution::Resolved(cached_path));
+            }
+            Err(HFError::EntryNotFound { .. } | HFError::LocalEntryNotFound { .. }) => {}
+            Err(source) => {
+                return Err(ModelSourceError::HuggingFaceCacheLookupFailed {
+                    model_path: model_path.model_path,
+                    source,
+                });
+            }
         }
 
-        if let Some(cached_path) = reference.cached_path(cache) {
-            slot_aggregated_status.set_download_status(ModelDownloadStatus::NotDownloading);
-
-            return Ok(DesiredModelResolution::Resolved(cached_path));
-        }
-
-        let hf_api = ApiBuilder::from_cache(cache.clone())
-            .with_endpoint(endpoint.clone())
-            .build()
-            .map_err(|source| {
-                slot_aggregated_status.register_desired_state_issue(
-                    AgentIssue::HuggingFaceClientCannotStart(model_path.clone()),
-                );
-
-                ModelSourceError::HuggingFaceClientUnavailable(source)
-            })?;
-
-        slot_aggregated_status
-            .register_fix(&AgentIssueFix::HuggingFaceClientStarted(model_path.clone()));
-
-        let hf_repo = hf_api.repo(reference.repo());
+        let resolve_ended = CancellationToken::new();
+        let _resolve_ended_on_return = resolve_ended.clone().drop_guard();
+        let repository = reference.repository(client);
         let Some(download_result) = cancellation_token
-            .run_until_cancelled(hf_repo.download_with_progress(
-                &reference.filename,
-                HuggingFaceDownloadProgress {
-                    model_path: model_path.clone(),
-                    slot_aggregated_status: slot_aggregated_status.clone(),
-                },
-            ))
+            .run_until_cancelled(
+                repository
+                    .download_file()
+                    .filename(reference.filename.clone())
+                    .revision(reference.revision.clone())
+                    .progress(HuggingFaceDownloadProgress {
+                        model_path: model_path.clone(),
+                        resolve_ended,
+                        slot_aggregated_status: slot_aggregated_status.clone(),
+                    })
+                    .send(),
+            )
             .await
         else {
             return Ok(DesiredModelResolution::Cancelled);
@@ -92,8 +82,8 @@ impl ResolvesModelSource for HuggingFaceModelSource {
 
                 Ok(DesiredModelResolution::Resolved(resolved_filename))
             }
-            Err(ApiError::LockAcquisition(lock_path)) => {
-                let lock_path = lock_path.display().to_string();
+            Err(HFError::CacheLockTimeout { path }) => {
+                let lock_path = path.display().to_string();
 
                 slot_aggregated_status.register_desired_state_issue(
                     AgentIssue::HuggingFaceCannotAcquireLock(HuggingFaceDownloadLock {
@@ -119,35 +109,63 @@ impl ResolvesModelSource for HuggingFaceModelSource {
                     }
                 }
             }
-            Err(ApiError::RequestError(reqwest_error)) => match reqwest_error.status() {
-                Some(StatusCode::NOT_FOUND) => {
-                    slot_aggregated_status.register_desired_state_issue(
-                        AgentIssue::HuggingFaceModelDoesNotExist(model_path.clone()),
-                    );
+            Err(
+                HFError::EntryNotFound { .. }
+                | HFError::RepoNotFound { .. }
+                | HFError::RevisionNotFound { .. },
+            ) => {
+                slot_aggregated_status.register_desired_state_issue(
+                    AgentIssue::HuggingFaceModelDoesNotExist(model_path.clone()),
+                );
 
-                    Err(ModelSourceError::HuggingFaceModelMissing {
-                        model_path: model_path.model_path,
-                    })
-                }
-                Some(StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED) => {
-                    slot_aggregated_status.register_desired_state_issue(
-                        AgentIssue::HuggingFacePermissions(model_path.clone()),
-                    );
-
-                    Err(ModelSourceError::HuggingFacePermissionDenied {
-                        model_path: model_path.model_path,
-                    })
-                }
-                _other_status => Err(ModelSourceError::HuggingFaceDownloadFailed {
+                Err(ModelSourceError::HuggingFaceModelMissing {
                     model_path: model_path.model_path,
-                    source: ApiError::RequestError(reqwest_error),
-                }),
-            },
+                })
+            }
+            Err(HFError::AuthRequired { .. } | HFError::Forbidden { .. }) => {
+                slot_aggregated_status.register_desired_state_issue(
+                    AgentIssue::HuggingFacePermissions(model_path.clone()),
+                );
+
+                Err(ModelSourceError::HuggingFacePermissionDenied {
+                    model_path: model_path.model_path,
+                })
+            }
             Err(source) => Err(ModelSourceError::HuggingFaceDownloadFailed {
                 model_path: model_path.model_path,
                 source,
             }),
         }
+    }
+}
+
+impl ResolvesModelSource for HuggingFaceModelSource {
+    async fn resolve(
+        &self,
+        cancellation_token: &CancellationToken,
+        slot_aggregated_status: Arc<SlotAggregatedStatus>,
+    ) -> Result<DesiredModelResolution, ModelSourceError> {
+        let model_path = self.reference.model_path();
+
+        if slot_aggregated_status.has_issue(&AgentIssue::HuggingFaceModelDoesNotExist(
+            model_path.clone(),
+        )) {
+            return Err(ModelSourceError::HuggingFaceModelKnownToBeMissing {
+                model_path: model_path.model_path,
+            });
+        }
+
+        let client = self
+            .hub
+            .start_client(&model_path, &slot_aggregated_status)?;
+
+        self.resolve_through(
+            &client,
+            model_path,
+            cancellation_token,
+            slot_aggregated_status,
+        )
+        .await
     }
 }
 
@@ -157,31 +175,33 @@ mod tests {
     use std::fs::create_dir_all;
     use std::fs::read;
     use std::fs::write;
+    use std::path::Path;
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use hf_hub::Cache;
-    use hf_hub::Repo;
-    use hf_hub::RepoType;
-    use hf_hub::api::tokio::ApiError;
+    use hf_hub::HFClient;
+    use hf_hub::HFError;
     use reqwest::StatusCode;
-    use reqwest::header::HeaderName;
-    use reqwest::header::HeaderValue;
     use tempfile::TempDir;
     use tempfile::tempdir;
     use tokio::join;
     use tokio_util::sync::CancellationToken;
+    use url::ParseError;
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_local_http_fixture::fixture_response::FixtureResponse;
     use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::hugging_face_download_lock::HuggingFaceDownloadLock;
+    use paddler_messaging::model_download_status::ModelDownloadStatus;
+    use paddler_messaging::produces_snapshot::ProducesSnapshot;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
     use super::HuggingFaceModelSource;
     use crate::desired_model_resolution::DesiredModelResolution;
+    use crate::huggingface_cache_location::HuggingFaceCacheLocation;
     use crate::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+    use crate::huggingface_hub::HuggingFaceHub;
     use crate::huggingface_model_reference::HuggingFaceModelReference;
     use crate::model_source::ModelSource;
     use crate::model_source_error::ModelSourceError;
@@ -190,35 +210,44 @@ mod tests {
     const HUB_COMMIT_HASH: &str = "hub-commit";
     const HUB_ETAG: &str = "hub-etag";
     const HUB_MODEL_BYTES: &[u8] = b"hub model bytes";
+    const REPOSITORY_CACHE_FOLDER: &str = "models--owner--repo";
 
     struct HubCache {
-        cache: Cache,
-        _cache_dir: TempDir,
+        cache_dir: TempDir,
     }
 
     impl HubCache {
         fn new() -> Self {
-            let cache_dir = tempdir().unwrap();
-
             Self {
-                cache: Cache::new(cache_dir.path().join("hub")),
-                _cache_dir: cache_dir,
+                cache_dir: tempdir().unwrap(),
             }
+        }
+
+        fn client_of(&self, hub: &LocalHttpFixture) -> HFClient {
+            HFClient::builder()
+                .cache_dir(self.cache_dir.path())
+                .endpoint(hub.url(""))
+                .build()
+                .unwrap()
         }
 
         fn model_source_downloading_from(&self, hub: &LocalHttpFixture) -> HuggingFaceModelSource {
             HuggingFaceModelSource {
-                cache: self.cache.clone(),
-                endpoint: hub.url(""),
+                hub: HuggingFaceHub {
+                    cache_location: HuggingFaceCacheLocation::Directory(
+                        self.cache_dir.path().to_path_buf(),
+                    ),
+                    endpoint: hub.url(""),
+                },
                 reference: uncached_model_reference(),
             }
         }
 
         fn blob_lock_path(&self) -> PathBuf {
-            self.cache
+            self.cache_dir
                 .path()
-                .join(uncached_model_reference().repo().folder_name())
-                .join("blobs")
+                .join(".locks")
+                .join(REPOSITORY_CACHE_FOLDER)
                 .join(format!("{HUB_ETAG}.lock"))
         }
 
@@ -233,17 +262,13 @@ mod tests {
 
             held_blob_lock
         }
-
-        fn write_token(&self, token: &str) {
-            create_dir_all(self.cache.path()).unwrap();
-            write(self.cache.token_path(), token).unwrap();
-        }
     }
 
     fn uncached_model_reference() -> HuggingFaceModelReference {
         HuggingFaceModelReference {
             filename: "model.gguf".to_owned(),
-            repo_id: "owner/repo".to_owned(),
+            repository_name: "repo".to_owned(),
+            repository_owner: "owner".to_owned(),
             revision: "main".to_owned(),
         }
     }
@@ -260,30 +285,26 @@ mod tests {
         Arc::new(SlotAggregatedStatus::new(1))
     }
 
+    fn offline_hub_of(cache_dir: &Path) -> HuggingFaceHub {
+        HuggingFaceHub {
+            cache_location: HuggingFaceCacheLocation::Directory(cache_dir.to_path_buf()),
+            endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+        }
+    }
+
     fn cache_model_file_at_revision(
-        cache: &Cache,
+        cache_dir: &Path,
         revision: &str,
         commit_hash: &str,
         filename: &str,
     ) -> PathBuf {
-        let repo = Repo::with_revision(
-            "owner/repo".to_owned(),
-            RepoType::Model,
-            revision.to_owned(),
-        );
-
-        cache.repo(repo.clone()).create_ref(commit_hash).unwrap();
-
-        let snapshot_dir = cache
-            .path()
-            .join(repo.folder_name())
-            .join("snapshots")
-            .join(commit_hash);
-
-        create_dir_all(&snapshot_dir).unwrap();
-
+        let repository_cache = cache_dir.join(REPOSITORY_CACHE_FOLDER);
+        let snapshot_dir = repository_cache.join("snapshots").join(commit_hash);
         let model_file = snapshot_dir.join(filename);
 
+        create_dir_all(repository_cache.join("refs")).unwrap();
+        write(repository_cache.join("refs").join(revision), commit_hash).unwrap();
+        create_dir_all(&snapshot_dir).unwrap();
         File::create(&model_file).unwrap();
 
         model_file
@@ -292,41 +313,36 @@ mod tests {
     #[tokio::test]
     async fn resolves_the_cached_file_of_the_requested_revision() {
         let cache_dir = tempdir().unwrap();
-        let cache = Cache::new(cache_dir.path().to_path_buf());
 
-        cache_model_file_at_revision(&cache, "main", "main-commit", "model.gguf");
+        cache_model_file_at_revision(cache_dir.path(), "main", "main-commit", "model.gguf");
 
         let requested_revision_file =
-            cache_model_file_at_revision(&cache, "v2", "v2-commit", "model.gguf");
+            cache_model_file_at_revision(cache_dir.path(), "v2", "v2-commit", "model.gguf");
         let resolution = HuggingFaceModelSource {
-            cache,
-            endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+            hub: offline_hub_of(cache_dir.path()),
             reference: HuggingFaceModelReference {
-                filename: "model.gguf".to_owned(),
-                repo_id: "owner/repo".to_owned(),
                 revision: "v2".to_owned(),
+                ..uncached_model_reference()
             },
         }
         .resolve(&CancellationToken::new(), fresh_status())
         .await
         .unwrap();
 
-        assert!(matches!(
+        assert_eq!(
             resolution,
-            DesiredModelResolution::Resolved(resolved_file) if resolved_file == requested_revision_file
-        ));
+            DesiredModelResolution::Resolved(requested_revision_file)
+        );
     }
 
     #[tokio::test]
     async fn resolves_a_cached_file_from_a_uri_that_percent_encodes_its_name() {
         let cache_dir = tempdir().unwrap();
-        let cache = Cache::new(cache_dir.path().to_path_buf());
         let cached_file =
-            cache_model_file_at_revision(&cache, "main", "main-commit", "my modèle.gguf");
+            cache_model_file_at_revision(cache_dir.path(), "main", "main-commit", "my modèle.gguf");
         let reference = HuggingFaceModelReference {
             filename: "my modèle.gguf".to_owned(),
-            repo_id: "owner/repo".to_owned(),
-            revision: "main".to_owned(),
+            ..uncached_model_reference()
         };
 
         assert_eq!(
@@ -339,8 +355,7 @@ mod tests {
         );
         assert_eq!(
             HuggingFaceModelSource {
-                cache,
-                endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                hub: offline_hub_of(cache_dir.path()),
                 reference,
             }
             .resolve(&CancellationToken::new(), fresh_status())
@@ -351,17 +366,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_client_without_a_cache_cannot_look_up_cached_models() {
+        let cache_dir = tempdir().unwrap();
+        let resolution = HuggingFaceModelSource {
+            hub: offline_hub_of(cache_dir.path()),
+            reference: uncached_model_reference(),
+        }
+        .resolve_through(
+            &HFClient::builder().cache_enabled(false).build().unwrap(),
+            uncached_model_reference().model_path(),
+            &CancellationToken::new(),
+            fresh_status(),
+        )
+        .await;
+
+        assert_eq!(
+            resolution
+                .err()
+                .map(|resolution_error| resolution_error.to_string()),
+            Some(
+                ModelSourceError::HuggingFaceCacheLookupFailed {
+                    model_path: uncached_model_reference().model_path().model_path,
+                    source: HFError::CacheNotEnabled,
+                }
+                .to_string()
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn a_malformed_endpoint_keeps_the_hub_client_from_starting_until_it_is_corrected() {
+        let hub_cache = HubCache::new();
+        let hub = LocalHttpFixture::start(hub_model_file()).await.unwrap();
+        let slot_aggregated_status = fresh_status();
+        let client_cannot_start =
+            AgentIssue::HuggingFaceClientCannotStart(uncached_model_reference().model_path());
+
+        let resolution_with_a_malformed_endpoint = HuggingFaceModelSource {
+            hub: HuggingFaceHub {
+                cache_location: HuggingFaceCacheLocation::Directory(
+                    hub_cache.cache_dir.path().to_path_buf(),
+                ),
+                endpoint: "not an endpoint".to_owned(),
+            },
+            reference: uncached_model_reference(),
+        }
+        .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
+        .await;
+        let issue_reported_with_a_malformed_endpoint =
+            slot_aggregated_status.has_issue(&client_cannot_start);
+        let resolution_with_a_corrected_endpoint = hub_cache
+            .model_source_downloading_from(&hub)
+            .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
+            .await;
+
+        assert_eq!(
+            resolution_with_a_malformed_endpoint
+                .err()
+                .map(|resolution_error| resolution_error.to_string()),
+            Some(
+                ModelSourceError::HuggingFaceClientUnavailable(HFError::Url(
+                    ParseError::RelativeUrlWithoutBase
+                ))
+                .to_string()
+            )
+        );
+        assert!(issue_reported_with_a_malformed_endpoint);
+        assert_eq!(
+            resolution_with_a_corrected_endpoint.unwrap(),
+            DesiredModelResolution::Resolved(
+                uncached_model_reference()
+                    .cached_path(&hub_cache.client_of(&hub))
+                    .await
+                    .unwrap()
+            )
+        );
+        assert!(!slot_aggregated_status.has_issue(&client_cannot_start));
+    }
+
+    #[tokio::test]
     async fn downloads_an_uncached_file_from_its_hub_into_the_cache() {
         let hub_cache = HubCache::new();
         let hub = LocalHttpFixture::start(hub_model_file()).await.unwrap();
+        let slot_aggregated_status = fresh_status();
 
         let resolution = hub_cache
             .model_source_downloading_from(&hub)
-            .resolve(&CancellationToken::new(), fresh_status())
+            .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
             .await
             .unwrap();
         let cached_path = uncached_model_reference()
-            .cached_path(&hub_cache.cache)
+            .cached_path(&hub_cache.client_of(&hub))
+            .await
             .unwrap();
 
         assert_eq!(
@@ -369,6 +465,13 @@ mod tests {
             DesiredModelResolution::Resolved(cached_path.clone())
         );
         assert_eq!(read(cached_path).unwrap(), HUB_MODEL_BYTES);
+        assert_eq!(
+            slot_aggregated_status
+                .make_snapshot()
+                .status
+                .download_status,
+            ModelDownloadStatus::NotDownloading
+        );
     }
 
     #[tokio::test]
@@ -448,9 +551,9 @@ mod tests {
         assert!(matches!(
             resolution,
             Err(ModelSourceError::HuggingFaceDownloadFailed {
-                source: ApiError::RequestError(request_error),
+                source: HFError::Http { context },
                 ..
-            }) if request_error.status() == Some(StatusCode::INTERNAL_SERVER_ERROR)
+            }) if context.status == StatusCode::INTERNAL_SERVER_ERROR
         ));
     }
 
@@ -466,21 +569,17 @@ mod tests {
             .resolve(&CancellationToken::new(), fresh_status())
             .await;
 
-        assert_eq!(
-            resolution
-                .err()
-                .map(|resolution_error| resolution_error.to_string()),
-            Some(
-                ModelSourceError::HuggingFaceDownloadFailed {
-                    model_path: uncached_model_reference().model_path().model_path,
-                    source: ApiError::MissingHeader(HeaderName::from_static("etag")),
-                }
-                .to_string()
-            )
-        );
+        assert!(matches!(
+            resolution,
+            Err(ModelSourceError::HuggingFaceDownloadFailed {
+                source: HFError::MalformedResponse { what, .. },
+                model_path,
+            }) if what == "missing ETag header"
+                && model_path == uncached_model_reference().model_path().model_path
+        ));
     }
 
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn a_blob_locked_by_another_process_stays_unavailable_after_the_lock_retry_wait() {
         let hub_cache = HubCache::new();
         let hub = LocalHttpFixture::start(hub_model_file()).await.unwrap();
@@ -508,7 +607,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn a_resolution_cancelled_while_waiting_for_a_locked_blob_is_cancelled() {
         let hub_cache = HubCache::new();
         let hub = LocalHttpFixture::start(hub_model_file()).await.unwrap();
@@ -540,48 +639,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_malformed_token_keeps_the_hub_client_from_starting_until_it_is_corrected() {
+    async fn a_resolution_cancelled_while_downloading_is_cancelled() {
         let hub_cache = HubCache::new();
         let hub = LocalHttpFixture::start(hub_model_file()).await.unwrap();
-        let model_source = hub_cache.model_source_downloading_from(&hub);
-        let slot_aggregated_status = fresh_status();
-        let client_cannot_start =
-            AgentIssue::HuggingFaceClientCannotStart(uncached_model_reference().model_path());
+        let cancellation_token = CancellationToken::new();
 
-        hub_cache.write_token("malformed\x01token");
-
-        let resolution_with_a_malformed_token = model_source
-            .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
-            .await;
-        let issue_reported_with_a_malformed_token =
-            slot_aggregated_status.has_issue(&client_cannot_start);
-
-        hub_cache.write_token("corrected-token");
-
-        let resolution_with_a_corrected_token = model_source
-            .resolve(&CancellationToken::new(), slot_aggregated_status.clone())
-            .await;
+        cancellation_token.cancel();
 
         assert_eq!(
-            resolution_with_a_malformed_token
-                .err()
-                .map(|resolution_error| resolution_error.to_string()),
-            Some(
-                ModelSourceError::HuggingFaceClientUnavailable(ApiError::InvalidHeaderValue(
-                    HeaderValue::from_str("Bearer malformed\x01token").unwrap_err()
-                ))
-                .to_string()
-            )
+            hub_cache
+                .model_source_downloading_from(&hub)
+                .resolve(&cancellation_token, fresh_status())
+                .await
+                .unwrap(),
+            DesiredModelResolution::Cancelled
         );
-        assert!(issue_reported_with_a_malformed_token);
-        assert_eq!(
-            resolution_with_a_corrected_token.unwrap(),
-            DesiredModelResolution::Resolved(
-                uncached_model_reference()
-                    .cached_path(&hub_cache.cache)
-                    .unwrap()
-            )
-        );
-        assert!(!slot_aggregated_status.has_issue(&client_cannot_start));
     }
 }

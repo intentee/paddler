@@ -1,7 +1,6 @@
 use std::collections::BTreeSet;
 use std::io::Error as IoError;
 use std::net::SocketAddr;
-use std::str::Utf8Error;
 
 use async_openai::error::OpenAIError;
 use quick_xml::Error as XmlError;
@@ -88,8 +87,6 @@ pub enum ClusterHarnessError {
     CompatTypeSafeBaseUrlInvalid(#[source] ParseError),
     #[error("The web admin panel page carries a malformed attribute")]
     DashboardAttributeMalformed(#[source] AttrError),
-    #[error("The web admin panel page carries an attribute whose name is not UTF-8")]
-    DashboardAttributeNameNotUtf8(#[source] Utf8Error),
     #[error("The web admin panel page carries an attribute value that cannot be unescaped")]
     DashboardAttributeValueUnreadable(#[source] XmlError),
     #[error("The web admin panel page has no dashboard element")]

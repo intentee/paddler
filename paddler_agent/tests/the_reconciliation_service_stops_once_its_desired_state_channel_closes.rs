@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use hf_hub::Cache;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service as _;
@@ -13,7 +12,9 @@ use paddler_cache_dir::cache_dir::CacheDir;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
 #[tokio::test]
 async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes() {
@@ -33,8 +34,10 @@ async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes(
                     xdg: None,
                 },
                 download_manager: DownloadManager::new().expect("the model downloader must start"),
-                huggingface_cache: Cache::from_env(),
-                huggingface_endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                huggingface_hub: HuggingFaceHub {
+                    cache_location: HuggingFaceCacheLocation::HubDefault,
+                    endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                },
             },
             slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
         },

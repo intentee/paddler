@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use hf_hub::Cache;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::micro_batch_tokens;
 use tokio::sync::mpsc::unbounded_channel;
@@ -33,8 +32,7 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
         |adjust_ingestion: &dyn Fn(&mut MultimodalPromptIngestion)| -> GeneratedTokenResult {
             let runtime = LlamaRuntime::load(
                 &smolvlm2_256m()
-                    .reference
-                    .cached_path(&Cache::from_env())
+                    .cached_path()
                     .expect("the vision model must be in the Hugging Face cache"),
                 agent_inference_runtime_context(1),
             )
@@ -50,8 +48,7 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
                 multimodal_context: Arc::new(
                     ResidentMultimodalContext::load(
                         &smolvlm2_256m_mmproj()
-                            .reference
-                            .cached_path(&Cache::from_env())
+                            .cached_path()
                             .expect("the multimodal projection must be in the Hugging Face cache"),
                         &runtime.loaded_llama_model.model,
                         runtime

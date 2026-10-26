@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use hf_hub::Cache;
 use tempfile::TempDir;
 use tokio::spawn;
 use tokio::sync::watch;
@@ -22,7 +21,9 @@ use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
 use crate::reconciliation_after_replacement::ReconciliationAfterReplacement;
 
@@ -62,8 +63,10 @@ impl ReconciliationReplacedBeforeItsWorkerRuns {
                         },
                         download_manager: DownloadManager::new()
                             .expect("the model downloader must start"),
-                        huggingface_cache: Cache::from_env(),
-                        huggingface_endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                        huggingface_hub: HuggingFaceHub {
+                            cache_location: HuggingFaceCacheLocation::HubDefault,
+                            endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                        },
                     },
                     slot_aggregated_status: slot_aggregated_status.clone(),
                 },

@@ -93,6 +93,13 @@ impl SlotAggregatedStatus {
         self.announce_change();
     }
 
+    pub fn set_downloaded_bytes(&self, downloaded_bytes: u64) {
+        self.download_status
+            .write()
+            .set_downloaded_bytes(downloaded_bytes);
+        self.announce_change();
+    }
+
     pub fn begin_desired_state(&self) {
         self.desired_state_issues.clear();
         *self.download_status.write() = ModelDownloadStatus::NotDownloading;

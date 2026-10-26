@@ -1,6 +1,5 @@
 use anyhow::Context as _;
 use anyhow::Result;
-use hf_hub::Cache;
 use log::LevelFilter;
 use log::set_max_level;
 use tempfile::TempDir;
@@ -10,7 +9,9 @@ use paddler_bootstrap::balancer_runner::BalancerRunner;
 use paddler_cache_dir::cache_dir::CacheDir;
 use paddler_download_manager::download_manager::DownloadManager;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+use paddler_model_source::huggingface_hub::HuggingFaceHub;
 use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::running_balancer::RunningBalancer;
@@ -42,8 +43,10 @@ pub async fn start_cluster(cluster_params: ClusterParams) -> Result<Cluster> {
             xdg: None,
         },
         download_manager: DownloadManager::new()?,
-        huggingface_cache: Cache::from_env(),
-        huggingface_endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+        huggingface_hub: HuggingFaceHub {
+            cache_location: HuggingFaceCacheLocation::HubDefault,
+            endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+        },
     };
 
     let mut cluster = Cluster::connect(

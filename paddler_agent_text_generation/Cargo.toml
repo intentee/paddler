@@ -15,7 +15,6 @@ log = { workspace = true }
 minijinja = { workspace = true }
 minijinja-contrib = { workspace = true }
 rand = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

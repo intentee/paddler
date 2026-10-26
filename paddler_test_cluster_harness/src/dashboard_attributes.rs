@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::str::from_utf8;
 
 use quick_xml::Reader;
 use quick_xml::XmlVersion;
@@ -22,9 +21,7 @@ fn attributes_of(
                 .normalized_value(XmlVersion::Implicit1_0)
                 .map_err(ClusterHarnessError::DashboardAttributeValueUnreadable)?;
 
-            from_utf8(attribute.key.as_ref())
-                .map(|name| (name.to_owned(), value.into_owned()))
-                .map_err(ClusterHarnessError::DashboardAttributeNameNotUtf8)
+            Ok((attribute.key.as_ref().to_owned(), value.into_owned()))
         })
         .collect()
 }

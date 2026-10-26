@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_text_generation::multimodal_projection::MultimodalProjection;
@@ -17,8 +16,7 @@ use paddler_tests::text_generation_pipeline_parts::TextGenerationPipelineParts;
 async fn a_text_generation_pipeline_refuses_a_penalty_window_longer_than_its_sequence_context() {
     let llama_runtime = LlamaRuntime::load(
         &smolvlm2_256m()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )

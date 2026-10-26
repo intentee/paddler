@@ -286,7 +286,8 @@ mod tests {
     fn uncached_hugging_face_model() -> AgentDesiredModel {
         ModelSource::HuggingFace(HuggingFaceModelReference {
             filename: "uncached.gguf".to_owned(),
-            repo_id: "owner/repo".to_owned(),
+            repository_name: "repo".to_owned(),
+            repository_owner: "owner".to_owned(),
             revision: "main".to_owned(),
         })
         .into_agent_desired_model()

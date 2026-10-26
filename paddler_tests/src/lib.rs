@@ -85,6 +85,6 @@ pub mod uncompilable_chat_template;
 pub mod uncompilable_chat_template_issue;
 pub mod weather_question_conversation;
 pub mod weather_tool_call_json;
-pub mod weather_tool_parameters_with_an_integer_location;
+pub mod weather_tool_parameters_with_an_unsatisfiable_location;
 pub mod weather_tool_question;
 pub mod write_patched_gguf;

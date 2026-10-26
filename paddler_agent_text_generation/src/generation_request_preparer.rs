@@ -5,7 +5,7 @@ use llama_cpp_bindings::BareJsonToolCalls;
 use llama_cpp_bindings::ChatMessageParser;
 use llama_cpp_bindings::StreamingMarkers;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
-use rand::Rng as _;
+use rand::RngExt as _;
 use rand::rng;
 use serde_json::Value;
 

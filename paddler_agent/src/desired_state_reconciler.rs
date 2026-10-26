@@ -117,7 +117,8 @@ mod tests {
         let desired_state = desired_state_with_model(
             ModelSource::HuggingFace(HuggingFaceModelReference {
                 filename: "model.gguf".to_owned(),
-                repo_id: "paddler-tests/never-downloaded".to_owned(),
+                repository_name: "never-downloaded".to_owned(),
+                repository_owner: "paddler-tests".to_owned(),
                 revision: "main".to_owned(),
             })
             .into_agent_desired_model(),

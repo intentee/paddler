@@ -1,4 +1,5 @@
 use minijinja::context;
+use minijinja::value::Serde;
 
 use paddler_messaging::media_marker::MediaMarker;
 
@@ -27,12 +28,12 @@ impl ChatPromptRenderer {
         self.chat_template_renderer
             .render(context! {
                 add_generation_prompt,
-                bos_token => self.token_bos_str,
+                bos_token => self.token_bos_str.as_str(),
                 enable_thinking,
-                eos_token => self.token_eos_str,
-                messages,
-                nl_token => self.token_nl_str,
-                tools,
+                eos_token => self.token_eos_str.as_str(),
+                messages => Serde(messages),
+                nl_token => self.token_nl_str.as_str(),
+                tools => Serde(tools),
             })
             .map_err(TextGenerationError::ChatTemplateRenderingFailed)
     }

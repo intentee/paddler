@@ -2,7 +2,6 @@
 
 use std::ffi::CString;
 
-use hf_hub::Cache;
 use llama_cpp_bindings::error::ParseChatMessageError;
 use llama_cpp_bindings::token_piece::TokenPiece;
 
@@ -19,8 +18,7 @@ const TOOL_CALL_BODY_WITH_A_NUL_BYTE: &str = "hello\0world";
 fn a_tool_call_body_with_a_nul_byte_fails_to_parse() {
     let runtime = LlamaRuntime::load(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )

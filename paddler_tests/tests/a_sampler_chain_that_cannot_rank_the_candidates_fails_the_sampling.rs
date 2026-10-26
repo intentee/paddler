@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::error::SamplerApplyError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 
@@ -15,8 +14,7 @@ use crate::sampling_with_a_smaller_vocabulary_grammar::SamplingWithASmallerVocab
 fn a_sampler_chain_that_cannot_rank_the_candidates_fails_the_sampling() {
     let sampling = SamplingWithASmallerVocabularyGrammar::load(
         &nomic_embed_text_v1_5()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the nomic embedding model must be in the Hugging Face cache"),
     );
 

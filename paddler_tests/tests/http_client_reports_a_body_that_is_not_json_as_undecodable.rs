@@ -1,8 +1,8 @@
-use http::Response as HttpResponse;
-use reqwest::Response;
+use reqwest::Url;
 use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error;
+use paddler_client::format_api_url::format_api_url;
 use paddler_client::http_client::HttpClient;
 use paddler_messaging::api_path::ApiPath;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
@@ -13,21 +13,18 @@ async fn http_client_reports_a_body_that_is_not_json_as_undecodable() {
     let cluster = start_cluster(ClusterParams::without_agents())
         .await
         .expect("a balancer without agents must start");
-    let http_client = HttpClient::new(cluster.balancer.management_base_url.clone());
-    let health_body_decoding_error = Response::from(HttpResponse::new("OK"))
-        .json::<String>()
-        .await
-        .expect_err("the health body must not decode as a JSON string");
+    let health_url = format_api_url(&cluster.balancer.management_base_url, ApiPath::HEALTH);
 
-    assert_eq!(
-        http_client
-            .get_json::<String>(CancellationToken::new(), ApiPath::HEALTH)
-            .await
-            .err()
-            .as_ref()
-            .map(ToString::to_string),
-        Some(Error::Http(health_body_decoding_error).to_string())
-    );
+    let health_as_json = HttpClient::new(cluster.balancer.management_base_url.clone())
+        .get_json::<String>(CancellationToken::new(), ApiPath::HEALTH)
+        .await;
+
+    assert!(matches!(
+        health_as_json,
+        Err(Error::Http(decoding_error))
+            if decoding_error.is_decode()
+                && decoding_error.url().map(Url::as_str) == Some(health_url.as_str())
+    ));
 
     cluster
         .shutdown()

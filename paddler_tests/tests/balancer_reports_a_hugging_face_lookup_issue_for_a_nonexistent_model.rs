@@ -10,7 +10,8 @@ use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_a
 async fn balancer_reports_a_hugging_face_lookup_issue_for_a_nonexistent_model() {
     let reference = HuggingFaceModelReference {
         filename: "nonexistent.gguf".to_owned(),
-        repo_id: "nonexistent-org/nonexistent-model-gguf".to_owned(),
+        repository_name: "nonexistent-model-gguf".to_owned(),
+        repository_owner: "nonexistent-org".to_owned(),
         revision: "main".to_owned(),
     };
     let lookup_issues = [

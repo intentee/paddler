@@ -4,7 +4,6 @@ use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use hf_hub::Cache;
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::micro_batch_tokens;
@@ -55,11 +54,9 @@ fn last_result(
 
 #[test]
 fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
-    let cache = Cache::from_env();
     let runtime = LlamaRuntime::load(
         &smolvlm2_256m()
-            .reference
-            .cached_path(&cache)
+            .cached_path()
             .expect("the vision model must be in the Hugging Face cache"),
         agent_inference_runtime_context(SLOTS),
     )
@@ -72,8 +69,7 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
     let n_batch = runtime.model_runtime_parameters.n_batch;
     let multimodal_context = ResidentMultimodalContext::load(
         &smolvlm2_256m_mmproj()
-            .reference
-            .cached_path(&cache)
+            .cached_path()
             .expect("the multimodal projection must be in the Hugging Face cache"),
         model,
         runtime

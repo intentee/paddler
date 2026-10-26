@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::error::TokenToStringError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
@@ -25,8 +24,7 @@ const PROMPT: &str = "Paddler balances";
 fn a_sampled_token_the_vocabulary_cannot_render_ends_the_generation() {
     let runtime = LlamaRuntime::load(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )

@@ -2,7 +2,6 @@
 
 use std::time::SystemTime;
 
-use hf_hub::Cache;
 use serde_json::Value;
 use serde_json::from_value;
 use serde_json::json;
@@ -20,8 +19,7 @@ use paddler_tests::llama_runtime::LlamaRuntime;
 fn qwen3_chat_template_renders_a_tool_call_history_as_tool_call_and_tool_response_blocks() {
     let runtime = LlamaRuntime::load(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the Qwen3 model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )
@@ -83,8 +81,8 @@ fn qwen3_chat_template_renders_a_tool_call_history_as_tool_call_and_tool_respons
 
     assert!(rendered_prompt.contains(concat!(
         "<|im_start|>assistant\n",
-        "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\":\"Paris\"}}\n</tool_call>\n",
-        "<tool_call>\n{\"name\": \"get_time\", \"arguments\": {\"location\":\"Paris\"}}\n</tool_call>",
+        "<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Paris\"}}\n</tool_call>\n",
+        "<tool_call>\n{\"name\": \"get_time\", \"arguments\": {\"location\": \"Paris\"}}\n</tool_call>",
         "<|im_end|>\n",
         "<|im_start|>user\n",
         "<tool_response>\nsunny\n</tool_response>\n",

@@ -45,7 +45,8 @@ fn huggingface_model_reference(
         {
             Ok(HuggingFaceModelReference {
                 filename: filename_segments.join("/"),
-                repo_id: format!("{owner}/{repo}"),
+                repository_name: repo.to_string(),
+                repository_owner: owner.to_string(),
                 revision: revision.to_string(),
             })
         }
@@ -126,11 +127,13 @@ impl ModelSource {
         match self {
             Self::HuggingFace(HuggingFaceModelReference {
                 filename,
-                repo_id,
+                repository_name,
+                repository_owner,
                 revision,
             }) => format!(
-                "https://{HUGGING_FACE_HOST}/{}/{HUGGING_FACE_BLOB}/{}/{}",
-                percent_encoded_path(repo_id),
+                "https://{HUGGING_FACE_HOST}/{}/{}/{HUGGING_FACE_BLOB}/{}/{}",
+                percent_encoded_path_segment(repository_owner),
+                percent_encoded_path_segment(repository_name),
                 percent_encoded_path_segment(revision),
                 percent_encoded_path(filename)
             ),
@@ -189,7 +192,8 @@ mod tests {
                 ModelSource::parse(uri, &slot_aggregated_status).unwrap(),
                 ModelSource::HuggingFace(HuggingFaceModelReference {
                     filename: filename.to_owned(),
-                    repo_id: "unsloth/Qwen3-0.6B-GGUF".to_owned(),
+                    repository_name: "Qwen3-0.6B-GGUF".to_owned(),
+                    repository_owner: "unsloth".to_owned(),
                     revision: "main".to_owned(),
                 })
             );
@@ -221,7 +225,8 @@ mod tests {
                 ModelSource::parse(uri, &slot_aggregated_status).unwrap(),
                 ModelSource::HuggingFace(HuggingFaceModelReference {
                     filename: filename.to_owned(),
-                    repo_id: "owner/repo".to_owned(),
+                    repository_name: "repo".to_owned(),
+                    repository_owner: "owner".to_owned(),
                     revision: revision.to_owned(),
                 })
             );
@@ -310,7 +315,8 @@ mod tests {
             [
                 ModelSource::HuggingFace(HuggingFaceModelReference {
                     filename: "nested/my model.gguf".to_owned(),
-                    repo_id: "owner/repo".to_owned(),
+                    repository_name: "repo".to_owned(),
+                    repository_owner: "owner".to_owned(),
                     revision: "refs/pr/1".to_owned(),
                 }),
                 ModelSource::LocalToAgent(

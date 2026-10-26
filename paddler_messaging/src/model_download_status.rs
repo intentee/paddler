@@ -29,6 +29,18 @@ impl ModelDownloadStatus {
             Self::NotDownloading => {}
         }
     }
+
+    pub const fn set_downloaded_bytes(&mut self, completed_bytes: u64) {
+        match self {
+            Self::Downloading {
+                downloaded_bytes, ..
+            }
+            | Self::DownloadingWithUnknownSize {
+                downloaded_bytes, ..
+            } => *downloaded_bytes = completed_bytes,
+            Self::NotDownloading => {}
+        }
+    }
 }
 
 #[cfg(test)]
@@ -78,6 +90,53 @@ mod tests {
         let mut download_status = ModelDownloadStatus::NotDownloading;
 
         download_status.add_downloaded_bytes(50);
+
+        assert_eq!(download_status, ModelDownloadStatus::NotDownloading);
+    }
+
+    #[test]
+    fn replaces_the_downloaded_bytes_of_a_running_download() {
+        let mut download_status = ModelDownloadStatus::Downloading {
+            downloaded_bytes: 100,
+            model_path: "https://example.com/model.gguf".to_owned(),
+            total_bytes: 400,
+        };
+
+        download_status.set_downloaded_bytes(250);
+
+        assert_eq!(
+            download_status,
+            ModelDownloadStatus::Downloading {
+                downloaded_bytes: 250,
+                model_path: "https://example.com/model.gguf".to_owned(),
+                total_bytes: 400,
+            }
+        );
+    }
+
+    #[test]
+    fn replaces_the_downloaded_bytes_of_a_download_of_unknown_size() {
+        let mut download_status = ModelDownloadStatus::DownloadingWithUnknownSize {
+            downloaded_bytes: 100,
+            model_path: "https://example.com/model.gguf".to_owned(),
+        };
+
+        download_status.set_downloaded_bytes(250);
+
+        assert_eq!(
+            download_status,
+            ModelDownloadStatus::DownloadingWithUnknownSize {
+                downloaded_bytes: 250,
+                model_path: "https://example.com/model.gguf".to_owned(),
+            }
+        );
+    }
+
+    #[test]
+    fn a_byte_count_reported_after_the_download_stopped_does_not_restart_it() {
+        let mut download_status = ModelDownloadStatus::NotDownloading;
+
+        download_status.set_downloaded_bytes(50);
 
         assert_eq!(download_status, ModelDownloadStatus::NotDownloading);
     }

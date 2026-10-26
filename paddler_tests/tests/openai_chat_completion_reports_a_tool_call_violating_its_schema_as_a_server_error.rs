@@ -12,7 +12,7 @@ use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::post_openai_chat_completion::post_openai_chat_completion;
 use paddler_tests::start_cluster::start_cluster;
-use paddler_tests::weather_tool_parameters_with_an_integer_location::weather_tool_parameters_with_an_integer_location;
+use paddler_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;
 use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -43,7 +43,7 @@ async fn openai_chat_completion_reports_a_tool_call_violating_its_schema_as_a_se
                 "function": {
                     "name": "get_weather",
                     "description": "Get the current weather for a location",
-                    "parameters": weather_tool_parameters_with_an_integer_location()
+                    "parameters": weather_tool_parameters_with_an_unsatisfiable_location()
                 }
             }]
         }),

@@ -7,7 +7,8 @@ pub fn qwen2_5_vl_3b_mmproj() -> ModelCard {
     ModelCard {
         reference: HuggingFaceModelReference {
             filename: "mmproj-Qwen2.5-VL-3B-Instruct-Q8_0.gguf".to_owned(),
-            repo_id: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF".to_owned(),
+            repository_name: "Qwen2.5-VL-3B-Instruct-GGUF".to_owned(),
+            repository_owner: "ggml-org".to_owned(),
             revision: "main".to_owned(),
         },
     }

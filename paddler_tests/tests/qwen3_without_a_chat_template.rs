@@ -2,7 +2,6 @@
 
 use std::path::PathBuf;
 
-use hf_hub::Cache;
 use tempfile::TempDir;
 
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
@@ -24,8 +23,7 @@ impl Qwen3WithoutAChatTemplate {
 
         write_patched_gguf(
             &qwen3_0_6b()
-                .reference
-                .cached_path(&Cache::from_env())
+                .cached_path()
                 .expect("Qwen3 must be in the Hugging Face cache"),
             &qwen3_without_a_chat_template.model_path(),
             |gguf_context| {

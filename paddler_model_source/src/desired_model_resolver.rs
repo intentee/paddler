@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use hf_hub::Cache;
 use reqwest::Error as ReqwestError;
 use tokio_util::sync::CancellationToken;
 
@@ -10,6 +9,8 @@ use paddler_download_manager::download_manager::DownloadManager;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 
 use crate::desired_model_resolution::DesiredModelResolution;
+use crate::huggingface_cache_location::HuggingFaceCacheLocation;
+use crate::huggingface_hub::HuggingFaceHub;
 use crate::huggingface_model_source::HuggingFaceModelSource;
 use crate::local_model_path::LocalModelPath;
 use crate::model_source::ModelSource;
@@ -21,8 +22,7 @@ use crate::url_model_source::UrlModelSource;
 pub struct DesiredModelResolver {
     pub cache_dir: CacheDir,
     pub download_manager: DownloadManager,
-    pub huggingface_cache: Cache,
-    pub huggingface_endpoint: String,
+    pub huggingface_hub: HuggingFaceHub,
 }
 
 impl DesiredModelResolver {
@@ -30,8 +30,10 @@ impl DesiredModelResolver {
         Ok(Self {
             cache_dir: CacheDir::from_process_env(),
             download_manager: DownloadManager::new()?,
-            huggingface_cache: Cache::from_env(),
-            huggingface_endpoint,
+            huggingface_hub: HuggingFaceHub {
+                cache_location: HuggingFaceCacheLocation::HubDefault,
+                endpoint: huggingface_endpoint,
+            },
         })
     }
 
@@ -47,8 +49,7 @@ impl DesiredModelResolver {
                 match ModelSource::parse(uri, &slot_aggregated_status)? {
                     ModelSource::HuggingFace(reference) => {
                         HuggingFaceModelSource {
-                            cache: self.huggingface_cache.clone(),
-                            endpoint: self.huggingface_endpoint.clone(),
+                            hub: self.huggingface_hub.clone(),
                             reference,
                         }
                         .resolve(cancellation_token, slot_aggregated_status)

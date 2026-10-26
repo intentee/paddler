@@ -2,7 +2,6 @@
 
 use std::num::NonZeroU32;
 
-use hf_hub::Cache;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
@@ -24,8 +23,7 @@ async fn agent_generates_with_a_model_that_declares_no_bos_token() {
 
     write_patched_gguf(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("Qwen3 must be in the Hugging Face cache"),
         &model_without_bos_path,
         |gguf_context| {

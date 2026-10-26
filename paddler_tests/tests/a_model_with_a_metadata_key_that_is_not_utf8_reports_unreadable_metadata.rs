@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::error::MetaValError;
 use tempfile::TempDir;
 
@@ -19,8 +18,7 @@ fn a_model_with_a_metadata_key_that_is_not_utf8_reports_unreadable_metadata() {
 
     write_patched_gguf(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("Qwen3 must be in the Hugging Face cache"),
         &model_path,
         |gguf_context| {

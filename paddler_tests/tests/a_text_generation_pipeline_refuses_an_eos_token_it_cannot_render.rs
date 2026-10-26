@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::error::TokenToStringError;
 use tempfile::TempDir;
 
@@ -23,8 +22,7 @@ async fn a_text_generation_pipeline_refuses_an_eos_token_it_cannot_render() {
 
     write_patched_gguf(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("Qwen3 must be in the Hugging Face cache"),
         &model_path,
         point_qwen3_special_token_at_unused_padding(c"tokenizer.ggml.eos_token_id"),

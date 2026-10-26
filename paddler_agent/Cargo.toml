@@ -45,7 +45,6 @@ metal = ["paddler_agent_decision/metal", "paddler_agent_embeddings/metal", "padd
 vulkan = ["paddler_agent_decision/vulkan", "paddler_agent_embeddings/vulkan", "paddler_agent_runtime/vulkan", "paddler_agent_text_generation/vulkan"]
 
 [dev-dependencies]
-hf-hub = { workspace = true }
 http = { workspace = true }
 nix = { workspace = true }
 tempfile = { workspace = true }

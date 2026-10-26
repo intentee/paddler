@@ -3,9 +3,9 @@ pub mod raise_exception;
 
 use minijinja::Environment;
 use minijinja::Error;
+use minijinja::Value;
 use minijinja_contrib::add_to_environment;
 use minijinja_contrib::pycompat::unknown_method_callback;
-use serde::ser::Serialize;
 
 use paddler_messaging::chat_template::ChatTemplate;
 
@@ -32,7 +32,7 @@ impl ChatTemplateRenderer {
         Ok(Self { minijinja_env })
     }
 
-    pub fn render<TContext: Serialize>(&self, context: TContext) -> Result<String, Error> {
+    pub fn render(&self, context: Value) -> Result<String, Error> {
         self.minijinja_env
             .get_template(CHAT_TEMPLATE_NAME)
             .and_then(|template| template.render(context))
@@ -41,10 +41,9 @@ impl ChatTemplateRenderer {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use minijinja::ErrorKind;
     use minijinja::context;
+    use minijinja::value::Serde;
 
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::chat_template_message::ChatTemplateMessage;
@@ -79,10 +78,8 @@ mod tests {
             content: "Hello {{ name }}!".to_owned(),
         };
         let renderer = ChatTemplateRenderer::new(template).unwrap();
-        let mut context = HashMap::new();
-        context.insert("name", "world");
 
-        let result = renderer.render(context).unwrap();
+        let result = renderer.render(context! { name => "world" }).unwrap();
 
         assert_eq!(result, "Hello world!");
     }
@@ -104,7 +101,9 @@ mod tests {
             },
         ];
 
-        let result = renderer.render(context! { messages => messages }).unwrap();
+        let result = renderer
+            .render(context! { messages => Serde(messages) })
+            .unwrap();
 
         assert_eq!(result, "user:hi\nassistant:hello\n");
     }

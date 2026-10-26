@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
-
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
@@ -13,8 +11,7 @@ use crate::tool_call_pipeline_for_tools::tool_call_pipeline_for_tools;
 fn finalizing_a_tool_call_with_nothing_buffered_resolves_to_no_tool_calls() {
     let runtime = LlamaRuntime::load(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )

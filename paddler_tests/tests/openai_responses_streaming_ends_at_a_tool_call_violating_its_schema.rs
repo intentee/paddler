@@ -5,7 +5,7 @@ use serde_json::json;
 
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
-use paddler_tests::weather_tool_parameters_with_an_integer_location::weather_tool_parameters_with_an_integer_location;
+use paddler_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;
 use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -24,7 +24,7 @@ async fn openai_responses_streaming_ends_at_a_tool_call_violating_its_schema() {
                 "type": "function",
                 "name": "get_weather",
                 "description": "Get the current weather for a location",
-                "parameters": weather_tool_parameters_with_an_integer_location()
+                "parameters": weather_tool_parameters_with_an_unsatisfiable_location()
             }]
         }))
         .await

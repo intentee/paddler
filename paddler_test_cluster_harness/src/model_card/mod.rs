@@ -17,6 +17,11 @@ pub mod qwen3_8_27b;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;
 
+use std::path::PathBuf;
+
+use futures::executor::block_on;
+use hf_hub::HFResult;
+
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
@@ -27,6 +32,7 @@ use paddler_messaging::balancer_text_generation_settings::BalancerTextGeneration
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
 use paddler_model_source::model_source::ModelSource;
 
@@ -35,6 +41,13 @@ pub struct ModelCard {
 }
 
 impl ModelCard {
+    pub fn cached_path(&self) -> HFResult<PathBuf> {
+        HuggingFaceCacheLocation::HubDefault
+            .client_builder()
+            .build()
+            .and_then(|client| block_on(self.reference.cached_path(&client)))
+    }
+
     #[must_use]
     pub fn into_agent_desired_model(self) -> AgentDesiredModel {
         ModelSource::HuggingFace(self.reference).into_agent_desired_model()

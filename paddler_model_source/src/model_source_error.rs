@@ -2,7 +2,7 @@ use std::io;
 use std::path::PathBuf;
 use std::str::Utf8Error;
 
-use hf_hub::api::tokio::ApiError;
+use hf_hub::HFError;
 use thiserror::Error;
 use url::ParseError;
 
@@ -27,13 +27,19 @@ pub enum ModelSourceError {
     },
     #[error("Cannot download '{url}': another agent on this host is downloading it")]
     DownloadLockHeldByAnotherProcess { url: String },
+    #[error("Unable to look up model '{model_path}' in the Hugging Face cache: {source}")]
+    HuggingFaceCacheLookupFailed {
+        model_path: String,
+        #[source]
+        source: HFError,
+    },
     #[error("Unable to set up the Hugging Face client: {0}")]
-    HuggingFaceClientUnavailable(#[source] ApiError),
+    HuggingFaceClientUnavailable(#[source] HFError),
     #[error("Failed to download model '{model_path}' from Hugging Face: {source}")]
     HuggingFaceDownloadFailed {
         model_path: String,
         #[source]
-        source: ApiError,
+        source: HFError,
     },
     #[error(
         "Failed to acquire download lock '{lock_path}'. Is more than one agent running on this machine?"

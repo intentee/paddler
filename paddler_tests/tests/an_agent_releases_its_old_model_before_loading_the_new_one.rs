@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
@@ -12,8 +11,7 @@ use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 async fn an_agent_releases_its_old_model_before_loading_the_new_one() {
     let new_model = smolvlm2_256m();
     let new_model_path = new_model
-        .reference
-        .cached_path(&Cache::from_env())
+        .cached_path()
         .expect("the new model must be in the Hugging Face cache")
         .to_str()
         .expect("the new model path must be valid UTF-8")

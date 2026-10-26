@@ -96,7 +96,6 @@ impl Service for ReconciliationService {
 mod tests {
     use std::sync::Arc;
 
-    use hf_hub::Cache;
     use http::StatusCode;
     use tempfile::TempDir;
     use tokio::spawn;
@@ -114,7 +113,9 @@ mod tests {
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+    use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
     use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+    use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::ReconciliationService;
     use crate::agent_applicable_state_holder::AgentApplicableStateHolder;
@@ -151,8 +152,10 @@ mod tests {
                             xdg: None,
                         },
                         download_manager: DownloadManager::new().unwrap(),
-                        huggingface_cache: Cache::from_env(),
-                        huggingface_endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                        huggingface_hub: HuggingFaceHub {
+                            cache_location: HuggingFaceCacheLocation::HubDefault,
+                            endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                        },
                     },
                     slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
                 },

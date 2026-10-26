@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::token_piece::TokenPiece;
 use serde_json::Value;
 
@@ -21,8 +20,7 @@ const TOOL_CALL_WITH_ARGUMENTS_THAT_ARE_NOT_JSON: &str = "get_weather[ARGS]not j
 fn a_tool_call_the_chat_parser_cannot_match_is_reported_as_unrecognized() {
     let runtime = LlamaRuntime::load(
         &ministral_3_3b_reasoning()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("the model must be in the Hugging Face cache"),
         agent_inference_runtime_context(1),
     )

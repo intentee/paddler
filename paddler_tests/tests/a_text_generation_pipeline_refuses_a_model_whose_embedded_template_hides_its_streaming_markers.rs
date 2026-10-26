@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use hf_hub::Cache;
 use llama_cpp_bindings::error::MarkerDetectionError;
 use tempfile::TempDir;
 
@@ -24,8 +23,7 @@ async fn a_text_generation_pipeline_refuses_a_model_whose_embedded_template_hide
 
     write_patched_gguf(
         &qwen3_0_6b()
-            .reference
-            .cached_path(&Cache::from_env())
+            .cached_path()
             .expect("Qwen3 must be in the Hugging Face cache"),
         &model_path,
         |gguf_context| {

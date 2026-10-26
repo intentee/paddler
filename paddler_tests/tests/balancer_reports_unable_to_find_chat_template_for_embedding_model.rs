@@ -2,27 +2,24 @@
 
 use std::mem::discriminant;
 
-use hf_hub::Cache;
-
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_source::model_source::ModelSource;
-use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::start_single_agent_cluster_with_desired_state::start_single_agent_cluster_with_desired_state;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_reports_unable_to_find_chat_template_for_embedding_model() {
-    let ModelCard { reference } = nomic_embed_text_v1_5();
+    let model_card = nomic_embed_text_v1_5();
     let expected_issue = AgentIssue::UnableToFindChatTemplate(ModelPath::from(
-        reference
-            .cached_path(&Cache::from_env())
+        model_card
+            .cached_path()
             .expect("the model must be in the Hugging Face cache")
             .as_path(),
     ));
     let mut cluster = start_single_agent_cluster_with_desired_state(BalancerDesiredState {
-        model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
+        model: ModelSource::HuggingFace(model_card.reference).into_agent_desired_model(),
         ..BalancerDesiredState::default()
     })
     .await

@@ -2,7 +2,6 @@
 
 use std::num::NonZeroU16;
 
-use hf_hub::Cache;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings_types::BatchCapacity;
 
@@ -28,8 +27,7 @@ impl NomicEmbeddingBatchProcessing {
         Self {
             llama_runtime: LlamaRuntime::load(
                 &nomic_embed_text_v1_5()
-                    .reference
-                    .cached_path(&Cache::from_env())
+                    .cached_path()
                     .expect("the nomic embedding model must be in the Hugging Face cache"),
                 agent_inference_runtime_context(sequences.get()),
             )

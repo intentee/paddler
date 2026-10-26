@@ -7,7 +7,8 @@ pub fn qwen3_0_6b() -> ModelCard {
     ModelCard {
         reference: HuggingFaceModelReference {
             filename: "Qwen3-0.6B-Q8_0.gguf".to_owned(),
-            repo_id: "Qwen/Qwen3-0.6B-GGUF".to_owned(),
+            repository_name: "Qwen3-0.6B-GGUF".to_owned(),
+            repository_owner: "Qwen".to_owned(),
             revision: "main".to_owned(),
         },
     }
