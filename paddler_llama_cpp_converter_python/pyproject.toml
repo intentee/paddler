@@ -8,17 +8,17 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.14"
-numpy = "==2.5.3"
-protobuf = "==4.25.9"
+numpy = "==2.5.4"
+protobuf = "==7.36.2"
 pyyaml = "==6.0.3"
 requests = "==2.34.2"
 sentencepiece = "==0.2.2"
 torch = [
-    { version = "==2.11.0+cpu", source = "pytorch-cpu", markers = "sys_platform == 'linux'" },
-    { version = "==2.11.0", source = "PyPI", markers = "sys_platform == 'darwin'" },
+    { version = "==2.14.1+cpu", source = "pytorch-cpu", markers = "sys_platform == 'linux'" },
+    { version = "==2.14.1", source = "PyPI", markers = "sys_platform == 'darwin'" },
 ]
 tqdm = "==4.70.1"
-transformers = "==4.57.6"
+transformers = "==5.20.2"
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"
