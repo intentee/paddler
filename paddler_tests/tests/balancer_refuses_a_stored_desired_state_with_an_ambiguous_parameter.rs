@@ -13,12 +13,13 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_state_database::state_database_error::StateDatabaseError;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
+use paddler_test_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_refuses_a_stored_desired_state_with_an_ambiguous_parameter() {
-    let database = StateDatabaseFile::new().expect("the state database file must be created");
+    let database =
+        TemporaryStateDatabaseFile::new().expect("the state database file must be created");
     let mut stored_desired_state =
         to_value(BalancerDesiredState::default()).expect("the value must serialize");
 

@@ -4,13 +4,13 @@ use anyhow::Context as _;
 use anyhow::Result;
 use tempfile::TempDir;
 
-pub struct StateDatabaseFile {
+pub struct TemporaryStateDatabaseFile {
     pub path: PathBuf,
     pub url: String,
     _directory_guard: TempDir,
 }
 
-impl StateDatabaseFile {
+impl TemporaryStateDatabaseFile {
     pub fn new() -> Result<Self> {
         TempDir::new()
             .context("failed to create temp state database directory")
@@ -33,11 +33,11 @@ impl StateDatabaseFile {
 
 #[cfg(test)]
 mod tests {
-    use super::StateDatabaseFile;
+    use super::TemporaryStateDatabaseFile;
 
     #[test]
     fn names_its_url_after_its_file_path() {
-        let database = StateDatabaseFile::new().unwrap();
+        let database = TemporaryStateDatabaseFile::new().unwrap();
 
         assert_eq!(database.url, format!("file://{}", database.path.display()));
     }

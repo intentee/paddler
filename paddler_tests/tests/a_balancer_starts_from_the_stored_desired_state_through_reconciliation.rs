@@ -1,20 +1,21 @@
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_state_database::file::File;
+use paddler_state_database::state_database_file::StateDatabaseFile;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
+use paddler_test_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
 
 const STORED_MODEL_URI: &str = "a stored uri that does not parse";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_balancer_starts_from_the_stored_desired_state_through_reconciliation() {
-    let database = StateDatabaseFile::new().expect("the state database file must be created");
+    let database =
+        TemporaryStateDatabaseFile::new().expect("the state database file must be created");
 
-    File::new(database.path.clone())
+    StateDatabaseFile::new(database.path.clone())
         .store_balancer_desired_state(&BalancerDesiredState {
             model: AgentDesiredModel::Uri(STORED_MODEL_URI.to_owned()),
             ..BalancerDesiredState::default()

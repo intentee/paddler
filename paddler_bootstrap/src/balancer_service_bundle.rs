@@ -23,10 +23,7 @@ use paddler_balancer::web_admin_panel_service::WebAdminPanelService;
 use paddler_balancer::web_admin_panel_service::configuration::Configuration as WebAdminPanelServiceConfiguration;
 #[cfg(feature = "web_admin_panel")]
 use paddler_balancer::web_admin_panel_service::template_data::TemplateData;
-use paddler_state_database::file::File;
-use paddler_state_database::memory::Memory;
 use paddler_state_database::state_database::StateDatabase;
-use paddler_state_database::state_database_type::StateDatabaseType;
 
 use crate::balancer_bootstrap_config::BalancerBootstrapConfig;
 use crate::bootstrap_error::BootstrapError;
@@ -78,12 +75,7 @@ impl BalancerServiceBundle {
             buffered_request_timeout,
             max_buffered_requests,
         ));
-        let state_database = Arc::new(match state_database_type {
-            StateDatabaseType::File(path) => StateDatabase::File(File::new(path)),
-            StateDatabaseType::Memory(stored_balancer_desired_state) => {
-                StateDatabase::Memory(Memory::new(*stored_balancer_desired_state))
-            }
-        });
+        let state_database = Arc::new(StateDatabase::from(state_database_type));
         let balancer_desired_state_store = Arc::new(
             BalancerDesiredStateStore::load(state_database)
                 .await

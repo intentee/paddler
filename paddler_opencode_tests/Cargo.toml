@@ -34,7 +34,5 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 
-[dev-dependencies]
-
 [lints]
 workspace = true

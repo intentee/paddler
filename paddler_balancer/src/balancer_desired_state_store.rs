@@ -84,9 +84,8 @@ mod tests {
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_state_database::file::File;
-    use paddler_state_database::memory::Memory;
     use paddler_state_database::state_database::StateDatabase;
+    use paddler_state_database::state_database_file::StateDatabaseFile;
     use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::BalancerDesiredStateStore;
@@ -100,9 +99,9 @@ mod tests {
 
     #[tokio::test]
     async fn starts_from_the_default_state_when_nothing_is_stored() {
-        let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::Memory(Memory::new(
+        let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::in_memory(
             StoredBalancerDesiredState::NothingStored,
-        ))))
+        )))
         .await
         .unwrap();
 
@@ -114,9 +113,9 @@ mod tests {
 
     #[tokio::test]
     async fn starts_from_the_stored_state() {
-        let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::Memory(Memory::new(
+        let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::in_memory(
             StoredBalancerDesiredState::Stored(state_with_model("stored_model_uri")),
-        ))))
+        )))
         .await
         .unwrap();
 
@@ -128,9 +127,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_replaced_state_is_stored_and_published() {
-        let state_database = Arc::new(StateDatabase::Memory(Memory::new(
+        let state_database = Arc::new(StateDatabase::in_memory(
             StoredBalancerDesiredState::NothingStored,
-        )));
+        ));
         let store = BalancerDesiredStateStore::load(state_database.clone())
             .await
             .unwrap();
@@ -155,9 +154,9 @@ mod tests {
 
     #[tokio::test]
     async fn an_identical_state_is_neither_stored_nor_published() {
-        let state_database = Arc::new(StateDatabase::Memory(Memory::new(
+        let state_database = Arc::new(StateDatabase::in_memory(
             StoredBalancerDesiredState::NothingStored,
-        )));
+        ));
         let store = BalancerDesiredStateStore::load(state_database.clone())
             .await
             .unwrap();
@@ -180,9 +179,9 @@ mod tests {
         single_blocking_thread_runtime().unwrap().block_on(async {
             let temp_dir = TempDir::new().unwrap();
             let state_path = temp_dir.path().join("state.json");
-            let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::File(File::new(
-                state_path.clone(),
-            ))))
+            let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::File(
+                StateDatabaseFile::new(state_path.clone()),
+            )))
             .await
             .unwrap();
             let occupied_blocking_thread = OccupiedBlockingThread::occupy();
@@ -208,7 +207,7 @@ mod tests {
                 2
             );
             assert_eq!(
-                File::new(state_path)
+                StateDatabaseFile::new(state_path)
                     .read_balancer_desired_state()
                     .await
                     .unwrap(),
@@ -220,13 +219,14 @@ mod tests {
     #[tokio::test]
     async fn a_state_that_cannot_be_stored_is_not_published() {
         let directory_in_place_of_the_state_file = TempDir::new().unwrap();
-        let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::File(File::new(
-            directory_in_place_of_the_state_file
-                .path()
-                .join("state.json"),
-        ))))
-        .await
-        .unwrap();
+        let store =
+            BalancerDesiredStateStore::load(Arc::new(StateDatabase::File(StateDatabaseFile::new(
+                directory_in_place_of_the_state_file
+                    .path()
+                    .join("state.json"),
+            ))))
+            .await
+            .unwrap();
         let applicable_state_rx = store.applicable_state_holder().subscribe();
 
         directory_in_place_of_the_state_file.close().unwrap();

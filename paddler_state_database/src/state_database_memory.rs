@@ -4,11 +4,11 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 
 use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
 
-pub struct Memory {
+pub struct StateDatabaseMemory {
     stored_balancer_desired_state: RwLock<StoredBalancerDesiredState>,
 }
 
-impl Memory {
+impl StateDatabaseMemory {
     #[must_use]
     pub const fn new(stored_balancer_desired_state: StoredBalancerDesiredState) -> Self {
         Self {
@@ -33,12 +33,12 @@ mod tests {
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_messaging::inference_mode::InferenceMode;
 
-    use super::Memory;
+    use super::StateDatabaseMemory;
     use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     #[test]
     fn reads_back_the_stored_desired_state() {
-        let database = Memory::new(StoredBalancerDesiredState::NothingStored);
+        let database = StateDatabaseMemory::new(StoredBalancerDesiredState::NothingStored);
         let desired_state = BalancerDesiredState {
             inference_mode: InferenceMode::TextGenerationEmbeddingsAndDecisions,
             model: AgentDesiredModel::Uri("test_model_path".to_owned()),

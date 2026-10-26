@@ -7,7 +7,7 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
-use paddler_state_database::file::File as StateDatabaseFile;
+use paddler_state_database::state_database_file::StateDatabaseFile;
 use paddler_state_database::state_database_type::StateDatabaseType;
 use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 

@@ -46,9 +46,8 @@ mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_state_database::file::File;
-    use paddler_state_database::memory::Memory;
     use paddler_state_database::state_database::StateDatabase;
+    use paddler_state_database::state_database_file::StateDatabaseFile;
     use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::put_balancer_desired_state;
@@ -80,9 +79,9 @@ mod tests {
 
     #[actix_web::test]
     async fn applies_the_desired_state_before_responding() {
-        let app_data = build_app_data(Arc::new(StateDatabase::Memory(Memory::new(
+        let app_data = build_app_data(Arc::new(StateDatabase::in_memory(
             StoredBalancerDesiredState::NothingStored,
-        ))))
+        )))
         .await;
         let app = init_service(
             App::new()
@@ -117,9 +116,9 @@ mod tests {
         let app = init_service(
             App::new()
                 .app_data(
-                    build_app_data(Arc::new(StateDatabase::Memory(Memory::new(
+                    build_app_data(Arc::new(StateDatabase::in_memory(
                         StoredBalancerDesiredState::NothingStored,
-                    ))))
+                    )))
                     .await,
                 )
                 .configure(put_balancer_desired_state),
@@ -147,7 +146,7 @@ mod tests {
         let app = init_service(
             App::new()
                 .app_data(
-                    build_app_data(Arc::new(StateDatabase::File(File::new(
+                    build_app_data(Arc::new(StateDatabase::File(StateDatabaseFile::new(
                         directory_in_place_of_the_state_file
                             .path()
                             .join("state.json"),

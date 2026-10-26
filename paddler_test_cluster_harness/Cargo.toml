@@ -22,7 +22,6 @@ paddler_messaging = { workspace = true }
 paddler_model_source = { workspace = true }
 quick-xml = { workspace = true }
 reqwest = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }

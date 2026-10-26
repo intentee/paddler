@@ -31,7 +31,6 @@ mod tests {
 
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-    use paddler_state_database::memory::Memory;
     use paddler_state_database::state_database::StateDatabase;
     use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
@@ -57,7 +56,7 @@ mod tests {
             .try_admit();
 
         let balancer_desired_state_store = BalancerDesiredStateStore::load(Arc::new(
-            StateDatabase::Memory(Memory::new(StoredBalancerDesiredState::NothingStored)),
+            StateDatabase::in_memory(StoredBalancerDesiredState::NothingStored),
         ))
         .await
         .expect("the desired state store must load");

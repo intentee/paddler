@@ -1,4 +1,4 @@
-use std::fs::File as StdFile;
+use std::fs::File;
 use std::fs::Permissions;
 use std::fs::metadata;
 use std::io::ErrorKind;
@@ -40,7 +40,7 @@ fn replacement_permissions(state_path: &Path) -> Result<Permissions, StateDataba
 }
 
 fn write_replacement(
-    replacement: &StdFile,
+    replacement: &File,
     replacement_path: &Path,
     schema: &Schema,
 ) -> Result<(), StateDatabaseError> {
@@ -94,12 +94,12 @@ fn replace_state_file(state_path: &Path, schema: &Schema) -> Result<(), StateDat
     })
 }
 
-pub struct File {
+pub struct StateDatabaseFile {
     path: PathBuf,
     store_lock: Arc<Mutex<()>>,
 }
 
-impl File {
+impl StateDatabaseFile {
     #[must_use]
     pub fn new(path: PathBuf) -> Self {
         Self {
@@ -128,9 +128,7 @@ impl File {
             source,
         })
     }
-}
 
-impl File {
     pub async fn read_balancer_desired_state(
         &self,
     ) -> Result<StoredBalancerDesiredState, StateDatabaseError> {
@@ -198,7 +196,7 @@ mod tests {
     use paddler_messaging::decision_settings::DecisionSettings;
     use paddler_messaging::inference_mode::InferenceMode;
 
-    use super::File;
+    use super::StateDatabaseFile;
     #[cfg(target_os = "linux")]
     use super::write_replacement;
     #[cfg(target_os = "linux")]
@@ -219,7 +217,7 @@ mod tests {
     async fn reads_back_the_stored_desired_state_from_the_file() {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("state.json");
-        let database = File::new(path.clone());
+        let database = StateDatabaseFile::new(path.clone());
         let desired_state = state_with_model("stored_model_uri");
 
         database
@@ -240,7 +238,7 @@ mod tests {
         let path = temp_dir.path().join("not_yet_created.json");
 
         assert_eq!(
-            File::new(path.clone())
+            StateDatabaseFile::new(path.clone())
                 .read_balancer_desired_state()
                 .await
                 .unwrap(),
@@ -261,7 +259,7 @@ mod tests {
         write(&path, b"this is not valid json").await.unwrap();
 
         assert!(matches!(
-            File::new(path.clone()).read_balancer_desired_state().await,
+            StateDatabaseFile::new(path.clone()).read_balancer_desired_state().await,
             Err(StateDatabaseError::FileContentsInvalid { path: invalid_path, .. }) if invalid_path == path
         ));
     }
@@ -272,7 +270,7 @@ mod tests {
         let path = temp_file.path().to_path_buf();
 
         assert!(matches!(
-            File::new(path.clone()).read_balancer_desired_state().await,
+            StateDatabaseFile::new(path.clone()).read_balancer_desired_state().await,
             Err(StateDatabaseError::FileContentsInvalid { path: invalid_path, .. }) if invalid_path == path
         ));
         assert_eq!(read_to_string(&path).await.unwrap(), "");
@@ -283,7 +281,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
 
         assert!(matches!(
-            File::new(temp_dir.path().to_path_buf()).read_balancer_desired_state().await,
+            StateDatabaseFile::new(temp_dir.path().to_path_buf()).read_balancer_desired_state().await,
             Err(StateDatabaseError::FileReadFailed { source, .. })
                 if source.kind() == ErrorKind::IsADirectory
         ));
@@ -293,7 +291,7 @@ mod tests {
     async fn storing_fails_when_the_parent_directory_is_missing() {
         let temp_dir = TempDir::new().unwrap();
         let missing_directory = temp_dir.path().join("missing_directory");
-        let database = File::new(missing_directory.join("state.json"));
+        let database = StateDatabaseFile::new(missing_directory.join("state.json"));
 
         assert!(matches!(
             database
@@ -307,7 +305,7 @@ mod tests {
     #[tokio::test]
     async fn storing_at_the_filesystem_root_has_no_directory_for_its_replacement() {
         assert!(matches!(
-            File::new(PathBuf::from("/"))
+            StateDatabaseFile::new(PathBuf::from("/"))
                 .store_balancer_desired_state(&BalancerDesiredState::default())
                 .await,
             Err(StateDatabaseError::FileHasNoParentDirectory { path }) if path == Path::new("/")
@@ -320,7 +318,7 @@ mod tests {
         let path = regular_file.path().join("state.json");
 
         assert!(matches!(
-            File::new(path.clone())
+            StateDatabaseFile::new(path.clone())
                 .store_balancer_desired_state(&BalancerDesiredState::default())
                 .await,
             Err(StateDatabaseError::FilePermissionsUnreadable { path: unreadable_path, source })
@@ -331,7 +329,7 @@ mod tests {
     #[tokio::test]
     async fn storing_fails_when_a_directory_occupies_the_state_path() {
         let temp_dir = TempDir::new().unwrap();
-        let database = File::new(temp_dir.path().to_path_buf());
+        let database = StateDatabaseFile::new(temp_dir.path().to_path_buf());
 
         assert!(matches!(
             database
@@ -344,7 +342,7 @@ mod tests {
     #[tokio::test]
     async fn a_store_that_fails_leaves_the_previous_state_readable() {
         let temp_dir = TempDir::new().unwrap();
-        let database = File::new(temp_dir.path().join("state.json"));
+        let database = StateDatabaseFile::new(temp_dir.path().join("state.json"));
         let previous_state = state_with_model("previous_model_uri");
 
         database
@@ -417,7 +415,7 @@ mod tests {
         write(&unrelated_file, "unrelated contents").await.unwrap();
         symlink(&unrelated_file, temp_dir.path().join("state.json.next")).unwrap();
 
-        File::new(temp_dir.path().join("state.json"))
+        StateDatabaseFile::new(temp_dir.path().join("state.json"))
             .store_balancer_desired_state(&state_with_model("stored_model_uri"))
             .await
             .unwrap();
@@ -432,7 +430,7 @@ mod tests {
     async fn storing_keeps_the_access_mode_of_the_replaced_state_file() {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("state.json");
-        let database = File::new(path.clone());
+        let database = StateDatabaseFile::new(path.clone());
 
         database
             .store_balancer_desired_state(&state_with_model("previous_model_uri"))
@@ -457,7 +455,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().join("state.json");
 
-        File::new(path.clone())
+        StateDatabaseFile::new(path.clone())
             .store_balancer_desired_state(&state_with_model("stored_model_uri"))
             .await
             .unwrap();
@@ -487,13 +485,16 @@ mod tests {
             ..state_with_model("test_model_uri")
         };
 
-        File::new(path.clone())
+        StateDatabaseFile::new(path.clone())
             .store_balancer_desired_state(&desired_state)
             .await
             .unwrap();
 
         assert_eq!(
-            File::new(path).read_balancer_desired_state().await.unwrap(),
+            StateDatabaseFile::new(path)
+                .read_balancer_desired_state()
+                .await
+                .unwrap(),
             StoredBalancerDesiredState::Stored(desired_state)
         );
     }
@@ -508,7 +509,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            File::new(path.clone())
+            StateDatabaseFile::new(path.clone())
                 .read_balancer_desired_state()
                 .await
                 .err()
@@ -530,7 +531,7 @@ mod tests {
             .await
             .unwrap();
 
-        let refusal = File::new(path)
+        let refusal = StateDatabaseFile::new(path)
             .read_balancer_desired_state()
             .await
             .unwrap_err();
