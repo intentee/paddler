@@ -38,8 +38,9 @@ impl HuggingFaceModelSource {
         slot_aggregated_status: Arc<SlotAggregatedStatus>,
     ) -> Result<DesiredModelResolution, ModelSourceError> {
         let reference = &self.reference;
+        let repository = reference.repository(client);
 
-        match reference.cached_path(client).await {
+        match reference.cached_path(&repository).await {
             Ok(cached_path) => {
                 slot_aggregated_status.set_download_status(ModelDownloadStatus::NotDownloading);
 
@@ -56,7 +57,6 @@ impl HuggingFaceModelSource {
 
         let resolve_ended = CancellationToken::new();
         let _resolve_ended_on_return = resolve_ended.clone().drop_guard();
-        let repository = reference.repository(client);
         let Some(download_result) = cancellation_token
             .run_until_cancelled(
                 repository
@@ -436,7 +436,7 @@ mod tests {
             resolution_with_a_corrected_endpoint.unwrap(),
             DesiredModelResolution::Resolved(
                 uncached_model_reference()
-                    .cached_path(&hub_cache.client_of(&hub))
+                    .cached_path(&uncached_model_reference().repository(&hub_cache.client_of(&hub)))
                     .await
                     .unwrap()
             )
@@ -456,7 +456,7 @@ mod tests {
             .await
             .unwrap();
         let cached_path = uncached_model_reference()
-            .cached_path(&hub_cache.client_of(&hub))
+            .cached_path(&uncached_model_reference().repository(&hub_cache.client_of(&hub)))
             .await
             .unwrap();
 
@@ -639,7 +639,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_resolution_cancelled_while_downloading_is_cancelled() {
+    async fn a_cancelled_resolution_of_an_uncached_model_requests_nothing_from_its_hub() {
         let hub_cache = HubCache::new();
         let hub = LocalHttpFixture::start(hub_model_file()).await.unwrap();
         let cancellation_token = CancellationToken::new();
@@ -654,5 +654,6 @@ mod tests {
                 .unwrap(),
             DesiredModelResolution::Cancelled
         );
+        assert_eq!(hub.request_count(), 0);
     }
 }

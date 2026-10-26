@@ -45,7 +45,12 @@ impl ModelCard {
         HuggingFaceCacheLocation::HubDefault
             .client_builder()
             .build()
-            .and_then(|client| block_on(self.reference.cached_path(&client)))
+            .and_then(|client| {
+                block_on(
+                    self.reference
+                        .cached_path(&self.reference.repository(&client)),
+                )
+            })
     }
 
     #[must_use]

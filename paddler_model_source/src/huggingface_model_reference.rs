@@ -35,8 +35,8 @@ impl HuggingFaceModelReference {
         client.model(self.repository_owner.clone(), self.repository_name.clone())
     }
 
-    pub async fn cached_path(&self, client: &HFClient) -> HFResult<PathBuf> {
-        self.repository(client)
+    pub async fn cached_path(&self, repository: &HFRepository<RepoTypeModel>) -> HFResult<PathBuf> {
+        repository
             .download_file()
             .filename(self.filename.clone())
             .revision(self.revision.clone())
