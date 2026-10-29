@@ -1,31 +1,13 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
-use tokio_util::sync::CancellationToken;
-
 use paddler_messaging::decision_question::DecisionQuestion;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_test_cluster_harness::cluster::Cluster;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
 use paddler_tests::sample_decision::sample_decision;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
 
-async fn answered_probabilities(
-    cluster: &Cluster,
-    decision: &RawDecideParams,
-) -> Result<Vec<Vec<f32>>> {
-    cluster
-        .decide(CancellationToken::new(), decision)
-        .await
-        .map(|collected_decision_results| {
-            collected_decision_results
-                .answers
-                .into_iter()
-                .map(|answer| answer.probabilities)
-                .collect()
-        })
-}
+use crate::answered_decision_probabilities::answered_decision_probabilities;
 
 fn decision_with_many_options() -> RawDecideParams {
     RawDecideParams {
@@ -58,26 +40,21 @@ async fn decisions_on_an_attention_only_model_read_the_hidden_states_of_their_ow
     .await
     .expect("a decision cluster on an attention-only model must start");
 
-    let invoice_before_other_decisions = answered_probabilities(&cluster, &sample_decision())
-        .await
-        .expect("the invoice decision must be answered");
+    let invoice_before_other_decisions =
+        answered_decision_probabilities(&cluster, &sample_decision()).await;
 
-    answered_probabilities(&cluster, &decision_with_many_options())
-        .await
-        .expect("the weekday decision must be answered");
+    answered_decision_probabilities(&cluster, &decision_with_many_options()).await;
 
-    let weather_with_the_same_questions = answered_probabilities(
+    let weather_with_the_same_questions = answered_decision_probabilities(
         &cluster,
         &RawDecideParams {
             state: "The weather in Oslo is cold, dark and windy all week.".to_owned(),
             ..sample_decision()
         },
     )
-    .await
-    .expect("the weather decision must be answered");
-    let invoice_after_other_decisions = answered_probabilities(&cluster, &sample_decision())
-        .await
-        .expect("the repeated invoice decision must be answered");
+    .await;
+    let invoice_after_other_decisions =
+        answered_decision_probabilities(&cluster, &sample_decision()).await;
 
     assert_eq!(
         invoice_before_other_decisions,

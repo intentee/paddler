@@ -32,8 +32,7 @@ fn a_client_gone_before_an_unterminated_tool_call_resolves_receives_nothing() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT)
-        .expect("the prompt must be decoded for sampling");
+    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT);
     let model = &runtime.loaded_llama_model.model;
     let end_of_generation = model
         .token_eos()

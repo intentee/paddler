@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Context as _;
-use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::AddBos;
@@ -13,23 +11,20 @@ pub fn decode_prompt_for_sampling(
     runtime: &LlamaRuntime,
     llama_context: &mut LlamaContext<'_>,
     prompt: &str,
-) -> Result<i32> {
-    let mut batch = LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1);
-
-    runtime
+) -> i32 {
+    let prompt_tokens = runtime
         .loaded_llama_model
         .model
         .str_to_token(prompt, AddBos::Always, ParseSpecialTokens::Always)
-        .context("the prompt must tokenize")
-        .and_then(|prompt_tokens| {
-            batch
-                .add_sequence(&prompt_tokens, 0, false)
-                .context("the prompt must fit the batch")
-        })
-        .and_then(|()| {
-            llama_context
-                .decode(&mut batch)
-                .context("the prompt must decode")
-        })
-        .map(|()| batch.n_tokens() - 1)
+        .expect("the prompt must tokenize");
+    let mut batch = LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1);
+
+    batch
+        .add_sequence(&prompt_tokens, 0, false)
+        .expect("the prompt must fit the batch");
+    llama_context
+        .decode(&mut batch)
+        .expect("the prompt must decode");
+
+    batch.n_tokens() - 1
 }

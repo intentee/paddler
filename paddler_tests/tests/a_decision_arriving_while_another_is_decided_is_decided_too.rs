@@ -22,8 +22,7 @@ const CONCURRENT_DECISIONS: u16 = 2;
 
 #[test]
 fn a_decision_arriving_while_another_is_decided_is_decided_too() {
-    let kev_decision_model =
-        KevDecisionModel::load(CONCURRENT_DECISIONS).expect("the kev decision model must load");
+    let kev_decision_model = KevDecisionModel::load(CONCURRENT_DECISIONS);
     let prepared_decision = |question_id: &str| {
         PreparedDecision::new(
             kev_decision_model
@@ -49,16 +48,14 @@ fn a_decision_arriving_while_another_is_decided_is_decided_too() {
 
     drop(scheduler_message_tx);
 
-    kev_decision_model
-        .run_scheduler(DecisionSchedulerRun {
-            active_requests: VecDeque::new(),
-            agent_shutdown: CancellationToken::new(),
-            capacity_ledger: DecisionCapacityLedger::new(CONCURRENT_DECISIONS),
-            pending_requests: VecDeque::new(),
-            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-            sequences: CONCURRENT_DECISIONS,
-        })
-        .expect("the decision scheduler must run");
+    kev_decision_model.run_scheduler(DecisionSchedulerRun {
+        active_requests: VecDeque::new(),
+        agent_shutdown: CancellationToken::new(),
+        capacity_ledger: DecisionCapacityLedger::new(CONCURRENT_DECISIONS),
+        pending_requests: VecDeque::new(),
+        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+        sequences: CONCURRENT_DECISIONS,
+    });
 
     let assert_decided =
         |question_id: &str, mut decision_result_rx: UnboundedReceiver<DecisionResult>| {

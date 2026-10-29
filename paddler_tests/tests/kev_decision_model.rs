@@ -1,7 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Context as _;
-use anyhow::Result;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::LlamaToken;
 
@@ -25,28 +23,24 @@ pub struct KevDecisionModel {
 }
 
 impl KevDecisionModel {
-    pub fn load(slots: u16) -> Result<Self> {
-        LlamaRuntime::load(
+    pub fn load(slots: u16) -> Self {
+        let runtime = LlamaRuntime::load(
             &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
             agent_inference_runtime_context(slots),
         )
-        .context("the kev model must load")
-        .and_then(|runtime| {
-            kev_0_8b_pointer_head()
-                .context("the kev pointer head must load")
-                .and_then(|pointer_head| {
-                    DecisionDelimiterTokens::resolve(
-                        &runtime.loaded_llama_model.model.llama_model,
-                        &pointer_head.delimiters,
-                    )
-                    .context("the kev pointer head delimiters must resolve")
-                    .map(|delimiter_tokens| Self {
-                        delimiter_tokens,
-                        pointer_head,
-                        runtime,
-                    })
-                })
-        })
+        .expect("the kev model must load");
+        let pointer_head = kev_0_8b_pointer_head().expect("the kev pointer head must load");
+        let delimiter_tokens = DecisionDelimiterTokens::resolve(
+            &runtime.loaded_llama_model.model.llama_model,
+            &pointer_head.delimiters,
+        )
+        .expect("the kev pointer head delimiters must resolve");
+
+        Self {
+            delimiter_tokens,
+            pointer_head,
+            runtime,
+        }
     }
 
     #[must_use]
@@ -69,32 +63,29 @@ impl KevDecisionModel {
             scheduler_inbox,
             sequences,
         }: DecisionSchedulerRun,
-    ) -> Result<()> {
+    ) {
         let Self {
             pointer_head,
             runtime,
             ..
         } = self;
 
-        runtime
-            .create_decision_llama_context(u32::from(sequences))
-            .context("the decision context must be created")
-            .map(|llama_context| {
-                DecisionScheduler {
-                    active_requests,
-                    agent_shutdown,
-                    batch: LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1),
-                    capacity_ledger,
-                    llama_context,
-                    pending_requests,
-                    scheduler_context: DecisionSchedulerContext {
-                        agent_name: None,
-                        n_batch: runtime.model_runtime_parameters.n_batch.tokens_usize(),
-                        pointer_head,
-                    },
-                    scheduler_inbox,
-                }
-                .run();
-            })
+        DecisionScheduler {
+            active_requests,
+            agent_shutdown,
+            batch: LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1),
+            capacity_ledger,
+            llama_context: runtime
+                .create_decision_llama_context(u32::from(sequences))
+                .expect("the decision context must be created"),
+            pending_requests,
+            scheduler_context: DecisionSchedulerContext {
+                agent_name: None,
+                n_batch: runtime.model_runtime_parameters.n_batch.tokens_usize(),
+                pointer_head,
+            },
+            scheduler_inbox,
+        }
+        .run();
     }
 }

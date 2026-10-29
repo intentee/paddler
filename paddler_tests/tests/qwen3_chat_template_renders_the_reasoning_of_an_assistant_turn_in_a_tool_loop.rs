@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use paddler_tests::qwen3_chat_completion_prompt::qwen3_chat_completion_prompt;
+use crate::qwen3_chat_completion_prompt::qwen3_chat_completion_prompt;
 
 #[test]
 fn qwen3_chat_template_renders_the_reasoning_of_an_assistant_turn_in_a_tool_loop() {
@@ -24,8 +24,7 @@ fn qwen3_chat_template_renders_the_reasoning_of_an_assistant_turn_in_a_tool_loop
             },
             { "role": "tool", "tool_call_id": "call_weather", "content": "sunny" }
         ]
-    }))
-    .expect("the Qwen3 chat template must render the tool loop");
+    }));
 
     assert_eq!(
         rendered_prompt,

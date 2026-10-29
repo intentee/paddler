@@ -48,8 +48,7 @@ impl SamplingWithASmallerVocabularyGrammar {
             .create_text_generation_llama_context(1)
             .expect("the text generation context must be created");
         let batch_position =
-            decode_prompt_for_sampling(&self.runtime, &mut llama_context, "Paddler balances")
-                .expect("the prompt must be decoded for sampling");
+            decode_prompt_for_sampling(&self.runtime, &mut llama_context, "Paddler balances");
 
         token_sampling(
             LlamaSampler::grammar(&self.smaller_vocabulary_model, r#"root ::= "a""#, "root")

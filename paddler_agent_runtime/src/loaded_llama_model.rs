@@ -199,6 +199,23 @@ impl LoadedLlamaModel {
         warm_up
     }
 
+    pub fn warm_up_and_serve<'model, TServe>(
+        &self,
+        mut llama_context: ResidentLlamaContext<'model>,
+        mut warmup_batch: LlamaBatch<'static>,
+        desired_slots_total: u16,
+        serve: TServe,
+    ) -> Result<(), AgentRuntimeError>
+    where
+        TServe: FnOnce(ResidentLlamaContext<'model>, LlamaBatch<'static>),
+    {
+        self.warm_up_llama_context(&mut llama_context, &mut warmup_batch, desired_slots_total)?;
+
+        serve(llama_context, warmup_batch);
+
+        Ok(())
+    }
+
     fn decode_every_warm_up_position(
         llama_context: &mut LlamaContext<'_>,
         warmup_batch: &mut LlamaBatch<'static>,

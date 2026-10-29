@@ -26,8 +26,7 @@ fn a_sampler_chain_that_selects_no_candidate_ends_the_generation() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT)
-        .expect("the prompt must be decoded for sampling");
+    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT);
 
     assert_eq!(
         ReadyToSampleRequest {

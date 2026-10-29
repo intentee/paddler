@@ -2,7 +2,7 @@
 
 use serde_json::json;
 
-use paddler_tests::qwen3_chat_completion_prompt::qwen3_chat_completion_prompt;
+use crate::qwen3_chat_completion_prompt::qwen3_chat_completion_prompt;
 
 #[test]
 fn qwen3_chat_template_renders_a_tool_call_history_as_tool_call_and_tool_response_blocks() {
@@ -29,8 +29,7 @@ fn qwen3_chat_template_renders_a_tool_call_history_as_tool_call_and_tool_respons
             { "role": "tool", "tool_call_id": "call_weather", "content": "sunny" },
             { "role": "tool", "tool_call_id": "call_time", "content": "noon" }
         ]
-    }))
-    .expect("the Qwen3 chat template must render the tool call history");
+    }));
 
     assert_eq!(
         rendered_prompt,

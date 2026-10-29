@@ -66,7 +66,7 @@ impl EmbeddingPipeline {
         let n_batch = model_runtime_parameters.n_batch.tokens_usize();
 
         continue_startup_unless_shutting_down(agent_shutdown, || {
-            let mut llama_context = EmbeddingLlamaContextSettings {
+            let llama_context = EmbeddingLlamaContextSettings {
                 llama_context_settings: loaded_llama_model.llama_context_settings(
                     &model_runtime_parameters,
                     u32::from(desired_slots_total),
@@ -74,52 +74,56 @@ impl EmbeddingPipeline {
                 pooling_type: pooling_type.clone(),
             }
             .create_llama_context(&loaded_llama_model, &inference_runtime_context)?;
-            let mut batch = LlamaBatch::new(
+            let batch = LlamaBatch::new(
                 model_runtime_parameters.n_batch.capacity(),
                 i32::from(desired_slots_total),
             );
 
             continue_startup_unless_shutting_down(agent_shutdown, || {
                 loaded_llama_model
-                    .warm_up_llama_context(&mut llama_context, &mut batch, desired_slots_total)
-                    .map_err(EmbeddingError::from)
-                    .map(|()| {
-                        let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
+                    .warm_up_and_serve(
+                        llama_context,
+                        batch,
+                        desired_slots_total,
+                        |llama_context, batch| {
+                            let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
-                        run_scheduler_unless_startup_abandoned(
-                            scheduler_startup_tx,
-                            Ok(SchedulerReady {
-                                request_preparer: Arc::new(SchedulerRequestPreparer {
-                                    agent_name: inference_runtime_context.agent_name.clone(),
-                                    preparation: EmbeddingBatchPreparer {
-                                        loaded_llama_model: loaded_llama_model.clone(),
-                                        n_batch,
-                                        sequence_context_limit: SequenceContextLimit::of(
-                                            &llama_context,
-                                        ),
-                                    },
-                                    preparation_tasks: TaskTracker::new(),
-                                    scheduler_message_tx,
+                            run_scheduler_unless_startup_abandoned(
+                                scheduler_startup_tx,
+                                Ok(SchedulerReady {
+                                    request_preparer: Arc::new(SchedulerRequestPreparer {
+                                        agent_name: inference_runtime_context.agent_name.clone(),
+                                        preparation: EmbeddingBatchPreparer {
+                                            loaded_llama_model: loaded_llama_model.clone(),
+                                            n_batch,
+                                            sequence_context_limit: SequenceContextLimit::of(
+                                                &llama_context,
+                                            ),
+                                        },
+                                        preparation_tasks: TaskTracker::new(),
+                                        scheduler_message_tx,
+                                    }),
                                 }),
-                            }),
-                            || {
-                                EmbeddingScheduler {
-                                    active_requests: Vec::new(),
-                                    agent_shutdown: agent_shutdown.clone(),
-                                    batch,
-                                    llama_context,
-                                    scheduler_context: EmbeddingSchedulerContext {
-                                        agent_name: inference_runtime_context.agent_name,
-                                        desired_slots_total,
-                                        n_batch,
-                                        pooling_type,
-                                    },
-                                    scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-                                }
-                                .run();
-                            },
-                        );
-                    })
+                                || {
+                                    EmbeddingScheduler {
+                                        active_requests: Vec::new(),
+                                        agent_shutdown: agent_shutdown.clone(),
+                                        batch,
+                                        llama_context,
+                                        scheduler_context: EmbeddingSchedulerContext {
+                                            agent_name: inference_runtime_context.agent_name,
+                                            desired_slots_total,
+                                            n_batch,
+                                            pooling_type,
+                                        },
+                                        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+                                    }
+                                    .run();
+                                },
+                            );
+                        },
+                    )
+                    .map_err(EmbeddingError::from)
             })
         })
     }

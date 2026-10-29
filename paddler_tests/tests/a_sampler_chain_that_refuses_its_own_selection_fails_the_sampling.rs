@@ -16,9 +16,7 @@ fn a_sampler_chain_that_refuses_its_own_selection_fails_the_sampling() {
         .runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = refusal
-        .decode_the_prompt(&mut llama_context)
-        .expect("the prompt must be decoded for sampling");
+    let batch_position = refusal.decode_the_prompt(&mut llama_context);
 
     assert_eq!(
         TokenSampling {

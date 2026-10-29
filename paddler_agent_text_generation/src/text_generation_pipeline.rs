@@ -103,7 +103,7 @@ impl TextGenerationPipeline {
                 .model
                 .streaming_markers()
                 .map_err(TextGenerationError::StreamingMarkersUnavailable)?;
-            let mut llama_context = loaded_llama_model.create_llama_context(
+            let llama_context = loaded_llama_model.create_llama_context(
                 &self.inference_runtime_context,
                 InferenceCapability::TextGeneration,
                 loaded_llama_model
@@ -129,64 +129,76 @@ impl TextGenerationPipeline {
             continue_startup_unless_shutting_down(agent_shutdown, || {
                 let conversation_support =
                     self.conversation_support(&llama_context, &prompt_tokenizer)?;
-                let mut batch = LlamaBatch::new(
+                let batch = LlamaBatch::new(
                     self.model_runtime_parameters.n_batch.capacity(),
                     i32::from(desired_slots_total),
                 );
 
                 continue_startup_unless_shutting_down(agent_shutdown, || {
                     loaded_llama_model
-                        .warm_up_llama_context(&mut llama_context, &mut batch, desired_slots_total)
-                        .map_err(TextGenerationError::from)
-                        .map(|()| {
-                            let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
+                        .warm_up_and_serve(
+                            llama_context,
+                            batch,
+                            desired_slots_total,
+                            |llama_context, batch| {
+                                let (scheduler_message_tx, scheduler_message_rx) =
+                                    unbounded_channel();
 
-                            run_scheduler_unless_startup_abandoned(
-                                scheduler_startup_tx,
-                                Ok(SchedulerReady {
-                                    request_preparer: Arc::new(SchedulerRequestPreparer {
-                                        agent_name: self
-                                            .inference_runtime_context
-                                            .agent_name
-                                            .clone(),
-                                        preparation: GenerationRequestPreparer {
-                                            conversation_support,
-                                            image_resize_to_fit: self
-                                                .text_generation_settings
-                                                .image_resize_to_fit,
-                                            loaded_llama_model: loaded_llama_model.clone(),
-                                            prompt_tokenizer,
-                                            sampler_chain_factory: SamplerChainFactory {
-                                                sampling_parameters: self
+                                run_scheduler_unless_startup_abandoned(
+                                    scheduler_startup_tx,
+                                    Ok(SchedulerReady {
+                                        request_preparer: Arc::new(SchedulerRequestPreparer {
+                                            agent_name: self
+                                                .inference_runtime_context
+                                                .agent_name
+                                                .clone(),
+                                            preparation: GenerationRequestPreparer {
+                                                conversation_support,
+                                                image_resize_to_fit: self
                                                     .text_generation_settings
-                                                    .sampling_parameters
-                                                    .clone(),
-                                                n_vocab: loaded_llama_model.model.n_vocab(),
+                                                    .image_resize_to_fit,
+                                                loaded_llama_model: loaded_llama_model.clone(),
+                                                prompt_tokenizer,
+                                                sampler_chain_factory: SamplerChainFactory {
+                                                    sampling_parameters: self
+                                                        .text_generation_settings
+                                                        .sampling_parameters
+                                                        .clone(),
+                                                    n_vocab: loaded_llama_model.model.n_vocab(),
+                                                },
+                                                streaming_markers,
                                             },
-                                            streaming_markers,
-                                        },
-                                        preparation_tasks: TaskTracker::new(),
-                                        scheduler_message_tx,
+                                            preparation_tasks: TaskTracker::new(),
+                                            scheduler_message_tx,
+                                        }),
                                     }),
-                                }),
-                                || {
-                                    ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
-                                        agent_shutdown: agent_shutdown.clone(),
-                                        batch,
-                                        scheduler_message_rx,
-                                        llama_context,
-                                        scheduler_context: ContinuousBatchSchedulerContext {
-                                            agent_name: self.inference_runtime_context.agent_name,
-                                            desired_slots_total,
-                                            model: &loaded_llama_model.model,
-                                            n_batch: self.model_runtime_parameters.n_batch,
-                                            sequence_context_size,
-                                        },
-                                    })
-                                    .run();
-                                },
-                            );
-                        })
+                                    || {
+                                        ContinuousBatchScheduler::new(
+                                            ContinuousBatchSchedulerParams {
+                                                agent_shutdown: agent_shutdown.clone(),
+                                                batch,
+                                                scheduler_message_rx,
+                                                llama_context,
+                                                scheduler_context:
+                                                    ContinuousBatchSchedulerContext {
+                                                        agent_name: self
+                                                            .inference_runtime_context
+                                                            .agent_name,
+                                                        desired_slots_total,
+                                                        model: &loaded_llama_model.model,
+                                                        n_batch: self
+                                                            .model_runtime_parameters
+                                                            .n_batch,
+                                                        sequence_context_size,
+                                                    },
+                                            },
+                                        )
+                                        .run();
+                                    },
+                                );
+                            },
+                        )
+                        .map_err(TextGenerationError::from)
                 })
             })
         })

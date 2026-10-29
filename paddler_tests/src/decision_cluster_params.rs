@@ -37,24 +37,22 @@ impl DecisionClusterParams {
             pointer_head: pointer_head_path,
             wait_for_slots_ready,
         } = self;
+        let desired_state =
+            model_card.into_decision_desired_state(agent_desired_model_at(&pointer_head_path)?);
 
-        agent_desired_model_at(&pointer_head_path).map(|pointer_head| {
-            let desired_state = model_card.into_decision_desired_state(pointer_head);
-
-            ClusterParams {
-                agents,
-                desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
-                    embeddings: embedding_parameters,
-                    model_runtime_parameters: ModelRuntimeParameters {
-                        context_size,
-                        n_batch,
-                        ..desired_state.model_runtime_parameters
-                    },
-                    ..desired_state
-                })),
-                wait_for_slots_ready,
-                ..ClusterParams::default()
-            }
+        Ok(ClusterParams {
+            agents,
+            desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+                embeddings: embedding_parameters,
+                model_runtime_parameters: ModelRuntimeParameters {
+                    context_size,
+                    n_batch,
+                    ..desired_state.model_runtime_parameters
+                },
+                ..desired_state
+            })),
+            wait_for_slots_ready,
+            ..ClusterParams::default()
         })
     }
 }

@@ -1,6 +1,5 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::SamplerAcceptError;
 use llama_cpp_bindings::sampled_token::SampledToken;
@@ -51,7 +50,7 @@ impl GrammarRefusingTheGreedySelection {
         }
     }
 
-    pub fn decode_the_prompt(&self, llama_context: &mut LlamaContext<'_>) -> Result<i32> {
+    pub fn decode_the_prompt(&self, llama_context: &mut LlamaContext<'_>) -> i32 {
         decode_prompt_for_sampling(&self.runtime, llama_context, Self::PROMPT)
     }
 

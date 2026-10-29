@@ -24,7 +24,7 @@ fn a_decision_state_overflowing_its_batch_fails_as_batch_assembly() {
         delimiter_tokens,
         pointer_head,
         runtime,
-    } = KevDecisionModel::load(1).expect("the kev decision model must load");
+    } = KevDecisionModel::load(1);
     let mut llama_context = runtime
         .create_decision_llama_context(1)
         .expect("the decision context must be created");

@@ -18,15 +18,13 @@ impl DecisionLlamaContextSettings<'_> {
         loaded_llama_model: &'model LoadedLlamaModel,
         inference_runtime_context: &InferenceRuntimeContext,
     ) -> Result<ResidentLlamaContext<'model>, DecisionError> {
-        loaded_llama_model
-            .create_llama_context(
-                inference_runtime_context,
-                InferenceCapability::Decisions,
-                self.llama_context_settings
-                    .into_llama_context_params()
-                    .with_kv_unified(true)
-                    .with_pooling_type(LlamaPoolingType::None),
-            )
-            .map_err(DecisionError::from)
+        Ok(loaded_llama_model.create_llama_context(
+            inference_runtime_context,
+            InferenceCapability::Decisions,
+            self.llama_context_settings
+                .into_llama_context_params()
+                .with_kv_unified(true)
+                .with_pooling_type(LlamaPoolingType::None),
+        )?)
     }
 }

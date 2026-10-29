@@ -18,9 +18,7 @@ fn a_grammar_refusing_the_token_that_triggers_it_ends_the_generation_as_rejected
         .runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = refusal
-        .decode_the_prompt(&mut llama_context)
-        .expect("the prompt must be decoded for sampling");
+    let batch_position = refusal.decode_the_prompt(&mut llama_context);
 
     assert_eq!(
         ReadyToSampleRequest {
