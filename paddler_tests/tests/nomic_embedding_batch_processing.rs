@@ -2,6 +2,7 @@
 
 use std::num::NonZeroU16;
 
+use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings_types::BatchCapacity;
 
@@ -10,6 +11,7 @@ use paddler_agent_embeddings::embedding_batch_processor::EmbeddingBatchProcessor
 use paddler_agent_embeddings::embedding_input_tokenized::EmbeddingInputTokenized;
 use paddler_agent_embeddings::embedding_scheduler_context::EmbeddingSchedulerContext;
 use paddler_agent_embeddings::normalizes_embedding::NormalizesEmbedding;
+use paddler_agent_runtime::resident_llama_context::ResidentLlamaContext;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_test_cluster_harness::model_card::nomic_embed_text_v1_5::nomic_embed_text_v1_5;
 use paddler_tests::active_embedding_request_fixture::ActiveEmbeddingRequestFixture;
@@ -55,24 +57,41 @@ impl NomicEmbeddingBatchProcessing {
             .capacity()
     }
 
+    pub fn embedding_llama_context(&self) -> ResidentLlamaContext<'_> {
+        self.llama_runtime
+            .create_embedding_llama_context(
+                u32::from(self.sequences.get()),
+                self.pooling_type.clone(),
+            )
+            .expect("the embedding context must be created")
+    }
+
     pub fn embed_next_batch<TNormalization: NormalizesEmbedding>(
         &self,
         batch_capacity: BatchCapacity,
         normalization: TNormalization,
         active_requests: Vec<ActiveEmbeddingRequest>,
     ) -> Vec<ActiveEmbeddingRequest> {
-        let mut llama_context = self
-            .llama_runtime
-            .create_embedding_llama_context(
-                u32::from(self.sequences.get()),
-                self.pooling_type.clone(),
-            )
-            .expect("the embedding context must be created");
+        self.embed_next_batch_in(
+            &mut self.embedding_llama_context(),
+            batch_capacity,
+            normalization,
+            active_requests,
+        )
+    }
+
+    pub fn embed_next_batch_in<TNormalization: NormalizesEmbedding>(
+        &self,
+        llama_context: &mut LlamaContext<'_>,
+        batch_capacity: BatchCapacity,
+        normalization: TNormalization,
+        active_requests: Vec<ActiveEmbeddingRequest>,
+    ) -> Vec<ActiveEmbeddingRequest> {
         let mut batch = LlamaBatch::new(batch_capacity, i32::from(self.sequences.get()));
 
         EmbeddingBatchProcessor {
             batch: &mut batch,
-            llama_context: &mut llama_context,
+            llama_context,
             normalization,
             scheduler_context: &EmbeddingSchedulerContext {
                 agent_name: None,

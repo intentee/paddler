@@ -60,7 +60,7 @@ pub struct ContinuousBatchScheduler<'model> {
     batch: LlamaBatch<'static>,
     candidates: LlamaTokenDataArray,
     ingest_outcomes: Vec<IngestOutcome>,
-    llama_context: ResidentLlamaContext<'model>,
+    pub llama_context: ResidentLlamaContext<'model>,
     scheduler_context: ContinuousBatchSchedulerContext<'model>,
     scheduler_inbox: SchedulerInbox<PreparedGenerationRequest>,
     sequence_id_pool: SequenceIdPool,
