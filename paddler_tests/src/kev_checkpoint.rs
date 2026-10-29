@@ -1,15 +1,10 @@
 use std::path::PathBuf;
 
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
-use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
-use paddler_model_source::model_source_error::ModelSourceError;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::agent_desired_model_at::agent_desired_model_at;
-use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
-use paddler_test_cluster_harness::cluster_params::ClusterParams;
+
+use crate::decision_backbone::DecisionBackbone;
+use crate::decision_cluster_params::DecisionClusterParams;
+use crate::decision_desired_state::DecisionDesiredState;
 
 const KEV_27B_GPU_LAYERS_FITTING_BESIDE_EVERY_CONTEXT: i32 = 55;
 
@@ -20,28 +15,22 @@ pub enum KevCheckpoint {
 }
 
 impl KevCheckpoint {
-    pub fn cluster_params(self) -> Result<ClusterParams, ModelSourceError> {
-        self.desired_state().map(|desired_state| ClusterParams {
-            agents: AgentConfig::uniform(1, DECISION_SLOTS_MINIMUM.get()),
-            desired_state: ClusterDesiredState::Apply(Box::new(desired_state)),
-            ..ClusterParams::default()
-        })
+    #[must_use]
+    pub fn decision_cluster_params(self) -> DecisionClusterParams {
+        DecisionClusterParams {
+            desired_state: self.decision_desired_state(),
+            ..DecisionClusterParams::default()
+        }
     }
 
-    pub fn desired_state(self) -> Result<BalancerDesiredState, ModelSourceError> {
-        agent_desired_model_at(&self.target_path("pointer_head.gguf")).and_then(|pointer_head| {
-            agent_desired_model_at(&self.target_path("model.gguf")).map(|model| {
-                BalancerDesiredState {
-                    decision: DecisionSettings { pointer_head },
-                    model,
-                    model_runtime_parameters: ModelRuntimeParameters {
-                        n_gpu_layers: self.gpu_layers(),
-                        ..ModelRuntimeParameters::default()
-                    },
-                    ..BalancerDesiredState::default()
-                }
-            })
-        })
+    #[must_use]
+    pub fn decision_desired_state(self) -> DecisionDesiredState {
+        DecisionDesiredState {
+            backbone: DecisionBackbone::LocalFile(self.target_path("model.gguf")),
+            n_gpu_layers: self.gpu_layers(),
+            pointer_head: self.target_path("pointer_head.gguf"),
+            ..DecisionDesiredState::default()
+        }
     }
 
     const fn gpu_layers(self) -> i32 {

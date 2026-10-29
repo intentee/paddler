@@ -32,7 +32,8 @@ async fn a_failed_attempt_retries_without_reloading_its_model() {
                         decision: DecisionSettings::default(),
                         model: swappable_model_file.agent_desired_model(),
                         ..KevCheckpoint::Kev0_8b
-                            .desired_state()
+                            .decision_desired_state()
+                            .into_balancer_desired_state()
                             .expect("the kev desired state must name absolute paths")
                     },
                     uncompilable_chat_template(),

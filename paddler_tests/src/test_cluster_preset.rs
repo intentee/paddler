@@ -21,7 +21,9 @@ pub enum TestClusterPreset {
 impl TestClusterPreset {
     pub fn cluster_params(self) -> Result<ClusterParams, ModelSourceError> {
         match self {
-            Self::Kev0_8b => KevCheckpoint::Kev0_8b.cluster_params(),
+            Self::Kev0_8b => KevCheckpoint::Kev0_8b
+                .decision_cluster_params()
+                .into_cluster_params(),
             Self::Qwen3_0_6b => Ok(ClusterParams {
                 agents: AgentConfig::uniform(1, TEXT_GENERATION_SLOTS),
                 desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),

@@ -12,6 +12,7 @@ use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMet
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
@@ -19,9 +20,12 @@ use paddler_tests::start_decision_cluster::start_decision_cluster;
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_decisions_also_serves_completions_and_embeddings() {
     let cluster = start_decision_cluster(DecisionClusterParams {
-        embedding_parameters: EmbeddingParameters {
-            pooling_type: PoolingType::Last,
-            ..EmbeddingParameters::default()
+        desired_state: DecisionDesiredState {
+            embedding_parameters: EmbeddingParameters {
+                pooling_type: PoolingType::Last,
+                ..EmbeddingParameters::default()
+            },
+            ..DecisionDesiredState::default()
         },
         ..DecisionClusterParams::default()
     })

@@ -8,6 +8,7 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -16,7 +17,10 @@ async fn agent_clears_a_pointer_head_load_issue_once_the_repaired_file_loads() {
     let unloadable_pointer_head =
         AgentIssue::PointerHeadCannotBeLoaded(ModelPath::from(pointer_head.path.as_path()));
     let mut cluster = start_decision_cluster(DecisionClusterParams {
-        pointer_head: pointer_head.path.clone(),
+        desired_state: DecisionDesiredState {
+            pointer_head: pointer_head.path.clone(),
+            ..DecisionDesiredState::default()
+        },
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
     })

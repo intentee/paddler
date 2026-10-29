@@ -29,7 +29,8 @@ async fn enabling_decisions_with_too_few_slots_keeps_serving_the_loaded_model() 
         .serve(BalancerDesiredState {
             decision: DecisionSettings::default(),
             ..KevCheckpoint::Kev0_8b
-                .desired_state()
+                .decision_desired_state()
+                .into_balancer_desired_state()
                 .expect("the kev desired state must name absolute paths")
         })
         .await;
@@ -38,7 +39,8 @@ async fn enabling_decisions_with_too_few_slots_keeps_serving_the_loaded_model() 
             &serving_pipeline_arbiter
                 .apply(
                     KevCheckpoint::Kev0_8b
-                        .desired_state()
+                        .decision_desired_state()
+                        .into_balancer_desired_state()
                         .expect("the kev desired state must name absolute paths")
                 )
                 .await

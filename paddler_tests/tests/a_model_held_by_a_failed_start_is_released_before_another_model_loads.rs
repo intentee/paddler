@@ -26,7 +26,8 @@ async fn a_model_held_by_a_failed_start_is_released_before_another_model_loads()
                     BalancerDesiredState {
                         decision: DecisionSettings::default(),
                         ..KevCheckpoint::Kev0_8b
-                            .desired_state()
+                            .decision_desired_state()
+                            .into_balancer_desired_state()
                             .expect("the kev desired state must name absolute paths")
                     },
                     uncompilable_chat_template(),

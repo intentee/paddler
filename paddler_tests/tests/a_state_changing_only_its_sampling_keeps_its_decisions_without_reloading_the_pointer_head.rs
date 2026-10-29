@@ -22,7 +22,8 @@ async fn a_state_changing_only_its_sampling_keeps_its_decisions_without_reloadin
             pointer_head: swappable_pointer_head.agent_desired_model(),
         },
         ..KevCheckpoint::Kev0_8b
-            .desired_state()
+            .decision_desired_state()
+            .into_balancer_desired_state()
             .expect("the kev desired state must name absolute paths")
     };
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(DECISION_SLOTS_MINIMUM.get());

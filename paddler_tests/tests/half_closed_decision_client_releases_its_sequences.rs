@@ -11,6 +11,7 @@ use paddler_messaging::request_params::decide_params::raw_decide_params::RawDeci
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::decision_done_discriminant::decision_done_discriminant;
 use paddler_tests::sample_decision::sample_decision;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
@@ -22,7 +23,10 @@ const STATE_REPETITIONS_SPANNING_MANY_DECODES: usize = 120;
 async fn half_closed_decision_client_releases_its_sequences() {
     let mut cluster = start_decision_cluster(DecisionClusterParams {
         agents: vec![AgentConfig::single(2)],
-        n_batch: BatchSize::try_from(SMALL_BATCH_TOKENS).expect("the batch size is valid"),
+        desired_state: DecisionDesiredState {
+            n_batch: BatchSize::try_from(SMALL_BATCH_TOKENS).expect("the batch size is valid"),
+            ..DecisionDesiredState::default()
+        },
         ..DecisionClusterParams::default()
     })
     .await

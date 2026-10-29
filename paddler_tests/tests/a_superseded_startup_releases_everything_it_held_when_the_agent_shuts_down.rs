@@ -17,7 +17,8 @@ async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_d
     let superseded_desired_state = BalancerDesiredState {
         decision: DecisionSettings::default(),
         ..KevCheckpoint::Kev0_8b
-            .desired_state()
+            .decision_desired_state()
+            .into_balancer_desired_state()
             .expect("the kev desired state must name absolute paths")
     };
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);

@@ -5,12 +5,16 @@ use paddler_messaging::agent_issue_params::pointer_head_incompatibility::Pointer
 use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_params::PointerHeadIncompatibleWithModelParams;
 use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_pointer_head_delimiters_that_are_not_control_tokens() {
     let mut cluster = start_decision_cluster(DecisionClusterParams {
-        pointer_head: fixture_path("qwen3_5_0_8b_pointer_head_with_plain_text_delimiters.gguf"),
+        desired_state: DecisionDesiredState {
+            pointer_head: fixture_path("qwen3_5_0_8b_pointer_head_with_plain_text_delimiters.gguf"),
+            ..DecisionDesiredState::default()
+        },
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
     })

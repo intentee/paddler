@@ -7,7 +7,9 @@ use paddler_messaging::agent_issue_params::pointer_head_incompatible_with_model_
 use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_test_cluster_harness::model_card::lfm2_colbert_350m::lfm2_colbert_350m;
 use paddler_test_cluster_harness::synthetic_pointer_head_fixture::QWEN3_5_0_8B_SYNTHETIC_POINTER_HEAD_FIXTURE;
+use paddler_tests::decision_backbone::DecisionBackbone;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -23,7 +25,10 @@ async fn agent_reports_a_pointer_head_wider_than_the_hidden_states_the_model_out
             ),
         });
     let mut cluster = start_decision_cluster(DecisionClusterParams {
-        model_card: lfm2_colbert_350m(),
+        desired_state: DecisionDesiredState {
+            backbone: DecisionBackbone::HuggingFace(lfm2_colbert_350m()),
+            ..DecisionDesiredState::default()
+        },
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
     })

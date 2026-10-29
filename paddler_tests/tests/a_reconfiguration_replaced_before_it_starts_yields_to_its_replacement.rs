@@ -29,7 +29,8 @@ async fn a_reconfiguration_replaced_before_it_starts_yields_to_its_replacement()
         decision: DecisionSettings::default(),
         model: swappable_model_file.agent_desired_model(),
         ..KevCheckpoint::Kev0_8b
-            .desired_state()
+            .decision_desired_state()
+            .into_balancer_desired_state()
             .expect("the kev desired state must name absolute paths")
     };
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);

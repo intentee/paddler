@@ -8,7 +8,8 @@ use crate::sample_decision_answers_check::SampleDecisionAnswersCheck;
 async fn kev_27b_answers_every_decision_question_in_order_with_the_expected_input_tokens() {
     SampleDecisionAnswersCheck {
         cluster_params: KevCheckpoint::Kev27b
-            .cluster_params()
+            .decision_cluster_params()
+            .into_cluster_params()
             .expect("the converted kev-27b artifacts must have absolute paths"),
     }
     .assert_for_the_sample_decision()

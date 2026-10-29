@@ -3,12 +3,16 @@
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_test_cluster_harness::fixture_path::fixture_path;
 use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_tests::decision_desired_state::DecisionDesiredState;
 use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_a_pointer_head_it_cannot_load() {
     let mut cluster = start_decision_cluster(DecisionClusterParams {
-        pointer_head: fixture_path("invalid.gguf"),
+        desired_state: DecisionDesiredState {
+            pointer_head: fixture_path("invalid.gguf"),
+            ..DecisionDesiredState::default()
+        },
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
     })

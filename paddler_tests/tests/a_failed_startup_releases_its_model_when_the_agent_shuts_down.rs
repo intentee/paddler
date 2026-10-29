@@ -22,7 +22,8 @@ async fn a_failed_startup_releases_its_model_when_the_agent_shuts_down() {
             BalancerDesiredState {
                 decision: DecisionSettings::default(),
                 ..KevCheckpoint::Kev0_8b
-                    .desired_state()
+                    .decision_desired_state()
+                    .into_balancer_desired_state()
                     .expect("the kev desired state must name absolute paths")
             },
             uncompilable_chat_template(),

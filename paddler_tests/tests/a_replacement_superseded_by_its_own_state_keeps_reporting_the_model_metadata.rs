@@ -10,7 +10,8 @@ use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 #[tokio::test(flavor = "multi_thread")]
 async fn a_replacement_superseded_by_its_own_state_keeps_reporting_the_model_metadata() {
     let serving_decisions = KevCheckpoint::Kev0_8b
-        .desired_state()
+        .decision_desired_state()
+        .into_balancer_desired_state()
         .expect("the kev desired state must name absolute paths");
     let serving_without_decisions = BalancerDesiredState {
         decision: DecisionSettings::default(),
