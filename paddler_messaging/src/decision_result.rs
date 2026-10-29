@@ -13,10 +13,10 @@ use crate::streamable_result::StreamableResult;
 pub enum DecisionResult {
     AgentRuntimeFailed(String),
     BatchAssemblyFailed(String),
+    DecisionsNotServed(String),
     DecodeFailed(String),
     Done(DecisionSummary),
     HiddenStateUnavailable(String),
-    InferenceModeMismatch(String),
     InputTokenizationFailed(String),
     KvCacheCopyFailed(String),
     KvCacheRemovalFailed(String),
@@ -38,13 +38,11 @@ impl From<DecisionFinalResult> for DecisionResult {
         match final_result {
             DecisionFinalResult::AgentRuntimeFailed(detail) => Self::AgentRuntimeFailed(detail),
             DecisionFinalResult::BatchAssemblyFailed(detail) => Self::BatchAssemblyFailed(detail),
+            DecisionFinalResult::DecisionsNotServed(detail) => Self::DecisionsNotServed(detail),
             DecisionFinalResult::DecodeFailed(detail) => Self::DecodeFailed(detail),
             DecisionFinalResult::Done(summary) => Self::Done(summary),
             DecisionFinalResult::HiddenStateUnavailable(detail) => {
                 Self::HiddenStateUnavailable(detail)
-            }
-            DecisionFinalResult::InferenceModeMismatch(detail) => {
-                Self::InferenceModeMismatch(detail)
             }
             DecisionFinalResult::InputTokenizationFailed(detail) => {
                 Self::InputTokenizationFailed(detail)
@@ -73,15 +71,15 @@ impl StreamableResult for DecisionResult {
             Self::BatchAssemblyFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::BatchAssemblyFailed(detail))
             }
+            Self::DecisionsNotServed(detail) => {
+                ResultStep::Final(DecisionFinalResult::DecisionsNotServed(detail))
+            }
             Self::DecodeFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::DecodeFailed(detail))
             }
             Self::Done(summary) => ResultStep::Final(DecisionFinalResult::Done(summary)),
             Self::HiddenStateUnavailable(detail) => {
                 ResultStep::Final(DecisionFinalResult::HiddenStateUnavailable(detail))
-            }
-            Self::InferenceModeMismatch(detail) => {
-                ResultStep::Final(DecisionFinalResult::InferenceModeMismatch(detail))
             }
             Self::InputTokenizationFailed(detail) => {
                 ResultStep::Final(DecisionFinalResult::InputTokenizationFailed(detail))
@@ -153,6 +151,10 @@ mod tests {
                 DecisionFinalResult::BatchAssemblyFailed("batch".to_owned()),
             ),
             (
+                DecisionResult::DecisionsNotServed("no pointer head".to_owned()),
+                DecisionFinalResult::DecisionsNotServed("no pointer head".to_owned()),
+            ),
+            (
                 DecisionResult::DecodeFailed("decode".to_owned()),
                 DecisionFinalResult::DecodeFailed("decode".to_owned()),
             ),
@@ -169,10 +171,6 @@ mod tests {
             (
                 DecisionResult::HiddenStateUnavailable("hidden".to_owned()),
                 DecisionFinalResult::HiddenStateUnavailable("hidden".to_owned()),
-            ),
-            (
-                DecisionResult::InferenceModeMismatch("mode".to_owned()),
-                DecisionFinalResult::InferenceModeMismatch("mode".to_owned()),
             ),
             (
                 DecisionResult::InputTokenizationFailed("tokenization".to_owned()),

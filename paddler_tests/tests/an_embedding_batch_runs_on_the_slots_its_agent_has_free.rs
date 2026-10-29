@@ -2,6 +2,9 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_inference_parameters::pooling_type::PoolingType;
+use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -19,7 +22,13 @@ const SLOT_COUNT: u16 = 2;
 async fn an_embedding_batch_runs_on_the_slots_its_agent_has_free() {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(SLOT_COUNT)],
-        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
+        desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {
+            embeddings: EmbeddingParameters {
+                pooling_type: PoolingType::Last,
+                ..EmbeddingParameters::default()
+            },
+            ..qwen3_desired_state()
+        })),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

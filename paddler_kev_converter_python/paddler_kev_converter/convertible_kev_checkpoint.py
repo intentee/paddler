@@ -1,31 +1,25 @@
 from dataclasses import dataclass
 from pathlib import Path
-from shutil import copyfile
 
 import torch
-from huggingface_hub import snapshot_download
+import transformers
 from kev.checkpoint import Checkpoint, LoadOptions
 from kev.model import SPECIAL
 from peft import LoraConfig
-from transformers import AutoConfig, PreTrainedModel, Qwen3_5ForCausalLM
+from transformers import PreTrainedModel, PreTrainedTokenizerBase
+from transformers.models.auto.modeling_auto import MODEL_FOR_CAUSAL_LM_MAPPING_NAMES
 
 from paddler_kev_converter.error import (
-    BackboneArchitectureUnsupportedError,
     BackboneDtypeUnsupportedError,
     OptionIsolationUnsupportedError,
     TrainedTokenEmbeddingsUnsupportedError,
 )
 from paddler_kev_converter.pointer_head import PointerHead
+from paddler_kev_converter.tokenizer_input_normalization import (
+    tokenizer_input_normalization,
+)
 
-BASE_TOKENIZER_FILES = [
-    "merges.txt",
-    "tokenizer.json",
-    "tokenizer_config.json",
-    "vocab.json",
-]
-CONVERTIBLE_TEXT_MODEL_TYPE = "qwen3_5_text"
 EXACTLY_MERGING_BACKBONE_DTYPE = "fp32"
-CAUSAL_LANGUAGE_MODEL_CLASS: type[PreTrainedModel] = Qwen3_5ForCausalLM
 
 
 def _require_exactly_mergeable_adapter(checkpoint: Checkpoint) -> None:
@@ -40,38 +34,34 @@ def _require_exactly_mergeable_adapter(checkpoint: Checkpoint) -> None:
 
 @dataclass(frozen=True)
 class ConvertibleKevCheckpoint:
+    base_tokenizer: PreTrainedTokenizerBase
     checkpoint: Checkpoint
+    decision_backbone: PreTrainedModel
 
     @classmethod
     def open(cls, run: str) -> "ConvertibleKevCheckpoint":
         checkpoint = Checkpoint(run)
-        meta = checkpoint.meta
 
-        if meta.option_isolation:
+        if checkpoint.meta.option_isolation:
             raise OptionIsolationUnsupportedError(checkpoint.path)
 
-        if checkpoint.full:
-            backbone_config = AutoConfig.from_pretrained(checkpoint.path)
-        else:
+        if not checkpoint.full:
             _require_exactly_mergeable_adapter(checkpoint)
-            backbone_config = AutoConfig.from_pretrained(
-                meta.base, revision=meta.base_revision
-            )
 
-        text_model_type = backbone_config.get_text_config().model_type
+        base_tokenizer, decision_model = checkpoint.load("cpu", LoadOptions())
 
-        if text_model_type != CONVERTIBLE_TEXT_MODEL_TYPE:
-            raise BackboneArchitectureUnsupportedError(
-                backbone_config.name_or_path, text_model_type
-            )
-
-        return cls(checkpoint=checkpoint)
+        return cls(
+            base_tokenizer=base_tokenizer,
+            checkpoint=checkpoint,
+            decision_backbone=decision_model.lm,
+        )
 
     def pointer_head(self) -> PointerHead:
         meta = self.checkpoint.meta
 
         return PointerHead(
             delimiters=SPECIAL,
+            input_normalization=tokenizer_input_normalization(self.base_tokenizer),
             key_bias=meta.head["k.bias"].numpy(),
             key_weight=meta.head["k.weight"].numpy(),
             query_bias=meta.head["q.bias"].numpy(),
@@ -80,27 +70,20 @@ class ConvertibleKevCheckpoint:
         )
 
     def write_backbone(self, directory: Path) -> None:
-        _, decision_model = self.checkpoint.load("cpu", LoadOptions())
-        decision_backbone = decision_model.lm
-        decision_backbone.config.tie_word_embeddings = True
+        backbone_config = self.decision_backbone.config
+        causal_language_model_class: type[PreTrainedModel] = getattr(
+            transformers, MODEL_FOR_CAUSAL_LM_MAPPING_NAMES[backbone_config.model_type]
+        )
+        backbone_config.tie_word_embeddings = True
 
         with torch.device("meta"):
-            causal_language_model = CAUSAL_LANGUAGE_MODEL_CLASS(
-                decision_backbone.config
-            )
+            causal_language_model = causal_language_model_class(backbone_config)
 
-        causal_language_model.model = decision_backbone
+        setattr(
+            causal_language_model,
+            causal_language_model.base_model_prefix,
+            self.decision_backbone,
+        )
         causal_language_model.tie_weights()
         causal_language_model.save_pretrained(directory)
-
-        meta = self.checkpoint.meta
-        base_snapshot = Path(
-            snapshot_download(
-                meta.base,
-                revision=meta.base_revision,
-                allow_patterns=BASE_TOKENIZER_FILES,
-            )
-        )
-
-        for tokenizer_file in BASE_TOKENIZER_FILES:
-            copyfile(base_snapshot / tokenizer_file, directory / tokenizer_file)
+        self.base_tokenizer.save_pretrained(directory)

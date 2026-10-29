@@ -7,6 +7,7 @@ from kev.api import SystemOneRequest, to_answers, to_record
 REFERENCE_CASES: list[dict[str, Any]] = [
     {
         "request": {
+            "model": "test",
             "state": "The invoice was paid on time.",
             "questions": {
                 "paid": {"type": "noul", "instructions": "Was the invoice paid?"},
@@ -16,6 +17,7 @@ REFERENCE_CASES: list[dict[str, Any]] = [
     },
     {
         "request": {
+            "model": "test",
             "state": {
                 "customer": "Ada",
                 "orders": [
@@ -65,6 +67,7 @@ REFERENCE_CASES: list[dict[str, Any]] = [
     },
     {
         "request": {
+            "model": "test",
             "state": ["first line\nsecond line", 3.5, True, None, ["nested", 1]],
             "questions": {
                 "tie": {
@@ -83,6 +86,7 @@ REFERENCE_CASES: list[dict[str, Any]] = [
     },
     {
         "request": {
+            "model": "test",
             "state": (
                 "Za\u017c\u00f3\u0142\u0107 g\u0119\u015bl\u0105 ja\u017a\u0144 "
                 "\U0001f468\u200d\U0001f469"
@@ -104,6 +108,7 @@ REFERENCE_CASES: list[dict[str, Any]] = [
     },
     {
         "request": {
+            "model": "test",
             "state": {
                 "precise": 123.45678901234567,
                 "halfway": 1000000000000.6562,

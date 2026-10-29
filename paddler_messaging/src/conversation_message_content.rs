@@ -1,13 +1,11 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::chat_template_content_form::ChatTemplateContentForm;
 use crate::chat_template_message_content::ChatTemplateMessageContent;
-use crate::chat_template_message_content_part::ChatTemplateMessageContentPart;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
 use crate::image_url::ImageUrl;
 use crate::media_marker::MediaMarker;
-
-const TEXT_CONTENT_PART_TYPE: &str = "text";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -19,24 +17,22 @@ pub enum ConversationMessageContent {
 impl ConversationMessageContent {
     pub fn into_chat_template_content(
         self,
+        content_form: ChatTemplateContentForm,
         media_marker: &MediaMarker,
         image_urls: &mut Vec<ImageUrl>,
     ) -> ChatTemplateMessageContent {
         match self {
             Self::Text(text) => ChatTemplateMessageContent::Text(text),
-            Self::Parts(parts) => ChatTemplateMessageContent::Parts(
+            Self::Parts(parts) => content_form.content_of(
                 parts
                     .into_iter()
-                    .map(|part| ChatTemplateMessageContentPart {
-                        content_type: TEXT_CONTENT_PART_TYPE,
-                        text: match part {
-                            ConversationMessageContentPart::Text { text } => text,
-                            ConversationMessageContentPart::ImageUrl { image_url } => {
-                                image_urls.push(image_url);
+                    .map(|part| match part {
+                        ConversationMessageContentPart::Text { text } => text,
+                        ConversationMessageContentPart::ImageUrl { image_url } => {
+                            image_urls.push(image_url);
 
-                                media_marker.marker.clone()
-                            }
-                        },
+                            media_marker.marker.clone()
+                        }
                     })
                     .collect(),
             ),
@@ -75,9 +71,33 @@ impl ConversationMessageContent {
 
 #[cfg(test)]
 mod tests {
+    use crate::chat_template_content_form::ChatTemplateContentForm;
+    use crate::chat_template_message_content::ChatTemplateMessageContent;
     use crate::conversation_message_content::ConversationMessageContent;
     use crate::conversation_message_content_part::ConversationMessageContentPart;
     use crate::image_url::ImageUrl;
+    use crate::media_marker::MediaMarker;
+
+    #[test]
+    fn a_template_taking_text_receives_the_text_parts_joined_by_newlines() {
+        let content = ConversationMessageContent::Parts(vec![
+            ConversationMessageContentPart::Text {
+                text: "first".to_owned(),
+            },
+            ConversationMessageContentPart::Text {
+                text: "second".to_owned(),
+            },
+        ]);
+
+        assert_eq!(
+            content.into_chat_template_content(
+                ChatTemplateContentForm::JoinedText,
+                &MediaMarker::new("[IMAGE]".to_owned()),
+                &mut Vec::new(),
+            ),
+            ChatTemplateMessageContent::Text("first\nsecond".to_owned())
+        );
+    }
 
     #[test]
     fn text_content_from_text_variant() {

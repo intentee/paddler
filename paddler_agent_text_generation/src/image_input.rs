@@ -1,3 +1,4 @@
+use paddler_messaging::chat_template_content_form::ChatTemplateContentForm;
 use paddler_messaging::image_url::ImageUrl;
 
 use crate::multimodal_prompt_support::MultimodalPromptSupport;
@@ -10,6 +11,14 @@ pub enum ImageInput {
 }
 
 impl ImageInput {
+    #[must_use]
+    pub const fn chat_template_content_form(&self) -> ChatTemplateContentForm {
+        match self {
+            Self::Supported(_) => ChatTemplateContentForm::TypedParts,
+            Self::Unsupported => ChatTemplateContentForm::JoinedText,
+        }
+    }
+
     pub const fn prompt_modality_for(
         &self,
         image_urls: &[ImageUrl],

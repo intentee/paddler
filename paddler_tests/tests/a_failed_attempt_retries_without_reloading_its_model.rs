@@ -7,12 +7,11 @@ use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::uncompilable_chat_template::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
 
@@ -21,7 +20,8 @@ use crate::swappable_model_file::SwappableModelFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failed_attempt_retries_without_reloading_its_model() {
-    let swappable_model_file = SwappableModelFile::link_to(&kev_0_8b_target_path("model.gguf"));
+    let swappable_model_file =
+        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"));
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
 
     assert_eq!(
@@ -29,9 +29,10 @@ async fn a_failed_attempt_retries_without_reloading_its_model() {
             &serving_pipeline_arbiter
                 .apply(desired_state_with_chat_template_override(
                     BalancerDesiredState {
-                        inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+                        decision: DecisionSettings::default(),
                         model: swappable_model_file.agent_desired_model(),
-                        ..kev_0_8b_desired_state()
+                        ..KevCheckpoint::Kev0_8b
+                            .desired_state()
                             .expect("the kev desired state must name absolute paths")
                     },
                     uncompilable_chat_template(),

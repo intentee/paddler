@@ -1,4 +1,4 @@
-use llama_cpp_bindings_types::ParsedToolCall;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::generated_output_part::GeneratedOutputPart;
 
@@ -6,7 +6,7 @@ use crate::generated_output_part::GeneratedOutputPart;
 pub struct GeneratedOutput {
     pub content: String,
     pub reasoning: String,
-    pub tool_calls: Vec<ParsedToolCall>,
+    pub tool_calls: Vec<GeneratedToolCall>,
 }
 
 impl GeneratedOutput {

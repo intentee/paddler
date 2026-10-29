@@ -1,13 +1,13 @@
-use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 use serde::Serializer;
 
 use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::chat_completion_tool_call::ChatCompletionToolCall;
 use crate::chat_completion_usage::ChatCompletionUsage;
 
-struct SerializedToolCalls<'calls>(&'calls [ParsedToolCall]);
+struct SerializedToolCalls<'calls>(&'calls [GeneratedToolCall]);
 
 impl Serialize for SerializedToolCalls<'_> {
     fn serialize<TSerializer>(
@@ -64,7 +64,7 @@ pub struct ChatCompletion {
     pub finish_reason: &'static str,
     pub id: String,
     pub model: String,
-    pub tool_calls: Vec<ParsedToolCall>,
+    pub tool_calls: Vec<GeneratedToolCall>,
     pub usage: ChatCompletionUsage,
 }
 

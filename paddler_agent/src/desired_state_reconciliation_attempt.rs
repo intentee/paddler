@@ -12,6 +12,7 @@ use paddler_spawn_resuming_panic::spawn_blocking_resuming_panic::spawn_blocking_
 use crate::desired_state_reconciler::DesiredStateReconciler;
 use crate::desired_state_reconciliation::DesiredStateReconciliation;
 use crate::retry_delay::RetryDelay;
+use crate::retry_delay_outcome::RetryDelayOutcome;
 
 pub enum DesiredStateReconciliationAttempt {
     Idle,
@@ -35,7 +36,11 @@ impl DesiredStateReconciliationAttempt {
         Self::Reconciling {
             cancellation_token,
             reconciliation: Box::pin(async move {
-                retry_delay.elapse(&reconciliation_cancellation_token).await;
+                if retry_delay.elapse(&reconciliation_cancellation_token).await
+                    == RetryDelayOutcome::Cancelled
+                {
+                    return DesiredStateReconciliation::Pending(Box::new(agent_desired_state));
+                }
 
                 match Builder::new_current_thread().enable_all().build() {
                     Ok(reconciliation_runtime) => {
@@ -91,18 +96,27 @@ impl DesiredStateReconciliationAttempt {
 #[cfg(test)]
 mod tests {
     use std::fs::File;
+    use std::fs::read_dir;
     use std::os::fd::AsRawFd as _;
     use std::sync::Arc;
 
     use nix::sys::resource::Resource;
     use nix::sys::resource::getrlimit;
     use nix::sys::resource::setrlimit;
+    use tempfile::TempDir;
     use tokio_util::sync::CancellationToken;
 
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+    use paddler_cache_dir::cache_dir::CacheDir;
+    use paddler_download_manager::download_manager::DownloadManager;
+    use paddler_local_http_fixture::fixture_response::FixtureResponse;
+    use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
+    use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
     use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+    use paddler_model_source::huggingface_hub::HuggingFaceHub;
 
     use super::DesiredStateReconciliationAttempt;
     use crate::desired_state_reconciler::DesiredStateReconciler;
@@ -147,5 +161,49 @@ mod tests {
             desired_state_reconciliation,
             DesiredStateReconciliation::Pending(Box::default())
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_reconciliation_abandoned_during_its_retry_delay_never_resolves_its_model() {
+        let cache_dir = TempDir::new().unwrap();
+        let model_server = LocalHttpFixture::start(FixtureResponse::Ok(b"model".to_vec()))
+            .await
+            .unwrap();
+        let mut reconciliation_attempt = DesiredStateReconciliationAttempt::start(
+            DesiredStateReconciler {
+                desired_model_resolver: DesiredModelResolver {
+                    cache_dir: CacheDir {
+                        explicit: Some(cache_dir.path().to_path_buf()),
+                        home: None,
+                        xdg: None,
+                    },
+                    download_manager: DownloadManager::new().unwrap(),
+                    huggingface_client: HuggingFaceHub {
+                        cache_location: HuggingFaceCacheLocation::HubDefault,
+                        endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+                    }
+                    .client()
+                    .unwrap(),
+                },
+                slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
+            },
+            AgentDesiredState {
+                model: AgentDesiredModel::Uri(model_server.url("/model.gguf")),
+                ..AgentDesiredState::default()
+            },
+            &CancellationToken::new(),
+            RetryDelay::AfterRetryInterval,
+        );
+
+        reconciliation_attempt.abandon().await;
+
+        assert_eq!(read_dir(cache_dir.path()).unwrap().count(), 0);
+        assert_eq!(model_server.request_count(), 0);
+
+        model_server
+            .stop()
+            .await
+            .expect("the fixture task must not panic")
+            .expect("the fixture must serve every request");
     }
 }

@@ -3,7 +3,6 @@ use std::path::Path;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
 use paddler_model_source::model_source::ModelSource;
 
@@ -24,7 +23,7 @@ fn a_reconciliation_replaced_before_its_worker_runs_leaves_no_issue_behind() {
                     .expect("the missing model path must be absolute"),
             )
             .into_agent_desired_model(),
-            ..AgentDesiredState::from(BalancerDesiredState::default())
+            ..AgentDesiredState::default()
         },
     }
     .run();

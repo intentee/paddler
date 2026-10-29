@@ -1,6 +1,7 @@
-use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 use serde::Serializer;
+
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::arguments_to_tool_call_string::arguments_to_tool_call_string;
 
@@ -18,7 +19,7 @@ struct SerializedToolCall<'call> {
     function: SerializedFunction<'call>,
 }
 
-pub struct ChatCompletionToolCall<'call>(pub &'call ParsedToolCall);
+pub struct ChatCompletionToolCall<'call>(pub &'call GeneratedToolCall);
 
 impl Serialize for ChatCompletionToolCall<'_> {
     fn serialize<TSerializer>(

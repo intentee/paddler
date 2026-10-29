@@ -31,20 +31,19 @@ fn openai_function_tool(tool: &Tool<Value>) -> Value {
 }
 
 pub struct ChatTemplateTools {
+    pub json: String,
     pub tools: Value,
 }
 
 impl ChatTemplateTools {
     #[must_use]
     pub fn new(tools: &[Tool<Value>]) -> Self {
-        Self {
-            tools: Value::Array(tools.iter().map(openai_function_tool).collect()),
-        }
-    }
+        let tools = Value::Array(tools.iter().map(openai_function_tool).collect());
 
-    #[must_use]
-    pub fn json(&self) -> String {
-        self.tools.to_string()
+        Self {
+            json: tools.to_string(),
+            tools,
+        }
     }
 }
 
@@ -75,7 +74,7 @@ mod tests {
         let schema = json!({"type": "object", "properties": {"location": {"type": "string"}}});
 
         assert_eq!(
-            ChatTemplateTools::new(&[tool(Parameters::Schema(schema.clone()))]).json(),
+            ChatTemplateTools::new(&[tool(Parameters::Schema(schema.clone()))]).json,
             json!([{
                 "type": "function",
                 "function": {
@@ -91,7 +90,7 @@ mod tests {
     #[test]
     fn a_tool_without_parameters_becomes_an_openai_function_without_them() {
         assert_eq!(
-            ChatTemplateTools::new(&[tool(Parameters::Empty)]).json(),
+            ChatTemplateTools::new(&[tool(Parameters::Empty)]).json,
             json!([{
                 "type": "function",
                 "function": {

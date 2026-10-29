@@ -24,6 +24,7 @@ paddler_agent_status = { workspace = true }
 paddler_image_decoder = { workspace = true }
 paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_sha256_hex = { workspace = true }
 paddler_tool_call_validator = { workspace = true }
 
 [features]

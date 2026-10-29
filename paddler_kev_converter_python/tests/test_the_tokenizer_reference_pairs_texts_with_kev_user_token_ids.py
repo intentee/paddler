@@ -27,7 +27,10 @@ def test_the_tokenizer_reference_pairs_texts_with_kev_user_token_ids(
     )
     tokenizer = load_tokenizer(base, revision=base_revision)
 
-    assert json.loads((tmp_path / "reference.json").read_text(encoding="utf-8")) == [
-        {"text": text, "token_ids": user_tokens(tokenizer, text)}
-        for text in REFERENCE_TEXTS
-    ]
+    assert json.loads((tmp_path / "reference.json").read_text(encoding="utf-8")) == {
+        "entries": [
+            {"text": text, "token_ids": user_tokens(tokenizer, text)}
+            for text in REFERENCE_TEXTS
+        ],
+        "input_normalization": "NFC",
+    }

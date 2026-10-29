@@ -39,12 +39,12 @@ impl CompletesGeneration for ChatCompletionHeader {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
+    use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
 
@@ -124,16 +124,18 @@ mod tests {
         assert_eq!(
             completion_of(
                 vec![GeneratedOutputPart::ToolCalls(vec![
-                    ParsedToolCall::new(
-                        "call_x".to_owned(),
-                        "get_weather".to_owned(),
-                        ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
-                    ),
-                    ParsedToolCall::new(
-                        "call_invalid".to_owned(),
-                        "broken_tool".to_owned(),
-                        ToolCallArguments::InvalidJson("{not valid json".to_owned()),
-                    ),
+                    GeneratedToolCall {
+                        arguments: ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
+                        id: "call_x".to_owned(),
+                        index: 0,
+                        name: "get_weather".to_owned(),
+                    },
+                    GeneratedToolCall {
+                        arguments: ToolCallArguments::InvalidJson("{not valid json".to_owned()),
+                        id: "call_invalid".to_owned(),
+                        index: 1,
+                        name: "broken_tool".to_owned(),
+                    },
                 ])],
                 4,
                 0,

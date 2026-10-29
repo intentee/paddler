@@ -78,7 +78,7 @@ impl ServingPipelineArbiter {
             .desired_state_reconciler
             .reconcile(
                 &CancellationToken::new(),
-                AgentDesiredState::from(desired_state),
+                AgentDesiredState::from(&desired_state),
             )
             .await;
 

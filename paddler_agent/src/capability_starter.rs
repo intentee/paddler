@@ -2,7 +2,6 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_pipeline::DecisionPipeline;
 use paddler_agent_decision::decision_prerequisites::DecisionPrerequisites;
-use paddler_agent_decision::general_architecture_metadata::GeneralArchitectureMetadata;
 use paddler_agent_embeddings::embedding_pipeline::EmbeddingPipeline;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
@@ -196,7 +195,6 @@ impl CapabilityStarter<'_> {
             (CapabilityPlan::Start, PreparedDecisions::Disabled) => Ok(ServedDecisions::Disabled),
             (CapabilityPlan::Start, PreparedDecisions::Enabled(loaded_pointer_head)) => {
                 DecisionPipeline {
-                    architecture: GeneralArchitectureMetadata,
                     inference_runtime_context: self.inference_runtime_context.clone(),
                     loaded_llama_model: loaded_llama_model.clone(),
                     loaded_pointer_head: *loaded_pointer_head,

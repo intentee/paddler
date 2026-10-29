@@ -17,10 +17,12 @@ use paddler_test_cluster_harness::model_card::every_model_card::every_model_card
 async fn every_model_card_resolves_from_the_hugging_face_cache() {
     for model_card in every_model_card() {
         let resolution = HuggingFaceModelSource {
-            hub: HuggingFaceHub {
+            client: HuggingFaceHub {
                 cache_location: HuggingFaceCacheLocation::HubDefault,
                 endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
-            },
+            }
+            .client()
+            .expect("the Hugging Face client must start"),
             reference: model_card.reference.clone(),
         }
         .resolve(

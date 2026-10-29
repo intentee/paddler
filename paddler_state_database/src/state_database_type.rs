@@ -22,7 +22,7 @@ fn relative_path_error(path: &str) -> StateDatabaseError {
 #[derive(Clone, Debug, PartialEq)]
 pub enum StateDatabaseType {
     File(PathBuf),
-    Memory(Box<StoredBalancerDesiredState>),
+    Memory(StoredBalancerDesiredState),
 }
 
 impl FromStr for StateDatabaseType {
@@ -53,9 +53,7 @@ impl FromStr for StateDatabaseType {
 
                 Ok(Self::File(PathBuf::from(path)))
             }
-            "memory" => Ok(Self::Memory(Box::new(
-                StoredBalancerDesiredState::NothingStored,
-            ))),
+            "memory" => Ok(Self::Memory(StoredBalancerDesiredState::NothingStored)),
             scheme => Err(StateDatabaseError::SchemeUnsupported {
                 scheme: scheme.to_owned(),
             }),
@@ -80,7 +78,7 @@ mod tests {
     fn parses_a_memory_url_into_an_empty_database() {
         assert_eq!(
             StateDatabaseType::from_str("memory://").unwrap(),
-            StateDatabaseType::Memory(Box::new(StoredBalancerDesiredState::NothingStored))
+            StateDatabaseType::Memory(StoredBalancerDesiredState::NothingStored)
         );
     }
 

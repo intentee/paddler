@@ -30,11 +30,21 @@ class TrainedTokenEmbeddingsUnsupportedError(KevConversionError):
         )
 
 
-class BackboneArchitectureUnsupportedError(KevConversionError):
-    def __init__(self, backbone: str, text_model_type: str) -> None:
-        self.backbone = backbone
-        self.text_model_type = text_model_type
+class TokenizerNormalizerUnsupportedError(KevConversionError):
+    def __init__(self, tokenizer: str, normalizer: str) -> None:
+        self.tokenizer = tokenizer
+        self.normalizer = normalizer
         super().__init__(
-            f"{backbone} is a {text_model_type} model; "
-            "only qwen3_5_text backbones convert"
+            f"{tokenizer} normalizes its input with {normalizer}, "
+            "which a pointer head cannot declare"
+        )
+
+
+class TokenizerNormalizerUninspectableError(KevConversionError):
+    def __init__(self, tokenizer: str, tokenizer_class: str) -> None:
+        self.tokenizer = tokenizer
+        self.tokenizer_class = tokenizer_class
+        super().__init__(
+            f"{tokenizer} is a {tokenizer_class}, "
+            "which does not expose the normalizer it applies"
         )

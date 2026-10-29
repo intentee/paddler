@@ -5,10 +5,10 @@ use crate::oversized_decision_details::OversizedDecisionDetails;
 pub enum DecisionFinalResult {
     AgentRuntimeFailed(String),
     BatchAssemblyFailed(String),
+    DecisionsNotServed(String),
     DecodeFailed(String),
     Done(DecisionSummary),
     HiddenStateUnavailable(String),
-    InferenceModeMismatch(String),
     InputTokenizationFailed(String),
     KvCacheCopyFailed(String),
     KvCacheRemovalFailed(String),

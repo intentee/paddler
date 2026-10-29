@@ -1,20 +1,17 @@
 use reqwest::StatusCode;
 use serde_json::json;
 
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
 use paddler_test_cluster_harness::system_one_request::system_one_request;
-use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
+use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
 use paddler_typesafe_translation::typesafe_translation_error::TypeSafeTranslationError;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_answers_an_untranslatable_request_as_unprocessable() {
-    let cluster = start_cluster(cluster_without_agents_serving(
-        InferenceMode::TextGenerationEmbeddingsAndDecisions,
-    ))
-    .await
-    .expect("a decision balancer without agents must start");
+    let cluster = start_cluster(cluster_without_agents_serving_decisions())
+        .await
+        .expect("a decision balancer without agents must start");
 
     let without_questions = cluster
         .typesafe_system_one(

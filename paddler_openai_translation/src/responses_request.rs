@@ -9,6 +9,8 @@ use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::system_role::SYSTEM_ROLE;
+use paddler_messaging::user_role::USER_ROLE;
 use paddler_messaging::validates::Validates;
 
 use crate::default_max_tokens::DEFAULT_MAX_TOKENS;
@@ -68,14 +70,14 @@ impl ResponsesRequest {
         {
             messages.push(ConversationMessage::Message {
                 content: ConversationMessageContent::Text(instructions.clone()),
-                role: "system".to_owned(),
+                role: SYSTEM_ROLE.to_owned(),
             });
         }
 
         match input {
             ResponsesInput::Text(text) => messages.push(ConversationMessage::Message {
                 content: ConversationMessageContent::Text(text),
-                role: "user".to_owned(),
+                role: USER_ROLE.to_owned(),
             }),
             ResponsesInput::Items(items) => {
                 for item in items {
@@ -344,11 +346,12 @@ mod tests {
     }
 
     #[test]
-    fn developer_role_is_normalized_to_system() {
+    fn developer_and_system_roles_become_system_messages() {
         let translated = translated_from(json!({
             "model": "test",
             "input": [
-                { "type": "message", "role": "developer", "content": "rules" }
+                { "type": "message", "role": "developer", "content": "rules" },
+                { "type": "message", "role": "system", "content": "more rules" }
             ]
         }));
 
@@ -357,7 +360,39 @@ mod tests {
                 .conversation_history_params
                 .conversation_history
                 .messages,
-            vec![text_message("system", "rules")]
+            vec![
+                text_message("system", "rules"),
+                text_message("system", "more rules")
+            ]
+        );
+    }
+
+    #[test]
+    fn an_assistant_message_written_as_input_text_becomes_assistant_text() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [ { "type": "input_text", "text": "Hello again." } ]
+                }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![ConversationMessage::Message {
+                content: ConversationMessageContent::Parts(vec![
+                    ConversationMessageContentPart::Text {
+                        text: "Hello again.".to_owned(),
+                    },
+                ]),
+                role: "assistant".to_owned(),
+            }]
         );
     }
 
@@ -425,6 +460,8 @@ mod tests {
             json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "input_image", "file_id": "file_1" } ] } ] }),
             json!({ "model": "test", "input": [ { "type": "function_call_output", "call_id": "call_1", "output": [ { "type": "input_image", "image_url": "https://example.test/cat.png" } ] } ] }),
             json!({ "model": "test", "input": "hi", "text": { "format": { "type": "json_object" } } }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "output_text", "text": "hi" } ] } ] }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "tool", "content": "hi" } ] }),
         ];
 
         for unrepresentable_request in unrepresentable_requests {
@@ -519,6 +556,81 @@ mod tests {
                 )
                 .to_string()
             )
+        );
+    }
+
+    #[test]
+    fn its_own_output_replayed_as_input_becomes_the_previous_assistant_turn() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "message", "role": "user", "content": "What is the weather in Paris?" },
+                {
+                    "type": "reasoning",
+                    "id": "rs_1",
+                    "status": "completed",
+                    "summary": [],
+                    "content": [ { "type": "reasoning_text", "text": "I should check the weather." } ]
+                },
+                {
+                    "type": "message",
+                    "id": "msg_1",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [ { "type": "output_text", "annotations": [], "logprobs": [], "text": "Checking." } ]
+                },
+                {
+                    "type": "function_call",
+                    "id": "fc_1",
+                    "status": "completed",
+                    "call_id": "call_0",
+                    "name": "get_weather",
+                    "arguments": "{\"location\":\"Paris\"}"
+                },
+                { "type": "function_call_output", "call_id": "call_0", "output": "sunny" }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![
+                text_message("user", "What is the weather in Paris?"),
+                ConversationMessage::AssistantReasoning {
+                    reasoning_content: "I should check the weather.".to_owned(),
+                },
+                ConversationMessage::AssistantToolCalls {
+                    content: ConversationMessageContent::Parts(vec![
+                        ConversationMessageContentPart::Text {
+                            text: "Checking.".to_owned(),
+                        },
+                    ]),
+                    tool_calls: vec![weather_call("call_0", "Paris")],
+                },
+                ConversationMessage::ToolResult {
+                    content: ConversationMessageContent::Text("sunny".to_owned()),
+                    tool_call_id: "call_0".to_owned(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_reasoning_item_without_reasoning_text_is_refused() {
+        let params: ResponsesRequest = from_value(json!({
+            "model": "test",
+            "input": [ { "type": "reasoning", "summary": [], "content": [] } ]
+        }))
+        .unwrap();
+
+        assert_eq!(
+            params
+                .translate(UNIX_EPOCH, &SamplingParameters::default())
+                .err()
+                .map(|translation_error| translation_error.to_string()),
+            Some(OpenAITranslationError::ReasoningItemWithoutContent.to_string())
         );
     }
 }

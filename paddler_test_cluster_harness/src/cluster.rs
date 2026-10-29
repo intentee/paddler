@@ -14,12 +14,12 @@ use paddler_client::client_inference_params::ClientInferenceParams;
 use paddler_client::client_management::ClientManagement;
 use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_client::reports_health::ReportsHealth as _;
+use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_controller_pool_snapshot::AgentControllerPoolSnapshot;
 use paddler_messaging::agent_controller_snapshot::AgentControllerSnapshot;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::buffered_request_manager_snapshot::BufferedRequestManagerSnapshot;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -383,15 +383,15 @@ impl Cluster {
 
     pub async fn wait_for_first_agent_to_serve(
         &mut self,
-        inference_mode: InferenceMode,
+        decisions: AgentDecisionsServing,
     ) -> Result<AgentControllerPoolSnapshot, ClusterHarnessError> {
         self.wait_for_first_agent(|agent| {
             matches!(
                 agent.status.runtime,
                 AgentRuntimeStatus::Serving {
-                    inference_mode: served_inference_mode,
+                    decisions: served_decisions,
                     ..
-                } if served_inference_mode == inference_mode
+                } if served_decisions == decisions
             )
         })
         .await

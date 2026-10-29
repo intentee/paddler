@@ -32,7 +32,8 @@ fn a_sampled_token_the_vocabulary_cannot_render_ends_the_generation() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT);
+    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT)
+        .expect("the prompt must be decoded for sampling");
     let unrenderable_token = LlamaToken::new(
         i32::try_from(QWEN3_0_6B_UNUSED_PADDING_TOKEN).expect("the padding token must fit i32"),
     );

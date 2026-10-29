@@ -13,7 +13,7 @@ use paddler_blocking_thread_fixture::occupied_blocking_thread::OccupiedBlockingT
 use paddler_blocking_thread_fixture::single_blocking_thread_runtime::single_blocking_thread_runtime;
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 #[test]
 fn a_shutdown_while_a_model_loads_cancels_the_load() {
@@ -26,7 +26,7 @@ fn a_shutdown_while_a_model_loads_cancels_the_load() {
                 &agent_shutdown,
                 agent_inference_runtime_context(1),
                 LlamaModelSettings {
-                    model_path: kev_0_8b_target_path("model.gguf"),
+                    model_path: KevCheckpoint::Kev0_8b.target_path("model.gguf"),
                     n_gpu_layers: ALL_GPU_LAYERS,
                 },
             ));

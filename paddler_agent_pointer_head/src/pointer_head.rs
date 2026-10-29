@@ -5,6 +5,7 @@ use llama_cpp_bindings::gguf_tensor_f32::GgufTensorF32;
 
 use crate::pointer_head_delimiters::PointerHeadDelimiters;
 use crate::pointer_head_error::PointerHeadError;
+use crate::pointer_head_input_normalization::PointerHeadInputNormalization;
 use crate::pointer_head_projection::PointerHeadProjection;
 
 const TEMPERATURE_KEY: &str = "pointer_head.temperature";
@@ -47,6 +48,7 @@ fn softmax(logits: &[f32]) -> Vec<f32> {
 
 pub struct PointerHead {
     pub delimiters: PointerHeadDelimiters,
+    pub input_normalization: PointerHeadInputNormalization,
     pub key_projection: PointerHeadProjection,
     pub logit_scale: f32,
     pub query_projection: PointerHeadProjection,
@@ -62,6 +64,7 @@ impl PointerHead {
             })?;
         let temperature = read_temperature(&gguf_context)?;
         let delimiters = PointerHeadDelimiters::load(&gguf_context)?;
+        let input_normalization = PointerHeadInputNormalization::load(&gguf_context)?;
         let mut tensor_shapes = [[0; 4]; 4];
         let mut tensor_values: [Vec<f32>; 4] = Default::default();
 
@@ -114,6 +117,7 @@ impl PointerHead {
 
         Ok(Self {
             delimiters,
+            input_normalization,
             key_projection: PointerHeadProjection {
                 bias: key_bias,
                 hidden_size: hidden_size as usize,
@@ -164,6 +168,7 @@ impl PointerHead {
 mod tests {
     use super::PointerHead;
     use crate::pointer_head_delimiters::PointerHeadDelimiters;
+    use crate::pointer_head_input_normalization::PointerHeadInputNormalization;
     use crate::pointer_head_projection::PointerHeadProjection;
 
     fn identity_projection() -> PointerHeadProjection {
@@ -183,6 +188,7 @@ mod tests {
                 question: "<question>".to_owned(),
                 state: "<state>".to_owned(),
             },
+            input_normalization: PointerHeadInputNormalization::Unnormalized,
             key_projection: identity_projection(),
             logit_scale: 0.5,
             query_projection: identity_projection(),

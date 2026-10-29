@@ -3,18 +3,15 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_client::error::Error as ClientError;
 use paddler_messaging::api_path::ApiPath;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
-use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
+use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn decision_without_questions_is_rejected_with_bad_request() {
-    let cluster = start_cluster(cluster_without_agents_serving(
-        InferenceMode::TextGenerationEmbeddingsAndDecisions,
-    ))
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster(cluster_without_agents_serving_decisions())
+        .await
+        .expect("the cluster must start");
 
     let decide_url = cluster
         .balancer

@@ -12,7 +12,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
@@ -24,7 +24,7 @@ const SEQUENCES_THE_SCHEDULER_HANDS_OUT: u16 = 2;
 #[test]
 fn a_generation_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_clear() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b_target_path("model.gguf"),
+        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
         agent_inference_runtime_context(SEQUENCES_THE_SCHEDULER_HANDS_OUT),
     )
     .expect("the kev model must load");

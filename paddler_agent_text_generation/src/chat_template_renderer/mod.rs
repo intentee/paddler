@@ -93,10 +93,12 @@ mod tests {
         let messages = vec![
             ChatTemplateMessage::Message {
                 content: ChatTemplateMessageContent::Text("hi".to_owned()),
+                reasoning_content: None,
                 role: "user".to_owned(),
             },
             ChatTemplateMessage::Message {
                 content: ChatTemplateMessageContent::Text("hello".to_owned()),
+                reasoning_content: None,
                 role: "assistant".to_owned(),
             },
         ];

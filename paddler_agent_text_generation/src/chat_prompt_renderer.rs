@@ -1,15 +1,12 @@
 use minijinja::context;
 use minijinja::value::Serde;
 
-use paddler_messaging::media_marker::MediaMarker;
-
 use crate::chat_prompt_render_request::ChatPromptRenderRequest;
 use crate::chat_template_renderer::ChatTemplateRenderer;
 use crate::text_generation_error::TextGenerationError;
 
 pub struct ChatPromptRenderer {
     pub chat_template_renderer: ChatTemplateRenderer,
-    pub media_marker: MediaMarker,
     pub token_bos_str: String,
     pub token_eos_str: String,
     pub token_nl_str: String,
@@ -48,6 +45,7 @@ mod tests {
     use minijinja::ErrorKind as MinijinjaErrorKind;
 
     use paddler_messaging::chat_template::ChatTemplate;
+    use paddler_messaging::chat_template_content_form::ChatTemplateContentForm;
     use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
     use paddler_messaging::conversation_history::ConversationHistory;
     use paddler_messaging::conversation_message::ConversationMessage;
@@ -69,14 +67,13 @@ mod tests {
                 content: template_content.to_owned(),
             })
             .unwrap(),
-            media_marker: MediaMarker::new("<media>".to_owned()),
             token_bos_str: "<bos>".to_owned(),
             token_eos_str: "<eos>".to_owned(),
             token_nl_str: "<nl>".to_owned(),
         }
     }
 
-    fn image_then_text_conversation(renderer: &ChatPromptRenderer) -> ChatTemplateConversation {
+    fn image_then_text_conversation() -> ChatTemplateConversation {
         ConversationHistory::new(vec![ConversationMessage::Message {
             content: ConversationMessageContent::Parts(vec![
                 ConversationMessageContentPart::ImageUrl {
@@ -90,7 +87,10 @@ mod tests {
             ]),
             role: "user".to_owned(),
         }])
-        .into_chat_template_conversation(&renderer.media_marker)
+        .into_chat_template_conversation(
+            ChatTemplateContentForm::TypedParts,
+            &MediaMarker::new("<media>".to_owned()),
+        )
     }
 
     fn render_image_then_text(
@@ -99,7 +99,7 @@ mod tests {
         renderer.render(ChatPromptRenderRequest {
             add_generation_prompt: true,
             enable_thinking: false,
-            messages: &image_then_text_conversation(renderer).messages,
+            messages: &image_then_text_conversation().messages,
             tools: &Value::Array(Vec::new()),
         })
     }

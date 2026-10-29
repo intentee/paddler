@@ -1,9 +1,9 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
@@ -20,8 +20,10 @@ async fn a_failed_startup_releases_its_model_when_the_agent_shuts_down() {
     serving_pipeline_arbiter
         .serve(desired_state_with_chat_template_override(
             BalancerDesiredState {
-                inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-                ..kev_0_8b_desired_state().expect("the kev desired state must name absolute paths")
+                decision: DecisionSettings::default(),
+                ..KevCheckpoint::Kev0_8b
+                    .desired_state()
+                    .expect("the kev desired state must name absolute paths")
             },
             uncompilable_chat_template(),
         ))

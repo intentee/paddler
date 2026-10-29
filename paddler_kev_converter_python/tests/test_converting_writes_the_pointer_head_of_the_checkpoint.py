@@ -14,6 +14,7 @@ def test_converting_writes_the_pointer_head_of_the_checkpoint(
     head = kev_checkpoint.meta.head
 
     assert reader.fields["general.architecture"].contents() == "pointer_head"
+    assert reader.fields["pointer_head.input_normalization"].contents() == "NFC"
     assert reader.fields["pointer_head.temperature"].contents() == np.float32(
         kev_checkpoint.meta.temperature
     )

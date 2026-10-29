@@ -33,7 +33,7 @@ mod buffered_request_counter;
 pub mod buffered_request_manager;
 pub mod cancellation_token_stream_guard;
 pub mod chunk_forwarding_session_controller;
-pub mod cluster_does_not_serve_inference_capability;
+pub mod cluster_serves_no_decisions;
 pub mod compatibility;
 pub mod continuation_decision;
 pub mod controls_session;

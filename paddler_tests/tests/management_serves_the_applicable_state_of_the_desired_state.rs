@@ -19,7 +19,7 @@ async fn management_serves_the_applicable_state_of_the_desired_state() {
 
     assert_eq!(
         agent_desired_state,
-        AgentDesiredState::from(BalancerDesiredState::default())
+        AgentDesiredState::from(&BalancerDesiredState::default())
     );
 
     cluster

@@ -8,11 +8,15 @@ use crate::chat_template_tool_call::ChatTemplateToolCall;
 pub enum ChatTemplateMessage {
     AssistantToolCalls {
         content: ChatTemplateMessageContent,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reasoning_content: Option<String>,
         role: &'static str,
         tool_calls: Vec<ChatTemplateToolCall>,
     },
     Message {
         content: ChatTemplateMessageContent,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        reasoning_content: Option<String>,
         role: String,
     },
     ToolResult {

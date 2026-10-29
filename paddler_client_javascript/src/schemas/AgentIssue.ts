@@ -52,7 +52,19 @@ export const AgentIssueSchema = z.union([
     HuggingFaceCannotAcquireLock: HuggingFaceDownloadLockSchema,
   }),
   z.object({
-    HuggingFaceClientCannotStart: AgentIssueModelPathSchema,
+    HuggingFaceDownloadFailed: z.object({
+      failure: z.union([
+        z.literal("CacheIoFailed"),
+        z.literal("HubConnectionFailed"),
+        z.object({
+          HubRespondedWithStatus: z.object({ status: z.number() }),
+        }),
+        z.literal("HubResponseMalformed"),
+        z.literal("UnexpectedHubClientFailure"),
+        z.literal("XetTransferFailed"),
+      ]),
+      model_path: AgentIssueModelPathSchema,
+    }),
   }),
   z.object({
     HuggingFaceModelDoesNotExist: AgentIssueModelPathSchema,
@@ -64,10 +76,7 @@ export const AgentIssueSchema = z.union([
     HuggingFacePermissions: AgentIssueModelPathSchema,
   }),
   z.object({
-    ModelArchitectureUnsupportedForDecisions: z.object({
-      architecture: z.string(),
-      model_path: AgentIssueModelPathSchema,
-    }),
+    LocalModelFileCannotBeChecked: AgentIssueModelPathSchema,
   }),
   z.object({
     ModelCacheIsCorrupted: AgentIssueModelPathSchema,

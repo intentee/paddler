@@ -5,17 +5,17 @@ use std::mem::discriminant;
 
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
+use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::first_message_content_chat_template::first_message_content_chat_template;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 use crate::swappable_model_file::SwappableModelFile;
@@ -23,11 +23,14 @@ use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconcil
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_reconfiguration_replaced_before_it_starts_yields_to_its_replacement() {
-    let swappable_model_file = SwappableModelFile::link_to(&kev_0_8b_target_path("model.gguf"));
+    let swappable_model_file =
+        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"));
     let served_desired_state = BalancerDesiredState {
-        inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+        decision: DecisionSettings::default(),
         model: swappable_model_file.agent_desired_model(),
-        ..kev_0_8b_desired_state().expect("the kev desired state must name absolute paths")
+        ..KevCheckpoint::Kev0_8b
+            .desired_state()
+            .expect("the kev desired state must name absolute paths")
     };
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
 
@@ -77,7 +80,7 @@ async fn a_reconfiguration_replaced_before_it_starts_yields_to_its_replacement()
             issues: BTreeSet::new(),
             model_path: Some(swappable_model_file.model_path().display().to_string()),
             runtime: AgentRuntimeStatus::Serving {
-                inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+                decisions: AgentDecisionsServing::NotServed,
                 slots_total: 1,
             },
             state_application_status: AgentStateApplicationStatus::Applied,

@@ -21,7 +21,7 @@ test("AgentSchema parses an agent that is downloading its model", function () {
       model_path: "/models/qwen.gguf",
       runtime: {
         Serving: {
-          inference_mode: "TextGenerationAndEmbeddings",
+          decisions: "NotServed",
           slots_total: 4,
         },
       },

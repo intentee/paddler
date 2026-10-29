@@ -4,6 +4,7 @@ pub mod gemma_3_4b_it;
 pub mod gemma_3_4b_it_mmproj;
 pub mod gemma_4_e2b_it;
 pub mod gemma_4_e2b_it_mmproj;
+pub mod lfm2_colbert_350m;
 pub mod ministral_3_3b_reasoning;
 pub mod ministral_3_8b_reasoning;
 pub mod ministral_3_8b_reasoning_mmproj;
@@ -16,6 +17,8 @@ pub mod qwen3_5_0_8b_mmproj;
 pub mod qwen3_8_27b;
 pub mod smolvlm2_256m;
 pub mod smolvlm2_256m_mmproj;
+pub mod ultravox_v0_5_llama_3_2_1b;
+pub mod ultravox_v0_5_llama_3_2_1b_mmproj;
 
 use std::path::PathBuf;
 
@@ -30,7 +33,6 @@ use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
 use paddler_messaging::decision_settings::DecisionSettings;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
 use paddler_model_source::huggingface_model_reference::HuggingFaceModelReference;
@@ -60,7 +62,18 @@ impl ModelCard {
 
     #[must_use]
     pub fn into_desired_state(self) -> BalancerDesiredState {
-        self.into_desired_state_serving(InferenceMode::TextGenerationAndEmbeddings)
+        BalancerDesiredState {
+            model: self.into_agent_desired_model(),
+            model_runtime_parameters: ModelRuntimeParameters {
+                n_gpu_layers: ALL_GPU_LAYERS,
+                ..ModelRuntimeParameters::default()
+            },
+            text_generation: BalancerTextGenerationSettings {
+                sampling_parameters: SamplingParameters::deterministic(),
+                ..BalancerTextGenerationSettings::default()
+            },
+            ..BalancerDesiredState::default()
+        }
     }
 
     #[must_use]
@@ -68,8 +81,7 @@ impl ModelCard {
         self,
         multimodal_projection: Self,
     ) -> BalancerDesiredState {
-        let desired_state =
-            self.into_desired_state_serving(InferenceMode::TextGenerationAndEmbeddings);
+        let desired_state = self.into_desired_state();
 
         BalancerDesiredState {
             text_generation: BalancerTextGenerationSettings {
@@ -90,7 +102,7 @@ impl ModelCard {
     ) -> BalancerDesiredState {
         BalancerDesiredState {
             decision: DecisionSettings { pointer_head },
-            ..self.into_desired_state_serving(InferenceMode::TextGenerationEmbeddingsAndDecisions)
+            ..self.into_desired_state()
         }
     }
 
@@ -102,22 +114,6 @@ impl ModelCard {
         BalancerDesiredState {
             embeddings: embedding_parameters,
             ..self.into_desired_state()
-        }
-    }
-
-    fn into_desired_state_serving(self, inference_mode: InferenceMode) -> BalancerDesiredState {
-        BalancerDesiredState {
-            inference_mode,
-            model: self.into_agent_desired_model(),
-            model_runtime_parameters: ModelRuntimeParameters {
-                n_gpu_layers: ALL_GPU_LAYERS,
-                ..ModelRuntimeParameters::default()
-            },
-            text_generation: BalancerTextGenerationSettings {
-                sampling_parameters: SamplingParameters::deterministic(),
-                ..BalancerTextGenerationSettings::default()
-            },
-            ..BalancerDesiredState::default()
         }
     }
 }

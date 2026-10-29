@@ -96,20 +96,37 @@ impl DecisionDecoder<'_, '_> {
             }
         }
 
+        self.llama_context.set_embeddings(true);
+
+        let row_hidden_states = self.decode_row_hidden_states(&output_batch_indices);
+
+        self.llama_context.set_embeddings(false);
+
+        row_hidden_states.map(|row_hidden_states| {
+            hidden_states.extend(row_hidden_states);
+
+            next_offset + self.batch.n_tokens() as usize
+        })
+    }
+
+    fn decode_row_hidden_states(
+        &mut self,
+        output_batch_indices: &[i32],
+    ) -> Result<Vec<Vec<f32>>, DecisionError> {
         self.llama_context
             .decode(self.batch)
-            .map_err(DecisionError::DecodeFailed)?;
-
-        for batch_index in output_batch_indices {
-            hidden_states.push(
-                self.llama_context
-                    .nextn_embeddings_ith(batch_index)
-                    .map_err(DecisionError::HiddenStateUnavailable)?
-                    .to_vec(),
-            );
-        }
-
-        Ok(next_offset + self.batch.n_tokens() as usize)
+            .map_err(DecisionError::DecodeFailed)
+            .and_then(|()| {
+                output_batch_indices
+                    .iter()
+                    .map(|batch_index| {
+                        self.llama_context
+                            .embeddings_ith(*batch_index)
+                            .map(<[f32]>::to_vec)
+                            .map_err(DecisionError::HiddenStateUnavailable)
+                    })
+                    .collect()
+            })
     }
 
     pub fn remove_sequence(&mut self, sequence_id: SequenceId) -> Result<(), DecisionError> {

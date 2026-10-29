@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use anyhow::Result;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::error::SamplerAcceptError;
 use llama_cpp_bindings::sampled_token::SampledToken;
@@ -7,7 +8,7 @@ use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 use crate::decode_prompt_for_sampling::decode_prompt_for_sampling;
@@ -25,7 +26,7 @@ impl GrammarRefusingTheGreedySelection {
 
     pub fn load() -> Self {
         let runtime = LlamaRuntime::load(
-            &kev_0_8b_target_path("model.gguf"),
+            &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
             agent_inference_runtime_context(1),
         )
         .expect("the kev model must load");
@@ -50,7 +51,7 @@ impl GrammarRefusingTheGreedySelection {
         }
     }
 
-    pub fn decode_the_prompt(&self, llama_context: &mut LlamaContext<'_>) -> i32 {
+    pub fn decode_the_prompt(&self, llama_context: &mut LlamaContext<'_>) -> Result<i32> {
         decode_prompt_for_sampling(&self.runtime, llama_context, Self::PROMPT)
     }
 

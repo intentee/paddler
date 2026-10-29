@@ -13,6 +13,8 @@ def test_synthetic_pointer_heads_are_reproducible(tmp_path: Path) -> None:
                 "synthetic-pointer-head",
                 "--hidden-size",
                 "512",
+                "--input-normalization",
+                "NFC",
                 "--output",
                 str(tmp_path / written_head),
             ]

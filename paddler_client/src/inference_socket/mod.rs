@@ -1,5 +1,4 @@
 pub mod awaited_response;
-pub mod cluster_inference_mode_broadcaster;
 pub mod connection;
 pub mod connection_slot;
 pub mod inbound_message_router;
@@ -9,7 +8,6 @@ pub mod open_inference_socket_exchange;
 pub mod outbound_frames;
 pub mod outbound_request;
 pub mod pool;
-pub mod reported_cluster_inference_mode;
 pub mod response_stream;
 pub mod spawn_read_task;
 pub mod spawn_write_task;

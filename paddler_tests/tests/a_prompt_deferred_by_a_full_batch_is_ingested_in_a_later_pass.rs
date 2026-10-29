@@ -17,7 +17,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
 use paddler_tests::generation_done_discriminant::generation_done_discriminant;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
@@ -41,7 +41,7 @@ fn last_result_discriminant(
 #[test]
 fn a_prompt_deferred_by_a_full_batch_is_ingested_in_a_later_pass() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b_target_path("model.gguf"),
+        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
         agent_inference_runtime_context(SLOTS),
     )
     .expect("the kev model must load");

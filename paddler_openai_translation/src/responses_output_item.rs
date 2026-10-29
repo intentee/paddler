@@ -1,7 +1,7 @@
-use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 
 use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::responses_content_part::ResponsesContentPart;
 use crate::responses_item_status::ResponsesItemStatus;
@@ -35,7 +35,7 @@ impl ResponsesOutputItem {
     #[must_use]
     pub fn completed_function_call(
         id: String,
-        parsed_tool_call: &ParsedToolCall,
+        parsed_tool_call: &GeneratedToolCall,
         arguments: String,
     ) -> Self {
         Self::FunctionCall {
@@ -48,7 +48,7 @@ impl ResponsesOutputItem {
     }
 
     #[must_use]
-    pub fn function_call_in_progress(id: String, parsed_tool_call: &ParsedToolCall) -> Self {
+    pub fn function_call_in_progress(id: String, parsed_tool_call: &GeneratedToolCall) -> Self {
         Self::FunctionCall {
             arguments: String::new(),
             call_id: parsed_tool_call.id.clone(),

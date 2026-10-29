@@ -36,6 +36,7 @@ pub mod reconciliation_service;
 pub mod replacement_outcome;
 pub mod retained_serving;
 pub mod retry_delay;
+pub mod retry_delay_outcome;
 pub mod served_capabilities;
 pub mod served_decisions;
 pub mod served_embeddings;

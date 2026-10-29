@@ -5,7 +5,7 @@ use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 #[test]
 fn a_model_keeps_its_vram_occupancy_until_its_last_clone_is_dropped() {
@@ -17,7 +17,7 @@ fn a_model_keeps_its_vram_occupancy_until_its_last_clone_is_dropped() {
     let resident_model = LoadedLlamaModel::load(
         &inference_runtime_context,
         LlamaModelSettings {
-            model_path: kev_0_8b_target_path("model.gguf"),
+            model_path: KevCheckpoint::Kev0_8b.target_path("model.gguf"),
             n_gpu_layers: ALL_GPU_LAYERS,
         },
     )

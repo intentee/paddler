@@ -27,19 +27,18 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 
 use crate::cluster_harness_error::ClusterHarnessError;
 
-const fn answered_request_id(message: &InferenceClientMessage) -> Option<&str> {
+const fn answered_request_id(message: &InferenceClientMessage) -> &str {
     match message {
         InferenceClientMessage::Error(ErrorEnvelope { request_id, .. })
         | InferenceClientMessage::Response(ResponseEnvelope { request_id, .. }) => {
-            Some(request_id.as_str())
+            request_id.as_str()
         }
-        InferenceClientMessage::Notification(_) => None,
     }
 }
 
 fn awaited_answer(
     frame: Message,
-    is_awaited: impl Fn(Option<&str>) -> bool,
+    is_awaited: impl Fn(&str) -> bool,
 ) -> Option<Result<InferenceClientMessage, ClusterHarnessError>> {
     match frame {
         Message::Text(text) => from_str::<InferenceClientMessage>(&text)
@@ -72,11 +71,11 @@ impl RawInferenceSocket {
     }
 
     pub async fn next_answer(&mut self) -> Result<InferenceClientMessage, ClusterHarnessError> {
-        self.next_selected_frame(|frame| {
-            awaited_answer(frame, |answered_request_id| answered_request_id.is_some())
-        })
-        .await
-        .and_then(|answer| answer.ok_or(ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer))
+        self.next_selected_frame(|frame| awaited_answer(frame, |_answered_request_id| true))
+            .await
+            .and_then(|answer| {
+                answer.ok_or(ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer)
+            })
     }
 
     pub async fn next_answer_to(
@@ -85,7 +84,7 @@ impl RawInferenceSocket {
     ) -> Result<InferenceClientMessage, ClusterHarnessError> {
         self.next_selected_frame(|frame| {
             awaited_answer(frame, |answered_request_id| {
-                answered_request_id == Some(request_id)
+                answered_request_id == request_id
             })
         })
         .await

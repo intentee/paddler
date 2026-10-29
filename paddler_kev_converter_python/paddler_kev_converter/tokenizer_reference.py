@@ -3,6 +3,10 @@ from pathlib import Path
 
 from kev.model import load_tokenizer, user_tokens
 
+from paddler_kev_converter.tokenizer_input_normalization import (
+    tokenizer_input_normalization,
+)
+
 REFERENCE_TEXTS = [
     "Hello world",
     "  leading and trailing spaces  ",
@@ -34,13 +38,16 @@ def write_tokenizer_reference(base: str, base_revision: str, path: Path) -> None
 
     path.write_text(
         json.dumps(
-            [
-                {
-                    "text": text,
-                    "token_ids": user_tokens(tokenizer, text),
-                }
-                for text in REFERENCE_TEXTS
-            ],
+            {
+                "entries": [
+                    {
+                        "text": text,
+                        "token_ids": user_tokens(tokenizer, text),
+                    }
+                    for text in REFERENCE_TEXTS
+                ],
+                "input_normalization": tokenizer_input_normalization(tokenizer).value,
+            },
             ensure_ascii=False,
             indent=2,
         )

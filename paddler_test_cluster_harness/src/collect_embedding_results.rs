@@ -76,7 +76,7 @@ pub async fn collect_embedding_results(
                 request_ids.insert(request_id);
                 wire_errors.push(error);
             }
-            unexpected_message => {
+            unexpected_message @ InferenceMessage::Response(_) => {
                 return Err(ClusterHarnessError::EmbeddingStreamMessageUnexpected {
                     message: Box::new(unexpected_message),
                 }

@@ -61,6 +61,6 @@ async fn balancer_runner_preserves_the_persisted_desired_state() {
             .read_balancer_desired_state()
             .await
             .expect("the state database must stay readable after the runner stops"),
-        StoredBalancerDesiredState::Stored(persisted_state)
+        StoredBalancerDesiredState::Stored(Box::new(persisted_state))
     );
 }

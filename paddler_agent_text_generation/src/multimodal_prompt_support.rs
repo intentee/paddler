@@ -3,8 +3,8 @@ use std::sync::Arc;
 use llama_cpp_bindings::mtmd::FittedMtmdInputChunk;
 use llama_cpp_bindings::mtmd::FittedMtmdInputChunks;
 use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdInputText;
 
+use crate::media_marked_prompt::MediaMarkedPrompt;
 use crate::model_bos_token::ModelBosToken;
 use crate::multimodal_prompt_ingestion::MultimodalPromptIngestion;
 use crate::require_prompt_fits_sequence_context::require_prompt_fits_sequence_context;
@@ -23,19 +23,11 @@ impl MultimodalPromptSupport {
     pub fn prepare_prompt(
         &self,
         bitmaps: &[MtmdBitmap],
-        text: String,
+        media_marked_prompt: &MediaMarkedPrompt,
     ) -> Result<MultimodalPromptIngestion, TextGenerationError> {
-        let bitmap_refs: Vec<&MtmdBitmap> = bitmaps.iter().collect();
         let chunks = self
             .multimodal_context
-            .tokenize(
-                MtmdInputText {
-                    text,
-                    add_special: false,
-                    parse_special: true,
-                },
-                &bitmap_refs,
-            )
+            .tokenize_from_parts(&media_marked_prompt.interleave_with(bitmaps)?, false)
             .map_err(TextGenerationError::MultimodalTokenizationFailed)?;
         let chunk_tokens = chunks.total_tokens();
         let chunks =

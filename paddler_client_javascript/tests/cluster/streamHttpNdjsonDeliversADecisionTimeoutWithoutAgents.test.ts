@@ -29,7 +29,9 @@ test("streamHttpNdjson delivers a decision timeout without agents", async functi
       await putBalancerDesiredState({
         desiredState: {
           ...storedDesiredState,
-          inference_mode: "TextGenerationEmbeddingsAndDecisions",
+          decision: {
+            pointer_head: { Uri: "agent:///pointer-head-no-agent-loads.gguf" },
+          },
         },
         managementAddress: management,
       });

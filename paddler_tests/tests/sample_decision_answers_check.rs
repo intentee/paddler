@@ -4,20 +4,20 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::decision_result::DecisionResult;
 use paddler_messaging::decision_summary::DecisionSummary;
-use paddler_tests::decision_cluster_params::DecisionClusterParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::sample_decision::sample_decision;
-use paddler_tests::start_decision_cluster::start_decision_cluster;
+use paddler_tests::start_cluster::start_cluster;
 
 const PROBABILITY_SUM_TOLERANCE: f32 = 1e-5;
 const SAMPLE_DECISION_INPUT_TOKENS: usize = 85;
 
 pub struct SampleDecisionAnswersCheck {
-    pub decision_cluster_params: DecisionClusterParams,
+    pub cluster_params: ClusterParams,
 }
 
 impl SampleDecisionAnswersCheck {
     pub async fn assert_for_the_sample_decision(self) {
-        let cluster = start_decision_cluster(self.decision_cluster_params)
+        let cluster = start_cluster(self.cluster_params)
             .await
             .expect("the cluster must start");
         let decision = sample_decision();

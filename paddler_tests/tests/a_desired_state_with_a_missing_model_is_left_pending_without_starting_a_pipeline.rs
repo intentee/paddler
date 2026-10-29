@@ -26,7 +26,7 @@ async fn a_desired_state_with_a_missing_model_is_left_pending_without_starting_a
 
     assert_eq!(
         serving_pipeline_arbiter.apply(desired_state.clone()).await,
-        DesiredStateReconciliation::Pending(Box::new(AgentDesiredState::from(desired_state)))
+        DesiredStateReconciliation::Pending(Box::new(AgentDesiredState::from(&desired_state)))
     );
     assert_eq!(
         serving_pipeline_arbiter

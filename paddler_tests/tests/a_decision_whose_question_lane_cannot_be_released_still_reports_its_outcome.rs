@@ -21,7 +21,7 @@ fn a_decision_whose_question_lane_cannot_be_released_still_reports_its_outcome()
         delimiter_tokens,
         runtime,
         ..
-    } = KevDecisionModel::load(1);
+    } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the decision context must be created");

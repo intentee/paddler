@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ParsedToolCallSchema } from "./ParsedToolCall";
+import { GeneratedToolCallSchema } from "./GeneratedToolCall";
 
 export type GeneratedTokenKind =
   "content" | "reasoning" | "tool_call" | "undeterminable";
@@ -71,7 +71,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ SamplingCandidatesExhausted: z.string() }),
   z.object({ SchedulerUnavailable: z.string() }),
   z.object({ SamplerError: z.string() }),
-  z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
+  z.object({ ToolCallParsed: z.array(GeneratedToolCallSchema) }),
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
   z.object({ ToolSchemaInvalid: z.string() }),
@@ -113,7 +113,7 @@ type Normalised =
       summary: null;
       token: null;
       tokenKind: null;
-      toolCalls: ReadonlyArray<z.infer<typeof ParsedToolCallSchema>>;
+      toolCalls: ReadonlyArray<z.infer<typeof GeneratedToolCallSchema>>;
     }
   | {
       done: false;

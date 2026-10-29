@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use nanoid::nanoid;
 use serde::Serialize;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::api_path::ApiPath;
@@ -21,7 +20,6 @@ use crate::error::Result;
 use crate::http_client::HttpClient;
 use crate::inference_message_stream::InferenceMessageStream;
 use crate::inference_socket::pool::Pool;
-use crate::inference_socket::reported_cluster_inference_mode::ReportedClusterInferenceMode;
 use crate::reports_health::ReportsHealth;
 use crate::stream::ndjson::Ndjson;
 
@@ -79,14 +77,6 @@ impl ClientInference {
         self.inference_socket_pool
             .send_request(cancellation_token, request_id, message)
             .await
-    }
-
-    #[must_use]
-    pub fn subscribe_to_cluster_inference_mode(
-        &self,
-    ) -> watch::Receiver<ReportedClusterInferenceMode> {
-        self.inference_socket_pool
-            .subscribe_to_cluster_inference_mode()
     }
 
     pub async fn continue_from_conversation_history(

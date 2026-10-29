@@ -183,7 +183,7 @@ impl SlotAggregatedStatus {
     pub fn start_serving(
         &self,
         ServingReport {
-            inference_mode,
+            decisions,
             model_path,
             serving_issues,
             uses_chat_template_override,
@@ -195,7 +195,7 @@ impl SlotAggregatedStatus {
 
         *self.model_path.write() = Some(model_path);
         *self.runtime.write() = AgentRuntimeStatus::Serving {
-            inference_mode,
+            decisions,
             slots_total: u64::from(self.desired_slots_total),
         };
         *self.serving_issues.write() = serving_issues;
@@ -272,13 +272,13 @@ mod tests {
 
     use tokio_test::task::spawn;
 
+    use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
     use paddler_messaging::agent_issue::AgentIssue;
     use paddler_messaging::agent_issue_params::model_path::ModelPath;
     use paddler_messaging::agent_issue_params::slot_cannot_start_params::SlotCannotStartParams;
     use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
     use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
     use paddler_messaging::inference_capability::InferenceCapability;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::model_download_status::ModelDownloadStatus;
     use paddler_messaging::produces_snapshot::ProducesSnapshot;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
@@ -288,9 +288,9 @@ mod tests {
     use crate::dispenses_slots::DispensesSlots;
     use crate::serving_report::ServingReport;
 
-    fn serving_report(inference_mode: InferenceMode) -> ServingReport {
+    fn serving_report(decisions: AgentDecisionsServing) -> ServingReport {
         ServingReport {
-            inference_mode,
+            decisions,
             model_path: "model".to_owned(),
             serving_issues: BTreeSet::new(),
             uses_chat_template_override: false,
@@ -302,7 +302,7 @@ mod tests {
             serving_issues: BTreeSet::from([AgentIssue::UnableToFindChatTemplate(model_path(
                 "model",
             ))]),
-            ..serving_report(InferenceMode::TextGenerationAndEmbeddings)
+            ..serving_report(AgentDecisionsServing::NotServed)
         }
     }
 
@@ -400,7 +400,7 @@ mod tests {
             }));
         }
 
-        status.start_serving(serving_report(InferenceMode::TextGenerationAndEmbeddings));
+        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
 
         assert!(!status.has_issue_like(is_slot_cannot_start));
     }
@@ -409,7 +409,7 @@ mod tests {
     fn serving_nothing_makes_the_agent_idle() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.start_serving(serving_report(InferenceMode::TextGenerationAndEmbeddings));
+        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
         status.serve_nothing(false);
 
         assert_eq!(
@@ -419,12 +419,10 @@ mod tests {
     }
 
     #[test]
-    fn starting_to_serve_reports_the_model_its_mode_and_the_applied_state() {
+    fn starting_to_serve_reports_the_model_its_decisions_and_the_applied_state() {
         let status = SlotAggregatedStatus::new(4);
 
-        status.start_serving(serving_report(
-            InferenceMode::TextGenerationEmbeddingsAndDecisions,
-        ));
+        status.start_serving(serving_report(AgentDecisionsServing::Served));
 
         let snapshot = status.make_snapshot();
 
@@ -433,7 +431,7 @@ mod tests {
         assert_eq!(
             snapshot.status.runtime,
             AgentRuntimeStatus::Serving {
-                inference_mode: InferenceMode::TextGenerationEmbeddingsAndDecisions,
+                decisions: AgentDecisionsServing::Served,
                 slots_total: 4,
             }
         );
@@ -510,7 +508,7 @@ mod tests {
     fn serving_nothing_forgets_the_model_but_keeps_requests_in_flight() {
         let status = SlotAggregatedStatus::new(2);
 
-        status.start_serving(serving_report(InferenceMode::TextGenerationAndEmbeddings));
+        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
         status.take_slots(NonZeroU16::MIN);
 
         status.serve_nothing(false);
@@ -595,7 +593,7 @@ mod tests {
 
         status.start_serving(ServingReport {
             uses_chat_template_override: true,
-            ..serving_report(InferenceMode::TextGenerationAndEmbeddings)
+            ..serving_report(AgentDecisionsServing::NotServed)
         });
 
         assert!(status.make_snapshot().status.uses_chat_template_override);
@@ -626,7 +624,7 @@ mod tests {
         let status = SlotAggregatedStatus::new(2);
 
         status.start_serving(serving_without_a_chat_template());
-        status.start_serving(serving_report(InferenceMode::TextGenerationAndEmbeddings));
+        status.start_serving(serving_report(AgentDecisionsServing::NotServed));
 
         assert_eq!(status.make_snapshot().status.issues, BTreeSet::new());
     }

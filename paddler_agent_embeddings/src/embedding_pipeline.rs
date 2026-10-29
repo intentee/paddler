@@ -80,47 +80,46 @@ impl EmbeddingPipeline {
             );
 
             continue_startup_unless_shutting_down(agent_shutdown, || {
-                loaded_llama_model.warm_up_llama_context(
-                    &mut llama_context,
-                    &mut batch,
-                    desired_slots_total,
-                );
+                loaded_llama_model
+                    .warm_up_llama_context(&mut llama_context, &mut batch, desired_slots_total)
+                    .map_err(EmbeddingError::from)
+                    .map(|()| {
+                        let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
-                let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
-
-                run_scheduler_unless_startup_abandoned(
-                    scheduler_startup_tx,
-                    Ok(SchedulerReady {
-                        request_preparer: Arc::new(SchedulerRequestPreparer {
-                            agent_name: inference_runtime_context.agent_name.clone(),
-                            preparation: EmbeddingBatchPreparer {
-                                loaded_llama_model: loaded_llama_model.clone(),
-                                n_batch,
-                                sequence_context_limit: SequenceContextLimit::of(&llama_context),
+                        run_scheduler_unless_startup_abandoned(
+                            scheduler_startup_tx,
+                            Ok(SchedulerReady {
+                                request_preparer: Arc::new(SchedulerRequestPreparer {
+                                    agent_name: inference_runtime_context.agent_name.clone(),
+                                    preparation: EmbeddingBatchPreparer {
+                                        loaded_llama_model: loaded_llama_model.clone(),
+                                        n_batch,
+                                        sequence_context_limit: SequenceContextLimit::of(
+                                            &llama_context,
+                                        ),
+                                    },
+                                    preparation_tasks: TaskTracker::new(),
+                                    scheduler_message_tx,
+                                }),
+                            }),
+                            || {
+                                EmbeddingScheduler {
+                                    active_requests: Vec::new(),
+                                    agent_shutdown: agent_shutdown.clone(),
+                                    batch,
+                                    llama_context,
+                                    scheduler_context: EmbeddingSchedulerContext {
+                                        agent_name: inference_runtime_context.agent_name,
+                                        desired_slots_total,
+                                        n_batch,
+                                        pooling_type,
+                                    },
+                                    scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+                                }
+                                .run();
                             },
-                            preparation_tasks: TaskTracker::new(),
-                            scheduler_message_tx,
-                        }),
-                    }),
-                    || {
-                        EmbeddingScheduler {
-                            active_requests: Vec::new(),
-                            agent_shutdown: agent_shutdown.clone(),
-                            batch,
-                            llama_context,
-                            scheduler_context: EmbeddingSchedulerContext {
-                                agent_name: inference_runtime_context.agent_name,
-                                desired_slots_total,
-                                n_batch,
-                                pooling_type,
-                            },
-                            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-                        }
-                        .run();
-                    },
-                );
-
-                Ok(())
+                        );
+                    })
             })
         })
     }

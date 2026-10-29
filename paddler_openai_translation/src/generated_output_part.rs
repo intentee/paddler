@@ -1,8 +1,8 @@
-use llama_cpp_bindings_types::ParsedToolCall;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum GeneratedOutputPart {
     Content(String),
     Reasoning(String),
-    ToolCalls(Vec<ParsedToolCall>),
+    ToolCalls(Vec<GeneratedToolCall>),
 }

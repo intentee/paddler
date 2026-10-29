@@ -1,8 +1,8 @@
-use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Serialize;
 use serde::Serializer;
 
 use paddler_messaging::assistant_role::ASSISTANT_ROLE;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 
 use crate::chat_completion_tool_call::ChatCompletionToolCall;
 
@@ -13,7 +13,7 @@ struct ToolCallDelta<'call> {
     tool_call: ChatCompletionToolCall<'call>,
 }
 
-struct ToolCallsDelta<'calls>(&'calls [ParsedToolCall]);
+struct ToolCallsDelta<'calls>(&'calls [GeneratedToolCall]);
 
 impl Serialize for ToolCallsDelta<'_> {
     fn serialize<TSerializer>(
@@ -23,15 +23,10 @@ impl Serialize for ToolCallsDelta<'_> {
     where
         TSerializer: Serializer,
     {
-        serializer.collect_seq(
-            self.0
-                .iter()
-                .enumerate()
-                .map(|(index, call)| ToolCallDelta {
-                    index,
-                    tool_call: ChatCompletionToolCall(call),
-                }),
-        )
+        serializer.collect_seq(self.0.iter().map(|call| ToolCallDelta {
+            index: call.index,
+            tool_call: ChatCompletionToolCall(call),
+        }))
     }
 }
 
@@ -60,7 +55,7 @@ struct SerializedChoice<'choice> {
 pub enum ChatCompletionChunkChoice {
     Content(String),
     Finish(&'static str),
-    ToolCalls(Vec<ParsedToolCall>),
+    ToolCalls(Vec<GeneratedToolCall>),
 }
 
 impl Serialize for ChatCompletionChunkChoice {

@@ -18,7 +18,6 @@ use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
@@ -63,10 +62,12 @@ impl ReconciliationReplacedBeforeItsWorkerRuns {
                         },
                         download_manager: DownloadManager::new()
                             .expect("the model downloader must start"),
-                        huggingface_hub: HuggingFaceHub {
+                        huggingface_client: HuggingFaceHub {
                             cache_location: HuggingFaceCacheLocation::HubDefault,
                             endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
-                        },
+                        }
+                        .client()
+                        .expect("the Hugging Face client must start"),
                     },
                     slot_aggregated_status: slot_aggregated_status.clone(),
                 },
@@ -82,7 +83,7 @@ impl ReconciliationReplacedBeforeItsWorkerRuns {
             .expect("the agent must begin the replaced desired state");
         agent_desired_state_tx.send_replace(AgentDesiredState {
             model: AgentDesiredModel::Uri(stalled_model_server.url("/model.gguf")),
-            ..AgentDesiredState::from(BalancerDesiredState::default())
+            ..AgentDesiredState::default()
         });
         occupied_blocking_thread
             .release()

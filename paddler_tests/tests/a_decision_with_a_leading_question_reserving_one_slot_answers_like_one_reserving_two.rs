@@ -36,7 +36,8 @@ fn answers_of(mut decision_result_rx: UnboundedReceiver<DecisionResult>) -> Vec<
 
 #[test]
 fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserving_two() {
-    let kev_decision_model = KevDecisionModel::load(DECISION_SLOTS_MINIMUM.get());
+    let kev_decision_model = KevDecisionModel::load(DECISION_SLOTS_MINIMUM.get())
+        .expect("the kev decision model must load");
     let slot_aggregated_status = kev_decision_model
         .runtime
         .inference_runtime_context
@@ -76,14 +77,16 @@ fn a_decision_with_a_leading_question_reserving_one_slot_answers_like_one_reserv
 
     drop(scheduler_message_tx);
 
-    kev_decision_model.run_scheduler(DecisionSchedulerRun {
-        active_requests: VecDeque::new(),
-        agent_shutdown: CancellationToken::new(),
-        capacity_ledger: DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
-        pending_requests: VecDeque::new(),
-        scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
-        sequences: DECISION_SLOTS_MINIMUM.get(),
-    });
+    kev_decision_model
+        .run_scheduler(DecisionSchedulerRun {
+            active_requests: VecDeque::new(),
+            agent_shutdown: CancellationToken::new(),
+            capacity_ledger: DecisionCapacityLedger::new(DECISION_SLOTS_MINIMUM.get()),
+            pending_requests: VecDeque::new(),
+            scheduler_inbox: SchedulerInbox::new(scheduler_message_rx),
+            sequences: DECISION_SLOTS_MINIMUM.get(),
+        })
+        .expect("the decision scheduler must run");
 
     assert_eq!(
         answers_of(decision_reserving_one_slot.decision_result_rx),

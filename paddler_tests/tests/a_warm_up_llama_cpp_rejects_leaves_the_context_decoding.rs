@@ -5,7 +5,7 @@ use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 const SEQUENCES_THE_CONTEXT_HOLDS: u32 = 1;
@@ -14,7 +14,7 @@ const SLOTS_THE_WARM_UP_PRIMES: u16 = 2;
 #[test]
 fn a_warm_up_llama_cpp_rejects_leaves_the_context_decoding() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b_target_path("model.gguf"),
+        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");
@@ -23,10 +23,15 @@ fn a_warm_up_llama_cpp_rejects_leaves_the_context_decoding() {
         .expect("the context must be created");
     let mut batch = LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1);
 
-    runtime.loaded_llama_model.warm_up_llama_context(
+    let warm_up = runtime.loaded_llama_model.warm_up_llama_context(
         &mut llama_context,
         &mut batch,
         SLOTS_THE_WARM_UP_PRIMES,
+    );
+
+    assert_eq!(
+        warm_up.map_err(|warm_up_error| warm_up_error.to_string()),
+        Err("llama.cpp rejected the warm-up batch: decode batch is invalid (empty, output mismatch, or initialization failure)".to_owned())
     );
 
     batch.clear();

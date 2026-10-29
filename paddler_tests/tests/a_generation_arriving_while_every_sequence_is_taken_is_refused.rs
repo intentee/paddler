@@ -11,7 +11,7 @@ use paddler_agent_text_generation::continuous_batch_scheduler_params::Continuous
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
@@ -20,7 +20,7 @@ use crate::first_message_content_request_preparer::FirstMessageContentRequestPre
 #[test]
 fn a_generation_arriving_while_every_sequence_is_taken_is_refused() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b_target_path("model.gguf"),
+        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");

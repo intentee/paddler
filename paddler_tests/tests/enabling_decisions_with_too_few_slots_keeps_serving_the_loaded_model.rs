@@ -3,19 +3,19 @@
 use std::collections::BTreeSet;
 use std::mem::discriminant;
 
+use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
 use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::agent_status::AgentStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::decision_slots_minimum::DECISION_SLOTS_MINIMUM;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::model_download_status::ModelDownloadStatus;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 
@@ -27,15 +27,18 @@ async fn enabling_decisions_with_too_few_slots_keeps_serving_the_loaded_model() 
 
     serving_pipeline_arbiter
         .serve(BalancerDesiredState {
-            inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-            ..kev_0_8b_desired_state().expect("the kev desired state must name absolute paths")
+            decision: DecisionSettings::default(),
+            ..KevCheckpoint::Kev0_8b
+                .desired_state()
+                .expect("the kev desired state must name absolute paths")
         })
         .await;
     assert_eq!(
         discriminant(
             &serving_pipeline_arbiter
                 .apply(
-                    kev_0_8b_desired_state()
+                    KevCheckpoint::Kev0_8b
+                        .desired_state()
                         .expect("the kev desired state must name absolute paths")
                 )
                 .await
@@ -58,9 +61,14 @@ async fn enabling_decisions_with_too_few_slots_keeps_serving_the_loaded_model() 
                     required_slots: DECISION_SLOTS_MINIMUM.get(),
                 }
             )]),
-            model_path: Some(kev_0_8b_target_path("model.gguf").display().to_string()),
+            model_path: Some(
+                KevCheckpoint::Kev0_8b
+                    .target_path("model.gguf")
+                    .display()
+                    .to_string()
+            ),
             runtime: AgentRuntimeStatus::Serving {
-                inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+                decisions: AgentDecisionsServing::NotServed,
                 slots_total: u64::from(SLOTS_TOO_FEW_FOR_DECISIONS),
             },
             state_application_status: AgentStateApplicationStatus::AttemptedAndRetrying,

@@ -6,17 +6,19 @@ use paddler_agent_runtime::agent_vram_residencies::AgentVramResidencies;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_superseded_startup_releases_everything_it_held_when_the_agent_shuts_down() {
     let superseded_desired_state = BalancerDesiredState {
-        inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-        ..kev_0_8b_desired_state().expect("the kev desired state must name absolute paths")
+        decision: DecisionSettings::default(),
+        ..KevCheckpoint::Kev0_8b
+            .desired_state()
+            .expect("the kev desired state must name absolute paths")
     };
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
     let AgentVramResidencies {

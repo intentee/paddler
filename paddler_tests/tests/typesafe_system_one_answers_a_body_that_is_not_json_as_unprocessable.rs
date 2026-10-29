@@ -2,17 +2,14 @@ use reqwest::Client;
 use reqwest::StatusCode;
 
 use paddler_balancer::compatibility::typesafe_service::typesafe_api_path::TypeSafeApiPath;
-use paddler_messaging::inference_mode::InferenceMode;
-use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
+use paddler_tests::cluster_without_agents_serving_decisions::cluster_without_agents_serving_decisions;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn typesafe_system_one_answers_a_body_that_is_not_json_as_unprocessable() {
-    let cluster = start_cluster(cluster_without_agents_serving(
-        InferenceMode::TextGenerationEmbeddingsAndDecisions,
-    ))
-    .await
-    .expect("a decision balancer without agents must start");
+    let cluster = start_cluster(cluster_without_agents_serving_decisions())
+        .await
+        .expect("a decision balancer without agents must start");
 
     let not_json = Client::new()
         .post(

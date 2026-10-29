@@ -18,9 +18,9 @@ const OversizedDecisionDetailsSchema = z.object({
 const decisionFailureCodes = {
   AgentRuntimeFailed: 500,
   BatchAssemblyFailed: 500,
+  DecisionsNotServed: 503,
   DecodeFailed: 500,
   HiddenStateUnavailable: 500,
-  InferenceModeMismatch: 503,
   InputTokenizationFailed: 400,
   KvCacheCopyFailed: 500,
   KvCacheRemovalFailed: 500,
@@ -33,9 +33,9 @@ type DecisionFailure = keyof typeof decisionFailureCodes;
 const DecisionFailureSchema = z.union([
   z.object({ AgentRuntimeFailed: z.string() }).strict(),
   z.object({ BatchAssemblyFailed: z.string() }).strict(),
+  z.object({ DecisionsNotServed: z.string() }).strict(),
   z.object({ DecodeFailed: z.string() }).strict(),
   z.object({ HiddenStateUnavailable: z.string() }).strict(),
-  z.object({ InferenceModeMismatch: z.string() }).strict(),
   z.object({ InputTokenizationFailed: z.string() }).strict(),
   z.object({ KvCacheCopyFailed: z.string() }).strict(),
   z.object({ KvCacheRemovalFailed: z.string() }).strict(),

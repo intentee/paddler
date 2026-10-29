@@ -4,6 +4,7 @@ import numpy as np
 from kev.model import SPECIAL
 from numpy.typing import NDArray
 
+from paddler_kev_converter.input_normalization import InputNormalization
 from paddler_kev_converter.pointer_head import PointerHead
 
 SYNTHETIC_HEAD_DIM = 16
@@ -11,7 +12,9 @@ SYNTHETIC_SEED = 20261006
 SYNTHETIC_TEMPERATURE = 1.5
 
 
-def synthetic_pointer_head(hidden_size: int) -> PointerHead:
+def synthetic_pointer_head(
+    hidden_size: int, input_normalization: InputNormalization
+) -> PointerHead:
     generator = np.random.default_rng(SYNTHETIC_SEED)
     weight_scale = 1 / sqrt(hidden_size)
 
@@ -25,6 +28,7 @@ def synthetic_pointer_head(hidden_size: int) -> PointerHead:
 
     return PointerHead(
         delimiters=SPECIAL,
+        input_normalization=input_normalization,
         key_bias=projection_bias(),
         key_weight=projection_weight(),
         query_bias=projection_bias(),

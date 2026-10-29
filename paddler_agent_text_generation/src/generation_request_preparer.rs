@@ -28,10 +28,12 @@ use crate::chat_template_tools::ChatTemplateTools;
 use crate::conversation_prompt_support::ConversationPromptSupport;
 use crate::conversation_support::ConversationSupport;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
+use crate::media_marked_prompt::MediaMarkedPrompt;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::prompt_modality::PromptModality;
 use crate::prompt_tokenizer::PromptTokenizer;
+use crate::request_media_marker::request_media_marker;
 use crate::require_grammar_compatible_with_thinking::require_grammar_compatible_with_thinking;
 use crate::resolve_grammar::resolve_grammar;
 use crate::sampler_chain_factory::SamplerChainFactory;
@@ -112,16 +114,18 @@ impl GenerationRequestPreparer {
 
         require_grammar_compatible_with_thinking(grammar.as_ref(), enable_thinking)?;
 
-        let ChatTemplateConversation {
-            image_urls,
-            messages,
-        } = conversation_history
-            .into_chat_template_conversation(&chat_prompt_renderer.media_marker);
-        let prompt_modality = image_input.prompt_modality_for(&image_urls)?;
-
         let tools_with_schema_documents: Vec<Tool<Value>> =
             tools.into_iter().map(Tool::from).collect();
         let chat_template_tools = ChatTemplateTools::new(&tools_with_schema_documents);
+        let media_marker = request_media_marker(&conversation_history, &chat_template_tools);
+        let ChatTemplateConversation {
+            image_urls,
+            messages,
+        } = conversation_history.into_chat_template_conversation(
+            image_input.chat_template_content_form(),
+            &media_marker,
+        );
+        let prompt_modality = image_input.prompt_modality_for(&image_urls)?;
         let raw_prompt = chat_prompt_renderer.render(ChatPromptRenderRequest {
             add_generation_prompt,
             enable_thinking,
@@ -136,7 +140,10 @@ impl GenerationRequestPreparer {
                         .iter()
                         .map(|image_url| self.decode_image_bitmap(image_url))
                         .collect::<Result<Vec<MtmdBitmap>, TextGenerationError>>()?,
-                    raw_prompt,
+                    &MediaMarkedPrompt {
+                        media_marker: &media_marker,
+                        prompt: &raw_prompt,
+                    },
                 )?,
             ),
             PromptModality::TextOnly => {
@@ -222,7 +229,7 @@ impl GenerationRequestPreparer {
         let validator =
             ToolCallValidator::from_tools(tools).map_err(TextGenerationError::ToolSchemaInvalid)?;
         let chat_message_parser =
-            ChatMessageParser::new(&self.loaded_llama_model.model, &chat_template_tools.json())
+            ChatMessageParser::new(&self.loaded_llama_model.model, &chat_template_tools.json)
                 .map_err(TextGenerationError::ToolCallParserCreationFailed)?;
 
         Ok(ToolCallPipeline::new(chat_message_parser, validator))

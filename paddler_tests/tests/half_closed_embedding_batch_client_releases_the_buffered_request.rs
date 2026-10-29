@@ -3,19 +3,16 @@ use serde_json::to_value;
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
-use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_embedding_batch_client_releases_the_buffered_request() {
-    let mut cluster = start_cluster(cluster_without_agents_serving(
-        InferenceMode::TextGenerationAndEmbeddings,
-    ))
-    .await
-    .expect("a balancer serving text generation and embeddings must start");
+    let mut cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a balancer serving text generation and embeddings must start");
     let mut client = HalfClosedClient::post_json_then_half_close(
         cluster.balancer.addresses.inference,
         ApiPath::GENERATE_EMBEDDING_BATCH,

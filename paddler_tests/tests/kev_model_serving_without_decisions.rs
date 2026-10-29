@@ -17,7 +17,7 @@ use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 pub struct KevModelServingWithoutDecisions {
@@ -28,7 +28,7 @@ pub struct KevModelServingWithoutDecisions {
 
 impl KevModelServingWithoutDecisions {
     pub async fn start(agent_shutdown: &CancellationToken) -> Self {
-        let model_path = kev_0_8b_target_path("model.gguf");
+        let model_path = KevCheckpoint::Kev0_8b.target_path("model.gguf");
         let llama_runtime = LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
             .expect("the model must load");
         let model_serving_settings = ModelServingSettings {

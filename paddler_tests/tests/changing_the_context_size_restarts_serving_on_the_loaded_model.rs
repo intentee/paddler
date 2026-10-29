@@ -5,20 +5,22 @@ use std::num::NonZeroU32;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
 use paddler_messaging::agent_state_application_status::AgentStateApplicationStatus;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_mode::InferenceMode;
-use paddler_tests::kev_0_8b_desired_state::kev_0_8b_desired_state;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_messaging::decision_settings::DecisionSettings;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 use crate::swappable_model_file::SwappableModelFile;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn changing_the_context_size_restarts_serving_on_the_loaded_model() {
-    let swappable_model_file = SwappableModelFile::link_to(&kev_0_8b_target_path("model.gguf"));
+    let swappable_model_file =
+        SwappableModelFile::link_to(&KevCheckpoint::Kev0_8b.target_path("model.gguf"));
     let initial_desired_state = BalancerDesiredState {
-        inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+        decision: DecisionSettings::default(),
         model: swappable_model_file.agent_desired_model(),
-        ..kev_0_8b_desired_state().expect("the kev desired state must name absolute paths")
+        ..KevCheckpoint::Kev0_8b
+            .desired_state()
+            .expect("the kev desired state must name absolute paths")
     };
     let mut serving_pipeline_arbiter = ServingPipelineArbiter::new(1);
 

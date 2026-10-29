@@ -28,4 +28,10 @@ pub enum FixtureResponse {
         status: StatusCode,
         withheld_byte_count: usize,
     },
+    TruncatedHuggingFaceFile {
+        commit_hash: String,
+        etag: String,
+        sent_body: Vec<u8>,
+        withheld_byte_count: usize,
+    },
 }

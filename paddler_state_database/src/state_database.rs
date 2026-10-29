@@ -49,7 +49,7 @@ impl From<StateDatabaseType> for StateDatabase {
         match state_database_type {
             StateDatabaseType::File(path) => Self::File(StateDatabaseFile::new(path)),
             StateDatabaseType::Memory(stored_balancer_desired_state) => {
-                Self::in_memory(*stored_balancer_desired_state)
+                Self::in_memory(stored_balancer_desired_state)
             }
         }
     }

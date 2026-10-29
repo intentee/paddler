@@ -5,7 +5,6 @@ use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::scheduler_handle::SchedulerHandle;
 use paddler_agent_runtime::shuts_down::ShutsDown;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::request_params::decide_params::DecideParams;
 
 pub enum ServedDecisions {
@@ -17,14 +16,12 @@ impl ServedDecisions {
     pub fn forward(
         &self,
         agent_name: Option<&str>,
-        serving_inference_mode: InferenceMode,
         request: AgentRequest<DecideParams, DecisionResult>,
     ) {
         match self {
-            Self::Disabled => DecisionError::InferenceModeMismatch {
-                serving_inference_mode,
+            Self::Disabled => {
+                DecisionError::DecisionsNotServed.report(agent_name, &request.response_tx);
             }
-            .report(agent_name, &request.response_tx),
             Self::Enabled(scheduler_handle) => scheduler_handle.request_preparer.prepare(request),
         }
     }

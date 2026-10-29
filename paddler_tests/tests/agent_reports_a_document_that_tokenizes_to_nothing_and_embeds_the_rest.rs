@@ -2,6 +2,8 @@
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_document_tokenized_to_nothing_details::EmbeddingDocumentTokenizedToNothingDetails;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -15,6 +17,10 @@ use paddler_tests::start_embedding_cluster::start_embedding_cluster;
 async fn agent_reports_a_document_that_tokenizes_to_nothing_and_embeds_the_rest() {
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(1)],
+        embedding_parameters: EmbeddingParameters {
+            pooling_type: PoolingType::Last,
+            ..EmbeddingParameters::default()
+        },
         model_card: smolvlm2_256m(),
         ..EmbeddingClusterParams::default()
     })

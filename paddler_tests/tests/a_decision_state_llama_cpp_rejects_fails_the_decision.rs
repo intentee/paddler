@@ -19,7 +19,7 @@ fn a_decision_state_llama_cpp_rejects_fails_the_decision() {
         delimiter_tokens,
         pointer_head,
         runtime,
-    } = KevDecisionModel::load(1);
+    } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(2)
         .expect("the decision context must be created");

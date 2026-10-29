@@ -58,10 +58,9 @@ mod tests {
     use tokio::sync::mpsc::error::TryRecvError;
     use tokio::sync::mpsc::unbounded_channel;
 
-    use paddler_messaging::cluster_inference_mode_report::ClusterInferenceModeReport;
     use paddler_messaging::inference_client::message::Message as OutgoingMessage;
-    use paddler_messaging::inference_client::notification::Notification;
-    use paddler_messaging::inference_mode::InferenceMode;
+    use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+    use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
     use paddler_messaging::rpc_message::RpcMessage;
 
     use super::WebSocketSessionController;
@@ -86,14 +85,14 @@ mod tests {
 
     impl RpcMessage for MessageThatCannotSerialize {}
 
-    fn cluster_inference_mode_notification() -> OutgoingMessage {
-        OutgoingMessage::Notification(Notification::ClusterInferenceMode(
-            ClusterInferenceModeReport {
-                balancer_instance: "balancer-instance".to_owned(),
-                inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-                version: 0,
+    fn request_rejection() -> OutgoingMessage {
+        OutgoingMessage::Error(ErrorEnvelope {
+            request_id: "request".to_owned(),
+            error: JsonRpcError {
+                code: 400,
+                description: "rejected".to_owned(),
             },
-        ))
+        })
     }
 
     #[tokio::test]
@@ -104,7 +103,7 @@ mod tests {
 
         let SendError(undelivered_frame) =
             WebSocketSessionController::<OutgoingMessage>::new(outbound_tx)
-                .send_response(cluster_inference_mode_notification())
+                .send_response(request_rejection())
                 .await
                 .unwrap_err()
                 .downcast::<SendError<WebSocketOutboundFrame>>()
@@ -112,9 +111,7 @@ mod tests {
 
         assert_eq!(
             undelivered_frame,
-            WebSocketOutboundFrame::Text(
-                to_string(&cluster_inference_mode_notification()).unwrap()
-            )
+            WebSocketOutboundFrame::Text(to_string(&request_rejection()).unwrap())
         );
     }
 

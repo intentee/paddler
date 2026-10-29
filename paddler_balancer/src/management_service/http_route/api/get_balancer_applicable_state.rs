@@ -49,14 +49,15 @@ mod tests {
 
     #[actix_web::test]
     async fn responds_with_the_agent_desired_state_derived_from_the_desired_state() {
-        let balancer_desired_state_store = BalancerDesiredStateStore::load(Arc::new(
-            StateDatabase::in_memory(StoredBalancerDesiredState::Stored(BalancerDesiredState {
-                model: AgentDesiredModel::Uri("model.gguf".to_owned()),
-                ..BalancerDesiredState::default()
-            })),
-        ))
-        .await
-        .expect("the desired state store must load");
+        let balancer_desired_state_store =
+            BalancerDesiredStateStore::load(Arc::new(StateDatabase::in_memory(
+                StoredBalancerDesiredState::Stored(Box::new(BalancerDesiredState {
+                    model: AgentDesiredModel::Uri("model.gguf".to_owned()),
+                    ..BalancerDesiredState::default()
+                })),
+            )))
+            .await
+            .expect("the desired state store must load");
         let app = init_service(
             App::new()
                 .app_data(Data::new(AppData {

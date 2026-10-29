@@ -55,6 +55,8 @@ impl OpenAIFailure {
             })
             | Self::RequestUntranslatable(
                 OpenAITranslationError::MessageWithoutContent { .. }
+                | OpenAITranslationError::ReasoningItemWithoutContent
+                | OpenAITranslationError::ReasoningOnNonAssistantMessage { .. }
                 | OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject { .. }
                 | OpenAITranslationError::ToolCallsOnNonAssistantMessage { .. }
                 | OpenAITranslationError::ToolRejected(_)
@@ -90,6 +92,7 @@ mod tests {
     use serde_json::json;
 
     use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
+    use paddler_openai_translation::chat_completion_message_role::ChatCompletionMessageRole;
     use paddler_openai_translation::generation_failure::GenerationFailure;
     use paddler_openai_translation::generation_failure_cause::GenerationFailureCause;
     use paddler_openai_translation::openai_translation_error::OpenAITranslationError;
@@ -152,12 +155,34 @@ mod tests {
             (
                 OpenAIFailure::RequestUntranslatable(
                     OpenAITranslationError::MessageWithoutContent {
-                        role: "user".to_owned(),
+                        role: ChatCompletionMessageRole::User,
                     },
                 ),
                 StatusCode::BAD_REQUEST,
                 error_body(
                     "a 'user' message must have content",
+                    "invalid_request_error",
+                ),
+            ),
+            (
+                OpenAIFailure::RequestUntranslatable(
+                    OpenAITranslationError::ReasoningOnNonAssistantMessage {
+                        role: ChatCompletionMessageRole::Developer,
+                    },
+                ),
+                StatusCode::BAD_REQUEST,
+                error_body(
+                    "only an assistant message can carry reasoning, not a 'developer' message",
+                    "invalid_request_error",
+                ),
+            ),
+            (
+                OpenAIFailure::RequestUntranslatable(
+                    OpenAITranslationError::ReasoningItemWithoutContent,
+                ),
+                StatusCode::BAD_REQUEST,
+                error_body(
+                    "a reasoning item must carry its reasoning text",
                     "invalid_request_error",
                 ),
             ),
@@ -177,7 +202,7 @@ mod tests {
             (
                 OpenAIFailure::RequestUntranslatable(
                     OpenAITranslationError::ToolCallsOnNonAssistantMessage {
-                        role: "user".to_owned(),
+                        role: ChatCompletionMessageRole::User,
                     },
                 ),
                 StatusCode::BAD_REQUEST,

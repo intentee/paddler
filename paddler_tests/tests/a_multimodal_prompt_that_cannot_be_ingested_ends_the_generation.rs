@@ -11,6 +11,7 @@ use paddler_agent_runtime::scheduler_message::SchedulerMessage;
 use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchScheduler;
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
+use paddler_agent_text_generation::media_marked_prompt::MediaMarkedPrompt;
 use paddler_agent_text_generation::model_bos_token::ModelBosToken;
 use paddler_agent_text_generation::multimodal_prompt_ingestion::MultimodalPromptIngestion;
 use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSupport;
@@ -18,6 +19,7 @@ use paddler_agent_text_generation::prepared_generation_request::PreparedGenerati
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
 use paddler_agent_text_generation::resident_multimodal_context::ResidentMultimodalContext;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::media_marker::MediaMarker;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
@@ -63,7 +65,13 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
                 n_batch: n_batch.tokens_i32(),
                 sequence_context_size,
             }
-            .prepare_prompt(&[], "Describe the picture".to_owned())
+            .prepare_prompt(
+                &[],
+                &MediaMarkedPrompt {
+                    media_marker: &MediaMarker::new("<media>".to_owned()),
+                    prompt: "Describe the picture",
+                },
+            )
             .expect("the multimodal prompt must be prepared");
 
             adjust_ingestion(&mut ingestion);

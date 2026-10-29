@@ -19,7 +19,7 @@ use paddler_inference_parameters::sampling_parameters::SamplingParameters;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
@@ -32,7 +32,7 @@ const ERRNO_THAT_MAKES_BRK_REPORT_A_NULL_BREAK: i32 = 0;
 
 #[test]
 fn a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_generation_preparation() {
-    let model_path = kev_0_8b_target_path("model.gguf");
+    let model_path = KevCheckpoint::Kev0_8b.target_path("model.gguf");
     let llama_runtime = LlamaRuntime::load(&model_path, agent_inference_runtime_context(1))
         .expect("the kev model must load");
     let sequence_context_size = llama_runtime

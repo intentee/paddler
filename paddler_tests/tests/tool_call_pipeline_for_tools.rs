@@ -11,7 +11,7 @@ use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
 pub fn tool_call_pipeline_for_tools(model: &LlamaModel, tools: &[Tool<Value>]) -> ToolCallPipeline {
     ToolCallPipeline::new(
-        ChatMessageParser::new(model, &ChatTemplateTools::new(tools).json())
+        ChatMessageParser::new(model, &ChatTemplateTools::new(tools).json)
             .expect("the chat message parser must be created"),
         ToolCallValidator::from_tools(tools).expect("the tools must validate"),
     )

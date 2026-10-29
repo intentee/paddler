@@ -3,11 +3,12 @@
 use std::sync::Arc;
 
 use paddler_agent_decision::decision_text_tokenizer::DecisionTextTokenizer;
+use paddler_agent_pointer_head::pointer_head_input_normalization::PointerHeadInputNormalization;
 use paddler_agent_runtime::llama_model_settings::LlamaModelSettings;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 
 #[test]
 fn a_decision_tokenizer_keeps_its_llama_backend_alive() {
@@ -15,13 +16,14 @@ fn a_decision_tokenizer_keeps_its_llama_backend_alive() {
     let loaded_llama_model = LoadedLlamaModel::load(
         &inference_runtime_context,
         LlamaModelSettings {
-            model_path: kev_0_8b_target_path("model.gguf"),
+            model_path: KevCheckpoint::Kev0_8b.target_path("model.gguf"),
             n_gpu_layers: ALL_GPU_LAYERS,
         },
     )
     .expect("the decision model must load");
     let llama_backend = Arc::downgrade(&loaded_llama_model.model.llama_backend);
     let text_tokenizer = DecisionTextTokenizer {
+        input_normalization: PointerHeadInputNormalization::Unnormalized,
         model: loaded_llama_model.model.clone(),
     };
 

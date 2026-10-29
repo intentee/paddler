@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use paddler_agent_pointer_head::pointer_head::PointerHead;
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
+use paddler_agent_status::agent_issue_fix::AgentIssueFix;
 use paddler_messaging::agent_issue::AgentIssue;
 use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::agent_issue_params::slots_insufficient_for_decisions_params::SlotsInsufficientForDecisionsParams;
@@ -20,10 +21,18 @@ impl DecisionPrerequisites {
         self.require_enough_slots()?;
 
         match PointerHead::load(&self.pointer_head_path) {
-            Ok(pointer_head) => Ok(LoadedPointerHead {
-                pointer_head,
-                pointer_head_path: self.pointer_head_path,
-            }),
+            Ok(pointer_head) => {
+                self.inference_runtime_context
+                    .slot_aggregated_status
+                    .register_fix(&AgentIssueFix::PointerHeadIsLoaded(ModelPath::from(
+                        self.pointer_head_path.as_path(),
+                    )));
+
+                Ok(LoadedPointerHead {
+                    pointer_head,
+                    pointer_head_path: self.pointer_head_path,
+                })
+            }
             Err(source) => {
                 self.inference_runtime_context
                     .slot_aggregated_status

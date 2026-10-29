@@ -3,6 +3,8 @@ use std::num::TryFromIntError;
 use std::path::PathBuf;
 
 use llama_cpp_bindings::LlamaCppError;
+use llama_cpp_bindings::batch_add_error::BatchAddError;
+use llama_cpp_bindings::error::DecodeError;
 use llama_cpp_bindings::error::LlamaContextLoadError;
 use llama_cpp_bindings::error::LlamaModelLoadError;
 use llama_cpp_bindings::error::MetaValError;
@@ -43,4 +45,10 @@ pub enum AgentRuntimeError {
 
     #[error("the machine runs more threads in parallel than llama.cpp can address: {0}")]
     ThreadCountOutOfRange(#[source] TryFromIntError),
+
+    #[error("unable to assemble the warm-up batch: {0}")]
+    WarmUpBatchAssemblyFailed(#[source] BatchAddError),
+
+    #[error("llama.cpp rejected the warm-up batch: {0}")]
+    WarmUpDecodeFailed(#[source] DecodeError),
 }

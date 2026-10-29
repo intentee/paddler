@@ -11,6 +11,13 @@ use crate::fixture_response::FixtureResponse;
 use crate::observed_requests::ObservedRequests;
 use crate::read_range_header::read_range_header;
 
+fn hugging_face_file_headers(file_length: usize, commit_hash: &str, etag: &str) -> String {
+    format!(
+        "Content-Range: bytes 0-{}/{file_length}\r\nETag: \"{etag}\"\r\nX-Repo-Commit: {commit_hash}\r\n",
+        file_length - 1
+    )
+}
+
 fn status_line_and_headers(
     status: StatusCode,
     content_length: usize,
@@ -51,14 +58,19 @@ async fn write_complete_body(stream: &mut TcpStream, head: &str, body: &[u8]) ->
 async fn write_body_prefix(
     stream: &mut TcpStream,
     status: StatusCode,
+    extra_headers: &str,
     sent_body: &[u8],
     withheld_byte_count: usize,
 ) -> io::Result<()> {
     stream
         .write_all(
             &[
-                status_line_and_headers(status, sent_body.len() + withheld_byte_count, "")
-                    .as_bytes(),
+                status_line_and_headers(
+                    status,
+                    sent_body.len() + withheld_byte_count,
+                    extra_headers,
+                )
+                .as_bytes(),
                 sent_body,
             ]
             .concat(),
@@ -91,11 +103,7 @@ pub async fn serve_connection(
                 &status_line_and_headers(
                     StatusCode::PARTIAL_CONTENT,
                     body.len(),
-                    &format!(
-                        "Content-Range: bytes 0-{}/{}\r\nETag: \"{etag}\"\r\nX-Repo-Commit: {commit_hash}\r\n",
-                        body.len() - 1,
-                        body.len()
-                    ),
+                    &hugging_face_file_headers(body.len(), commit_hash, etag),
                 ),
                 body,
             )
@@ -129,7 +137,14 @@ pub async fn serve_connection(
             sent_body,
             withheld_byte_count,
         } => {
-            write_body_prefix(&mut stream, StatusCode::OK, sent_body, *withheld_byte_count).await?;
+            write_body_prefix(
+                &mut stream,
+                StatusCode::OK,
+                "",
+                sent_body,
+                *withheld_byte_count,
+            )
+            .await?;
 
             pending().await
         }
@@ -140,6 +155,25 @@ pub async fn serve_connection(
             sent_body,
             status,
             withheld_byte_count,
-        } => write_body_prefix(&mut stream, *status, sent_body, *withheld_byte_count).await,
+        } => write_body_prefix(&mut stream, *status, "", sent_body, *withheld_byte_count).await,
+        FixtureResponse::TruncatedHuggingFaceFile {
+            commit_hash,
+            etag,
+            sent_body,
+            withheld_byte_count,
+        } => {
+            write_body_prefix(
+                &mut stream,
+                StatusCode::PARTIAL_CONTENT,
+                &hugging_face_file_headers(
+                    sent_body.len() + withheld_byte_count,
+                    commit_hash,
+                    etag,
+                ),
+                sent_body,
+                *withheld_byte_count,
+            )
+            .await
+        }
     }
 }

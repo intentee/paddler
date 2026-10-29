@@ -65,10 +65,12 @@ impl ChatCompletionRequest {
             .map(ChatCompletionTool::into_tool)
             .map(Validates::validate)
             .collect::<Result<Vec<_>, _>>()?;
-        let conversation_messages = messages
-            .into_iter()
-            .map(ChatCompletionMessage::into_conversation_message)
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut conversation_messages = Vec::with_capacity(messages.len());
+
+        for message in messages {
+            message.append_to(&mut conversation_messages)?;
+        }
+
         let header = ChatCompletionHeader {
             created: timestamp_from(now)?,
             model,
@@ -116,16 +118,17 @@ mod tests {
     use paddler_messaging::image_url::ImageUrl;
 
     use super::ChatCompletionRequest;
-    use crate::chat_completion_message::ChatCompletionMessage;
+    use crate::chat_completion_message_role::ChatCompletionMessageRole;
     use crate::openai_translation_error::OpenAITranslationError;
 
     fn conversation_messages_of(request: ChatCompletionRequest) -> Vec<ConversationMessage> {
-        request
-            .messages
-            .into_iter()
-            .map(ChatCompletionMessage::into_conversation_message)
-            .collect::<Result<_, _>>()
-            .unwrap()
+        let mut conversation_messages = Vec::new();
+
+        for message in request.messages {
+            message.append_to(&mut conversation_messages).unwrap();
+        }
+
+        conversation_messages
     }
 
     fn request_with_token_limits(token_limits: &Value) -> ChatCompletionRequest {
@@ -193,10 +196,18 @@ mod tests {
         }))
         .unwrap();
 
-        assert!(matches!(
-            params.translate(UNIX_EPOCH),
-            Err(OpenAITranslationError::MessageWithoutContent { role }) if role == "user"
-        ));
+        assert_eq!(
+            params
+                .translate(UNIX_EPOCH)
+                .err()
+                .map(|translation_error| translation_error.to_string()),
+            Some(
+                OpenAITranslationError::MessageWithoutContent {
+                    role: ChatCompletionMessageRole::User
+                }
+                .to_string()
+            )
+        );
     }
 
     #[test]

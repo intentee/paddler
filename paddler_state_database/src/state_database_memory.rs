@@ -23,7 +23,7 @@ impl StateDatabaseMemory {
 
     pub fn store_balancer_desired_state(&self, balancer_desired_state: &BalancerDesiredState) {
         *self.stored_balancer_desired_state.write() =
-            StoredBalancerDesiredState::Stored(balancer_desired_state.clone());
+            StoredBalancerDesiredState::Stored(Box::new(balancer_desired_state.clone()));
     }
 }
 
@@ -31,7 +31,7 @@ impl StateDatabaseMemory {
 mod tests {
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_mode::InferenceMode;
+    use paddler_messaging::decision_settings::DecisionSettings;
 
     use super::StateDatabaseMemory;
     use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
@@ -40,7 +40,9 @@ mod tests {
     fn reads_back_the_stored_desired_state() {
         let database = StateDatabaseMemory::new(StoredBalancerDesiredState::NothingStored);
         let desired_state = BalancerDesiredState {
-            inference_mode: InferenceMode::TextGenerationEmbeddingsAndDecisions,
+            decision: DecisionSettings {
+                pointer_head: AgentDesiredModel::Uri("test_pointer_head_path".to_owned()),
+            },
             model: AgentDesiredModel::Uri("test_model_path".to_owned()),
             ..BalancerDesiredState::default()
         };
@@ -49,7 +51,7 @@ mod tests {
 
         assert_eq!(
             database.read_balancer_desired_state(),
-            StoredBalancerDesiredState::Stored(desired_state)
+            StoredBalancerDesiredState::Stored(Box::new(desired_state))
         );
     }
 }

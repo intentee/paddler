@@ -27,6 +27,7 @@ members = [
     "paddler_opencode_tests",
     "paddler_outbox",
     "paddler_request_registry",
+    "paddler_sha256_hex",
     "paddler_spawn_resuming_panic",
     "paddler_state_database",
     "paddler_tcp_buffer_limits",
@@ -77,9 +78,9 @@ image = "0.25"
 indoc = "2.0"
 jsonschema = { version = "0.60", default-features = false }
 libc = "0.2"
-llama-cpp-bindings = "0.23"
-llama-cpp-bindings-sys = "0.23"
-llama-cpp-bindings-types = "0.23"
+llama-cpp-bindings = "0.25"
+llama-cpp-bindings-sys = "0.25"
+llama-cpp-bindings-types = "0.25"
 log = "0.4"
 mime_guess = "2.0"
 minijinja = { version = "3.0", features = ["builtins", "json", "serde"] }
@@ -104,7 +105,7 @@ tempfile = "3.27"
 tokio = { version = "1.54", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-test = "0.4"
-tokio-tungstenite = "0.30"
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 thiserror = "2.0"
 trzcina = "0.4"
@@ -135,6 +136,7 @@ paddler_openai_response_format_validator = { version = "5.0", path = "paddler_op
 paddler_openai_translation = { version = "5.0", path = "paddler_openai_translation" }
 paddler_outbox = { version = "5.0", path = "paddler_outbox" }
 paddler_request_registry = { version = "5.0", path = "paddler_request_registry" }
+paddler_sha256_hex = { version = "5.0", path = "paddler_sha256_hex" }
 paddler_spawn_resuming_panic = { version = "5.0", path = "paddler_spawn_resuming_panic" }
 paddler_state_database = { version = "5.0", path = "paddler_state_database" }
 paddler_tcp_buffer_limits = { version = "5.0", path = "paddler_tcp_buffer_limits" }

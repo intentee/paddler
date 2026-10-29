@@ -28,9 +28,9 @@ pub fn ephemeral_balancer_runner_params(
             },
             max_buffered_requests: 30,
             openai_service_configuration: None,
-            state_database_type: StateDatabaseType::Memory(Box::new(
+            state_database_type: StateDatabaseType::Memory(
                 StoredBalancerDesiredState::NothingStored,
-            )),
+            ),
             statsd_prefix: "paddler_bootstrap_test_".to_owned(),
             statsd_service_configuration: None,
             typesafe_service_configuration: None,

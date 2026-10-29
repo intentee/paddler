@@ -34,10 +34,12 @@ async fn the_reconciliation_service_stops_once_its_desired_state_channel_closes(
                     xdg: None,
                 },
                 download_manager: DownloadManager::new().expect("the model downloader must start"),
-                huggingface_hub: HuggingFaceHub {
+                huggingface_client: HuggingFaceHub {
                     cache_location: HuggingFaceCacheLocation::HubDefault,
                     endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
-                },
+                }
+                .client()
+                .expect("the Hugging Face client must start"),
             },
             slot_aggregated_status: Arc::new(SlotAggregatedStatus::new(1)),
         },

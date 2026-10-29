@@ -9,7 +9,6 @@ repository.workspace = true
 version.workspace = true
 
 [dependencies]
-icu_normalizer = { workspace = true }
 llama-cpp-bindings = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }

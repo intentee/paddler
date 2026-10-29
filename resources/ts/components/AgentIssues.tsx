@@ -59,23 +59,37 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
           );
         }
 
-        if ("HuggingFaceClientCannotStart" in issue) {
+        if ("HuggingFaceDownloadFailed" in issue) {
+          const { failure, model_path } = issue.HuggingFaceDownloadFailed;
+
           return (
             <li className={agentIssues__issue} key={index}>
               <strong>
-                HuggingFace client cannot start:{" "}
-                {issue.HuggingFaceClientCannotStart.model_path}
+                HuggingFace download failed: {model_path.model_path}
               </strong>
+              <strong>Reason:</strong>{" "}
+              <p>
+                {failure === "CacheIoFailed" &&
+                  "The HuggingFace cache could not be written or read."}
+                {failure === "HubConnectionFailed" &&
+                  "The connection to HuggingFace failed or was interrupted."}
+                {failure === "HubResponseMalformed" &&
+                  "HuggingFace answered without the data needed to download the file."}
+                {failure === "UnexpectedHubClientFailure" &&
+                  "The HuggingFace client failed in a way Paddler does not expect."}
+                {failure === "XetTransferFailed" &&
+                  "The Xet transfer of the file failed."}
+                {typeof failure === "object" &&
+                  `HuggingFace responded with HTTP status ${failure.HubRespondedWithStatus.status}.`}
+              </p>
               <strong>What will Paddler do?</strong>{" "}
               <p>
-                Paddler will retry to download the model, starting a new
-                HuggingFace client every time.
+                Paddler will reattempt to download the model every few seconds.
               </p>
               <strong>What can you do?</strong>{" "}
               <p>
-                Check the HuggingFace token stored in the HuggingFace cache
-                directory. It most likely contains characters that cannot be
-                sent in an HTTP header.
+                Check the network connection of the agent and the space left in
+                its HuggingFace cache directory.
               </p>
             </li>
           );
@@ -176,6 +190,28 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
                 Either ensure that the file is available to the agent at a given
                 path, or <Link href="/model">change the model parameters</Link>{" "}
                 to use a different model file.
+              </p>
+            </li>
+          );
+        }
+
+        if ("LocalModelFileCannotBeChecked" in issue) {
+          return (
+            <li className={agentIssues__issue} key={index}>
+              <strong>
+                Local model file cannot be checked:{" "}
+                {issue.LocalModelFileCannotBeChecked.model_path}
+              </strong>
+              <strong>What will Paddler do?</strong>{" "}
+              <p>
+                Paddler will keep checking the file every few seconds until the
+                agent can tell whether it exists.
+              </p>
+              <strong>What can you do?</strong>{" "}
+              <p>
+                Make sure the agent can read every directory on the path, or{" "}
+                <Link href="/model">change the model parameters</Link> to use a
+                file the agent can reach.
               </p>
             </li>
           );
@@ -574,25 +610,6 @@ export function AgentIssues({ issues }: { issues: Array<AgentIssue> }) {
                 If the issue persists, manually clear the{" "}
                 <code>downloaded-models</code> subdirectory of the cache and let
                 Paddler rebuild it.
-              </p>
-            </li>
-          );
-        }
-
-        if ("ModelArchitectureUnsupportedForDecisions" in issue) {
-          const { architecture, model_path } =
-            issue.ModelArchitectureUnsupportedForDecisions;
-
-          return (
-            <li className={agentIssues__issue} key={index}>
-              <strong>
-                {model_path.model_path} is a {architecture} model, which cannot
-                serve decisions
-              </strong>
-              <strong>What can you do?</strong>{" "}
-              <p>
-                <Link href="/model">Change the model</Link> to a Qwen3.5
-                decision model.
               </p>
             </li>
           );

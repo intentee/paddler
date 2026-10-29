@@ -10,7 +10,7 @@ use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 use crate::decode_prompt_for_sampling::decode_prompt_for_sampling;
@@ -24,7 +24,7 @@ pub struct SamplingWithASmallerVocabularyGrammar {
 impl SamplingWithASmallerVocabularyGrammar {
     pub fn load(smaller_vocabulary_model_path: &Path) -> Self {
         let runtime = LlamaRuntime::load(
-            &kev_0_8b_target_path("model.gguf"),
+            &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
             agent_inference_runtime_context(1),
         )
         .expect("the kev model must load");
@@ -48,7 +48,8 @@ impl SamplingWithASmallerVocabularyGrammar {
             .create_text_generation_llama_context(1)
             .expect("the text generation context must be created");
         let batch_position =
-            decode_prompt_for_sampling(&self.runtime, &mut llama_context, "Paddler balances");
+            decode_prompt_for_sampling(&self.runtime, &mut llama_context, "Paddler balances")
+                .expect("the prompt must be decoded for sampling");
 
         token_sampling(
             LlamaSampler::grammar(&self.smaller_vocabulary_model, r#"root ::= "a""#, "root")

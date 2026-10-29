@@ -100,13 +100,13 @@ impl CompletesGeneration for ResponsesResponseHeader {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::Value;
     use serde_json::json;
     use serde_json::to_value;
 
+    use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
     use paddler_openai_response_format_validator::openai_validator::OpenAIValidator;
@@ -204,12 +204,13 @@ mod tests {
         .unwrap()
     }
 
-    fn weather_call() -> ParsedToolCall {
-        ParsedToolCall::new(
-            "call_x".to_owned(),
-            "get_weather".to_owned(),
-            ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
-        )
+    fn weather_call() -> GeneratedToolCall {
+        GeneratedToolCall {
+            arguments: ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
+            id: "call_x".to_owned(),
+            index: 0,
+            name: "get_weather".to_owned(),
+        }
     }
 
     #[test]

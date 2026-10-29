@@ -3,7 +3,6 @@ use llama_cpp_bindings::error::ClearKvCacheSeqError;
 use llama_cpp_bindings::error::CopyKvCacheSeqError;
 use llama_cpp_bindings::error::DecodeError;
 use llama_cpp_bindings::error::EmbeddingsError;
-use llama_cpp_bindings::error::MetaValError;
 use llama_cpp_bindings::error::StringToTokenError;
 use llama_cpp_bindings::error::TokenAttrError;
 use log::error;
@@ -16,7 +15,6 @@ use paddler_agent_runtime::rejection_description::rejection_description;
 use paddler_agent_runtime::send_result_or_warn::send_result_or_warn;
 use paddler_messaging::agent_issue_params::pointer_head_incompatibility::PointerHeadIncompatibility;
 use paddler_messaging::decision_result::DecisionResult;
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 
 use crate::reports_decision_outcome::ReportsDecisionOutcome;
@@ -31,6 +29,9 @@ pub enum DecisionError {
 
     #[error("the client stopped listening for decisions: {0}")]
     ClientDisconnected(#[source] SendError<DecisionResult>),
+
+    #[error("no pointer head is configured, so the agent serves no decisions")]
+    DecisionsNotServed,
 
     #[error("llama.cpp rejected the decision batch: {0}")]
     DecodeFailed(#[source] DecodeError),
@@ -52,14 +53,6 @@ pub enum DecisionError {
     #[error("unable to read the hidden state of a decision output: {0}")]
     HiddenStateUnavailable(#[source] EmbeddingsError),
 
-    #[error("unable to expose the hidden states decisions read: {0}")]
-    HiddenStatesUnsupported(#[source] EmbeddingsError),
-
-    #[error("the agent serves {serving_inference_mode:?}, so it cannot decide")]
-    InferenceModeMismatch {
-        serving_inference_mode: InferenceMode,
-    },
-
     #[error("failed to tokenize the decision input: {0}")]
     InputTokenizationFailed(#[source] StringToTokenError),
 
@@ -68,12 +61,6 @@ pub enum DecisionError {
 
     #[error("failed to remove a decision sequence from the KV cache: {0}")]
     KvCacheRemovalFailed(#[source] ClearKvCacheSeqError),
-
-    #[error("unable to read the model architecture: {0}")]
-    ModelArchitectureUnreadable(#[source] MetaValError),
-
-    #[error("{architecture} models cannot serve decisions")]
-    ModelArchitectureUnsupported { architecture: String },
 
     #[error("no model is loaded")]
     ModelNotLoaded,
@@ -117,18 +104,15 @@ impl ReportsDecisionOutcome for DecisionError {
             Self::AgentRuntime(_)
             | Self::DelimiterAttributesUnreadable { .. }
             | Self::DelimiterTokenizationFailed { .. }
-            | Self::HiddenStatesUnsupported(_)
-            | Self::ModelArchitectureUnreadable(_)
-            | Self::ModelArchitectureUnsupported { .. }
             | Self::ModelNotLoaded
             | Self::PointerHeadCannotBeLoaded(_)
             | Self::PointerHeadIncompatibleWithModel { .. }
             | Self::SlotsInsufficient { .. } => DecisionResult::ModelNotLoaded(message),
             Self::BatchAssemblyFailed(_) => DecisionResult::BatchAssemblyFailed(message),
             Self::ClientDisconnected(_) => return,
+            Self::DecisionsNotServed => DecisionResult::DecisionsNotServed(message),
             Self::DecodeFailed(_) => DecisionResult::DecodeFailed(message),
             Self::HiddenStateUnavailable(_) => DecisionResult::HiddenStateUnavailable(message),
-            Self::InferenceModeMismatch { .. } => DecisionResult::InferenceModeMismatch(message),
             Self::InputTokenizationFailed(_) => DecisionResult::InputTokenizationFailed(message),
             Self::KvCacheCopyFailed(_) => DecisionResult::KvCacheCopyFailed(message),
             Self::KvCacheRemovalFailed(_) => DecisionResult::KvCacheRemovalFailed(message),
@@ -157,7 +141,6 @@ mod tests {
     use tokio::sync::mpsc::error::SendError;
 
     use paddler_messaging::decision_result::DecisionResult;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::oversized_decision_details::OversizedDecisionDetails;
 
     use super::DecisionError;
@@ -184,18 +167,16 @@ mod tests {
                 DecisionResult::BatchAssemblyFailed(description()),
             ),
             (
+                DecisionError::DecisionsNotServed,
+                DecisionResult::DecisionsNotServed(description()),
+            ),
+            (
                 DecisionError::DecodeFailed(DecodeError::NoKvCacheSlot),
                 DecisionResult::DecodeFailed(description()),
             ),
             (
-                DecisionError::HiddenStateUnavailable(EmbeddingsError::NextnEmbeddingsNotEnabled),
+                DecisionError::HiddenStateUnavailable(EmbeddingsError::LogitsNotEnabled),
                 DecisionResult::HiddenStateUnavailable(description()),
-            ),
-            (
-                DecisionError::InferenceModeMismatch {
-                    serving_inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-                },
-                DecisionResult::InferenceModeMismatch(description()),
             ),
             (
                 DecisionError::InputTokenizationFailed(StringToTokenError::NulError(

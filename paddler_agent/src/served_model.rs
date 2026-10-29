@@ -34,11 +34,7 @@ impl ServedModel {
                     .prepare(TextGenerationRequest::ContinueFromRawPrompt(request));
             }
             PipelineRequest::Decide(request) => {
-                self.capabilities.decisions.forward(
-                    agent_name,
-                    self.model_serving_settings.inference_mode(),
-                    request,
-                );
+                self.capabilities.decisions.forward(agent_name, request);
             }
             PipelineRequest::GenerateEmbeddingBatch(request) => {
                 self.capabilities
@@ -132,7 +128,7 @@ impl ServedModel {
     #[must_use]
     pub fn serving_report(&self, uses_chat_template_override: bool) -> ServingReport {
         ServingReport {
-            inference_mode: self.model_serving_settings.inference_mode(),
+            decisions: self.model_serving_settings.capabilities.decisions.serving(),
             model_path: self
                 .loaded_llama_model
                 .llama_model_settings

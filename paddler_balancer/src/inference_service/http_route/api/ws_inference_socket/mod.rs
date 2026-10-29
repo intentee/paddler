@@ -1,5 +1,4 @@
 mod inference_socket_controller_context;
-mod report_cluster_inference_mode;
 
 use std::sync::Arc;
 
@@ -32,11 +31,9 @@ use paddler_messaging::validates::Validates as _;
 use paddler_request_registry::request_registry_guard::RequestRegistryGuard;
 
 use self::inference_socket_controller_context::InferenceSocketControllerContext;
-use self::report_cluster_inference_mode::report_cluster_inference_mode;
 use crate::agent_relay::AgentRelay;
 use crate::agent_streaming_request::AgentStreamingRequest;
 use crate::awaiting_agent_relay::AwaitingAgentRelay;
-use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::continuation_decision::ContinuationDecision;
 use crate::controls_websocket_endpoint::ControlsWebSocketEndpoint;
@@ -111,7 +108,6 @@ async fn respond(
     http_request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     let inference_socket_controller = InferenceSocketController {
-        balancer_applicable_state_holder: app_data.balancer_applicable_state_holder.clone(),
         buffered_request_manager: app_data.buffered_request_manager.clone(),
         inference_service_configuration: app_data.inference_service_configuration.clone(),
         shutdown: app_data.shutdown.clone(),
@@ -125,7 +121,6 @@ type InferenceJsonRpcMessage = InferenceServerMessage<RawParametersSchema>;
 type InferenceJsonRpcRequest = InferenceServerRequest<RawParametersSchema>;
 
 struct InferenceSocketController {
-    balancer_applicable_state_holder: Arc<BalancerApplicableStateHolder>,
     buffered_request_manager: Arc<BufferedRequestManager>,
     inference_service_configuration: InferenceServiceConfiguration,
     shutdown: CancellationToken,
@@ -138,7 +133,6 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
 
     fn create_context(&self) -> Self::Context {
         InferenceSocketControllerContext {
-            balancer_applicable_state_holder: self.balancer_applicable_state_holder.clone(),
             buffered_request_manager: self.buffered_request_manager.clone(),
             inference_service_configuration: self.inference_service_configuration.clone(),
             request_cancellation_tokens: Arc::default(),
@@ -245,16 +239,10 @@ impl ControlsWebSocketEndpoint for InferenceSocketController {
     }
 
     async fn on_connection_start(
-        connection_close: CancellationToken,
-        context: Arc<Self::Context>,
-        outbound_tx: &UnboundedSender<WebSocketOutboundFrame>,
+        _connection_close: CancellationToken,
+        _context: Arc<Self::Context>,
+        _outbound_tx: &UnboundedSender<WebSocketOutboundFrame>,
     ) {
-        report_cluster_inference_mode(
-            context.balancer_applicable_state_holder.clone(),
-            connection_close,
-            outbound_tx.clone(),
-        )
-        .await;
     }
 }
 

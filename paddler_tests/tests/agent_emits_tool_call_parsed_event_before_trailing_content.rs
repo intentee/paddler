@@ -1,11 +1,11 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings_types::ParsedToolCall;
 use llama_cpp_bindings_types::ToolCallArguments;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::gbnf_literal::gbnf_literal;
 use paddler_tests::get_weather_tool::get_weather_tool;
@@ -47,7 +47,7 @@ async fn agent_emits_tool_call_parsed_event_before_trailing_content() {
         "expected content after the parsed tool call, got {token_results:?}"
     );
 
-    let parsed_tool_calls: Vec<&ParsedToolCall> = token_results
+    let parsed_tool_calls: Vec<&GeneratedToolCall> = token_results
         .iter()
         .filter_map(|token_result| match token_result {
             GeneratedTokenResult::ToolCallParsed(parsed_tool_calls) => Some(parsed_tool_calls),

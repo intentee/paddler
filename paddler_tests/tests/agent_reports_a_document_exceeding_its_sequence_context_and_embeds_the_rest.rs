@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_inference_parameters::model_runtime_parameters::ModelRuntimeParameters;
+use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
@@ -26,7 +27,10 @@ async fn agent_reports_a_document_exceeding_its_sequence_context_and_embeds_the_
     let context_size =
         NonZeroU32::new(CONTEXT_SIZE).expect("the context size must be greater than zero");
     let desired_state =
-        qwen3_0_6b().into_desired_state_with_embedding_parameters(EmbeddingParameters::default());
+        qwen3_0_6b().into_desired_state_with_embedding_parameters(EmbeddingParameters {
+            pooling_type: PoolingType::Last,
+            ..EmbeddingParameters::default()
+        });
     let cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, SLOTS),
         desired_state: ClusterDesiredState::Apply(Box::new(BalancerDesiredState {

@@ -7,9 +7,9 @@ import { decisionResponse } from "./decisionResponse";
 const decisionFailureCodes = [
   { code: 500, variant: "AgentRuntimeFailed" },
   { code: 500, variant: "BatchAssemblyFailed" },
+  { code: 503, variant: "DecisionsNotServed" },
   { code: 500, variant: "DecodeFailed" },
   { code: 500, variant: "HiddenStateUnavailable" },
-  { code: 503, variant: "InferenceModeMismatch" },
   { code: 400, variant: "InputTokenizationFailed" },
   { code: 500, variant: "KvCacheCopyFailed" },
   { code: 500, variant: "KvCacheRemovalFailed" },

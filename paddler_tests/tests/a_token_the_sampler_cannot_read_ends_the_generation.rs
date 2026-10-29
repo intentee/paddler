@@ -6,7 +6,7 @@ use paddler_agent_text_generation::continuous_batch_terminal_outcome::Continuous
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 use crate::ready_to_sample_request::ReadyToSampleRequest;
@@ -14,7 +14,7 @@ use crate::ready_to_sample_request::ReadyToSampleRequest;
 #[test]
 fn a_token_the_sampler_cannot_read_ends_the_generation() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b_target_path("model.gguf"),
+        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");

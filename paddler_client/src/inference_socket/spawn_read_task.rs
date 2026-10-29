@@ -59,7 +59,6 @@ mod tests {
 
     use super::spawn_read_task;
     use crate::error::Error;
-    use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
     use crate::inference_socket::inbound_message_router::InboundMessageRouter;
     use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
     use crate::inference_socket::outbound_request::OutboundRequest;
@@ -76,13 +75,7 @@ mod tests {
 
         spawn_read_task(
             iter([Ok(WsMessage::Binary(vec![0].into()))]).chain(pending()),
-            InboundMessageRouter {
-                cluster_inference_mode_broadcaster: Arc::new(
-                    ClusterInferenceModeBroadcaster::default(),
-                ),
-                connection_generation: 1,
-                exchange,
-            },
+            InboundMessageRouter { exchange },
         )
         .await
         .expect("the read task must not panic");
@@ -128,13 +121,7 @@ mod tests {
                     .into(),
                 )),
             ]),
-            InboundMessageRouter {
-                cluster_inference_mode_broadcaster: Arc::new(
-                    ClusterInferenceModeBroadcaster::default(),
-                ),
-                connection_generation: 1,
-                exchange,
-            },
+            InboundMessageRouter { exchange },
         )
         .await
         .expect("the read task must not panic");

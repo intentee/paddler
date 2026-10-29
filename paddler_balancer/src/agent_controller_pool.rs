@@ -303,7 +303,7 @@ mod tests {
 
     fn desired_state_notification_value(desired_state: BalancerDesiredState) -> Value {
         to_value(agent_desired_state_notification(AgentDesiredState::from(
-            desired_state,
+            &desired_state,
         )))
         .unwrap()
     }

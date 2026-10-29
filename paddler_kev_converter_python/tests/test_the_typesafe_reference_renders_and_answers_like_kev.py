@@ -10,6 +10,7 @@ def test_the_typesafe_reference_renders_and_answers_like_kev(tmp_path: Path) -> 
 
     assert reference[0] == {
         "request": {
+            "model": "test",
             "state": "The invoice was paid on time.",
             "questions": {
                 "paid": {"type": "noul", "instructions": "Was the invoice paid?"},

@@ -66,6 +66,9 @@ impl ResponsesInputItem {
                 content: ConversationMessageContent::Text(output.into_text()),
                 tool_call_id: call_id,
             }),
+            Self::Tagged(ResponsesTaggedItem::Reasoning(reasoning)) => {
+                messages.push(reasoning.into_conversation_message()?);
+            }
         }
 
         Ok(())

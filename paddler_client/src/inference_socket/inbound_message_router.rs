@@ -6,13 +6,11 @@ use serde_json::from_str;
 
 use paddler_messaging::inference_client::identified_message::IdentifiedMessage;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_messaging::result_step::ResultStep;
 
 use crate::error::Error;
-use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
 use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
 
 struct RequestScopedMessage {
@@ -32,8 +30,6 @@ impl RequestScopedMessage {
 }
 
 pub struct InboundMessageRouter {
-    pub cluster_inference_mode_broadcaster: Arc<ClusterInferenceModeBroadcaster>,
-    pub connection_generation: u64,
     pub exchange: Arc<InferenceSocketExchange>,
 }
 
@@ -75,12 +71,6 @@ impl InboundMessageRouter {
                 request_id: envelope.request_id.clone(),
                 message: InferenceMessage::Error(envelope),
             },
-            InferenceMessage::Notification(Notification::ClusterInferenceMode(report)) => {
-                self.cluster_inference_mode_broadcaster
-                    .publish(report, self.connection_generation);
-
-                return;
-            }
             InferenceMessage::Response(ResponseEnvelope {
                 generated_by,
                 request_id,
@@ -133,14 +123,11 @@ mod tests {
 
     use super::InboundMessageRouter;
     use crate::error::Error;
-    use crate::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
     use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
     use crate::inference_socket::outbound_request::OutboundRequest;
 
     fn router_for(exchange: &Arc<InferenceSocketExchange>) -> InboundMessageRouter {
         InboundMessageRouter {
-            cluster_inference_mode_broadcaster: Arc::new(ClusterInferenceModeBroadcaster::default()),
-            connection_generation: 1,
             exchange: Arc::clone(exchange),
         }
     }
@@ -258,35 +245,5 @@ mod tests {
                     .is_err_and(|receive_error| receive_error == TryRecvError::Disconnected)
             );
         }
-    }
-
-    #[test]
-    fn a_notification_nobody_listens_to_leaves_requests_pending() {
-        let exchange = Arc::new(InferenceSocketExchange::default());
-        let mut response_rx = exchange
-            .register(
-                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
-                    .expect("a JSON request must serialize"),
-            )
-            .expect("an open exchange must accept a request");
-
-        router_for(&exchange).route_text(
-            &json!({
-                "Notification": {
-                    "ClusterInferenceMode": {
-                        "balancer_instance": "balancer-instance",
-                        "inference_mode": "TextGenerationAndEmbeddings",
-                        "version": 0
-                    }
-                }
-            })
-            .to_string(),
-        );
-
-        assert!(
-            response_rx
-                .try_recv()
-                .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
-        );
     }
 }

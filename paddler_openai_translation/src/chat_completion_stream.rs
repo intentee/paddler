@@ -1,5 +1,4 @@
-use llama_cpp_bindings_types::ParsedToolCall;
-
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::generation_summary::GenerationSummary;
 
 use crate::chat_completion_chunk::ChatCompletionChunk;
@@ -106,7 +105,7 @@ impl ChatCompletionStream {
     fn tool_calls(
         &mut self,
         request_id: &str,
-        parsed_calls: Vec<ParsedToolCall>,
+        parsed_calls: Vec<GeneratedToolCall>,
     ) -> Vec<ChatCompletionChunk> {
         if parsed_calls.is_empty() {
             return Vec::new();
@@ -123,12 +122,12 @@ impl ChatCompletionStream {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ParsedToolCall;
     use llama_cpp_bindings_types::TokenUsage;
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
+    use paddler_messaging::generated_tool_call::GeneratedToolCall;
     use paddler_messaging::generation_finish::GenerationFinish;
     use paddler_messaging::generation_summary::GenerationSummary;
 
@@ -175,8 +174,18 @@ mod tests {
             .collect()
     }
 
-    fn tool_call(id: &str, name: &str, arguments: ToolCallArguments) -> ParsedToolCall {
-        ParsedToolCall::new(id.to_owned(), name.to_owned(), arguments)
+    fn tool_call(
+        index: usize,
+        id: &str,
+        name: &str,
+        arguments: ToolCallArguments,
+    ) -> GeneratedToolCall {
+        GeneratedToolCall {
+            arguments,
+            id: id.to_owned(),
+            index,
+            name: name.to_owned(),
+        }
     }
 
     #[test]
@@ -216,11 +225,13 @@ mod tests {
                 "test-request",
                 GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(vec![
                     tool_call(
+                        0,
                         "call_x",
                         "get_weather",
                         ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
                     ),
                     tool_call(
+                        1,
                         "call_invalid",
                         "broken_tool",
                         ToolCallArguments::InvalidJson("{not valid json".to_owned()),
@@ -229,6 +240,43 @@ mod tests {
             )),
             vec![
                 r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_x","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"Paris\"}"}},{"index":1,"id":"call_invalid","type":"function","function":{"name":"broken_tool","arguments":"{not valid json"}}]},"logprobs":null,"finish_reason":null}]}"#,
+            ]
+        );
+    }
+
+    #[test]
+    fn indexes_tool_calls_of_separate_sections_by_their_position_in_the_generation() {
+        let mut chat_completion_stream = chat_completion_stream(false);
+        let tool_call_chunks: Vec<String> = [
+            tool_call(
+                0,
+                "call_0",
+                "get_weather",
+                ToolCallArguments::ValidJson(json!({ "location": "Paris" })),
+            ),
+            tool_call(
+                1,
+                "call_1",
+                "get_time",
+                ToolCallArguments::ValidJson(json!({ "timezone": "CET" })),
+            ),
+        ]
+        .into_iter()
+        .flat_map(|generated_tool_call| {
+            serialized_chunks(chat_completion_stream.advance(
+                "test-request",
+                GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(vec![
+                    generated_tool_call,
+                ])),
+            ))
+        })
+        .collect();
+
+        assert_eq!(
+            tool_call_chunks,
+            vec![
+                r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_0","type":"function","function":{"name":"get_weather","arguments":"{\"location\":\"Paris\"}"}}]},"logprobs":null,"finish_reason":null}]}"#,
+                r#"{"id":"test-request","object":"chat.completion.chunk","created":0,"model":"test-model","system_fingerprint":"test-fingerprint","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":1,"id":"call_1","type":"function","function":{"name":"get_time","arguments":"{\"timezone\":\"CET\"}"}}]},"logprobs":null,"finish_reason":null}]}"#,
             ]
         );
     }
@@ -262,6 +310,7 @@ mod tests {
         serialized_chunks(after_tool_call.advance(
             "test-request",
             GenerationProgress::Produced(GeneratedOutputPart::ToolCalls(vec![tool_call(
+                0,
                 "call_x",
                 "get_weather",
                 ToolCallArguments::ValidJson(json!({ "location": "Paris" })),

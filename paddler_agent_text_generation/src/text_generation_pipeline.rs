@@ -33,7 +33,6 @@ use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::chat_template_source::ChatTemplateSource;
 use paddler_messaging::inference_capability::InferenceCapability;
-use paddler_messaging::media_marker::MediaMarker;
 
 use crate::chat_prompt_renderer::ChatPromptRenderer;
 use crate::chat_template_renderer::ChatTemplateRenderer;
@@ -45,7 +44,6 @@ use crate::conversation_support::ConversationSupport;
 use crate::generation_request_preparer::GenerationRequestPreparer;
 use crate::image_input::ImageInput;
 use crate::model_bos_token::ModelBosToken;
-use crate::multimodal_media_marker::MULTIMODAL_MEDIA_MARKER;
 use crate::multimodal_projection::MultimodalProjection;
 use crate::multimodal_prompt_support::MultimodalPromptSupport;
 use crate::prompt_tokenizer::PromptTokenizer;
@@ -137,58 +135,58 @@ impl TextGenerationPipeline {
                 );
 
                 continue_startup_unless_shutting_down(agent_shutdown, || {
-                    loaded_llama_model.warm_up_llama_context(
-                        &mut llama_context,
-                        &mut batch,
-                        desired_slots_total,
-                    );
+                    loaded_llama_model
+                        .warm_up_llama_context(&mut llama_context, &mut batch, desired_slots_total)
+                        .map_err(TextGenerationError::from)
+                        .map(|()| {
+                            let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
 
-                    let (scheduler_message_tx, scheduler_message_rx) = unbounded_channel();
-
-                    run_scheduler_unless_startup_abandoned(
-                        scheduler_startup_tx,
-                        Ok(SchedulerReady {
-                            request_preparer: Arc::new(SchedulerRequestPreparer {
-                                agent_name: self.inference_runtime_context.agent_name.clone(),
-                                preparation: GenerationRequestPreparer {
-                                    conversation_support,
-                                    image_resize_to_fit: self
-                                        .text_generation_settings
-                                        .image_resize_to_fit,
-                                    loaded_llama_model: loaded_llama_model.clone(),
-                                    prompt_tokenizer,
-                                    sampler_chain_factory: SamplerChainFactory {
-                                        sampling_parameters: self
-                                            .text_generation_settings
-                                            .sampling_parameters
+                            run_scheduler_unless_startup_abandoned(
+                                scheduler_startup_tx,
+                                Ok(SchedulerReady {
+                                    request_preparer: Arc::new(SchedulerRequestPreparer {
+                                        agent_name: self
+                                            .inference_runtime_context
+                                            .agent_name
                                             .clone(),
-                                        n_vocab: loaded_llama_model.model.n_vocab(),
-                                    },
-                                    streaming_markers,
+                                        preparation: GenerationRequestPreparer {
+                                            conversation_support,
+                                            image_resize_to_fit: self
+                                                .text_generation_settings
+                                                .image_resize_to_fit,
+                                            loaded_llama_model: loaded_llama_model.clone(),
+                                            prompt_tokenizer,
+                                            sampler_chain_factory: SamplerChainFactory {
+                                                sampling_parameters: self
+                                                    .text_generation_settings
+                                                    .sampling_parameters
+                                                    .clone(),
+                                                n_vocab: loaded_llama_model.model.n_vocab(),
+                                            },
+                                            streaming_markers,
+                                        },
+                                        preparation_tasks: TaskTracker::new(),
+                                        scheduler_message_tx,
+                                    }),
+                                }),
+                                || {
+                                    ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
+                                        agent_shutdown: agent_shutdown.clone(),
+                                        batch,
+                                        scheduler_message_rx,
+                                        llama_context,
+                                        scheduler_context: ContinuousBatchSchedulerContext {
+                                            agent_name: self.inference_runtime_context.agent_name,
+                                            desired_slots_total,
+                                            model: &loaded_llama_model.model,
+                                            n_batch: self.model_runtime_parameters.n_batch,
+                                            sequence_context_size,
+                                        },
+                                    })
+                                    .run();
                                 },
-                                preparation_tasks: TaskTracker::new(),
-                                scheduler_message_tx,
-                            }),
-                        }),
-                        || {
-                            ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
-                                agent_shutdown: agent_shutdown.clone(),
-                                batch,
-                                scheduler_message_rx,
-                                llama_context,
-                                scheduler_context: ContinuousBatchSchedulerContext {
-                                    agent_name: self.inference_runtime_context.agent_name,
-                                    desired_slots_total,
-                                    model: &loaded_llama_model.model,
-                                    n_batch: self.model_runtime_parameters.n_batch,
-                                    sequence_context_size,
-                                },
-                            })
-                            .run();
-                        },
-                    );
-
-                    Ok(())
+                            );
+                        })
                 })
             })
         })
@@ -242,7 +240,6 @@ impl TextGenerationPipeline {
 
         Ok(ChatPromptRenderer {
             chat_template_renderer,
-            media_marker: MediaMarker::new(MULTIMODAL_MEDIA_MARKER.to_string_lossy().into_owned()),
             token_bos_str: special_token_text(model, model.token_bos(), &mut special_token_decoder)
                 .map_err(TextGenerationError::SpecialTokenUnrenderable)?,
             token_eos_str: special_token_text(model, model.token_eos(), &mut special_token_decoder)

@@ -6,7 +6,7 @@ export function qwen3DesiredState(
 ): BalancerDesiredState {
   return {
     ...storedDesiredState,
-    inference_mode: "TextGenerationAndEmbeddings",
+    decision: { pointer_head: "None" },
     model: {
       Uri: "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/blob/main/Qwen3-0.6B-Q8_0.gguf",
     },

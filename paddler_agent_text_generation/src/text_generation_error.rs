@@ -132,6 +132,14 @@ pub enum TextGenerationError {
     MultimodalTokenizationFailed(#[source] MtmdTokenizeError),
 
     #[error(
+        "the chat template rendered {rendered_media_markers} media markers for {images} images"
+    )]
+    RenderedMediaMarkersMismatchImages {
+        images: usize,
+        rendered_media_markers: usize,
+    },
+
+    #[error(
         "media chunk has {} tokens but one micro batch holds {} tokens",
         details.media_tokens,
         details.micro_batch_tokens
@@ -262,7 +270,8 @@ impl TextGenerationError {
             | Self::SamplerChainApplicationFailed(_)
             | Self::SamplerChainRejectedToken(_)
             | Self::TokenDataUnreadable(_) => GeneratedTokenResult::SamplerError(message),
-            Self::MultimodalTokenizationFailed(_) => {
+            Self::MultimodalTokenizationFailed(_)
+            | Self::RenderedMediaMarkersMismatchImages { .. } => {
                 GeneratedTokenResult::MultimodalTokenizationFailed(message)
             }
             Self::MultimodalIngestionFailed(_) => {
@@ -587,6 +596,13 @@ mod tests {
                 rejection: TextGenerationError::MultimodalTokenizationFailed(
                     MtmdTokenizeError::BitmapCountDoesNotMatchMarkerCount,
                 ),
+                into_result: GeneratedTokenResult::MultimodalTokenizationFailed,
+            },
+            ExpectedReport {
+                rejection: TextGenerationError::RenderedMediaMarkersMismatchImages {
+                    images: 2,
+                    rendered_media_markers: 1,
+                },
                 into_result: GeneratedTokenResult::MultimodalTokenizationFailed,
             },
             ExpectedReport {

@@ -10,6 +10,11 @@ const ConversationMessageContentSchema = z.union([
 
 export const ConversationMessageSchema = z.union([
   z.strictObject({
+    AssistantReasoning: z.strictObject({
+      reasoning_content: z.string(),
+    }),
+  }),
+  z.strictObject({
     AssistantToolCalls: z.strictObject({
       content: ConversationMessageContentSchema,
       tool_calls: z.array(ConversationToolCallSchema),

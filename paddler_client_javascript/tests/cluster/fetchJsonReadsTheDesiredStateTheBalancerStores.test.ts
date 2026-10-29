@@ -16,7 +16,11 @@ test("fetchJson reads the desired state the balancer stores", async function () 
         updateDesiredState(storedDesiredState) {
           return {
             ...storedDesiredState,
-            inference_mode: "TextGenerationEmbeddingsAndDecisions",
+            decision: {
+              pointer_head: {
+                Uri: "agent:///pointer-head-no-agent-loads.gguf",
+              },
+            },
             text_generation: {
               ...storedDesiredState.text_generation,
               chat_template_source: {

@@ -5,6 +5,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
+use paddler_inference_parameters::pooling_type::PoolingType;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
@@ -16,9 +18,15 @@ use paddler_tests::start_decision_cluster::start_decision_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_agent_serving_decisions_also_serves_completions_and_embeddings() {
-    let cluster = start_decision_cluster(DecisionClusterParams::default())
-        .await
-        .expect("a decision cluster must start");
+    let cluster = start_decision_cluster(DecisionClusterParams {
+        embedding_parameters: EmbeddingParameters {
+            pooling_type: PoolingType::Last,
+            ..EmbeddingParameters::default()
+        },
+        ..DecisionClusterParams::default()
+    })
+    .await
+    .expect("a decision cluster must start");
 
     let decided = cluster
         .decide(CancellationToken::new(), &sample_decision())

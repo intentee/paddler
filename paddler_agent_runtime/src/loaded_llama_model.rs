@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::token::LlamaToken;
-use log::warn;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_status::agent_issue_fix::AgentIssueFix;
@@ -178,27 +178,53 @@ impl LoadedLlamaModel {
         llama_context: &mut LlamaContext<'_>,
         warmup_batch: &mut LlamaBatch<'static>,
         desired_slots_total: u16,
-    ) {
+    ) -> Result<(), AgentRuntimeError> {
         let warmup_tokens: Vec<LlamaToken> = [self.model.token_bos(), self.model.token_eos()]
             .into_iter()
             .flatten()
             .collect();
 
-        for sequence_index in 0..i32::from(desired_slots_total) {
-            if let Err(batch_add_error) =
-                warmup_batch.add_sequence(&warmup_tokens, sequence_index, true)
-            {
-                warn!("Warmup batch add_sequence failed: {batch_add_error:#}");
-                return;
-            }
-        }
-
         llama_context.clear_kv_cache();
-        if let Err(decode_error) = llama_context.decode(warmup_batch) {
-            warn!("Warmup decode failed: {decode_error:#}");
-        }
+
+        let warm_up = Self::decode_every_warm_up_position(
+            llama_context,
+            warmup_batch,
+            &warmup_tokens,
+            desired_slots_total,
+        );
+
         llama_context.synchronize();
         llama_context.clear_kv_cache();
+
+        warm_up
+    }
+
+    fn decode_every_warm_up_position(
+        llama_context: &mut LlamaContext<'_>,
+        warmup_batch: &mut LlamaBatch<'static>,
+        warmup_tokens: &[LlamaToken],
+        desired_slots_total: u16,
+    ) -> Result<(), AgentRuntimeError> {
+        for (position, warmup_token) in (0..).zip(warmup_tokens) {
+            warmup_batch.clear();
+
+            for sequence_index in 0..i32::from(desired_slots_total) {
+                warmup_batch
+                    .add(
+                        &SampledToken::Content(*warmup_token),
+                        position,
+                        &[sequence_index],
+                        true,
+                    )
+                    .map_err(AgentRuntimeError::WarmUpBatchAssemblyFailed)?;
+            }
+
+            llama_context
+                .decode(warmup_batch)
+                .map_err(AgentRuntimeError::WarmUpDecodeFailed)?;
+        }
+
+        Ok(())
     }
 
     fn load_from_file(

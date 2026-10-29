@@ -1,6 +1,6 @@
 use std::mem::discriminant;
 
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_tests::start_cluster::start_cluster;
@@ -13,7 +13,7 @@ async fn cluster_harness_waiting_for_its_first_agent_reports_that_none_registere
 
     assert_eq!(
         cluster
-            .wait_for_first_agent_to_serve(InferenceMode::TextGenerationAndEmbeddings)
+            .wait_for_first_agent_to_serve(AgentDecisionsServing::NotServed)
             .await
             .err()
             .as_ref()

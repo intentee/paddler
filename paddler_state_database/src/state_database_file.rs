@@ -133,9 +133,9 @@ impl StateDatabaseFile {
         &self,
     ) -> Result<StoredBalancerDesiredState, StateDatabaseError> {
         match read_to_string(&self.path).await {
-            Ok(content) => Ok(StoredBalancerDesiredState::Stored(
+            Ok(content) => Ok(StoredBalancerDesiredState::Stored(Box::new(
                 self.parse_schema(&content)?.balancer_desired_state,
-            )),
+            ))),
             Err(read_error) if read_error.kind() == ErrorKind::NotFound => {
                 Ok(StoredBalancerDesiredState::NothingStored)
             }
@@ -190,19 +190,12 @@ mod tests {
 
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
-    use paddler_messaging::chat_template::ChatTemplate;
-    use paddler_messaging::chat_template_source::ChatTemplateSource;
-    use paddler_messaging::decision_settings::DecisionSettings;
-    use paddler_messaging::inference_mode::InferenceMode;
 
     use super::StateDatabaseFile;
     #[cfg(target_os = "linux")]
     use super::write_replacement;
-    #[cfg(target_os = "linux")]
     use crate::schema::Schema;
     use crate::state_database_error::StateDatabaseError;
-    #[cfg(target_os = "linux")]
     use crate::state_database_schema_version::StateDatabaseSchemaVersion;
     use crate::stored_balancer_desired_state::StoredBalancerDesiredState;
 
@@ -227,7 +220,7 @@ mod tests {
 
         assert_eq!(
             database.read_balancer_desired_state().await.unwrap(),
-            StoredBalancerDesiredState::Stored(desired_state)
+            StoredBalancerDesiredState::Stored(Box::new(desired_state))
         );
         assert!(metadata(&path).await.unwrap().is_file());
     }
@@ -369,7 +362,7 @@ mod tests {
         ));
         assert_eq!(
             state_after_the_failed_store,
-            StoredBalancerDesiredState::Stored(previous_state)
+            StoredBalancerDesiredState::Stored(Box::new(previous_state))
         );
     }
 
@@ -463,39 +456,6 @@ mod tests {
         assert_eq!(
             metadata(&path).await.unwrap().permissions().mode() & 0o777,
             0o600
-        );
-    }
-
-    #[tokio::test]
-    async fn persists_the_settings_of_inactive_inference_modes_across_instances() {
-        let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path().join("state.json");
-        let desired_state = BalancerDesiredState {
-            decision: DecisionSettings {
-                pointer_head: AgentDesiredModel::Uri("pointer_head.gguf".to_owned()),
-            },
-            inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-            text_generation: BalancerTextGenerationSettings {
-                chat_template_source: ChatTemplateSource::Override(ChatTemplate {
-                    content: "{% for message in messages %}{{ message.content }}{% endfor %}"
-                        .to_owned(),
-                }),
-                ..BalancerTextGenerationSettings::default()
-            },
-            ..state_with_model("test_model_uri")
-        };
-
-        StateDatabaseFile::new(path.clone())
-            .store_balancer_desired_state(&desired_state)
-            .await
-            .unwrap();
-
-        assert_eq!(
-            StateDatabaseFile::new(path)
-                .read_balancer_desired_state()
-                .await
-                .unwrap(),
-            StoredBalancerDesiredState::Stored(desired_state)
         );
     }
 

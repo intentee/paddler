@@ -20,7 +20,7 @@ impl Default for EmbeddingParameters {
     fn default() -> Self {
         Self {
             embedding_batch_size: DEFAULT_EMBEDDING_BATCH_SIZE,
-            pooling_type: PoolingType::Last,
+            pooling_type: PoolingType::Unspecified,
         }
     }
 }

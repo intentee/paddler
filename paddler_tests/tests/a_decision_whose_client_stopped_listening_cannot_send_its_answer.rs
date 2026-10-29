@@ -20,7 +20,7 @@ fn a_decision_whose_client_stopped_listening_cannot_send_its_answer() {
         delimiter_tokens,
         pointer_head,
         runtime,
-    } = KevDecisionModel::load(1);
+    } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(1)
         .expect("the decision context must be created");

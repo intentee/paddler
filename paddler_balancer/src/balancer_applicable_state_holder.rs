@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use tokio::sync::watch;
 
+use paddler_messaging::agent_decisions_settings::AgentDecisionsSettings;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-use paddler_messaging::inference_capability::InferenceCapability;
 
 use crate::balancer_applicable_state::BalancerApplicableState;
-use crate::cluster_does_not_serve_inference_capability::ClusterDoesNotServeInferenceCapability;
+use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
 
 pub struct BalancerApplicableStateHolder {
     balancer_applicable_state_rx: watch::Receiver<Arc<BalancerApplicableState>>,
@@ -44,20 +44,15 @@ impl BalancerApplicableStateHolder {
             .clone()
     }
 
-    pub fn require_inference_capability(
-        &self,
-        requested_inference_capability: InferenceCapability,
-    ) -> Result<Arc<BalancerApplicableState>, ClusterDoesNotServeInferenceCapability> {
-        let balancer_applicable_state = self.get_balancer_applicable_state();
-        let served_inference_mode = balancer_applicable_state.inference_mode();
-
-        if served_inference_mode.serves(requested_inference_capability) {
-            Ok(balancer_applicable_state)
-        } else {
-            Err(ClusterDoesNotServeInferenceCapability {
-                requested_inference_capability,
-                served_inference_mode,
-            })
+    pub fn require_decisions(&self) -> Result<(), ClusterServesNoDecisions> {
+        match self
+            .balancer_applicable_state_rx
+            .borrow()
+            .agent_desired_state
+            .decisions
+        {
+            AgentDecisionsSettings::NotServed => Err(ClusterServesNoDecisions),
+            AgentDecisionsSettings::Served(_) => Ok(()),
         }
     }
 
@@ -73,18 +68,18 @@ mod tests {
 
     use tokio::sync::watch;
 
+    use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::inference_capability::InferenceCapability;
-    use paddler_messaging::inference_mode::InferenceMode;
+    use paddler_messaging::decision_settings::DecisionSettings;
 
     use super::BalancerApplicableStateHolder;
     use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::cluster_does_not_serve_inference_capability::ClusterDoesNotServeInferenceCapability;
+    use crate::cluster_serves_no_decisions::ClusterServesNoDecisions;
 
-    fn holder_serving_text_generation_and_embeddings() -> BalancerApplicableStateHolder {
+    fn holder_of(pointer_head: AgentDesiredModel) -> BalancerApplicableStateHolder {
         let (_balancer_applicable_state_tx, balancer_applicable_state_rx) = watch::channel(
             Arc::new(BalancerApplicableState::initial(BalancerDesiredState {
-                inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+                decision: DecisionSettings { pointer_head },
                 ..BalancerDesiredState::default()
             })),
         );
@@ -93,25 +88,18 @@ mod tests {
     }
 
     #[test]
-    fn grants_a_capability_the_served_mode_includes() {
+    fn grants_decisions_while_a_pointer_head_is_configured() {
         assert_eq!(
-            holder_serving_text_generation_and_embeddings()
-                .require_inference_capability(InferenceCapability::Embeddings)
-                .map(|balancer_applicable_state| balancer_applicable_state.inference_mode()),
-            Ok(InferenceMode::TextGenerationAndEmbeddings)
+            holder_of(AgentDesiredModel::Uri("pointer_head.gguf".to_owned())).require_decisions(),
+            Ok(())
         );
     }
 
     #[test]
-    fn refuses_a_capability_the_served_mode_lacks() {
+    fn refuses_decisions_while_no_pointer_head_is_configured() {
         assert_eq!(
-            holder_serving_text_generation_and_embeddings()
-                .require_inference_capability(InferenceCapability::Decisions)
-                .err(),
-            Some(ClusterDoesNotServeInferenceCapability {
-                requested_inference_capability: InferenceCapability::Decisions,
-                served_inference_mode: InferenceMode::TextGenerationAndEmbeddings,
-            })
+            holder_of(AgentDesiredModel::None).require_decisions(),
+            Err(ClusterServesNoDecisions)
         );
     }
 }

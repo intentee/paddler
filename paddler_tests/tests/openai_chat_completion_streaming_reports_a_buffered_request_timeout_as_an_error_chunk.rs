@@ -1,8 +1,6 @@
 use serde_json::json;
 
-use paddler_messaging::inference_mode::InferenceMode;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
-use paddler_tests::cluster_without_agents_serving::cluster_without_agents_serving;
 use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
@@ -10,7 +8,7 @@ use paddler_tests::start_cluster::start_cluster;
 async fn openai_chat_completion_streaming_reports_a_buffered_request_timeout_as_an_error_chunk() {
     let cluster = start_cluster(ClusterParams {
         buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
-        ..cluster_without_agents_serving(InferenceMode::TextGenerationAndEmbeddings)
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("a balancer without agents must start");

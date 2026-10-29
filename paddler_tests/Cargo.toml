@@ -49,6 +49,7 @@ paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_model_source = { workspace = true }
 paddler_openai_response_format_validator = { workspace = true }
+paddler_openai_translation = { workspace = true }
 paddler_state_database = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
 reqwest = { workspace = true }
@@ -64,7 +65,6 @@ http = { workspace = true }
 llama-cpp-bindings-types = { workspace = true }
 paddler_blocking_thread_fixture = { workspace = true }
 paddler_local_http_fixture = { workspace = true }
-paddler_openai_translation = { workspace = true }
 paddler_tcp_buffer_limits = { workspace = true }
 paddler_tool_call_validator = { workspace = true }
 paddler_typesafe_translation = { workspace = true }

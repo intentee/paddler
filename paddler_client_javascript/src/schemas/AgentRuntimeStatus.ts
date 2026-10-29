@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { InferenceModeSchema } from "./InferenceMode";
+import { AgentDecisionsServingSchema } from "./AgentDecisionsServing";
 
 export const AgentRuntimeStatusSchema = z.union([
   z.literal("Idle"),
@@ -8,7 +8,7 @@ export const AgentRuntimeStatusSchema = z.union([
     .object({
       Serving: z
         .object({
-          inference_mode: InferenceModeSchema,
+          decisions: AgentDecisionsServingSchema,
           slots_total: z.number(),
         })
         .strict(),

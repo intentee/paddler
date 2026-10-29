@@ -289,9 +289,9 @@ mod tests {
             openai_service_configuration: Some(CompatibilityServiceConfiguration {
                 addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),
             }),
-            state_database_type: StateDatabaseType::Memory(Box::new(
+            state_database_type: StateDatabaseType::Memory(
                 StoredBalancerDesiredState::NothingStored,
-            )),
+            ),
             statsd_prefix: "paddler_bootstrap_test_".to_owned(),
             statsd_service_configuration: Some(StatsdServiceConfiguration {
                 statsd_addr: ResolvedSocketAddr::from(EPHEMERAL_LOOPBACK_ADDR),

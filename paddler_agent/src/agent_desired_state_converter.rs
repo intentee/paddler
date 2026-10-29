@@ -11,8 +11,8 @@ use paddler_messaging::agent_decisions_settings::AgentDecisionsSettings;
 use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
-use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
+use paddler_messaging::served_decision_settings::ServedDecisionSettings;
 use paddler_model_source::desired_model_resolution::DesiredModelResolution;
 use paddler_model_source::desired_model_resolver::DesiredModelResolver;
 use paddler_model_source::model_source_error::ModelSourceError;
@@ -69,11 +69,9 @@ impl AgentDesiredStateConverter {
         else {
             return Ok(AgentDesiredStateConversion::Cancelled);
         };
-        let applicable_decisions = match self.resolve_decisions(decisions).await? {
-            ControlFlow::Continue(applicable_decisions) => applicable_decisions,
-            ControlFlow::Break(conversion_without_decisions) => {
-                return Ok(conversion_without_decisions);
-            }
+        let ControlFlow::Continue(applicable_decisions) = self.resolve_decisions(decisions).await?
+        else {
+            return Ok(AgentDesiredStateConversion::Cancelled);
         };
 
         Ok(AgentDesiredStateConversion::Converted(
@@ -100,24 +98,18 @@ impl AgentDesiredStateConverter {
     async fn resolve_decisions(
         &self,
         decisions: &AgentDecisionsSettings,
-    ) -> Result<ControlFlow<AgentDesiredStateConversion, ApplicableDecisions>, ModelSourceError>
-    {
+    ) -> Result<ControlFlow<(), ApplicableDecisions>, ModelSourceError> {
         match decisions {
             AgentDecisionsSettings::NotServed => {
                 Ok(ControlFlow::Continue(ApplicableDecisions::Disabled))
             }
-            AgentDecisionsSettings::Served(DecisionSettings { pointer_head }) => Ok(
+            AgentDecisionsSettings::Served(ServedDecisionSettings { pointer_head_uri }) => Ok(
                 match self
-                    .resolve_model_file(pointer_head, DesiredModelFile::PointerHead)
+                    .resolve_model_uri(pointer_head_uri, DesiredModelFile::PointerHead)
                     .await?
                 {
-                    ControlFlow::Break(()) => {
-                        ControlFlow::Break(AgentDesiredStateConversion::Cancelled)
-                    }
-                    ControlFlow::Continue(None) => ControlFlow::Break(
-                        AgentDesiredStateConversion::Converted(AgentApplicableState::NotConfigured),
-                    ),
-                    ControlFlow::Continue(Some(pointer_head_path)) => {
+                    ControlFlow::Break(()) => ControlFlow::Break(()),
+                    ControlFlow::Continue(pointer_head_path) => {
                         ControlFlow::Continue(ApplicableDecisions::Enabled { pointer_head_path })
                     }
                 },
@@ -130,21 +122,36 @@ impl AgentDesiredStateConverter {
         desired_model: &AgentDesiredModel,
         desired_model_file: DesiredModelFile,
     ) -> Result<ControlFlow<(), Option<PathBuf>>, ModelSourceError> {
+        match desired_model {
+            AgentDesiredModel::None => Ok(ControlFlow::Continue(None)),
+            AgentDesiredModel::Uri(uri) => Ok(
+                match self.resolve_model_uri(uri, desired_model_file).await? {
+                    ControlFlow::Break(()) => ControlFlow::Break(()),
+                    ControlFlow::Continue(path) => ControlFlow::Continue(Some(path)),
+                },
+            ),
+        }
+    }
+
+    async fn resolve_model_uri(
+        &self,
+        uri: &str,
+        desired_model_file: DesiredModelFile,
+    ) -> Result<ControlFlow<(), PathBuf>, ModelSourceError> {
         match self
             .desired_model_resolver
-            .resolve(
+            .resolve_uri(
                 &self.cancellation_token,
-                desired_model,
+                uri,
                 self.slot_aggregated_status.clone(),
             )
             .await?
         {
             DesiredModelResolution::Cancelled => Ok(ControlFlow::Break(())),
-            DesiredModelResolution::NotConfigured => Ok(ControlFlow::Continue(None)),
             DesiredModelResolution::Resolved(path) => {
                 desired_model_file.report_found(&path, &self.slot_aggregated_status);
 
-                Ok(ControlFlow::Continue(Some(path)))
+                Ok(ControlFlow::Continue(path))
             }
             DesiredModelResolution::LocalFileMissing(path) => {
                 desired_model_file.report_missing(&path, &self.slot_aggregated_status);
@@ -181,8 +188,8 @@ mod tests {
     use paddler_messaging::balancer_text_generation_settings::BalancerTextGenerationSettings;
     use paddler_messaging::chat_template::ChatTemplate;
     use paddler_messaging::chat_template_source::ChatTemplateSource;
-    use paddler_messaging::decision_settings::DecisionSettings;
     use paddler_messaging::multimodal_settings::MultimodalSettings;
+    use paddler_messaging::served_decision_settings::ServedDecisionSettings;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
@@ -241,10 +248,12 @@ mod tests {
 
     fn desired_state_serving_decisions(
         model: AgentDesiredModel,
-        pointer_head: AgentDesiredModel,
+        pointer_head: &ModelSource,
     ) -> AgentDesiredState {
         AgentDesiredState {
-            decisions: AgentDecisionsSettings::Served(DecisionSettings { pointer_head }),
+            decisions: AgentDecisionsSettings::Served(ServedDecisionSettings {
+                pointer_head_uri: pointer_head.uri(),
+            }),
             ..desired_state(model, AgentDesiredModel::None)
         }
     }
@@ -270,9 +279,12 @@ mod tests {
         })
     }
 
-    fn local_model_at(path: &Path) -> AgentDesiredModel {
+    fn local_source_at(path: &Path) -> ModelSource {
         ModelSource::LocalToAgent(AgentLocalModelPath::from_absolute_path(path).unwrap())
-            .into_agent_desired_model()
+    }
+
+    fn local_model_at(path: &Path) -> AgentDesiredModel {
+        local_source_at(path).into_agent_desired_model()
     }
 
     fn cancelled_token() -> CancellationToken {
@@ -283,14 +295,17 @@ mod tests {
         cancellation_token
     }
 
-    fn uncached_hugging_face_model() -> AgentDesiredModel {
+    fn uncached_hugging_face_source() -> ModelSource {
         ModelSource::HuggingFace(HuggingFaceModelReference {
             filename: "uncached.gguf".to_owned(),
             repository_name: "repo".to_owned(),
             repository_owner: "owner".to_owned(),
             revision: "main".to_owned(),
         })
-        .into_agent_desired_model()
+    }
+
+    fn uncached_hugging_face_model() -> AgentDesiredModel {
+        uncached_hugging_face_source().into_agent_desired_model()
     }
 
     async fn conversion(
@@ -381,7 +396,7 @@ mod tests {
         } = nonexistent_path_in_temp_dir("pointer-head");
         let desired = desired_state_serving_decisions(
             local_model_at(model_file.path()),
-            local_model_at(&appearing_path),
+            &local_source_at(&appearing_path),
         );
         let converter = AgentDesiredStateConverter {
             desired_model_resolver: process_env_desired_model_resolver(),
@@ -457,7 +472,7 @@ mod tests {
         let outcome = converter
             .convert(&desired_state_serving_decisions(
                 local_model_at(model_file.path()),
-                local_model_at(&missing_path),
+                &local_source_at(&missing_path),
             ))
             .await;
 
@@ -504,7 +519,7 @@ mod tests {
                 cancelled_token(),
                 &desired_state_serving_decisions(
                     local_model_at(model_file.path()),
-                    uncached_hugging_face_model(),
+                    &uncached_hugging_face_source(),
                 ),
             )
             .await,
@@ -579,7 +594,7 @@ mod tests {
         assert_eq!(
             converted(&desired_state_serving_decisions(
                 local_model_at(model_file.path()),
-                local_model_at(pointer_head_file.path()),
+                &local_source_at(pointer_head_file.path()),
             ))
             .await,
             AgentDesiredStateConversion::Converted(served_settings(
@@ -589,20 +604,6 @@ mod tests {
                 },
                 MultimodalProjection::NotConfigured,
             ))
-        );
-    }
-
-    #[tokio::test]
-    async fn a_state_serving_decisions_without_a_pointer_head_is_not_configured() {
-        let model_file = NamedTempFile::new().unwrap();
-
-        assert_eq!(
-            converted(&desired_state_serving_decisions(
-                local_model_at(model_file.path()),
-                AgentDesiredModel::None,
-            ))
-            .await,
-            AgentDesiredStateConversion::Converted(AgentApplicableState::NotConfigured)
         );
     }
 }

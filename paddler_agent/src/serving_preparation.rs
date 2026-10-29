@@ -9,6 +9,7 @@ use crate::capability_startup_interruption::CapabilityStartupInterruption;
 use crate::preparation_outcome::PreparationOutcome;
 use crate::prepared_serving::PreparedServing;
 use crate::retry_delay::RetryDelay;
+use crate::retry_delay_outcome::RetryDelayOutcome;
 
 pub struct ServingPreparation {
     pub agent_applicable_state: AgentApplicableState,
@@ -28,9 +29,7 @@ impl ServingPreparation {
             retry_delay,
         } = self;
 
-        retry_delay.elapse(&cancellation_token).await;
-
-        if cancellation_token.is_cancelled() {
+        if retry_delay.elapse(&cancellation_token).await == RetryDelayOutcome::Cancelled {
             return PreparationOutcome::Cancelled;
         }
 

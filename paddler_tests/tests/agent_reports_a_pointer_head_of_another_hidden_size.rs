@@ -20,7 +20,7 @@ async fn agent_reports_a_pointer_head_of_another_hidden_size() {
             pointer_head_path: ModelPath::from(fixture_path(pointer_head_fixture).as_path()),
         });
     let mut cluster = start_decision_cluster(DecisionClusterParams {
-        pointer_head_fixture,
+        pointer_head: fixture_path(pointer_head_fixture),
         wait_for_slots_ready: false,
         ..DecisionClusterParams::default()
     })

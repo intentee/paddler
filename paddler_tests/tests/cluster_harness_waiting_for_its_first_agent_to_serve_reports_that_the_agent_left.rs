@@ -1,4 +1,4 @@
-use paddler_messaging::inference_mode::InferenceMode;
+use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_harness_error::ClusterHarnessError;
@@ -31,7 +31,7 @@ async fn cluster_harness_waiting_for_its_first_agent_to_serve_reports_that_the_a
 
     assert!(matches!(
         cluster
-            .wait_for_first_agent_to_serve(InferenceMode::TextGenerationAndEmbeddings)
+            .wait_for_first_agent_to_serve(AgentDecisionsServing::NotServed)
             .await
             .err(),
         Some(ClusterHarnessError::AgentLeftThePool { agent_id }) if agent_id == awaited_agent_id

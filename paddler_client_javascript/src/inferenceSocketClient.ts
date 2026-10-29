@@ -2,27 +2,16 @@ import { nanoid } from "nanoid";
 import { filter, fromEvent, map, takeWhile, type Observable } from "rxjs";
 
 import type { ConversationMessage } from "./schemas/ConversationMessage";
-import type { InferenceMode } from "./schemas/InferenceMode";
-import { InferenceNotificationSchema } from "./schemas/InferenceNotification";
 import {
   InferenceServiceGenerateTokensResponseSchema,
   type InferenceServiceGenerateTokensResponse,
 } from "./schemas/InferenceServiceGenerateTokensResponse";
 
 export interface InferenceSocketClient {
-  clusterInferenceMode$: Observable<InferenceMode>;
   continueConversation(params: {
     enableThinking: boolean;
     messages: ConversationMessage[];
   }): Observable<InferenceServiceGenerateTokensResponse>;
-}
-
-function isNotificationFrame(parsedFrame: unknown): boolean {
-  return (
-    "object" === typeof parsedFrame &&
-    null !== parsedFrame &&
-    "Notification" in parsedFrame
-  );
 }
 
 export function inferenceSocketClient({
@@ -45,14 +34,6 @@ export function inferenceSocketClient({
     }),
   );
 
-  const clusterInferenceMode$: Observable<InferenceMode> = parsedFrames$.pipe(
-    filter(isNotificationFrame),
-    map(function (parsedFrame: unknown): InferenceMode {
-      return InferenceNotificationSchema.parse(parsedFrame).Notification
-        .ClusterInferenceMode.inference_mode;
-    }),
-  );
-
   function continueConversation({
     enableThinking,
     messages,
@@ -62,9 +43,6 @@ export function inferenceSocketClient({
   }): Observable<InferenceServiceGenerateTokensResponse> {
     const requestId = nanoid();
     const tokenStream = parsedFrames$.pipe(
-      filter(function (parsedFrame) {
-        return !isNotificationFrame(parsedFrame);
-      }),
       map(function (parsedFrame: unknown) {
         return InferenceServiceGenerateTokensResponseSchema.parse(parsedFrame);
       }),
@@ -96,7 +74,6 @@ export function inferenceSocketClient({
   }
 
   return Object.freeze({
-    clusterInferenceMode$,
     continueConversation,
   });
 }

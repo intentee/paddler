@@ -1,0 +1,15 @@
+[package]
+name = "paddler_sha256_hex"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+sha2 = { workspace = true }
+
+[lints]
+workspace = true

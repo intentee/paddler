@@ -1,6 +1,6 @@
+pub mod cluster_serves_no_decisions_http_response;
 pub mod decision_outcome;
 pub mod http_route;
-pub mod inference_mode_refusal_http_response;
 pub mod system_one_http_response;
 pub mod typesafe_api_path;
 pub mod typesafe_compatibility_layer;

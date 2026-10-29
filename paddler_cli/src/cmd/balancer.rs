@@ -89,7 +89,7 @@ pub struct Balancer {
     max_buffered_requests: u64,
 
     #[arg(long, default_value = "memory://")]
-    /// Balancer state database URL. Supported: memory, memory://, or <file:///path> (optional)
+    /// Balancer state database URL. Supported: memory:// or <file:///absolute/path> (optional)
     state_database: StateDatabaseType,
 
     #[arg(long, value_parser = parse_socket_addr)]

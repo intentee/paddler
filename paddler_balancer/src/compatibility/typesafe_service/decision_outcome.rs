@@ -36,7 +36,7 @@ impl From<DecisionFinalResult> for DecisionOutcome {
             DecisionFinalResult::InputTokenizationFailed(detail) => {
                 failure(StatusCode::UNPROCESSABLE_ENTITY, detail)
             }
-            DecisionFinalResult::InferenceModeMismatch(detail)
+            DecisionFinalResult::DecisionsNotServed(detail)
             | DecisionFinalResult::ModelNotLoaded(detail)
             | DecisionFinalResult::SchedulerUnavailable(detail) => {
                 failure(UpstreamFailure::Unavailable.status_code(), detail)
@@ -102,8 +102,8 @@ mod tests {
                 failed(StatusCode::UNPROCESSABLE_ENTITY, "nul byte"),
             ),
             (
-                DecisionFinalResult::InferenceModeMismatch("mode".to_owned()),
-                failed(StatusCode::SERVICE_UNAVAILABLE, "mode"),
+                DecisionFinalResult::DecisionsNotServed("no pointer head".to_owned()),
+                failed(StatusCode::SERVICE_UNAVAILABLE, "no pointer head"),
             ),
             (
                 DecisionFinalResult::ModelNotLoaded("no model".to_owned()),

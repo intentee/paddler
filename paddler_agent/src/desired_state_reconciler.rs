@@ -57,7 +57,6 @@ mod tests {
     use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::agent_desired_state::AgentDesiredState;
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
     use paddler_model_source::agent_local_model_path::AgentLocalModelPath;
     use paddler_model_source::desired_model_resolver::DesiredModelResolver;
     use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
@@ -70,7 +69,7 @@ mod tests {
     fn desired_state_with_model(model: AgentDesiredModel) -> AgentDesiredState {
         AgentDesiredState {
             model,
-            ..AgentDesiredState::from(BalancerDesiredState::default())
+            ..AgentDesiredState::default()
         }
     }
 

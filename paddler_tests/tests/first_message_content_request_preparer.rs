@@ -9,7 +9,6 @@ use paddler_agent_text_generation::image_input::ImageInput;
 use paddler_agent_text_generation::model_bos_token::ModelBosToken;
 use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSupport;
 use paddler_agent_text_generation::prompt_tokenizer::PromptTokenizer;
-use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::multimodal_settings::MultimodalSettings;
 use paddler_tests::first_message_content_chat_template::first_message_content_chat_template;
 use paddler_tests::llama_runtime::LlamaRuntime;
@@ -21,28 +20,17 @@ pub struct FirstMessageContentRequestPreparer<'runtime> {
 
 impl FirstMessageContentRequestPreparer<'_> {
     pub fn into_generation_request_preparer(self) -> GenerationRequestPreparer {
-        self.into_preparer_with_image_input(
-            ImageInput::Unsupported,
-            MediaMarker::new("<media>".to_owned()),
-        )
+        self.into_preparer_with_image_input(ImageInput::Unsupported)
     }
 
     pub fn into_multimodal_generation_request_preparer(
         self,
         multimodal_prompt_support: MultimodalPromptSupport,
-        media_marker: MediaMarker,
     ) -> GenerationRequestPreparer {
-        self.into_preparer_with_image_input(
-            ImageInput::Supported(multimodal_prompt_support),
-            media_marker,
-        )
+        self.into_preparer_with_image_input(ImageInput::Supported(multimodal_prompt_support))
     }
 
-    fn into_preparer_with_image_input(
-        self,
-        image_input: ImageInput,
-        media_marker: MediaMarker,
-    ) -> GenerationRequestPreparer {
+    fn into_preparer_with_image_input(self, image_input: ImageInput) -> GenerationRequestPreparer {
         let loaded_llama_model = &self.llama_runtime.loaded_llama_model;
         let model = &loaded_llama_model.model;
 
@@ -54,7 +42,6 @@ impl FirstMessageContentRequestPreparer<'_> {
                             first_message_content_chat_template(),
                         )
                         .expect("the first message content chat template must compile"),
-                        media_marker,
                         token_bos_str: String::new(),
                         token_eos_str: String::new(),
                         token_nl_str: String::new(),

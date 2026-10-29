@@ -2,6 +2,7 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 
 from paddler_kev_converter.convertible_kev_checkpoint import ConvertibleKevCheckpoint
+from paddler_kev_converter.input_normalization import InputNormalization
 from paddler_kev_converter.malformed_pointer_head import (
     PointerHeadDefect,
     write_malformed_pointer_head,
@@ -22,6 +23,7 @@ def _write_malformed_pointer_head(parsed_arguments: Namespace) -> None:
     write_malformed_pointer_head(
         parsed_arguments.defect,
         parsed_arguments.hidden_size,
+        parsed_arguments.input_normalization,
         parsed_arguments.output,
     )
 
@@ -31,9 +33,9 @@ def _write_parity_reference(parsed_arguments: Namespace) -> None:
 
 
 def _write_synthetic_pointer_head(parsed_arguments: Namespace) -> None:
-    synthetic_pointer_head(parsed_arguments.hidden_size).write_gguf(
-        parsed_arguments.output
-    )
+    synthetic_pointer_head(
+        parsed_arguments.hidden_size, parsed_arguments.input_normalization
+    ).write_gguf(parsed_arguments.output)
 
 
 def _write_tokenizer_reference(parsed_arguments: Namespace) -> None:
@@ -59,6 +61,9 @@ def main(arguments: list[str] | None = None) -> None:
     malformed = commands.add_parser("malformed-pointer-head")
     malformed.add_argument("--defect", required=True, type=PointerHeadDefect)
     malformed.add_argument("--hidden-size", required=True, type=int)
+    malformed.add_argument(
+        "--input-normalization", required=True, type=InputNormalization
+    )
     malformed.add_argument("--output", required=True, type=Path)
     malformed.set_defaults(handle=_write_malformed_pointer_head)
 
@@ -69,6 +74,9 @@ def main(arguments: list[str] | None = None) -> None:
 
     synthetic = commands.add_parser("synthetic-pointer-head")
     synthetic.add_argument("--hidden-size", required=True, type=int)
+    synthetic.add_argument(
+        "--input-normalization", required=True, type=InputNormalization
+    )
     synthetic.add_argument("--output", required=True, type=Path)
     synthetic.set_defaults(handle=_write_synthetic_pointer_head)
 

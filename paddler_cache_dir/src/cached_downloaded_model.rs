@@ -2,10 +2,10 @@ use std::io::Error;
 use std::path::PathBuf;
 
 use fslock::LockFile;
-use sha2::Digest;
-use sha2::Sha256;
 use tokio::fs::create_dir_all;
 use tokio::fs::try_exists;
+
+use paddler_sha256_hex::sha256_lowercase_hex::sha256_lowercase_hex;
 
 use crate::cache_dir::CacheDir;
 use crate::cache_dir_error::CacheDirError;
@@ -13,20 +13,6 @@ use crate::cached_downloaded_model_lock::CachedDownloadedModelLock;
 use crate::download_lock_acquisition::DownloadLockAcquisition;
 
 const DOWNLOADED_MODELS_SUBDIR: &str = "downloaded-models";
-const LOWERCASE_HEX_DIGITS: &[u8; 16] = b"0123456789abcdef";
-
-fn sha256_lowercase_hex(input: &str) -> String {
-    Sha256::digest(input.as_bytes())
-        .iter()
-        .flat_map(|digest_byte| {
-            [
-                LOWERCASE_HEX_DIGITS[usize::from(digest_byte >> 4)],
-                LOWERCASE_HEX_DIGITS[usize::from(digest_byte & 0x0f)],
-            ]
-        })
-        .map(char::from)
-        .collect()
-}
 
 pub struct CachedDownloadedModel {
     pub cache_file_path: PathBuf,
@@ -37,7 +23,7 @@ pub struct CachedDownloadedModel {
 impl CachedDownloadedModel {
     pub fn new(cache_dir: &CacheDir, url_string: &str) -> Result<Self, CacheDirError> {
         cache_dir.resolve().map(|cache_root| {
-            let basename = sha256_lowercase_hex(url_string);
+            let basename = sha256_lowercase_hex(url_string.as_bytes());
             let cache_subdir = cache_root.join(DOWNLOADED_MODELS_SUBDIR);
 
             Self {

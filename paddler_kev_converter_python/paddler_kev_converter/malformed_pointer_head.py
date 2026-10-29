@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
+from paddler_kev_converter.input_normalization import InputNormalization
 from paddler_kev_converter.pointer_head import PointerHead
 from paddler_kev_converter.synthetic_pointer_head import synthetic_pointer_head
 
@@ -16,6 +17,7 @@ class PointerHeadDefect(StrEnum):
     F16_TENSORS = "f16-tensors"
     MISMATCHED_PROJECTIONS = "mismatched-projections"
     MISSING_DELIMITERS = "missing-delimiters"
+    MISSING_INPUT_NORMALIZATION = "missing-input-normalization"
     MISSING_TEMPERATURE = "missing-temperature"
     OVERSIZED_HEAD_DIM = "oversized-head-dim"
     PLAIN_TEXT_DELIMITERS = "plain-text-delimiters"
@@ -44,13 +46,36 @@ def _write_with_mismatched_projections(
 
 def _write_without_delimiters(well_formed_head: PointerHead, path: Path) -> None:
     well_formed_head.write_gguf_sections(
-        path, [well_formed_head.add_temperature, well_formed_head.add_tensors]
+        path,
+        [
+            well_formed_head.add_temperature,
+            well_formed_head.add_input_normalization,
+            well_formed_head.add_tensors,
+        ],
+    )
+
+
+def _write_without_input_normalization(
+    well_formed_head: PointerHead, path: Path
+) -> None:
+    well_formed_head.write_gguf_sections(
+        path,
+        [
+            well_formed_head.add_temperature,
+            well_formed_head.add_delimiters,
+            well_formed_head.add_tensors,
+        ],
     )
 
 
 def _write_without_temperature(well_formed_head: PointerHead, path: Path) -> None:
     well_formed_head.write_gguf_sections(
-        path, [well_formed_head.add_delimiters, well_formed_head.add_tensors]
+        path,
+        [
+            well_formed_head.add_delimiters,
+            well_formed_head.add_input_normalization,
+            well_formed_head.add_tensors,
+        ],
     )
 
 
@@ -80,6 +105,7 @@ DEFECT_WRITERS: dict[PointerHeadDefect, Callable[[PointerHead, Path], None]] = {
     PointerHeadDefect.F16_TENSORS: _write_with_f16_tensors,
     PointerHeadDefect.MISMATCHED_PROJECTIONS: _write_with_mismatched_projections,
     PointerHeadDefect.MISSING_DELIMITERS: _write_without_delimiters,
+    PointerHeadDefect.MISSING_INPUT_NORMALIZATION: _write_without_input_normalization,
     PointerHeadDefect.MISSING_TEMPERATURE: _write_without_temperature,
     PointerHeadDefect.OVERSIZED_HEAD_DIM: _write_with_oversized_head_dim,
     PointerHeadDefect.PLAIN_TEXT_DELIMITERS: _write_with_plain_text_delimiters,
@@ -88,6 +114,9 @@ DEFECT_WRITERS: dict[PointerHeadDefect, Callable[[PointerHead, Path], None]] = {
 
 
 def write_malformed_pointer_head(
-    defect: PointerHeadDefect, hidden_size: int, path: Path
+    defect: PointerHeadDefect,
+    hidden_size: int,
+    input_normalization: InputNormalization,
+    path: Path,
 ) -> None:
-    DEFECT_WRITERS[defect](synthetic_pointer_head(hidden_size), path)
+    DEFECT_WRITERS[defect](synthetic_pointer_head(hidden_size, input_normalization), path)

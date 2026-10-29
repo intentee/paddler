@@ -19,6 +19,11 @@ pub enum PointerHeadError {
         source: TryFromIntError,
     },
 
+    #[error(
+        "the pointer head declares the input normalization {declared}, which is not NFC, NFD, NFKC, NFKD or None"
+    )]
+    InputNormalizationUnknown { declared: String },
+
     #[error("unable to read the pointer head key {key}: {source}")]
     KeyUnreadable {
         key: String,

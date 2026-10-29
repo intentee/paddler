@@ -11,6 +11,7 @@ test("InferenceServiceGenerateTokensResponseSchema carries parsed tool calls wit
         {
           arguments: { ValidJson: { location: "Paris" } },
           id: "call_42",
+          index: 42,
           name: "get_weather",
         },
       ],
@@ -22,6 +23,7 @@ test("InferenceServiceGenerateTokensResponseSchema carries parsed tool calls wit
     {
       arguments: { ValidJson: { location: "Paris" } },
       id: "call_42",
+      index: 42,
       name: "get_weather",
     },
   ]);

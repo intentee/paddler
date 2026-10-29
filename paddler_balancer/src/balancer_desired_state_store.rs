@@ -22,7 +22,7 @@ impl BalancerDesiredStateStore {
     pub async fn load(state_database: Arc<StateDatabase>) -> Result<Self, StateDatabaseError> {
         let balancer_desired_state = match state_database.read_balancer_desired_state().await? {
             StoredBalancerDesiredState::NothingStored => BalancerDesiredState::default(),
-            StoredBalancerDesiredState::Stored(stored_desired_state) => stored_desired_state,
+            StoredBalancerDesiredState::Stored(stored_desired_state) => *stored_desired_state,
         };
         let (balancer_applicable_state_tx, _initial_balancer_applicable_state_rx) = watch::channel(
             Arc::new(BalancerApplicableState::initial(balancer_desired_state)),
@@ -114,7 +114,7 @@ mod tests {
     #[tokio::test]
     async fn starts_from_the_stored_state() {
         let store = BalancerDesiredStateStore::load(Arc::new(StateDatabase::in_memory(
-            StoredBalancerDesiredState::Stored(state_with_model("stored_model_uri")),
+            StoredBalancerDesiredState::Stored(Box::new(state_with_model("stored_model_uri"))),
         )))
         .await
         .unwrap();
@@ -142,7 +142,7 @@ mod tests {
 
         assert_eq!(
             state_database.read_balancer_desired_state().await.unwrap(),
-            StoredBalancerDesiredState::Stored(state_with_model("replacing_model_uri"))
+            StoredBalancerDesiredState::Stored(Box::new(state_with_model("replacing_model_uri")))
         );
         assert_eq!(
             applicable_state_rx
@@ -211,7 +211,7 @@ mod tests {
                     .read_balancer_desired_state()
                     .await
                     .unwrap(),
-                StoredBalancerDesiredState::Stored(state_with_model("next_model_uri"))
+                StoredBalancerDesiredState::Stored(Box::new(state_with_model("next_model_uri")))
             );
         });
     }

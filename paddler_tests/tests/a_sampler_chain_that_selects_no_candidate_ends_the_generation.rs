@@ -8,7 +8,7 @@ use paddler_agent_text_generation::prepared_generation_request::PreparedGenerati
 use paddler_agent_text_generation::token_sampling::TokenSampling;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_tests::agent_inference_runtime_context::agent_inference_runtime_context;
-use paddler_tests::kev_0_8b_target_path::kev_0_8b_target_path;
+use paddler_tests::kev_checkpoint::KevCheckpoint;
 use paddler_tests::llama_runtime::LlamaRuntime;
 
 use crate::decode_prompt_for_sampling::decode_prompt_for_sampling;
@@ -19,14 +19,15 @@ const PROMPT: &str = "Paddler balances";
 #[test]
 fn a_sampler_chain_that_selects_no_candidate_ends_the_generation() {
     let runtime = LlamaRuntime::load(
-        &kev_0_8b_target_path("model.gguf"),
+        &KevCheckpoint::Kev0_8b.target_path("model.gguf"),
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");
     let mut llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
-    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT);
+    let batch_position = decode_prompt_for_sampling(&runtime, &mut llama_context, PROMPT)
+        .expect("the prompt must be decoded for sampling");
 
     assert_eq!(
         ReadyToSampleRequest {

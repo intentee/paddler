@@ -6,6 +6,8 @@ import numpy as np
 from gguf import GGUFWriter
 from numpy.typing import NDArray
 
+from paddler_kev_converter.input_normalization import InputNormalization
+
 type ProjectionArray = NDArray[np.float16] | NDArray[np.float32]
 
 POINTER_HEAD_ARCHITECTURE = "pointer_head"
@@ -15,6 +17,7 @@ DELIMITER_NAMES = ["state", "question", "option_start", "option_end", "decide"]
 @dataclass(frozen=True)
 class PointerHead:
     delimiters: list[str]
+    input_normalization: InputNormalization
     key_bias: ProjectionArray
     key_weight: ProjectionArray
     query_bias: ProjectionArray
@@ -30,6 +33,12 @@ class PointerHead:
                 delimiter_token,
             )
 
+    def add_input_normalization(self, writer: GGUFWriter) -> None:
+        writer.add_string(
+            f"{POINTER_HEAD_ARCHITECTURE}.input_normalization",
+            self.input_normalization.value,
+        )
+
     def add_temperature(self, writer: GGUFWriter) -> None:
         writer.add_float32(f"{POINTER_HEAD_ARCHITECTURE}.temperature", self.temperature)
 
@@ -43,7 +52,13 @@ class PointerHead:
 
     def write_gguf(self, path: Path) -> None:
         self.write_gguf_sections(
-            path, [self.add_temperature, self.add_delimiters, self.add_tensors]
+            path,
+            [
+                self.add_temperature,
+                self.add_delimiters,
+                self.add_input_normalization,
+                self.add_tensors,
+            ],
         )
 
     def write_gguf_sections(

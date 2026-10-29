@@ -97,7 +97,9 @@ impl ToolCallValidator {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings_types::ModelProvidedToolCallId;
     use llama_cpp_bindings_types::ParsedToolCall;
+    use llama_cpp_bindings_types::ParsedToolCallId;
     use llama_cpp_bindings_types::ToolCallArguments;
     use serde_json::Map;
     use serde_json::Value;
@@ -111,6 +113,10 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 
     use super::ToolCallValidator;
     use crate::tool_call_validation_error::ToolCallValidationError;
+
+    fn model_provided_id() -> ParsedToolCallId {
+        ParsedToolCallId::ModelProvided(ModelProvidedToolCallId::try_from("id".to_owned()).unwrap())
+    }
 
     fn valid_json_arguments(value: Value) -> ToolCallArguments {
         ToolCallArguments::ValidJson(value)
@@ -151,7 +157,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn schema_validator_accepts_matching_arguments() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "get_weather".to_owned(),
             valid_json_arguments(json!({"location": "Paris"})),
         );
@@ -163,7 +169,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn schema_validator_rejects_missing_required_field() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "get_weather".to_owned(),
             valid_json_arguments(json!({})),
         );
@@ -180,7 +186,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn schema_validator_rejects_wrong_type() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "get_weather".to_owned(),
             valid_json_arguments(json!({"location": 42})),
         );
@@ -197,7 +203,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn unknown_tool_name_returns_error() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "set_thermostat".to_owned(),
             valid_json_arguments(json!({"value": 21})),
         );
@@ -214,7 +220,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn rejects_arguments_that_are_not_json() {
         let validator = ToolCallValidator::from_tools(&[weather_tool_with_schema()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "get_weather".to_owned(),
             ToolCallArguments::InvalidJson("not json".to_owned()),
         );
@@ -232,7 +238,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn schemaless_tool_rejects_arguments_that_are_not_an_object() {
         let validator = ToolCallValidator::from_tools(&[schemaless_tool()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "freeform".to_owned(),
             valid_json_arguments(json!([1, 2])),
         );
@@ -250,7 +256,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn schemaless_tool_accepts_any_object() {
         let validator = ToolCallValidator::from_tools(&[schemaless_tool()]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "freeform".to_owned(),
             valid_json_arguments(json!({"x": 1, "y": 2})),
         );
@@ -274,7 +280,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
     fn empty_tools_yields_validator_that_rejects_any_call() {
         let validator = ToolCallValidator::from_tools(&[]).unwrap();
         let parsed = ParsedToolCall::new(
-            "id".to_owned(),
+            model_provided_id(),
             "anything".to_owned(),
             valid_json_arguments(json!({})),
         );

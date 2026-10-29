@@ -22,7 +22,7 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
         delimiter_tokens,
         pointer_head,
         runtime,
-    } = KevDecisionModel::load(1);
+    } = KevDecisionModel::load(1).expect("the kev decision model must load");
     let mut llama_context = runtime
         .create_decision_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the decision context must be created");

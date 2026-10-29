@@ -7,7 +7,6 @@ use std::sync::Arc;
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::mtmd::micro_batch_tokens;
-use llama_cpp_bindings::mtmd::mtmd_default_marker;
 use llama_cpp_bindings_types::BatchCapacity;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::mpsc::unbounded_channel;
@@ -22,7 +21,6 @@ use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSu
 use paddler_agent_text_generation::resident_multimodal_context::ResidentMultimodalContext;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::media_marker::MediaMarker;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::load_test_image_data_uri::load_test_image_data_uri;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
@@ -84,20 +82,13 @@ fn a_generation_step_overflowing_its_batch_fails_as_batch_assembly() {
         llama_runtime: &runtime,
         sequence_context_size,
     }
-    .into_multimodal_generation_request_preparer(
-        MultimodalPromptSupport {
-            micro_batch_tokens: micro_batch_tokens(&llama_context, n_batch.tokens()),
-            model_bos_token: ModelBosToken::of(model),
-            multimodal_context: Arc::new(multimodal_context),
-            n_batch: n_batch.tokens_i32(),
-            sequence_context_size,
-        },
-        MediaMarker::new(
-            mtmd_default_marker()
-                .expect("llama.cpp must report its media marker")
-                .to_owned(),
-        ),
-    );
+    .into_multimodal_generation_request_preparer(MultimodalPromptSupport {
+        micro_batch_tokens: micro_batch_tokens(&llama_context, n_batch.tokens()),
+        model_bos_token: ModelBosToken::of(model),
+        multimodal_context: Arc::new(multimodal_context),
+        n_batch: n_batch.tokens_i32(),
+        sequence_context_size,
+    });
     let image_data_uri = load_test_image_data_uri().expect("the test image must load");
     let image_question = || {
         ConversationGeneration::new(

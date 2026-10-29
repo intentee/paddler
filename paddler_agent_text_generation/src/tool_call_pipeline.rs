@@ -6,6 +6,7 @@ use llama_cpp_bindings::ParsedToolCall;
 use llama_cpp_bindings::RawChatMessage;
 use llama_cpp_bindings::token_piece::TokenPiece;
 
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
@@ -15,6 +16,7 @@ use crate::tool_call_event::ToolCallEvent;
 pub struct ToolCallPipeline {
     buffer: ToolCallBuffer,
     chat_message_parser: ChatMessageParser,
+    tool_calls_generated: usize,
     validator: ToolCallValidator,
 }
 
@@ -24,6 +26,7 @@ impl ToolCallPipeline {
         Self {
             buffer: ToolCallBuffer::default(),
             chat_message_parser,
+            tool_calls_generated: 0,
             validator,
         }
     }
@@ -71,16 +74,33 @@ impl ToolCallPipeline {
         }
     }
 
-    fn validate_resolved(&self, tool_calls: Vec<ParsedToolCall>) -> ToolCallEvent {
+    fn validate_resolved(&mut self, tool_calls: Vec<ParsedToolCall>) -> ToolCallEvent {
         let validation_errors: Vec<_> = tool_calls
             .iter()
             .filter_map(|tool_call| self.validator.validate(tool_call).err())
             .collect();
 
         if validation_errors.is_empty() {
-            ToolCallEvent::Resolved(tool_calls)
+            ToolCallEvent::Resolved(self.number_across_the_generation(tool_calls))
         } else {
             ToolCallEvent::ValidationFailed(validation_errors)
         }
+    }
+
+    fn number_across_the_generation(
+        &mut self,
+        tool_calls: Vec<ParsedToolCall>,
+    ) -> Vec<GeneratedToolCall> {
+        tool_calls
+            .into_iter()
+            .map(|tool_call| {
+                let generated_tool_call =
+                    GeneratedToolCall::at_index(tool_call, self.tool_calls_generated);
+
+                self.tool_calls_generated += 1;
+
+                generated_tool_call
+            })
+            .collect()
     }
 }

@@ -2858,9 +2858,9 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e587922217c1959717e817786a8f3c3a8eac5337e9a5e33e06c9451b6363912f"
+checksum = "8cba492d27e5561fe423205eb14ab51854151e48bf732bbc717f7986a5f64e56"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2882,9 +2882,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1270f563c3689e658b922e6e48dfc3ac37861f66ea69f0b477d86d7de7b204f"
+checksum = "31cc4171a52ead66ab2480630dc2d589b6ca6aca1ed43949cda23abcd429943c"
 dependencies = [
  "bindgen",
  "cc",
@@ -2896,18 +2896,18 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d21970c5443ec702e2911cab335cc03d9e640cb2484e661cc4977357cc62bc"
+checksum = "7b45cb652a6c60f065b22e29be57a72c38b9d13247bb15c6edd150b18d4f9dc1"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1e0e477360a058d3413ea2a8154ec2f96e547ee7f642eaa6939d617a3ed6a5d"
+checksum = "f200360a50320173ea1eb8063cf51ef2ba5d0fee6168d528a6431ed5fc6e7bb2"
 dependencies = [
  "serde",
  "serde_json",
@@ -2916,18 +2916,18 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-error-recorder"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "067b8c507144fa0eace10a28f954732af6fdaea6ef120a452c783834828afc47"
+checksum = "7de19c6c96c4d610b79fe1cfbbd40adff64e867cd8bf6bf6c69f75fcc4cc6d23"
 dependencies = [
  "log",
 ]
 
 [[package]]
 name = "llama-cpp-ffi-status"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b37b56379fdbdc172680106e4cff0bac8586d4306fad6d2910668e95a05135e1"
+checksum = "942ab7989e058a65410f3cd332bed2a75c4c05f64b41392c1fb93d53f4c3e593"
 dependencies = [
  "llama-cpp-bindings-sys",
  "thiserror",
@@ -2935,9 +2935,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-gbnf"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa31490a5cad57d15b3a21422a32c3db2464a24eb0bf95d3fc34c0147113fb1c"
+checksum = "9456faa4fcb02bf221f176d088e2a0146cc9a56c35015cac89413a4f6056487b"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-ffi-status",
@@ -2946,15 +2946,15 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-log-decoder"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "167a05303f4ddec2d324a7b3f39eb2b9edd0384a7670d2c40a375e3ed836ff6b"
+checksum = "a8129eec443ccdb124fc172cf33db7d0e87f975868493b8b0279b6d6407cc334"
 
 [[package]]
 name = "llama-cpp-wrapper-sources"
-version = "0.23.0"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13d4eb89c2bce442588290339242cea32ea4609bae39606e0d8e1e2ed619c203"
+checksum = "d7f93c691c97cef03d185f7f46815bbcb00f00c21bdcd5d16b62754f189e682c"
 dependencies = [
  "serde",
  "serde_json",
@@ -3510,7 +3510,6 @@ dependencies = [
 name = "paddler_agent_decision"
 version = "5.0.0"
 dependencies = [
- "icu_normalizer",
  "llama-cpp-bindings",
  "log",
  "paddler_agent_pointer_head",
@@ -3542,6 +3541,7 @@ dependencies = [
 name = "paddler_agent_pointer_head"
 version = "5.0.0"
 dependencies = [
+ "icu_normalizer",
  "llama-cpp-bindings",
  "thiserror",
 ]
@@ -3588,6 +3588,7 @@ dependencies = [
  "paddler_image_decoder",
  "paddler_inference_parameters",
  "paddler_messaging",
+ "paddler_sha256_hex",
  "paddler_tool_call_validator",
  "rand 0.10.3",
  "serde_json",
@@ -3681,7 +3682,7 @@ name = "paddler_cache_dir"
 version = "5.0.0"
 dependencies = [
  "fslock",
- "sha2",
+ "paddler_sha256_hex",
  "tempfile",
  "thiserror",
  "tokio",
@@ -3914,6 +3915,13 @@ dependencies = [
  "dashmap",
  "nanoid",
  "tokio",
+]
+
+[[package]]
+name = "paddler_sha256_hex"
+version = "5.0.0"
+dependencies = [
+ "sha2",
 ]
 
 [[package]]
@@ -5679,7 +5687,11 @@ checksum = "17a073bfed563fa236697a068031408a93cd9522e08abf9933ead3e73411bd71"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite",
 ]
 
@@ -5903,6 +5915,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.10.3",
+ "rustls",
+ "rustls-pki-types",
  "sha1 0.11.0",
  "thiserror",
 ]

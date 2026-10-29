@@ -41,10 +41,10 @@ impl DispatchRequirement {
 mod tests {
     use std::num::NonZeroU16;
 
+    use paddler_messaging::agent_decisions_serving::AgentDecisionsServing;
     use paddler_messaging::agent_runtime_status::AgentRuntimeStatus;
     use paddler_messaging::decision_question::DecisionQuestion;
     use paddler_messaging::inference_capability::InferenceCapability;
-    use paddler_messaging::inference_mode::InferenceMode;
     use paddler_messaging::request_params::decide_params::DecideParams;
 
     use super::DispatchRequirement;
@@ -52,7 +52,7 @@ mod tests {
     use crate::slot_demand::SlotDemand;
 
     const SERVING_FOUR_SLOTS: AgentRuntimeStatus = AgentRuntimeStatus::Serving {
-        inference_mode: InferenceMode::TextGenerationAndEmbeddings,
+        decisions: AgentDecisionsServing::NotServed,
         slots_total: 4,
     };
 
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(
             decision_with_a_leading_question().slots_held_while_waiting(
                 &AgentRuntimeStatus::Serving {
-                    inference_mode: InferenceMode::TextGenerationEmbeddingsAndDecisions,
+                    decisions: AgentDecisionsServing::Served,
                     slots_total: 4,
                 }
             ),

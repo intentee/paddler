@@ -1,9 +1,9 @@
-use llama_cpp_bindings_types::ParsedToolCall;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::generated_token_final_result::GeneratedTokenFinalResult;
 use crate::generated_token_partial_result::GeneratedTokenPartialResult;
+use crate::generated_tool_call::GeneratedToolCall;
 use crate::generation_summary::GenerationSummary;
 use crate::oversized_media_details::OversizedMediaDetails;
 use crate::oversized_prompt_details::OversizedPromptDetails;
@@ -42,7 +42,7 @@ pub enum GeneratedTokenResult {
     SamplingCandidatesExhausted(String),
     SchedulerUnavailable(String),
     ToolCallParseFailed(String),
-    ToolCallParsed(Vec<ParsedToolCall>),
+    ToolCallParsed(Vec<GeneratedToolCall>),
     ToolCallToken(String),
     ToolCallValidationFailed(Vec<String>),
     ToolSchemaInvalid(String),

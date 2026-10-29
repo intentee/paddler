@@ -43,10 +43,11 @@ pub async fn start_cluster(cluster_params: ClusterParams) -> Result<Cluster> {
             xdg: None,
         },
         download_manager: DownloadManager::new()?,
-        huggingface_hub: HuggingFaceHub {
+        huggingface_client: HuggingFaceHub {
             cache_location: HuggingFaceCacheLocation::HubDefault,
             endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
-        },
+        }
+        .client()?,
     };
 
     let mut cluster = Cluster::connect(

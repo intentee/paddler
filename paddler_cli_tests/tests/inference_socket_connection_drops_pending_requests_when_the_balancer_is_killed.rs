@@ -1,10 +1,8 @@
 use std::num::NonZeroU32;
-use std::sync::Arc;
 
 use paddler_cli_tests::start_signalled_subprocess_cluster::start_signalled_subprocess_cluster;
 use paddler_cli_tests::subprocess_cluster::SubprocessCluster;
 use paddler_client::error::Error;
-use paddler_client::inference_socket::cluster_inference_mode_broadcaster::ClusterInferenceModeBroadcaster;
 use paddler_client::inference_socket::connection::Connection;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
@@ -26,12 +24,9 @@ async fn inference_socket_connection_drops_pending_requests_when_the_balancer_is
     )
     .await
     .expect("a balancer without agents must start");
-    let connection = Connection::connect(
-        cluster.balancer.inference_base_url.clone(),
-        Arc::new(ClusterInferenceModeBroadcaster::default()),
-    )
-    .await
-    .expect("the inference socket must connect");
+    let connection = Connection::connect(cluster.balancer.inference_base_url.clone())
+        .await
+        .expect("the inference socket must connect");
     let request: InferenceServerMessage<ValidatedParametersSchema> =
         InferenceServerMessage::Request(RequestEnvelope {
             id: PENDING_REQUEST_ID.to_owned(),

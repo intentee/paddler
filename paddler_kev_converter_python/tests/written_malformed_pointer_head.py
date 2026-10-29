@@ -13,6 +13,8 @@ def written_malformed_pointer_head(tmp_path: Path, defect: str) -> GGUFReader:
             defect,
             "--hidden-size",
             "64",
+            "--input-normalization",
+            "NFC",
             "--output",
             str(tmp_path / f"{defect}.gguf"),
         ]
