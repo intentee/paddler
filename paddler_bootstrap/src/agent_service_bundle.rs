@@ -1,35 +1,28 @@
 use std::sync::Arc;
 
-use anyhow::Result;
-use async_trait::async_trait;
 use nanoid::nanoid;
-use tokio::sync::mpsc;
 use tokio::sync::watch;
-use trzcina::Service;
-use trzcina::ServiceBundle;
+use trzcina::ServiceManager;
 
 use paddler_agent::agent_applicable_state_holder::AgentApplicableStateHolder;
 use paddler_agent::balancer_message_context::BalancerMessageContext;
-use paddler_agent::continuous_batch_arbiter_context::ContinuousBatchArbiterContext;
-use paddler_agent::continuous_batch_preparation_request::ContinuousBatchPreparationRequest;
 use paddler_agent::desired_state_reconciler::DesiredStateReconciler;
 use paddler_agent::llamacpp_arbiter_service::LlamaCppArbiterService;
 use paddler_agent::management_socket_client_service::ManagementSocketClientService;
-use paddler_agent::model_metadata_holder::ModelMetadataHolder;
 use paddler_agent::reconciliation_service::ReconciliationService;
-use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
+use paddler_agent_runtime::inference_runtime_context_params::InferenceRuntimeContextParams;
 use paddler_messaging::agent_desired_state::AgentDesiredState;
 use paddler_messaging::api_path::ApiPath;
-use paddler_messaging::balancer_connection::BalancerConnection;
+use paddler_outbox::outbox::Outbox;
 
 use crate::agent_bootstrap_config::AgentBootstrapConfig;
+use crate::registers_services::RegistersServices;
 
 pub struct AgentServiceBundle {
-    pub balancer_connection_rx: watch::Receiver<BalancerConnection>,
-    pub slot_aggregated_status: Arc<SlotAggregatedStatus>,
-    llamacpp_arbiter_service: LlamaCppArbiterService,
-    management_socket_client_service: ManagementSocketClientService,
-    reconciliation_service: ReconciliationService,
+    llamacpp_arbiter: LlamaCppArbiterService,
+    management_socket_client: ManagementSocketClientService,
+    reconciliation: ReconciliationService,
 }
 
 impl AgentServiceBundle {
@@ -37,39 +30,42 @@ impl AgentServiceBundle {
     pub fn new(
         AgentBootstrapConfig {
             agent_name,
+            desired_model_resolver,
             management_address,
             slots,
         }: AgentBootstrapConfig,
     ) -> Self {
-        let (balancer_connection_tx, balancer_connection_rx) =
-            watch::channel(BalancerConnection::Connecting);
-        let (agent_desired_state_tx, agent_desired_state_rx) =
-            mpsc::unbounded_channel::<AgentDesiredState>();
-        let (continuous_batch_preparation_request_tx, continuous_batch_preparation_request_rx) =
-            mpsc::unbounded_channel::<ContinuousBatchPreparationRequest>();
+        let (agent_desired_state_tx, mut agent_desired_state_rx) =
+            watch::channel(AgentDesiredState::default());
+
+        agent_desired_state_rx.mark_changed();
+
+        let pipeline_requests = Arc::new(Outbox::default());
 
         let agent_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
-        let model_metadata_holder = Arc::new(ModelMetadataHolder::default());
-        let slot_aggregated_status = Arc::new(SlotAggregatedStatus::new(slots));
-
-        let llamacpp_arbiter_service = LlamaCppArbiterService {
-            agent_applicable_state_holder: agent_applicable_state_holder.clone(),
-            arbiter_context: ContinuousBatchArbiterContext {
+        let served_applicable_state_holder = Arc::new(AgentApplicableStateHolder::default());
+        let inference_runtime_context =
+            InferenceRuntimeContext::new(InferenceRuntimeContextParams {
                 agent_name: agent_name.clone(),
-                model_metadata_holder: model_metadata_holder.clone(),
-                slot_aggregated_status: slot_aggregated_status.clone(),
-            },
-            continuous_batch_preparation_request_rx,
+                slots,
+            });
+        let model_metadata_holder = inference_runtime_context.model_metadata_holder.clone();
+        let slot_aggregated_status = inference_runtime_context.slot_aggregated_status.clone();
+
+        let llamacpp_arbiter = LlamaCppArbiterService {
+            agent_applicable_state_holder: agent_applicable_state_holder.clone(),
+            inference_runtime_context,
+            pipeline_requests: pipeline_requests.clone(),
+            served_applicable_state_holder: served_applicable_state_holder.clone(),
         };
 
-        let management_socket_client_service = ManagementSocketClientService {
-            balancer_connection_tx,
+        let management_socket_client = ManagementSocketClientService {
             balancer_message_context: BalancerMessageContext {
-                agent_applicable_state_holder: agent_applicable_state_holder.clone(),
                 agent_desired_state_tx,
-                continuous_batch_preparation_request_tx,
                 model_metadata_holder,
+                pipeline_requests,
                 request_stoppers: Arc::default(),
+                served_applicable_state_holder,
                 slot_aggregated_status: slot_aggregated_status.clone(),
             },
             name: agent_name,
@@ -79,31 +75,27 @@ impl AgentServiceBundle {
             ),
         };
 
-        let reconciliation_service = ReconciliationService {
+        let reconciliation = ReconciliationService {
+            agent_applicable_state_holder,
             agent_desired_state_rx,
             desired_state_reconciler: DesiredStateReconciler {
-                agent_applicable_state_holder,
-                slot_aggregated_status: slot_aggregated_status.clone(),
+                desired_model_resolver,
+                slot_aggregated_status,
             },
         };
 
         Self {
-            balancer_connection_rx,
-            slot_aggregated_status,
-            llamacpp_arbiter_service,
-            management_socket_client_service,
-            reconciliation_service,
+            llamacpp_arbiter,
+            management_socket_client,
+            reconciliation,
         }
     }
 }
 
-#[async_trait]
-impl ServiceBundle for AgentServiceBundle {
-    async fn services(self) -> Result<Vec<Box<dyn Service>>> {
-        Ok(vec![
-            Box::new(self.llamacpp_arbiter_service),
-            Box::new(self.management_socket_client_service),
-            Box::new(self.reconciliation_service),
-        ])
+impl RegistersServices for AgentServiceBundle {
+    fn register_services(self, service_manager: &mut ServiceManager) {
+        service_manager.register_service(self.llamacpp_arbiter);
+        service_manager.register_service(self.management_socket_client);
+        service_manager.register_service(self.reconciliation);
     }
 }

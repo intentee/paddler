@@ -14,7 +14,7 @@ where
     fn send_response_safe(&mut self, message: TResponse) -> impl Future<Output = ()> + Send {
         async move {
             if let Err(err) = self.send_response(message).await {
-                error!("Failed to send response: {err}");
+                error!("Failed to send response: {err:#}");
             }
         }
     }

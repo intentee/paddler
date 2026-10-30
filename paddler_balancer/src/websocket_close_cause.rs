@@ -11,16 +11,18 @@ const fn described_close_reason(code: CloseCode, description: String) -> CloseRe
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum WebSocketCloseCause {
     AgentAlreadyRegistered,
     AgentDeregistered,
     AgentMessageUndeserializable,
+    AgentResponseBeforeRegistration,
     AgentStatusBeforeRegistration,
     ConnectionCloseRequested,
     IncomingMessageTooBig,
     IncomingStreamFailed,
     PeerClosedConnection,
+    PeerStoppedAnsweringPings,
     ProtocolViolated,
     ServerShuttingDown,
     SessionAlreadyClosed,
@@ -42,6 +44,10 @@ impl WebSocketCloseCause {
                 CloseCode::Invalid,
                 "Agent message could not be deserialized".to_owned(),
             )),
+            Self::AgentResponseBeforeRegistration => Some(described_close_reason(
+                CloseCode::Policy,
+                "Agent sent a response before registering".to_owned(),
+            )),
             Self::AgentStatusBeforeRegistration => Some(described_close_reason(
                 CloseCode::Policy,
                 "Agent sent its status before registering".to_owned(),
@@ -55,6 +61,10 @@ impl WebSocketCloseCause {
             Self::IncomingStreamFailed => Some(described_close_reason(
                 CloseCode::Error,
                 "Failed to read the incoming message stream".to_owned(),
+            )),
+            Self::PeerStoppedAnsweringPings => Some(described_close_reason(
+                CloseCode::Policy,
+                "Peer stopped answering pings".to_owned(),
             )),
             Self::ProtocolViolated => Some(described_close_reason(
                 CloseCode::Protocol,

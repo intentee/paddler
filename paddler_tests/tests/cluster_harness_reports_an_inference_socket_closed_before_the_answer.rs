@@ -7,13 +7,9 @@ const UNANSWERED_REQUEST_ID: &str = "request-the-balancer-never-received";
 
 #[tokio::test(flavor = "multi_thread")]
 async fn cluster_harness_reports_an_inference_socket_closed_before_the_answer() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("a cluster without agents must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
     let mut socket = RawInferenceSocket::connect(cluster.balancer.addresses.inference)
         .await
         .expect("the raw inference socket must connect");

@@ -23,12 +23,14 @@ async fn agent_conversation_with_gbnf_grammar_constrains_output() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "Is the sky blue? Answer yes or no.".to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "Is the sky blue? Answer yes or no.".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: Some(GrammarConstraint::Gbnf {
                     grammar: r"root ::= [Yy][Ee][Ss] | [Nn][Oo]".to_owned(),
@@ -45,9 +47,8 @@ async fn agent_conversation_with_gbnf_grammar_constrains_output() {
     let lower = collected.text.to_lowercase();
 
     assert!(
-        lower == "yes" || lower == "no",
-        "GBNF grammar should constrain output to yes/no; got {:?}",
-        collected.text
+        ["yes", "no"].contains(&lower.as_str()),
+        "GBNF grammar should constrain output to yes/no; got {lower:?}"
     );
 
     cluster

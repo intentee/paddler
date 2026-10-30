@@ -42,4 +42,10 @@ async fn returns_cancelled_without_a_request_for_a_cancelled_token() {
             .expect("the destination must be inspectable")
     );
     assert_eq!(fixture.request_count(), 0);
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

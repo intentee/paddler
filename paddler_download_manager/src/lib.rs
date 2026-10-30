@@ -4,4 +4,5 @@ pub mod download_outcome;
 pub mod download_progress;
 pub mod download_url;
 pub mod partial_file;
+pub mod read_timeout;
 pub mod response_classification;

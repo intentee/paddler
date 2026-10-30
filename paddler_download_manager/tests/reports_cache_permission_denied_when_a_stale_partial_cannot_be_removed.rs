@@ -1,5 +1,3 @@
-#![cfg(unix)]
-
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt as _;
 
@@ -57,4 +55,10 @@ async fn reports_cache_permission_denied_when_a_stale_partial_cannot_be_removed(
         Err(DownloadError::CachePermissionDenied { path, .. })
             if path == destination.with_extension("partial")
     ));
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

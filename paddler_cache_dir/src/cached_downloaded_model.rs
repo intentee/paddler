@@ -2,10 +2,10 @@ use std::io::Error;
 use std::path::PathBuf;
 
 use fslock::LockFile;
-use sha2::Digest;
-use sha2::Sha256;
 use tokio::fs::create_dir_all;
 use tokio::fs::try_exists;
+
+use paddler_sha256_hex::sha256_lowercase_hex::sha256_lowercase_hex;
 
 use crate::cache_dir::CacheDir;
 use crate::cache_dir_error::CacheDirError;
@@ -23,7 +23,7 @@ pub struct CachedDownloadedModel {
 impl CachedDownloadedModel {
     pub fn new(cache_dir: &CacheDir, url_string: &str) -> Result<Self, CacheDirError> {
         cache_dir.resolve().map(|cache_root| {
-            let basename = format!("{:x}", Sha256::digest(url_string.as_bytes()));
+            let basename = sha256_lowercase_hex(url_string.as_bytes());
             let cache_subdir = cache_root.join(DOWNLOADED_MODELS_SUBDIR);
 
             Self {
@@ -72,21 +72,10 @@ mod tests {
     use crate::download_lock_acquisition::DownloadLockAcquisition;
 
     fn cache_dir_at(path: &Path) -> CacheDir {
-        #[cfg(unix)]
-        {
-            CacheDir {
-                explicit: Some(path.to_path_buf()),
-                home: None,
-                xdg: None,
-            }
-        }
-        #[cfg(windows)]
-        {
-            CacheDir {
-                explicit: Some(path.to_path_buf()),
-                localappdata: None,
-                userprofile: None,
-            }
+        CacheDir {
+            explicit: Some(path.to_path_buf()),
+            home: None,
+            xdg: None,
         }
     }
 
@@ -222,31 +211,17 @@ mod tests {
 
     #[test]
     fn new_returns_error_when_cache_dir_cannot_resolve() {
-        let unresolvable;
-        #[cfg(unix)]
-        {
-            unresolvable = CacheDir {
-                explicit: None,
-                home: None,
-                xdg: None,
-            };
-        }
-        #[cfg(windows)]
-        {
-            unresolvable = CacheDir {
-                explicit: None,
-                localappdata: None,
-                userprofile: None,
-            };
-        }
+        let unresolvable = CacheDir {
+            explicit: None,
+            home: None,
+            xdg: None,
+        };
 
         let result = CachedDownloadedModel::new(&unresolvable, "https://host.example/m.gguf");
 
         assert_eq!(
             result.err().as_ref().map(discriminant),
-            Some(discriminant(&CacheDirError::HomeVariableUnset {
-                variable: "HOME"
-            }))
+            Some(discriminant(&CacheDirError::HomeVariableUnset))
         );
     }
 

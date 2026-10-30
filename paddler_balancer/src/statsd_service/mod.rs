@@ -1,4 +1,5 @@
 pub mod configuration;
+pub mod statsd_udp_sink;
 
 use std::net::UdpSocket;
 use std::sync::Arc;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use cadence::StatsdClient;
-use cadence::UdpMetricSink;
 use log::error;
 use tokio::select;
 use tokio::time::MissedTickBehavior;
@@ -18,6 +18,7 @@ use crate::agent_controller_pool::AgentControllerPool;
 use crate::balancer_metrics::BalancerMetrics;
 use crate::buffered_request_manager::BufferedRequestManager;
 use crate::statsd_service::configuration::Configuration as StatsdServiceConfiguration;
+use crate::statsd_service::statsd_udp_sink::StatsdUdpSink;
 
 pub struct StatsdService {
     pub agent_controller_pool: Arc<AgentControllerPool>,
@@ -26,19 +27,15 @@ pub struct StatsdService {
     pub statsd_prefix: String,
 }
 
-#[async_trait]
-impl Service for StatsdService {
-    fn name(&self) -> &'static str {
-        "balancer::statsd_service"
-    }
-
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
-        let statsd_sink_socket = UdpSocket::bind("0.0.0.0:0")?;
-        let statsd_sink = UdpMetricSink::from(
-            self.configuration.statsd_addr.socket_addr,
-            statsd_sink_socket,
-        )?;
-
+impl StatsdService {
+    async fn report_metrics_until_shutdown(
+        self: Box<Self>,
+        shutdown: CancellationToken,
+    ) -> Result<()> {
+        let statsd_sink = StatsdUdpSink {
+            socket: UdpSocket::bind("0.0.0.0:0")?,
+            statsd_addr: self.configuration.statsd_addr.socket_addr,
+        };
         let client = StatsdClient::builder(&self.statsd_prefix, statsd_sink).build();
 
         let mut ticker = interval(self.configuration.statsd_reporting_interval);
@@ -60,5 +57,16 @@ impl Service for StatsdService {
                 }
             }
         }
+    }
+}
+
+#[async_trait]
+impl Service for StatsdService {
+    fn name(&self) -> &'static str {
+        "balancer::statsd_service"
+    }
+
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        self.report_metrics_until_shutdown(shutdown).await
     }
 }

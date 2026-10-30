@@ -4,7 +4,7 @@ autotests = false
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
-description = "Shared service wiring for Paddler CLI and desktop app"
+description = "Starts and runs the Paddler balancer and agent services"
 homepage.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -16,14 +16,14 @@ path = "tests/main.rs"
 [dependencies]
 actix-web = { workspace = true }
 anyhow = { workspace = true }
-async-trait = { workspace = true }
 log = { workspace = true }
 nanoid = { workspace = true }
 paddler_agent = { workspace = true }
+paddler_agent_runtime = { workspace = true }
 paddler_balancer = { workspace = true }
-paddler_inference_parameters = { workspace = true }
-paddler_agent_status = { workspace = true }
 paddler_messaging = { workspace = true }
+paddler_model_source = { workspace = true }
+paddler_outbox = { workspace = true }
 paddler_state_database = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -31,10 +31,12 @@ tokio-util = { workspace = true }
 trzcina = { workspace = true }
 
 [dev-dependencies]
+paddler_client = { workspace = true }
 paddler_test_cluster_harness = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
+url = { workspace = true }
 
 [lints]
 workspace = true

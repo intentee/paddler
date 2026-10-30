@@ -8,14 +8,12 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 fn user_message(text: &str) -> ConversationMessage {
-    ConversationMessage {
+    ConversationMessage::Message {
         content: ConversationMessageContent::Text(text.to_owned()),
         role: "user".to_owned(),
     }
@@ -66,20 +64,12 @@ async fn continuous_batch_concurrent_conversation_history_requests_complete() {
 
     assert!(tokens_a > 0);
     assert!(tokens_b > 0);
-    assert!(matches!(
-        collected_a.token_results.last(),
-        Some(TokenResultWithProducer {
-            token_result: GeneratedTokenResult::Done(_),
-            ..
-        })
-    ));
-    assert!(matches!(
-        collected_b.token_results.last(),
-        Some(TokenResultWithProducer {
-            token_result: GeneratedTokenResult::Done(_),
-            ..
-        })
-    ));
+    collected_a
+        .summary()
+        .expect("the generation must finish with a summary");
+    collected_b
+        .summary()
+        .expect("the generation must finish with a summary");
 
     cluster
         .shutdown()

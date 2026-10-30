@@ -23,7 +23,7 @@ impl BufferedRequestCounter {
     }
 
     pub fn decrement(&self) {
-        self.count.decrement();
+        self.count.subtract(1);
         self.update_tx.send_replace(());
     }
 

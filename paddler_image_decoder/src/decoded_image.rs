@@ -63,7 +63,9 @@ fn rasterize_svg(
         height: target_height,
         rgb_pixels: pixmap
             .data()
-            .chunks_exact(RGBA_BYTES_PER_PIXEL)
+            .as_chunks::<RGBA_BYTES_PER_PIXEL>()
+            .0
+            .iter()
             .flat_map(|rgba_pixel| &rgba_pixel[..RGB_BYTES_PER_PIXEL])
             .copied()
             .collect(),

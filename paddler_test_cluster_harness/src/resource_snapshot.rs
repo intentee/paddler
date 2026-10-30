@@ -21,13 +21,12 @@ pub struct ResourceSnapshot {
 
 impl ResourceSnapshot {
     pub fn try_from_self() -> Result<Self, ClusterHarnessError> {
-        let open_file_descriptors = read_dir(open_descriptors_directory_path())
+        read_dir(open_descriptors_directory_path())
             .and_then(Iterator::collect::<Result<Vec<DirEntry>, io::Error>>)
-            .map_err(ClusterHarnessError::OpenFileDescriptorsUnreadable)?;
-
-        Ok(Self {
-            open_file_descriptor_count: open_file_descriptors.len(),
-        })
+            .map(|open_file_descriptors| Self {
+                open_file_descriptor_count: open_file_descriptors.len(),
+            })
+            .map_err(ClusterHarnessError::OpenFileDescriptorsUnreadable)
     }
 
     #[must_use]

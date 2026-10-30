@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Error;
-use anyhow::Result;
 use tokio::sync::watch;
 use tokio::time::error::Elapsed;
 use tokio::time::timeout;
@@ -14,6 +12,8 @@ use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
 use crate::agent_controller_pool::AgentControllerPool;
 use crate::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
 use crate::buffered_request_counter::BufferedRequestCounter;
+use crate::dispatch_position::DispatchPosition;
+use crate::dispatch_requirement::DispatchRequirement;
 use crate::dispatched_agent::DispatchedAgent;
 
 pub struct BufferedRequestManager {
@@ -44,37 +44,43 @@ impl BufferedRequestManager {
     }
 
     #[must_use]
-    pub fn take_available_agent(&self) -> Option<DispatchedAgent> {
+    pub fn take_available_agent(
+        &self,
+        dispatch_requirement: DispatchRequirement,
+    ) -> Option<DispatchedAgent> {
         self.agent_controller_pool
-            .take_least_busy_agent_controller()
+            .take_least_busy_agent_controller(dispatch_requirement, DispatchPosition::Arriving)
     }
 
-    pub async fn wait_for_available_agent(&self) -> Result<BufferedRequestAgentWaitResult> {
-        if let Some(dispatched_agent) = self.take_available_agent() {
-            return Ok(BufferedRequestAgentWaitResult::Found(dispatched_agent));
+    pub async fn wait_for_available_agent(
+        &self,
+        dispatch_requirement: DispatchRequirement,
+    ) -> BufferedRequestAgentWaitResult {
+        let agent_availability_changed = self.agent_controller_pool.agent_availability_changed();
+
+        if let Some(dispatched_agent) = self.take_available_agent(dispatch_requirement) {
+            return BufferedRequestAgentWaitResult::Found(dispatched_agent);
         }
 
-        let Some(_buffered_request_count_guard) = self.buffered_request_counter.try_admit() else {
-            return Ok(BufferedRequestAgentWaitResult::BufferOverflow);
+        let Some(waiting_line_place) = self
+            .agent_controller_pool
+            .join_waiting_line_when_admitted(dispatch_requirement, &self.buffered_request_counter)
+        else {
+            return BufferedRequestAgentWaitResult::BufferOverflow;
         };
-        let agent_controller_pool = self.agent_controller_pool.clone();
-        let mut update_rx = agent_controller_pool.subscribe_to_updates();
 
-        match timeout(self.buffered_request_timeout, async {
-            loop {
-                if let Some(dispatched_agent) =
-                    agent_controller_pool.take_least_busy_agent_controller()
-                {
-                    return Ok::<_, Error>(BufferedRequestAgentWaitResult::Found(dispatched_agent));
-                }
-
-                update_rx.changed().await?;
-            }
-        })
+        match timeout(
+            self.buffered_request_timeout,
+            self.agent_controller_pool.next_available_agent(
+                agent_availability_changed,
+                dispatch_requirement,
+                waiting_line_place.dispatch_position(),
+            ),
+        )
         .await
         {
-            Ok(inner_result) => Ok(inner_result?),
-            Err(Elapsed { .. }) => Ok(BufferedRequestAgentWaitResult::Timeout),
+            Ok(dispatched_agent) => BufferedRequestAgentWaitResult::Found(dispatched_agent),
+            Err(Elapsed { .. }) => BufferedRequestAgentWaitResult::Timeout,
         }
     }
 }
@@ -99,23 +105,29 @@ impl SubscribesToUpdates for BufferedRequestManager {
 mod tests {
     use std::hint::spin_loop;
     use std::mem::discriminant;
+    use std::num::NonZeroU32;
     use std::sync::Arc;
     use std::sync::atomic::AtomicBool;
     use std::thread::available_parallelism;
     use std::thread::scope;
     use std::time::Duration;
 
+    use futures::FutureExt as _;
+    use tokio::pin;
     use tokio::runtime::Builder;
     use tokio::select;
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;
 
     use paddler_messaging::atomic_value::AtomicValue;
+    use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
     use paddler_messaging::subscribes_to_updates::SubscribesToUpdates as _;
 
     use super::BufferedRequestManager;
     use crate::agent_controller_pool::AgentControllerPool;
+    use crate::agent_streaming_request::AgentStreamingRequest as _;
     use crate::buffered_request_agent_wait_result::BufferedRequestAgentWaitResult;
+    use crate::dispatch_requirement::DispatchRequirement;
 
     const BUFFER_CAPACITY: u64 = 1;
     const RACE_ROUNDS: usize = 64;
@@ -125,12 +137,22 @@ mod tests {
         overflowed_callers: usize,
     }
 
+    fn raw_prompt_requirement() -> DispatchRequirement {
+        ContinueFromRawPromptParams {
+            grammar: None,
+            max_tokens: NonZeroU32::MIN,
+            raw_prompt: "hello".to_owned(),
+        }
+        .dispatch_requirement()
+    }
+
     fn race_callers_for_one_buffered_place(racing_callers: usize) -> RaceOutcome {
         let buffered_request_manager = BufferedRequestManager::new(
             Arc::new(AgentControllerPool::default()),
             Duration::MAX,
             BUFFER_CAPACITY,
         );
+        let raw_prompt_requirement = raw_prompt_requirement();
         let start_line = AtomicValue::<AtomicBool>::new(false);
         let admitted_callers_release = CancellationToken::new();
         let (overflow_tx, mut overflow_rx) = mpsc::unbounded_channel();
@@ -156,14 +178,12 @@ mod tests {
                         caller_runtime.block_on(async {
                             if let Some(wait_result) = admitted_callers_release
                                 .run_until_cancelled(
-                                    buffered_request_manager.wait_for_available_agent(),
+                                    buffered_request_manager
+                                        .wait_for_available_agent(raw_prompt_requirement),
                                 )
                                 .await
-                                && discriminant(
-                                    &wait_result.expect("waiting for an agent must not fail"),
-                                ) == discriminant(
-                                    &BufferedRequestAgentWaitResult::BufferOverflow,
-                                )
+                                && discriminant(&wait_result)
+                                    == discriminant(&BufferedRequestAgentWaitResult::BufferOverflow)
                             {
                                 overflow_tx
                                     .send(())
@@ -232,5 +252,26 @@ mod tests {
             assert_eq!(admitted_callers, BUFFER_CAPACITY);
             assert_eq!(overflowed_callers, racing_callers - 1);
         }
+    }
+
+    #[tokio::test]
+    async fn a_request_the_full_buffer_refuses_wakes_no_waiting_request() {
+        let agent_controller_pool = Arc::new(AgentControllerPool::default());
+        let buffered_request_manager =
+            BufferedRequestManager::new(agent_controller_pool.clone(), Duration::MAX, 0);
+        let agent_availability_changed = agent_controller_pool.agent_availability_changed();
+
+        pin!(agent_availability_changed);
+        agent_availability_changed.as_mut().enable();
+
+        let wait_result = buffered_request_manager
+            .wait_for_available_agent(raw_prompt_requirement())
+            .await;
+
+        assert_eq!(
+            discriminant(&wait_result),
+            discriminant(&BufferedRequestAgentWaitResult::BufferOverflow)
+        );
+        assert_eq!(agent_availability_changed.now_or_never(), None);
     }
 }

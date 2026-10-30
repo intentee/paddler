@@ -5,7 +5,7 @@ use std::num::NonZeroUsize;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
+use paddler_inference_parameters::embedding_parameters::EmbeddingParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -20,10 +20,9 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         EmbeddingClusterParams {
             agents: AgentConfig::uniform(4, 1),
-            inference_parameters: InferenceParameters {
+            embedding_parameters: EmbeddingParameters {
                 embedding_batch_size: NonZeroUsize::MIN,
-                enable_embeddings: true,
-                ..InferenceParameters::deterministic()
+                ..EmbeddingParameters::default()
             },
             max_buffered_requests: 4,
             ..EmbeddingClusterParams::default()
@@ -71,13 +70,14 @@ async fn balancer_emits_overflow_errors_when_embedding_burst_exceeds_max_buffere
         "stream must terminate cleanly with Done even when some sub-batches overflow",
     );
 
+    let embedding_count = collected.embeddings.len();
+    let wire_error_count = collected.wire_errors.len();
+    let overflow_error_count = overflow_errors.len();
+
     assert_eq!(
-        collected.embeddings.len() + collected.wire_errors.len(),
+        embedding_count + wire_error_count,
         TOTAL_DOCUMENTS,
-        "every sub-batch must be accounted for as either a successful embedding or a wire error (503 overflow or 504 timeout): {} embeddings + {} wire errors ({} of which are 503 overflow) ≠ {TOTAL_DOCUMENTS}",
-        collected.embeddings.len(),
-        collected.wire_errors.len(),
-        overflow_errors.len(),
+        "every sub-batch must be accounted for as either a successful embedding or a wire error (503 overflow or 504 timeout): {embedding_count} embeddings + {wire_error_count} wire errors ({overflow_error_count} of which are 503 overflow) ≠ {TOTAL_DOCUMENTS}",
     );
 
     cluster

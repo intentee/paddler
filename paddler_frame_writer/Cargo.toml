@@ -1,0 +1,20 @@
+[package]
+name = "paddler_frame_writer"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+futures-util = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+futures = { workspace = true }
+
+[lints]
+workspace = true

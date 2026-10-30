@@ -1,22 +1,22 @@
 use std::num::NonZeroU32;
-use std::time::Duration;
 
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::inference_client::message::Message;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_504_when_no_agents_registered() {
     let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        buffered_request_timeout: Duration::from_millis(50),
+        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         max_buffered_requests: 1,
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("a cluster without agents must start");
@@ -37,7 +37,13 @@ async fn balancer_returns_504_when_no_agents_registered() {
         .expect("the inference stream must yield a message")
         .expect("the inference stream message must be readable");
 
-    assert!(matches!(message, Message::Error(envelope) if envelope.error.code == 504));
+    assert!(matches!(
+        message,
+        Message::Error(ErrorEnvelope { error, .. }) if error == JsonRpcError {
+            code: 504,
+            description: "Waiting for available slot timed out".to_owned(),
+        }
+    ));
 
     cluster
         .shutdown()

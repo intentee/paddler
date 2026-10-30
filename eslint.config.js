@@ -20,7 +20,7 @@ export default tseslint.config(
     extends: [
       eslintConfig,
       tseslint.configs.strictTypeChecked,
-      reactHooks.configs["recommended-latest"],
+      reactHooks.configs.flat.recommended,
     ],
     files: ["resources/ts/**/*.{ts,tsx}"],
     languageOptions: {

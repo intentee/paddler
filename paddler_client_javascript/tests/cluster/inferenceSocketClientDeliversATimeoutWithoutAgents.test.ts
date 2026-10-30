@@ -26,7 +26,7 @@ test("inferenceSocketClient delivers a timeout without agents", async function (
           inferenceSocketClient({ webSocket })
             .continueConversation({
               enableThinking: false,
-              messages: [{ content: "Hello", role: "user" }],
+              messages: [{ Message: { content: "Hello", role: "user" } }],
             })
             .pipe(toArray()),
         );

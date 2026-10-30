@@ -13,8 +13,7 @@ export function eventSourceMessageState<TSchema extends z.ZodType>({
   data: string;
   schema: TSchema;
 }):
-  | EventSourceDataSnapshotState<TSchema>
-  | EventSourceDeserializationErrorState {
+  EventSourceDataSnapshotState<TSchema> | EventSourceDeserializationErrorState {
   let parsedJson: unknown;
 
   try {

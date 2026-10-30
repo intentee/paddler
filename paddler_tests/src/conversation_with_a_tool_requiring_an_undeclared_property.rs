@@ -24,7 +24,7 @@ pub fn conversation_with_a_tool_requiring_an_undeclared_property()
 
     ContinueFromConversationHistoryParams {
         add_generation_prompt: true,
-        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+        conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
             content: ConversationMessageContent::Text("Say hello".to_owned()),
             role: "user".to_owned(),
         }]),

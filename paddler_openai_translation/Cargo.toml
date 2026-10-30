@@ -1,0 +1,29 @@
+[package]
+name = "paddler_openai_translation"
+autotests = false
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]
+llama-cpp-bindings-types = { workspace = true }
+nanoid = { workspace = true }
+paddler_inference_parameters = { workspace = true }
+paddler_messaging = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+paddler_openai_response_format_validator = { workspace = true }
+
+[lints]
+workspace = true

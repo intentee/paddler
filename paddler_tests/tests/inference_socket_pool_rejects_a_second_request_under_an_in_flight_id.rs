@@ -28,18 +28,11 @@ fn raw_prompt_message() -> InferenceServerMessage<ValidatedParametersSchema> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_pool_rejects_a_second_request_under_an_in_flight_id() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("a cluster without agents must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
     let pool = Pool::new(
-        cluster
-            .balancer
-            .inference_base_url()
-            .expect("the inference service must have a base URL"),
+        cluster.balancer.inference_base_url.clone(),
         NonZeroUsize::MIN,
     );
 

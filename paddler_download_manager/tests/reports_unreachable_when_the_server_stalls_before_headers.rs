@@ -3,6 +3,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
+use paddler_download_manager::download_progress::DownloadProgress;
 use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 
@@ -32,5 +33,11 @@ async fn reports_unreachable_when_the_server_stalls_before_headers() {
         Err(DownloadError::DownloadServerIsUnreachable { url: reported_url, .. })
             if reported_url == url
     ));
-    assert!(recorded_download.progress.is_empty());
+    assert_eq!(recorded_download.progress, Vec::<DownloadProgress>::new());
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

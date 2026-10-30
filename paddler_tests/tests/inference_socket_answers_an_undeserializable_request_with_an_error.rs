@@ -13,10 +13,8 @@ use paddler_tests::start_cluster::start_cluster;
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_answers_an_undeserializable_request_with_an_error() {
     let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
         max_buffered_requests: 0,
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("the cluster must start");

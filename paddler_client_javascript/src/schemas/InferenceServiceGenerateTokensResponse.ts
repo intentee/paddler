@@ -1,12 +1,9 @@
 import { z } from "zod";
 
-import { ParsedToolCallSchema } from "./ParsedToolCall";
+import { GeneratedToolCallSchema } from "./GeneratedToolCall";
 
 export type GeneratedTokenKind =
-  | "content"
-  | "reasoning"
-  | "tool_call"
-  | "undeterminable";
+  "content" | "reasoning" | "tool_call" | "undeterminable";
 
 const TokenUsageSchema = z.object({
   prompt_tokens: z.number(),
@@ -69,14 +66,12 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ MultimodalTokenizationFailed: z.string() }),
   z.object({ NoSequenceSlotAvailable: z.string() }),
   z.object({ PromptTokenizationFailed: z.string() }),
+  z.object({ PromptTokenizedToNothing: z.string() }),
   z.object({ SamplerChainCreationFailed: z.string() }),
   z.object({ SamplingCandidatesExhausted: z.string() }),
   z.object({ SchedulerUnavailable: z.string() }),
-  z.object({ SequenceIdOutOfRange: z.string() }),
-  z.object({ ToolsSerializationFailed: z.string() }),
   z.object({ SamplerError: z.string() }),
-  z.object({ TokenGenerationDisabled: z.string() }),
-  z.object({ ToolCallParsed: z.array(ParsedToolCallSchema) }),
+  z.object({ ToolCallParsed: z.array(GeneratedToolCallSchema) }),
   z.object({ ToolCallParseFailed: z.string() }),
   z.object({ ToolCallValidationFailed: z.array(z.string()) }),
   z.object({ ToolSchemaInvalid: z.string() }),
@@ -118,7 +113,7 @@ type Normalised =
       summary: null;
       token: null;
       tokenKind: null;
-      toolCalls: ReadonlyArray<z.infer<typeof ParsedToolCallSchema>>;
+      toolCalls: ReadonlyArray<z.infer<typeof GeneratedToolCallSchema>>;
     }
   | {
       done: false;
@@ -435,6 +430,15 @@ export const InferenceServiceGenerateTokensResponseSchema = z
       );
     }
 
+    if ("PromptTokenizedToNothing" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        400,
+        variant.PromptTokenizedToNothing,
+      );
+    }
+
     if ("SamplerChainCreationFailed" in variant) {
       return terminalError(
         request_id,
@@ -459,24 +463,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         503,
         variant.SchedulerUnavailable,
-      );
-    }
-
-    if ("SequenceIdOutOfRange" in variant) {
-      return terminalError(
-        request_id,
-        generated_by,
-        500,
-        variant.SequenceIdOutOfRange,
-      );
-    }
-
-    if ("ToolsSerializationFailed" in variant) {
-      return terminalError(
-        request_id,
-        generated_by,
-        500,
-        variant.ToolsSerializationFailed,
       );
     }
 
@@ -582,15 +568,6 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         400,
         variant.MultimodalNotSupported,
-      );
-    }
-
-    if ("TokenGenerationDisabled" in variant) {
-      return terminalError(
-        request_id,
-        generated_by,
-        501,
-        variant.TokenGenerationDisabled,
       );
     }
 

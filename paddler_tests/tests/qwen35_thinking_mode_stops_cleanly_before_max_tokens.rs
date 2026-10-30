@@ -7,10 +7,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -24,10 +22,12 @@ async fn qwen35_thinking_mode_stops_cleanly_before_max_tokens() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: true,
                 grammar: None,
                 max_tokens: NonZeroU32::new(2000).unwrap(),
@@ -46,13 +46,9 @@ async fn qwen35_thinking_mode_stops_cleanly_before_max_tokens() {
 
     assert!(token_count > 0);
     assert!(token_count <= 2000);
-    assert!(matches!(
-        collected.token_results.last(),
-        Some(TokenResultWithProducer {
-            token_result: GeneratedTokenResult::Done(_),
-            ..
-        })
-    ));
+    collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     cluster
         .shutdown()

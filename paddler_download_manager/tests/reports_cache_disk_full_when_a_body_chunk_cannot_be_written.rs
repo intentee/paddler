@@ -14,6 +14,7 @@ use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 use crate::recorded_download::RecordedDownload;
 
 const HYPER_DEFAULT_MAX_READ_BUFFER_BYTES: usize = 8192 + 4096 * 100;
+const BODY_LENGTH: usize = 2 * HYPER_DEFAULT_MAX_READ_BUFFER_BYTES + 1;
 
 #[tokio::test]
 async fn reports_cache_disk_full_when_a_body_chunk_cannot_be_written() {
@@ -25,13 +26,9 @@ async fn reports_cache_disk_full_when_a_body_chunk_cannot_be_written() {
     symlink("/dev/full", destination.with_extension("partial"))
         .expect("the partial path must link to the full device");
 
-    let fixture = LocalHttpFixture::start(FixtureResponse::Ok(vec![
-        0_u8;
-        2 * HYPER_DEFAULT_MAX_READ_BUFFER_BYTES
-            + 1
-    ]))
-    .await
-    .expect("the local HTTP fixture must start");
+    let fixture = LocalHttpFixture::start(FixtureResponse::Ok(vec![0_u8; BODY_LENGTH]))
+        .await
+        .expect("the local HTTP fixture must start");
 
     let recorded_download = RecordedDownload::download(
         &download_manager,
@@ -42,7 +39,14 @@ async fn reports_cache_disk_full_when_a_body_chunk_cannot_be_written() {
     .await;
 
     assert!(matches!(
-        recorded_download.result,
+        &recorded_download.result,
         Err(DownloadError::CacheDiskFull { source, .. }) if source.kind() == ErrorKind::StorageFull
     ));
+    assert!(recorded_download.written_byte_count() < BODY_LENGTH as u64);
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

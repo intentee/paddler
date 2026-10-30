@@ -20,7 +20,9 @@ test("streamHttpNdjson delivers a timeout without agents", async function () {
         streamHttpNdjson({
           body: {
             add_generation_prompt: true,
-            conversation_history: [{ content: "Hello", role: "user" }],
+            conversation_history: [
+              { Message: { content: "Hello", role: "user" } },
+            ],
             enable_thinking: false,
             max_tokens: 1,
           },

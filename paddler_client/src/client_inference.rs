@@ -2,18 +2,17 @@ use std::sync::Arc;
 
 use nanoid::nanoid;
 use serde::Serialize;
-use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
 use paddler_messaging::inference_server::request::Request as InferenceServerRequest;
 use paddler_messaging::jsonrpc::request_envelope::RequestEnvelope;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
+use paddler_messaging::request_params::decide_params::raw_decide_params::RawDecideParams;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 
 use crate::client_inference_params::ClientInferenceParams;
@@ -80,11 +79,6 @@ impl ClientInference {
             .await
     }
 
-    #[must_use]
-    pub fn subscribe_to_token_generation_mode(&self) -> broadcast::Receiver<Notification> {
-        self.inference_socket_pool.subscribe_to_notifications()
-    }
-
     pub async fn continue_from_conversation_history(
         &self,
         cancellation_token: CancellationToken,
@@ -135,6 +129,15 @@ impl ClientInference {
         .await
     }
 
+    pub async fn post_decide(
+        &self,
+        cancellation_token: CancellationToken,
+        params: &RawDecideParams,
+    ) -> Result<InferenceMessageStream> {
+        self.post_streaming(cancellation_token, ApiPath::DECIDE, params)
+            .await
+    }
+
     pub async fn post_generate_embedding_batch(
         &self,
         cancellation_token: CancellationToken,
@@ -157,6 +160,7 @@ impl ReportsHealth for ClientInference {
 
 #[cfg(test)]
 mod tests {
+    use std::mem::discriminant;
     use std::num::NonZeroU32;
     use std::num::NonZeroUsize;
 
@@ -244,12 +248,21 @@ use paddler_messaging::request_params::generate_embedding_batch_params::Generate
 
         let rejection = unreachable_client()
             .continue_from_raw_prompt(cancellation_token, raw_prompt_params())
-            .await;
+            .await
+            .err()
+            .expect("a cancelled request must be rejected");
+        let rejection_without_a_request_id = Error::InferenceRequestCancelled {
+            request_id: String::new(),
+        };
 
-        assert!(matches!(
-            rejection,
-            Err(Error::InferenceRequestCancelled { request_id }) if !request_id.is_empty()
-        ));
+        assert_eq!(
+            discriminant(&rejection),
+            discriminant(&rejection_without_a_request_id)
+        );
+        assert_ne!(
+            rejection.to_string(),
+            rejection_without_a_request_id.to_string()
+        );
     }
 
     #[tokio::test]

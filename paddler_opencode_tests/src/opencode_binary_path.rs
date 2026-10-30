@@ -31,6 +31,7 @@ pub fn opencode_binary_path() -> Result<PathBuf, OpenCodeTestError> {
 #[cfg(test)]
 mod tests {
     use std::env::VarError;
+    use std::path::PathBuf;
 
     use tempfile::NamedTempFile;
 
@@ -50,13 +51,13 @@ mod tests {
 
     #[test]
     fn nonexistent_path_reports_missing_binary() {
-        let error =
-            resolve_binary_path(Ok("/paddler/definitely/missing/opencode".to_owned())).unwrap_err();
+        let missing_path = PathBuf::from("/paddler/definitely/missing/opencode");
+        let error = resolve_binary_path(Ok(missing_path.display().to_string())).unwrap_err();
 
-        assert!(matches!(
-            error,
-            OpenCodeTestError::BinaryDoesNotExist { .. }
-        ));
+        assert_eq!(
+            error.to_string(),
+            OpenCodeTestError::BinaryDoesNotExist { path: missing_path }.to_string()
+        );
     }
 
     #[test]

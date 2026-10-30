@@ -1,12 +1,12 @@
-use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use crate::agent_relay_event::AgentRelayEvent;
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum ForwardingPlan<TResponse> {
+pub enum ForwardingPlan<TPartial, TFinal> {
     Finish,
-    ForwardResponse { is_done: bool, response: TResponse },
     IgnoreDrainedResponse,
-    ReplyWithErrorThenFinish(JsonRpcError),
-    ReplyWithErrorThenStopAgent(JsonRpcError),
-    ReplyWithErrorThenStopAgentThenFinish(JsonRpcError),
+    NotifyRelay(AgentRelayEvent<TPartial, TFinal>),
+    NotifyRelayThenFinish(AgentRelayEvent<TPartial, TFinal>),
+    NotifyRelayThenStopAgent(AgentRelayEvent<TPartial, TFinal>),
+    NotifyRelayThenStopAgentThenFinish(AgentRelayEvent<TPartial, TFinal>),
     StopAgent,
 }

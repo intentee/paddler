@@ -1,8 +1,11 @@
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::chat_template_content_form::ChatTemplateContentForm;
+use crate::chat_template_message_content::ChatTemplateMessageContent;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
 use crate::image_url::ImageUrl;
+use crate::media_marker::MediaMarker;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
@@ -12,6 +15,30 @@ pub enum ConversationMessageContent {
 }
 
 impl ConversationMessageContent {
+    pub fn into_chat_template_content(
+        self,
+        content_form: ChatTemplateContentForm,
+        media_marker: &MediaMarker,
+        image_urls: &mut Vec<ImageUrl>,
+    ) -> ChatTemplateMessageContent {
+        match self {
+            Self::Text(text) => ChatTemplateMessageContent::Text(text),
+            Self::Parts(parts) => content_form.content_of(
+                parts
+                    .into_iter()
+                    .map(|part| match part {
+                        ConversationMessageContentPart::Text { text } => text,
+                        ConversationMessageContentPart::ImageUrl { image_url } => {
+                            image_urls.push(image_url);
+
+                            media_marker.marker.clone()
+                        }
+                    })
+                    .collect(),
+            ),
+        }
+    }
+
     #[must_use]
     pub fn text_content(&self) -> String {
         match self {
@@ -44,9 +71,33 @@ impl ConversationMessageContent {
 
 #[cfg(test)]
 mod tests {
+    use crate::chat_template_content_form::ChatTemplateContentForm;
+    use crate::chat_template_message_content::ChatTemplateMessageContent;
     use crate::conversation_message_content::ConversationMessageContent;
     use crate::conversation_message_content_part::ConversationMessageContentPart;
     use crate::image_url::ImageUrl;
+    use crate::media_marker::MediaMarker;
+
+    #[test]
+    fn a_template_taking_text_receives_the_text_parts_joined_by_newlines() {
+        let content = ConversationMessageContent::Parts(vec![
+            ConversationMessageContentPart::Text {
+                text: "first".to_owned(),
+            },
+            ConversationMessageContentPart::Text {
+                text: "second".to_owned(),
+            },
+        ]);
+
+        assert_eq!(
+            content.into_chat_template_content(
+                ChatTemplateContentForm::JoinedText,
+                &MediaMarker::new("[IMAGE]".to_owned()),
+                &mut Vec::new(),
+            ),
+            ChatTemplateMessageContent::Text("first\nsecond".to_owned())
+        );
+    }
 
     #[test]
     fn text_content_from_text_variant() {
@@ -78,7 +129,7 @@ mod tests {
     fn image_urls_from_text_variant_is_empty() {
         let content = ConversationMessageContent::Text("hello".to_owned());
 
-        assert!(content.image_urls().is_empty());
+        assert_eq!(content.image_urls(), Vec::<&ImageUrl>::new());
     }
 
     #[test]

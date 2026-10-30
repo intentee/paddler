@@ -9,13 +9,9 @@ const BAD_REQUEST: u16 = 400;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_tool_whose_required_field_is_not_a_property() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("a cluster without agents must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
 
     let rejection = cluster
         .client_inference

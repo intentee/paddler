@@ -6,13 +6,9 @@ use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_agents_stream_ends_when_cancelled() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("the cluster must start");
 
     let cancellation_token = CancellationToken::new();
 

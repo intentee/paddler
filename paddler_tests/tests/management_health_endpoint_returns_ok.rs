@@ -6,13 +6,9 @@ use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn management_health_endpoint_returns_ok() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("failed to start subprocess cluster");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("failed to start subprocess cluster");
 
     let health = cluster
         .client_management

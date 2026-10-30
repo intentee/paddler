@@ -1,5 +1,6 @@
 use url::Url;
 
+#[must_use]
 pub fn format_api_url(base_url: &Url, path: &str) -> String {
     format!("{}{}", base_url.as_str().trim_end_matches('/'), path)
 }

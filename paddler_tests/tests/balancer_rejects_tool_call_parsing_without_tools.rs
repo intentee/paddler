@@ -14,13 +14,9 @@ const BAD_REQUEST: u16 = 400;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_rejects_tool_call_parsing_without_tools() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("the cluster must start");
 
     let rejection = cluster
         .client_inference
@@ -28,10 +24,14 @@ async fn balancer_rejects_tool_call_parsing_without_tools() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("What is the weather?".to_owned()),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "What is the weather?".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: NonZeroU32::MIN,

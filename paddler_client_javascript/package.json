@@ -1,6 +1,6 @@
 {
   "name": "@intentee/paddler-client",
-  "version": "4.0.1",
+  "version": "5.0.0",
   "description": "JavaScript/TypeScript client for the Paddler LLM load balancer",
   "license": "Apache-2.0",
   "homepage": "https://github.com/intentee/paddler",
@@ -20,7 +20,7 @@
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p .",
-    "test": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test 'tests/unit/**/*.test.ts' 'tests/cluster/**/*.test.ts'",
+    "test": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 'tests/unit/**/*.test.ts' 'tests/cluster/**/*.test.ts'",
     "test:coverage": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 --experimental-test-coverage --test-coverage-exclude='**/node_modules/**' --test-coverage-branches=100 --test-coverage-functions=100 --test-coverage-lines=100 'tests/**/*.test.ts'",
     "test:llm": "tsc -p tsconfig.test.json && node --experimental-eventsource --enable-source-maps --import tsx --test --test-concurrency=1 'tests/llm/**/*.test.ts'",
     "prepack": "tsc -p ."
@@ -30,12 +30,12 @@
     "zod": "^4"
   },
   "dependencies": {
-    "nanoid": "5.1.16"
+    "nanoid": "6.0.2"
   },
   "devDependencies": {
-    "@types/node": "22.19.17",
+    "@types/node": "26.6.5",
     "tsx": "4.23.15",
-    "typescript": "5.9.2"
+    "typescript": "6.0.3"
   },
   "engines": {
     "node": ">=22"

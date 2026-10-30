@@ -1,12 +1,18 @@
 use std::sync::Arc;
 
-use async_stream::stream;
 use futures::Stream;
+use futures::stream::unfold;
 use tokio::select;
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::produces_snapshot::ProducesSnapshot;
 use paddler_messaging::subscribes_to_updates::SubscribesToUpdates;
+
+enum SnapshotsPhase {
+    Subscribing,
+    AwaitingUpdate(watch::Receiver<()>),
+}
 
 pub fn snapshots_stream<TProducer>(
     producer: Arc<TProducer>,
@@ -16,18 +22,27 @@ where
     TProducer: ProducesSnapshot + SubscribesToUpdates + Send + Sync + 'static,
     TProducer::Snapshot: Send + 'static,
 {
-    stream! {
-        let mut update_rx = producer.subscribe_to_updates();
+    unfold(SnapshotsPhase::Subscribing, move |phase| {
+        let producer = producer.clone();
+        let shutdown = shutdown.clone();
 
-        loop {
-            yield producer.make_snapshot();
+        async move {
+            let update_rx = match phase {
+                SnapshotsPhase::Subscribing => producer.subscribe_to_updates(),
+                SnapshotsPhase::AwaitingUpdate(mut update_rx) => {
+                    select! {
+                        () = shutdown.cancelled() => return None,
+                        Ok(()) = update_rx.changed() => update_rx,
+                    }
+                }
+            };
 
-            select! {
-                () = shutdown.cancelled() => break,
-                Ok(()) = update_rx.changed() => {}
-            }
+            Some((
+                producer.make_snapshot(),
+                SnapshotsPhase::AwaitingUpdate(update_rx),
+            ))
         }
-    }
+    })
 }
 
 #[cfg(test)]

@@ -6,6 +6,7 @@ use paddler_messaging::inference_client::message::Message as InferenceClientMess
 use paddler_messaging::inference_client::response::Response;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
@@ -29,7 +30,7 @@ const fn is_generated_token(message: &InferenceClientMessage) -> bool {
 async fn balancer_serves_requests_from_different_connections_that_share_a_request_id() {
     let cluster = start_cluster(ClusterParams {
         agents: AgentConfig::uniform(1, 2),
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })

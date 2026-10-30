@@ -5,7 +5,6 @@ use std::num::NonZeroU32;
 use anyhow::Result;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::chat_template::ChatTemplate;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -13,23 +12,27 @@ use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::collected_generated_tokens::CollectedGeneratedTokens;
+use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 const CAPITAL_OF_FRANCE_MAX_TOKENS: NonZeroU32 = NonZeroU32::new(10).unwrap();
 
-async fn capital_of_france(cluster: &Cluster) -> Result<()> {
+async fn capital_of_france(cluster: &Cluster) -> Result<CollectedGeneratedTokens> {
     cluster
         .continue_from_conversation_history(
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "The capital of France is".to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "The capital of France is".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: CAPITAL_OF_FRANCE_MAX_TOKENS,
@@ -37,10 +40,7 @@ async fn capital_of_france(cluster: &Cluster) -> Result<()> {
                 tools: vec![],
             },
         )
-        .await?
-        .summary()?;
-
-    Ok(())
+        .await
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -59,17 +59,18 @@ async fn chat_template_swaps_between_inference_calls() {
 
     capital_of_france(&cluster)
         .await
-        .expect("the capital of France request must be answered");
+        .expect("the capital of France request must be answered")
+        .summary()
+        .expect("the capital of France answer must finish with a summary");
 
     cluster
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &BalancerDesiredState {
-                chat_template_override: Some(swapped_template.clone()),
-                use_chat_template_override: true,
-                ..qwen3_desired_state()
-            },
+            &desired_state_with_chat_template_override(
+                qwen3_desired_state(),
+                swapped_template.clone(),
+            ),
         )
         .await
         .expect("the balancer must accept the desired state");
@@ -80,7 +81,9 @@ async fn chat_template_swaps_between_inference_calls() {
 
     capital_of_france(&cluster)
         .await
-        .expect("the capital of France request must be answered");
+        .expect("the capital of France request must be answered")
+        .summary()
+        .expect("the capital of France answer must finish with a summary");
 
     assert_eq!(
         cluster

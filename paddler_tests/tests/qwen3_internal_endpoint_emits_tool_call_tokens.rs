@@ -12,6 +12,7 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
@@ -24,13 +25,12 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "What is the weather in Paris? Use the get_weather tool to find out."
-                            .to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: NonZeroU32::new(400).unwrap(),
@@ -52,13 +52,9 @@ async fn qwen3_internal_endpoint_emits_tool_call_tokens() {
         .filter(|result| matches!(result.token_result, GeneratedTokenResult::ContentToken(_)))
         .count();
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert!(

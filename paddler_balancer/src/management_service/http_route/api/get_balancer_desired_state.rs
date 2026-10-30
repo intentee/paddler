@@ -1,7 +1,5 @@
-use actix_web::Error;
 use actix_web::HttpResponse;
 use actix_web::Responder;
-use actix_web::error::ErrorInternalServerError;
 use actix_web::web;
 use actix_web::web::get;
 
@@ -9,14 +7,12 @@ use paddler_messaging::api_path::ApiPath;
 
 use crate::management_service::app_data::AppData;
 
-async fn respond(app_data: web::Data<AppData>) -> Result<impl Responder, Error> {
-    let desired_state = app_data
-        .state_database
-        .read_balancer_desired_state()
-        .await
-        .map_err(ErrorInternalServerError)?;
-
-    Ok(HttpResponse::Ok().json(desired_state))
+async fn respond(app_data: web::Data<AppData>) -> impl Responder {
+    HttpResponse::Ok().json(
+        app_data
+            .balancer_applicable_state_holder
+            .get_balancer_desired_state(),
+    )
 }
 
 pub fn get_balancer_desired_state(cfg: &mut web::ServiceConfig) {
@@ -35,99 +31,63 @@ mod tests {
     use actix_web::test::init_service;
     use actix_web::test::read_body_json;
     use actix_web::web::Data;
-    use tempfile::TempDir;
-    use tokio::sync::watch;
     use tokio_util::sync::CancellationToken;
 
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
     use paddler_messaging::agent_desired_model::AgentDesiredModel;
     use paddler_messaging::api_path::ApiPath;
     use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_state_database::file::File;
-    use paddler_state_database::memory::Memory;
     use paddler_state_database::state_database::StateDatabase;
+    use paddler_state_database::stored_balancer_desired_state::StoredBalancerDesiredState;
 
     use super::get_balancer_desired_state;
     use crate::agent_controller_pool::AgentControllerPool;
-    use crate::agent_response_senders::AgentResponseSenders;
-    use crate::balancer_applicable_state::BalancerApplicableState;
-    use crate::balancer_applicable_state_holder::BalancerApplicableStateHolder;
+    use crate::balancer_desired_state_store::BalancerDesiredStateStore;
     use crate::buffered_request_manager::BufferedRequestManager;
     use crate::management_service::app_data::AppData;
 
-    fn build_app_data(state_database: Arc<dyn StateDatabase>) -> Data<AppData> {
-        Data::new(AppData {
-            agent_controller_pool: Arc::new(AgentControllerPool::default()),
-            balancer_applicable_state_holder: Arc::new(BalancerApplicableStateHolder::new(
-                BalancerApplicableState::from(BalancerDesiredState::default()),
-            )),
-            buffered_request_manager: Arc::new(BufferedRequestManager::new(
-                Arc::new(AgentControllerPool::default()),
-                Duration::from_secs(1),
-                10,
-            )),
-            agent_response_senders: AgentResponseSenders::default(),
-            shutdown: CancellationToken::new(),
-            state_database,
-            statsd_prefix: "paddler".to_owned(),
-        })
-    }
-
     #[actix_web::test]
-    async fn responds_with_stored_desired_state() {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
+    async fn responds_with_the_desired_state_the_balancer_holds() {
         let stored_state = BalancerDesiredState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentDesiredModel::LocalToAgent("model.gguf".to_owned()),
-            multimodal_projection: AgentDesiredModel::None,
-            use_chat_template_override: false,
+            model: AgentDesiredModel::Uri("model.gguf".to_owned()),
+            ..BalancerDesiredState::default()
         };
-        let state_database = Arc::new(Memory::new(
-            balancer_desired_state_notify_tx,
-            stored_state.clone(),
-        ));
-        let app_data = build_app_data(state_database);
+        let balancer_desired_state_store =
+            BalancerDesiredStateStore::load(Arc::new(StateDatabase::in_memory(
+                StoredBalancerDesiredState::Stored(Box::new(stored_state.clone())),
+            )))
+            .await
+            .expect("the desired state store must load");
         let app = init_service(
             App::new()
-                .app_data(app_data)
+                .app_data(Data::new(AppData {
+                    agent_controller_pool: Arc::new(AgentControllerPool::default()),
+                    balancer_applicable_state_holder: Arc::new(
+                        balancer_desired_state_store.applicable_state_holder(),
+                    ),
+                    balancer_desired_state_store: Arc::new(balancer_desired_state_store),
+                    buffered_request_manager: Arc::new(BufferedRequestManager::new(
+                        Arc::new(AgentControllerPool::default()),
+                        Duration::from_secs(1),
+                        10,
+                    )),
+                    shutdown: CancellationToken::new(),
+                    statsd_prefix: "paddler".to_owned(),
+                }))
                 .configure(get_balancer_desired_state),
         )
         .await;
-        let request = TestRequest::get()
-            .uri(ApiPath::BALANCER_DESIRED_STATE)
-            .to_request();
-        let response = call_service(&app, request).await;
+        let response = call_service(
+            &app,
+            TestRequest::get()
+                .uri(ApiPath::BALANCER_DESIRED_STATE)
+                .to_request(),
+        )
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
 
         let desired_state: BalancerDesiredState = read_body_json(response).await;
 
         assert_eq!(desired_state, stored_state);
-    }
-
-    #[actix_web::test]
-    async fn responds_with_internal_server_error_when_reading_state_fails() {
-        let (balancer_desired_state_notify_tx, _balancer_desired_state_notify_rx) =
-            watch::channel(BalancerDesiredState::default());
-        let temp_dir = TempDir::new().unwrap();
-        let state_database = Arc::new(File::new(
-            balancer_desired_state_notify_tx,
-            temp_dir.path().to_path_buf(),
-        ));
-        let app_data = build_app_data(state_database);
-        let app = init_service(
-            App::new()
-                .app_data(app_data)
-                .configure(get_balancer_desired_state),
-        )
-        .await;
-        let request = TestRequest::get()
-            .uri(ApiPath::BALANCER_DESIRED_STATE)
-            .to_request();
-        let response = call_service(&app, request).await;
-
-        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

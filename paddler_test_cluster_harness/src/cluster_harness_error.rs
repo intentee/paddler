@@ -1,14 +1,15 @@
 use std::collections::BTreeSet;
 use std::io::Error as IoError;
 use std::net::SocketAddr;
-use std::str::Utf8Error;
 
 use async_openai::error::OpenAIError;
 use quick_xml::Error as XmlError;
 use quick_xml::events::attributes::AttrError;
+use reqwest::Error as ReqwestError;
 use serde_json::Error as SerdeJsonError;
 use thiserror::Error;
 use tokio_tungstenite::tungstenite::Error as WebSocketError;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use url::ParseError;
 
 use paddler_client::error::Error as ClientError;
@@ -17,51 +18,75 @@ use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
 
+use crate::process_end::ProcessEnd;
 use crate::snapshots_stream::SnapshotsStream;
 
 #[derive(Debug, Error)]
 pub enum ClusterHarnessError {
+    #[error("The decision stream ended before it reported its outcome")]
+    DecisionStreamEndedWithoutTerminalResult,
+    #[error("The decision stream yielded an error")]
+    DecisionStreamFailed(#[source] ClientError),
+    #[error("The decision stream carried a message that is not a decision result: {message:?}")]
+    DecisionStreamMessageUnexpected { message: Box<InferenceMessage> },
     #[error("The embedding stream carried a message that is not an embedding result: {message:?}")]
     EmbeddingStreamMessageUnexpected { message: Box<InferenceMessage> },
+    #[error("The embedding stream yielded an error")]
+    EmbeddingStreamFailed(#[source] ClientError),
     #[error("The token generation stream returned JSON-RPC error code {} ({})", error.code, error.description)]
     TokenStreamReturnedError { error: JsonRpcError },
+    #[error("The token generation stream yielded an error")]
+    TokenStreamFailed(#[source] ClientError),
     #[error(
         "The token generation stream carried a message that is not a generated token: {message:?}"
     )]
     TokenStreamMessageUnexpected { message: Box<InferenceMessage> },
+    #[error("The agent hung up on the untrusted balancer socket before it responded")]
+    AgentHungUpBeforeResponding,
+    #[error("The agent hung up on the untrusted balancer socket before it served its model")]
+    AgentHungUpBeforeServing,
     #[error("Agent {agent_id} left the balancer's pool while it was being observed")]
     AgentLeftThePool { agent_id: String },
-    #[error("The raw agent socket could not serialize a notification")]
-    AgentSocketNotificationUnserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket ended without a close frame")]
+    #[error(
+        "The balancer closed the untrusted agent socket before sending it text: {close_frame:?}"
+    )]
+    AgentSocketClosedBeforeText { close_frame: Option<CloseFrame> },
+    #[error("The untrusted agent socket client ended without a close frame")]
     AgentSocketEndedWithoutClosing,
-    #[error("The raw agent socket ended before the balancer sent a message")]
-    AgentSocketEndedWithoutMessage,
-    #[error("The raw agent socket could not deserialize a balancer message")]
-    AgentSocketMessageUndeserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket could not receive a frame")]
+    #[error("The untrusted agent socket client ended before the balancer sent it text")]
+    AgentSocketEndedWithoutText,
+    #[error("The untrusted agent socket client could not receive a frame")]
     AgentSocketReceiveFailed(#[source] WebSocketError),
-    #[error("The raw agent socket could not serialize a response")]
-    AgentSocketResponseUnserializable(#[source] SerdeJsonError),
-    #[error("The raw agent socket could not send a frame")]
+    #[error("The untrusted agent socket client could not send a frame")]
     AgentSocketSendFailed(#[source] WebSocketError),
+    #[error("Agent {agent_name:?} exited before it was ready: {process_end:?}")]
+    AgentExitedBeforeReady {
+        agent_name: String,
+        process_end: ProcessEnd,
+    },
     #[error("Agent {agent_name:?} reported issues while starting: {issues:?}")]
     AgentReportedIssues {
         agent_name: String,
         issues: BTreeSet<AgentIssue>,
     },
-    #[error("Unable to build a base URL for {addr}")]
-    BaseUrlInvalid {
-        addr: SocketAddr,
-        #[source]
-        source: ParseError,
-    },
+    #[error("The untrusted balancer socket could not accept an agent connection")]
+    BalancerSocketAcceptFailed(#[source] IoError),
+    #[error("The untrusted balancer socket could not complete the agent's WebSocket handshake")]
+    BalancerSocketHandshakeFailed(#[source] WebSocketError),
+    #[error("The untrusted balancer socket could not send a frame")]
+    BalancerSocketSendFailed(#[source] WebSocketError),
+    #[error("The cluster has no registered agent to wait for")]
+    ClusterHasNoRegisteredAgent,
     #[error("The balancer does not serve the OpenAI compatibility service")]
     CompatOpenAIServiceNotServed,
+    #[error("Unable to build the base URL of the OpenAI compatibility service")]
+    CompatOpenAIBaseUrlInvalid(#[source] ParseError),
+    #[error("The balancer does not serve the TypeSafe compatibility service")]
+    CompatTypeSafeServiceNotServed,
+    #[error("Unable to build the base URL of the typesafe compatibility service")]
+    CompatTypeSafeBaseUrlInvalid(#[source] ParseError),
     #[error("The web admin panel page carries a malformed attribute")]
     DashboardAttributeMalformed(#[source] AttrError),
-    #[error("The web admin panel page carries an attribute whose name is not UTF-8")]
-    DashboardAttributeNameNotUtf8(#[source] Utf8Error),
     #[error("The web admin panel page carries an attribute value that cannot be unescaped")]
     DashboardAttributeValueUnreadable(#[source] XmlError),
     #[error("The web admin panel page has no dashboard element")]
@@ -87,6 +112,8 @@ pub enum ClusterHarnessError {
     },
     #[error("The inference request failed")]
     InferenceRequestFailed(#[source] ClientError),
+    #[error("Unable to build the base URL of the inference service")]
+    InferenceBaseUrlInvalid(#[source] ParseError),
     #[error("The raw inference socket closed before answering request {request_id}")]
     InferenceSocketClosedBeforeAnswer { request_id: String },
     #[error("The raw inference socket closed before answering any request")]
@@ -101,6 +128,8 @@ pub enum ClusterHarnessError {
     InferenceSocketRequestUnserializable(#[source] SerdeJsonError),
     #[error("The raw inference socket could not send a frame")]
     InferenceSocketSendFailed(#[source] WebSocketError),
+    #[error("Unable to build the base URL of the management service")]
+    ManagementBaseUrlInvalid(#[source] ParseError),
     #[error("The OpenAI compatibility request failed")]
     OpenAIRequestFailed(#[source] OpenAIError),
     #[error("Unable to list the open file descriptors of the current process")]
@@ -113,4 +142,6 @@ pub enum ClusterHarnessError {
         #[source]
         source: ClientError,
     },
+    #[error("The TypeSafe compatibility request failed")]
+    TypeSafeRequestFailed(#[source] ReqwestError),
 }

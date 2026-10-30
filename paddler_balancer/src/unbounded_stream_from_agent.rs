@@ -1,5 +1,3 @@
-use std::fmt::Debug;
-
 use actix_web::rt;
 use futures_util::Stream;
 use nanoid::nanoid;
@@ -7,14 +5,15 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::inference_client::response::Response as OutgoingResponse;
-use paddler_messaging::streamable_result::StreamableResult;
-
+use crate::agent_relay::AgentRelay;
 use crate::agent_streaming_request::AgentStreamingRequest;
+use crate::awaiting_agent_relay::AwaitingAgentRelay;
 use crate::cancellation_token_stream_guard::CancellationTokenStreamGuard;
 use crate::chunk_forwarding_session_controller::ChunkForwardingSessionController;
 use crate::chunk_forwarding_session_controller::transforms_outgoing_message::TransformsOutgoingMessage;
-use crate::request_from_agent::request_from_agent;
+use crate::dispatchable_request::DispatchableRequest;
+use crate::forward_agent_relay::forward_agent_relay;
+use crate::outgoing_message_relay_receiver::OutgoingMessageRelayReceiver;
 use crate::unbounded_stream_from_agent_params::UnboundedStreamFromAgentParams;
 
 pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
@@ -27,32 +26,25 @@ pub fn unbounded_stream_from_agent<TParams, TTransformsOutgoingMessage>(
     }: UnboundedStreamFromAgentParams<TParams, TTransformsOutgoingMessage>,
 ) -> impl Stream<Item = TTransformsOutgoingMessage::Output>
 where
-    TParams: AgentStreamingRequest + Debug + Send + 'static,
-    TParams::Response: Debug + Into<OutgoingResponse> + StreamableResult,
-    TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync + 'static,
+    TParams: AgentStreamingRequest + 'static,
+    TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync + 'static,
 {
-    let request_id: String = nanoid!();
     let connection_close = CancellationToken::new();
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel();
 
-    rt::spawn({
-        let connection_close = connection_close.clone();
-
-        async move {
-            let session_controller = ChunkForwardingSessionController::new(chunk_tx, transformer);
-
-            request_from_agent(
-                buffered_request_manager,
-                connection_close,
-                inference_service_configuration,
-                request_params,
-                request_id,
-                session_controller,
-                shutdown,
-            )
-            .await;
-        }
-    });
+    rt::spawn(forward_agent_relay(
+        AgentRelay::awaiting(AwaitingAgentRelay {
+            buffered_request_manager,
+            dispatchable_request: DispatchableRequest::from(request_params),
+            inference_item_timeout: inference_service_configuration.inference_item_timeout,
+            shutdown,
+        }),
+        connection_close.clone(),
+        OutgoingMessageRelayReceiver {
+            request_id: nanoid!(),
+            session_controller: ChunkForwardingSessionController::new(chunk_tx, transformer),
+        },
+    ));
 
     CancellationTokenStreamGuard::new(connection_close, UnboundedReceiverStream::new(chunk_rx))
 }

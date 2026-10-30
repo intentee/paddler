@@ -1,87 +1,67 @@
 use std::sync::Arc;
 
 use futures_util::StreamExt;
-use serde_json::to_string;
-use tokio::sync::broadcast;
-use tokio::sync::mpsc;
+use serde::Serialize;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::connect_async;
 use url::Url;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
-use paddler_messaging::inference_server::message::Message as InferenceServerMessage;
-use paddler_messaging::inference_server::notification::Notification as InferenceServerNotification;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 
-use crate::error::Error;
 use crate::error::Result;
-use crate::inference_socket::pending_requests::PendingRequests;
+use crate::inference_socket::inbound_message_router::InboundMessageRouter;
+use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
+use crate::inference_socket::outbound_request::OutboundRequest;
 use crate::inference_socket::spawn_read_task::spawn_read_task;
 use crate::inference_socket::spawn_write_task::spawn_write_task;
 use crate::inference_socket::url::url;
 
 pub struct Connection {
-    pending: Arc<PendingRequests>,
+    exchange: Arc<InferenceSocketExchange>,
     read_task: JoinHandle<()>,
     write_task: JoinHandle<()>,
-    write_tx: UnboundedSender<String>,
 }
 
 impl Connection {
-    pub async fn connect(
-        connection_url: Url,
-        notification_tx: broadcast::Sender<Notification>,
-    ) -> Result<Self> {
+    pub async fn connect(connection_url: Url) -> Result<Self> {
         let ws_url = url(connection_url)?;
         let (ws_stream, _) = connect_async(ws_url.as_str()).await?;
         let (ws_write, ws_read) = ws_stream.split();
-        let pending = Arc::new(PendingRequests::default());
-        let (write_tx, write_rx) = mpsc::unbounded_channel::<String>();
+        let exchange = Arc::new(InferenceSocketExchange::default());
 
         Ok(Self {
-            read_task: spawn_read_task(ws_read, pending.clone(), notification_tx),
-            write_task: spawn_write_task(ws_write, write_rx, pending.clone()),
-            pending,
-            write_tx,
+            read_task: spawn_read_task(
+                ws_read,
+                InboundMessageRouter {
+                    exchange: exchange.clone(),
+                },
+            ),
+            write_task: spawn_write_task(ws_write, exchange.clone()),
+            exchange,
         })
+    }
+
+    pub async fn disconnected(&self) {
+        self.exchange.closed().await;
     }
 
     #[must_use]
     pub fn is_disconnected(&self) -> bool {
-        self.pending.is_closed()
+        self.exchange.is_closed()
     }
 
-    pub fn send(
+    pub fn send<TMessage: Serialize>(
         &self,
         request_id: String,
-        json: String,
+        message: &TMessage,
     ) -> Result<UnboundedReceiver<Result<InferenceMessage>>> {
-        let response_rx = self.pending.register(request_id.clone())?;
-
-        if self.write_tx.send(json).is_err() {
-            self.pending.remove(&request_id);
-
-            return Err(Error::ConnectionDropped { request_id });
-        }
-
-        Ok(response_rx)
+        OutboundRequest::serialize(request_id, message)
+            .and_then(|outbound_request| self.exchange.register(outbound_request))
     }
 
-    pub fn stop_responding_to(&self, request_id: String) -> Result<()> {
-        self.pending.remove(&request_id);
-
-        let stop_responding_to: InferenceServerMessage<ValidatedParametersSchema> =
-            InferenceServerMessage::Notification(InferenceServerNotification::StopRespondingTo(
-                request_id.clone(),
-            ));
-        let json = to_string(&stop_responding_to)?;
-
-        self.write_tx
-            .send(json)
-            .map_err(|_closed_channel| Error::ConnectionDropped { request_id })
+    pub fn stop_responding_to(&self, request_id: &str) {
+        self.exchange.stop_responding_to(request_id);
     }
 }
 
@@ -96,84 +76,35 @@ impl Drop for Connection {
 mod tests {
     use std::io::ErrorKind;
 
-    use futures_util::SinkExt as _;
-    use futures_util::StreamExt as _;
+    use tokio::io::AsyncReadExt as _;
+    use tokio::io::AsyncWriteExt as _;
+    use tokio::join;
     use tokio::net::TcpListener;
-    use tokio::net::TcpStream;
-    use tokio::spawn;
-    use tokio::sync::broadcast;
-    use tokio::task::JoinHandle;
-    use tokio_tungstenite::WebSocketStream;
-    use tokio_tungstenite::accept_async;
     use tokio_tungstenite::tungstenite::Error as WebSocketError;
-    use tokio_tungstenite::tungstenite::Message as WsMessage;
     use url::Url;
 
     use super::Connection;
     use crate::error::Error;
 
-    struct WebSocketFixture {
-        server: JoinHandle<WebSocketStream<TcpStream>>,
-        url: Url,
-    }
+    const PLAINTEXT_HTTP_REPLY_START: &[u8] = b"HTTP/";
+    const TLS_HANDSHAKE_RECORD_CONTENT_TYPE: u8 = 22;
 
-    async fn websocket_fixture_answering_the_first_request_with(
-        answer: Option<WsMessage>,
-    ) -> WebSocketFixture {
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .expect("the fixture socket must bind");
-        let url = Url::parse(&format!(
-            "http://{}",
-            listener
-                .local_addr()
-                .expect("the fixture socket must report its address")
-        ))
-        .expect("the fixture URL must be valid");
-        let server = spawn(async move {
-            let (stream, _peer_addr) = listener
-                .accept()
-                .await
-                .expect("the fixture must accept the client");
-            let mut websocket = accept_async(stream)
-                .await
-                .expect("the fixture must complete the handshake");
-
-            websocket
-                .next()
-                .await
-                .expect("the client must send its request")
-                .expect("the client request must be readable");
-
-            if let Some(answer) = answer {
-                websocket
-                    .send(answer)
-                    .await
-                    .expect("the fixture must send its answer");
-            }
-
-            websocket
-        });
-
-        WebSocketFixture { server, url }
-    }
-
-    async fn connection_to(url: Url) -> Connection {
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
-
-        Connection::connect(url, notification_tx)
-            .await
-            .expect("the client must connect to the fixture")
+    #[tokio::test]
+    async fn connect_rejects_a_url_that_cannot_reach_an_inference_socket() {
+        assert!(matches!(
+            Connection::connect(
+                Url::parse("ftp://127.0.0.1/models").expect("the test URL must be valid"),
+            )
+            .await,
+            Err(Error::InferenceSocketUrlSchemeRejected { scheme, .. }) if scheme == "ftp"
+        ));
     }
 
     #[tokio::test]
     async fn connect_fails_for_an_unreachable_server() {
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
-
         assert!(matches!(
             Connection::connect(
                 Url::parse("http://127.0.0.1:1").expect("the test URL must be valid"),
-                notification_tx,
             )
             .await,
             Err(Error::WebSocket(WebSocketError::Io(io_error)))
@@ -182,38 +113,45 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_binary_frame_from_the_server_drops_every_pending_request() {
-        let WebSocketFixture { server, url } = websocket_fixture_answering_the_first_request_with(
-            Some(WsMessage::Binary(vec![0].into())),
-        )
-        .await;
-        let connection = connection_to(url).await;
-        let mut response_rx = connection
-            .send("request-1".to_owned(), "{}".to_owned())
-            .expect("an open connection must accept a request");
+    async fn connect_opens_a_tls_handshake_with_an_https_balancer() {
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("the test listener must bind");
+        let listener_address = listener
+            .local_addr()
+            .expect("the test listener must have an address");
+        let plaintext_server = async move {
+            let (mut accepted_stream, _peer_address) =
+                listener.accept().await.expect("the client must connect");
 
-        assert!(matches!(
-            response_rx.recv().await,
-            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
-        ));
+            accepted_stream
+                .write_all(PLAINTEXT_HTTP_REPLY_START)
+                .await
+                .expect("the plaintext reply must reach the client");
 
-        drop(server.await.expect("the fixture must not panic"));
-    }
+            accepted_stream
+        };
+        let connection = Connection::connect(
+            Url::parse(&format!("https://{listener_address}")).expect("the test URL must be valid"),
+        );
 
-    #[tokio::test]
-    async fn a_connection_reset_without_a_closing_handshake_drops_every_pending_request() {
-        let WebSocketFixture { server, url } =
-            websocket_fixture_answering_the_first_request_with(None).await;
-        let connection = connection_to(url).await;
-        let mut response_rx = connection
-            .send("request-1".to_owned(), "{}".to_owned())
-            .expect("an open connection must accept a request");
+        let (mut accepted_stream, connection_outcome) = join!(plaintext_server, connection);
 
-        drop(server.await.expect("the fixture must not panic"));
-
-        assert!(matches!(
-            response_rx.recv().await,
-            Some(Err(Error::ConnectionDropped { request_id })) if request_id == "request-1"
-        ));
+        assert_eq!(
+            accepted_stream
+                .read_u8()
+                .await
+                .expect("the client must have sent a record"),
+            TLS_HANDSHAKE_RECORD_CONTENT_TYPE
+        );
+        assert_eq!(
+            connection_outcome
+                .err()
+                .map(|connect_error| connect_error.to_string()),
+            Some(
+                "WebSocket error: IO error: received corrupt message of type InvalidContentType"
+                    .to_owned()
+            )
+        );
     }
 }

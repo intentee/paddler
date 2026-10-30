@@ -5,7 +5,7 @@ pub mod client_inference;
 pub mod client_inference_params;
 pub mod client_management;
 pub mod error;
-mod format_api_url;
+pub mod format_api_url;
 pub mod http_client;
 pub mod inference_message_stream;
 pub mod inference_socket;

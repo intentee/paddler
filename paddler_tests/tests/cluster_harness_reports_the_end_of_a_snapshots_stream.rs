@@ -10,13 +10,9 @@ async fn cluster_harness_reports_the_end_of_a_snapshots_stream() {
         mut agents_watcher,
         balancer,
         ..
-    } = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("a cluster without agents must start");
+    } = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
 
     balancer
         .shutdown()
@@ -25,10 +21,13 @@ async fn cluster_harness_reports_the_end_of_a_snapshots_stream() {
 
     let observation = agents_watcher.until(|_snapshot| false).await;
 
-    assert!(matches!(
-        observation,
-        Err(ClusterHarnessError::SnapshotsStreamClosed {
-            snapshots_stream: SnapshotsStream::Agents
-        })
-    ));
+    assert_eq!(
+        observation.err().map(|stream_end| stream_end.to_string()),
+        Some(
+            ClusterHarnessError::SnapshotsStreamClosed {
+                snapshots_stream: SnapshotsStream::Agents
+            }
+            .to_string()
+        )
+    );
 }

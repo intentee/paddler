@@ -30,15 +30,15 @@ Copy this checklist and tick each item as the suite completes:
 
 ```
 - [ ] Rust
-- [ ] Python client
+- [ ] kev converter Python
 - [ ] JS client
 ```
 
-| # | Suite         | Command (from the repo root)                           |
-|---|---------------|--------------------------------------------------------|
-| 1 | Rust          | `TEST_DEVICE=$DEVICE make test.coverage`               |
-| 2 | Python client | `TEST_DEVICE=$DEVICE make test.client.python.coverage` |
-| 3 | JS client     | `TEST_DEVICE=$DEVICE make test.client.js.coverage`     |
+| # | Suite                | Command (from the repo root)                                                            |
+|---|----------------------|-----------------------------------------------------------------------------------------|
+| 1 | Rust                 | `PADDLER_OPENCODE_BINARY=$(command -v opencode) TEST_DEVICE=$DEVICE make test.coverage` |
+| 2 | kev converter Python | `make test.kev_converter.python.llm`                                                    |
+| 3 | JS client            | `TEST_DEVICE=$DEVICE make test.client.js.coverage`                                      |
 
 ## Step 3: rules during the run
 

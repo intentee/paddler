@@ -4,7 +4,7 @@ import { EmbeddingInputDocumentSchema } from "./EmbeddingInputDocument";
 import { EmbeddingNormalizationMethodSchema } from "./EmbeddingNormalizationMethod";
 
 export const GenerateEmbeddingBatchParamsSchema = z.object({
-  input_documents: z.array(EmbeddingInputDocumentSchema),
+  input_batch: z.array(EmbeddingInputDocumentSchema),
   normalization_method: EmbeddingNormalizationMethodSchema,
 });
 

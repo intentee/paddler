@@ -34,9 +34,5 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 url = { workspace = true }
 
-[dev-dependencies]
-anyhow = { workspace = true }
-paddler_test_cluster_harness = { workspace = true }
-
 [lints]
 workspace = true

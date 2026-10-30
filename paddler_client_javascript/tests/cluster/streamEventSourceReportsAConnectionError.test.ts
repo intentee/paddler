@@ -6,18 +6,18 @@ import { eventSourceConnectionErrorState } from "../../src/EventSourceConnection
 import { eventSourceInitialState } from "../../src/EventSourceInitialState";
 import { AgentsResponseSchema } from "../../src/schemas/AgentsResponse";
 import { streamEventSource } from "../../src/streamEventSource";
-import { withConnectionClosingListener } from "../withConnectionClosingListener";
+import { agentsStreamUrl } from "../agentsStreamUrl";
+
+const UNREACHABLE_ADDRESS = "127.0.0.1:1";
 
 test("streamEventSource reports a connection error", async function () {
-  await withConnectionClosingListener(async function (address) {
-    deepStrictEqual(
-      await firstValueFrom(
-        streamEventSource({
-          schema: AgentsResponseSchema,
-          url: `http://${address}/api/v1/agents/stream`,
-        }).pipe(take(2), toArray()),
-      ),
-      [eventSourceInitialState, eventSourceConnectionErrorState],
-    );
-  });
+  deepStrictEqual(
+    await firstValueFrom(
+      streamEventSource({
+        schema: AgentsResponseSchema,
+        url: agentsStreamUrl(UNREACHABLE_ADDRESS),
+      }).pipe(take(2), toArray()),
+    ),
+    [eventSourceInitialState, eventSourceConnectionErrorState],
+  );
 });

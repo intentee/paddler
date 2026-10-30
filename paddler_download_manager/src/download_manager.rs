@@ -20,6 +20,7 @@ use crate::download_outcome::DownloadOutcome;
 use crate::download_progress::DownloadProgress;
 use crate::download_url::DownloadUrl;
 use crate::partial_file::PartialFile;
+use crate::read_timeout::READ_TIMEOUT;
 use crate::response_classification::ResponseClassification;
 
 struct PartialFileDownload<'download, TProgressHandler> {
@@ -197,6 +198,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct DownloadManager {
     client: Client,
 }
@@ -205,7 +207,7 @@ impl DownloadManager {
     pub fn new() -> Result<Self, ReqwestError> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(10))
-            .read_timeout(Duration::from_secs(10))
+            .read_timeout(READ_TIMEOUT)
             .build()?;
 
         Ok(Self { client })

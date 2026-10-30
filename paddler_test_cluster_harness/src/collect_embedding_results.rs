@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
 
@@ -19,18 +18,17 @@ pub async fn collect_embedding_results(
     mut stream: InferenceMessageStream,
 ) -> Result<CollectedEmbeddingResults> {
     let mut embeddings: Vec<EmbeddingWithProducer> = Vec::new();
-    let mut embeddings_disabled = false;
-    let mut errors: Vec<String> = Vec::new();
-    let mut embedding_rejected_due_to_active_token_generation_count: usize = 0;
-    let mut model_not_loaded_count: usize = 0;
+    let mut failures: Vec<EmbeddingResult> = Vec::new();
     let mut no_embeddings_produced_count: usize = 0;
+    let mut documents_exceeding_sequence_context = Vec::new();
+    let mut documents_tokenized_to_nothing = Vec::new();
     let mut oversized_documents = Vec::new();
     let mut request_ids = BTreeSet::new();
     let mut saw_done = false;
     let mut wire_errors = Vec::new();
 
     while let Some(item) = stream.next().await {
-        match item.context("embedding stream yielded an error")? {
+        match item.map_err(ClusterHarnessError::EmbeddingStreamFailed)? {
             InferenceMessage::Response(ResponseEnvelope {
                 generated_by,
                 request_id,
@@ -53,17 +51,21 @@ pub async fn collect_embedding_results(
                     EmbeddingResult::DocumentExceedsBatchSize(details) => {
                         oversized_documents.push(details);
                     }
-                    EmbeddingResult::EmbeddingsDisabled => {
-                        embeddings_disabled = true;
+                    EmbeddingResult::DocumentExceedsSequenceContext(details) => {
+                        documents_exceeding_sequence_context.push(details);
                     }
-                    EmbeddingResult::Error(message) => {
-                        errors.push(message);
+                    EmbeddingResult::DocumentTokenizedToNothing(details) => {
+                        documents_tokenized_to_nothing.push(details);
                     }
-                    EmbeddingResult::EmbeddingRejectedDueToActiveTokenGeneration => {
-                        embedding_rejected_due_to_active_token_generation_count += 1;
-                    }
-                    EmbeddingResult::ModelNotLoaded(_) => {
-                        model_not_loaded_count += 1;
+                    failure @ (EmbeddingResult::AgentRuntimeFailed(_)
+                    | EmbeddingResult::BatchAssemblyFailed(_)
+                    | EmbeddingResult::DecodeFailed(_)
+                    | EmbeddingResult::EmbeddingTooLongForRmsNormalization(_)
+                    | EmbeddingResult::EmbeddingsUnavailable(_)
+                    | EmbeddingResult::InputTokenizationFailed(_)
+                    | EmbeddingResult::ModelNotLoaded(_)
+                    | EmbeddingResult::SchedulerUnavailable(_)) => {
+                        failures.push(failure);
                     }
                     EmbeddingResult::NoEmbeddingsProduced => {
                         no_embeddings_produced_count += 1;
@@ -74,7 +76,7 @@ pub async fn collect_embedding_results(
                 request_ids.insert(request_id);
                 wire_errors.push(error);
             }
-            unexpected_message => {
+            unexpected_message @ InferenceMessage::Response(_) => {
                 return Err(ClusterHarnessError::EmbeddingStreamMessageUnexpected {
                     message: Box::new(unexpected_message),
                 }
@@ -84,15 +86,76 @@ pub async fn collect_embedding_results(
     }
 
     Ok(CollectedEmbeddingResults {
+        documents_exceeding_sequence_context,
+        documents_tokenized_to_nothing,
         embeddings,
-        embeddings_disabled,
-        errors,
-        embedding_rejected_due_to_active_token_generation_count,
-        model_not_loaded_count,
+        failures,
         no_embeddings_produced_count,
         oversized_documents,
         request_ids,
         saw_done,
         wire_errors,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::stream::iter;
+
+    use paddler_client::error::Error as ClientError;
+    use paddler_messaging::generated_token_result::GeneratedTokenResult;
+    use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::response::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+    use super::collect_embedding_results;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[tokio::test]
+    async fn refuses_a_message_that_is_not_an_embedding_result() {
+        let generated_content_token = || {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "generation-request".to_owned(),
+                response: InferenceResponse::GeneratedToken(GeneratedTokenResult::ContentToken(
+                    "piece".to_owned(),
+                )),
+            })
+        };
+        let collection_error =
+            collect_embedding_results(Box::pin(iter([Ok(generated_content_token())])))
+                .await
+                .err()
+                .expect("a stream of another kind of message must be refused");
+
+        assert_eq!(
+            collection_error
+                .downcast_ref::<ClusterHarnessError>()
+                .map(ToString::to_string),
+            Some(
+                ClusterHarnessError::EmbeddingStreamMessageUnexpected {
+                    message: Box::new(generated_content_token()),
+                }
+                .to_string()
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn an_embedding_stream_yielding_an_error_is_an_error() {
+        let collection_error =
+            collect_embedding_results(Box::pin(iter([Err(ClientError::ConnectionDropped {
+                request_id: "request-1".to_owned(),
+            })])))
+            .await
+            .err()
+            .expect("a stream yielding an error must not be collected");
+
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::EmbeddingStreamFailed(ClientError::ConnectionDropped {
+                request_id
+            })) if request_id == "request-1"
+        ));
+    }
 }

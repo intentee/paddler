@@ -1,8 +1,12 @@
+pub mod awaited_response;
 pub mod connection;
 pub mod connection_slot;
 pub mod inbound_message_router;
-pub mod pending_requests;
-pub mod pending_requests_state;
+pub mod inference_socket_exchange;
+pub mod inference_socket_exchange_state;
+pub mod open_inference_socket_exchange;
+pub mod outbound_frames;
+pub mod outbound_request;
 pub mod pool;
 pub mod response_stream;
 pub mod spawn_read_task;

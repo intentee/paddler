@@ -34,23 +34,27 @@ function buildUserMessage(
 ): ConversationMessageType {
   if (submittedImageDataUri) {
     return {
-      role: "user",
-      content: [
-        {
-          type: "image_url",
-          image_url: { url: submittedImageDataUri },
-        },
-        {
-          type: "text",
-          text: submittedPrompt,
-        },
-      ],
+      Message: {
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: submittedImageDataUri },
+          },
+          {
+            type: "text",
+            text: submittedPrompt,
+          },
+        ],
+      },
     };
   }
 
   return {
-    role: "user",
-    content: submittedPrompt,
+    Message: {
+      role: "user",
+      content: submittedPrompt,
+    },
   };
 }
 
@@ -83,13 +87,17 @@ export const ConversationMessagePromptGeneratedTokens = memo(
             enableThinking: submittedIsThinkingEnabled,
             messages: [
               {
-                role: "system",
-                content:
-                  "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.",
+                Message: {
+                  role: "system",
+                  content:
+                    "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.",
+                },
               },
               {
-                role: "assistant",
-                content: "Hello! How can I help you today?",
+                Message: {
+                  role: "assistant",
+                  content: "Hello! How can I help you today?",
+                },
               },
               buildUserMessage(submittedPrompt, submittedImageDataUri),
             ],

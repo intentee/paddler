@@ -22,10 +22,12 @@ async fn agent_conversation_accepts_empty_tools_list() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("Say hello".to_owned()),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text("Say hello".to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: true,
                 grammar: None,
                 max_tokens: NonZeroU32::new(10).unwrap(),

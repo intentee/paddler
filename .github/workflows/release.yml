@@ -46,13 +46,11 @@ jobs:
 
       - name: build the cli binary
         run: make target/release/paddler
-        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: rename the cli binary
         run: mv ./target/release/paddler ./${{ matrix.artifact_name }}
-        shell: bash
 
       - name: assert cli version matches tag
         uses: intentee/release-action/assert-version@8125f727e97f72bfef24299d7c6d3217af1453bc
@@ -66,61 +64,9 @@ jobs:
           name: ${{ matrix.artifact_name }}
           path: ./${{ matrix.artifact_name }}
 
-  build-gui:
-    name: build-gui
-    needs: resolve-version
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            artifact_name: paddler-gui-bin-linux-libc2.35-amd64
-
-          - os: ubuntu-latest
-            artifact_name: paddler-gui-bin-linux-libc2.39-amd64
-
-          - os: macos-latest
-            artifact_name: paddler-gui-bin-macos-arm
-
-    steps:
-      - name: checkout code
-        uses: actions/checkout@v4
-
-      - name: install paddler_gui system dependencies (linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libvulkan-dev libxkbcommon-dev libwayland-dev libgl-dev \
-            libx11-dev libxcursor-dev libxrandr-dev libxi-dev \
-            libxcb1-dev libfontconfig-dev pkg-config
-        shell: bash
-
-      - name: build the gui binary
-        run: make target/release/paddler_gui
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: rename the gui binary
-        run: mv ./target/release/paddler_gui ./${{ matrix.artifact_name }}
-        shell: bash
-
-      - name: assert gui version matches tag
-        uses: intentee/release-action/assert-version@8125f727e97f72bfef24299d7c6d3217af1453bc
-        with:
-          filename: "./${{ matrix.artifact_name }}"
-          expected-version: "${{ needs.resolve-version.outputs.version }}"
-
-      - name: upload gui artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: ./${{ matrix.artifact_name }}
-
   release:
     name: release
-    needs: [resolve-version, build-cli, build-gui]
+    needs: [resolve-version, build-cli]
     runs-on: ubuntu-latest
     permissions:
       contents: write

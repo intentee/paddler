@@ -3,8 +3,8 @@
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::inference_client::message::Message;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::inference_stream_error_codes::inference_stream_error_codes;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
@@ -35,18 +35,15 @@ async fn balancer_reports_bad_gateway_when_agent_disconnects_mid_generation() {
         .await
         .expect("the cluster must shut down cleanly");
 
-    while let Some(message) = stream.next().await {
-        if let Message::Error(error_envelope) = message.expect("the message must be readable") {
-            assert_eq!(error_envelope.error.code, BAD_GATEWAY);
+    assert_eq!(
+        inference_stream_error_codes(stream)
+            .await
+            .expect("every streamed message must be readable"),
+        vec![BAD_GATEWAY]
+    );
 
-            cluster
-                .shutdown()
-                .await
-                .expect("the cluster must shut down cleanly");
-
-            return;
-        }
-    }
-
-    panic!("the stream ended without reporting the lost agent")
+    cluster
+        .shutdown()
+        .await
+        .expect("the cluster must shut down cleanly");
 }

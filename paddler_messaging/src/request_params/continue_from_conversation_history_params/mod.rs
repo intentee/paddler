@@ -74,7 +74,7 @@ use crate::validates::Validates as _;
             from_value(json!({
                 "add_generation_prompt": true,
                 "conversation_history": [
-                    {"content": "Hello", "role": "user"}
+                    {"Message": {"content": "Hello", "role": "user"}}
                 ],
                 "enable_thinking": false,
                 "max_tokens": 10,
@@ -94,7 +94,7 @@ use crate::validates::Validates as _;
         let request_without_grammar = json!({
             "add_generation_prompt": true,
             "conversation_history": [
-                {"content": "Hello", "role": "user"}
+                {"Message": {"content": "Hello", "role": "user"}}
             ],
             "enable_thinking": false,
             "max_tokens": 10,

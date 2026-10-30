@@ -1,0 +1,1 @@
+pub const QUESTIONS_OUTLASTING_A_DISCONNECT: usize = 96;

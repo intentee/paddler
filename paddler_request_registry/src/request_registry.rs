@@ -1,14 +1,32 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
+use nanoid::nanoid;
 use tokio::sync::mpsc;
 
 use crate::request_delivery::RequestDelivery;
 
 pub struct RequestRegistry<TValue> {
     entries: DashMap<String, TValue>,
+    fresh_request_id_prefix: String,
+    next_fresh_request_id: AtomicU64,
 }
 
 impl<TValue> RequestRegistry<TValue> {
+    pub fn insert_fresh(&self, value: TValue) -> String {
+        let request_id = format!(
+            "{}-{}",
+            self.fresh_request_id_prefix,
+            self.next_fresh_request_id.fetch_add(1, Ordering::Relaxed)
+        );
+
+        self.entries.insert(request_id.clone(), value);
+
+        request_id
+    }
+
     #[must_use]
     pub fn insert_if_vacant(&self, request_id: String, value: TValue) -> bool {
         match self.entries.entry(request_id) {
@@ -53,6 +71,8 @@ impl<TValue> Default for RequestRegistry<TValue> {
     fn default() -> Self {
         Self {
             entries: DashMap::new(),
+            fresh_request_id_prefix: nanoid!(),
+            next_fresh_request_id: AtomicU64::new(0),
         }
     }
 }
@@ -71,6 +91,30 @@ mod tests {
         assert!(registry.insert_if_vacant("request".to_owned(), 1));
         assert!(!registry.insert_if_vacant("request".to_owned(), 2));
         assert_eq!(registry.with_registered("request", |value| *value), Some(1));
+    }
+
+    #[test]
+    fn registers_every_fresh_value_under_a_distinct_request_id() {
+        let registry = RequestRegistry::default();
+        let first_request_id = registry.insert_fresh(1);
+        let second_request_id = registry.insert_fresh(2);
+
+        assert_ne!(first_request_id, second_request_id);
+        assert_eq!(
+            [
+                registry.with_registered(&first_request_id, |value| *value),
+                registry.with_registered(&second_request_id, |value| *value)
+            ],
+            [Some(1), Some(2)]
+        );
+    }
+
+    #[test]
+    fn two_registries_hand_out_distinct_fresh_request_ids() {
+        assert_ne!(
+            RequestRegistry::default().insert_fresh(1),
+            RequestRegistry::default().insert_fresh(1)
+        );
     }
 
     #[test]

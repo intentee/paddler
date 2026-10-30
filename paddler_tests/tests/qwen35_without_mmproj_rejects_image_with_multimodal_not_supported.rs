@@ -23,7 +23,7 @@ async fn qwen35_without_mmproj_rejects_image_with_multimodal_not_supported() {
 
     let image_data_uri = load_test_image_data_uri().expect("the test image must load");
 
-    let conversation_history = ConversationHistory::new(vec![ConversationMessage {
+    let conversation_history = ConversationHistory::new(vec![ConversationMessage::Message {
         content: ConversationMessageContent::Parts(vec![
             ConversationMessageContentPart::ImageUrl {
                 image_url: ImageUrl {

@@ -1,0 +1,21 @@
+[package]
+name = "paddler_blocking_thread_fixture"
+autotests = false
+authors.workspace = true
+description = "Holds the only blocking thread of a test runtime so Paddler tests can keep blocking work queued"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+publish = false
+repository.workspace = true
+version.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
+[dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

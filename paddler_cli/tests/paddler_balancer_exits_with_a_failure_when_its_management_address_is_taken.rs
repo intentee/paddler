@@ -21,5 +21,5 @@ fn paddler_balancer_exits_with_a_failure_when_its_management_address_is_taken() 
         .expect("paddler balancer must run");
 
     assert_eq!(balancer_output.status.code(), Some(FAILED_MAIN_EXIT_CODE));
-    assert!(balancer_output.stdout.is_empty());
+    assert_eq!(balancer_output.stdout, Vec::<u8>::new());
 }

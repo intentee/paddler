@@ -1,0 +1,15 @@
+[package]
+name = "paddler_spawn_resuming_panic"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

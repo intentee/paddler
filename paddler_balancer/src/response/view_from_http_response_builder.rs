@@ -51,9 +51,9 @@ mod tests {
     }
 
     impl FastWritable for RenderingTemplate {
-        fn write_into<TWriter: fmt::Write + ?Sized>(
+        fn write_into(
             &self,
-            destination: &mut TWriter,
+            destination: &mut dyn fmt::Write,
             values: &dyn Values,
         ) -> AskamaResult<()> {
             self.render_into_with_values(destination, values)
@@ -63,9 +63,9 @@ mod tests {
     impl Template for RenderingTemplate {
         const SIZE_HINT: usize = 0;
 
-        fn render_into_with_values<TWriter: fmt::Write + ?Sized>(
+        fn render_into_with_values(
             &self,
-            writer: &mut TWriter,
+            writer: &mut dyn fmt::Write,
             _values: &dyn Values,
         ) -> AskamaResult<()> {
             writer.write_str("<p>rendered</p>")?;
@@ -84,9 +84,9 @@ mod tests {
     }
 
     impl FastWritable for FailingTemplate {
-        fn write_into<TWriter: fmt::Write + ?Sized>(
+        fn write_into(
             &self,
-            destination: &mut TWriter,
+            destination: &mut dyn fmt::Write,
             values: &dyn Values,
         ) -> AskamaResult<()> {
             self.render_into_with_values(destination, values)
@@ -96,9 +96,9 @@ mod tests {
     impl Template for FailingTemplate {
         const SIZE_HINT: usize = 0;
 
-        fn render_into_with_values<TWriter: fmt::Write + ?Sized>(
+        fn render_into_with_values(
             &self,
-            _writer: &mut TWriter,
+            _writer: &mut dyn fmt::Write,
             _values: &dyn Values,
         ) -> AskamaResult<()> {
             Err(AskamaError::ValueMissing)

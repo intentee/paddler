@@ -6,13 +6,9 @@ use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_shutdown_does_not_wait_for_an_open_sse_subscriber() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("the cluster must start");
     let mut sse_stream = cluster
         .client_management
         .get_buffered_requests_stream(CancellationToken::new())

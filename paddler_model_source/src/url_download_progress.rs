@@ -93,7 +93,7 @@ mod tests {
     fn starting_a_download_of_known_size_reports_it_and_clears_the_matching_download_issue() {
         let status = Arc::new(SlotAggregatedStatus::new(1));
 
-        status.register_issue(AgentIssue::DownloadInterrupted(test_model_path()));
+        status.register_desired_state_issue(AgentIssue::DownloadInterrupted(test_model_path()));
 
         url_download_progress(&status).apply(DownloadProgress::Started {
             already_downloaded_bytes: 100,
@@ -162,7 +162,7 @@ mod tests {
             already_downloaded_bytes: 200,
             total_bytes: Some(500),
         });
-        status.register_issue(AgentIssue::DownloadInterrupted(test_model_path()));
+        status.register_desired_state_issue(AgentIssue::DownloadInterrupted(test_model_path()));
         download_progress.apply(DownloadProgress::Finished);
 
         let snapshot = status.make_snapshot();

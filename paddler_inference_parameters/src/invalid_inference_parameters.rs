@@ -30,6 +30,17 @@ pub enum InvalidInferenceParameters {
         "penalty_last_n {penalty_last_n} is set, but every penalty strength is neutral, so no penalty applies"
     )]
     PenaltyWindowWithoutPenalties { penalty_last_n: i32 },
+    #[error(
+        "penalty_last_n {penalty_last_n} exceeds the sequence context of {sequence_context_size} tokens"
+    )]
+    PenaltyWindowExceedsSequenceContext {
+        penalty_last_n: i32,
+        sequence_context_size: u32,
+    },
+    #[error(
+        "pooling_type None produces no embeddings; choose Mean, Cls, Last, Rank, or Unspecified"
+    )]
+    PoolingProducesNoEmbeddings,
     #[error("temperature {temperature} must be a finite number of at least 0")]
     TemperatureNegative { temperature: f32 },
     #[error("top_k {top_k} is negative; use 0 to disable top-k sampling")]

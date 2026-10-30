@@ -1,65 +1,78 @@
-use std::convert::Infallible;
-
 use actix_web::HttpResponse;
-use actix_web::http::header;
 use actix_web_lab::sse;
+use futures::future::ready;
 use futures::stream::Stream;
 use futures::stream::StreamExt as _;
+use futures::stream::iter;
 use futures::stream::once;
+use nanoid::nanoid;
+use serde_json::Error as SerdeJsonError;
 
-use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
+use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
+use paddler_openai_translation::chat_completion_stream::ChatCompletionStream;
+use paddler_openai_translation::generation_outcome::GenerationOutcome;
+use paddler_openai_translation::generation_progress::GenerationProgress;
 
-pub fn chat_completions_sse_response<TStream>(transform_results: TStream) -> HttpResponse
-where
-    TStream: Stream<Item = TransformResult> + 'static,
-{
-    let event_stream = transform_results
-        .filter_map(|transform_result| async move {
-            match transform_result {
-                TransformResult::Chunk(chunk) | TransformResult::Error(chunk) => {
-                    Some(Ok::<sse::Event, Infallible>(sse::Event::Data(
-                        sse::Data::new(chunk),
-                    )))
-                }
-                TransformResult::Discard => None,
-            }
-        })
-        .chain(once(async {
-            Ok::<sse::Event, Infallible>(sse::Event::Data(sse::Data::new("[DONE]")))
-        }));
+use crate::agent_relay_event::AgentRelayEvent;
+use crate::compatibility::openai_service::openai_failure::OpenAIFailure;
+use crate::compatibility::openai_service::openai_sse_http_response::openai_sse_http_response;
 
-    HttpResponse::Ok()
-        .content_type("text/event-stream")
-        .insert_header((header::CACHE_CONTROL, "no-cache"))
-        .body(sse::Sse::from_stream(event_stream))
+fn openai_failure_data(openai_failure: OpenAIFailure) -> Vec<Result<sse::Data, SerdeJsonError>> {
+    vec![sse::Data::new_json(openai_failure.into_error_body())]
 }
 
-#[cfg(test)]
-mod tests {
-    use actix_web::body;
-    use futures::stream::iter;
+fn chat_completion_sse_data(
+    chat_completion_stream: &mut ChatCompletionStream,
+    request_id: &str,
+    agent_relay_event: AgentRelayEvent<GenerationProgress, GeneratedTokenFinalResult>,
+) -> Vec<Result<sse::Data, SerdeJsonError>> {
+    let chat_completion_chunks = match agent_relay_event {
+        AgentRelayEvent::Failed(relay_failure) => {
+            return openai_failure_data(OpenAIFailure::Relay(relay_failure));
+        }
+        AgentRelayEvent::Final(final_result) => {
+            chat_completion_stream.conclude(request_id, GenerationOutcome::from(final_result))
+        }
+        AgentRelayEvent::Partial(generation_progress) => {
+            chat_completion_stream.advance(request_id, generation_progress)
+        }
+    };
 
-    use super::chat_completions_sse_response;
-    use crate::chunk_forwarding_session_controller::transform_result::TransformResult;
-
-    #[actix_web::test]
-    async fn frames_each_chunk_as_an_sse_data_event_and_terminates_with_done() {
-        let response = chat_completions_sse_response(iter([
-            TransformResult::Chunk("{\"id\":1}".to_owned()),
-            TransformResult::Discard,
-            TransformResult::Error("{\"error\":{}}".to_owned()),
-        ]));
-
-        assert_eq!(
-            response.headers().get("content-type").unwrap(),
-            "text/event-stream"
-        );
-
-        let body_bytes = body::to_bytes(response.into_body()).await.unwrap();
-
-        assert_eq!(
-            body_bytes.as_ref(),
-            b"data: {\"id\":1}\n\ndata: {\"error\":{}}\n\ndata: [DONE]\n\n"
-        );
+    match chat_completion_chunks {
+        Ok(chat_completion_chunks) => chat_completion_chunks
+            .into_iter()
+            .map(sse::Data::new_json)
+            .collect(),
+        Err(generation_failure) => {
+            openai_failure_data(OpenAIFailure::Generation(generation_failure))
+        }
     }
+}
+
+pub fn chat_completions_sse_response<TAgentRelayEvents>(
+    chat_completion_stream: ChatCompletionStream,
+    agent_relay_events: TAgentRelayEvents,
+) -> HttpResponse
+where
+    TAgentRelayEvents:
+        Stream<Item = AgentRelayEvent<GenerationProgress, GeneratedTokenFinalResult>> + 'static,
+{
+    let request_id: String = nanoid!();
+
+    openai_sse_http_response(
+        agent_relay_events
+            .scan(
+                chat_completion_stream,
+                move |chat_completion_stream, agent_relay_event| {
+                    ready(Some(chat_completion_sse_data(
+                        chat_completion_stream,
+                        &request_id,
+                        agent_relay_event,
+                    )))
+                },
+            )
+            .flat_map(iter)
+            .chain(once(ready(Ok(sse::Data::new("[DONE]")))))
+            .map(|sse_data| sse_data.map(sse::Event::Data)),
+    )
 }

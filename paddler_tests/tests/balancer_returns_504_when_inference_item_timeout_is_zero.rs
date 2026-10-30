@@ -7,8 +7,11 @@ use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::inference_client::message::Message;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
@@ -19,7 +22,7 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() {
         agents: AgentConfig::uniform(1, 2),
         inference_item_timeout: Duration::ZERO,
         wait_for_slots_ready: true,
-        desired_state: Some(qwen3_0_6b().into_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         ..ClusterParams::default()
     })
     .await
@@ -43,17 +46,17 @@ async fn balancer_returns_504_when_inference_item_timeout_is_zero() {
         .expect("inference stream must yield a message")
         .expect("the message must be readable");
 
-    match message {
-        Message::Error(envelope) => {
-            assert_eq!(envelope.error.code, 504);
-        }
-        Message::Response(_) => {
-            panic!("expected timeout error, got success");
-        }
-        Message::Notification(_) => {
-            panic!("unexpected token-generation-mode notification");
-        }
-    }
+    let expected_error = JsonRpcError {
+        code: 504,
+        description: "Inference timed out after 0ms waiting for next token. \
+                    Increase --inference-item-timeout if the prompt requires longer processing."
+            .to_owned(),
+    };
+
+    assert!(matches!(
+        message,
+        Message::Error(ErrorEnvelope { error, .. }) if error == expected_error
+    ));
 
     cluster
         .shutdown()

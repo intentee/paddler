@@ -2,6 +2,8 @@ pub mod identity_transformer;
 pub mod transform_result;
 pub mod transforms_outgoing_message;
 
+use std::future::ready;
+
 use anyhow::Result;
 use tokio::sync::mpsc;
 
@@ -10,10 +12,9 @@ use paddler_messaging::inference_client::message::Message as OutgoingMessage;
 use self::transforms_outgoing_message::TransformsOutgoingMessage;
 use crate::controls_session::ControlsSession;
 
-#[derive(Clone)]
 pub struct ChunkForwardingSessionController<TTransformsOutgoingMessage>
 where
-    TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync,
+    TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync,
 {
     chunk_tx: mpsc::UnboundedSender<TTransformsOutgoingMessage::Output>,
     transformer: TTransformsOutgoingMessage,
@@ -21,7 +22,7 @@ where
 
 impl<TTransformsOutgoingMessage> ChunkForwardingSessionController<TTransformsOutgoingMessage>
 where
-    TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync,
+    TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync,
 {
     pub const fn new(
         chunk_tx: mpsc::UnboundedSender<TTransformsOutgoingMessage::Output>,
@@ -32,18 +33,25 @@ where
             transformer,
         }
     }
+
+    fn forward_transformed(&self, message: OutgoingMessage) -> Result<()> {
+        for output in self.transformer.transform(message) {
+            self.chunk_tx.send(output)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl<TTransformsOutgoingMessage> ControlsSession<OutgoingMessage>
     for ChunkForwardingSessionController<TTransformsOutgoingMessage>
 where
-    TTransformsOutgoingMessage: Clone + TransformsOutgoingMessage + Send + Sync,
+    TTransformsOutgoingMessage: TransformsOutgoingMessage + Send + Sync,
 {
-    async fn send_response(&mut self, message: OutgoingMessage) -> Result<()> {
-        for output in self.transformer.transform(message).await? {
-            self.chunk_tx.send(output)?;
-        }
-
-        Ok(())
+    fn send_response(
+        &mut self,
+        message: OutgoingMessage,
+    ) -> impl Future<Output = Result<()>> + Send {
+        ready(self.forward_transformed(message))
     }
 }

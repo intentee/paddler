@@ -1,0 +1,16 @@
+[package]
+name = "paddler_outbox"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+parking_lot = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

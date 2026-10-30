@@ -4,69 +4,26 @@ use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 #[derive(Clone, Debug)]
 pub struct BalancerApplicableState {
     pub agent_desired_state: AgentDesiredState,
+    pub balancer_desired_state: BalancerDesiredState,
+    pub version: u64,
 }
 
-impl From<BalancerDesiredState> for BalancerApplicableState {
-    fn from(
-        BalancerDesiredState {
-            chat_template_override,
-            inference_parameters,
-            model,
-            multimodal_projection,
-            use_chat_template_override,
-        }: BalancerDesiredState,
-    ) -> Self {
+impl BalancerApplicableState {
+    #[must_use]
+    pub fn initial(balancer_desired_state: BalancerDesiredState) -> Self {
+        Self::at_version(balancer_desired_state, 0)
+    }
+
+    #[must_use]
+    pub fn superseded_by(&self, balancer_desired_state: BalancerDesiredState) -> Self {
+        Self::at_version(balancer_desired_state, self.version + 1)
+    }
+
+    fn at_version(balancer_desired_state: BalancerDesiredState, version: u64) -> Self {
         Self {
-            agent_desired_state: AgentDesiredState {
-                chat_template_override: if use_chat_template_override {
-                    chat_template_override
-                } else {
-                    None
-                },
-                inference_parameters,
-                model,
-                multimodal_projection,
-            },
+            agent_desired_state: AgentDesiredState::from(&balancer_desired_state),
+            balancer_desired_state,
+            version,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use paddler_messaging::balancer_desired_state::BalancerDesiredState;
-    use paddler_messaging::chat_template::ChatTemplate;
-
-    use super::BalancerApplicableState;
-
-    fn desired_state_with_override(use_chat_template_override: bool) -> BalancerDesiredState {
-        BalancerDesiredState {
-            chat_template_override: Some(ChatTemplate {
-                content: "{{ messages }}".to_owned(),
-            }),
-            use_chat_template_override,
-            ..BalancerDesiredState::default()
-        }
-    }
-
-    #[test]
-    fn applies_the_chat_template_override_when_it_is_enabled() {
-        assert_eq!(
-            BalancerApplicableState::from(desired_state_with_override(true))
-                .agent_desired_state
-                .chat_template_override,
-            Some(ChatTemplate {
-                content: "{{ messages }}".to_owned(),
-            })
-        );
-    }
-
-    #[test]
-    fn ignores_the_chat_template_override_when_it_is_disabled() {
-        assert_eq!(
-            BalancerApplicableState::from(desired_state_with_override(false))
-                .agent_desired_state
-                .chat_template_override,
-            None
-        );
     }
 }

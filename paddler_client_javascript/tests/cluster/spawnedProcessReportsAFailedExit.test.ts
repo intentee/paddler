@@ -2,11 +2,10 @@ import { rejects } from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { test } from "node:test";
 
+import { CLAP_USAGE_ERROR_EXIT_CODE } from "../clapUsageErrorExitCode";
 import { paddlerBinaryPath } from "../paddlerBinaryPath";
 import { ProcessExitedWithFailureError } from "../ProcessExitedWithFailureError";
 import { SpawnedProcess } from "../SpawnedProcess";
-
-const CLAP_USAGE_ERROR_EXIT_CODE = 2;
 
 test("spawned process reports a failed exit", async function () {
   const spawnedProcess = new SpawnedProcess(

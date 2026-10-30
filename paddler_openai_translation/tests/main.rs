@@ -1,0 +1,11 @@
+mod a_buffered_chat_completion_carries_its_header_fields;
+mod a_chat_completion_request_with_an_unsatisfiable_tool_is_refused;
+mod a_request_translated_before_the_unix_epoch_is_refused;
+mod a_streamed_chat_completion_including_usage_adds_a_usage_chunk;
+mod a_streamed_chat_completion_without_usage_sends_a_single_chunk;
+#[cfg(test)]
+mod finishing_json_of;
+#[cfg(test)]
+mod first_response_snapshots;
+mod responses_requests_report_the_sampling_parameters_in_effect;
+mod responses_requests_report_their_status_and_a_resp_prefixed_id;

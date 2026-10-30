@@ -1,28 +1,40 @@
 [workspace]
 members = [
     "paddler_agent",
+    "paddler_agent_decision",
+    "paddler_agent_embeddings",
+    "paddler_agent_pointer_head",
+    "paddler_agent_runtime",
     "paddler_agent_status",
+    "paddler_agent_text_generation",
     "paddler_balancer",
+    "paddler_blocking_thread_fixture",
     "paddler_bootstrap",
     "paddler_cache_dir",
     "paddler_cli",
     "paddler_cli_tests",
     "paddler_client",
+    "paddler_dashboard_assets",
     "paddler_download_manager",
-    "paddler_gui",
-    "paddler_gui_tests",
+    "paddler_frame_writer",
     "paddler_image_decoder",
     "paddler_inference_parameters",
     "paddler_local_http_fixture",
     "paddler_messaging",
     "paddler_model_source",
     "paddler_openai_response_format_validator",
+    "paddler_openai_translation",
     "paddler_opencode_tests",
+    "paddler_outbox",
     "paddler_request_registry",
+    "paddler_sha256_hex",
+    "paddler_spawn_resuming_panic",
     "paddler_state_database",
+    "paddler_tcp_buffer_limits",
     "paddler_test_cluster_harness",
     "paddler_tests",
     "paddler_tool_call_validator",
+    "paddler_typesafe_translation",
 ]
 resolver = "2"
 
@@ -33,94 +45,105 @@ edition = "2024"
 homepage = "https://paddler.intentee.com/"
 license = "Apache-2.0"
 repository = "https://github.com/intentee/paddler"
-version = "4.1.0"
+version = "5.0.0"
 
 [workspace.dependencies]
 actix-cors = "0.7"
-actix-rt = "2.11"
-actix-web = "4.13"
-actix-web-lab = "0.26"
+actix-web = { version = "4.18", default-features = false, features = ["compat", "compress-brotli", "compress-gzip", "compress-zstd", "cookies", "macros", "unicode", "ws"] }
+actix-web-lab = "0.29"
 actix-ws = "0.4"
 anyhow = { version = "1.0", features = ["backtrace"] }
-askama = "0.14"
-async-openai = { version = "0.40", features = ["byot", "chat-completion", "responses"] }
-async-stream = "0.3"
+askama = "0.16"
+async-openai = { version = "0.42", features = ["byot", "chat-completion", "responses"] }
 async-trait = "0.1"
-bytes = "1.11"
-cadence = "1.6"
-clap = { version = "4.5", features = ["derive", "string"] }
-command_handler = "0.1"
-dashmap = "6.1"
+base64 = "0.23"
+bytes = "1.12"
+cadence = "1.8"
+clap = { version = "4.6", features = ["derive", "env", "string"] }
+command_handler = "0.2"
+dashmap = "6.2"
 data-url = "0.3"
 encoding_rs = { version = "0.8", features = ["serde"] }
 env_logger = "0.11"
-esbuild-metafile = "0.5"
+esbuild-metafile = "0.11"
 fslock = "0.2"
 futures = "0.3"
-futures-util = { version = "0.3", features = ["tokio-io"] }
+futures-util = "0.3"
 headers = "0.4"
-hf-hub = { version = "0.4", features = ["tokio"] }
-http = "1.4"
+hf-hub = "1.0"
+http = "1.5"
 httparse = "1.10"
+icu_normalizer = "2.4"
 image = "0.25"
 indoc = "2.0"
-jsonschema = { version = "0.37", default-features = false }
-llama-cpp-bindings = "0.16"
-llama-cpp-bindings-sys = "0.16"
-llama-cpp-bindings-types = "0.16"
-base64 = "0.22"
+jsonschema = { version = "0.60", default-features = false }
+libc = "0.2"
+llama-cpp-bindings = "0.25"
+llama-cpp-bindings-sys = "0.25"
+llama-cpp-bindings-types = "0.25"
 log = "0.4"
 mime_guess = "2.0"
-minijinja = { version = "2.12", features = ["builtins", "json", "loader"] }
-minijinja-contrib = { version = "2.12", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
-nanoid = "0.4"
-nix = { version = "0.30", features = ["resource", "signal"] }
-open = "5.3"
-parking_lot = "0.12"
-quick-xml = "0.39"
-rand = "0.9"
-reqwest = { version = "0.12", features = ["json", "stream"] }
-resvg = "0.46"
-rust-embed = { version = "8.9", features = ["interpolate-folder-path"] }
+minijinja = { version = "3.0", features = ["builtins", "json", "serde"] }
+minijinja-contrib = { version = "3.0", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
+nanoid = "0.5"
+nix = { version = "0.31", features = ["fs", "net", "process", "resource", "signal", "socket", "user"] }
+parking_lot = "0.13"
+percent-encoding = "2.3"
+quick-xml = "0.42"
+rand = "0.10"
+reqwest = { version = "0.13", features = ["json", "stream"] }
+resvg = "0.49"
+rust-embed = { version = "8.13", features = ["debug-embed", "interpolate-folder-path"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["preserve_order"] }
-sha2 = "0.10"
+serde_json = { version = "1.0", features = ["preserve_order", "raw_value"] }
+seccompiler = "0.5"
+sha2 = "0.11"
 shellexpand = "3.1"
 socket2 = "0.6"
-iced = { version = "0.14", features = ["image", "svg", "tokio"] }
-iced_test = { version = "0.14" }
-if-addrs = "0.13"
-statum = "0.6"
-tempfile = "3.20"
-tokio = { version = "1.48", features = ["full"] }
+syn = { version = "3.0", features = ["full", "visit"] }
+tempfile = "3.27"
+tokio = { version = "1.54", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-test = "0.4"
-tokio-tungstenite = "0.28"
+tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 thiserror = "2.0"
-trzcina = "0.3"
+trzcina = "0.4"
 url = { version = "2.5", features = ["serde"] }
-yaml-rust2 = "0.11"
-paddler_agent = { version = "4.1", path = "paddler_agent" }
-paddler_agent_status = { version = "4.1", path = "paddler_agent_status" }
-paddler_balancer = { version = "4.1", path = "paddler_balancer" }
-paddler_bootstrap = { version = "4.1", path = "paddler_bootstrap" }
-paddler_cache_dir = { version = "4.1", path = "paddler_cache_dir" }
-paddler_cli = { version = "4.1", path = "paddler_cli" }
-paddler_client = { version = "4.1", path = "paddler_client" }
-paddler_download_manager = { version = "4.1", path = "paddler_download_manager" }
-paddler_gui = { version = "4.1", path = "paddler_gui" }
-paddler_image_decoder = { version = "4.1", path = "paddler_image_decoder" }
-paddler_inference_parameters = { version = "4.1", path = "paddler_inference_parameters" }
-paddler_local_http_fixture = { version = "4.1", path = "paddler_local_http_fixture" }
-paddler_messaging = { version = "4.1", path = "paddler_messaging" }
-paddler_model_source = { version = "4.1", path = "paddler_model_source" }
-paddler_openai_response_format_validator = { version = "4.1", path = "paddler_openai_response_format_validator" }
-paddler_request_registry = { version = "4.1", path = "paddler_request_registry" }
-paddler_state_database = { version = "4.1", path = "paddler_state_database" }
-paddler_test_cluster_harness = { version = "4.1", path = "paddler_test_cluster_harness" }
-paddler_tests = { version = "4.1", path = "paddler_tests" }
-paddler_tool_call_validator = { version = "4.1", path = "paddler_tool_call_validator" }
+yaml-rust2 = "0.13"
+paddler_agent = { version = "5.0", path = "paddler_agent" }
+paddler_agent_decision = { version = "5.0", path = "paddler_agent_decision" }
+paddler_agent_embeddings = { version = "5.0", path = "paddler_agent_embeddings" }
+paddler_agent_pointer_head = { version = "5.0", path = "paddler_agent_pointer_head" }
+paddler_agent_runtime = { version = "5.0", path = "paddler_agent_runtime" }
+paddler_agent_status = { version = "5.0", path = "paddler_agent_status" }
+paddler_agent_text_generation = { version = "5.0", path = "paddler_agent_text_generation" }
+paddler_balancer = { version = "5.0", path = "paddler_balancer" }
+paddler_blocking_thread_fixture = { version = "5.0", path = "paddler_blocking_thread_fixture" }
+paddler_bootstrap = { version = "5.0", path = "paddler_bootstrap" }
+paddler_cache_dir = { version = "5.0", path = "paddler_cache_dir" }
+paddler_cli = { version = "5.0", path = "paddler_cli" }
+paddler_client = { version = "5.0", path = "paddler_client" }
+paddler_dashboard_assets = { version = "5.0", path = "paddler_dashboard_assets" }
+paddler_download_manager = { version = "5.0", path = "paddler_download_manager" }
+paddler_frame_writer = { version = "5.0", path = "paddler_frame_writer" }
+paddler_image_decoder = { version = "5.0", path = "paddler_image_decoder" }
+paddler_inference_parameters = { version = "5.0", path = "paddler_inference_parameters" }
+paddler_local_http_fixture = { version = "5.0", path = "paddler_local_http_fixture" }
+paddler_messaging = { version = "5.0", path = "paddler_messaging" }
+paddler_model_source = { version = "5.0", path = "paddler_model_source" }
+paddler_openai_response_format_validator = { version = "5.0", path = "paddler_openai_response_format_validator" }
+paddler_openai_translation = { version = "5.0", path = "paddler_openai_translation" }
+paddler_outbox = { version = "5.0", path = "paddler_outbox" }
+paddler_request_registry = { version = "5.0", path = "paddler_request_registry" }
+paddler_sha256_hex = { version = "5.0", path = "paddler_sha256_hex" }
+paddler_spawn_resuming_panic = { version = "5.0", path = "paddler_spawn_resuming_panic" }
+paddler_state_database = { version = "5.0", path = "paddler_state_database" }
+paddler_tcp_buffer_limits = { version = "5.0", path = "paddler_tcp_buffer_limits" }
+paddler_test_cluster_harness = { version = "5.0", path = "paddler_test_cluster_harness" }
+paddler_tests = { version = "5.0", path = "paddler_tests" }
+paddler_tool_call_validator = { version = "5.0", path = "paddler_tool_call_validator" }
+paddler_typesafe_translation = { version = "5.0", path = "paddler_typesafe_translation" }
 
 [profile.release]
 lto = true

@@ -15,7 +15,15 @@ impl AgentApplicableStateHolder {
 
     pub fn set_agent_applicable_state(&self, agent_applicable_state: AgentApplicableState) {
         self.agent_applicable_state_tx
-            .send_replace(agent_applicable_state);
+            .send_if_modified(|current_agent_applicable_state| {
+                if *current_agent_applicable_state == agent_applicable_state {
+                    return false;
+                }
+
+                *current_agent_applicable_state = agent_applicable_state;
+
+                true
+            });
     }
 
     #[must_use]
@@ -25,37 +33,5 @@ impl AgentApplicableStateHolder {
         agent_applicable_state_rx.mark_changed();
 
         agent_applicable_state_rx
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use paddler_inference_parameters::inference_parameters::InferenceParameters;
-
-    use super::AgentApplicableStateHolder;
-    use crate::agent_applicable_model::AgentApplicableModel;
-    use crate::agent_applicable_state::AgentApplicableState;
-
-    #[test]
-    fn a_new_subscriber_sees_the_state_applied_before_it_subscribed() {
-        let holder = AgentApplicableStateHolder::default();
-
-        let applied_state = AgentApplicableState {
-            chat_template_override: None,
-            inference_parameters: InferenceParameters::default(),
-            model: AgentApplicableModel::Resolved {
-                model_path: PathBuf::from("model.gguf"),
-                multimodal_projection_path: None,
-            },
-        };
-
-        holder.set_agent_applicable_state(applied_state.clone());
-
-        let agent_applicable_state_rx = holder.subscribe();
-
-        assert!(agent_applicable_state_rx.has_changed().unwrap());
-        assert_eq!(*agent_applicable_state_rx.borrow(), applied_state);
     }
 }

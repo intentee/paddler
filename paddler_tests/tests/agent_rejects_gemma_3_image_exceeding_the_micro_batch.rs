@@ -4,6 +4,7 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
+use paddler_inference_parameters::batch_size::BatchSize;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -24,7 +25,8 @@ const N_BATCH_SMALLER_THAN_ONE_IMAGE: u32 = 128;
 async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() {
     let cluster = start_cluster_with_gemma_3_and_mmproj_and_n_batch(
         vec![AgentConfig::single(1)],
-        N_BATCH_SMALLER_THAN_ONE_IMAGE,
+        BatchSize::try_from(N_BATCH_SMALLER_THAN_ONE_IMAGE)
+            .expect("the batch size must be within the supported range"),
     )
     .await
     .expect("the cluster must start");
@@ -34,20 +36,22 @@ async fn agent_rejects_gemma_3_image_exceeding_the_micro_batch() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Parts(vec![
-                        ConversationMessageContentPart::ImageUrl {
-                            image_url: ImageUrl {
-                                url: load_fixture_data_uri("sarnow.jpeg", "image/jpeg")
-                                    .expect("the test fixture must load"),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Parts(vec![
+                            ConversationMessageContentPart::ImageUrl {
+                                image_url: ImageUrl {
+                                    url: load_fixture_data_uri("sarnow.jpeg", "image/jpeg")
+                                        .expect("the test fixture must load"),
+                                },
                             },
-                        },
-                        ConversationMessageContentPart::Text {
-                            text: "Describe this image.".to_owned(),
-                        },
-                    ]),
-                    role: "user".to_owned(),
-                }]),
+                            ConversationMessageContentPart::Text {
+                                text: "Describe this image.".to_owned(),
+                            },
+                        ]),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: MAX_TOKENS,

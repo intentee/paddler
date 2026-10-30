@@ -3,6 +3,8 @@ use std::num::NonZeroU32;
 
 use futures_util::SinkExt as _;
 use futures_util::StreamExt as _;
+use futures_util::TryFutureExt as _;
+use futures_util::future::ready;
 use serde_json::from_str;
 use serde_json::to_string;
 use tokio::net::TcpStream;
@@ -25,13 +27,32 @@ use paddler_messaging::request_params::continue_from_raw_prompt_params::Continue
 
 use crate::cluster_harness_error::ClusterHarnessError;
 
-const fn answered_request_id(message: &InferenceClientMessage) -> Option<&str> {
+const fn answered_request_id(message: &InferenceClientMessage) -> &str {
     match message {
         InferenceClientMessage::Error(ErrorEnvelope { request_id, .. })
         | InferenceClientMessage::Response(ResponseEnvelope { request_id, .. }) => {
-            Some(request_id.as_str())
+            request_id.as_str()
         }
-        InferenceClientMessage::Notification(_) => None,
+    }
+}
+
+fn awaited_answer(
+    frame: Message,
+    is_awaited: impl Fn(&str) -> bool,
+) -> Option<Result<InferenceClientMessage, ClusterHarnessError>> {
+    match frame {
+        Message::Text(text) => from_str::<InferenceClientMessage>(&text)
+            .map_err(ClusterHarnessError::InferenceSocketMessageUnreadable)
+            .map(|message| is_awaited(answered_request_id(&message)).then_some(message))
+            .transpose(),
+        _other_frame => None,
+    }
+}
+
+fn pong_payload(frame: Message) -> Option<Result<Bytes, ClusterHarnessError>> {
+    match frame {
+        Message::Pong(payload) => Some(Ok(payload)),
+        _other_frame => None,
     }
 }
 
@@ -50,52 +71,47 @@ impl RawInferenceSocket {
     }
 
     pub async fn next_answer(&mut self) -> Result<InferenceClientMessage, ClusterHarnessError> {
-        while let Some(message) = self.next_message().await? {
-            if answered_request_id(&message).is_some() {
-                return Ok(message);
-            }
-        }
-
-        Err(ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer)
+        self.next_selected_frame(|frame| awaited_answer(frame, |_answered_request_id| true))
+            .await
+            .and_then(|answer| {
+                answer.ok_or(ClusterHarnessError::InferenceSocketClosedBeforeAnyAnswer)
+            })
     }
 
     pub async fn next_answer_to(
         &mut self,
         request_id: &str,
     ) -> Result<InferenceClientMessage, ClusterHarnessError> {
-        while let Some(message) = self.next_message().await? {
-            if answered_request_id(&message) == Some(request_id) {
-                return Ok(message);
-            }
-        }
-
-        Err(ClusterHarnessError::InferenceSocketClosedBeforeAnswer {
-            request_id: request_id.to_owned(),
+        self.next_selected_frame(|frame| {
+            awaited_answer(frame, |answered_request_id| {
+                answered_request_id == request_id
+            })
+        })
+        .await
+        .and_then(|answer| {
+            answer.ok_or_else(|| ClusterHarnessError::InferenceSocketClosedBeforeAnswer {
+                request_id: request_id.to_owned(),
+            })
         })
     }
 
-    async fn next_message(
+    pub async fn next_pong(&mut self) -> Result<Bytes, ClusterHarnessError> {
+        self.next_selected_frame(pong_payload)
+            .await
+            .and_then(|pong| pong.ok_or(ClusterHarnessError::InferenceSocketClosedBeforePong))
+    }
+
+    async fn next_selected_frame<TSelected>(
         &mut self,
-    ) -> Result<Option<InferenceClientMessage>, ClusterHarnessError> {
+        select: impl Fn(Message) -> Option<Result<TSelected, ClusterHarnessError>>,
+    ) -> Result<Option<TSelected>, ClusterHarnessError> {
         while let Some(frame) = self.next_frame_before_close().await? {
-            if let Message::Text(text) = frame {
-                return from_str::<InferenceClientMessage>(&text)
-                    .map(Some)
-                    .map_err(ClusterHarnessError::InferenceSocketMessageUnreadable);
+            if let Some(selected) = select(frame) {
+                return selected.map(Some);
             }
         }
 
         Ok(None)
-    }
-
-    pub async fn next_pong(&mut self) -> Result<Bytes, ClusterHarnessError> {
-        while let Some(frame) = self.next_frame_before_close().await? {
-            if let Message::Pong(payload) = frame {
-                return Ok(payload);
-            }
-        }
-
-        Err(ClusterHarnessError::InferenceSocketClosedBeforePong)
     }
 
     async fn next_frame_before_close(&mut self) -> Result<Option<Message>, ClusterHarnessError> {
@@ -128,11 +144,15 @@ impl RawInferenceSocket {
                 ),
             });
 
-        let serialized_request = to_string(&request)
-            .map_err(ClusterHarnessError::InferenceSocketRequestUnserializable)?;
-
-        self.send(Message::text(serialized_request))
-            .await
-            .map_err(ClusterHarnessError::InferenceSocketSendFailed)
+        ready(
+            to_string(&request)
+                .map(Message::text)
+                .map_err(ClusterHarnessError::InferenceSocketRequestUnserializable),
+        )
+        .and_then(|serialized_request| {
+            self.send(serialized_request)
+                .map_err(ClusterHarnessError::InferenceSocketSendFailed)
+        })
+        .await
     }
 }

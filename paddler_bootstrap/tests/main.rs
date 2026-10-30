@@ -1,21 +1,34 @@
-mod agent_runner_completes_after_cancel_when_management_server_is_unresponsive;
 mod agent_runner_completes_when_cancelled;
 mod agent_runner_completes_when_its_parent_token_is_cancelled;
+mod agent_runner_leaves_its_balancer_when_dropped;
+#[cfg(test)]
+mod agent_runner_params_for_balancer_at;
+#[cfg(test)]
 mod agent_runner_params_for_unreachable_balancer;
-mod agent_runner_reports_its_connection_to_the_balancer;
-mod agent_runner_stops_when_dropped;
 mod balancer_reports_its_gauges_to_statsd;
 mod balancer_runner_completes_when_cancelled;
 mod balancer_runner_completes_when_its_parent_token_is_cancelled;
-mod balancer_runner_fails_to_start_when_an_address_is_taken;
+mod balancer_runner_fails_to_start_when_its_compat_openai_address_is_taken;
+mod balancer_runner_fails_to_start_when_its_compat_typesafe_address_is_taken;
+mod balancer_runner_fails_to_start_when_its_inference_address_is_taken;
+mod balancer_runner_fails_to_start_when_its_management_address_is_taken;
+#[cfg(feature = "web_admin_panel")]
+mod balancer_runner_fails_to_start_when_its_web_admin_panel_address_is_taken;
 mod balancer_runner_fails_to_start_when_state_database_file_is_corrupt;
 mod balancer_runner_fails_to_start_with_a_zero_statsd_reporting_interval;
+mod balancer_runner_holds_the_desired_state_it_starts_with;
 mod balancer_runner_preserves_the_persisted_desired_state;
 mod balancer_runner_releases_its_ports_when_dropped;
 mod balancer_runner_serves_on_the_addresses_it_reports;
+#[cfg(test)]
+mod balancer_runner_start_on_a_taken_address;
 mod balancer_shutdown_releases_buffered_request_with_shutdown_error;
 #[cfg(feature = "web_admin_panel")]
 mod balancer_web_admin_panel_omits_the_services_it_does_not_run;
 #[cfg(feature = "web_admin_panel")]
 mod balancer_web_admin_panel_shows_the_balancer_configuration;
+#[cfg(test)]
 mod ephemeral_balancer_runner_params;
+#[cfg(feature = "web_admin_panel")]
+#[cfg(test)]
+mod rendered_dashboard_attributes;

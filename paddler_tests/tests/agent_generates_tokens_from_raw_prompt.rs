@@ -4,10 +4,8 @@ use std::num::NonZeroU32;
 
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -33,13 +31,9 @@ async fn agent_generates_tokens_from_raw_prompt() {
         .count();
 
     assert!(token_count > 0);
-    assert!(matches!(
-        collected.token_results.last(),
-        Some(TokenResultWithProducer {
-            token_result: GeneratedTokenResult::Done(_),
-            ..
-        })
-    ));
+    collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     cluster
         .shutdown()

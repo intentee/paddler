@@ -16,7 +16,7 @@ pub fn weather_question_conversation(
 ) -> ContinueFromConversationHistoryParams<ValidatedParametersSchema> {
     ContinueFromConversationHistoryParams {
         add_generation_prompt: true,
-        conversation_history: ConversationHistory::new(vec![ConversationMessage {
+        conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
             content: ConversationMessageContent::Text("What is the weather in Paris?".to_owned()),
             role: "user".to_owned(),
         }]),

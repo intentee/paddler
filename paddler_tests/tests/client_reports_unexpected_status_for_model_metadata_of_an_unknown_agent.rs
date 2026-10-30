@@ -7,13 +7,9 @@ use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn client_reports_unexpected_status_for_model_metadata_of_an_unknown_agent() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("a cluster without agents must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a cluster without agents must start");
 
     let rejection = cluster
         .client_management

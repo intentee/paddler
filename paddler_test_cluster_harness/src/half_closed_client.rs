@@ -2,8 +2,7 @@ use std::net::SocketAddr;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use serde::Serialize;
-use serde_json::to_string;
+use serde_json::Value;
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream;
 
@@ -14,15 +13,12 @@ pub struct HalfClosedClient {
 }
 
 impl HalfClosedClient {
-    pub async fn post_json_then_half_close<TBody>(
+    pub async fn post_json_then_half_close(
         addr: SocketAddr,
         path: &str,
-        body: &TBody,
-    ) -> Result<Self>
-    where
-        TBody: Serialize,
-    {
-        let serialized_body = to_string(body)?;
+        body: &Value,
+    ) -> Result<Self> {
+        let serialized_body = body.to_string();
         let request = format!(
             "POST {path} HTTP/1.1\r\n\
              Host: {addr}\r\n\
@@ -37,9 +33,11 @@ impl HalfClosedClient {
             .await
             .map_err(|source| ClusterHarnessError::HalfClosedClientUnreachable { addr, source })?;
 
-        socket.write_all(request.as_bytes()).await?;
-
-        Ok(Self { socket })
+        socket
+            .write_all(request.as_bytes())
+            .await
+            .map(|()| Self { socket })
+            .context("half-closed client must send its whole request")
     }
 
     pub async fn half_close(&mut self) -> Result<()> {

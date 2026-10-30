@@ -1,60 +1,55 @@
 use std::time::Duration;
 
-use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
-use paddler_messaging::streamable_result::StreamableResult;
+use paddler_messaging::result_step::ResultStep;
 
-use crate::balancer_shutdown_error::balancer_shutdown_error;
+use crate::agent_relay_event::AgentRelayEvent;
 use crate::forwarding_event::ForwardingEvent;
 use crate::forwarding_plan::ForwardingPlan;
+use crate::relay_failure::RelayFailure;
 
 pub enum AgentResponseForwardingMode {
     DrainingUntilAgentConfirms,
-    ForwardingToClient,
+    ForwardingToRelay,
 }
 
 impl AgentResponseForwardingMode {
     #[must_use]
-    pub fn plan_for<TResponse: StreamableResult>(
+    pub fn plan_for<TPartial, TFinal>(
         &self,
-        event: ForwardingEvent<TResponse>,
+        event: ForwardingEvent<TPartial, TFinal>,
         inference_item_timeout: Duration,
-    ) -> ForwardingPlan<TResponse> {
+    ) -> ForwardingPlan<TPartial, TFinal> {
         match self {
-            Self::ForwardingToClient => match event {
-                ForwardingEvent::AgentConnectionClosed => {
-                    ForwardingPlan::ReplyWithErrorThenFinish(JsonRpcError {
-                        code: 502,
-                        description: "Agent controller connection closed".to_owned(),
-                    })
+            Self::ForwardingToRelay => match event {
+                ForwardingEvent::AgentConnectionClosed => ForwardingPlan::NotifyRelayThenFinish(
+                    AgentRelayEvent::Failed(RelayFailure::AgentDisconnected),
+                ),
+                ForwardingEvent::ItemTimedOut => ForwardingPlan::NotifyRelayThenStopAgent(
+                    AgentRelayEvent::Failed(RelayFailure::ItemTimedOut {
+                        inference_item_timeout,
+                    }),
+                ),
+                ForwardingEvent::RelayAbandoned => ForwardingPlan::StopAgent,
+                ForwardingEvent::ResponseReceived(ResultStep::Final(final_result)) => {
+                    ForwardingPlan::NotifyRelayThenFinish(AgentRelayEvent::Final(final_result))
                 }
-                ForwardingEvent::ClientConnectionClosed => ForwardingPlan::StopAgent,
-                ForwardingEvent::ItemTimedOut => {
-                    let timeout_ms = inference_item_timeout.as_millis();
-
-                    ForwardingPlan::ReplyWithErrorThenStopAgent(JsonRpcError {
-                        code: 504,
-                        description: format!(
-                            "Inference timed out after {timeout_ms}ms waiting for next token. \
-                            Increase --inference-item-timeout if the prompt requires longer processing."
-                        ),
-                    })
+                ForwardingEvent::ResponseReceived(ResultStep::Partial(partial_result)) => {
+                    ForwardingPlan::NotifyRelay(AgentRelayEvent::Partial(partial_result))
                 }
-                ForwardingEvent::ResponseReceived(response) => ForwardingPlan::ForwardResponse {
-                    is_done: response.is_done(),
-                    response,
-                },
                 ForwardingEvent::ShutdownRequested => {
-                    ForwardingPlan::ReplyWithErrorThenStopAgentThenFinish(balancer_shutdown_error())
+                    ForwardingPlan::NotifyRelayThenStopAgentThenFinish(AgentRelayEvent::Failed(
+                        RelayFailure::BalancerShuttingDown,
+                    ))
                 }
             },
             Self::DrainingUntilAgentConfirms => match event {
-                ForwardingEvent::ResponseReceived(response) if !response.is_done() => {
+                ForwardingEvent::ResponseReceived(ResultStep::Partial(_)) => {
                     ForwardingPlan::IgnoreDrainedResponse
                 }
                 ForwardingEvent::AgentConnectionClosed
-                | ForwardingEvent::ClientConnectionClosed
                 | ForwardingEvent::ItemTimedOut
-                | ForwardingEvent::ResponseReceived(_)
+                | ForwardingEvent::RelayAbandoned
+                | ForwardingEvent::ResponseReceived(ResultStep::Final(_))
                 | ForwardingEvent::ShutdownRequested => ForwardingPlan::Finish,
             },
         }
@@ -65,90 +60,114 @@ impl AgentResponseForwardingMode {
 mod tests {
     use std::time::Duration;
 
-    use paddler_messaging::generated_token_result::GeneratedTokenResult;
-    use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+    use llama_cpp_bindings_types::TokenUsage;
+
+    use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
+    use paddler_messaging::generated_token_partial_result::GeneratedTokenPartialResult;
+    use paddler_messaging::generation_finish::GenerationFinish;
+    use paddler_messaging::generation_summary::GenerationSummary;
+    use paddler_messaging::result_step::ResultStep;
 
     use super::AgentResponseForwardingMode;
+    use crate::agent_relay_event::AgentRelayEvent;
     use crate::forwarding_event::ForwardingEvent;
     use crate::forwarding_plan::ForwardingPlan;
+    use crate::relay_failure::RelayFailure;
 
     const INFERENCE_ITEM_TIMEOUT: Duration = Duration::from_millis(250);
 
-    fn forwarding(
-        event: ForwardingEvent<GeneratedTokenResult>,
-    ) -> ForwardingPlan<GeneratedTokenResult> {
-        AgentResponseForwardingMode::ForwardingToClient.plan_for(event, INFERENCE_ITEM_TIMEOUT)
+    type GeneratedTokenForwardingEvent =
+        ForwardingEvent<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
+
+    type GeneratedTokenForwardingPlan =
+        ForwardingPlan<GeneratedTokenPartialResult, GeneratedTokenFinalResult>;
+
+    fn forwarding(event: GeneratedTokenForwardingEvent) -> GeneratedTokenForwardingPlan {
+        AgentResponseForwardingMode::ForwardingToRelay.plan_for(event, INFERENCE_ITEM_TIMEOUT)
     }
 
-    fn draining(
-        event: ForwardingEvent<GeneratedTokenResult>,
-    ) -> ForwardingPlan<GeneratedTokenResult> {
+    fn draining(event: GeneratedTokenForwardingEvent) -> GeneratedTokenForwardingPlan {
         AgentResponseForwardingMode::DrainingUntilAgentConfirms
             .plan_for(event, INFERENCE_ITEM_TIMEOUT)
     }
 
+    fn content_token() -> GeneratedTokenPartialResult {
+        GeneratedTokenPartialResult::ContentToken("token".to_owned())
+    }
+
+    fn generation_done() -> GeneratedTokenFinalResult {
+        GeneratedTokenFinalResult::Done(GenerationSummary {
+            finish: GenerationFinish::EndOfGeneration,
+            usage: TokenUsage::new(),
+        })
+    }
+
     #[test]
-    fn tells_the_client_about_a_shutdown_and_stops_the_agent() {
+    fn tells_the_relay_about_a_shutdown_and_stops_the_agent() {
         assert_eq!(
             forwarding(ForwardingEvent::ShutdownRequested),
-            ForwardingPlan::ReplyWithErrorThenStopAgentThenFinish(JsonRpcError {
-                code: 503,
-                description: "balancer is shutting down".to_owned(),
-            })
+            ForwardingPlan::NotifyRelayThenStopAgentThenFinish(AgentRelayEvent::Failed(
+                RelayFailure::BalancerShuttingDown
+            ))
         );
     }
 
     #[test]
-    fn tells_the_client_when_the_agent_connection_closes() {
+    fn tells_the_relay_when_the_agent_connection_closes() {
         assert_eq!(
             forwarding(ForwardingEvent::AgentConnectionClosed),
-            ForwardingPlan::ReplyWithErrorThenFinish(JsonRpcError {
-                code: 502,
-                description: "Agent controller connection closed".to_owned(),
-            })
+            ForwardingPlan::NotifyRelayThenFinish(AgentRelayEvent::Failed(
+                RelayFailure::AgentDisconnected
+            ))
         );
     }
 
     #[test]
-    fn stops_the_agent_when_the_client_goes_away() {
+    fn stops_the_agent_when_the_relay_is_abandoned() {
         assert_eq!(
-            forwarding(ForwardingEvent::ClientConnectionClosed),
+            forwarding(ForwardingEvent::RelayAbandoned),
             ForwardingPlan::StopAgent
         );
     }
 
     #[test]
-    fn tells_the_client_about_an_item_timeout_and_stops_the_agent() {
+    fn tells_the_relay_about_an_item_timeout_and_stops_the_agent() {
         assert_eq!(
             forwarding(ForwardingEvent::ItemTimedOut),
-            ForwardingPlan::ReplyWithErrorThenStopAgent(JsonRpcError {
-                code: 504,
-                description: "Inference timed out after 250ms waiting for next token. \
-                    Increase --inference-item-timeout if the prompt requires longer processing."
-                    .to_owned(),
-            })
+            ForwardingPlan::NotifyRelayThenStopAgent(AgentRelayEvent::Failed(
+                RelayFailure::ItemTimedOut {
+                    inference_item_timeout: INFERENCE_ITEM_TIMEOUT,
+                }
+            ))
         );
     }
 
     #[test]
-    fn forwards_responses_to_the_client() {
+    fn forwards_partial_responses_to_the_relay() {
         assert_eq!(
-            forwarding(ForwardingEvent::ResponseReceived(
-                GeneratedTokenResult::ContentToken("token".to_owned())
-            )),
-            ForwardingPlan::ForwardResponse {
-                is_done: false,
-                response: GeneratedTokenResult::ContentToken("token".to_owned()),
-            }
+            forwarding(ForwardingEvent::ResponseReceived(ResultStep::Partial(
+                content_token()
+            ))),
+            ForwardingPlan::NotifyRelay(AgentRelayEvent::Partial(content_token()))
         );
     }
 
     #[test]
-    fn ignores_responses_while_the_agent_confirms_the_stop() {
+    fn forwards_the_final_response_to_the_relay_and_finishes() {
         assert_eq!(
-            draining(ForwardingEvent::ResponseReceived(
-                GeneratedTokenResult::ContentToken("token".to_owned())
-            )),
+            forwarding(ForwardingEvent::ResponseReceived(ResultStep::Final(
+                generation_done()
+            ))),
+            ForwardingPlan::NotifyRelayThenFinish(AgentRelayEvent::Final(generation_done()))
+        );
+    }
+
+    #[test]
+    fn ignores_partial_responses_while_the_agent_confirms_the_stop() {
+        assert_eq!(
+            draining(ForwardingEvent::ResponseReceived(ResultStep::Partial(
+                content_token()
+            ))),
             ForwardingPlan::IgnoreDrainedResponse
         );
     }
@@ -156,9 +175,9 @@ mod tests {
     #[test]
     fn finishes_draining_once_the_agent_confirms_the_stop() {
         assert_eq!(
-            draining(ForwardingEvent::ResponseReceived(
-                GeneratedTokenResult::ChatTemplateError("template failed".to_owned())
-            )),
+            draining(ForwardingEvent::ResponseReceived(ResultStep::Final(
+                generation_done()
+            ))),
             ForwardingPlan::Finish
         );
     }

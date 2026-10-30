@@ -7,10 +7,8 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3_5::start_cluster_with_qwen3_5;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -20,19 +18,19 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() {
         .expect("the cluster must start");
 
     let conversation_history = ConversationHistory::new(vec![
-        ConversationMessage {
+        ConversationMessage::Message {
             content: ConversationMessageContent::Text(
                 "You are a helpful assistant. Give engaging, short, precise answers. Be friendly, supportive, use emojis.".to_owned(),
             ),
             role: "system".to_owned(),
         },
-        ConversationMessage {
+        ConversationMessage::Message {
             content: ConversationMessageContent::Text(
                 "Hello! How can I help you today?".to_owned(),
             ),
             role: "assistant".to_owned(),
         },
-        ConversationMessage {
+        ConversationMessage::Message {
             content: ConversationMessageContent::Text("hi".to_owned()),
             role: "user".to_owned(),
         },
@@ -62,13 +60,9 @@ async fn qwen35_thinking_multi_turn_conversation_stops_cleanly() {
 
     assert!(token_count > 0);
     assert!(token_count <= 1000);
-    assert!(matches!(
-        collected.token_results.last(),
-        Some(TokenResultWithProducer {
-            token_result: GeneratedTokenResult::Done(_),
-            ..
-        })
-    ));
+    collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     cluster
         .shutdown()

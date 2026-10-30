@@ -4,7 +4,6 @@ use std::path::Path;
 use serde_json::Map;
 use serde_json::Value;
 use serde_json::json;
-use serde_json::to_string_pretty;
 use tempfile::TempDir;
 use tempfile::tempdir;
 use url::Url;
@@ -20,19 +19,19 @@ fn provider_config(api_base_url: &Url) -> Value {
 
     models.insert(
         MODEL_ID.to_owned(),
-        json!({ "id": MODEL_ID, "name": "Paddler OpenCode test" }),
+        json!({ "modelID": MODEL_ID, "name": "Paddler OpenCode test" }),
     );
 
     json!({
         "$schema": "https://opencode.ai/config.json",
         "model": format!("paddler/{MODEL_ID}"),
-        "provider": {
+        "providers": {
             "paddler": {
-                "npm": "@ai-sdk/openai-compatible",
                 "name": "Paddler",
-                "options": {
-                    "baseURL": api_base_url.as_str(),
-                    "apiKey": "paddler"
+                "package": "@opencode/ai/providers/openai-compatible",
+                "settings": {
+                    "apiKey": "paddler",
+                    "baseURL": api_base_url.as_str()
                 },
                 "models": models
             }
@@ -42,30 +41,39 @@ fn provider_config(api_base_url: &Url) -> Value {
 
 pub struct OpenCodeTestProject {
     directory: TempDir,
+    home: TempDir,
     marker_contents: String,
 }
 
 impl OpenCodeTestProject {
     pub fn create(api_base_url: &Url, marker_contents: String) -> Result<Self, OpenCodeTestError> {
-        let directory =
-            tempdir().map_err(|source| OpenCodeTestError::ProjectSetupFailed { source })?;
-        let config_contents = to_string_pretty(&provider_config(api_base_url))
-            .map_err(|source| OpenCodeTestError::ConfigSerializationFailed { source })?;
-
-        fs::write(directory.path().join(CONFIG_FILE_NAME), config_contents)
-            .map_err(|source| OpenCodeTestError::ProjectSetupFailed { source })?;
-        fs::write(directory.path().join(MARKER_FILE_NAME), &marker_contents)
-            .map_err(|source| OpenCodeTestError::ProjectSetupFailed { source })?;
-
-        Ok(Self {
-            directory,
-            marker_contents,
-        })
+        tempdir()
+            .and_then(|directory| {
+                fs::write(
+                    directory.path().join(CONFIG_FILE_NAME),
+                    format!("{:#}", provider_config(api_base_url)),
+                )
+                .and_then(|()| fs::write(directory.path().join(MARKER_FILE_NAME), &marker_contents))
+                .map(|()| directory)
+            })
+            .and_then(|directory| {
+                tempdir().map(|home| Self {
+                    directory,
+                    home,
+                    marker_contents,
+                })
+            })
+            .map_err(OpenCodeTestError::ProjectSetupFailed)
     }
 
     #[must_use]
     pub fn directory_path(&self) -> &Path {
         self.directory.path()
+    }
+
+    #[must_use]
+    pub fn home_path(&self) -> &Path {
+        self.home.path()
     }
 
     #[must_use]
@@ -90,6 +98,7 @@ mod tests {
 
     use serde_json::Value;
     use serde_json::from_str;
+    use serde_json::json;
     use url::Url;
 
     use super::CONFIG_FILE_NAME;
@@ -110,11 +119,25 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            config["provider"]["paddler"]["options"]["baseURL"],
-            "http://127.0.0.1:9/v1"
+            config,
+            json!({
+                "$schema": "https://opencode.ai/config.json",
+                "model": "paddler/paddler-opencode-test",
+                "providers": {
+                    "paddler": {
+                        "name": "Paddler",
+                        "package": "@opencode/ai/providers/openai-compatible",
+                        "settings": {
+                            "apiKey": "paddler",
+                            "baseURL": "http://127.0.0.1:9/v1"
+                        },
+                        "models": {
+                            MODEL_ID: { "modelID": MODEL_ID, "name": "Paddler OpenCode test" }
+                        }
+                    }
+                }
+            })
         );
-        assert_eq!(config["model"], "paddler/paddler-opencode-test");
-        assert!(config["provider"]["paddler"]["models"][MODEL_ID].is_object());
     }
 
     #[test]

@@ -27,19 +27,21 @@ async fn agent_streams_tokens_from_image_data_uri() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Parts(vec![
-                        ConversationMessageContentPart::ImageUrl {
-                            image_url: ImageUrl {
-                                url: image_data_uri,
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Parts(vec![
+                            ConversationMessageContentPart::ImageUrl {
+                                image_url: ImageUrl {
+                                    url: image_data_uri,
+                                },
                             },
-                        },
-                        ConversationMessageContentPart::Text {
-                            text: "What do you see in this image?".to_owned(),
-                        },
-                    ]),
-                    role: "user".to_owned(),
-                }]),
+                            ConversationMessageContentPart::Text {
+                                text: "What do you see in this image?".to_owned(),
+                            },
+                        ]),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: true,
                 grammar: None,
                 max_tokens: NonZeroU32::new(100).unwrap(),

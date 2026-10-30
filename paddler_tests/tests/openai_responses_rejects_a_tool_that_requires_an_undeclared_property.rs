@@ -9,13 +9,9 @@ use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn openai_responses_rejects_a_tool_that_requires_an_undeclared_property() {
-    let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("a balancer without agents must start");
+    let cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("a balancer without agents must start");
 
     let rejection = cluster
         .openai_responses_non_streaming(&json!({

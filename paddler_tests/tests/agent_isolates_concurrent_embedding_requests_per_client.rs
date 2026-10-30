@@ -5,7 +5,6 @@ use std::collections::BTreeSet;
 use futures_util::future::join_all;
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
@@ -20,10 +19,7 @@ async fn agent_isolates_concurrent_embedding_requests_per_client() {
 
     let cluster = start_embedding_cluster(EmbeddingClusterParams {
         agents: vec![AgentConfig::single(4)],
-        inference_parameters: InferenceParameters {
-            enable_embeddings: true,
-            ..InferenceParameters::deterministic()
-        },
+
         ..EmbeddingClusterParams::default()
     })
     .await

@@ -1,11 +1,10 @@
 use std::process::Stdio;
 
-use anyhow::Context as _;
-use anyhow::Result;
 use tokio::process::Child;
 
 use crate::paddler_command::paddler_command;
 use crate::spawn_agent_subprocess_params::SpawnAgentSubprocessParams;
+use crate::subprocess_cluster_error::SubprocessClusterError;
 
 pub fn spawn_agent_subprocess(
     SpawnAgentSubprocessParams {
@@ -14,7 +13,7 @@ pub fn spawn_agent_subprocess(
         name,
         slots,
     }: SpawnAgentSubprocessParams,
-) -> Result<Child> {
+) -> Result<Child, SubprocessClusterError> {
     paddler_command(&binary_path)
         .arg("agent")
         .arg("--management-addr")
@@ -26,5 +25,5 @@ pub fn spawn_agent_subprocess(
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .context("failed to spawn paddler agent subprocess")
+        .map_err(SubprocessClusterError::AgentSpawnFailed)
 }

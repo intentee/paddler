@@ -1,0 +1,31 @@
+{
+    "outputs": {
+        "static/controller_dashboard.js": {
+            "imports": [{ "path": "static/icon.svg" }],
+            "cssBundle": "static/controller_dashboard.css",
+            "entryPoint": "resources/ts/controller_dashboard.tsx"
+        },
+        "static/controller_dashboard.css": {
+            "imports": [{ "path": "static/icon.svg" }],
+            "cssBundle": null,
+            "entryPoint": null
+        },
+        "static/page-admin-panel.css": {
+            "imports": [{ "path": "static/font.ttf" }],
+            "cssBundle": null,
+            "entryPoint": "resources/css/page-admin-panel.css"
+        },
+        "static/icon.svg": {
+            "imports": [],
+            "cssBundle": null,
+            "entryPoint": null,
+            "inputs": { "resources/icons/icon.svg": {} }
+        },
+        "static/font.ttf": {
+            "imports": [],
+            "cssBundle": null,
+            "entryPoint": null,
+            "inputs": { "resources/fonts/font.ttf": {} }
+        }
+    }
+}

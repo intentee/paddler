@@ -22,7 +22,7 @@ async fn agent_grammar_with_thinking_returns_incompatible_error() {
     let outcome = cluster
         .continue_from_conversation_history(CancellationToken::new(), &ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
                 content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
                 role: "user".to_owned(),
             }]),

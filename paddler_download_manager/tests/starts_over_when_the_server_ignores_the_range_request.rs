@@ -55,4 +55,10 @@ async fn starts_over_when_the_server_ignores_the_range_request() {
             total_bytes: Some(body.len() as u64),
         })
     );
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

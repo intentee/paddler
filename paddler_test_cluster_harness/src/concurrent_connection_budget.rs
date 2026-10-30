@@ -58,7 +58,7 @@ impl ConcurrentConnectionBudget {
 
     pub fn reserve(&self) -> Result<ConnectionReservation, ClusterHarnessError> {
         self.held_connections
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |held_connections| {
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |held_connections| {
                 (held_connections < PORTABLE_LISTEN_BACKLOG).then_some(held_connections + 1)
             })
             .map_err(|held_connections| {
@@ -76,30 +76,42 @@ impl ConcurrentConnectionBudget {
 
 #[cfg(test)]
 mod tests {
+    use std::future::pending;
     use std::iter::repeat_with;
     use std::sync::atomic::Ordering;
+
+    use futures_util::FutureExt as _;
+
+    use paddler_client::error::Result as ClientResult;
+    use paddler_client::inference_message_stream::InferenceMessageStream;
 
     use super::ConcurrentConnectionBudget;
     use super::PORTABLE_LISTEN_BACKLOG;
     use crate::cluster_harness_error::ClusterHarnessError;
+    use crate::connection_reservation::ConnectionReservation;
+
+    fn hold_every_connection(budget: &ConcurrentConnectionBudget) -> Vec<ConnectionReservation> {
+        repeat_with(|| budget.reserve())
+            .take(PORTABLE_LISTEN_BACKLOG)
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
 
     #[test]
     fn refuses_a_connection_beyond_the_portable_listen_backlog() {
         let budget = ConcurrentConnectionBudget::default();
-        let _held_reservations: Vec<_> = repeat_with(|| budget.reserve())
-            .take(PORTABLE_LISTEN_BACKLOG)
-            .collect::<Result<_, _>>()
-            .unwrap();
+        let _held_reservations = hold_every_connection(&budget);
 
-        assert!(matches!(
-            budget.reserve(),
-            Err(
+        assert_eq!(
+            budget.reserve().err().map(|refusal| refusal.to_string()),
+            Some(
                 ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
                     held_connections: PORTABLE_LISTEN_BACKLOG,
                     limit: PORTABLE_LISTEN_BACKLOG,
                 }
+                .to_string()
             )
-        ));
+        );
     }
 
     #[test]
@@ -111,5 +123,45 @@ mod tests {
         let reservation = budget.reserve().unwrap();
 
         assert_eq!(reservation.held_connections.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn a_request_beyond_the_budget_is_refused_before_it_runs() {
+        let budget = ConcurrentConnectionBudget::default();
+        let _held_reservations = hold_every_connection(&budget);
+
+        assert_eq!(
+            budget
+                .hold_during(pending::<Result<(), ClusterHarnessError>>())
+                .now_or_never()
+                .map(|refused_request| refused_request.map_err(|refusal| refusal.to_string())),
+            Some(Err(
+                ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
+                    held_connections: PORTABLE_LISTEN_BACKLOG,
+                    limit: PORTABLE_LISTEN_BACKLOG,
+                }
+                .to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn a_stream_beyond_the_budget_is_refused_before_it_runs() {
+        let budget = ConcurrentConnectionBudget::default();
+        let _held_reservations = hold_every_connection(&budget);
+
+        assert_eq!(
+            budget
+                .hold_while_streaming(pending::<ClientResult<InferenceMessageStream>>())
+                .now_or_never()
+                .map(|refused_stream| refused_stream.err().map(|refusal| refusal.to_string())),
+            Some(Some(
+                ClusterHarnessError::ConcurrentConnectionsExceedPortableListenBacklog {
+                    held_connections: PORTABLE_LISTEN_BACKLOG,
+                    limit: PORTABLE_LISTEN_BACKLOG,
+                }
+                .to_string()
+            ))
+        );
     }
 }

@@ -15,7 +15,7 @@ use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::desired_state_with_halved_image_resize::desired_state_with_halved_image_resize;
 use paddler_tests::start_cluster_with_qwen3_and_context_size::start_cluster_with_qwen3_and_context_size;
 
-const CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION: u32 = 512;
+const CONTEXT_SIZE_THAT_ENDS_THE_IN_FLIGHT_GENERATION: NonZeroU32 = NonZeroU32::new(512).unwrap();
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_request() {
@@ -51,8 +51,7 @@ async fn agent_serves_request_sent_while_state_change_waits_for_in_flight_reques
         .client_management
         .put_balancer_desired_state(
             CancellationToken::new(),
-            &desired_state_with_halved_image_resize(initial_desired_state)
-                .expect("the desired state must be derivable"),
+            &desired_state_with_halved_image_resize(initial_desired_state),
         )
         .await
         .expect("the balancer must accept the desired state");

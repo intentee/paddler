@@ -1,7 +1,9 @@
-pub enum ForwardingEvent<TResponse> {
+use paddler_messaging::result_step::ResultStep;
+
+pub enum ForwardingEvent<TPartial, TFinal> {
     AgentConnectionClosed,
-    ClientConnectionClosed,
     ItemTimedOut,
-    ResponseReceived(TResponse),
+    RelayAbandoned,
+    ResponseReceived(ResultStep<TPartial, TFinal>),
     ShutdownRequested,
 }

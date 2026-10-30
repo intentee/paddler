@@ -1,0 +1,19 @@
+[package]
+name = "paddler_dashboard_assets"
+authors.workspace = true
+description = "Renders the asset tags of the Paddler web admin panel dashboard from its esbuild metafile"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+esbuild-metafile = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

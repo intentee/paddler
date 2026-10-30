@@ -9,6 +9,14 @@ pub struct RequestRegistryGuard<TValue> {
 
 impl<TValue> RequestRegistryGuard<TValue> {
     #[must_use]
+    pub fn register_fresh(registry: &Arc<RequestRegistry<TValue>>, value: TValue) -> Self {
+        Self {
+            request_id: registry.insert_fresh(value),
+            registry: registry.clone(),
+        }
+    }
+
+    #[must_use]
     pub fn register(
         registry: &Arc<RequestRegistry<TValue>>,
         request_id: String,
@@ -47,5 +55,16 @@ mod tests {
         drop(guard);
 
         assert_eq!(registry.with_registered("request", |value| *value), None);
+    }
+
+    #[test]
+    fn dropping_a_fresh_guard_frees_its_request_id() {
+        let registry = Arc::new(RequestRegistry::default());
+        let guard = RequestRegistryGuard::register_fresh(&registry, 1);
+        let request_id = guard.request_id.clone();
+
+        drop(guard);
+
+        assert_eq!(registry.with_registered(&request_id, |value| *value), None);
     }
 }

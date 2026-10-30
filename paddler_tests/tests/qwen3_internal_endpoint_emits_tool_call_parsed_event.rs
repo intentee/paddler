@@ -2,17 +2,18 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings_types::ParsedToolCall;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
+use paddler_messaging::generated_tool_call::GeneratedToolCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_tests::get_weather_tool::get_weather_tool;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
+use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() {
@@ -25,13 +26,12 @@ async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "What is the weather in Paris? Use the get_weather tool to find out."
-                            .to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: NonZeroU32::new(400).unwrap(),
@@ -42,7 +42,7 @@ async fn qwen3_internal_endpoint_emits_tool_call_parsed_event() {
         .await
         .expect("the inference request must be accepted");
 
-    let parsed_events: Vec<&Vec<ParsedToolCall>> = collected
+    let parsed_events: Vec<&Vec<GeneratedToolCall>> = collected
         .token_results
         .iter()
         .filter_map(|event| match &event.token_result {

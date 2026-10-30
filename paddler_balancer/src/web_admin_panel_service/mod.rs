@@ -1,18 +1,13 @@
 pub mod app_data;
 pub mod configuration;
-pub mod esbuild_meta_contents;
+pub mod dashboard_assets_html;
 pub mod http_route;
 pub mod template_data;
 
-use std::str::FromStr as _;
-use std::sync::Arc;
-
 use actix_web::App;
 use actix_web::web::Data;
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
-use esbuild_metafile::EsbuildMetaFile;
 use tokio_util::sync::CancellationToken;
 use trzcina::Service;
 
@@ -20,7 +15,6 @@ use crate::http_listener::HttpListener;
 use crate::run_http_service::run_http_service;
 use crate::run_http_service_parameters::RunHttpServiceParameters;
 use crate::web_admin_panel_service::app_data::AppData;
-use crate::web_admin_panel_service::esbuild_meta_contents::ESBUILD_META_CONTENTS;
 use crate::web_admin_panel_service::http_route::favicon::favicon;
 use crate::web_admin_panel_service::http_route::home::home;
 use crate::web_admin_panel_service::http_route::static_files::static_files;
@@ -31,18 +25,10 @@ pub struct WebAdminPanelService {
     pub template_data: TemplateData,
 }
 
-#[async_trait]
-impl Service for WebAdminPanelService {
-    fn name(&self) -> &'static str {
-        "balancer::web_admin_panel_service"
-    }
-
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+impl WebAdminPanelService {
+    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let service_name = self.name();
-        let esbuild_metafile = EsbuildMetaFile::from_str(ESBUILD_META_CONTENTS)
-            .context("the embedded esbuild metafile does not describe the dashboard assets")?;
         let app_data: Data<AppData> = Data::new(AppData {
-            esbuild_metafile: Arc::new(esbuild_metafile),
             template_data: self.template_data,
         });
 
@@ -65,6 +51,17 @@ impl Service for WebAdminPanelService {
     }
 }
 
+#[async_trait]
+impl Service for WebAdminPanelService {
+    fn name(&self) -> &'static str {
+        "balancer::web_admin_panel_service"
+    }
+
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        self.serve_until_shutdown(shutdown).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::SocketAddr;
@@ -77,6 +74,7 @@ mod tests {
 
     use super::WebAdminPanelService;
     use crate::http_listener::HttpListener;
+
     use crate::resolved_socket_addr::ResolvedSocketAddr;
     use crate::web_admin_panel_service::template_data::TemplateData;
 
@@ -89,6 +87,7 @@ mod tests {
             template_data: TemplateData {
                 buffered_request_timeout: Duration::from_secs(30),
                 compat_openai_addr: None,
+                compat_typesafe_addr: None,
                 inference_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
                 management_addr: ResolvedSocketAddr::from(ephemeral_loopback_addr),
                 max_buffered_requests: 32,

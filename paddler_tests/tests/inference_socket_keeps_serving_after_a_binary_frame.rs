@@ -1,5 +1,4 @@
 use std::num::NonZeroU32;
-use std::time::Duration;
 
 use tokio_tungstenite::tungstenite::Bytes;
 use tokio_tungstenite::tungstenite::Message;
@@ -7,16 +6,15 @@ use tokio_tungstenite::tungstenite::Message;
 use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::raw_inference_socket::RawInferenceSocket;
+use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn inference_socket_keeps_serving_after_a_binary_frame() {
     let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        buffered_request_timeout: Duration::from_millis(50),
+        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         max_buffered_requests: 1,
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("a cluster without agents must start");

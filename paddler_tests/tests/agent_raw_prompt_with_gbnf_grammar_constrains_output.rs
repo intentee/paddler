@@ -28,10 +28,11 @@ async fn agent_raw_prompt_with_gbnf_grammar_constrains_output() {
         })
         .await.expect("the inference request must be accepted");
 
+    let answer = collected.text.as_str();
+
     assert!(
-        collected.text == "yes" || collected.text == "no",
-        "GBNF grammar should constrain output to yes/no; got {:?}",
-        collected.text
+        ["yes", "no"].contains(&answer),
+        "GBNF grammar should constrain output to yes/no; got {answer:?}"
     );
 
     cluster

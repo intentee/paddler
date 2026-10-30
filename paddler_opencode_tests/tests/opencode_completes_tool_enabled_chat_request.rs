@@ -3,22 +3,16 @@
 use paddler_opencode_tests::opencode_binary_path::opencode_binary_path;
 use paddler_opencode_tests::opencode_test_project::OpenCodeTestProject;
 use paddler_opencode_tests::run_opencode::run_opencode;
-use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_tests::start_cluster_with_qwen3_5_and_context_size::start_cluster_with_qwen3_5_and_context_size;
-
-const OPENCODE_CONTEXT_SIZE: u32 = 16384;
+use paddler_tests::ministral_3_cluster_params::Ministral3ClusterParams;
+use paddler_tests::start_cluster_with_ministral_3::start_cluster_with_ministral_3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn opencode_completes_tool_enabled_chat_request() {
     let binary_path = opencode_binary_path().expect("the opencode binary must be configured");
 
-    let cluster = start_cluster_with_qwen3_5_and_context_size(
-        vec![AgentConfig::single(1)],
-        false,
-        OPENCODE_CONTEXT_SIZE,
-    )
-    .await
-    .expect("the cluster must start");
+    let cluster = start_cluster_with_ministral_3(Ministral3ClusterParams::default())
+        .await
+        .expect("the cluster must start");
 
     let api_base_url = cluster
         .balancer

@@ -4,9 +4,9 @@ use futures_util::StreamExt as _;
 use tokio::spawn;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::inference_client::message::Message as InferenceClientMessage;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster::Cluster;
+use paddler_test_cluster_harness::inference_stream_error_codes::inference_stream_error_codes;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
@@ -31,17 +31,13 @@ async fn balancer_ends_an_in_flight_generation_with_a_shutdown_error() {
         agents, balancer, ..
     } = cluster;
     let balancer_shutdown = spawn(balancer.shutdown());
-    let mut shutdown_error_codes = Vec::new();
 
-    while let Some(message) = stream.next().await {
-        if let InferenceClientMessage::Error(envelope) =
-            message.expect("every streamed message must be readable")
-        {
-            shutdown_error_codes.push(envelope.error.code);
-        }
-    }
-
-    assert_eq!(shutdown_error_codes, vec![503]);
+    assert_eq!(
+        inference_stream_error_codes(stream)
+            .await
+            .expect("every streamed message must be readable"),
+        vec![503]
+    );
 
     balancer_shutdown
         .await

@@ -1,0 +1,118 @@
+use llama_cpp_bindings::model::AddBos;
+use llama_cpp_bindings::model::ParseSpecialTokens;
+
+use paddler_agent_runtime::agent_request::AgentRequest;
+use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;
+use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
+use paddler_messaging::embedding_document_exceeding_sequence_context_details::EmbeddingDocumentExceedingSequenceContextDetails;
+use paddler_messaging::embedding_document_tokenized_to_nothing_details::EmbeddingDocumentTokenizedToNothingDetails;
+use paddler_messaging::embedding_result::EmbeddingResult;
+use paddler_messaging::oversized_embedding_document_details::OversizedEmbeddingDocumentDetails;
+use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
+
+use crate::embedding_error::EmbeddingError;
+use crate::embedding_input_tokenized::EmbeddingInputTokenized;
+use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
+use crate::sequence_context_limit::SequenceContextLimit;
+use crate::unembeddable_embedding_document::UnembeddableEmbeddingDocument;
+
+pub struct EmbeddingBatchPreparer {
+    pub loaded_llama_model: LoadedLlamaModel,
+    pub n_batch: usize,
+    pub sequence_context_limit: SequenceContextLimit,
+}
+
+impl EmbeddingBatchPreparer {
+    fn prepare(
+        &self,
+        AgentRequest {
+            params:
+                GenerateEmbeddingBatchParams {
+                    input_batch,
+                    normalization_method,
+                },
+            response_tx: generated_embedding_tx,
+            slot_guard,
+            stop_rx: generate_embedding_stop_rx,
+        }: AgentRequest<GenerateEmbeddingBatchParams, EmbeddingResult>,
+    ) -> Result<PreparedEmbeddingBatchRequest, EmbeddingError> {
+        let mut inputs = Vec::with_capacity(input_batch.len());
+        let mut unembeddable_documents = Vec::new();
+
+        for input in input_batch {
+            let tokens = self
+                .loaded_llama_model
+                .model
+                .str_to_token(&input.content, AddBos::Always, ParseSpecialTokens::Always)
+                .map_err(|source| EmbeddingError::InputTokenizationFailed {
+                    source_document_id: input.id.clone(),
+                    source,
+                })?;
+
+            let document_tokens = tokens.len();
+
+            if tokens.is_empty() {
+                unembeddable_documents.push(UnembeddableEmbeddingDocument::TokenizedToNothing(
+                    EmbeddingDocumentTokenizedToNothingDetails {
+                        source_document_id: input.id,
+                    },
+                ));
+            } else if document_tokens > self.n_batch {
+                unembeddable_documents.push(UnembeddableEmbeddingDocument::ExceedsBatchSize(
+                    OversizedEmbeddingDocumentDetails {
+                        document_tokens,
+                        n_batch: self.n_batch,
+                        source_document_id: input.id,
+                    },
+                ));
+            } else if let SequenceContextLimit::Tokens(sequence_context_size) =
+                self.sequence_context_limit
+                && document_tokens > sequence_context_size
+            {
+                unembeddable_documents.push(UnembeddableEmbeddingDocument::ExceedsSequenceContext(
+                    EmbeddingDocumentExceedingSequenceContextDetails {
+                        document_tokens,
+                        sequence_context_size,
+                        source_document_id: input.id,
+                    },
+                ));
+            } else {
+                inputs.push(EmbeddingInputTokenized {
+                    id: input.id,
+                    tokens,
+                });
+            }
+        }
+
+        Ok(PreparedEmbeddingBatchRequest {
+            generate_embedding_stop_rx,
+            generated_embedding_tx,
+            inputs,
+            normalization_method,
+            unembeddable_documents,
+            slot_guard,
+        })
+    }
+}
+
+impl PreparesSchedulerCommand for EmbeddingBatchPreparer {
+    type Command = PreparedEmbeddingBatchRequest;
+    type Request = AgentRequest<GenerateEmbeddingBatchParams, EmbeddingResult>;
+
+    fn prepare_scheduler_command(
+        &self,
+        agent_name: Option<&str>,
+        request: Self::Request,
+    ) -> Option<Self::Command> {
+        let generated_embedding_tx = request.response_tx.clone();
+
+        match self.prepare(request) {
+            Ok(prepared) => Some(prepared),
+            Err(rejection) => {
+                rejection.report(agent_name, &generated_embedding_tx);
+
+                None
+            }
+        }
+    }
+}

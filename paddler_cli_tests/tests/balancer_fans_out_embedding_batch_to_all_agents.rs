@@ -5,9 +5,9 @@ use std::collections::BTreeSet;
 use tokio_util::sync::CancellationToken;
 
 use paddler_cli_tests::start_subprocess_embedding_cluster::start_subprocess_embedding_cluster;
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
 use paddler_messaging::embedding_input_document::EmbeddingInputDocument;
 use paddler_messaging::embedding_normalization_method::EmbeddingNormalizationMethod;
+use paddler_messaging::embedding_result::EmbeddingResult;
 use paddler_messaging::request_params::generate_embedding_batch_params::GenerateEmbeddingBatchParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::embedding_cluster_params::EmbeddingClusterParams;
@@ -20,10 +20,7 @@ async fn balancer_fans_out_embedding_batch_to_all_agents() {
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         EmbeddingClusterParams {
             agents: AgentConfig::uniform(agent_count, 2),
-            inference_parameters: InferenceParameters {
-                enable_embeddings: true,
-                ..InferenceParameters::deterministic()
-            },
+
             ..EmbeddingClusterParams::default()
         },
     )
@@ -49,7 +46,7 @@ async fn balancer_fans_out_embedding_batch_to_all_agents() {
 
     assert_eq!(collected.embeddings.len(), 16);
     assert!(collected.saw_done);
-    assert!(collected.errors.is_empty());
+    assert_eq!(collected.failures, Vec::<EmbeddingResult>::new());
 
     let producers: BTreeSet<&str> = collected
         .embeddings

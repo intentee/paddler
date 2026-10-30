@@ -1,0 +1,15 @@
+mod a_choice_question_with_too_many_criteria_is_refused;
+mod a_malformed_question_is_refused_with_its_id;
+mod a_noul_question_with_null_criteria_describes_neither_outcome;
+mod a_question_left_unanswered_is_refused;
+mod a_score_question_without_criteria_is_refused;
+mod a_system_one_request_without_questions_is_refused;
+mod an_answer_out_of_question_order_is_refused;
+mod an_answer_whose_probabilities_do_not_match_its_options_is_refused;
+#[cfg(test)]
+mod refusal_of_a_lone_answer_to_two_noul_questions;
+#[cfg(test)]
+mod system_one_request_with_question;
+#[cfg(test)]
+mod system_one_request_with_questions;
+mod translation_matches_the_kev_typesafe_reference;

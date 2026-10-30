@@ -4,15 +4,12 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use serde::Serialize;
-use serde_json::to_string;
 use tokio::sync::Mutex;
-use tokio::sync::broadcast;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 
 use crate::error::Error;
 use crate::error::Result;
@@ -29,39 +26,29 @@ struct EstablishedRequest {
 pub struct Pool {
     connection_slots: Vec<Mutex<ConnectionSlot>>,
     next_slot_index: AtomicUsize,
-    notification_tx: broadcast::Sender<Notification>,
     url: Url,
 }
 
 impl Pool {
     #[must_use]
     pub fn new(url: Url, capacity: NonZeroUsize) -> Self {
-        let (notification_tx, _initial_notification_rx) = broadcast::channel(capacity.get());
-
         Self {
             connection_slots: (0..capacity.get())
                 .map(|_slot_index| Mutex::new(ConnectionSlot::Empty))
                 .collect(),
             next_slot_index: AtomicUsize::new(0),
-            notification_tx,
             url,
         }
     }
 
-    pub fn subscribe_to_notifications(&self) -> broadcast::Receiver<Notification> {
-        self.notification_tx.subscribe()
-    }
-
-    pub async fn send_request<TMessage: Serialize>(
+    pub async fn send_request<TMessage: Serialize + Sync>(
         &self,
         cancellation_token: CancellationToken,
         request_id: String,
         message: TMessage,
     ) -> Result<InferenceMessageStream> {
-        let json = to_string(&message)?;
-
         let Some(established_request_result) = cancellation_token
-            .run_until_cancelled(self.establish_request(json, request_id.clone()))
+            .run_until_cancelled(self.establish_request(&message, request_id.clone()))
             .await
         else {
             return Err(Error::InferenceRequestCancelled { request_id });
@@ -89,21 +76,20 @@ impl Pool {
             return Ok(connection.clone());
         }
 
-        let connection =
-            Arc::new(Connection::connect(self.url.clone(), self.notification_tx.clone()).await?);
+        let connection = Arc::new(Connection::connect(self.url.clone()).await?);
 
         *connection_slot = ConnectionSlot::Connected(connection.clone());
 
         Ok(connection)
     }
 
-    async fn establish_request(
+    async fn establish_request<TMessage: Serialize + Sync>(
         &self,
-        json: String,
+        message: &TMessage,
         request_id: String,
     ) -> Result<EstablishedRequest> {
         let connection = self.connected(self.next_connection_slot()).await?;
-        let response_rx = connection.send(request_id, json)?;
+        let response_rx = connection.send(request_id, message)?;
 
         Ok(EstablishedRequest {
             connection,

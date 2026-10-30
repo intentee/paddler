@@ -10,7 +10,7 @@ use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
 
-use paddler_balancer::compatibility::openai_service::configuration::Configuration as OpenAIServiceConfiguration;
+use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use paddler_balancer::management_service::configuration::Configuration as ManagementServiceConfiguration;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
@@ -40,6 +40,10 @@ pub struct Balancer {
     #[arg(long, value_parser = parse_socket_addr)]
     /// Address of the OpenAI-compatible API server (enabled only if this address is specified)
     compat_openai_addr: Option<ResolvedSocketAddr>,
+
+    #[arg(long, value_parser = parse_socket_addr)]
+    /// Address of the TypeSafe-compatible API server (enabled only if this address is specified)
+    compat_typesafe_addr: Option<ResolvedSocketAddr>,
 
     #[arg(
         long,
@@ -85,7 +89,7 @@ pub struct Balancer {
     max_buffered_requests: u64,
 
     #[arg(long, default_value = "memory://")]
-    /// Balancer state database URL. Supported: memory, memory://, or <file:///path> (optional)
+    /// Balancer state database URL. Supported: memory:// or <file:///absolute/path> (optional)
     state_database: StateDatabaseType,
 
     #[arg(long, value_parser = parse_socket_addr)]
@@ -110,12 +114,12 @@ pub struct Balancer {
     web_admin_panel_addr: Option<ResolvedSocketAddr>,
 }
 
-#[async_trait(?Send)]
-impl Handler for Balancer {
-    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
+impl Balancer {
+    async fn run_balancer(self, shutdown: CancellationToken) -> Result<()> {
         let Self {
             buffered_request_timeout,
             compat_openai_addr,
+            compat_typesafe_addr,
             inference_addr,
             inference_item_timeout,
             inference_cors_allowed_hosts,
@@ -143,7 +147,7 @@ impl Handler for Balancer {
             },
             max_buffered_requests,
             openai_service_configuration: compat_openai_addr
-                .map(|addr| OpenAIServiceConfiguration { addr }),
+                .map(|addr| CompatibilityServiceConfiguration { addr }),
             state_database_type: state_database,
             statsd_prefix,
             statsd_service_configuration: statsd_addr.map(|statsd_addr| {
@@ -152,6 +156,8 @@ impl Handler for Balancer {
                     statsd_reporting_interval,
                 }
             }),
+            typesafe_service_configuration: compat_typesafe_addr
+                .map(|addr| CompatibilityServiceConfiguration { addr }),
             #[cfg(feature = "web_admin_panel")]
             web_admin_panel_service_configuration: web_admin_panel_addr.map(
                 |web_admin_panel_addr| WebAdminPanelServiceConfiguration {
@@ -164,5 +170,12 @@ impl Handler for Balancer {
         bundle.addresses.write_json_line(stdout().lock())?;
 
         run_service_manager(bundle, shutdown, ServiceShutdownOptions::default()).await
+    }
+}
+
+#[async_trait(?Send)]
+impl Handler for Balancer {
+    async fn handle(self, shutdown: CancellationToken) -> Result<()> {
+        self.run_balancer(shutdown).await
     }
 }

@@ -1,35 +1,36 @@
 use std::sync::Arc;
 
-use log::debug;
 use log::error;
 use log::warn;
 use serde_json::from_str;
-use tokio::sync::broadcast;
 
 use paddler_messaging::inference_client::identified_message::IdentifiedMessage;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
-use paddler_messaging::inference_client::notification::Notification;
 use paddler_messaging::inference_client::response::Response;
-use paddler_messaging::streamable_result::StreamableResult;
+use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+use paddler_messaging::result_step::ResultStep;
 
 use crate::error::Error;
-use crate::inference_socket::pending_requests::PendingRequests;
-
-fn response_is_terminal(response: &Response) -> bool {
-    match response {
-        Response::Embedding(result) => result.is_done(),
-        Response::GeneratedToken(result) => result.is_done(),
-    }
-}
+use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
 
 struct RequestScopedMessage {
     is_done: bool,
+    message: InferenceMessage,
     request_id: String,
 }
 
+impl RequestScopedMessage {
+    fn of_response(is_done: bool, envelope: ResponseEnvelope<Response>) -> Self {
+        Self {
+            is_done,
+            request_id: envelope.request_id.clone(),
+            message: InferenceMessage::Response(envelope),
+        }
+    }
+}
+
 pub struct InboundMessageRouter {
-    pub notification_tx: broadcast::Sender<Notification>,
-    pub pending: Arc<PendingRequests>,
+    pub exchange: Arc<InferenceSocketExchange>,
 }
 
 impl InboundMessageRouter {
@@ -42,7 +43,7 @@ impl InboundMessageRouter {
 
                     error!("Failed to decode a message for request {request_id}: {decoding_error}");
 
-                    if !self.pending.fail(
+                    if !self.exchange.fail(
                         &request_id,
                         Error::UndecodableInferenceMessage {
                             request_id: request_id.clone(),
@@ -64,27 +65,39 @@ impl InboundMessageRouter {
     }
 
     fn route(&self, message: InferenceMessage) {
-        let request_scoped_message = match &message {
+        let request_scoped_message = match message {
             InferenceMessage::Error(envelope) => RequestScopedMessage {
                 is_done: true,
                 request_id: envelope.request_id.clone(),
+                message: InferenceMessage::Error(envelope),
             },
-            InferenceMessage::Notification(notification) => {
-                if self.notification_tx.send(notification.clone()).is_err() {
-                    debug!("Dropped inference notification: no active subscribers");
-                }
-
-                return;
-            }
-            InferenceMessage::Response(envelope) => RequestScopedMessage {
-                is_done: response_is_terminal(&envelope.response),
-                request_id: envelope.request_id.clone(),
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by,
+                request_id,
+                response,
+            }) => match response.into_step() {
+                ResultStep::Final(final_response) => RequestScopedMessage::of_response(
+                    true,
+                    ResponseEnvelope {
+                        generated_by,
+                        request_id,
+                        response: final_response,
+                    },
+                ),
+                ResultStep::Partial(partial_response) => RequestScopedMessage::of_response(
+                    false,
+                    ResponseEnvelope {
+                        generated_by,
+                        request_id,
+                        response: partial_response,
+                    },
+                ),
             },
         };
 
-        if !self.pending.deliver(
+        if !self.exchange.deliver(
             &request_scoped_message.request_id,
-            message,
+            request_scoped_message.message,
             request_scoped_message.is_done,
         ) {
             warn!(
@@ -100,9 +113,9 @@ mod tests {
     use std::sync::Arc;
 
     use serde_json::json;
-    use tokio::sync::broadcast;
     use tokio::sync::mpsc::error::TryRecvError;
 
+    use paddler_messaging::decision_result::DecisionResult;
     use paddler_messaging::embedding_result::EmbeddingResult;
     use paddler_messaging::inference_client::message::Message as InferenceMessage;
     use paddler_messaging::inference_client::response::Response;
@@ -110,21 +123,26 @@ mod tests {
 
     use super::InboundMessageRouter;
     use crate::error::Error;
-    use crate::inference_socket::pending_requests::PendingRequests;
+    use crate::inference_socket::inference_socket_exchange::InferenceSocketExchange;
+    use crate::inference_socket::outbound_request::OutboundRequest;
+
+    fn router_for(exchange: &Arc<InferenceSocketExchange>) -> InboundMessageRouter {
+        InboundMessageRouter {
+            exchange: Arc::clone(exchange),
+        }
+    }
 
     #[test]
     fn fails_the_request_whose_message_cannot_be_decoded() {
-        let pending = Arc::new(PendingRequests::default());
-        let mut response_rx = pending
-            .register("request-1".to_owned())
-            .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open exchange must accept a request");
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(
+        router_for(&exchange).route_text(
             &json!({
                 "Response": {
                     "generated_by": null,
@@ -143,17 +161,15 @@ mod tests {
 
     #[test]
     fn leaves_other_requests_pending_when_an_undecodable_message_names_an_unknown_request() {
-        let pending = Arc::new(PendingRequests::default());
-        let mut response_rx = pending
-            .register("request-1".to_owned())
-            .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open exchange must accept a request");
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(
+        router_for(&exchange).route_text(
             &json!({ "Error": { "request_id": "request-2", "error": { "NoSuchError": {} } } })
                 .to_string(),
         );
@@ -167,17 +183,15 @@ mod tests {
 
     #[test]
     fn leaves_requests_pending_when_an_undecodable_message_names_no_request() {
-        let pending = Arc::new(PendingRequests::default());
-        let mut response_rx = pending
-            .register("request-1".to_owned())
-            .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
+        let exchange = Arc::new(InferenceSocketExchange::default());
+        let mut response_rx = exchange
+            .register(
+                OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                    .expect("a JSON request must serialize"),
+            )
+            .expect("an open exchange must accept a request");
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text("not json");
+        router_for(&exchange).route_text("not json");
 
         assert!(
             response_rx
@@ -187,62 +201,49 @@ mod tests {
     }
 
     #[test]
-    fn a_finished_embedding_batch_releases_its_request() {
-        let pending = Arc::new(PendingRequests::default());
-        let mut response_rx = pending
-            .register("request-1".to_owned())
-            .expect("an open registry must accept a request");
-        let (notification_tx, _notification_rx) = broadcast::channel(1);
+    fn a_terminal_response_releases_its_request() {
+        for (wire_response, terminal_response) in [
+            (
+                json!({ "Embedding": "Done" }),
+                Response::Embedding(EmbeddingResult::Done),
+            ),
+            (
+                json!({ "Decision": "StopRequested" }),
+                Response::Decision(DecisionResult::StopRequested),
+            ),
+        ] {
+            let exchange = Arc::new(InferenceSocketExchange::default());
+            let mut response_rx = exchange
+                .register(
+                    OutboundRequest::serialize("request-1".to_owned(), &json!({}))
+                        .expect("a JSON request must serialize"),
+                )
+                .expect("an open exchange must accept a request");
 
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
+            router_for(&exchange).route_text(
+                &json!({
+                    "Response": {
+                        "generated_by": null,
+                        "request_id": "request-1",
+                        "response": wire_response
+                    }
+                })
+                .to_string(),
+            );
+
+            assert_eq!(
+                response_rx.try_recv().ok().and_then(Result::ok),
+                Some(InferenceMessage::Response(ResponseEnvelope {
+                    generated_by: None,
+                    request_id: "request-1".to_owned(),
+                    response: terminal_response,
+                }))
+            );
+            assert!(
+                response_rx
+                    .try_recv()
+                    .is_err_and(|receive_error| receive_error == TryRecvError::Disconnected)
+            );
         }
-        .route_text(
-            &json!({
-                "Response": {
-                    "generated_by": null,
-                    "request_id": "request-1",
-                    "response": { "Embedding": "Done" }
-                }
-            })
-            .to_string(),
-        );
-
-        assert!(matches!(
-            response_rx.try_recv(),
-            Ok(Ok(InferenceMessage::Response(ResponseEnvelope {
-                response: Response::Embedding(embedding_result),
-                ..
-            }))) if embedding_result == EmbeddingResult::Done
-        ));
-        assert!(
-            response_rx
-                .try_recv()
-                .is_err_and(|receive_error| receive_error == TryRecvError::Disconnected)
-        );
-    }
-
-    #[test]
-    fn a_notification_nobody_listens_to_leaves_requests_pending() {
-        let pending = Arc::new(PendingRequests::default());
-        let mut response_rx = pending
-            .register("request-1".to_owned())
-            .expect("an open registry must accept a request");
-        let (notification_tx, notification_rx) = broadcast::channel(1);
-
-        drop(notification_rx);
-
-        InboundMessageRouter {
-            notification_tx,
-            pending: Arc::clone(&pending),
-        }
-        .route_text(&json!({ "Notification": "TokenGenerationDisabled" }).to_string());
-
-        assert!(
-            response_rx
-                .try_recv()
-                .is_err_and(|receive_error| receive_error == TryRecvError::Empty)
-        );
     }
 }

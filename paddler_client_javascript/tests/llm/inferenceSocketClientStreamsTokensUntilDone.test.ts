@@ -24,7 +24,7 @@ test("inferenceSocketClient streams tokens until done", async function () {
           inferenceSocketClient({ webSocket })
             .continueConversation({
               enableThinking: false,
-              messages: [{ content: "Say hello.", role: "user" }],
+              messages: [{ Message: { content: "Say hello.", role: "user" } }],
             })
             .pipe(toArray()),
         );

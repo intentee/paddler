@@ -23,10 +23,12 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("Say hello.".to_owned()),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text("Say hello.".to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: NonZeroU32::new(100).unwrap(),
@@ -54,13 +56,9 @@ async fn qwen3_internal_endpoint_with_thinking_disabled_emits_no_reasoning_token
     );
     assert!(content_count > 0, "expected content tokens to be produced");
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert_eq!(summary.usage.reasoning_tokens, 0);

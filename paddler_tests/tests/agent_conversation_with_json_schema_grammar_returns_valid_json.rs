@@ -23,7 +23,7 @@ async fn agent_conversation_with_json_schema_grammar_returns_valid_json() {
     let collected = cluster
         .continue_from_conversation_history(CancellationToken::new(), &ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
                 content: ConversationMessageContent::Text("What is 2+2?".to_owned()),
                 role: "user".to_owned(),
             }]),

@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use anyhow::Result;
 use futures_util::StreamExt as _;
 
@@ -6,6 +5,7 @@ use paddler_client::inference_message_stream::InferenceMessageStream;
 use paddler_messaging::inference_client::message::Message as InferenceMessage;
 use paddler_messaging::inference_client::response::Response as InferenceResponse;
 use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+use paddler_messaging::result_step::ResultStep;
 use paddler_messaging::streamable_result::StreamableResult as _;
 
 use crate::cluster_harness_error::ClusterHarnessError;
@@ -19,7 +19,7 @@ pub async fn collect_generated_tokens(
     let mut token_results: Vec<TokenResultWithProducer> = Vec::new();
 
     while let Some(item) = stream.next().await {
-        match item.context("inference stream yielded an error")? {
+        match item.map_err(ClusterHarnessError::TokenStreamFailed)? {
             InferenceMessage::Response(ResponseEnvelope {
                 generated_by,
                 response: InferenceResponse::GeneratedToken(token_result),
@@ -29,15 +29,21 @@ pub async fn collect_generated_tokens(
                     text.push_str(token_text);
                 }
 
-                let is_done = token_result.is_done();
+                match token_result.into_step() {
+                    ResultStep::Final(final_result) => {
+                        token_results.push(TokenResultWithProducer {
+                            token_result: final_result.into(),
+                            generated_by,
+                        });
 
-                token_results.push(TokenResultWithProducer {
-                    token_result,
-                    generated_by,
-                });
-
-                if is_done {
-                    break;
+                        break;
+                    }
+                    ResultStep::Partial(partial_result) => {
+                        token_results.push(TokenResultWithProducer {
+                            token_result: partial_result.into(),
+                            generated_by,
+                        });
+                    }
                 }
             }
             InferenceMessage::Error(error_envelope) => {
@@ -46,7 +52,7 @@ pub async fn collect_generated_tokens(
                 }
                 .into());
             }
-            unexpected_message => {
+            unexpected_message @ InferenceMessage::Response(_) => {
                 return Err(ClusterHarnessError::TokenStreamMessageUnexpected {
                     message: Box::new(unexpected_message),
                 }
@@ -59,4 +65,63 @@ pub async fn collect_generated_tokens(
         text,
         token_results,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use futures_util::stream::iter;
+
+    use paddler_client::error::Error as ClientError;
+    use paddler_messaging::embedding_result::EmbeddingResult;
+    use paddler_messaging::inference_client::message::Message as InferenceMessage;
+    use paddler_messaging::inference_client::response::Response as InferenceResponse;
+    use paddler_messaging::jsonrpc::response_envelope::ResponseEnvelope;
+
+    use super::collect_generated_tokens;
+    use crate::cluster_harness_error::ClusterHarnessError;
+
+    #[tokio::test]
+    async fn refuses_a_message_that_is_not_a_generated_token() {
+        let embedding_done = || {
+            InferenceMessage::Response(ResponseEnvelope {
+                generated_by: None,
+                request_id: "embedding-request".to_owned(),
+                response: InferenceResponse::Embedding(EmbeddingResult::Done),
+            })
+        };
+        let collection_error = collect_generated_tokens(Box::pin(iter([Ok(embedding_done())])))
+            .await
+            .err()
+            .expect("a stream of another kind of message must be refused");
+
+        assert_eq!(
+            collection_error
+                .downcast_ref::<ClusterHarnessError>()
+                .map(ToString::to_string),
+            Some(
+                ClusterHarnessError::TokenStreamMessageUnexpected {
+                    message: Box::new(embedding_done()),
+                }
+                .to_string()
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn a_token_stream_yielding_an_error_is_an_error() {
+        let collection_error =
+            collect_generated_tokens(Box::pin(iter([Err(ClientError::ConnectionDropped {
+                request_id: "request-1".to_owned(),
+            })])))
+            .await
+            .err()
+            .expect("a stream yielding an error must not be collected");
+
+        assert!(matches!(
+            collection_error.downcast_ref::<ClusterHarnessError>(),
+            Some(ClusterHarnessError::TokenStreamFailed(ClientError::ConnectionDropped {
+                request_id
+            })) if request_id == "request-1"
+        ));
+    }
 }

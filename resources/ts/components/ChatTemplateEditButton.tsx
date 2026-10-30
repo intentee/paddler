@@ -1,13 +1,11 @@
 import React, {
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type MouseEvent,
 } from "react";
 
-import { type ChatTemplate } from "@intentee/paddler-client/schemas/ChatTemplate";
 import { ChatTemplateContext } from "../contexts/ChatTemplateContext";
 import { CodeEditor } from "./CodeEditor";
 import { ModalWindow } from "./ModalWindow";
@@ -21,27 +19,24 @@ import {
   chatTemplateEditButton__modal__toolbarButton,
 } from "./ChatTemplateEditButton.module.css";
 
-function toDefaultContent(chatTemplate: null | ChatTemplate): string {
-  return chatTemplate?.content || "";
-}
-
 export function ChatTemplateEditButton() {
   const [isEditing, setIsEditing] = useState(false);
   const {
-    chatTemplateOverride,
+    chatTemplateOverrideContent,
     setChatTemplateOverrideContent,
     useChatTemplateOverride,
   } = useContext(ChatTemplateContext);
   const [temporaryContent, setTemporaryContent] = useState(
-    toDefaultContent(chatTemplateOverride),
+    chatTemplateOverrideContent,
+  );
+  const [editedContentSource, setEditedContentSource] = useState(
+    chatTemplateOverrideContent,
   );
 
-  useEffect(
-    function () {
-      setTemporaryContent(toDefaultContent(chatTemplateOverride));
-    },
-    [chatTemplateOverride, setTemporaryContent],
-  );
+  if (editedContentSource !== chatTemplateOverrideContent) {
+    setEditedContentSource(chatTemplateOverrideContent);
+    setTemporaryContent(chatTemplateOverrideContent);
+  }
 
   const onClick = useCallback(
     function (event: MouseEvent<HTMLButtonElement>) {
@@ -54,10 +49,10 @@ export function ChatTemplateEditButton() {
 
   const onClose = useCallback(
     function () {
-      setTemporaryContent(toDefaultContent(chatTemplateOverride));
+      setTemporaryContent(chatTemplateOverrideContent);
       setIsEditing(false);
     },
-    [chatTemplateOverride, setIsEditing, setTemporaryContent],
+    [chatTemplateOverrideContent, setIsEditing, setTemporaryContent],
   );
 
   const onSaveClick = useCallback(
@@ -72,9 +67,9 @@ export function ChatTemplateEditButton() {
 
   const shouldConfirmClose = useMemo(
     function () {
-      return toDefaultContent(chatTemplateOverride) !== temporaryContent;
+      return chatTemplateOverrideContent !== temporaryContent;
     },
-    [chatTemplateOverride, temporaryContent],
+    [chatTemplateOverrideContent, temporaryContent],
   );
 
   return (

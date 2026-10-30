@@ -5,12 +5,11 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::collect_generated_tokens::collect_generated_tokens;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_test_cluster_harness::unending_generation::unending_generation;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
@@ -32,7 +31,7 @@ fn waiting_prompt() -> ContinueFromRawPromptParams {
 async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(SLOT_COUNT)],
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
@@ -108,17 +107,9 @@ async fn inference_socket_partial_cancellation_serves_only_the_freed_slots() {
             .await
             .expect("the generated tokens must be collected");
 
-        assert!(
-            matches!(
-                collected.token_results.last(),
-                Some(TokenResultWithProducer {
-                    token_result: GeneratedTokenResult::Done(_),
-                    ..
-                })
-            ),
-            "every buffered request must run to completion through the freed slots, not end with an error: {:?}",
-            collected.token_results.last()
-        );
+        collected
+            .summary()
+            .expect("every buffered request must run to completion through the freed slots, not end with an error");
         assert!(
             collected
                 .token_results

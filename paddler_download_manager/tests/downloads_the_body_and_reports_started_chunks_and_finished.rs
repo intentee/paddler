@@ -54,4 +54,10 @@ async fn downloads_the_body_and_reports_started_chunks_and_finished() {
         recorded_download.progress.last(),
         Some(&DownloadProgress::Finished)
     );
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

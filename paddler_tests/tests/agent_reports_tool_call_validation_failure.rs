@@ -2,13 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use serde_json::Map;
-use serde_json::Value;
-use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
@@ -18,52 +13,39 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
-use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters_schema::validated_parameters_schema::ValidatedParametersSchema;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
+use paddler_tests::weather_tool_parameters_with_an_unsatisfiable_location::weather_tool_parameters_with_an_unsatisfiable_location;
+use paddler_tests::weather_tool_question::WEATHER_TOOL_QUESTION;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn agent_reports_tool_call_validation_failure() {
-    let base_desired_state = qwen3_0_6b().into_desired_state();
-
     let cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig {
             name: "test-agent".to_owned(),
             slot_count: 1,
         }],
-        desired_state: Some(BalancerDesiredState {
-            inference_parameters: InferenceParameters {
-                temperature: 0.0,
-                ..base_desired_state.inference_parameters
-            },
-            ..base_desired_state
-        }),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_0_6b().into_desired_state())),
         wait_for_slots_ready: true,
         ..ClusterParams::default()
     })
     .await
     .expect("the cluster must start");
 
-    let mut location_properties = Map::new();
-    location_properties.insert(
-        "location".to_owned(),
-        json!({"type": "integer", "description": "The city name"}),
-    );
-
     let collected = cluster
         .continue_from_conversation_history(
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "What is the weather in Paris? Use the get_weather tool to find out."
-                            .to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(WEATHER_TOOL_QUESTION.to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: None,
                 max_tokens: NonZeroU32::new(400).unwrap(),
@@ -72,12 +54,9 @@ async fn agent_reports_tool_call_validation_failure() {
                     function: Function {
                         name: "get_weather".to_owned(),
                         description: "Get the current weather for a location".to_owned(),
-                        parameters: Parameters::Schema(ValidatedParametersSchema {
-                            schema_type: "object".to_owned(),
-                            properties: Some(location_properties),
-                            required: Some(vec!["location".to_owned()]),
-                            additional_properties: Some(Value::Bool(false)),
-                        }),
+                        parameters: Parameters::Schema(
+                            weather_tool_parameters_with_an_unsatisfiable_location(),
+                        ),
                     },
                 })],
             },
@@ -96,8 +75,8 @@ async fn agent_reports_tool_call_validation_failure() {
 
     assert!(
         !validation_failures.is_empty(),
-        "expected at least one ToolCallValidationFailed event when the model emits a string \
-         location against an integer-typed schema; got tokens:\n{}",
+        "expected at least one ToolCallValidationFailed event when the model calls get_weather \
+         with a location that no value can satisfy; got tokens:\n{}",
         collected.text
     );
 

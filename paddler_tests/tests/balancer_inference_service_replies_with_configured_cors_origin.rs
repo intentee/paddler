@@ -7,17 +7,14 @@ const ALLOWED_ORIGIN: &str = "http://example.com";
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_inference_service_replies_with_configured_cors_origin() {
     let cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
         inference_cors_allowed_hosts: vec![ALLOWED_ORIGIN.to_owned()],
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("a cluster without agents must start");
     let health_url = cluster
         .balancer
-        .inference_base_url()
-        .expect("the inference service must have a base URL")
+        .inference_base_url
         .join("health")
         .expect("the health path must join onto the base URL");
 

@@ -1,23 +1,23 @@
 use std::num::NonZeroU32;
-use std::time::Duration;
 
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::inference_client::message::Message;
+use paddler_messaging::jsonrpc::error::Error as JsonRpcError;
+use paddler_messaging::jsonrpc::error_envelope::ErrorEnvelope;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
+use paddler_tests::short_buffered_request_timeout::SHORT_BUFFERED_REQUEST_TIMEOUT;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_returns_503_when_request_buffering_disabled() {
     let mut cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        buffered_request_timeout: Duration::from_millis(50),
+        buffered_request_timeout: SHORT_BUFFERED_REQUEST_TIMEOUT,
         max_buffered_requests: 0,
-        ..ClusterParams::default()
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("the cluster must start");
@@ -47,17 +47,15 @@ async fn balancer_returns_503_when_request_buffering_disabled() {
         .expect("inference stream must yield a message")
         .expect("the message must be readable");
 
-    match message {
-        Message::Error(envelope) => {
-            assert_eq!(envelope.error.code, 503);
-        }
-        Message::Response(_) => {
-            panic!("expected buffer overflow error, got success");
-        }
-        Message::Notification(_) => {
-            panic!("unexpected token-generation-mode notification");
-        }
-    }
+    let expected_error = JsonRpcError {
+        code: 503,
+        description: "Buffered requests overflow".to_owned(),
+    };
+
+    assert!(matches!(
+        message,
+        Message::Error(ErrorEnvelope { error, .. }) if error == expected_error
+    ));
 
     cluster
         .shutdown()

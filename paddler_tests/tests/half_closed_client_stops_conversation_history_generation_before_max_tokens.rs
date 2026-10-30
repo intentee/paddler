@@ -2,6 +2,8 @@
 
 use std::num::NonZeroU32;
 
+use serde_json::to_value;
+
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -14,13 +16,14 @@ use paddler_test_cluster_harness::half_closed_client::HalfClosedClient;
 use paddler_test_cluster_harness::unending_grammar::unending_grammar;
 use paddler_tests::qwen3_desired_state::qwen3_desired_state;
 use paddler_tests::start_cluster::start_cluster;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_client_stops_conversation_history_generation_before_max_tokens() {
     let mut cluster = start_cluster(ClusterParams {
         agents: vec![AgentConfig::single(1)],
         wait_for_slots_ready: true,
-        desired_state: Some(qwen3_desired_state()),
+        desired_state: ClusterDesiredState::Apply(Box::new(qwen3_desired_state())),
         ..ClusterParams::default()
     })
     .await
@@ -35,7 +38,7 @@ async fn half_closed_client_stops_conversation_history_generation_before_max_tok
     let params: ContinueFromConversationHistoryParams<RawParametersSchema> =
         ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
                 content: ConversationMessageContent::Text(
                     "Write a very long story about a dragon".to_owned(),
                 ),
@@ -51,7 +54,7 @@ async fn half_closed_client_stops_conversation_history_generation_before_max_tok
     let mut client = HalfClosedClient::post_json_then_half_close(
         cluster.balancer.addresses.inference,
         ApiPath::CONTINUE_FROM_CONVERSATION_HISTORY,
-        &params,
+        &to_value(&params).expect("the request parameters must serialize"),
     )
     .await
     .expect("the half-closed request must be sent");

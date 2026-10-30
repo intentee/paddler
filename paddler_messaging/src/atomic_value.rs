@@ -37,8 +37,8 @@ impl AtomicValue<AtomicU64> {
             .is_ok()
     }
 
-    pub fn decrement(&self) {
-        self.value.fetch_sub(1, Ordering::SeqCst);
+    pub fn subtract(&self, amount: u64) {
+        self.value.fetch_sub(amount, Ordering::SeqCst);
     }
 
     pub fn get(&self) -> u64 {
@@ -51,14 +51,10 @@ impl AtomicValue<AtomicU64> {
 
     pub fn increment_below(&self, limit: u64) -> bool {
         self.value
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
                 (current < limit).then_some(current + 1)
             })
             .is_ok()
-    }
-
-    pub fn reset(&self) {
-        self.value.store(0, Ordering::SeqCst);
     }
 }
 

@@ -23,12 +23,14 @@ async fn qwen35_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens()
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text(
-                        "What is two plus two? Think step by step.".to_owned(),
-                    ),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "What is two plus two? Think step by step.".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: true,
                 grammar: None,
                 max_tokens: NonZeroU32::new(600).unwrap(),
@@ -50,13 +52,9 @@ async fn qwen35_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens()
         "Qwen3.5: expected at least one reasoning token when thinking is enabled (got {reasoning_count})"
     );
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert!(summary.usage.prompt_tokens > 0);
     assert!(summary.usage.reasoning_tokens > 0);
@@ -67,22 +65,8 @@ async fn qwen35_internal_endpoint_with_thinking_enabled_emits_reasoning_tokens()
             + summary.usage.undeterminable_tokens
     );
 
-    let reasoning_stream: String = collected
-        .token_results
-        .iter()
-        .filter_map(|result| match &result.token_result {
-            GeneratedTokenResult::ReasoningToken(piece) => Some(piece.as_str()),
-            _ => None,
-        })
-        .collect();
-    let content_stream: String = collected
-        .token_results
-        .iter()
-        .filter_map(|result| match &result.token_result {
-            GeneratedTokenResult::ContentToken(piece) => Some(piece.as_str()),
-            _ => None,
-        })
-        .collect();
+    let reasoning_stream = collected.reasoning_text();
+    let content_stream = collected.content_text();
 
     for forbidden in ["<think>", "</think>"] {
         assert!(

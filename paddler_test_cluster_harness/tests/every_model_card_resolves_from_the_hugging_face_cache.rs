@@ -1,37 +1,44 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use anyhow::Result;
-use hf_hub::Cache;
-use hf_hub::Repo;
-use hf_hub::RepoType;
-use hf_hub::api::tokio::ApiBuilder;
+use std::sync::Arc;
 
-use paddler_messaging::huggingface_model_reference::HuggingFaceModelReference;
-use paddler_test_cluster_harness::model_card::ModelCard;
+use tokio_util::sync::CancellationToken;
+
+use paddler_agent_status::slot_aggregated_status::SlotAggregatedStatus;
+use paddler_model_source::desired_model_resolution::DesiredModelResolution;
+use paddler_model_source::huggingface_cache_location::HuggingFaceCacheLocation;
+use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
+use paddler_model_source::huggingface_hub::HuggingFaceHub;
+use paddler_model_source::huggingface_model_source::HuggingFaceModelSource;
+use paddler_model_source::resolves_model_source::ResolvesModelSource as _;
 use paddler_test_cluster_harness::model_card::every_model_card::every_model_card;
 
 #[tokio::test]
-async fn every_model_card_resolves_from_the_hugging_face_cache() -> Result<()> {
-    let hugging_face_cache = Cache::from_env();
-    let hugging_face_api = ApiBuilder::from_cache(hugging_face_cache.clone()).build()?;
-
-    for ModelCard {
-        reference:
-            HuggingFaceModelReference {
-                filename,
-                repo_id,
-                revision,
-            },
-    } in every_model_card()
-    {
-        let repo = Repo::with_revision(repo_id, RepoType::Model, revision);
-        let fetched_path = hugging_face_api.repo(repo.clone()).get(&filename).await?;
+async fn every_model_card_resolves_from_the_hugging_face_cache() {
+    for model_card in every_model_card() {
+        let resolution = HuggingFaceModelSource {
+            client: HuggingFaceHub {
+                cache_location: HuggingFaceCacheLocation::HubDefault,
+                endpoint: HUGGINGFACE_DEFAULT_ENDPOINT.to_owned(),
+            }
+            .client()
+            .expect("the Hugging Face client must start"),
+            reference: model_card.reference.clone(),
+        }
+        .resolve(
+            &CancellationToken::new(),
+            Arc::new(SlotAggregatedStatus::new(1)),
+        )
+        .await
+        .expect("every model card must resolve through the Hugging Face hub");
 
         assert_eq!(
-            hugging_face_cache.repo(repo).get(&filename),
-            Some(fetched_path)
+            resolution,
+            DesiredModelResolution::Resolved(
+                model_card
+                    .cached_path()
+                    .expect("every resolved model card must be in the Hugging Face cache")
+            )
         );
     }
-
-    Ok(())
 }

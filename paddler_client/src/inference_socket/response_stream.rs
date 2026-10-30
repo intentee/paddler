@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use futures_util::Stream;
 use futures_util::stream::unfold;
-use log::debug;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 
@@ -27,15 +26,8 @@ impl StreamState {
 
 impl Drop for StreamState {
     fn drop(&mut self) {
-        if self.is_complete {
-            return;
-        }
-
-        if let Err(stop_error) = self.connection.stop_responding_to(self.request_id.clone()) {
-            debug!(
-                "Could not ask the balancer to stop responding to request {}: {stop_error}",
-                self.request_id
-            );
+        if !self.is_complete {
+            self.connection.stop_responding_to(&self.request_id);
         }
     }
 }

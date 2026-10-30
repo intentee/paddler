@@ -51,4 +51,10 @@ async fn downloads_again_after_the_cache_directory_was_deleted() {
         body
     );
     assert_eq!(fixture.request_count(), 2);
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

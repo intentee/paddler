@@ -28,4 +28,10 @@ async fn sends_no_range_header_for_a_fresh_download() {
 
     assert_eq!(fixture.request_count(), 1);
     assert_eq!(fixture.last_range_header(), None);
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

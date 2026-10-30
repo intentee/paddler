@@ -24,8 +24,8 @@ const { continueConversation } = inferenceSocketClient({ webSocket });
 continueConversation({
   enableThinking: true,
   messages: [
-    { role: "system", content: "You are a helpful assistant." },
-    { role: "user", content: "Hello" },
+    { Message: { role: "system", content: "You are a helpful assistant." } },
+    { Message: { role: "user", content: "Hello" } },
   ],
 }).subscribe((chunk) => {
   if (chunk.error) {

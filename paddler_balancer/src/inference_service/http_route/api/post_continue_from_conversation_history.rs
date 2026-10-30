@@ -20,11 +20,6 @@ async fn respond(
     app_data: web::Data<AppData>,
     params: web::Json<ContinueFromConversationHistoryParams<RawParametersSchema>>,
 ) -> Result<impl Responder, Error> {
-    app_data
-        .balancer_applicable_state_holder
-        .token_generation_mode()
-        .require_enabled()?;
-
     let validated_params = params.into_inner().validate().map_err(|validation_error| {
         ErrorBadRequest(invalid_request_parameters_description(&validation_error))
     })?;

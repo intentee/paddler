@@ -8,7 +8,6 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_summary::GenerationSummary;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
@@ -28,10 +27,12 @@ async fn agent_reports_independent_usage_for_concurrent_requests() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("Count.".to_owned()),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text("Count.".to_owned()),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: Some(gbnf_literal(forced_reply)),
                 max_tokens: NonZeroU32::new(30).unwrap(),
@@ -43,14 +44,9 @@ async fn agent_reports_independent_usage_for_concurrent_requests() {
         async move {
             let collected = generation.await.expect("the generation must complete");
 
-            let last = collected
-                .token_results
-                .last()
-                .expect("no token results received");
-            match &last.token_result {
-                GeneratedTokenResult::Done(summary) => *summary,
-                other => panic!("last result was not Done: {other:?}"),
-            }
+            collected
+                .summary()
+                .expect("the generation must finish with a summary")
         }
     });
 

@@ -5,15 +5,13 @@ use std::num::NonZeroU32;
 use futures_util::StreamExt as _;
 use tokio_util::sync::CancellationToken;
 
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
-use paddler_test_cluster_harness::token_result_with_producer::TokenResultWithProducer;
 use paddler_tests::start_cluster_with_qwen3::start_cluster_with_qwen3;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn continuous_batch_stops_generation_when_stop_sender_dropped() {
-    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(2)])
+    let cluster = start_cluster_with_qwen3(vec![AgentConfig::single(1)])
         .await
         .expect("the cluster must start");
 
@@ -48,13 +46,9 @@ async fn continuous_batch_stops_generation_when_stop_sender_dropped() {
         .await
         .expect("the inference request must be accepted");
 
-    assert!(matches!(
-        second_collected.token_results.last(),
-        Some(TokenResultWithProducer {
-            token_result: GeneratedTokenResult::Done(_),
-            ..
-        })
-    ));
+    second_collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     let second_token_count = second_collected
         .token_results

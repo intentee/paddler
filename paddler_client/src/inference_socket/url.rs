@@ -5,27 +5,31 @@ use paddler_messaging::api_path::ApiPath;
 use crate::error::Error;
 use crate::error::Result;
 
+fn websocket_scheme(scheme: &str) -> Option<&'static str> {
+    match scheme {
+        "http" | "ws" => Some("ws"),
+        "https" | "wss" => Some("wss"),
+        _ => None,
+    }
+}
+
 pub fn url(input: Url) -> Result<Url> {
-    let websocket_scheme = match input.scheme() {
-        "http" | "ws" => "ws",
-        "https" | "wss" => "wss",
-        rejected_scheme => {
-            return Err(Error::InferenceSocketUrlSchemeRejected {
-                scheme: rejected_scheme.to_owned(),
-                url: input.to_string(),
-            });
-        }
-    };
     let mut url = input;
 
-    url.set_scheme(websocket_scheme)
-        .map_err(|()| Error::InferenceSocketUrlSchemeRejected {
-            scheme: websocket_scheme.to_owned(),
-            url: url.to_string(),
-        })?;
-    url.set_path(ApiPath::INFERENCE_SOCKET);
+    match websocket_scheme(url.scheme())
+        .ok_or(())
+        .and_then(|scheme| url.set_scheme(scheme))
+    {
+        Ok(()) => {
+            url.set_path(ApiPath::INFERENCE_SOCKET);
 
-    Ok(url)
+            Ok(url)
+        }
+        Err(()) => Err(Error::InferenceSocketUrlSchemeRejected {
+            scheme: url.scheme().to_owned(),
+            url: url.to_string(),
+        }),
+    }
 }
 
 #[cfg(test)]

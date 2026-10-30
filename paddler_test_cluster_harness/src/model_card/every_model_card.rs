@@ -4,6 +4,7 @@ use crate::model_card::gemma_3_4b_it::gemma_3_4b_it;
 use crate::model_card::gemma_3_4b_it_mmproj::gemma_3_4b_it_mmproj;
 use crate::model_card::gemma_4_e2b_it::gemma_4_e2b_it;
 use crate::model_card::gemma_4_e2b_it_mmproj::gemma_4_e2b_it_mmproj;
+use crate::model_card::lfm2_colbert_350m::lfm2_colbert_350m;
 use crate::model_card::ministral_3_3b_reasoning::ministral_3_3b_reasoning;
 use crate::model_card::ministral_3_8b_reasoning::ministral_3_8b_reasoning;
 use crate::model_card::ministral_3_8b_reasoning_mmproj::ministral_3_8b_reasoning_mmproj;
@@ -13,8 +14,11 @@ use crate::model_card::qwen2_5_vl_3b_mmproj::qwen2_5_vl_3b_mmproj;
 use crate::model_card::qwen3_0_6b::qwen3_0_6b;
 use crate::model_card::qwen3_5_0_8b::qwen3_5_0_8b;
 use crate::model_card::qwen3_5_0_8b_mmproj::qwen3_5_0_8b_mmproj;
+use crate::model_card::qwen3_8_27b::qwen3_8_27b;
 use crate::model_card::smolvlm2_256m::smolvlm2_256m;
 use crate::model_card::smolvlm2_256m_mmproj::smolvlm2_256m_mmproj;
+use crate::model_card::ultravox_v0_5_llama_3_2_1b::ultravox_v0_5_llama_3_2_1b;
+use crate::model_card::ultravox_v0_5_llama_3_2_1b_mmproj::ultravox_v0_5_llama_3_2_1b_mmproj;
 
 #[must_use]
 pub fn every_model_card() -> Vec<ModelCard> {
@@ -24,6 +28,7 @@ pub fn every_model_card() -> Vec<ModelCard> {
         gemma_3_4b_it_mmproj(),
         gemma_4_e2b_it(),
         gemma_4_e2b_it_mmproj(),
+        lfm2_colbert_350m(),
         ministral_3_3b_reasoning(),
         ministral_3_8b_reasoning(),
         ministral_3_8b_reasoning_mmproj(),
@@ -33,7 +38,10 @@ pub fn every_model_card() -> Vec<ModelCard> {
         qwen3_0_6b(),
         qwen3_5_0_8b(),
         qwen3_5_0_8b_mmproj(),
+        qwen3_8_27b(),
         smolvlm2_256m(),
         smolvlm2_256m_mmproj(),
+        ultravox_v0_5_llama_3_2_1b(),
+        ultravox_v0_5_llama_3_2_1b_mmproj(),
     ]
 }

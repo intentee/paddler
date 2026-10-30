@@ -9,5 +9,6 @@ pub mod balancer_runner_params;
 pub mod balancer_service_bundle;
 pub mod bootstrap_error;
 pub mod llama_cpp_max_sequences;
+pub mod registers_services;
 pub mod run_service_manager;
 pub mod service_thread;

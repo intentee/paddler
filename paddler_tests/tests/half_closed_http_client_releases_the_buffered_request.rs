@@ -1,5 +1,7 @@
 use std::num::NonZeroU32;
 
+use serde_json::to_value;
+
 use paddler_messaging::api_path::ApiPath;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
@@ -12,19 +14,15 @@ use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn half_closed_http_client_releases_the_buffered_request() {
-    let mut cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
-        ..ClusterParams::default()
-    })
-    .await
-    .expect("the cluster must start");
+    let mut cluster = start_cluster(ClusterParams::without_agents())
+        .await
+        .expect("the cluster must start");
 
     let inference_addr = cluster.balancer.addresses.inference;
     let params: ContinueFromConversationHistoryParams<RawParametersSchema> =
         ContinueFromConversationHistoryParams {
             add_generation_prompt: true,
-            conversation_history: ConversationHistory::new(vec![ConversationMessage {
+            conversation_history: ConversationHistory::new(vec![ConversationMessage::Message {
                 content: ConversationMessageContent::Text("hi".to_owned()),
                 role: "user".to_owned(),
             }]),
@@ -37,7 +35,7 @@ async fn half_closed_http_client_releases_the_buffered_request() {
     let mut client = HalfClosedClient::post_json_then_half_close(
         inference_addr,
         ApiPath::CONTINUE_FROM_CONVERSATION_HISTORY,
-        &params,
+        &to_value(&params).expect("the request parameters must serialize"),
     )
     .await
     .expect("the half-closed request must be sent");

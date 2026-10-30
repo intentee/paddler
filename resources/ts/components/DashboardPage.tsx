@@ -20,8 +20,13 @@ import {
 } from "./DashboardPage.module.css";
 
 export function DashboardPage() {
-  const { compatOpenAIAddr, inferenceAddr, managementAddr, statsd } =
-    useContext(PaddlerConfigurationContext);
+  const {
+    compatOpenAIAddr,
+    compatTypeSafeAddr,
+    inferenceAddr,
+    managementAddr,
+    statsd,
+  } = useContext(PaddlerConfigurationContext);
 
   return (
     <div className={dashboardPage}>
@@ -55,6 +60,17 @@ export function DashboardPage() {
                     addr:
                   </p>
                   <p>{compatOpenAIAddr}</p>
+                </div>
+              )}
+              {compatTypeSafeAddr !== null && (
+                <div
+                  className={`${dashboardPage__genericAddr} ${dashboardPage__inferenceAddr} ${dashboardPage__compatibilityServiceAddr}`}
+                >
+                  <p>
+                    TypeSafe <abbr title="compatibility service">compat</abbr>{" "}
+                    addr:
+                  </p>
+                  <p>{compatTypeSafeAddr}</p>
                 </div>
               )}
             </div>

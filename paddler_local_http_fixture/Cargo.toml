@@ -1,5 +1,6 @@
 [package]
 name = "paddler_local_http_fixture"
+autotests = false
 authors.workspace = true
 description = "Local HTTP file host that stands in for third-party model servers in Paddler tests"
 edition.workspace = true
@@ -9,10 +10,18 @@ publish = false
 repository.workspace = true
 version.workspace = true
 
+[[test]]
+name = "integration"
+path = "tests/main.rs"
+
 [dependencies]
 http = { workspace = true }
 httparse = { workspace = true }
 tokio = { workspace = true }
+
+[dev-dependencies]
+nix = { workspace = true }
+paddler_tcp_buffer_limits = { workspace = true }
 
 [lints]
 workspace = true

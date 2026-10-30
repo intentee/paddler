@@ -1,34 +1,30 @@
 use tokio_util::sync::CancellationToken;
 
-use paddler_inference_parameters::inference_parameters::InferenceParameters;
-use paddler_messaging::agent_desired_model::AgentDesiredModel;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
+use paddler_model_source::model_source::ModelSource;
+use paddler_test_cluster_harness::cluster_desired_state::ClusterDesiredState;
 use paddler_test_cluster_harness::cluster_params::ClusterParams;
 use paddler_test_cluster_harness::model_card::ModelCard;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
-use paddler_test_cluster_harness::state_database_file::StateDatabaseFile;
+use paddler_test_cluster_harness::temporary_state_database_file::TemporaryStateDatabaseFile;
 use paddler_tests::start_cluster::start_cluster;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn balancer_persists_desired_state_across_restart() {
-    let database = StateDatabaseFile::new().expect("the state database file must be created");
+    let database =
+        TemporaryStateDatabaseFile::new().expect("the state database file must be created");
 
     let ModelCard { reference } = qwen3_0_6b();
 
     let desired_state = BalancerDesiredState {
-        chat_template_override: None,
-        inference_parameters: InferenceParameters::default(),
-        model: AgentDesiredModel::HuggingFace(reference),
-        multimodal_projection: AgentDesiredModel::None,
-        use_chat_template_override: false,
+        model: ModelSource::HuggingFace(reference).into_agent_desired_model(),
+        ..BalancerDesiredState::default()
     };
 
     let first_cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: Some(desired_state.clone()),
-        ..ClusterParams::default()
+        desired_state: ClusterDesiredState::Apply(Box::new(desired_state.clone())),
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("the cluster must start");
@@ -39,11 +35,9 @@ async fn balancer_persists_desired_state_across_restart() {
         .expect("the cluster must shut down cleanly");
 
     let second_cluster = start_cluster(ClusterParams {
-        agents: Vec::new(),
-        wait_for_slots_ready: false,
         state_database_url: database.url.clone(),
-        desired_state: None,
-        ..ClusterParams::default()
+        desired_state: ClusterDesiredState::KeepStored,
+        ..ClusterParams::without_agents()
     })
     .await
     .expect("the cluster must start");

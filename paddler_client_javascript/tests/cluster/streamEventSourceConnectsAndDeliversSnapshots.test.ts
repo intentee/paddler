@@ -6,6 +6,7 @@ import { eventSourceConnectedState } from "../../src/EventSourceConnectedState";
 import { eventSourceInitialState } from "../../src/EventSourceInitialState";
 import { AgentsResponseSchema } from "../../src/schemas/AgentsResponse";
 import { streamEventSource } from "../../src/streamEventSource";
+import { agentsStreamUrl } from "../agentsStreamUrl";
 import { PADDLER_DEFAULT_BUFFERED_REQUEST_TIMEOUT_MILLISECONDS } from "../SpawnedBalancer";
 import { withSpawnedBalancer } from "../withSpawnedBalancer";
 
@@ -20,7 +21,7 @@ test("streamEventSource connects and delivers snapshots", async function () {
         await firstValueFrom(
           streamEventSource({
             schema: AgentsResponseSchema,
-            url: `http://${management}/api/v1/agents/stream`,
+            url: agentsStreamUrl(management),
           }).pipe(take(3), toArray()),
         ),
         [

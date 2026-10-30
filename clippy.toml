@@ -2,3 +2,8 @@ absolute-paths-max-segments = 1
 allow-expect-in-tests = true
 allow-panic-in-tests = true
 allow-unwrap-in-tests = true
+disallowed-methods = [
+    { path = "llama_cpp_bindings::context::LlamaContext::from_model", reason = "create contexts through LoadedLlamaModel::create_llama_context, which claims the VRAM residency of their capability" },
+    { path = "llama_cpp_bindings::model::LlamaModel::load_from_file", reason = "load models through LoadedLlamaModel::load, which claims the VRAM residency of the model weights" },
+    { path = "llama_cpp_bindings::mtmd::mtmd_context::MtmdContext::init_from_file", reason = "load multimodal projections through the text generation pipeline, which claims the VRAM residency of the projection" },
+]

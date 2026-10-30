@@ -1,32 +1,49 @@
+use std::num::NonZeroU16;
 use std::num::NonZeroU32;
 
+use llama_cpp_bindings_types::BatchCapacity;
+use llama_cpp_bindings_types::BatchCapacityError;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::invalid_inference_parameters::InvalidInferenceParameters;
 
-const MAX_BATCH_SIZE: u32 = i32::MAX.unsigned_abs();
+const DEFAULT_TOKENS: NonZeroU16 = NonZeroU16::new(2048).unwrap();
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(try_from = "u32", into = "u32")]
-pub struct BatchSize(NonZeroU32);
+pub struct BatchSize(BatchCapacity);
 
 impl BatchSize {
-    pub const DEFAULT: Self = Self(NonZeroU32::new(2048).unwrap());
+    #[must_use]
+    pub fn at_most(self, tokens: NonZeroU32) -> Self {
+        Self(self.0.at_most(tokens))
+    }
 
     #[must_use]
-    pub const fn tokens(self) -> NonZeroU32 {
+    pub const fn capacity(self) -> BatchCapacity {
         self.0
     }
 
     #[must_use]
+    pub const fn tokens(self) -> NonZeroU32 {
+        self.0.tokens()
+    }
+
+    #[must_use]
     pub const fn tokens_i32(self) -> i32 {
-        self.0.get().cast_signed()
+        self.0.tokens_i32()
     }
 
     #[must_use]
     pub const fn tokens_usize(self) -> usize {
-        self.0.get() as usize
+        self.0.tokens_usize()
+    }
+}
+
+impl Default for BatchSize {
+    fn default() -> Self {
+        Self(BatchCapacity::from(DEFAULT_TOKENS))
     }
 }
 
@@ -34,29 +51,42 @@ impl TryFrom<u32> for BatchSize {
     type Error = InvalidInferenceParameters;
 
     fn try_from(n_batch: u32) -> Result<Self, Self::Error> {
-        if n_batch > MAX_BATCH_SIZE {
-            return Err(InvalidInferenceParameters::BatchSizeTooLarge {
-                n_batch,
-                max_batch_size: MAX_BATCH_SIZE,
-            });
+        match BatchCapacity::try_from(n_batch) {
+            Ok(capacity) => Ok(Self(capacity)),
+            Err(BatchCapacityError::Zero) => Err(InvalidInferenceParameters::BatchSizeZero),
+            Err(BatchCapacityError::TooLarge { tokens, max_tokens }) => {
+                Err(InvalidInferenceParameters::BatchSizeTooLarge {
+                    n_batch: tokens,
+                    max_batch_size: max_tokens,
+                })
+            }
         }
-
-        NonZeroU32::new(n_batch)
-            .map(Self)
-            .ok_or(InvalidInferenceParameters::BatchSizeZero)
     }
 }
 
 impl From<BatchSize> for u32 {
     fn from(batch_size: BatchSize) -> Self {
-        batch_size.0.get()
+        batch_size.0.tokens().get()
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::BatchSize;
     use crate::invalid_inference_parameters::InvalidInferenceParameters;
+
+    #[test]
+    fn a_batch_never_exceeds_the_token_bound_it_is_capped_at() {
+        assert_eq!(
+            [
+                BatchSize::default().at_most(NonZeroU32::new(512).unwrap()),
+                BatchSize::default().at_most(NonZeroU32::new(4096).unwrap()),
+            ],
+            [BatchSize::try_from(512).unwrap(), BatchSize::default()]
+        );
+    }
 
     #[test]
     fn rejects_a_zero_batch() {

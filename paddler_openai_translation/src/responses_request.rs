@@ -1,0 +1,636 @@
+use std::num::NonZeroU32;
+use std::time::SystemTime;
+
+use nanoid::nanoid;
+use serde::Deserialize;
+
+use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+use paddler_messaging::conversation_history::ConversationHistory;
+use paddler_messaging::conversation_message::ConversationMessage;
+use paddler_messaging::conversation_message_content::ConversationMessageContent;
+use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
+use paddler_messaging::system_role::SYSTEM_ROLE;
+use paddler_messaging::user_role::USER_ROLE;
+use paddler_messaging::validates::Validates;
+
+use crate::default_max_tokens::DEFAULT_MAX_TOKENS;
+use crate::openai_translation_error::OpenAITranslationError;
+use crate::responses_delivery::ResponsesDelivery;
+use crate::responses_input::ResponsesInput;
+use crate::responses_reasoning::ResponsesReasoning;
+use crate::responses_response_header::ResponsesResponseHeader;
+use crate::responses_stream::ResponsesStream;
+use crate::responses_text_param::ResponsesTextParam;
+use crate::responses_tool::ResponsesTool;
+use crate::timestamp_from::timestamp_from;
+use crate::translated_responses_request::TranslatedResponsesRequest;
+
+#[derive(Deserialize)]
+pub struct ResponsesRequest {
+    pub model: String,
+    #[serde(default)]
+    pub input: ResponsesInput,
+    #[serde(default)]
+    pub instructions: Option<String>,
+    #[serde(default)]
+    pub stream: Option<bool>,
+    #[serde(default)]
+    pub max_output_tokens: Option<NonZeroU32>,
+    #[serde(default)]
+    pub tools: Vec<ResponsesTool>,
+    #[serde(default)]
+    pub text: Option<ResponsesTextParam>,
+    #[serde(default)]
+    pub reasoning: Option<ResponsesReasoning>,
+}
+
+impl ResponsesRequest {
+    pub fn translate(
+        self,
+        now: SystemTime,
+        SamplingParameters {
+            temperature, top_p, ..
+        }: &SamplingParameters,
+    ) -> Result<TranslatedResponsesRequest, OpenAITranslationError> {
+        let Self {
+            model,
+            input,
+            instructions,
+            stream,
+            max_output_tokens,
+            tools,
+            text,
+            reasoning,
+        } = self;
+
+        let mut messages: Vec<ConversationMessage> = Vec::new();
+
+        if let Some(instructions) = &instructions
+            && !instructions.is_empty()
+        {
+            messages.push(ConversationMessage::Message {
+                content: ConversationMessageContent::Text(instructions.clone()),
+                role: SYSTEM_ROLE.to_owned(),
+            });
+        }
+
+        match input {
+            ResponsesInput::Text(text) => messages.push(ConversationMessage::Message {
+                content: ConversationMessageContent::Text(text),
+                role: USER_ROLE.to_owned(),
+            }),
+            ResponsesInput::Items(items) => {
+                for item in items {
+                    item.append_to(&mut messages)?;
+                }
+            }
+        }
+
+        let validated_tools = tools
+            .into_iter()
+            .map(|ResponsesTool::Function(function_definition)| function_definition.into_tool())
+            .map(Validates::validate)
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let created_at = timestamp_from(now)?;
+        let header = ResponsesResponseHeader {
+            created_at,
+            id: format!("resp_{}", nanoid!()),
+            instructions,
+            model,
+            temperature: *temperature,
+            top_p: *top_p,
+        };
+
+        Ok(TranslatedResponsesRequest {
+            conversation_history_params: ContinueFromConversationHistoryParams {
+                add_generation_prompt: true,
+                conversation_history: ConversationHistory::new(messages),
+                enable_thinking: reasoning
+                    .as_ref()
+                    .is_none_or(ResponsesReasoning::enables_thinking),
+                grammar: text.and_then(ResponsesTextParam::into_grammar_constraint),
+                max_tokens: max_output_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
+                parse_tool_calls: !validated_tools.is_empty(),
+                tools: validated_tools,
+            },
+            delivery: if stream.unwrap_or(false) {
+                ResponsesDelivery::Streamed(ResponsesStream::new(header))
+            } else {
+                ResponsesDelivery::Buffered(header)
+            },
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroU32;
+    use std::time::UNIX_EPOCH;
+
+    use serde_json::Value;
+    use serde_json::error::Category;
+    use serde_json::from_value;
+    use serde_json::json;
+
+    use paddler_inference_parameters::sampling_parameters::SamplingParameters;
+    use paddler_messaging::conversation_message::ConversationMessage;
+    use paddler_messaging::conversation_message_content::ConversationMessageContent;
+    use paddler_messaging::conversation_message_content_part::ConversationMessageContentPart;
+    use paddler_messaging::conversation_tool_call::ConversationToolCall;
+    use paddler_messaging::grammar_constraint::GrammarConstraint;
+    use paddler_messaging::image_url::ImageUrl;
+    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
+    use paddler_messaging::request_params_validation_error::RequestParamsValidationError;
+
+    use super::ResponsesRequest;
+    use crate::openai_translation_error::OpenAITranslationError;
+    use crate::translated_responses_request::TranslatedResponsesRequest;
+
+    fn text_message(role: &str, text: &str) -> ConversationMessage {
+        ConversationMessage::Message {
+            content: ConversationMessageContent::Text(text.to_owned()),
+            role: role.to_owned(),
+        }
+    }
+
+    fn weather_call(call_id: &str, location: &str) -> ConversationToolCall {
+        ConversationToolCall {
+            arguments: json!({ "location": location }).as_object().unwrap().clone(),
+            id: call_id.to_owned(),
+            name: "get_weather".to_owned(),
+        }
+    }
+
+    fn translated_from(value: Value) -> TranslatedResponsesRequest {
+        let params: ResponsesRequest = from_value(value).unwrap();
+
+        params
+            .translate(UNIX_EPOCH, &SamplingParameters::default())
+            .unwrap()
+    }
+
+    #[test]
+    fn string_input_becomes_a_single_user_message() {
+        let translated = translated_from(json!({ "model": "test", "input": "Say hello" }));
+
+        let messages = &translated
+            .conversation_history_params
+            .conversation_history
+            .messages;
+
+        assert_eq!(*messages, vec![text_message("user", "Say hello")]);
+    }
+
+    #[test]
+    fn instructions_are_prepended_as_a_system_message() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "instructions": "be terse",
+            "input": "hi"
+        }));
+
+        let messages = &translated
+            .conversation_history_params
+            .conversation_history
+            .messages;
+
+        assert_eq!(
+            *messages,
+            vec![
+                text_message("system", "be terse"),
+                text_message("user", "hi")
+            ]
+        );
+    }
+
+    #[test]
+    fn a_function_call_output_keeps_its_call_id() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "function_call_output", "call_id": "call_1", "output": "sunny" }
+            ]
+        }));
+
+        let messages = &translated
+            .conversation_history_params
+            .conversation_history
+            .messages;
+
+        assert_eq!(
+            *messages,
+            vec![ConversationMessage::ToolResult {
+                content: ConversationMessageContent::Text("sunny".to_owned()),
+                tool_call_id: "call_1".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn a_function_call_item_becomes_an_assistant_tool_call_turn() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "function_call", "call_id": "call_1", "name": "get_weather", "arguments": "{\"location\":\"Paris\"}" }
+            ]
+        }));
+
+        let messages = &translated
+            .conversation_history_params
+            .conversation_history
+            .messages;
+
+        assert_eq!(
+            *messages,
+            vec![ConversationMessage::AssistantToolCalls {
+                content: ConversationMessageContent::Text(String::new()),
+                tool_calls: vec![weather_call("call_1", "Paris")],
+            }]
+        );
+    }
+
+    #[test]
+    fn consecutive_function_calls_join_the_assistant_message_before_them_in_one_turn() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "message", "role": "user", "content": "weather in Paris and Rome?" },
+                { "type": "message", "role": "assistant", "content": "Checking both." },
+                { "type": "function_call", "call_id": "call_1", "name": "get_weather", "arguments": "{\"location\":\"Paris\"}" },
+                { "type": "function_call", "call_id": "call_2", "name": "get_weather", "arguments": "{\"location\":\"Rome\"}" }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![
+                text_message("user", "weather in Paris and Rome?"),
+                ConversationMessage::AssistantToolCalls {
+                    content: ConversationMessageContent::Text("Checking both.".to_owned()),
+                    tool_calls: vec![
+                        weather_call("call_1", "Paris"),
+                        weather_call("call_2", "Rome")
+                    ],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn function_call_arguments_that_are_not_a_json_object_are_refused() {
+        let params: ResponsesRequest = from_value(json!({
+            "model": "test",
+            "input": [
+                { "type": "function_call", "call_id": "call_1", "name": "get_weather", "arguments": "not json" }
+            ]
+        }))
+        .unwrap();
+
+        assert!(matches!(
+            params.translate(UNIX_EPOCH, &SamplingParameters::default()),
+            Err(OpenAITranslationError::ToolCallArgumentsAreNotAJsonObject { tool_call_id, .. })
+                if tool_call_id == "call_1"
+        ));
+    }
+
+    #[test]
+    fn message_content_parts_become_conversation_parts() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [
+                        { "type": "input_text", "text": "What is this?" },
+                        { "type": "input_image", "image_url": "https://example.test/cat.png" }
+                    ]
+                }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![ConversationMessage::Message {
+                content: ConversationMessageContent::Parts(vec![
+                    ConversationMessageContentPart::Text {
+                        text: "What is this?".to_owned(),
+                    },
+                    ConversationMessageContentPart::ImageUrl {
+                        image_url: ImageUrl {
+                            url: "https://example.test/cat.png".to_owned(),
+                        },
+                    },
+                ]),
+                role: "user".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn text_format_text_leaves_the_output_unconstrained() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": "hi",
+            "text": { "format": { "type": "text" } }
+        }));
+
+        assert_eq!(translated.conversation_history_params.grammar, None);
+    }
+
+    #[test]
+    fn developer_and_system_roles_become_system_messages() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "message", "role": "developer", "content": "rules" },
+                { "type": "message", "role": "system", "content": "more rules" }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![
+                text_message("system", "rules"),
+                text_message("system", "more rules")
+            ]
+        );
+    }
+
+    #[test]
+    fn an_assistant_message_written_as_input_text_becomes_assistant_text() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [ { "type": "input_text", "text": "Hello again." } ]
+                }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![ConversationMessage::Message {
+                content: ConversationMessageContent::Parts(vec![
+                    ConversationMessageContentPart::Text {
+                        text: "Hello again.".to_owned(),
+                    },
+                ]),
+                role: "assistant".to_owned(),
+            }]
+        );
+    }
+
+    #[test]
+    fn flat_function_tool_maps_to_an_internal_tool_with_default_description() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": "hi",
+            "tools": [
+                { "type": "function", "name": "get_weather", "parameters": { "type": "object" } }
+            ]
+        }));
+
+        assert!(translated.conversation_history_params.parse_tool_calls);
+
+        let Tool::Function(function_call) = &translated.conversation_history_params.tools[0];
+
+        assert_eq!(function_call.function.name, "get_weather");
+        assert_eq!(function_call.function.description, "");
+    }
+
+    #[test]
+    fn text_format_json_schema_becomes_a_grammar_constraint() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": "hi",
+            "text": { "format": { "type": "json_schema", "name": "out", "schema": { "type": "object" } } }
+        }));
+
+        assert_eq!(
+            translated.conversation_history_params.grammar,
+            Some(GrammarConstraint::JsonSchema {
+                schema: r#"{"type":"object"}"#.to_owned(),
+            })
+        );
+    }
+
+    #[test]
+    fn a_request_without_an_output_limit_generates_until_its_context_is_full() {
+        let translated = translated_from(json!({ "model": "test", "input": "hi" }));
+
+        assert_eq!(
+            translated.conversation_history_params.max_tokens,
+            NonZeroU32::MAX
+        );
+    }
+
+    #[test]
+    fn reasoning_effort_none_disables_thinking() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": "hi",
+            "reasoning": { "effort": "none" }
+        }));
+
+        assert!(!translated.conversation_history_params.enable_thinking);
+    }
+
+    #[test]
+    fn rejects_input_it_cannot_represent() {
+        let unrepresentable_requests = [
+            json!({ "model": "test", "input": "hi", "tools": [ { "type": "web_search" } ] }),
+            json!({ "model": "test", "input": [ { "type": "reasoning", "summary": [] } ] }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "input_file", "file_id": "file_1" } ] } ] }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "input_image", "file_id": "file_1" } ] } ] }),
+            json!({ "model": "test", "input": [ { "type": "function_call_output", "call_id": "call_1", "output": [ { "type": "input_image", "image_url": "https://example.test/cat.png" } ] } ] }),
+            json!({ "model": "test", "input": "hi", "text": { "format": { "type": "json_object" } } }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "user", "content": [ { "type": "output_text", "text": "hi" } ] } ] }),
+            json!({ "model": "test", "input": [ { "type": "message", "role": "tool", "content": "hi" } ] }),
+        ];
+
+        for unrepresentable_request in unrepresentable_requests {
+            let rejection = from_value::<ResponsesRequest>(unrepresentable_request)
+                .err()
+                .map(|deserialization_error| deserialization_error.classify());
+
+            assert_eq!(rejection, Some(Category::Data));
+        }
+    }
+
+    #[test]
+    fn unsupported_and_stateful_fields_are_ignored() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": "hi",
+            "store": true,
+            "previous_response_id": "resp_prev",
+            "conversation": "conv_1",
+            "temperature": 0.5,
+            "tool_choice": "required"
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn instructions_alone_become_the_whole_conversation() {
+        let translated = translated_from(json!({ "model": "test", "instructions": "be terse" }));
+
+        let messages = &translated
+            .conversation_history_params
+            .conversation_history
+            .messages;
+
+        assert_eq!(messages.len(), 1);
+        assert_eq!(*messages, vec![text_message("system", "be terse")]);
+    }
+
+    #[test]
+    fn message_item_without_a_type_becomes_a_conversation_message() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [ { "role": "user", "content": "hi" } ]
+        }));
+
+        let messages = &translated
+            .conversation_history_params
+            .conversation_history
+            .messages;
+
+        assert_eq!(*messages, vec![text_message("user", "hi")]);
+    }
+
+    #[test]
+    fn rejects_a_function_tool_that_requires_an_undeclared_property() {
+        let params: ResponsesRequest = from_value(json!({
+            "model": "test",
+            "input": "hi",
+            "tools": [
+                {
+                    "type": "function",
+                    "name": "broken",
+                    "parameters": {
+                        "type": "object",
+                        "properties": { "present": { "type": "string" } },
+                        "required": ["absent"]
+                    }
+                }
+            ]
+        }))
+        .unwrap();
+
+        assert_eq!(
+            params
+                .translate(UNIX_EPOCH, &SamplingParameters::default())
+                .err()
+                .as_ref()
+                .map(ToString::to_string),
+            Some(
+                OpenAITranslationError::ToolRejected(
+                    RequestParamsValidationError::RequiredFieldNotInProperties {
+                        field: "absent".to_owned(),
+                    }
+                )
+                .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn its_own_output_replayed_as_input_becomes_the_previous_assistant_turn() {
+        let translated = translated_from(json!({
+            "model": "test",
+            "input": [
+                { "type": "message", "role": "user", "content": "What is the weather in Paris?" },
+                {
+                    "type": "reasoning",
+                    "id": "rs_1",
+                    "status": "completed",
+                    "summary": [],
+                    "content": [ { "type": "reasoning_text", "text": "I should check the weather." } ]
+                },
+                {
+                    "type": "message",
+                    "id": "msg_1",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [ { "type": "output_text", "annotations": [], "logprobs": [], "text": "Checking." } ]
+                },
+                {
+                    "type": "function_call",
+                    "id": "fc_1",
+                    "status": "completed",
+                    "call_id": "call_0",
+                    "name": "get_weather",
+                    "arguments": "{\"location\":\"Paris\"}"
+                },
+                { "type": "function_call_output", "call_id": "call_0", "output": "sunny" }
+            ]
+        }));
+
+        assert_eq!(
+            translated
+                .conversation_history_params
+                .conversation_history
+                .messages,
+            vec![
+                text_message("user", "What is the weather in Paris?"),
+                ConversationMessage::AssistantReasoning {
+                    reasoning_content: "I should check the weather.".to_owned(),
+                },
+                ConversationMessage::AssistantToolCalls {
+                    content: ConversationMessageContent::Parts(vec![
+                        ConversationMessageContentPart::Text {
+                            text: "Checking.".to_owned(),
+                        },
+                    ]),
+                    tool_calls: vec![weather_call("call_0", "Paris")],
+                },
+                ConversationMessage::ToolResult {
+                    content: ConversationMessageContent::Text("sunny".to_owned()),
+                    tool_call_id: "call_0".to_owned(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_reasoning_item_without_reasoning_text_is_refused() {
+        let params: ResponsesRequest = from_value(json!({
+            "model": "test",
+            "input": [ { "type": "reasoning", "summary": [], "content": [] } ]
+        }))
+        .unwrap();
+
+        assert_eq!(
+            params
+                .translate(UNIX_EPOCH, &SamplingParameters::default())
+                .err()
+                .map(|translation_error| translation_error.to_string()),
+            Some(OpenAITranslationError::ReasoningItemWithoutContent.to_string())
+        );
+    }
+}

@@ -7,7 +7,6 @@ use tokio_util::sync::CancellationToken;
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::conversation_message::ConversationMessage;
 use paddler_messaging::conversation_message_content::ConversationMessageContent;
-use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_test_cluster_harness::agent_config::AgentConfig;
 use paddler_test_cluster_harness::unending_grammar::unending_grammar;
@@ -26,10 +25,14 @@ async fn agent_reports_completion_tokens_matching_streamed_token_count() {
             CancellationToken::new(),
             &ContinueFromConversationHistoryParams {
                 add_generation_prompt: true,
-                conversation_history: ConversationHistory::new(vec![ConversationMessage {
-                    content: ConversationMessageContent::Text("Tell me a long story.".to_owned()),
-                    role: "user".to_owned(),
-                }]),
+                conversation_history: ConversationHistory::new(vec![
+                    ConversationMessage::Message {
+                        content: ConversationMessageContent::Text(
+                            "Tell me a long story.".to_owned(),
+                        ),
+                        role: "user".to_owned(),
+                    },
+                ]),
                 enable_thinking: false,
                 grammar: Some(unending_grammar()),
                 max_tokens: MAX_TOKENS,
@@ -46,13 +49,9 @@ async fn agent_reports_completion_tokens_matching_streamed_token_count() {
         .filter(|result| result.token_result.is_token())
         .count() as u64;
 
-    let last = collected
-        .token_results
-        .last()
-        .expect("no token results received");
-    let GeneratedTokenResult::Done(summary) = &last.token_result else {
-        panic!("last result was not Done: {last:?}");
-    };
+    let summary = collected
+        .summary()
+        .expect("the generation must finish with a summary");
 
     assert_eq!(streamed_token_count, u64::from(MAX_TOKENS.get()));
     assert_eq!(

@@ -23,6 +23,7 @@ use crate::inference_service::app_data::AppData;
 use crate::inference_service::configuration::Configuration as InferenceServiceConfiguration;
 use crate::inference_service::http_route::api::post_continue_from_conversation_history::post_continue_from_conversation_history;
 use crate::inference_service::http_route::api::post_continue_from_raw_prompt::post_continue_from_raw_prompt;
+use crate::inference_service::http_route::api::post_decide::post_decide;
 use crate::inference_service::http_route::api::post_generate_embedding_batch::post_generate_embedding_batch;
 use crate::inference_service::http_route::api::ws_inference_socket::ws_inference_socket;
 use crate::run_http_service::run_http_service;
@@ -37,13 +38,8 @@ pub struct InferenceService {
     pub web_admin_panel_addr: Option<SocketAddr>,
 }
 
-#[async_trait]
-impl Service for InferenceService {
-    fn name(&self) -> &'static str {
-        "balancer::inference_service"
-    }
-
-    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+impl InferenceService {
+    async fn serve_until_shutdown(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
         let service_name = self.name();
         let cors_allowed_hosts_arc = cors_allowed_hosts_with_web_admin_panel(
             &self.configuration.cors_allowed_hosts,
@@ -68,6 +64,7 @@ impl Service for InferenceService {
                         .configure(get_health)
                         .configure(post_continue_from_conversation_history)
                         .configure(post_continue_from_raw_prompt)
+                        .configure(post_decide)
                         .configure(post_generate_embedding_batch)
                         .configure(ws_inference_socket)
                 },
@@ -77,5 +74,16 @@ impl Service for InferenceService {
             },
         )
         .await
+    }
+}
+
+#[async_trait]
+impl Service for InferenceService {
+    fn name(&self) -> &'static str {
+        "balancer::inference_service"
+    }
+
+    async fn run(self: Box<Self>, shutdown: CancellationToken) -> Result<()> {
+        self.serve_until_shutdown(shutdown).await
     }
 }

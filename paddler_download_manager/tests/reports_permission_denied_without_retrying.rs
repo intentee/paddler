@@ -4,6 +4,7 @@ use tokio_util::sync::CancellationToken;
 
 use paddler_download_manager::download_error::DownloadError;
 use paddler_download_manager::download_manager::DownloadManager;
+use paddler_download_manager::download_progress::DownloadProgress;
 use paddler_local_http_fixture::fixture_response::FixtureResponse;
 use paddler_local_http_fixture::local_http_fixture::LocalHttpFixture;
 
@@ -31,5 +32,11 @@ async fn reports_permission_denied_without_retrying() {
         Err(DownloadError::PermissionDenied { status, .. }) if status == StatusCode::FORBIDDEN
     ));
     assert_eq!(fixture.request_count(), 1);
-    assert!(recorded_download.progress.is_empty());
+    assert_eq!(recorded_download.progress, Vec::<DownloadProgress>::new());
+
+    fixture
+        .stop()
+        .await
+        .expect("the fixture task must not panic")
+        .expect("the fixture must serve every request");
 }

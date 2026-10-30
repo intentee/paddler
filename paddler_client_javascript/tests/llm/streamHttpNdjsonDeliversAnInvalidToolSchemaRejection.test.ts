@@ -21,7 +21,12 @@ test("streamHttpNdjson delivers an invalid tool schema rejection", async functio
           body: {
             add_generation_prompt: true,
             conversation_history: [
-              { content: "What is the weather in Paris?", role: "user" },
+              {
+                Message: {
+                  content: "What is the weather in Paris?",
+                  role: "user",
+                },
+              },
             ],
             enable_thinking: false,
             max_tokens: 64,
