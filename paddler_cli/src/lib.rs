@@ -14,6 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::cmd::agent::Agent;
 use crate::cmd::balancer::Balancer;
+use crate::cmd::singleton::Singleton;
 #[cfg(feature = "cuda")]
 use crate::cuda_disclaimer_docs::CUDA_DISCLAIMER_DOCS;
 
@@ -32,6 +33,8 @@ enum Commands {
     Agent(Agent),
     /// Distributes incoming requests among agents
     Balancer(Box<Balancer>),
+    /// Runs the balancer together with its own agent in a single process
+    Singleton(Box<Singleton>),
 }
 
 pub fn run() -> Result<()> {
@@ -43,6 +46,7 @@ pub fn run() -> Result<()> {
         match Cli::parse().command {
             Commands::Agent(handler) => handler.handle(shutdown).await,
             Commands::Balancer(handler) => (*handler).handle(shutdown).await,
+            Commands::Singleton(handler) => (*handler).handle(shutdown).await,
         }
     })
 }

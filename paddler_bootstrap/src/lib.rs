@@ -1,6 +1,7 @@
 pub mod agent_bootstrap_config;
 pub mod agent_runner;
 pub mod agent_runner_params;
+pub mod agent_runtime_config;
 pub mod agent_service_bundle;
 pub mod balancer_bootstrap_config;
 pub mod balancer_defaults;
@@ -12,3 +13,5 @@ pub mod llama_cpp_max_sequences;
 pub mod registers_services;
 pub mod run_service_manager;
 pub mod service_thread;
+pub mod singleton_bootstrap_config;
+pub mod singleton_service_bundle;

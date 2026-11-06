@@ -26,7 +26,6 @@ where
     TSignalSubprocess: FnOnce(Child) -> Result<SignalledSubprocess, SubprocessClusterError>,
 {
     let mut balancer_subprocess = paddler_command(binary_path)
-        .arg("balancer")
         .args(arguments)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())

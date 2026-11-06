@@ -1,8 +1,6 @@
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use clap::Parser;
-use clap::value_parser;
 use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
 use trzcina::ServiceShutdownOptions;
@@ -10,50 +8,32 @@ use trzcina::ServiceShutdownOptions;
 use paddler_balancer::resolved_socket_addr::ResolvedSocketAddr;
 use paddler_bootstrap::agent_bootstrap_config::AgentBootstrapConfig;
 use paddler_bootstrap::agent_service_bundle::AgentServiceBundle;
-use paddler_bootstrap::llama_cpp_max_sequences::LLAMA_CPP_MAX_SEQUENCES;
 use paddler_bootstrap::run_service_manager::run_service_manager;
-use paddler_model_source::desired_model_resolver::DesiredModelResolver;
-use paddler_model_source::huggingface_default_endpoint::HUGGINGFACE_DEFAULT_ENDPOINT;
 
+use super::agent_runtime_arguments::AgentRuntimeArguments;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
 #[derive(Parser)]
 pub struct Agent {
-    #[arg(long, env = "HF_ENDPOINT", default_value = HUGGINGFACE_DEFAULT_ENDPOINT)]
-    /// Hugging Face Hub endpoint that the agent downloads models from
-    huggingface_endpoint: String,
-
     #[arg(long, value_parser = parse_socket_addr)]
     /// Address of the management server that the agent will connect to
     management_addr: ResolvedSocketAddr,
 
-    #[arg(long)]
-    /// Name of the agent (optional)
-    name: Option<String>,
-
-    #[arg(long, value_parser = value_parser!(u16).range(1..=i64::from(LLAMA_CPP_MAX_SEQUENCES)))]
-    /// Number of parallel requests of any kind that the agent can handle at once
-    slots: u16,
+    #[command(flatten)]
+    runtime: AgentRuntimeArguments,
 }
 
 impl Agent {
     async fn run_agent(self, shutdown: CancellationToken) -> Result<()> {
         let Self {
-            huggingface_endpoint,
             management_addr,
-            name,
-            slots,
+            runtime,
         } = self;
 
         run_service_manager(
             AgentServiceBundle::new(AgentBootstrapConfig {
-                agent_name: name,
-                desired_model_resolver: DesiredModelResolver::from_process_env(
-                    huggingface_endpoint,
-                )
-                .context("Unable to set up the model downloader")?,
-                management_address: management_addr.socket_addr.to_string(),
-                slots,
+                management_address: management_addr.socket_addr,
+                runtime: runtime.runtime_config()?,
             }),
             shutdown,
             ServiceShutdownOptions::default(),

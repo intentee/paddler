@@ -28,7 +28,7 @@ async fn agent_runner_leaves_its_balancer_when_dropped() {
     .expect("the agents stream must deliver its first snapshot");
     let agent_runner = AgentRunner::start(agent_runner_params_for_balancer_at(
         CancellationToken::new(),
-        balancer_runner.addresses.management.to_string(),
+        balancer_runner.addresses.management,
     ));
 
     agents_watcher

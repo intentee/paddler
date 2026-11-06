@@ -34,7 +34,7 @@ pub async fn start_cluster(cluster_params: ClusterParams) -> Result<Cluster> {
                 )
                 .context("failed to address the in-process balancer")
             })?;
-    let management_address = running_balancer.addresses.management.to_string();
+    let management_address = running_balancer.addresses.management;
     let downloaded_models = TempDir::new()?;
     let desired_model_resolver = DesiredModelResolver {
         cache_dir: CacheDir {

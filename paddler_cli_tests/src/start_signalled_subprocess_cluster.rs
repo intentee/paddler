@@ -22,6 +22,7 @@ pub async fn start_signalled_subprocess_cluster(
 ) -> Result<SubprocessCluster> {
     let ephemeral_loopback_addr = EPHEMERAL_LOOPBACK_ADDR.to_string();
     let mut balancer_arguments = vec![
+        "balancer".to_owned(),
         "--compat-openai-addr".to_owned(),
         ephemeral_loopback_addr.clone(),
         "--compat-typesafe-addr".to_owned(),
