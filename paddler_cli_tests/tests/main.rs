@@ -68,6 +68,10 @@ mod refused_syscalls;
 #[cfg(test)]
 mod running_balancer_subprocess;
 mod signalling_a_subprocess_refuses_one_already_reaped;
+#[cfg(target_os = "linux")]
+mod singleton_exits_with_failure_when_it_cannot_set_up_its_model_downloader;
+mod singleton_exits_with_failure_when_its_management_address_is_taken;
+mod singleton_generates_tokens_with_its_own_agent;
 #[cfg(test)]
 mod slots_beyond_what_llama_cpp_can_serve;
 mod spawned_balancer_reports_a_subprocess_it_cannot_signal;

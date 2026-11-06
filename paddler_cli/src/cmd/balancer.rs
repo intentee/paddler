@@ -1,4 +1,3 @@
-use std::io::stdout;
 use std::net::Ipv4Addr;
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -8,7 +7,6 @@ use async_trait::async_trait;
 use clap::Parser;
 use command_handler::handler::Handler;
 use tokio_util::sync::CancellationToken;
-use trzcina::ServiceShutdownOptions;
 
 use paddler_balancer::compatibility::compatibility_service_configuration::CompatibilityServiceConfiguration;
 use paddler_balancer::inference_service::configuration::Configuration as InferenceServiceConfiguration;
@@ -20,9 +18,9 @@ use paddler_balancer::web_admin_panel_service::configuration::Configuration as W
 use paddler_bootstrap::balancer_bootstrap_config::BalancerBootstrapConfig;
 use paddler_bootstrap::balancer_defaults::BalancerDefaults;
 use paddler_bootstrap::balancer_service_bundle::BalancerServiceBundle;
-use paddler_bootstrap::run_service_manager::run_service_manager;
 use paddler_state_database::state_database_type::StateDatabaseType;
 
+use super::run_announced_service_manager::run_announced_service_manager;
 use super::value_parser::parse_duration::parse_duration;
 use super::value_parser::parse_socket_addr::parse_socket_addr;
 
@@ -115,7 +113,7 @@ pub struct Balancer {
 }
 
 impl Balancer {
-    async fn run_balancer(self, shutdown: CancellationToken) -> Result<()> {
+    pub fn bootstrap_config(self) -> BalancerBootstrapConfig {
         let Self {
             buffered_request_timeout,
             compat_openai_addr,
@@ -134,7 +132,7 @@ impl Balancer {
             web_admin_panel_addr,
         } = self;
 
-        let bundle = BalancerServiceBundle::new(BalancerBootstrapConfig {
+        BalancerBootstrapConfig {
             buffered_request_timeout,
             inference_service_configuration: InferenceServiceConfiguration {
                 addr: inference_addr,
@@ -164,12 +162,13 @@ impl Balancer {
                     addr: web_admin_panel_addr.socket_addr,
                 },
             ),
-        })
-        .await?;
+        }
+    }
 
-        bundle.addresses.write_json_line(stdout().lock())?;
+    async fn run_balancer(self, shutdown: CancellationToken) -> Result<()> {
+        let bundle = BalancerServiceBundle::new(self.bootstrap_config()).await?;
 
-        run_service_manager(bundle, shutdown, ServiceShutdownOptions::default()).await
+        run_announced_service_manager(bundle.addresses, bundle, shutdown).await
     }
 }
 

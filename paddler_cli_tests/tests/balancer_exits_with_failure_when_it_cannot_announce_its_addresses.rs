@@ -12,7 +12,6 @@ use crate::ephemeral_balancer_arguments::ephemeral_balancer_arguments;
 async fn balancer_exits_with_failure_when_it_cannot_announce_its_addresses() {
     assert_eq!(
         paddler_command(env!("CARGO_BIN_EXE_paddler_cluster_node"))
-            .arg("balancer")
             .args(ephemeral_balancer_arguments())
             .stdout(
                 OpenOptions::new()

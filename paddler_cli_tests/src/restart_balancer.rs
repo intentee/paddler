@@ -15,6 +15,7 @@ pub async fn restart_balancer(
     connect_subprocess_balancer(
         binary_path,
         [
+            "balancer".to_owned(),
             "--inference-addr".to_owned(),
             EPHEMERAL_LOOPBACK_ADDR.to_string(),
             "--management-addr".to_owned(),

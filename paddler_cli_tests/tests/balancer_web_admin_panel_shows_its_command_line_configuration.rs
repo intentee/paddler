@@ -21,6 +21,7 @@ async fn balancer_web_admin_panel_shows_its_command_line_configuration() {
     let running_balancer = spawn_balancer_subprocess(
         env!("CARGO_BIN_EXE_paddler_cluster_node"),
         [
+            "balancer",
             "--buffered-request-timeout",
             "1500",
             "--compat-openai-addr",
