@@ -3,12 +3,12 @@ use llama_cpp_bindings::llama_batch::LlamaBatch;
 use crate::continuous_batch_scheduler::contributions::Contributions;
 
 pub struct BatchPass<'batch> {
-    pub batch: &'batch mut LlamaBatch<'static>,
+    pub batch: &'batch mut LlamaBatch,
     pub contributions: Contributions,
 }
 
 impl<'batch> BatchPass<'batch> {
-    pub fn new(batch: &'batch mut LlamaBatch<'static>) -> Self {
+    pub fn new(batch: &'batch mut LlamaBatch) -> Self {
         batch.clear();
 
         Self {
@@ -25,17 +25,21 @@ impl<'batch> BatchPass<'batch> {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::SampledToken;
+    use llama_cpp_bindings::context::context_limits::ContextLimits;
     use llama_cpp_bindings::llama_batch::LlamaBatch;
+    use llama_cpp_bindings::sampled_token::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
-
-    use paddler_inference_parameters::batch_size::BatchSize;
 
     use super::BatchPass;
 
     #[test]
     fn new_clears_tokens_left_by_the_previous_pass() {
-        let mut batch = LlamaBatch::new(BatchSize::try_from(16).unwrap().capacity(), 1);
+        let mut batch = LlamaBatch::new(ContextLimits {
+            n_batch: 16,
+            n_ubatch: 16,
+            n_seq_max: 1,
+            n_vocab: 2,
+        });
 
         batch
             .add(&SampledToken::Content(LlamaToken::new(1)), 0, &[0], true)

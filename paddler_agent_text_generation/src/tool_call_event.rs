@@ -1,4 +1,4 @@
-use llama_cpp_bindings::error::ParseChatMessageError;
+use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generated_tool_call::GeneratedToolCall;
@@ -6,14 +6,14 @@ use paddler_messaging::raw_tool_call_tokens::RawToolCallTokens;
 use paddler_tool_call_validator::tool_call_validation_error::ToolCallValidationError;
 
 #[derive(Debug)]
-pub enum ToolCallEvent {
+pub enum ToolCallEvent<'reading> {
     Resolved(Vec<GeneratedToolCall>),
-    ParseFailed(ParseChatMessageError),
+    ParseFailed(&'reading ParseChatMessageError),
     ValidationFailed(Vec<ToolCallValidationError>),
     UnrecognizedFormat(RawToolCallTokens),
 }
 
-impl ToolCallEvent {
+impl ToolCallEvent<'_> {
     #[must_use]
     pub fn into_generated_token_result(self) -> GeneratedTokenResult {
         match self {
@@ -36,8 +36,8 @@ impl ToolCallEvent {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::ToolCallArguments;
-    use llama_cpp_bindings::error::ParseChatMessageError;
+    use llama_cpp_bindings::error::parse_chat_message_error::ParseChatMessageError;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
@@ -65,10 +65,10 @@ mod tests {
     #[test]
     fn parse_failed_converts_to_tool_call_parse_failed_with_the_parser_error() {
         assert_eq!(
-            ToolCallEvent::ParseFailed(ParseChatMessageError::ToolsNotAnArray)
+            ToolCallEvent::ParseFailed(&ParseChatMessageError::NotEnoughMemory)
                 .into_generated_token_result(),
             GeneratedTokenResult::ToolCallParseFailed(
-                ParseChatMessageError::ToolsNotAnArray.to_string()
+                ParseChatMessageError::NotEnoughMemory.to_string()
             )
         );
     }
@@ -88,7 +88,7 @@ mod tests {
     fn unrecognized_format_converts_to_unrecognized_tool_call_format_preserving_payload() {
         let raw = RawToolCallTokens {
             text: "raw output".to_owned(),
-            ffi_error_message: "parser bailed".to_owned(),
+            expected_format: "peg-native".to_owned(),
         };
 
         assert_eq!(

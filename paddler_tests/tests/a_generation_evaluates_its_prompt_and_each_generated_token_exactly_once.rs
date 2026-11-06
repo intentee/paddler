@@ -3,6 +3,7 @@
 use std::mem::discriminant;
 use std::num::NonZeroU32;
 
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
@@ -29,11 +30,10 @@ fn a_generation_evaluates_its_prompt_and_each_generated_token_exactly_once() {
         agent_inference_runtime_context(1),
     )
     .expect("the kev model must load");
-    let mut llama_context = runtime
+    let llama_context = runtime
         .create_text_generation_llama_context(1)
         .expect("the context must be created");
     let sequence_context_size = llama_context.n_ctx_seq();
-    let n_batch = runtime.model_runtime_parameters.n_batch;
     let request_preparer = FirstMessageContentRequestPreparer {
         llama_runtime: &runtime,
         sequence_context_size,
@@ -71,17 +71,15 @@ fn a_generation_evaluates_its_prompt_and_each_generated_token_exactly_once() {
         .send(SchedulerMessage::Shutdown)
         .expect("the scheduler must accept the shutdown");
 
-    llama_context.reset_timings();
-
+    let tokens_evaluated_before_the_generation = llama_context.evaluated_tokens();
     let mut scheduler = ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
         agent_shutdown: CancellationToken::new(),
-        batch: LlamaBatch::new(n_batch.capacity(), 1),
+        batch: LlamaBatch::new(ContextLimits::of(&llama_context)),
         llama_context,
         scheduler_context: ContinuousBatchSchedulerContext {
             agent_name: None,
             desired_slots_total: 1,
             model: &runtime.loaded_llama_model.model,
-            n_batch,
             sequence_context_size,
         },
         scheduler_message_rx,
@@ -95,18 +93,18 @@ fn a_generation_evaluates_its_prompt_and_each_generated_token_exactly_once() {
         generated_token_results.push(discriminant(&generated_token_result));
     }
 
-    let timings = scheduler.llama_context.timings();
+    let generated_tokens = generated_token_results.len() - 1;
+    let generated_tokens_fed_back = generated_tokens - 1;
 
     assert_eq!(
         generated_token_results.last(),
         Some(&generation_done_discriminant())
     );
     assert_eq!(
-        usize::try_from(timings.n_p_eval()).expect("the evaluated prompt tokens must count up"),
-        prompt_tokens
-    );
-    assert_eq!(
-        usize::try_from(timings.n_eval()).expect("the evaluated generated tokens must count up"),
-        generated_token_results.len() - 2
+        usize::try_from(
+            scheduler.llama_context.evaluated_tokens() - tokens_evaluated_before_the_generation
+        )
+        .expect("the evaluated token count must fit in memory"),
+        prompt_tokens + generated_tokens_fed_back
     );
 }

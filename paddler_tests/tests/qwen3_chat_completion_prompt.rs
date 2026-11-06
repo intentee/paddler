@@ -2,13 +2,14 @@
 
 use std::time::SystemTime;
 
+use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
+use llama_cpp_bindings::chat_templates::ChatTemplates;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
 use serde_json::Value;
 use serde_json::from_value;
 
-use paddler_agent_text_generation::chat_prompt_render_request::ChatPromptRenderRequest;
-use paddler_agent_text_generation::chat_prompt_renderer::ChatPromptRenderer;
-use paddler_agent_text_generation::chat_template_renderer::ChatTemplateRenderer;
-use paddler_messaging::chat_template_content_form::ChatTemplateContentForm;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_openai_translation::chat_completion_request::ChatCompletionRequest;
 use paddler_test_cluster_harness::model_card::qwen3_0_6b::qwen3_0_6b;
@@ -25,37 +26,29 @@ pub fn qwen3_chat_completion_prompt(chat_completion_request: Value) -> String {
         agent_inference_runtime_context(1),
     )
     .expect("the Qwen3 model must load");
-    let chat_prompt_renderer = ChatPromptRenderer {
-        chat_template_renderer: ChatTemplateRenderer::new(
-            runtime
-                .loaded_llama_model
-                .model_metadata
-                .embedded_chat_template()
-                .expect("the Qwen3 model must embed its chat template"),
-        )
-        .expect("the Qwen3 chat template must compile"),
-        token_bos_str: String::new(),
-        token_eos_str: String::new(),
-        token_nl_str: String::new(),
-    };
+    let model = &runtime.loaded_llama_model.model;
     let messages = from_value::<ChatCompletionRequest>(chat_completion_request)
         .expect("the chat completion request must deserialize")
         .translate(SystemTime::now())
         .expect("the chat completion request must translate")
         .conversation_history_params
         .conversation_history
-        .into_chat_template_conversation(
-            ChatTemplateContentForm::JoinedText,
-            &MediaMarker::new(MEDIA_MARKER.to_owned()),
-        )
+        .into_chat_template_conversation(&MediaMarker::new(MEDIA_MARKER.to_owned()))
         .messages;
 
-    chat_prompt_renderer
-        .render(ChatPromptRenderRequest {
-            add_generation_prompt: true,
+    ChatSession::new(
+        model,
+        &ChatTemplates::new(model).expect("the Qwen3 chat template must compile"),
+        &messages,
+        &[],
+        &ChatSessionOptions {
+            assistant_turn: ChatAssistantTurn::New,
             enable_thinking: false,
-            messages: &messages,
-            tools: &Value::Array(Vec::new()),
-        })
-        .expect("the Qwen3 chat template must render the conversation")
+            parallel_tool_calls: false,
+            tool_choice: ChatToolChoice::None,
+        },
+    )
+    .expect("the Qwen3 chat template must render the conversation")
+    .prompt()
+    .expect("the rendered Qwen3 prompt must be readable")
 }

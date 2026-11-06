@@ -1,16 +1,16 @@
-use llama_cpp_bindings_types::ToolCallArguments;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 
 #[must_use]
 pub fn arguments_to_tool_call_string(arguments: &ToolCallArguments) -> String {
     match arguments {
         ToolCallArguments::ValidJson(value) => value.to_string(),
-        ToolCallArguments::InvalidJson(raw) => raw.clone(),
+        ToolCallArguments::InvalidJson { raw, .. } => raw.clone(),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
 
     use super::arguments_to_tool_call_string;
@@ -27,7 +27,7 @@ mod tests {
     #[test]
     fn passes_invalid_json_through_verbatim() {
         let serialized =
-            arguments_to_tool_call_string(&ToolCallArguments::InvalidJson("{not valid".to_owned()));
+            arguments_to_tool_call_string(&ToolCallArguments::from_string("{not valid".to_owned()));
 
         assert_eq!(serialized, "{not valid");
     }

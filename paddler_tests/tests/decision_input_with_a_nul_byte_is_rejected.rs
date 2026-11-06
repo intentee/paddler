@@ -2,7 +2,7 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::StringToTokenError;
+use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_error::DecisionError;

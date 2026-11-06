@@ -1,5 +1,5 @@
-use llama_cpp_bindings::error::SamplerAcceptError;
-use llama_cpp_bindings::error::SamplerApplyError;
+use llama_cpp_bindings::error::sample_error::SampleError;
+use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
@@ -10,9 +10,9 @@ pub enum GrammarSampling {
 }
 
 impl GrammarSampling {
-    pub fn constrain(&self, candidates: &mut LlamaTokenDataArray) -> Result<(), SamplerApplyError> {
+    pub fn constrain(&self, candidates: &mut LlamaTokenDataArray) -> Result<(), SampleError> {
         match self {
-            Self::Constrained(grammar_sampler) => candidates.apply_sampler(grammar_sampler),
+            Self::Constrained(grammar_sampler) => grammar_sampler.apply(candidates),
             Self::Unconstrained => Ok(()),
         }
     }

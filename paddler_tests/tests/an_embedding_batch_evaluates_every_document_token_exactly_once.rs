@@ -45,22 +45,19 @@ fn an_embedding_batch_evaluates_every_document_token_exactly_once() {
     } = nomic_embedding_batch_processing.admit(documents);
     let mut llama_context = nomic_embedding_batch_processing.embedding_llama_context();
 
-    llama_context.reset_timings();
+    let tokens_evaluated_before_the_documents = llama_context.evaluated_tokens();
 
     while !admitted_requests.is_empty() {
         admitted_requests = nomic_embedding_batch_processing.embed_next_batch_in(
             &mut llama_context,
-            nomic_embedding_batch_processing.batch_capacity(),
             EmbeddingNormalization,
             admitted_requests,
         );
     }
 
-    llama_context.synchronize();
-
     assert_eq!(
-        usize::try_from(llama_context.timings().n_p_eval())
-            .expect("the evaluated token count must not be negative"),
+        usize::try_from(llama_context.evaluated_tokens() - tokens_evaluated_before_the_documents)
+            .expect("the evaluated token count must fit in memory"),
         document_tokens
     );
 }

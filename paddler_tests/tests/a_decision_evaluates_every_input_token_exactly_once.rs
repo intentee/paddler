@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::LlamaToken;
 
@@ -23,8 +24,7 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
     let mut llama_context = runtime
         .create_decision_llama_context(u32::from(DECISION_SLOTS_MINIMUM.get()))
         .expect("the decision context must be created");
-    let n_batch = runtime.model_runtime_parameters.n_batch.tokens_usize();
-    let mut batch = LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
     let layout = DecisionTokenLayout::new(
         &delimiter_tokens,
         vec![LlamaToken::new(0); 8],
@@ -46,7 +46,7 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
     )
     .expect("the decision must be admitted");
 
-    llama_context.reset_timings();
+    let tokens_evaluated_before_the_decision = llama_context.evaluated_tokens();
 
     while matches!(
         active_decision_request
@@ -54,7 +54,6 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
                 &mut DecisionDecoder {
                     batch: &mut batch,
                     llama_context: &mut llama_context,
-                    n_batch,
                 },
                 &pointer_head,
                 None,
@@ -63,11 +62,9 @@ fn a_decision_evaluates_every_input_token_exactly_once() {
         DecisionAdvance::Continuing
     ) {}
 
-    llama_context.synchronize();
-
     assert_eq!(
-        usize::try_from(llama_context.timings().n_p_eval())
-            .expect("the evaluated token count must not be negative"),
+        usize::try_from(llama_context.evaluated_tokens() - tokens_evaluated_before_the_decision)
+            .expect("the evaluated token count must fit in memory"),
         decision_input_tokens
     );
 }

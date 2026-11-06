@@ -1,5 +1,5 @@
-use llama_cpp_bindings::GenerationProgress;
-use llama_cpp_bindings::TokenUsage;
+use llama_cpp_bindings::generation_progress::GenerationProgress;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
 
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler::completion_check_outcome::CompletionCheckOutcome;
@@ -42,9 +42,9 @@ impl CompletionCheckPhase<'_> {
 mod tests {
     use std::num::NonZeroU32;
 
-    use llama_cpp_bindings::GenerationProgress;
-    use llama_cpp_bindings::SampledTokenSection;
-    use llama_cpp_bindings::TokenUsage;
+    use llama_cpp_bindings::generation_progress::GenerationProgress;
+    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
 
     use super::CompletionCheckPhase;
     use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;

@@ -1,7 +1,7 @@
 use std::mem::discriminant;
 use std::path::PathBuf;
 
-use llama_cpp_bindings::LlamaCppError;
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;

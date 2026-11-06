@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::EvalMultimodalChunksError;
-use llama_cpp_bindings::mtmd::FittedMtmdInputChunk;
-use llama_cpp_bindings::mtmd::FittedMtmdInputChunks;
-use llama_cpp_bindings::mtmd::MtmdInputChunks;
+use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
+use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunk::FittedMtmdInputChunk;
+use llama_cpp_bindings::mtmd::fitted_mtmd_input_chunks::FittedMtmdInputChunks;
+use llama_cpp_bindings::mtmd::mtmd_input_chunks::MtmdInputChunks;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 
 use paddler_agent_runtime::sequence_id::SequenceId;
 
-use crate::leading_bos_ingestion::LeadingBosIngestion;
 use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
 use crate::resident_multimodal_context::ResidentMultimodalContext;
 use crate::text_generation_error::TextGenerationError;
@@ -17,7 +16,6 @@ use crate::text_generation_error::TextGenerationError;
 #[derive(Debug)]
 pub struct MultimodalPromptIngestion {
     pub chunks: FittedMtmdInputChunks<MtmdInputChunks>,
-    pub leading_bos_ingestion: LeadingBosIngestion,
     pub multimodal_context: Arc<ResidentMultimodalContext>,
     pub n_batch: i32,
     pub next_chunk_index: usize,
@@ -27,7 +25,7 @@ impl MultimodalPromptIngestion {
     pub fn ingest_next_chunk(
         &mut self,
         token_classifier: &mut SampledTokenClassifier<'_>,
-        llama_context: &LlamaContext<'_>,
+        llama_context: &mut LlamaContext<'_>,
         sequence_id: SequenceId,
         start_position: i32,
     ) -> Result<MultimodalIngestionProgress, TextGenerationError> {
@@ -38,7 +36,7 @@ impl MultimodalPromptIngestion {
     fn ingest_next_fitted_chunk(
         &mut self,
         token_classifier: &mut SampledTokenClassifier<'_>,
-        llama_context: &LlamaContext<'_>,
+        llama_context: &mut LlamaContext<'_>,
         sequence_id: SequenceId,
         start_position: i32,
     ) -> Result<MultimodalIngestionProgress, EvalMultimodalChunksError> {

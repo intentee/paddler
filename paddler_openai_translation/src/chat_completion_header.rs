@@ -39,8 +39,8 @@ impl CompletesGeneration for ChatCompletionHeader {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::TokenUsage;
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
     use serde_json::to_string;
 
@@ -131,7 +131,7 @@ mod tests {
                         name: "get_weather".to_owned(),
                     },
                     GeneratedToolCall {
-                        arguments: ToolCallArguments::InvalidJson("{not valid json".to_owned()),
+                        arguments: ToolCallArguments::from_string("{not valid json".to_owned()),
                         id: "call_invalid".to_owned(),
                         index: 1,
                         name: "broken_tool".to_owned(),

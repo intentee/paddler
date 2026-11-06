@@ -23,7 +23,7 @@ pub struct EmbeddingBatchProcessor<
     'model,
     TNormalization: NormalizesEmbedding = EmbeddingNormalization,
 > {
-    pub batch: &'scheduler mut LlamaBatch<'static>,
+    pub batch: &'scheduler mut LlamaBatch,
     pub llama_context: &'scheduler mut LlamaContext<'model>,
     pub normalization: TNormalization,
     pub scheduler_context: &'scheduler EmbeddingSchedulerContext,
@@ -40,10 +40,11 @@ impl<TNormalization: NormalizesEmbedding> EmbeddingBatchProcessor<'_, '_, TNorma
             .into_iter()
             .flat_map(|active_request| active_request.continue_unless_stop_requested(agent_name))
             .collect();
+        let limits = self.batch.limits();
         let batched_inputs = next_embedding_batch(
             &mut active_requests,
-            self.scheduler_context.n_batch,
-            self.scheduler_context.desired_slots_total,
+            limits.n_batch as usize,
+            limits.n_seq_max,
         );
 
         if batched_inputs.is_empty() {
@@ -99,7 +100,7 @@ impl<TNormalization: NormalizesEmbedding> EmbeddingBatchProcessor<'_, '_, TNorma
                 .map_err(EmbeddingError::BatchAssemblyFailed)?;
         }
 
-        self.llama_context.clear_kv_cache();
+        self.llama_context.memory_clear();
         self.llama_context
             .decode(self.batch)
             .map_err(EmbeddingError::DecodeFailed)

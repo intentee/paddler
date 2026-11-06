@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::LlamaCppError;
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
 use llama_cpp_bindings::llama_backend::LlamaBackend;
 use parking_lot::Mutex;
 

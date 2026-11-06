@@ -1,37 +1,30 @@
+use llama_cpp_bindings_types::chat_tool::ChatTool;
+
 use paddler_messaging::conversation_history::ConversationHistory;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_sha256_hex::sha256_lowercase_hex::sha256_lowercase_hex;
 
-use crate::chat_template_tools::ChatTemplateTools;
-
 #[must_use]
 pub fn request_media_marker(
     conversation_history: &ConversationHistory,
-    chat_template_tools: &ChatTemplateTools,
+    tools: &[ChatTool],
 ) -> MediaMarker {
     MediaMarker::new(format!(
         "<__media_{}__>",
-        sha256_lowercase_hex(
-            format!("{conversation_history:?}{}", chat_template_tools.json).as_bytes()
-        )
+        sha256_lowercase_hex(format!("{conversation_history:?}{tools:?}").as_bytes())
     ))
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_json::Value;
+    use llama_cpp_bindings_types::chat_tool::ChatTool;
     use serde_json::json;
 
     use paddler_messaging::conversation_history::ConversationHistory;
     use paddler_messaging::conversation_message::ConversationMessage;
     use paddler_messaging::conversation_message_content::ConversationMessageContent;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::FunctionCall;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::function::Function;
-    use paddler_messaging::request_params::continue_from_conversation_history_params::tool::tool_params::function_call::parameters::Parameters;
 
     use super::request_media_marker;
-    use crate::chat_template_tools::ChatTemplateTools;
 
     fn conversation_asking(question: &str) -> ConversationHistory {
         ConversationHistory::new(vec![ConversationMessage::Message {
@@ -40,14 +33,12 @@ mod tests {
         }])
     }
 
-    fn tools_described_as(description: &str) -> ChatTemplateTools {
-        ChatTemplateTools::new(&[Tool::<Value>::Function(FunctionCall {
-            function: Function {
-                name: "get_weather".to_owned(),
-                description: description.to_owned(),
-                parameters: Parameters::Schema(json!({"type": "object"})),
-            },
-        })])
+    fn tools_described_as(description: &str) -> Vec<ChatTool> {
+        vec![ChatTool {
+            name: "get_weather".to_owned(),
+            description: description.to_owned(),
+            parameters: Some(json!({"type": "object"})),
+        }]
     }
 
     #[test]

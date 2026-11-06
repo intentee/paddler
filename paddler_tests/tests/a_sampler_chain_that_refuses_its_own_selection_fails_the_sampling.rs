@@ -20,7 +20,7 @@ fn a_sampler_chain_that_refuses_its_own_selection_fails_the_sampling() {
 
     assert_eq!(
         TokenSampling {
-            chain: LlamaSampler::chain_simple([
+            chain: LlamaSampler::chain([
                 LlamaSampler::greedy().expect("the greedy sampler must initialize"),
                 refusal.grammar(),
             ])

@@ -35,8 +35,6 @@ mod tests {
     use std::num::NonZeroU32;
     use std::sync::Arc;
 
-    use llama_cpp_bindings::BareJsonToolCalls;
-    use llama_cpp_bindings::StreamingMarkers;
     use tokio::sync::mpsc;
 
     use paddler_agent_runtime::scheduler_command::SchedulerCommand as _;
@@ -64,10 +62,7 @@ mod tests {
             max_tokens: NonZeroU32::new(1).unwrap(),
             prompt: PreparedPrompt::TextTokens(Vec::new()),
             slot_guard: SlotGuard::new(Arc::new(SlotAggregatedStatus::new(1)), NonZeroU16::MIN),
-            token_classification: TokenClassification {
-                bare_json_tool_calls: BareJsonToolCalls::Ignore,
-                streaming_markers: Arc::new(StreamingMarkers::default()),
-            },
+            token_classification: TokenClassification::Undeterminable,
             token_sampling: TokenSampling {
                 chain: SamplerChainFactory {
                     sampling_parameters: SamplingParameters::default(),

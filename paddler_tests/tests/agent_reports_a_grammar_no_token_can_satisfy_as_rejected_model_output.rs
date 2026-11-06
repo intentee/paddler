@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::error::SamplerApplyError;
+use llama_cpp_bindings::error::sampler_apply_error::SamplerApplyError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;

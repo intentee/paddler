@@ -44,7 +44,7 @@ async fn a_tool_call_section_with_text_but_no_tool_calls_is_reported_as_unrecogn
         vec![&GeneratedTokenResult::UnrecognizedToolCallFormat(
             RawToolCallTokens {
                 text: FORCED_OUTPUT.to_owned(),
-                ffi_error_message: String::new(),
+                expected_format: "peg-gemma4".to_owned(),
             }
         )]
     );

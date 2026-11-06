@@ -17,7 +17,7 @@ use crate::prepared_embedding_batch_request::PreparedEmbeddingBatchRequest;
 pub struct EmbeddingScheduler<'model> {
     pub active_requests: Vec<ActiveEmbeddingRequest>,
     pub agent_shutdown: CancellationToken,
-    pub batch: LlamaBatch<'static>,
+    pub batch: LlamaBatch,
     pub llama_context: ResidentLlamaContext<'model>,
     pub scheduler_context: EmbeddingSchedulerContext,
     pub scheduler_inbox: SchedulerInbox<PreparedEmbeddingBatchRequest>,
@@ -53,8 +53,6 @@ impl EmbeddingScheduler<'_> {
         }
 
         self.reject_unfinished_requests();
-        self.llama_context.synchronize();
-        self.llama_context.detach_threadpool();
 
         info!(
             "{:?}: embedding scheduler stopped",

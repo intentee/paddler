@@ -1,5 +1,5 @@
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::ClearKvCacheSeqError;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
 use log::error;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -19,8 +19,8 @@ impl SequenceId {
     pub fn clear_kv_cache_in(
         self,
         llama_context: &mut LlamaContext<'_>,
-    ) -> Result<(), ClearKvCacheSeqError> {
-        llama_context.clear_kv_cache_seq(Some(self.kv_cache_sequence_id()), None, None)
+    ) -> Result<(), MemorySeqRmError> {
+        llama_context.memory_seq_rm(Some(self.kv_cache_sequence_id()), None, None)
     }
 
     pub fn release_kv_cache_in(

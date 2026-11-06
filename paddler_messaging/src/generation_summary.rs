@@ -1,4 +1,4 @@
-use llama_cpp_bindings_types::TokenUsage;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
 use serde::Deserialize;
 use serde::Serialize;
 

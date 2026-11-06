@@ -345,8 +345,8 @@ impl ResponsesStream {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::TokenUsage;
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::Value;
     use serde_json::json;
     use serde_json::to_value;

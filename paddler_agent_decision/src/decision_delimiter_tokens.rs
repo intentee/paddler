@@ -81,8 +81,8 @@ impl DecisionDelimiterTokens {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::error::StringToTokenError;
-    use llama_cpp_bindings::error::TokenAttrError;
+    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
+    use llama_cpp_bindings::error::token_attr_error::TokenAttrError;
     use llama_cpp_bindings::llama_token_attrs::LlamaTokenAttrs;
     use llama_cpp_bindings::llama_token_attrs_from_int_error::LlamaTokenAttrsFromIntError;
     use llama_cpp_bindings::token::LlamaToken;

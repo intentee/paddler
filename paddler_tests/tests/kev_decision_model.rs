@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::LlamaToken;
 
@@ -69,19 +70,19 @@ impl KevDecisionModel {
             runtime,
             ..
         } = self;
+        let llama_context = runtime
+            .create_decision_llama_context(u32::from(sequences))
+            .expect("the decision context must be created");
 
         DecisionScheduler {
             active_requests,
             agent_shutdown,
-            batch: LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1),
+            batch: LlamaBatch::new(ContextLimits::of(&llama_context)),
             capacity_ledger,
-            llama_context: runtime
-                .create_decision_llama_context(u32::from(sequences))
-                .expect("the decision context must be created"),
+            llama_context,
             pending_requests,
             scheduler_context: DecisionSchedulerContext {
                 agent_name: None,
-                n_batch: runtime.model_runtime_parameters.n_batch.tokens_usize(),
                 pointer_head,
             },
             scheduler_inbox,

@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
@@ -75,13 +76,12 @@ fn a_generation_arriving_while_every_sequence_is_taken_is_refused() {
 
     ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
         agent_shutdown: CancellationToken::new(),
-        batch: LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1),
+        batch: LlamaBatch::new(ContextLimits::of(&llama_context)),
         llama_context,
         scheduler_context: ContinuousBatchSchedulerContext {
             agent_name: None,
             desired_slots_total: 1,
             model: &runtime.loaded_llama_model.model,
-            n_batch: runtime.model_runtime_parameters.n_batch,
             sequence_context_size,
         },
         scheduler_message_rx,

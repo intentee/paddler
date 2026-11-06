@@ -1,7 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::chat_template_content_form::ChatTemplateContentForm;
 use crate::chat_template_conversation::ChatTemplateConversation;
 use crate::conversation_message::ConversationMessage;
 use crate::media_marker::MediaMarker;
@@ -21,7 +20,6 @@ impl ConversationHistory {
     #[must_use]
     pub fn into_chat_template_conversation(
         self,
-        content_form: ChatTemplateContentForm,
         media_marker: &MediaMarker,
     ) -> ChatTemplateConversation {
         let mut image_urls = Vec::new();
@@ -33,22 +31,15 @@ impl ConversationHistory {
                 ConversationMessage::AssistantReasoning { reasoning_content } => {
                     match conversation_messages.next_if(ConversationMessage::is_assistant_reply) {
                         Some(assistant_reply) => assistant_reply.into_chat_template_message(
-                            content_form,
                             media_marker,
                             &mut image_urls,
                             Some(reasoning_content),
                         ),
                         None => ConversationMessage::AssistantReasoning { reasoning_content }
-                            .into_chat_template_message(
-                                content_form,
-                                media_marker,
-                                &mut image_urls,
-                                None,
-                            ),
+                            .into_chat_template_message(media_marker, &mut image_urls, None),
                     }
                 }
                 unreasoned_message => unreasoned_message.into_chat_template_message(
-                    content_form,
                     media_marker,
                     &mut image_urls,
                     None,
@@ -65,16 +56,14 @@ impl ConversationHistory {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::Value;
+    use llama_cpp_bindings_types::chat_message::ChatMessage;
+    use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
+    use llama_cpp_bindings_types::chat_message_content_part::ChatMessageContentPart;
+    use llama_cpp_bindings_types::chat_message_tool_call::ChatMessageToolCall;
     use serde_json::json;
-    use serde_json::to_value;
 
     use super::ConversationHistory;
-    use crate::chat_template_content_form::ChatTemplateContentForm;
     use crate::chat_template_conversation::ChatTemplateConversation;
-    use crate::chat_template_message::ChatTemplateMessage;
-    use crate::chat_template_message_content::ChatTemplateMessageContent;
-    use crate::chat_template_message_content_part::ChatTemplateMessageContentPart;
     use crate::conversation_message::ConversationMessage;
     use crate::conversation_message_content::ConversationMessageContent;
     use crate::conversation_message_content_part::ConversationMessageContentPart;
@@ -89,35 +78,34 @@ mod tests {
         }
     }
 
-    fn make_parts_message(
-        role: &str,
-        parts: Vec<ConversationMessageContentPart>,
-    ) -> ConversationMessage {
-        ConversationMessage::Message {
-            content: ConversationMessageContent::Parts(parts),
-            role: role.to_owned(),
+    fn weather_tool_call() -> ConversationToolCall {
+        ConversationToolCall {
+            arguments: json!({ "location": "Paris" }).as_object().unwrap().clone(),
+            id: "call_weather".to_owned(),
+            name: "get_weather".to_owned(),
         }
     }
 
-    fn rendered_messages(history: ConversationHistory) -> Value {
-        to_value(
-            history
-                .into_chat_template_conversation(
-                    ChatTemplateContentForm::TypedParts,
-                    &MediaMarker::new("[IMAGE]".to_owned()),
-                )
-                .messages,
-        )
-        .unwrap()
+    fn template_weather_tool_call() -> ChatMessageToolCall {
+        ChatMessageToolCall {
+            id: "call_weather".to_owned(),
+            name: "get_weather".to_owned(),
+            arguments: r#"{"location":"Paris"}"#.to_owned(),
+        }
+    }
+
+    fn template_messages(history: ConversationHistory) -> Vec<ChatMessage> {
+        history
+            .into_chat_template_conversation(&MediaMarker::new("[IMAGE]".to_owned()))
+            .messages
     }
 
     #[test]
     fn collects_image_urls_and_replaces_images_with_the_media_marker() {
         let history = ConversationHistory::new(vec![
             make_text_message("assistant", "hello"),
-            make_parts_message(
-                "user",
-                vec![
+            ConversationMessage::Message {
+                content: ConversationMessageContent::Parts(vec![
                     ConversationMessageContentPart::Text {
                         text: "before".to_owned(),
                     },
@@ -129,42 +117,31 @@ mod tests {
                     ConversationMessageContentPart::Text {
                         text: "after".to_owned(),
                     },
-                ],
-            ),
+                ]),
+                role: "user".to_owned(),
+            },
         ]);
 
         assert_eq!(
-            history.into_chat_template_conversation(
-                ChatTemplateContentForm::TypedParts,
-                &MediaMarker::new("[IMAGE]".to_owned())
-            ),
+            history.into_chat_template_conversation(&MediaMarker::new("[IMAGE]".to_owned())),
             ChatTemplateConversation {
                 image_urls: vec![ImageUrl {
                     url: "http://example.com/img.png".to_owned(),
                 }],
                 messages: vec![
-                    ChatTemplateMessage::Message {
-                        content: ChatTemplateMessageContent::Text("hello".to_owned()),
-                        reasoning_content: None,
+                    ChatMessage::Message {
                         role: "assistant".to_owned(),
+                        content: ChatMessageContent::Text("hello".to_owned()),
+                        reasoning_content: None,
                     },
-                    ChatTemplateMessage::Message {
-                        content: ChatTemplateMessageContent::Parts(vec![
-                            ChatTemplateMessageContentPart {
-                                content_type: "text",
-                                text: "before".to_owned(),
-                            },
-                            ChatTemplateMessageContentPart {
-                                content_type: "text",
-                                text: "[IMAGE]".to_owned(),
-                            },
-                            ChatTemplateMessageContentPart {
-                                content_type: "text",
-                                text: "after".to_owned(),
-                            },
+                    ChatMessage::Message {
+                        role: "user".to_owned(),
+                        content: ChatMessageContent::Parts(vec![
+                            ChatMessageContentPart::Text("before".to_owned()),
+                            ChatMessageContentPart::MediaMarker("[IMAGE]".to_owned()),
+                            ChatMessageContentPart::Text("after".to_owned()),
                         ]),
                         reasoning_content: None,
-                        role: "user".to_owned(),
                     },
                 ],
             }
@@ -175,24 +152,16 @@ mod tests {
     fn an_assistant_tool_call_turn_reaches_the_template_with_structured_tool_calls() {
         let history = ConversationHistory::new(vec![ConversationMessage::AssistantToolCalls {
             content: ConversationMessageContent::Text(String::new()),
-            tool_calls: vec![ConversationToolCall {
-                arguments: json!({ "location": "Paris" }).as_object().unwrap().clone(),
-                id: "call_weather".to_owned(),
-                name: "get_weather".to_owned(),
-            }],
+            tool_calls: vec![weather_tool_call()],
         }]);
 
         assert_eq!(
-            rendered_messages(history),
-            json!([{
-                "content": "",
-                "role": "assistant",
-                "tool_calls": [{
-                    "function": { "arguments": { "location": "Paris" }, "name": "get_weather" },
-                    "id": "call_weather",
-                    "type": "function"
-                }]
-            }])
+            template_messages(history),
+            vec![ChatMessage::AssistantToolCalls {
+                content: ChatMessageContent::Text(String::new()),
+                reasoning_content: None,
+                tool_calls: vec![template_weather_tool_call()],
+            }]
         );
     }
 
@@ -204,8 +173,11 @@ mod tests {
         }]);
 
         assert_eq!(
-            rendered_messages(history),
-            json!([{ "content": "sunny", "role": "tool", "tool_call_id": "call_weather" }])
+            template_messages(history),
+            vec![ChatMessage::ToolResult {
+                content: ChatMessageContent::Text("sunny".to_owned()),
+                tool_call_id: "call_weather".to_owned(),
+            }]
         );
     }
 
@@ -217,26 +189,17 @@ mod tests {
             },
             ConversationMessage::AssistantToolCalls {
                 content: ConversationMessageContent::Text(String::new()),
-                tool_calls: vec![ConversationToolCall {
-                    arguments: json!({ "location": "Paris" }).as_object().unwrap().clone(),
-                    id: "call_weather".to_owned(),
-                    name: "get_weather".to_owned(),
-                }],
+                tool_calls: vec![weather_tool_call()],
             },
         ]);
 
         assert_eq!(
-            rendered_messages(history),
-            json!([{
-                "content": "",
-                "reasoning_content": "the user wants the weather",
-                "role": "assistant",
-                "tool_calls": [{
-                    "function": { "arguments": { "location": "Paris" }, "name": "get_weather" },
-                    "id": "call_weather",
-                    "type": "function"
-                }]
-            }])
+            template_messages(history),
+            vec![ChatMessage::AssistantToolCalls {
+                content: ChatMessageContent::Text(String::new()),
+                reasoning_content: Some("the user wants the weather".to_owned()),
+                tool_calls: vec![template_weather_tool_call()],
+            }]
         );
     }
 
@@ -250,15 +213,19 @@ mod tests {
         ]);
 
         assert_eq!(
-            rendered_messages(history),
-            json!([
-                {
-                    "content": "",
-                    "reasoning_content": "nothing to answer yet",
-                    "role": "assistant"
+            template_messages(history),
+            vec![
+                ChatMessage::Message {
+                    role: "assistant".to_owned(),
+                    content: ChatMessageContent::Text(String::new()),
+                    reasoning_content: Some("nothing to answer yet".to_owned()),
                 },
-                { "content": "hello", "role": "user" }
-            ])
+                ChatMessage::Message {
+                    role: "user".to_owned(),
+                    content: ChatMessageContent::Text("hello".to_owned()),
+                    reasoning_content: None,
+                },
+            ]
         );
     }
 
@@ -275,15 +242,18 @@ mod tests {
         ]);
 
         assert_eq!(
-            rendered_messages(history),
-            json!([
-                {
-                    "content": "",
-                    "reasoning_content": "waiting for the weather",
-                    "role": "assistant"
+            template_messages(history),
+            vec![
+                ChatMessage::Message {
+                    role: "assistant".to_owned(),
+                    content: ChatMessageContent::Text(String::new()),
+                    reasoning_content: Some("waiting for the weather".to_owned()),
                 },
-                { "content": "sunny", "role": "tool", "tool_call_id": "call_weather" }
-            ])
+                ChatMessage::ToolResult {
+                    content: ChatMessageContent::Text("sunny".to_owned()),
+                    tool_call_id: "call_weather".to_owned(),
+                },
+            ]
         );
     }
 }

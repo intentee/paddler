@@ -1,9 +1,9 @@
-use llama_cpp_bindings::error::StringToTokenError;
-use llama_cpp_bindings::error::TokenAttrError;
+use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
+use llama_cpp_bindings::error::token_attr_error::TokenAttrError;
 use llama_cpp_bindings::llama_token_attrs::LlamaTokenAttrs;
-use llama_cpp_bindings::model::AddBos;
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::model::ParseSpecialTokens;
+use llama_cpp_bindings::model::add_bos::AddBos;
+use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 use llama_cpp_bindings::token::LlamaToken;
 
 pub trait DelimiterVocabulary {

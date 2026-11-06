@@ -1,6 +1,8 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::error::ClearKvCacheSeqError;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
+use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::LlamaToken;
 
@@ -26,8 +28,7 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
     let mut llama_context = runtime
         .create_decision_llama_context(SEQUENCES_THE_CONTEXT_HOLDS)
         .expect("the decision context must be created");
-    let n_batch = runtime.model_runtime_parameters.n_batch.tokens_usize();
-    let mut batch = LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
     let layout = DecisionTokenLayout::new(
         &delimiter_tokens,
         vec![LlamaToken::new(0)],
@@ -53,7 +54,6 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
             &mut DecisionDecoder {
                 batch: &mut batch,
                 llama_context: &mut llama_context,
-                n_batch,
             },
             &pointer_head,
             None,
@@ -66,7 +66,6 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
                 &mut DecisionDecoder {
                     batch: &mut batch,
                     llama_context: &mut llama_context,
-                    n_batch,
                 },
                 &pointer_head,
                 None,
@@ -75,11 +74,12 @@ fn a_question_lane_beyond_the_decision_context_cannot_be_cleared_for_the_state()
             .as_ref()
             .map(ToString::to_string),
         Some(
-            DecisionError::KvCacheRemovalFailed(ClearKvCacheSeqError::PartialSequenceNotRemoved {
-                seq_id: 1,
-                p0: -1,
-                p1: -1,
-            })
+            DecisionError::KvCacheRemovalFailed(MemorySeqRmError::SequenceIdOutOfRange(
+                SequenceIdOutOfRange {
+                    seq_id: 1,
+                    n_seq_max: SEQUENCES_THE_CONTEXT_HOLDS,
+                }
+            ))
             .to_string()
         )
     );

@@ -1,4 +1,4 @@
-use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token_piece::TokenPiece;
 use tokio::sync::mpsc;
 
@@ -54,7 +54,7 @@ impl EmitTokenPhase<'_> {
 mod tests {
     use std::mem::discriminant;
 
-    use llama_cpp_bindings::SampledToken;
+    use llama_cpp_bindings::sampled_token::SampledToken;
     use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
     use tokio::sync::mpsc;

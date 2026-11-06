@@ -1,8 +1,7 @@
-use std::mem;
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::SampledTokenSection;
+use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::token::LlamaToken;
 
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
@@ -50,8 +49,11 @@ impl ContinuousBatchRequestState {
         self.current_token_position = next_token_position;
 
         if is_last_chunk {
-            self.phase = mem::replace(&mut self.phase, ContinuousBatchRequestPhase::IngestingText)
-                .after_its_text_prompt(last_batch_position);
+            self.phase = ContinuousBatchRequestPhase::Generating(
+                ContinuousBatchGenerationStep::ReadyToSample {
+                    batch_position: last_batch_position,
+                },
+            );
         }
     }
 
@@ -92,7 +94,6 @@ impl ContinuousBatchRequestState {
             ContinuousBatchRequestPhase::Completed(terminal_outcome) => terminal_outcome,
             ContinuousBatchRequestPhase::Generating(_)
             | ContinuousBatchRequestPhase::IngestingText
-            | ContinuousBatchRequestPhase::IngestingLeadingBos(_)
             | ContinuousBatchRequestPhase::IngestingMultimodal(_) => {
                 ContinuousBatchTerminalOutcome::EmitNothing
             }
@@ -105,10 +106,10 @@ mod tests {
     use std::mem::discriminant;
     use std::num::NonZeroU32;
 
-    use llama_cpp_bindings::SampledToken;
-    use llama_cpp_bindings::SampledTokenSection;
-    use llama_cpp_bindings::TokenUsage;
+    use llama_cpp_bindings::sampled_token::SampledToken;
+    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
     use llama_cpp_bindings::token::LlamaToken;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
 
     use paddler_messaging::generated_token_result::GeneratedTokenResult;
     use paddler_messaging::generation_finish::GenerationFinish;

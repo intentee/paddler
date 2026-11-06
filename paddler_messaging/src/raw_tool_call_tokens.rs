@@ -5,5 +5,5 @@ use serde::Serialize;
 #[serde(deny_unknown_fields)]
 pub struct RawToolCallTokens {
     pub text: String,
-    pub ffi_error_message: String,
+    pub expected_format: String,
 }

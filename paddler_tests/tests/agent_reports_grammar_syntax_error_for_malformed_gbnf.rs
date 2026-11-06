@@ -2,8 +2,8 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::GbnfValidationError;
-use llama_cpp_bindings::error::GrammarError;
+use llama_cpp_bindings::error::grammar_error::GrammarError;
+use llama_cpp_gbnf::gbnf_validation_error::GbnfValidationError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_runtime::rejection_description::rejection_description;

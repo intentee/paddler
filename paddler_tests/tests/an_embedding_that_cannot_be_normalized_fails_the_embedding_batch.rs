@@ -37,7 +37,6 @@ fn an_embedding_that_cannot_be_normalized_fails_the_embedding_batch() {
     ]);
 
     let continuing_requests = nomic_embedding_batch_processing.embed_next_batch(
-        nomic_embedding_batch_processing.batch_capacity(),
         NormalizationOfAnEmbeddingTooLongForRmsNorm,
         admitted_requests,
     );

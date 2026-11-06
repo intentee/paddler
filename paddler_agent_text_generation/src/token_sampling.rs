@@ -1,5 +1,6 @@
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::SamplerApplyError;
+use llama_cpp_bindings::error::sample_error::SampleError;
+use llama_cpp_bindings::error::sampler_apply_error::SamplerApplyError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 
@@ -24,7 +25,7 @@ impl TokenSampling {
             .map_err(TextGenerationError::TokenDataUnreadable)?;
         match self.grammar.constrain(candidates) {
             Ok(()) => {}
-            Err(SamplerApplyError::EveryCandidateExcluded) => {
+            Err(SampleError::SamplerApply(SamplerApplyError::EveryCandidateExcluded)) => {
                 return Ok(SamplingOutcome::GrammarRejectedModelOutput(
                     SamplerApplyError::EveryCandidateExcluded.to_string(),
                 ));
@@ -35,8 +36,8 @@ impl TokenSampling {
                 ));
             }
         }
-        candidates
-            .apply_sampler(&self.chain)
+        self.chain
+            .apply(candidates)
             .map_err(TextGenerationError::SamplerChainApplicationFailed)?;
 
         let Some(token) = candidates.selected_token() else {

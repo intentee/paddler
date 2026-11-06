@@ -1,6 +1,6 @@
 use std::time::UNIX_EPOCH;
 
-use llama_cpp_bindings_types::TokenUsage;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
 use serde_json::Value;
 use serde_json::from_value;
 use serde_json::json;

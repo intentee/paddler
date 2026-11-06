@@ -21,7 +21,7 @@ use crate::reports_decision_outcome::ReportsDecisionOutcome as _;
 pub struct DecisionScheduler<'model> {
     pub active_requests: VecDeque<ActiveDecisionRequest>,
     pub agent_shutdown: CancellationToken,
-    pub batch: LlamaBatch<'static>,
+    pub batch: LlamaBatch,
     pub capacity_ledger: DecisionCapacityLedger,
     pub llama_context: ResidentLlamaContext<'model>,
     pub pending_requests: VecDeque<PreparedDecisionRequest>,
@@ -52,7 +52,6 @@ impl DecisionScheduler<'_> {
         }
 
         self.reject_unfinished_requests();
-        self.llama_context.synchronize();
 
         info!(
             "{:?}: decision scheduler stopped",
@@ -111,7 +110,6 @@ impl DecisionScheduler<'_> {
         let mut decoder = DecisionDecoder {
             batch: &mut self.batch,
             llama_context: &mut self.llama_context,
-            n_batch: self.scheduler_context.n_batch,
         };
         let agent_name = self.scheduler_context.agent_name.as_deref();
 

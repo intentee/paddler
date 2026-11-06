@@ -1,5 +1,5 @@
-use llama_cpp_bindings::model::AddBos;
-use llama_cpp_bindings::model::ParseSpecialTokens;
+use llama_cpp_bindings::model::add_bos::AddBos;
+use llama_cpp_bindings::model::parse_special_tokens::ParseSpecialTokens;
 
 use paddler_agent_runtime::agent_request::AgentRequest;
 use paddler_agent_runtime::loaded_llama_model::LoadedLlamaModel;

@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use jsonschema::Validator;
 use jsonschema::validator_for;
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ToolCallArguments;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 use serde_json::Value;
 
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -55,10 +55,11 @@ impl ToolCallValidator {
 
         let arguments_value = match &parsed.arguments {
             ToolCallArguments::ValidJson(value) => value,
-            ToolCallArguments::InvalidJson(raw_arguments) => {
+            ToolCallArguments::InvalidJson { raw, error } => {
                 return Err(ToolCallValidationError::ArgumentsAreNotJson {
                     tool_name: parsed.name.clone(),
-                    raw_arguments: raw_arguments.clone(),
+                    raw_arguments: raw.clone(),
+                    parse_failure: error.clone(),
                 });
             }
         };
@@ -97,10 +98,10 @@ impl ToolCallValidator {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ModelProvidedToolCallId;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ParsedToolCallId;
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::model_provided_tool_call_id::ModelProvidedToolCallId;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::Map;
     use serde_json::Value;
     use serde_json::json;
@@ -222,16 +223,18 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
         let parsed = ParsedToolCall::new(
             model_provided_id(),
             "get_weather".to_owned(),
-            ToolCallArguments::InvalidJson("not json".to_owned()),
+            ToolCallArguments::from_string("not json".to_owned()),
         );
 
-        let validation_error = validator.validate(&parsed).err().unwrap();
-
-        assert!(matches!(
-            validation_error,
-            ToolCallValidationError::ArgumentsAreNotJson { tool_name, raw_arguments }
-                if tool_name == "get_weather" && raw_arguments == "not json"
-        ));
+        assert_eq!(
+            validator
+                .validate(&parsed)
+                .err()
+                .map(|validation_error| validation_error.to_string()),
+            Some(
+                "arguments for tool \"get_weather\" are not valid JSON (expected ident at line 1 column 2): \"not json\"".to_owned()
+            )
+        );
     }
 
     #[test]

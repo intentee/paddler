@@ -1,10 +1,10 @@
 use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::ClearKvCacheSeqError;
-use llama_cpp_bindings::error::CopyKvCacheSeqError;
-use llama_cpp_bindings::error::DecodeError;
-use llama_cpp_bindings::error::EmbeddingsError;
-use llama_cpp_bindings::error::StringToTokenError;
-use llama_cpp_bindings::error::TokenAttrError;
+use llama_cpp_bindings::error::decode_error::DecodeError;
+use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
+use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
+use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
+use llama_cpp_bindings::error::token_attr_error::TokenAttrError;
 use log::error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
@@ -57,10 +57,10 @@ pub enum DecisionError {
     InputTokenizationFailed(#[source] StringToTokenError),
 
     #[error("failed to copy the decision state into its question lane: {0}")]
-    KvCacheCopyFailed(#[source] CopyKvCacheSeqError),
+    KvCacheCopyFailed(#[source] MemorySeqCpError),
 
     #[error("failed to remove a decision sequence from the KV cache: {0}")]
-    KvCacheRemovalFailed(#[source] ClearKvCacheSeqError),
+    KvCacheRemovalFailed(#[source] MemorySeqRmError),
 
     #[error("no model is loaded")]
     ModelNotLoaded,
@@ -132,11 +132,11 @@ mod tests {
     use std::mem::discriminant;
 
     use llama_cpp_bindings::batch_add_error::BatchAddError;
-    use llama_cpp_bindings::error::ClearKvCacheSeqError;
-    use llama_cpp_bindings::error::CopyKvCacheSeqError;
-    use llama_cpp_bindings::error::DecodeError;
-    use llama_cpp_bindings::error::EmbeddingsError;
-    use llama_cpp_bindings::error::StringToTokenError;
+    use llama_cpp_bindings::error::decode_error::DecodeError;
+    use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
+    use llama_cpp_bindings::error::memory_seq_cp_error::MemorySeqCpError;
+    use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
+    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::SendError;
 
@@ -163,7 +163,7 @@ mod tests {
         };
         let failures = [
             (
-                DecisionError::BatchAssemblyFailed(BatchAddError::InsufficientSpace(1)),
+                DecisionError::BatchAssemblyFailed(BatchAddError::BatchFull { n_batch: 1 }),
                 DecisionResult::BatchAssemblyFailed(description()),
             ),
             (
@@ -175,7 +175,9 @@ mod tests {
                 DecisionResult::DecodeFailed(description()),
             ),
             (
-                DecisionError::HiddenStateUnavailable(EmbeddingsError::LogitsNotEnabled),
+                DecisionError::HiddenStateUnavailable(EmbeddingsError::TokenNotAnOutput {
+                    token_index: 0,
+                }),
                 DecisionResult::HiddenStateUnavailable(description()),
             ),
             (
@@ -185,17 +187,15 @@ mod tests {
                 DecisionResult::InputTokenizationFailed(description()),
             ),
             (
-                DecisionError::KvCacheCopyFailed(CopyKvCacheSeqError::MemoryHandleUnavailable),
+                DecisionError::KvCacheCopyFailed(MemorySeqCpError::MemoryHandleUnavailable),
                 DecisionResult::KvCacheCopyFailed(description()),
             ),
             (
-                DecisionError::KvCacheRemovalFailed(
-                    ClearKvCacheSeqError::PartialSequenceNotRemoved {
-                        seq_id: 0,
-                        p0: -1,
-                        p1: -1,
-                    },
-                ),
+                DecisionError::KvCacheRemovalFailed(MemorySeqRmError::PartialSequenceNotRemoved {
+                    seq_id: 0,
+                    p0: -1,
+                    p1: -1,
+                }),
                 DecisionResult::KvCacheRemovalFailed(description()),
             ),
             (

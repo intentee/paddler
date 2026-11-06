@@ -2,8 +2,11 @@
 
 use std::sync::Arc;
 
+use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
+use llama_cpp_bindings::error::eval_multimodal_chunks_error::EvalMultimodalChunksError;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings::mtmd::micro_batch_tokens;
+use llama_cpp_bindings::mtmd::mtmd_eval_error::MtmdEvalError;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
@@ -12,12 +15,12 @@ use paddler_agent_text_generation::continuous_batch_scheduler::ContinuousBatchSc
 use paddler_agent_text_generation::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use paddler_agent_text_generation::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
 use paddler_agent_text_generation::media_marked_prompt::MediaMarkedPrompt;
-use paddler_agent_text_generation::model_bos_token::ModelBosToken;
 use paddler_agent_text_generation::multimodal_prompt_ingestion::MultimodalPromptIngestion;
 use paddler_agent_text_generation::multimodal_prompt_support::MultimodalPromptSupport;
 use paddler_agent_text_generation::prepared_generation_request::PreparedGenerationRequest;
 use paddler_agent_text_generation::prepared_prompt::PreparedPrompt;
 use paddler_agent_text_generation::resident_multimodal_context::ResidentMultimodalContext;
+use paddler_agent_text_generation::text_generation_error::TextGenerationError;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::media_marker::MediaMarker;
 use paddler_test_cluster_harness::model_card::smolvlm2_256m::smolvlm2_256m;
@@ -27,6 +30,17 @@ use paddler_tests::llama_runtime::LlamaRuntime;
 use paddler_tests::raw_prompt_generation::RawPromptGeneration;
 
 use crate::first_message_content_request_preparer::FirstMessageContentRequestPreparer;
+
+const PROMPT: &str = "Describe the picture";
+const FITTED_MICRO_BATCH_TOKENS: u32 = 512;
+
+fn ingestion_failure(
+    eval_multimodal_chunks_error: EvalMultimodalChunksError,
+) -> GeneratedTokenResult {
+    GeneratedTokenResult::MultimodalIngestionFailed(
+        TextGenerationError::MultimodalIngestionFailed(eval_multimodal_chunks_error).to_string(),
+    )
+}
 
 #[test]
 fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
@@ -45,8 +59,8 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
             let sequence_context_size = llama_context.n_ctx_seq();
             let n_batch = runtime.model_runtime_parameters.n_batch;
             let mut ingestion = MultimodalPromptSupport {
-                micro_batch_tokens: micro_batch_tokens(&llama_context, n_batch.tokens()),
-                model_bos_token: ModelBosToken::of(&runtime.loaded_llama_model.model),
+                micro_batch_tokens: ContextLimits::of(&llama_context)
+                    .micro_batch_tokens(n_batch.tokens()),
                 multimodal_context: Arc::new(
                     ResidentMultimodalContext::load(
                         &smolvlm2_256m_mmproj()
@@ -69,7 +83,7 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
                 &[],
                 &MediaMarkedPrompt {
                     media_marker: &MediaMarker::new("<media>".to_owned()),
-                    prompt: "Describe the picture",
+                    prompt_parts: &[ChatPromptPart::Input(PROMPT.to_owned())],
                 },
             )
             .expect("the multimodal prompt must be prepared");
@@ -81,7 +95,7 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
                 generate_tokens_stop_tx: _generate_tokens_stop_tx,
                 mut generated_tokens_rx,
             } = RawPromptGeneration::new(
-                "Describe the picture",
+                PROMPT,
                 runtime
                     .inference_runtime_context
                     .slot_aggregated_status
@@ -108,13 +122,12 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
 
             ContinuousBatchScheduler::new(ContinuousBatchSchedulerParams {
                 agent_shutdown: CancellationToken::new(),
-                batch: LlamaBatch::new(n_batch.capacity(), 1),
+                batch: LlamaBatch::new(ContextLimits::of(&llama_context)),
                 llama_context,
                 scheduler_context: ContinuousBatchSchedulerContext {
                     agent_name: None,
                     desired_slots_total: 1,
                     model: &runtime.loaded_llama_model.model,
-                    n_batch,
                     sequence_context_size,
                 },
                 scheduler_message_rx,
@@ -137,14 +150,13 @@ fn a_multimodal_prompt_that_cannot_be_ingested_ends_the_generation() {
             }),
         ],
         [
-            GeneratedTokenResult::MultimodalIngestionFailed(
-                "failed to ingest multimodal prompt: chunk index 1 out of bounds during post-eval walk"
-                    .to_owned()
-            ),
-            GeneratedTokenResult::MultimodalIngestionFailed(
-                "failed to ingest multimodal prompt: a chunk fitted to decodes of 512 tokens cannot be evaluated in decodes of 511"
-                    .to_owned()
-            ),
+            ingestion_failure(EvalMultimodalChunksError::ChunkOutOfBounds(1)),
+            ingestion_failure(EvalMultimodalChunksError::EvalFailed(
+                MtmdEvalError::EvaluatedMicroBatchSmallerThanFitted {
+                    evaluated_micro_batch_tokens: FITTED_MICRO_BATCH_TOKENS - 1,
+                    fitted_micro_batch_tokens: FITTED_MICRO_BATCH_TOKENS,
+                }
+            )),
         ]
     );
 }

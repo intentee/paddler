@@ -14,7 +14,6 @@ impl CommitPhase<'_, '_> {
                 Contributions {
                     generating,
                     ingesting,
-                    ..
                 },
             ..
         }: BatchPass,

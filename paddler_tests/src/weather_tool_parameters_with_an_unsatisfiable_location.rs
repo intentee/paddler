@@ -11,9 +11,8 @@ pub fn weather_tool_parameters_with_an_unsatisfiable_location() -> ValidatedPara
         properties: Some(Map::from_iter([(
             "location".to_owned(),
             json!({
-                "type": "integer",
-                "minimum": 1,
-                "maximum": 0,
+                "type": "string",
+                "not": { "type": "string" },
                 "description": "The city name"
             }),
         )])),

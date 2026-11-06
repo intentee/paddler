@@ -1,6 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::error::SamplerApplyError;
+use llama_cpp_bindings::error::sample_error::SampleError;
+use llama_cpp_bindings::error::sampler_apply_error::SamplerApplyError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 
 use paddler_agent_text_generation::grammar_sampling::GrammarSampling;
@@ -21,7 +22,7 @@ fn a_sampler_chain_that_cannot_rank_the_candidates_fails_the_sampling() {
     assert_eq!(
         sampling
             .sample_the_prompt_with(|grammar_of_a_smaller_vocabulary| TokenSampling {
-                chain: LlamaSampler::chain_simple([grammar_of_a_smaller_vocabulary])
+                chain: LlamaSampler::chain([grammar_of_a_smaller_vocabulary])
                     .expect("the sampler chain must initialize"),
                 grammar: GrammarSampling::Unconstrained,
             })
@@ -29,12 +30,14 @@ fn a_sampler_chain_that_cannot_rank_the_candidates_fails_the_sampling() {
             .as_ref()
             .map(ToString::to_string),
         Some(
-            TextGenerationError::SamplerChainApplicationFailed(SamplerApplyError::Reported {
-                message: format!(
-                    "vector::_M_range_check: __n (which is {n_vocab}) >= this->size() (which is {n_vocab})",
-                    n_vocab = sampling.smaller_vocabulary_model.n_vocab(),
-                ),
-            })
+            TextGenerationError::SamplerChainApplicationFailed(SampleError::SamplerApply(
+                SamplerApplyError::Reported {
+                    message: format!(
+                        "vector::_M_range_check: __n (which is {n_vocab}) >= this->size() (which is {n_vocab})",
+                        n_vocab = sampling.smaller_vocabulary_model.n_vocab(),
+                    ),
+                }
+            ))
             .to_string()
         )
     );

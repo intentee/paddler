@@ -1,7 +1,7 @@
 #![cfg(feature = "tests_that_use_llms")]
 
 use llama_cpp_bindings::context::LlamaContext;
-use llama_cpp_bindings::error::SamplerAcceptError;
+use llama_cpp_bindings::error::sampler_accept_error::SamplerAcceptError;
 use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::sampling::LlamaSampler;
 use llama_cpp_bindings::token::LlamaToken;

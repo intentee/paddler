@@ -20,8 +20,7 @@ async fn agent_clears_the_chat_template_issue_once_a_valid_template_replaces_it(
         &model_card
             .cached_path()
             .expect("the model must be in the Hugging Face cache"),
-    )
-    .expect("the uncompilable chat template must not compile");
+    );
     let mut cluster =
         start_single_agent_cluster_with_desired_state(desired_state_with_chat_template_override(
             BalancerDesiredState {

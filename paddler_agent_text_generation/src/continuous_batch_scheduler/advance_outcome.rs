@@ -1,4 +1,4 @@
-use llama_cpp_bindings::SampledToken;
+use llama_cpp_bindings::sampled_token::SampledToken;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 

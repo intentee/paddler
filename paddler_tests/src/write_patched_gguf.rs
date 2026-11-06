@@ -11,9 +11,9 @@ pub fn write_patched_gguf<TPatch>(
 where
     TPatch: FnOnce(&mut GgufContext),
 {
-    let mut gguf_context = GgufContext::from_file(source_path)?;
+    GgufContext::from_file(source_path).and_then(|mut gguf_context| {
+        patch(&mut gguf_context);
 
-    patch(&mut gguf_context);
-
-    gguf_context.write_to_file(destination_path)
+        gguf_context.write_to_file(destination_path)
+    })
 }

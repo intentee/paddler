@@ -2,7 +2,7 @@
 
 use std::mem::discriminant;
 
-use llama_cpp_bindings::LlamaContextLoadError;
+use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;
 use paddler_inference_parameters::all_gpu_layers::ALL_GPU_LAYERS;

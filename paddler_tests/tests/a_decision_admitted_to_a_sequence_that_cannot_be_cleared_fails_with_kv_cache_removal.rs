@@ -2,7 +2,8 @@
 
 use std::collections::VecDeque;
 
-use llama_cpp_bindings::error::ClearKvCacheSeqError;
+use llama_cpp_bindings::error::memory_seq_rm_error::MemorySeqRmError;
+use llama_cpp_bindings::error::sequence_id_out_of_range::SequenceIdOutOfRange;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_util::sync::CancellationToken;
 
@@ -61,11 +62,12 @@ fn a_decision_admitted_to_a_sequence_that_cannot_be_cleared_fails_with_kv_cache_
             .decision_result_rx
             .try_recv(),
         Ok(DecisionResult::KvCacheRemovalFailed(
-            DecisionError::KvCacheRemovalFailed(ClearKvCacheSeqError::PartialSequenceNotRemoved {
-                seq_id: 1,
-                p0: -1,
-                p1: -1,
-            })
+            DecisionError::KvCacheRemovalFailed(MemorySeqRmError::SequenceIdOutOfRange(
+                SequenceIdOutOfRange {
+                    seq_id: 1,
+                    n_seq_max: u32::from(SEQUENCES_THE_CONTEXT_HOLDS),
+                }
+            ))
             .to_string()
         ))
     );

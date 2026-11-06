@@ -1,4 +1,4 @@
-use llama_cpp_bindings::json_schema_to_grammar;
+use llama_cpp_bindings::json_schema_to_grammar::json_schema_to_grammar;
 use llama_cpp_bindings::model::LlamaModel;
 use llama_cpp_bindings::sampling::LlamaSampler;
 
