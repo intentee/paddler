@@ -5,11 +5,11 @@ use crate::batched_embedding_input::BatchedEmbeddingInput;
 pub fn next_embedding_batch(
     active_requests: &mut [ActiveEmbeddingRequest],
     n_batch: usize,
-    sequences_in_batch: u16,
+    sequences_in_batch: u32,
 ) -> Vec<BatchedEmbeddingInput> {
     let mut batched_inputs = Vec::new();
     let mut batched_tokens = 0;
-    let mut next_sequence_id: u16 = 0;
+    let mut next_sequence_id: u32 = 0;
 
     for (request_index, active_request) in active_requests.iter_mut().enumerate() {
         let mut request_sequences = 0;
@@ -31,7 +31,7 @@ pub fn next_embedding_batch(
             batched_inputs.push(BatchedEmbeddingInput {
                 input,
                 request_index,
-                sequence_id: i32::from(next_sequence_id),
+                sequence_id: next_sequence_id.cast_signed(),
             });
             request_sequences += 1;
             next_sequence_id += 1;

@@ -3,8 +3,8 @@
 use std::num::NonZeroU16;
 
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
-use llama_cpp_bindings_types::BatchCapacity;
 
 use paddler_agent_embeddings::active_embedding_request::ActiveEmbeddingRequest;
 use paddler_agent_embeddings::embedding_batch_processor::EmbeddingBatchProcessor;
@@ -50,13 +50,6 @@ impl NomicEmbeddingBatchProcessing {
         )
     }
 
-    pub fn batch_capacity(&self) -> BatchCapacity {
-        self.llama_runtime
-            .model_runtime_parameters
-            .n_batch
-            .capacity()
-    }
-
     pub fn embedding_llama_context(&self) -> ResidentLlamaContext<'_> {
         self.llama_runtime
             .create_embedding_llama_context(
@@ -68,13 +61,11 @@ impl NomicEmbeddingBatchProcessing {
 
     pub fn embed_next_batch<TNormalization: NormalizesEmbedding>(
         &self,
-        batch_capacity: BatchCapacity,
         normalization: TNormalization,
         active_requests: Vec<ActiveEmbeddingRequest>,
     ) -> Vec<ActiveEmbeddingRequest> {
         self.embed_next_batch_in(
             &mut self.embedding_llama_context(),
-            batch_capacity,
             normalization,
             active_requests,
         )
@@ -83,11 +74,10 @@ impl NomicEmbeddingBatchProcessing {
     pub fn embed_next_batch_in<TNormalization: NormalizesEmbedding>(
         &self,
         llama_context: &mut LlamaContext<'_>,
-        batch_capacity: BatchCapacity,
         normalization: TNormalization,
         active_requests: Vec<ActiveEmbeddingRequest>,
     ) -> Vec<ActiveEmbeddingRequest> {
-        let mut batch = LlamaBatch::new(batch_capacity, i32::from(self.sequences.get()));
+        let mut batch = LlamaBatch::new(ContextLimits::of(llama_context));
 
         EmbeddingBatchProcessor {
             batch: &mut batch,
@@ -95,12 +85,6 @@ impl NomicEmbeddingBatchProcessing {
             normalization,
             scheduler_context: &EmbeddingSchedulerContext {
                 agent_name: None,
-                desired_slots_total: self.sequences.get(),
-                n_batch: self
-                    .llama_runtime
-                    .model_runtime_parameters
-                    .n_batch
-                    .tokens_usize(),
                 pooling_type: self.pooling_type.clone(),
             },
         }

@@ -1,10 +1,11 @@
 use std::num::NonZeroU32;
-use std::sync::Arc;
 
-use llama_cpp_bindings::BareJsonToolCalls;
-use llama_cpp_bindings::ChatMessageParser;
-use llama_cpp_bindings::StreamingMarkers;
-use llama_cpp_bindings::mtmd::MtmdBitmap;
+use llama_cpp_bindings::chat_assistant_turn::ChatAssistantTurn;
+use llama_cpp_bindings::chat_session::ChatSession;
+use llama_cpp_bindings::chat_session_options::ChatSessionOptions;
+use llama_cpp_bindings::chat_tool_choice::ChatToolChoice;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings_types::chat_tool::ChatTool;
 use rand::RngExt as _;
 use rand::rng;
 use serde_json::Value;
@@ -15,7 +16,6 @@ use paddler_agent_runtime::prepares_scheduler_command::PreparesSchedulerCommand;
 use paddler_image_decoder::decoded_image::DecodedImage;
 use paddler_messaging::chat_template_conversation::ChatTemplateConversation;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
-use paddler_messaging::grammar_constraint::GrammarConstraint;
 use paddler_messaging::image_url::ImageUrl;
 use paddler_messaging::request_params::continue_from_conversation_history_params::ContinueFromConversationHistoryParams;
 use paddler_messaging::request_params::continue_from_conversation_history_params::tool::Tool;
@@ -23,11 +23,10 @@ use paddler_messaging::request_params::continue_from_conversation_history_params
 use paddler_messaging::request_params::continue_from_raw_prompt_params::ContinueFromRawPromptParams;
 use paddler_tool_call_validator::tool_call_validator::ToolCallValidator;
 
-use crate::chat_prompt_render_request::ChatPromptRenderRequest;
-use crate::chat_template_tools::ChatTemplateTools;
 use crate::conversation_prompt_support::ConversationPromptSupport;
 use crate::conversation_support::ConversationSupport;
 use crate::converts_to_mtmd_bitmap::ConvertsToMtmdBitmap;
+use crate::grammar_sampling::GrammarSampling;
 use crate::media_marked_prompt::MediaMarkedPrompt;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
@@ -44,13 +43,28 @@ use crate::token_sampling::TokenSampling;
 use crate::tool_call_handling::ToolCallHandling;
 use crate::tool_call_pipeline::ToolCallPipeline;
 
+const fn assistant_turn_of(add_generation_prompt: bool) -> ChatAssistantTurn {
+    if add_generation_prompt {
+        ChatAssistantTurn::New
+    } else {
+        ChatAssistantTurn::Omitted
+    }
+}
+
+const fn tool_choice_of(chat_tools: &[ChatTool]) -> ChatToolChoice {
+    if chat_tools.is_empty() {
+        ChatToolChoice::None
+    } else {
+        ChatToolChoice::Auto
+    }
+}
+
 pub struct GenerationRequestPreparer {
     pub conversation_support: ConversationSupport,
     pub image_resize_to_fit: NonZeroU32,
     pub loaded_llama_model: LoadedLlamaModel,
     pub prompt_tokenizer: PromptTokenizer,
     pub sampler_chain_factory: SamplerChainFactory,
-    pub streaming_markers: Arc<StreamingMarkers>,
 }
 
 impl GenerationRequestPreparer {
@@ -69,7 +83,8 @@ impl GenerationRequestPreparer {
         }: AgentRequest<ContinueFromRawPromptParams, GeneratedTokenResult>,
     ) -> Result<PreparedGenerationRequest, TextGenerationError> {
         let prompt = PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?);
-        let token_sampling = self.build_token_sampling(grammar)?;
+        let token_sampling =
+            self.build_token_sampling(resolve_grammar(grammar, &self.loaded_llama_model.model)?)?;
 
         Ok(PreparedGenerationRequest {
             generate_tokens_stop_rx,
@@ -77,10 +92,7 @@ impl GenerationRequestPreparer {
             max_tokens,
             prompt,
             slot_guard,
-            token_classification: TokenClassification {
-                bare_json_tool_calls: BareJsonToolCalls::Ignore,
-                streaming_markers: self.streaming_markers.clone(),
-            },
+            token_classification: TokenClassification::Undeterminable,
             token_sampling,
             tool_call_handling: ToolCallHandling::Streamed,
         })
@@ -108,30 +120,46 @@ impl GenerationRequestPreparer {
         >,
     ) -> Result<PreparedGenerationRequest, TextGenerationError> {
         let ConversationPromptSupport {
-            chat_prompt_renderer,
+            chat_templates,
             image_input,
         } = self.conversation_support.prompt_support()?;
 
         require_grammar_compatible_with_thinking(grammar.as_ref(), enable_thinking)?;
 
+        let model = &self.loaded_llama_model.model;
         let tools_with_schema_documents: Vec<Tool<Value>> =
             tools.into_iter().map(Tool::from).collect();
-        let chat_template_tools = ChatTemplateTools::new(&tools_with_schema_documents);
-        let media_marker = request_media_marker(&conversation_history, &chat_template_tools);
+        let tool_call_handling = if parse_tool_calls {
+            ToolCallHandling::Parsed(ToolCallPipeline::new(
+                ToolCallValidator::from_tools(&tools_with_schema_documents)
+                    .map_err(TextGenerationError::ToolSchemaInvalid)?,
+            ))
+        } else {
+            ToolCallHandling::Streamed
+        };
+        let chat_tools: Vec<ChatTool> = tools_with_schema_documents
+            .iter()
+            .map(ChatTool::from)
+            .collect();
+        let media_marker = request_media_marker(&conversation_history, &chat_tools);
         let ChatTemplateConversation {
             image_urls,
             messages,
-        } = conversation_history.into_chat_template_conversation(
-            image_input.chat_template_content_form(),
-            &media_marker,
-        );
+        } = conversation_history.into_chat_template_conversation(&media_marker);
         let prompt_modality = image_input.prompt_modality_for(&image_urls)?;
-        let raw_prompt = chat_prompt_renderer.render(ChatPromptRenderRequest {
-            add_generation_prompt,
-            enable_thinking,
-            messages: &messages,
-            tools: &chat_template_tools.tools,
-        })?;
+        let chat_session = ChatSession::new(
+            model,
+            chat_templates,
+            &messages,
+            &chat_tools,
+            &ChatSessionOptions {
+                assistant_turn: assistant_turn_of(add_generation_prompt),
+                enable_thinking,
+                parallel_tool_calls: true,
+                tool_choice: tool_choice_of(&chat_tools),
+            },
+        )
+        .map_err(TextGenerationError::ChatSessionCreationFailed)?;
 
         let prompt = match prompt_modality {
             PromptModality::Multimodal(multimodal_prompt_support) => PreparedPrompt::Multimodal(
@@ -142,28 +170,25 @@ impl GenerationRequestPreparer {
                         .collect::<Result<Vec<MtmdBitmap>, TextGenerationError>>()?,
                     &MediaMarkedPrompt {
                         media_marker: &media_marker,
-                        prompt: &raw_prompt,
+                        prompt_parts: &chat_session
+                            .prompt_parts()
+                            .map_err(TextGenerationError::ChatPromptUnreadable)?,
                     },
                 )?,
             ),
-            PromptModality::TextOnly => {
-                PreparedPrompt::TextTokens(self.prompt_tokenizer.tokenize(&raw_prompt)?)
-            }
+            PromptModality::TextOnly => PreparedPrompt::TextTokens(
+                self.prompt_tokenizer.tokenize_chat_session(&chat_session)?,
+            ),
         };
 
-        let token_sampling = self.build_token_sampling(grammar)?;
-        let tool_call_handling = if parse_tool_calls {
-            ToolCallHandling::Parsed(
-                self.build_tool_call_pipeline(&tools_with_schema_documents, &chat_template_tools)?,
-            )
-        } else {
-            ToolCallHandling::Streamed
+        let grammar_sampling = match grammar {
+            requested_grammar @ Some(_) => resolve_grammar(requested_grammar, model)?,
+            None => chat_session
+                .grammar_sampler(model)
+                .map_err(TextGenerationError::ChatSessionGrammarUnavailable)?
+                .map_or(GrammarSampling::Unconstrained, GrammarSampling::Constrained),
         };
-        let bare_json_tool_calls = if tools_with_schema_documents.is_empty() {
-            BareJsonToolCalls::Ignore
-        } else {
-            BareJsonToolCalls::Detect
-        };
+        let token_sampling = self.build_token_sampling(grammar_sampling)?;
 
         Ok(PreparedGenerationRequest {
             generate_tokens_stop_rx,
@@ -171,10 +196,7 @@ impl GenerationRequestPreparer {
             max_tokens,
             prompt,
             slot_guard,
-            token_classification: TokenClassification {
-                bare_json_tool_calls,
-                streaming_markers: self.streaming_markers.clone(),
-            },
+            token_classification: TokenClassification::ChatSession(chat_session),
             token_sampling,
             tool_call_handling,
         })
@@ -210,29 +232,14 @@ impl GenerationRequestPreparer {
 
     fn build_token_sampling(
         &self,
-        grammar: Option<GrammarConstraint>,
+        grammar: GrammarSampling,
     ) -> Result<TokenSampling, TextGenerationError> {
-        let grammar = resolve_grammar(grammar, &self.loaded_llama_model.model)?;
         let chain = self
             .sampler_chain_factory
             .create(rng().random::<u32>())
             .map_err(TextGenerationError::SamplerChainCreationFailed)?;
 
         Ok(TokenSampling { chain, grammar })
-    }
-
-    fn build_tool_call_pipeline(
-        &self,
-        tools: &[Tool<Value>],
-        chat_template_tools: &ChatTemplateTools,
-    ) -> Result<ToolCallPipeline, TextGenerationError> {
-        let validator =
-            ToolCallValidator::from_tools(tools).map_err(TextGenerationError::ToolSchemaInvalid)?;
-        let chat_message_parser =
-            ChatMessageParser::new(&self.loaded_llama_model.model, &chat_template_tools.json)
-                .map_err(TextGenerationError::ToolCallParserCreationFailed)?;
-
-        Ok(ToolCallPipeline::new(chat_message_parser, validator))
     }
 }
 

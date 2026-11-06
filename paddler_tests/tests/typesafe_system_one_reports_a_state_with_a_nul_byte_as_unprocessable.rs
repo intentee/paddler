@@ -2,7 +2,7 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::StringToTokenError;
+use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use reqwest::StatusCode;
 use serde_json::json;
 

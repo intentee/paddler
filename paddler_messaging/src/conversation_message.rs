@@ -1,15 +1,13 @@
+use llama_cpp_bindings_types::chat_message::ChatMessage;
+use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::assistant_role::ASSISTANT_ROLE;
-use crate::chat_template_content_form::ChatTemplateContentForm;
-use crate::chat_template_message::ChatTemplateMessage;
-use crate::chat_template_message_content::ChatTemplateMessageContent;
 use crate::conversation_message_content::ConversationMessageContent;
 use crate::conversation_tool_call::ConversationToolCall;
 use crate::image_url::ImageUrl;
 use crate::media_marker::MediaMarker;
-use crate::tool_role::TOOL_ROLE;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -43,37 +41,34 @@ impl ConversationMessage {
 
     pub fn into_chat_template_message(
         self,
-        content_form: ChatTemplateContentForm,
         media_marker: &MediaMarker,
         image_urls: &mut Vec<ImageUrl>,
         preceding_reasoning_content: Option<String>,
-    ) -> ChatTemplateMessage {
+    ) -> ChatMessage {
         match self {
-            Self::AssistantReasoning { reasoning_content } => ChatTemplateMessage::Message {
-                content: ChatTemplateMessageContent::Text(String::new()),
-                reasoning_content: Some(reasoning_content),
+            Self::AssistantReasoning { reasoning_content } => ChatMessage::Message {
                 role: ASSISTANT_ROLE.to_owned(),
+                content: ChatMessageContent::Text(String::new()),
+                reasoning_content: Some(reasoning_content),
             },
             Self::AssistantToolCalls {
                 content,
                 tool_calls,
-            } => ChatTemplateMessage::AssistantToolCalls {
-                content: content.into_chat_template_content(content_form, media_marker, image_urls),
+            } => ChatMessage::AssistantToolCalls {
+                content: content.into_chat_template_content(media_marker, image_urls),
                 reasoning_content: preceding_reasoning_content,
-                role: ASSISTANT_ROLE,
                 tool_calls: tool_calls.into_iter().map(Into::into).collect(),
             },
-            Self::Message { content, role } => ChatTemplateMessage::Message {
-                content: content.into_chat_template_content(content_form, media_marker, image_urls),
-                reasoning_content: preceding_reasoning_content,
+            Self::Message { content, role } => ChatMessage::Message {
                 role,
+                content: content.into_chat_template_content(media_marker, image_urls),
+                reasoning_content: preceding_reasoning_content,
             },
             Self::ToolResult {
                 content,
                 tool_call_id,
-            } => ChatTemplateMessage::ToolResult {
-                content: content.into_chat_template_content(content_form, media_marker, image_urls),
-                role: TOOL_ROLE,
+            } => ChatMessage::ToolResult {
+                content: content.into_chat_template_content(media_marker, image_urls),
                 tool_call_id,
             },
         }

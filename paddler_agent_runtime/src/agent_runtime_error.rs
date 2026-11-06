@@ -2,12 +2,12 @@ use std::io;
 use std::num::TryFromIntError;
 use std::path::PathBuf;
 
-use llama_cpp_bindings::LlamaCppError;
 use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::DecodeError;
-use llama_cpp_bindings::error::LlamaContextLoadError;
-use llama_cpp_bindings::error::LlamaModelLoadError;
-use llama_cpp_bindings::error::MetaValError;
+use llama_cpp_bindings::error::decode_error::DecodeError;
+use llama_cpp_bindings::error::llama_context_load_error::LlamaContextLoadError;
+use llama_cpp_bindings::error::llama_cpp_error::LlamaCppError;
+use llama_cpp_bindings::error::llama_model_load_error::LlamaModelLoadError;
+use llama_cpp_bindings::error::meta_val_error::MetaValError;
 
 use paddler_messaging::inference_capability::InferenceCapability;
 

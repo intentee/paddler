@@ -2,7 +2,7 @@
 
 use std::ffi::CString;
 
-use llama_cpp_bindings::error::StringToTokenError;
+use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 
 use paddler_agent_decision::decision_delimiter_tokens::DecisionDelimiterTokens;
 use paddler_agent_decision::decision_error::DecisionError;

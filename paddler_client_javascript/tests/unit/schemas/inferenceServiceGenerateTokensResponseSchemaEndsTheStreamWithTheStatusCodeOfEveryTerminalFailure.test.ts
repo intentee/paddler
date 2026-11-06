@@ -9,6 +9,7 @@ const terminalErrorCodes = [
   { code: 500, variant: "ChatTemplateError" },
   { code: 500, variant: "DecodeFailed" },
   { code: 500, variant: "DetokenizationFailed" },
+  { code: 500, variant: "AnswerClassificationFailed" },
   { code: 400, variant: "GrammarIncompatibleWithThinking" },
   { code: 500, variant: "GrammarInitializationFailed" },
   { code: 500, variant: "GrammarRejectedModelOutput" },

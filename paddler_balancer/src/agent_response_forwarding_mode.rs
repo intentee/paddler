@@ -60,7 +60,7 @@ impl AgentResponseForwardingMode {
 mod tests {
     use std::time::Duration;
 
-    use llama_cpp_bindings_types::TokenUsage;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
 
     use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
     use paddler_messaging::generated_token_partial_result::GeneratedTokenPartialResult;

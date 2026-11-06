@@ -1,5 +1,5 @@
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::batch_add_error::BatchAddError;
+use llama_cpp_bindings::sampled_token::SampledToken;
 
 use crate::continuous_batch_active_request::ContinuousBatchActiveRequest;
 use crate::continuous_batch_generation_step::ContinuousBatchGenerationStep;
@@ -17,28 +17,23 @@ fn compute_ingesting_chunk_size(
     remaining_prompt_len.min(available_space)
 }
 
-pub struct AssembleBatchPhase {
-    pub n_batch: usize,
-}
+pub struct AssembleBatchPhase;
 
 impl AssembleBatchPhase {
     pub fn run(
-        &self,
         pass: &mut BatchPass,
         requests: &mut [ContinuousBatchActiveRequest<'_>],
     ) -> Result<(), BatchAddError> {
-        let added = Self::fill_generating(pass, requests)?;
-        pass.contributions.current_batch_token_count += added;
-        self.fill_ingesting(pass, requests)?;
+        Self::fill_generating(pass, requests)?;
+        Self::fill_ingesting(pass, requests)?;
+
         Ok(())
     }
 
     fn fill_generating(
         pass: &mut BatchPass,
         requests: &[ContinuousBatchActiveRequest<'_>],
-    ) -> Result<usize, BatchAddError> {
-        let mut tokens_added: usize = 0;
-
+    ) -> Result<(), BatchAddError> {
         for (request_index, request) in requests.iter().enumerate() {
             let ContinuousBatchRequestPhase::Generating(
                 ContinuousBatchGenerationStep::AwaitingDecode(pending_token),
@@ -60,15 +55,12 @@ impl AssembleBatchPhase {
                 request_index,
                 batch_position,
             });
-
-            tokens_added += 1;
         }
 
-        Ok(tokens_added)
+        Ok(())
     }
 
     fn fill_ingesting(
-        &self,
         pass: &mut BatchPass,
         requests: &[ContinuousBatchActiveRequest<'_>],
     ) -> Result<(), BatchAddError> {
@@ -76,18 +68,15 @@ impl AssembleBatchPhase {
             if !matches!(
                 request.state.phase,
                 ContinuousBatchRequestPhase::IngestingText
-                    | ContinuousBatchRequestPhase::IngestingLeadingBos(_)
             ) {
                 continue;
             }
 
-            let samples_after_its_text_prompt = request.state.phase.samples_after_its_text_prompt();
-
             let remaining = request.state.remaining_prompt_tokens();
             let chunk_size = compute_ingesting_chunk_size(
                 remaining.len(),
-                self.n_batch,
-                pass.contributions.current_batch_token_count,
+                pass.batch.limits().n_batch as usize,
+                pass.batch.n_tokens() as usize,
             );
 
             if chunk_size == 0 {
@@ -98,20 +87,17 @@ impl AssembleBatchPhase {
                 ..request.state.prompt_tokens_ingested + chunk_size];
             let is_last_chunk = request.state.prompt_tokens_ingested + chunk_size
                 >= request.state.prompt_tokens.len();
-
             let mut next_token_position = request.state.current_token_position;
 
             for (offset, (position, token)) in (request.state.current_token_position..)
                 .zip(chunk)
                 .enumerate()
             {
-                let is_last_token_of_prompt = is_last_chunk && offset == chunk_size - 1;
-
                 pass.batch.add(
                     &SampledToken::Content(*token),
                     position,
                     &[request.sequence_id_guard.sequence_id().llama_sequence_id()],
-                    is_last_token_of_prompt && samples_after_its_text_prompt,
+                    is_last_chunk && offset == chunk_size - 1,
                 )?;
 
                 next_token_position = position + 1;
@@ -124,8 +110,6 @@ impl AssembleBatchPhase {
                 last_batch_position: pass.batch.n_tokens() - 1,
                 next_token_position,
             });
-
-            pass.contributions.current_batch_token_count += chunk_size;
         }
 
         Ok(())
@@ -134,9 +118,8 @@ impl AssembleBatchPhase {
 
 #[cfg(test)]
 mod tests {
+    use llama_cpp_bindings::context::context_limits::ContextLimits;
     use llama_cpp_bindings::llama_batch::LlamaBatch;
-
-    use paddler_inference_parameters::batch_size::BatchSize;
 
     use super::AssembleBatchPhase;
     use super::compute_ingesting_chunk_size;
@@ -145,14 +128,17 @@ mod tests {
 
     #[test]
     fn run_over_empty_requests_leaves_batch_untouched() {
-        let assemble_phase = AssembleBatchPhase { n_batch: 16 };
-        let mut batch = LlamaBatch::new(BatchSize::try_from(16).unwrap().capacity(), 1);
+        let mut batch = LlamaBatch::new(ContextLimits {
+            n_batch: 16,
+            n_ubatch: 16,
+            n_seq_max: 1,
+            n_vocab: 2,
+        });
         let mut pass = BatchPass::new(&mut batch);
         let mut requests: [ContinuousBatchActiveRequest; 0] = [];
 
-        assemble_phase.run(&mut pass, &mut requests).unwrap();
+        AssembleBatchPhase::run(&mut pass, &mut requests).unwrap();
 
-        assert_eq!(pass.contributions.current_batch_token_count, 0);
         assert_eq!(pass.batch.n_tokens(), 0);
         assert!(pass.is_empty());
     }

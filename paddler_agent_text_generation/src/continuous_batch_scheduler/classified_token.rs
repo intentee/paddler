@@ -1,16 +1,7 @@
-use llama_cpp_bindings::SampledToken;
-use llama_cpp_bindings::SampledTokenSection;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_bindings::sampled_token::SampledToken;
+use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
 use llama_cpp_bindings::token_piece::TokenPiece;
-
-const fn section_of(token: SampledToken) -> SampledTokenSection {
-    match token {
-        SampledToken::Reasoning(_) => SampledTokenSection::Reasoning,
-        SampledToken::Content(_) => SampledTokenSection::Content,
-        SampledToken::ToolCall(_) => SampledTokenSection::ToolCall,
-        SampledToken::Undeterminable(_) => SampledTokenSection::Pending,
-    }
-}
 
 pub struct ClassifiedToken {
     pub sampled_token: SampledToken,
@@ -28,7 +19,7 @@ impl ClassifiedToken {
         }: IngestOutcome,
         last_outcome_section: &mut SampledTokenSection,
     ) -> Self {
-        let section = section_of(sampled_token);
+        let section = sampled_token.section();
         let classified = Self {
             sampled_token,
             piece,
@@ -44,9 +35,9 @@ impl ClassifiedToken {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::SampledToken;
-    use llama_cpp_bindings::SampledTokenSection;
     use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+    use llama_cpp_bindings::sampled_token::SampledToken;
+    use llama_cpp_bindings::sampled_token_section::SampledTokenSection;
     use llama_cpp_bindings::token::LlamaToken;
     use llama_cpp_bindings::token_piece::TokenPiece;
 

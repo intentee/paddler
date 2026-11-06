@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::token::LlamaToken;
 use tokio::sync::mpsc::error::SendError;
@@ -24,8 +25,7 @@ fn a_decision_whose_client_stopped_listening_cannot_send_its_answer() {
     let mut llama_context = runtime
         .create_decision_llama_context(1)
         .expect("the decision context must be created");
-    let n_batch = runtime.model_runtime_parameters.n_batch.tokens_usize();
-    let mut batch = LlamaBatch::new(runtime.model_runtime_parameters.n_batch.capacity(), 1);
+    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
     let layout = DecisionTokenLayout::new(
         &delimiter_tokens,
         vec![LlamaToken::new(0)],
@@ -53,7 +53,6 @@ fn a_decision_whose_client_stopped_listening_cannot_send_its_answer() {
             &mut DecisionDecoder {
                 batch: &mut batch,
                 llama_context: &mut llama_context,
-                n_batch,
             },
             &pointer_head,
             None,
@@ -66,7 +65,6 @@ fn a_decision_whose_client_stopped_listening_cannot_send_its_answer() {
                 &mut DecisionDecoder {
                     batch: &mut batch,
                     llama_context: &mut llama_context,
-                    n_batch,
                 },
                 &pointer_head,
                 None,

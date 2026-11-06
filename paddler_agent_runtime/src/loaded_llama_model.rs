@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::context::params::LlamaContextParams;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 use llama_cpp_bindings::model::LlamaModel;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;
 use tokio_util::sync::CancellationToken;
 
@@ -176,25 +177,19 @@ impl LoadedLlamaModel {
     pub fn warm_up_llama_context(
         &self,
         llama_context: &mut LlamaContext<'_>,
-        warmup_batch: &mut LlamaBatch<'static>,
-        desired_slots_total: u16,
+        warmup_batch: &mut LlamaBatch,
     ) -> Result<(), AgentRuntimeError> {
         let warmup_tokens: Vec<LlamaToken> = [self.model.token_bos(), self.model.token_eos()]
             .into_iter()
             .flatten()
             .collect();
 
-        llama_context.clear_kv_cache();
+        llama_context.memory_clear();
 
-        let warm_up = Self::decode_every_warm_up_position(
-            llama_context,
-            warmup_batch,
-            &warmup_tokens,
-            desired_slots_total,
-        );
+        let warm_up =
+            Self::decode_every_warm_up_position(llama_context, warmup_batch, &warmup_tokens);
 
-        llama_context.synchronize();
-        llama_context.clear_kv_cache();
+        llama_context.memory_clear();
 
         warm_up
     }
@@ -202,35 +197,36 @@ impl LoadedLlamaModel {
     pub fn warm_up_and_serve<'model, TServe>(
         &self,
         mut llama_context: ResidentLlamaContext<'model>,
-        mut warmup_batch: LlamaBatch<'static>,
-        desired_slots_total: u16,
         serve: TServe,
     ) -> Result<(), AgentRuntimeError>
     where
-        TServe: FnOnce(ResidentLlamaContext<'model>, LlamaBatch<'static>),
+        TServe: FnOnce(ResidentLlamaContext<'model>, LlamaBatch),
     {
-        self.warm_up_llama_context(&mut llama_context, &mut warmup_batch, desired_slots_total)?;
+        let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
 
-        serve(llama_context, warmup_batch);
+        self.warm_up_llama_context(&mut llama_context, &mut batch)?;
+
+        serve(llama_context, batch);
 
         Ok(())
     }
 
     fn decode_every_warm_up_position(
         llama_context: &mut LlamaContext<'_>,
-        warmup_batch: &mut LlamaBatch<'static>,
+        warmup_batch: &mut LlamaBatch,
         warmup_tokens: &[LlamaToken],
-        desired_slots_total: u16,
     ) -> Result<(), AgentRuntimeError> {
+        let warmed_up_sequences = warmup_batch.limits().n_seq_max.cast_signed();
+
         for (position, warmup_token) in (0..).zip(warmup_tokens) {
             warmup_batch.clear();
 
-            for sequence_index in 0..i32::from(desired_slots_total) {
+            for sequence_id in 0..warmed_up_sequences {
                 warmup_batch
                     .add(
                         &SampledToken::Content(*warmup_token),
                         position,
-                        &[sequence_index],
+                        &[sequence_id],
                         true,
                     )
                     .map_err(AgentRuntimeError::WarmUpBatchAssemblyFailed)?;

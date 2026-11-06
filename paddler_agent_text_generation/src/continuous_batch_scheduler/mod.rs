@@ -14,10 +14,8 @@ pub mod generating_contribution;
 pub mod ingesting_contribution;
 pub mod sequence_ordered_insertion_index;
 
-use std::mem;
 use std::slice;
 
-use llama_cpp_bindings::SampledTokenClassifier;
 use llama_cpp_bindings::batch_add_error::BatchAddError;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
@@ -47,17 +45,15 @@ use crate::continuous_batch_request_phase::ContinuousBatchRequestPhase;
 use crate::continuous_batch_request_state::ContinuousBatchRequestState;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_scheduler_params::ContinuousBatchSchedulerParams;
-use crate::leading_bos_ingestion::LeadingBosIngestion;
 use crate::multimodal_ingestion_progress::MultimodalIngestionProgress;
 use crate::prepared_generation_request::PreparedGenerationRequest;
 use crate::prepared_prompt::PreparedPrompt;
 use crate::text_generation_error::TextGenerationError;
-use crate::token_classification::TokenClassification;
 
 pub struct ContinuousBatchScheduler<'model> {
     active_requests: Vec<ContinuousBatchActiveRequest<'model>>,
     agent_shutdown: CancellationToken,
-    batch: LlamaBatch<'static>,
+    batch: LlamaBatch,
     candidates: LlamaTokenDataArray,
     ingest_outcomes: Vec<IngestOutcome>,
     pub llama_context: ResidentLlamaContext<'model>,
@@ -123,9 +119,6 @@ impl<'model> ContinuousBatchScheduler<'model> {
         self.scheduler_inbox
             .reject_waiting_commands(self.scheduler_context.agent_name.as_deref());
 
-        self.llama_context.synchronize();
-        self.llama_context.detach_threadpool();
-
         info!(
             "{:?}: continuous batch scheduler stopped",
             self.scheduler_context.agent_name
@@ -142,20 +135,6 @@ impl<'model> ContinuousBatchScheduler<'model> {
         while let Some(request) = self.scheduler_inbox.take_next_waiting_command() {
             self.accept_generation_request(request);
         }
-    }
-
-    fn build_token_classifier_for_active_request(
-        &self,
-        TokenClassification {
-            bare_json_tool_calls,
-            streaming_markers,
-        }: TokenClassification,
-    ) -> SampledTokenClassifier<'model> {
-        SampledTokenClassifier::new(
-            self.scheduler_context.model,
-            streaming_markers,
-            bare_json_tool_calls,
-        )
     }
 
     fn accept_generation_request(&mut self, request: PreparedGenerationRequest) {
@@ -202,8 +181,9 @@ impl<'model> ContinuousBatchScheduler<'model> {
     ) -> Result<ContinuousBatchActiveRequest<'model>, TextGenerationError> {
         let sequence_id_guard = SequenceIdGuard::acquire(&self.sequence_id_pool)
             .ok_or(TextGenerationError::NoSequenceSlotAvailable)?;
-        let mut token_classifier =
-            self.build_token_classifier_for_active_request(token_classification);
+        let mut token_classifier = token_classification
+            .into_classifier(self.scheduler_context.model)
+            .map_err(TextGenerationError::AnswerClassifierUnavailable)?;
 
         sequence_id_guard
             .sequence_id()
@@ -220,29 +200,14 @@ impl<'model> ContinuousBatchScheduler<'model> {
             sampled_tokens: 0,
         };
 
-        state.phase = match prompt {
-            PreparedPrompt::TextTokens(prompt_tokens) => {
-                state.prompt_tokens = prompt_tokens;
-
-                ContinuousBatchRequestPhase::IngestingText
+        match prompt {
+            PreparedPrompt::TextTokens(prompt_tokens) => state.prompt_tokens = prompt_tokens,
+            PreparedPrompt::Multimodal(ingestion) => {
+                state.phase = ContinuousBatchRequestPhase::IngestingMultimodal(ingestion);
             }
-            PreparedPrompt::Multimodal(mut ingestion) => match mem::replace(
-                &mut ingestion.leading_bos_ingestion,
-                LeadingBosIngestion::Skip,
-            ) {
-                LeadingBosIngestion::Ingest(bos_token) => {
-                    state.prompt_tokens = vec![bos_token];
+        }
 
-                    ContinuousBatchRequestPhase::IngestingLeadingBos(ingestion)
-                }
-                LeadingBosIngestion::Skip => {
-                    ContinuousBatchRequestPhase::IngestingMultimodal(ingestion)
-                }
-            },
-        };
         token_classifier.record_prompt_tokens(state.prompt_tokens.len() as u64);
-        token_classifier.ingest_prompt_tokens(&state.prompt_tokens);
-        state.last_outcome_section = token_classifier.current_section();
 
         Ok(ContinuousBatchActiveRequest {
             state,
@@ -266,7 +231,7 @@ impl<'model> ContinuousBatchScheduler<'model> {
 
             match ingestion.ingest_next_chunk(
                 &mut active_request.token_classifier,
-                &self.llama_context,
+                &mut self.llama_context,
                 active_request.sequence_id_guard.sequence_id(),
                 active_request.state.current_token_position,
             ) {
@@ -280,7 +245,6 @@ impl<'model> ContinuousBatchScheduler<'model> {
                             next_position,
                             active_request.token_classifier.current_section(),
                         );
-                    self.llama_context.mark_logits_initialized(-1);
 
                     AdvanceGeneratingPhase {
                         candidates: &mut self.candidates,
@@ -343,13 +307,9 @@ impl<'model> ContinuousBatchScheduler<'model> {
         self.advance_generating_requests();
         self.ingest_next_multimodal_chunks();
 
-        let assemble_phase = AssembleBatchPhase {
-            n_batch: self.scheduler_context.n_batch.tokens_usize(),
-        };
-
         let mut pass = BatchPass::new(&mut self.batch);
 
-        assemble_phase.run(&mut pass, &mut self.active_requests)?;
+        AssembleBatchPhase::run(&mut pass, &mut self.active_requests)?;
 
         if pass.is_empty() {
             return Ok(());

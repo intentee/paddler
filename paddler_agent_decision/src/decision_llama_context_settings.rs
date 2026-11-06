@@ -1,4 +1,4 @@
-use llama_cpp_bindings::context::params::LlamaPoolingType;
+use llama_cpp_bindings::context::llama_pooling_type::LlamaPoolingType;
 
 use paddler_agent_runtime::inference_runtime_context::InferenceRuntimeContext;
 use paddler_agent_runtime::llama_context_settings::LlamaContextSettings;

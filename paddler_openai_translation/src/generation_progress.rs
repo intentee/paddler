@@ -7,13 +7,13 @@ use crate::generation_failure_cause::GenerationFailureCause;
 
 fn unrecognized_tool_call_format_message(
     RawToolCallTokens {
-        ffi_error_message,
+        expected_format,
         text,
     }: &RawToolCallTokens,
 ) -> String {
     format!(
-        "model produced output the parser did not recognise as any registered tool-call format; \
-         FFI error: {ffi_error_message}; raw text: {text}"
+        "model produced output that does not match the {expected_format} format its chat \
+         template expects; raw text: {text}"
     )
 }
 
@@ -62,7 +62,7 @@ impl From<GeneratedTokenPartialResult> for GenerationProgress {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
 
     use paddler_messaging::generated_token_partial_result::GeneratedTokenPartialResult;
@@ -138,10 +138,10 @@ mod tests {
             (
                 GeneratedTokenPartialResult::UnrecognizedToolCallFormat(RawToolCallTokens {
                     text: "<unknown_marker>blah</unknown_marker>".to_owned(),
-                    ffi_error_message: "common_chat_parse failed: no parser".to_owned(),
+                    expected_format: "peg-native".to_owned(),
                 }),
                 agent_failed(
-                    "model produced output the parser did not recognise as any registered tool-call format; FFI error: common_chat_parse failed: no parser; raw text: <unknown_marker>blah</unknown_marker>",
+                    "model produced output that does not match the peg-native format its chat template expects; raw text: <unknown_marker>blah</unknown_marker>",
                 ),
             ),
         ] {

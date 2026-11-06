@@ -2858,9 +2858,9 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "llama-cpp-bindings"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cba492d27e5561fe423205eb14ab51854151e48bf732bbc717f7986a5f64e56"
+checksum = "22ac213c6fa121b150eab846d0e6b89fd841f537082cab65f95dfeb0b51b044b"
 dependencies = [
  "encoding_rs",
  "enumflags2",
@@ -2872,9 +2872,7 @@ dependencies = [
  "llama-cpp-log-decoder",
  "llguidance",
  "log",
- "nom 8.0.0",
  "once_cell",
- "serde",
  "serde_json",
  "thiserror",
  "toktrie",
@@ -2882,32 +2880,35 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-bindings-build"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "31cc4171a52ead66ab2480630dc2d589b6ca6aca1ed43949cda23abcd429943c"
+checksum = "edaf35633efac8b7e7373d90c9bcdfac1f827a2326cae0417cdbef8a99de17c8"
 dependencies = [
  "bindgen",
  "cc",
  "cmake",
+ "enumflags2",
  "find_cuda_helper",
  "llama-cpp-wrapper-sources",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-sys"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b45cb652a6c60f065b22e29be57a72c38b9d13247bb15c6edd150b18d4f9dc1"
+checksum = "3112bb717bc69fe4578603795287cdb1f2a9f01c89ee9931a4129ec1f921860d"
 dependencies = [
  "llama-cpp-bindings-build",
 ]
 
 [[package]]
 name = "llama-cpp-bindings-types"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f200360a50320173ea1eb8063cf51ef2ba5d0fee6168d528a6431ed5fc6e7bb2"
+checksum = "4dcf97dc56331fe20aea75b65658da19c4c35a8d35b84ec86898ad0c936769f7"
 dependencies = [
  "serde",
  "serde_json",
@@ -2916,18 +2917,27 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-error-recorder"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7de19c6c96c4d610b79fe1cfbbd40adff64e867cd8bf6bf6c69f75fcc4cc6d23"
+checksum = "915c43af5325f29ea1146a8afc0695895089044444401b6a1633ed2470d8b0d3"
 dependencies = [
  "log",
 ]
 
 [[package]]
-name = "llama-cpp-ffi-status"
-version = "0.25.0"
+name = "llama-cpp-fault-injection"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "942ab7989e058a65410f3cd332bed2a75c4c05f64b41392c1fb93d53f4c3e593"
+checksum = "ece88ba090fb5db2dc3e3b7591bbdc7b6994fa35d9a8b8f1bdac4f039f77e185"
+dependencies = [
+ "llama-cpp-bindings-sys",
+]
+
+[[package]]
+name = "llama-cpp-ffi-status"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5f94b0a1db977cf718faf4e52516b9f42ad95d30643c035a42c91d309ce27da"
 dependencies = [
  "llama-cpp-bindings-sys",
  "thiserror",
@@ -2935,9 +2945,9 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-gbnf"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9456faa4fcb02bf221f176d088e2a0146cc9a56c35015cac89413a4f6056487b"
+checksum = "7d50179772a15575c06de5bec58a97271d8e6f245f9a7809e26df687958a3d6e"
 dependencies = [
  "llama-cpp-bindings-sys",
  "llama-cpp-ffi-status",
@@ -2946,15 +2956,15 @@ dependencies = [
 
 [[package]]
 name = "llama-cpp-log-decoder"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8129eec443ccdb124fc172cf33db7d0e87f975868493b8b0279b6d6407cc334"
+checksum = "f744582f00ad43a0adc7e1e03eebb801babc710bcc4817713713f428d0393c1c"
 
 [[package]]
 name = "llama-cpp-wrapper-sources"
-version = "0.25.0"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7f93c691c97cef03d185f7f46815bbcb00f00c21bdcd5d16b62754f189e682c"
+checksum = "001bf0bf8941668bb027dfbe95f315217337829bc71f3744dafac2aa1bfe4fd8"
 dependencies = [
  "serde",
  "serde_json",
@@ -3106,27 +3116,6 @@ checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
 dependencies = [
  "mime",
  "unicase",
-]
-
-[[package]]
-name = "minijinja"
-version = "3.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90086695417a271bc96e6cb50618555614ca48fa3bb0d9aa96e3468b0f84431e"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "minijinja-contrib"
-version = "3.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c8e63b8c511fbb281cc19a1f731acd0903886ab6fbaf8399240ca68e5626568"
-dependencies = [
- "jiff",
- "minijinja",
- "textwrap",
- "unicode_categories",
 ]
 
 [[package]]
@@ -3580,9 +3569,9 @@ version = "5.0.0"
 dependencies = [
  "encoding_rs",
  "llama-cpp-bindings",
+ "llama-cpp-bindings-types",
+ "llama-cpp-ffi-status",
  "log",
- "minijinja",
- "minijinja-contrib",
  "paddler_agent_runtime",
  "paddler_agent_status",
  "paddler_image_decoder",
@@ -3814,7 +3803,6 @@ dependencies = [
 name = "paddler_inference_parameters"
 version = "5.0.0"
 dependencies = [
- "llama-cpp-bindings-types",
  "serde",
  "serde_json",
  "thiserror",
@@ -3998,6 +3986,8 @@ dependencies = [
  "llama-cpp-bindings",
  "llama-cpp-bindings-sys",
  "llama-cpp-bindings-types",
+ "llama-cpp-fault-injection",
+ "llama-cpp-gbnf",
  "log",
  "paddler_agent",
  "paddler_agent_decision",
@@ -5275,12 +5265,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0d5d4b1981b8bbbb7aed204cae5726d683d5d6ac7e74ec54122ea28f315e7c8"
 
 [[package]]
-name = "smawk"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8e2fb0f499abb4d162f2bedad68f5ef91a1682b5a03596ddb67efd37768d100"
-
-[[package]]
 name = "socket2"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5480,16 +5464,6 @@ dependencies = [
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "textwrap"
-version = "0.16.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ecfad6c3abc80a577f2b91c1e412ee57e7a060d430b553c1b0c940974ebcd49"
-dependencies = [
- "smawk",
- "unicode-width",
 ]
 
 [[package]]
@@ -5982,22 +5956,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94"
 
 [[package]]
-name = "unicode-width"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
-
-[[package]]
 name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
-
-[[package]]
-name = "unicode_categories"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e"
 
 [[package]]
 name = "untrusted"

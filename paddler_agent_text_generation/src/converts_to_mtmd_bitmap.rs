@@ -1,5 +1,5 @@
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdBitmapError;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_bitmap_error::MtmdBitmapError;
 
 use paddler_image_decoder::decoded_image::DecodedImage;
 

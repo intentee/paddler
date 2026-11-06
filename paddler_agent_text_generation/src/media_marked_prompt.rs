@@ -1,21 +1,22 @@
-use llama_cpp_bindings::mtmd::MtmdBitmap;
-use llama_cpp_bindings::mtmd::MtmdInputPart;
-use llama_cpp_bindings::mtmd::MtmdInputTextPart;
+use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
+use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
+use llama_cpp_bindings::mtmd::mtmd_input_text_part::MtmdInputTextPart;
 
 use paddler_messaging::media_marker::MediaMarker;
 
 use crate::text_generation_error::TextGenerationError;
 
-fn text_part<'bitmap>(text_segment: &str) -> MtmdInputPart<'bitmap> {
+fn text_part<'bitmap>(text_segment: &str, parse_special: bool) -> MtmdInputPart<'bitmap> {
     MtmdInputPart::Text(MtmdInputTextPart {
-        parse_special: true,
+        parse_special,
         text: text_segment.to_owned(),
     })
 }
 
 pub struct MediaMarkedPrompt<'prompt> {
     pub media_marker: &'prompt MediaMarker,
-    pub prompt: &'prompt str,
+    pub prompt_parts: &'prompt [ChatPromptPart],
 }
 
 impl MediaMarkedPrompt<'_> {
@@ -23,38 +24,44 @@ impl MediaMarkedPrompt<'_> {
         &self,
         bitmaps: &'bitmap [MtmdBitmap],
     ) -> Result<Vec<MtmdInputPart<'bitmap>>, TextGenerationError> {
-        let text_segments: Vec<&str> = self
-            .prompt
-            .split(self.media_marker.marker.as_str())
-            .collect();
+        let marker = self.media_marker.marker.as_str();
+        let rendered_media_markers: usize = self
+            .prompt_parts
+            .iter()
+            .map(|prompt_part| prompt_part.text().matches(marker).count())
+            .sum();
 
-        match text_segments.split_last() {
-            Some((trailing_text_segment, leading_text_segments))
-                if leading_text_segments.len() == bitmaps.len() =>
-            {
-                let mut parts = Vec::with_capacity(text_segments.len() + bitmaps.len());
+        if rendered_media_markers != bitmaps.len() {
+            return Err(TextGenerationError::RenderedMediaMarkersMismatchImages {
+                images: bitmaps.len(),
+                rendered_media_markers,
+            });
+        }
 
-                for (text_segment, bitmap) in leading_text_segments.iter().zip(bitmaps) {
-                    parts.push(text_part(text_segment));
-                    parts.push(MtmdInputPart::Bitmap(bitmap));
+        let mut remaining_bitmaps = bitmaps.iter().map(MtmdInputPart::Bitmap);
+        let mut parts = Vec::with_capacity(self.prompt_parts.len() + 2 * bitmaps.len());
+
+        for prompt_part in self.prompt_parts {
+            let parse_special = matches!(prompt_part, ChatPromptPart::Template(_));
+
+            for (segment_index, text_segment) in prompt_part.text().split(marker).enumerate() {
+                if segment_index > 0 {
+                    parts.extend(remaining_bitmaps.next());
                 }
 
-                parts.push(text_part(trailing_text_segment));
-
-                Ok(parts)
+                parts.push(text_part(text_segment, parse_special));
             }
-            _ => Err(TextGenerationError::RenderedMediaMarkersMismatchImages {
-                images: bitmaps.len(),
-                rendered_media_markers: text_segments.len().saturating_sub(1),
-            }),
         }
+
+        Ok(parts)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::mtmd::MtmdBitmap;
-    use llama_cpp_bindings::mtmd::MtmdInputPart;
+    use llama_cpp_bindings::chat_prompt_part::ChatPromptPart;
+    use llama_cpp_bindings::mtmd::mtmd_bitmap::MtmdBitmap;
+    use llama_cpp_bindings::mtmd::mtmd_input_part::MtmdInputPart;
 
     use paddler_messaging::media_marker::MediaMarker;
 
@@ -67,42 +74,60 @@ mod tests {
         MtmdBitmap::from_image_data(2, 2, &[128; 2 * 2 * 3]).unwrap()
     }
 
-    fn interleaving_failure(prompt: &str, images: &[MtmdBitmap]) -> Option<String> {
-        let media_marker = MediaMarker::new(MEDIA_MARKER.to_owned());
-
-        MediaMarkedPrompt {
-            media_marker: &media_marker,
-            prompt,
+    fn part_shape(part: &MtmdInputPart<'_>) -> String {
+        match part {
+            MtmdInputPart::Bitmap(_) => "bitmap".to_owned(),
+            MtmdInputPart::Text(text_part) => {
+                format!("{:?} special={}", text_part.text, text_part.parse_special)
+            }
         }
-        .interleave_with(images)
-        .err()
-        .as_ref()
-        .map(ToString::to_string)
     }
 
     #[test]
-    fn places_each_image_where_its_marker_was_rendered() {
+    fn places_each_image_where_its_marker_was_rendered_inside_user_input() {
         let media_marker = MediaMarker::new(MEDIA_MARKER.to_owned());
         let images = [image(), image()];
+        let prompt_parts = [
+            ChatPromptPart::Template("<|user|>".to_owned()),
+            ChatPromptPart::Input(format!("Compare {MEDIA_MARKER} with {MEDIA_MARKER}")),
+            ChatPromptPart::Template("<|end|>".to_owned()),
+        ];
 
         assert_eq!(
             MediaMarkedPrompt {
                 media_marker: &media_marker,
-                prompt: &format!("Compare {MEDIA_MARKER} with {MEDIA_MARKER} please"),
+                prompt_parts: &prompt_parts,
             }
             .interleave_with(&images)
             .unwrap()
             .iter()
-            .map(|part| matches!(part, MtmdInputPart::Bitmap(_)))
-            .collect::<Vec<_>>(),
-            [false, true, false, true, false]
+            .map(part_shape)
+            .collect::<Vec<String>>(),
+            [
+                "\"<|user|>\" special=true",
+                "\"Compare \" special=false",
+                "bitmap",
+                "\" with \" special=false",
+                "bitmap",
+                "\"\" special=false",
+                "\"<|end|>\" special=true",
+            ]
         );
     }
 
     #[test]
     fn a_rendering_that_lost_an_image_marker_is_rejected() {
+        let media_marker = MediaMarker::new(MEDIA_MARKER.to_owned());
+
         assert_eq!(
-            interleaving_failure("Describe nothing", &[image()]),
+            MediaMarkedPrompt {
+                media_marker: &media_marker,
+                prompt_parts: &[ChatPromptPart::Input("Describe nothing".to_owned())],
+            }
+            .interleave_with(&[image()])
+            .err()
+            .as_ref()
+            .map(ToString::to_string),
             Some(
                 TextGenerationError::RenderedMediaMarkersMismatchImages {
                     images: 1,

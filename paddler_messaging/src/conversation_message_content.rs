@@ -1,8 +1,8 @@
+use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
+use llama_cpp_bindings_types::chat_message_content_part::ChatMessageContentPart;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::chat_template_content_form::ChatTemplateContentForm;
-use crate::chat_template_message_content::ChatTemplateMessageContent;
 use crate::conversation_message_content_part::ConversationMessageContentPart;
 use crate::image_url::ImageUrl;
 use crate::media_marker::MediaMarker;
@@ -17,21 +17,22 @@ pub enum ConversationMessageContent {
 impl ConversationMessageContent {
     pub fn into_chat_template_content(
         self,
-        content_form: ChatTemplateContentForm,
         media_marker: &MediaMarker,
         image_urls: &mut Vec<ImageUrl>,
-    ) -> ChatTemplateMessageContent {
+    ) -> ChatMessageContent {
         match self {
-            Self::Text(text) => ChatTemplateMessageContent::Text(text),
-            Self::Parts(parts) => content_form.content_of(
+            Self::Text(text) => ChatMessageContent::Text(text),
+            Self::Parts(parts) => ChatMessageContent::Parts(
                 parts
                     .into_iter()
                     .map(|part| match part {
-                        ConversationMessageContentPart::Text { text } => text,
+                        ConversationMessageContentPart::Text { text } => {
+                            ChatMessageContentPart::Text(text)
+                        }
                         ConversationMessageContentPart::ImageUrl { image_url } => {
                             image_urls.push(image_url);
 
-                            media_marker.marker.clone()
+                            ChatMessageContentPart::MediaMarker(media_marker.marker.clone())
                         }
                     })
                     .collect(),
@@ -71,32 +72,44 @@ impl ConversationMessageContent {
 
 #[cfg(test)]
 mod tests {
-    use crate::chat_template_content_form::ChatTemplateContentForm;
-    use crate::chat_template_message_content::ChatTemplateMessageContent;
+    use llama_cpp_bindings_types::chat_message_content::ChatMessageContent;
+    use llama_cpp_bindings_types::chat_message_content_part::ChatMessageContentPart;
+
     use crate::conversation_message_content::ConversationMessageContent;
     use crate::conversation_message_content_part::ConversationMessageContentPart;
     use crate::image_url::ImageUrl;
     use crate::media_marker::MediaMarker;
 
     #[test]
-    fn a_template_taking_text_receives_the_text_parts_joined_by_newlines() {
+    fn images_reach_the_template_as_media_markers_between_their_text_parts() {
+        let mut image_urls = Vec::new();
+        let image_url = ImageUrl {
+            url: "http://example.com/img.png".to_owned(),
+        };
         let content = ConversationMessageContent::Parts(vec![
             ConversationMessageContentPart::Text {
-                text: "first".to_owned(),
+                text: "before".to_owned(),
+            },
+            ConversationMessageContentPart::ImageUrl {
+                image_url: image_url.clone(),
             },
             ConversationMessageContentPart::Text {
-                text: "second".to_owned(),
+                text: "after".to_owned(),
             },
         ]);
 
         assert_eq!(
             content.into_chat_template_content(
-                ChatTemplateContentForm::JoinedText,
                 &MediaMarker::new("[IMAGE]".to_owned()),
-                &mut Vec::new(),
+                &mut image_urls,
             ),
-            ChatTemplateMessageContent::Text("first\nsecond".to_owned())
+            ChatMessageContent::Parts(vec![
+                ChatMessageContentPart::Text("before".to_owned()),
+                ChatMessageContentPart::MediaMarker("[IMAGE]".to_owned()),
+                ChatMessageContentPart::Text("after".to_owned()),
+            ])
         );
+        assert_eq!(image_urls, vec![image_url]);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU32;
 
-use llama_cpp_bindings::error::DecodeError;
+use llama_cpp_bindings::error::decode_error::DecodeError;
 use tokio_util::sync::CancellationToken;
 
 use paddler_agent_decision::decision_error::DecisionError;

@@ -1,7 +1,7 @@
 use std::mem::Discriminant;
 use std::mem::discriminant;
 
-use llama_cpp_bindings::TokenUsage;
+use llama_cpp_bindings_types::token_usage::TokenUsage;
 
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;

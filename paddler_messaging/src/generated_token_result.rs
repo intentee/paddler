@@ -14,6 +14,7 @@ use crate::streamable_result::StreamableResult;
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub enum GeneratedTokenResult {
+    AnswerClassificationFailed(String),
     BatchAssemblyFailed(String),
     ChatTemplateError(String),
     ContentToken(String),
@@ -92,6 +93,9 @@ impl From<GeneratedTokenFinalResult> for GeneratedTokenResult {
         match final_result {
             GeneratedTokenFinalResult::BatchAssemblyFailed(detail) => {
                 Self::BatchAssemblyFailed(detail)
+            }
+            GeneratedTokenFinalResult::AnswerClassificationFailed(detail) => {
+                Self::AnswerClassificationFailed(detail)
             }
             GeneratedTokenFinalResult::ChatTemplateError(detail) => Self::ChatTemplateError(detail),
             GeneratedTokenFinalResult::DecodeFailed(detail) => Self::DecodeFailed(detail),
@@ -206,6 +210,9 @@ impl StreamableResult for GeneratedTokenResult {
             Self::DetokenizationFailed(detail) => {
                 ResultStep::Final(GeneratedTokenFinalResult::DetokenizationFailed(detail))
             }
+            Self::AnswerClassificationFailed(detail) => ResultStep::Final(
+                GeneratedTokenFinalResult::AnswerClassificationFailed(detail),
+            ),
             Self::Done(summary) => ResultStep::Final(GeneratedTokenFinalResult::Done(summary)),
             Self::GrammarIncompatibleWithThinking(detail) => ResultStep::Final(
                 GeneratedTokenFinalResult::GrammarIncompatibleWithThinking(detail),
@@ -297,7 +304,7 @@ impl StreamableResult for GeneratedTokenResult {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::TokenUsage;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
 
     use super::GeneratedTokenResult;
     use crate::generation_finish::GenerationFinish;
@@ -330,6 +337,7 @@ mod tests {
             GeneratedTokenResult::ChatTemplateError("failure".to_owned()),
             GeneratedTokenResult::DecodeFailed("failure".to_owned()),
             GeneratedTokenResult::DetokenizationFailed("failure".to_owned()),
+            GeneratedTokenResult::AnswerClassificationFailed("failure".to_owned()),
             GeneratedTokenResult::Done(GenerationSummary {
                 finish: GenerationFinish::EndOfGeneration,
                 usage: TokenUsage::new(),
@@ -413,7 +421,7 @@ mod tests {
     fn unrecognized_tool_call_format_is_not_done_and_not_classified_as_token() {
         let event = GeneratedTokenResult::UnrecognizedToolCallFormat(RawToolCallTokens {
             text: "raw output".to_owned(),
-            ffi_error_message: "parser bailed".to_owned(),
+            expected_format: "peg-native".to_owned(),
         });
 
         assert!(keeps_the_stream_open(&event));

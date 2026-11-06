@@ -1,9 +1,9 @@
 use std::num::TryFromIntError;
 
 use llama_cpp_bindings::batch_add_error::BatchAddError;
-use llama_cpp_bindings::error::DecodeError;
-use llama_cpp_bindings::error::EmbeddingsError;
-use llama_cpp_bindings::error::StringToTokenError;
+use llama_cpp_bindings::error::decode_error::DecodeError;
+use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
+use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
 use log::error;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
@@ -100,9 +100,9 @@ mod tests {
     use std::mem::discriminant;
 
     use llama_cpp_bindings::batch_add_error::BatchAddError;
-    use llama_cpp_bindings::error::DecodeError;
-    use llama_cpp_bindings::error::EmbeddingsError;
-    use llama_cpp_bindings::error::StringToTokenError;
+    use llama_cpp_bindings::error::decode_error::DecodeError;
+    use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
+    use llama_cpp_bindings::error::string_to_token_error::StringToTokenError;
     use tokio::sync::mpsc;
     use tokio::sync::mpsc::error::SendError;
     use tokio::sync::mpsc::error::TryRecvError;
@@ -123,7 +123,7 @@ mod tests {
                 EmbeddingResult::AgentRuntimeFailed(description()),
             ),
             (
-                EmbeddingError::BatchAssemblyFailed(BatchAddError::EmptyBuffer),
+                EmbeddingError::BatchAssemblyFailed(BatchAddError::NoSequenceIds),
                 EmbeddingResult::BatchAssemblyFailed(description()),
             ),
             (
@@ -138,7 +138,7 @@ mod tests {
                 EmbeddingResult::EmbeddingTooLongForRmsNormalization(description()),
             ),
             (
-                EmbeddingError::EmbeddingsUnavailable(EmbeddingsError::NextnEmbeddingsNotEnabled),
+                EmbeddingError::EmbeddingsUnavailable(EmbeddingsError::NotEnabled),
                 EmbeddingResult::EmbeddingsUnavailable(description()),
             ),
             (

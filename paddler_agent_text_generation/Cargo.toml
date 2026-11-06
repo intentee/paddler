@@ -11,9 +11,8 @@ version.workspace = true
 [dependencies]
 encoding_rs = { workspace = true }
 llama-cpp-bindings = { workspace = true }
+llama-cpp-bindings-types = { workspace = true }
 log = { workspace = true }
-minijinja = { workspace = true }
-minijinja-contrib = { workspace = true }
 rand = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -26,6 +25,9 @@ paddler_inference_parameters = { workspace = true }
 paddler_messaging = { workspace = true }
 paddler_sha256_hex = { workspace = true }
 paddler_tool_call_validator = { workspace = true }
+
+[dev-dependencies]
+llama-cpp-ffi-status = { workspace = true }
 
 [features]
 default = []

@@ -3,17 +3,14 @@
 use std::collections::BTreeSet;
 use std::mem::discriminant;
 
-use paddler_messaging::agent_issue::AgentIssue;
-use paddler_messaging::agent_issue_params::chat_template_does_not_compile_params::ChatTemplateDoesNotCompileParams;
-use paddler_messaging::agent_issue_params::model_path::ModelPath;
 use paddler_messaging::balancer_desired_state::BalancerDesiredState;
 use paddler_messaging::decision_settings::DecisionSettings;
 use paddler_messaging::produces_snapshot::ProducesSnapshot as _;
 use paddler_tests::desired_state_reconciled_discriminant::desired_state_reconciled_discriminant;
 use paddler_tests::desired_state_with_chat_template_override::desired_state_with_chat_template_override;
 use paddler_tests::kev_checkpoint::KevCheckpoint;
-use paddler_tests::uncompilable_chat_template::UNCOMPILABLE_CHAT_TEMPLATE_CONTENT;
 use paddler_tests::uncompilable_chat_template::uncompilable_chat_template;
+use paddler_tests::uncompilable_chat_template_issue::uncompilable_chat_template_issue;
 
 use crate::serving_pipeline_arbiter::ServingPipelineArbiter;
 use crate::swappable_model_file::SwappableModelFile;
@@ -64,12 +61,8 @@ async fn a_failed_attempt_retries_without_reloading_its_model() {
             .make_snapshot()
             .status
             .issues,
-        BTreeSet::from([AgentIssue::ChatTemplateDoesNotCompile(
-            ChatTemplateDoesNotCompileParams {
-                error: "syntax error: unexpected identifier, expected end of variable block (in chat_template:1)".to_owned(),
-                model_path: ModelPath::from(swappable_model_file.model_path().as_path()),
-                template_content: UNCOMPILABLE_CHAT_TEMPLATE_CONTENT.to_owned(),
-            }
+        BTreeSet::from([uncompilable_chat_template_issue(
+            swappable_model_file.model_path().as_path()
         )])
     );
 

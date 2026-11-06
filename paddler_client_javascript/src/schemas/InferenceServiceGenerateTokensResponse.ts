@@ -28,7 +28,7 @@ const GenerationSummarySchema = z.object({
 
 const RawToolCallTokensSchema = z.object({
   text: z.string(),
-  ffi_error_message: z.string(),
+  expected_format: z.string(),
 });
 
 const OversizedMediaDetailsSchema = z.object({
@@ -45,6 +45,7 @@ const GeneratedTokenResultSchema = z.union([
   z.object({ ContentToken: z.string() }),
   z.object({ DecodeFailed: z.string() }),
   z.object({ DetokenizationFailed: z.string() }),
+  z.object({ AnswerClassificationFailed: z.string() }),
   z.object({ ReasoningToken: z.string() }),
   z.object({ ToolCallToken: z.string() }),
   z.object({ UndeterminableToken: z.string() }),
@@ -476,6 +477,15 @@ export const InferenceServiceGenerateTokensResponseSchema = z
         generated_by,
         500,
         variant.DetokenizationFailed,
+      );
+    }
+
+    if ("AnswerClassificationFailed" in variant) {
+      return terminalError(
+        request_id,
+        generated_by,
+        500,
+        variant.AnswerClassificationFailed,
       );
     }
 

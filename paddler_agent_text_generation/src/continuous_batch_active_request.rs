@@ -1,4 +1,4 @@
-use llama_cpp_bindings::SampledTokenClassifier;
+use llama_cpp_bindings::sampled_token_classifier::SampledTokenClassifier;
 use tokio::sync::mpsc;
 
 use paddler_agent_runtime::sequence_id_guard::SequenceIdGuard;

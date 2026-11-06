@@ -2,7 +2,9 @@ mod a_balancer_drops_an_agent_that_stops_answering_pings;
 #[cfg(target_os = "linux")]
 mod a_balancer_stops_with_its_statsd_service_failed_when_it_cannot_open_a_udp_socket;
 #[cfg(target_os = "linux")]
-mod a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_generation_preparation;
+mod a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_conversation_preparation;
+#[cfg(target_os = "linux")]
+mod a_sampler_chain_that_cannot_allocate_its_penalty_window_fails_the_raw_prompt_preparation;
 #[cfg(target_os = "linux")]
 mod agent_exits_with_failure_when_it_cannot_set_up_its_model_downloader;
 mod agent_reconnects_to_its_balancer_after_the_balancer_is_killed;
@@ -38,6 +40,9 @@ mod balancer_without_compatibility_flags_announces_no_compatibility_addresses;
 mod cluster_with_a_missing_agent_binary;
 #[cfg(test)]
 mod ephemeral_balancer_arguments;
+#[cfg(target_os = "linux")]
+#[cfg(test)]
+mod generation_preparation_without_memory_for_the_penalty_window;
 mod http_client_reports_a_balancer_killed_before_responding_as_a_failed_request;
 #[cfg(target_os = "linux")]
 mod http_listener_reports_a_bound_address_it_cannot_read;

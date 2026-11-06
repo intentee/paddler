@@ -16,7 +16,6 @@ impl DecodeFailurePhase<'_, '_> {
                 Contributions {
                     generating,
                     ingesting,
-                    ..
                 },
             ..
         }: BatchPass,

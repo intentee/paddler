@@ -77,6 +77,7 @@ impl From<GeneratedTokenFinalResult> for GenerationOutcome {
             | GeneratedTokenFinalResult::ChatTemplateError(description)
             | GeneratedTokenFinalResult::DecodeFailed(description)
             | GeneratedTokenFinalResult::DetokenizationFailed(description)
+            | GeneratedTokenFinalResult::AnswerClassificationFailed(description)
             | GeneratedTokenFinalResult::GrammarInitializationFailed(description)
             | GeneratedTokenFinalResult::GrammarRejectedModelOutput(description)
             | GeneratedTokenFinalResult::KvCacheClearFailed(description)
@@ -93,7 +94,7 @@ impl From<GeneratedTokenFinalResult> for GenerationOutcome {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::TokenUsage;
+    use llama_cpp_bindings_types::token_usage::TokenUsage;
 
     use paddler_messaging::generated_token_final_result::GeneratedTokenFinalResult;
     use paddler_messaging::generation_finish::GenerationFinish;
@@ -236,6 +237,12 @@ mod tests {
                 ),
                 (
                     GeneratedTokenFinalResult::DetokenizationFailed("agent failure".to_owned()),
+                    "agent failure",
+                ),
+                (
+                    GeneratedTokenFinalResult::AnswerClassificationFailed(
+                        "agent failure".to_owned(),
+                    ),
                     "agent failure",
                 ),
                 (

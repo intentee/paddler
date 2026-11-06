@@ -78,13 +78,14 @@ image = "0.25"
 indoc = "2.0"
 jsonschema = { version = "0.60", default-features = false }
 libc = "0.2"
-llama-cpp-bindings = "0.25"
-llama-cpp-bindings-sys = "0.25"
-llama-cpp-bindings-types = "0.25"
+llama-cpp-bindings = "0.28"
+llama-cpp-bindings-sys = "0.28"
+llama-cpp-bindings-types = "0.28"
+llama-cpp-fault-injection = "0.28"
+llama-cpp-ffi-status = "0.28"
+llama-cpp-gbnf = "0.28"
 log = "0.4"
 mime_guess = "2.0"
-minijinja = { version = "3.0", features = ["builtins", "json", "serde"] }
-minijinja-contrib = { version = "3.0", features = ["datetime", "pycompat", "wordcount", "wordwrap"] }
 nanoid = "0.5"
 nix = { version = "0.31", features = ["fs", "net", "process", "resource", "signal", "socket", "user"] }
 parking_lot = "0.13"

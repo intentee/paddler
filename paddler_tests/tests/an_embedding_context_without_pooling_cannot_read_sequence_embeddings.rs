@@ -2,7 +2,7 @@
 
 use std::num::NonZeroU16;
 
-use llama_cpp_bindings::error::EmbeddingsError;
+use llama_cpp_bindings::error::embeddings_error::EmbeddingsError;
 use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_agent_embeddings::embedding_error::EmbeddingError;
@@ -27,11 +27,8 @@ fn an_embedding_context_without_pooling_cannot_read_sequence_embeddings() {
         tokens: vec![LlamaToken::new(101), LlamaToken::new(102)],
     }]);
 
-    let continuing_requests = nomic_embedding_batch_processing.embed_next_batch(
-        nomic_embedding_batch_processing.batch_capacity(),
-        EmbeddingNormalization,
-        admitted_requests,
-    );
+    let continuing_requests = nomic_embedding_batch_processing
+        .embed_next_batch(EmbeddingNormalization, admitted_requests);
 
     assert_eq!(continuing_requests.len(), 0);
     assert_eq!(

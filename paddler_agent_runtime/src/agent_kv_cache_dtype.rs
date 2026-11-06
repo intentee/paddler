@@ -1,4 +1,4 @@
-use llama_cpp_bindings::context::params::KvCacheType as LlamaKvCacheDtype;
+use llama_cpp_bindings::context::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
 
 use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 
@@ -11,20 +11,20 @@ impl ConvertsToLlamaKvCacheDtype for AgentKvCacheDtype {
         match self.0 {
             KvCacheDtype::F32 => LlamaKvCacheDtype::F32,
             KvCacheDtype::F16 => LlamaKvCacheDtype::F16,
-            KvCacheDtype::Bf16 => LlamaKvCacheDtype::BF16,
-            KvCacheDtype::Q80 => LlamaKvCacheDtype::Q8_0,
-            KvCacheDtype::Q40 => LlamaKvCacheDtype::Q4_0,
-            KvCacheDtype::Q41 => LlamaKvCacheDtype::Q4_1,
-            KvCacheDtype::Iq4Nl => LlamaKvCacheDtype::IQ4_NL,
-            KvCacheDtype::Q50 => LlamaKvCacheDtype::Q5_0,
-            KvCacheDtype::Q51 => LlamaKvCacheDtype::Q5_1,
+            KvCacheDtype::Bf16 => LlamaKvCacheDtype::Bf16,
+            KvCacheDtype::Q80 => LlamaKvCacheDtype::Q80,
+            KvCacheDtype::Q40 => LlamaKvCacheDtype::Q40,
+            KvCacheDtype::Q41 => LlamaKvCacheDtype::Q41,
+            KvCacheDtype::Iq4Nl => LlamaKvCacheDtype::Iq4Nl,
+            KvCacheDtype::Q50 => LlamaKvCacheDtype::Q50,
+            KvCacheDtype::Q51 => LlamaKvCacheDtype::Q51,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings::context::params::KvCacheType as LlamaKvCacheDtype;
+    use llama_cpp_bindings::context::kv_cache_type::KvCacheType as LlamaKvCacheDtype;
 
     use paddler_inference_parameters::kv_cache_dtype::KvCacheDtype;
 
@@ -43,31 +43,31 @@ mod tests {
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Bf16).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::BF16
+            LlamaKvCacheDtype::Bf16
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Q80).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::Q8_0
+            LlamaKvCacheDtype::Q80
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Q40).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::Q4_0
+            LlamaKvCacheDtype::Q40
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Q41).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::Q4_1
+            LlamaKvCacheDtype::Q41
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Iq4Nl).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::IQ4_NL
+            LlamaKvCacheDtype::Iq4Nl
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Q50).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::Q5_0
+            LlamaKvCacheDtype::Q50
         );
         assert_eq!(
             AgentKvCacheDtype(KvCacheDtype::Q51).to_llama_kv_cache_dtype(),
-            LlamaKvCacheDtype::Q5_1
+            LlamaKvCacheDtype::Q51
         );
     }
 }

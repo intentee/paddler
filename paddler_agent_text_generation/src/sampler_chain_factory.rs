@@ -1,4 +1,4 @@
-use llama_cpp_bindings::error::SamplingError;
+use llama_cpp_bindings::error::sampling_error::SamplingError;
 use llama_cpp_bindings::sampling::LlamaSampler;
 
 use paddler_inference_parameters::sampling_parameters::SamplingParameters;
@@ -26,7 +26,7 @@ impl SamplerChainFactory {
             LlamaSampler::dist(seed),
         ];
 
-        LlamaSampler::chain_simple(samplers.into_iter().collect::<Result<Vec<_>, _>>()?)
+        LlamaSampler::chain(samplers.into_iter().collect::<Result<Vec<_>, _>>()?)
     }
 }
 
@@ -52,8 +52,8 @@ mod tests {
         }
         .create(7)
         .unwrap();
-        let mut candidates = LlamaTokenDataArray::from_iter(
-            [
+        let mut candidates = LlamaTokenDataArray::new(
+            vec![
                 LlamaTokenData::new(LlamaToken(0), 0.5, 0.0),
                 LlamaTokenData::new(LlamaToken(1), 3.0, 0.0),
                 LlamaTokenData::new(LlamaToken(2), 1.0, 0.0),
@@ -61,7 +61,7 @@ mod tests {
             false,
         );
 
-        candidates.apply_sampler(&sampler_chain).unwrap();
+        sampler_chain.apply(&mut candidates).unwrap();
 
         assert_eq!(candidates.selected_token(), Some(LlamaToken(1)));
     }

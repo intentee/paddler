@@ -5,7 +5,6 @@ use crate::continuous_batch_scheduler::ingesting_contribution::IngestingContribu
 pub struct Contributions {
     pub generating: Vec<GeneratingContribution>,
     pub ingesting: Vec<IngestingContribution>,
-    pub current_batch_token_count: usize,
 }
 
 impl Contributions {
@@ -26,7 +25,6 @@ mod tests {
         let contributions = Contributions::default();
 
         assert!(contributions.is_empty());
-        assert_eq!(contributions.current_batch_token_count, 0);
     }
 
     #[test]

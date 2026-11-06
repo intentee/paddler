@@ -1,10 +1,12 @@
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
+use llama_cpp_bindings::error::ingest_error::IngestError;
 use llama_cpp_bindings::ingest_outcome::IngestOutcome;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::data_array::LlamaTokenDataArray;
 use log::error;
 use log::warn;
 
+use paddler_agent_runtime::send_result_or_warn::send_result_or_warn;
 use paddler_messaging::generated_token_result::GeneratedTokenResult;
 use paddler_messaging::generation_finish::GenerationFinish;
 use paddler_messaging::generation_summary::GenerationSummary;
@@ -21,6 +23,7 @@ use crate::continuous_batch_scheduler::emit_token_phase::EmitTokenPhase;
 use crate::continuous_batch_scheduler_context::ContinuousBatchSchedulerContext;
 use crate::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use crate::sampling_outcome::SamplingOutcome;
+use crate::text_generation_error::TextGenerationError;
 
 pub struct AdvanceGeneratingPhase<'context> {
     pub candidates: &'context mut LlamaTokenDataArray,
@@ -94,17 +97,7 @@ impl AdvanceGeneratingPhase<'_> {
             .ingest(raw_token, self.ingest_outcomes)
         {
             Ok(progress) => progress,
-            Err(detokenization_error) => {
-                error!(
-                    "{:?}: sequence {:?} token classification failed: {detokenization_error}",
-                    self.scheduler_context.agent_name,
-                    request.sequence_id_guard.sequence_id()
-                );
-
-                return Some(AdvanceOutcome::Completed(
-                    GeneratedTokenResult::DetokenizationFailed(detokenization_error.to_string()),
-                ));
-            }
+            Err(ingest_error) => return Some(self.completed_by_ingest_error(ingest_error)),
         };
 
         let completion = CompletionCheckPhase {
@@ -117,8 +110,9 @@ impl AdvanceGeneratingPhase<'_> {
         if matches!(
             completion,
             CompletionCheckOutcome::ReachedContextLimit | CompletionCheckOutcome::ReachedMaxTokens
-        ) {
-            request.token_classifier.finish(self.ingest_outcomes);
+        ) && let Err(ingest_error) = request.token_classifier.finish(self.ingest_outcomes)
+        {
+            return Some(self.completed_by_ingest_error(ingest_error));
         }
 
         if self.client_disconnected_while_emitting(request) {
@@ -151,12 +145,9 @@ impl AdvanceGeneratingPhase<'_> {
         for ingest_outcome in self.ingest_outcomes.drain(..) {
             let classified =
                 ClassifiedToken::classify(ingest_outcome, &mut request.state.last_outcome_section);
-
-            request.tool_call_handling.feed(&classified);
-
             let tool_call_result = request
                 .tool_call_handling
-                .resolve_on_section_exit(&classified);
+                .resolve_on_section_exit(&classified, request.token_classifier.latest_reading());
 
             if matches!(
                 EmitTokenPhase {
@@ -185,22 +176,29 @@ impl AdvanceGeneratingPhase<'_> {
         request: &mut ContinuousBatchActiveRequest<'_>,
         finish: GenerationFinish,
     ) -> AdvanceOutcome {
-        if let Some(tool_call_result) = request.tool_call_handling.resolve_at_completion()
-            && request.generated_tokens_tx.send(tool_call_result).is_err()
-        {
-            warn!(
-                "{:?}: sequence {:?} client disconnected (receiver dropped) while resolving tool calls at completion",
-                self.scheduler_context.agent_name,
-                request.sequence_id_guard.sequence_id()
+        if let Some(tool_call_result) = request.tool_call_handling.resolve_at_completion(
+            request.token_classifier.latest_reading(),
+            request.state.last_outcome_section,
+            request.token_classifier.usage(),
+        ) {
+            send_result_or_warn(
+                self.scheduler_context.agent_name.as_deref(),
+                &request.generated_tokens_tx,
+                tool_call_result,
             );
-
-            return AdvanceOutcome::ChannelDropped;
         }
 
         AdvanceOutcome::Completed(GeneratedTokenResult::Done(GenerationSummary {
             finish,
             usage: *request.token_classifier.usage(),
         }))
+    }
+
+    fn completed_by_ingest_error(&self, ingest_error: IngestError) -> AdvanceOutcome {
+        AdvanceOutcome::Completed(
+            TextGenerationError::for_ingest_error(ingest_error)
+                .into_generated_token_result(self.scheduler_context.agent_name.as_deref()),
+        )
     }
 
     fn apply_outcome(

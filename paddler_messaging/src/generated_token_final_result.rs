@@ -5,6 +5,7 @@ use crate::oversized_prompt_details::OversizedPromptDetails;
 #[derive(Debug, Eq, PartialEq)]
 pub enum GeneratedTokenFinalResult {
     BatchAssemblyFailed(String),
+    AnswerClassificationFailed(String),
     ChatTemplateError(String),
     DecodeFailed(String),
     DetokenizationFailed(String),

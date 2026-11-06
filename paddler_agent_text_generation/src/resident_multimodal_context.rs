@@ -2,9 +2,9 @@ use std::ops::Deref;
 use std::path::Path;
 
 use llama_cpp_bindings::model::LlamaModel;
-use llama_cpp_bindings::mtmd::MtmdContext;
-use llama_cpp_bindings::mtmd::MtmdContextParams;
-use llama_cpp_bindings::mtmd::MtmdInitError;
+use llama_cpp_bindings::mtmd::mtmd_context::MtmdContext;
+use llama_cpp_bindings::mtmd::mtmd_context_params::MtmdContextParams;
+use llama_cpp_bindings::mtmd::mtmd_init_error::MtmdInitError;
 
 use paddler_agent_runtime::vram_occupancy::VramOccupancy;
 

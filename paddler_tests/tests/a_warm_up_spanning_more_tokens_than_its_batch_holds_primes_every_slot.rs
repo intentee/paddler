@@ -1,5 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
+use llama_cpp_bindings::context::context_limits::ContextLimits;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
 
 use paddler_inference_parameters::batch_size::BatchSize;
@@ -23,15 +24,12 @@ fn a_warm_up_spanning_more_tokens_than_its_batch_holds_primes_every_slot() {
     let mut llama_context = runtime
         .create_text_generation_llama_context(u32::from(SLOTS))
         .expect("the context must be created");
-    let mut batch = LlamaBatch::new(
-        runtime.model_runtime_parameters.n_batch.capacity(),
-        i32::from(SLOTS),
-    );
+    let mut batch = LlamaBatch::new(ContextLimits::of(&llama_context));
 
     assert_eq!(
         runtime
             .loaded_llama_model
-            .warm_up_llama_context(&mut llama_context, &mut batch, SLOTS)
+            .warm_up_llama_context(&mut llama_context, &mut batch)
             .as_ref()
             .map_err(ToString::to_string),
         Ok(&())

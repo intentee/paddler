@@ -1,6 +1,6 @@
-use llama_cpp_bindings_types::ParsedToolCall;
-use llama_cpp_bindings_types::ParsedToolCallId;
-use llama_cpp_bindings_types::ToolCallArguments;
+use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -39,10 +39,10 @@ impl GeneratedToolCall {
 
 #[cfg(test)]
 mod tests {
-    use llama_cpp_bindings_types::ModelProvidedToolCallId;
-    use llama_cpp_bindings_types::ParsedToolCall;
-    use llama_cpp_bindings_types::ParsedToolCallId;
-    use llama_cpp_bindings_types::ToolCallArguments;
+    use llama_cpp_bindings_types::model_provided_tool_call_id::ModelProvidedToolCallId;
+    use llama_cpp_bindings_types::parsed_tool_call::ParsedToolCall;
+    use llama_cpp_bindings_types::parsed_tool_call_id::ParsedToolCallId;
+    use llama_cpp_bindings_types::tool_call_arguments::ToolCallArguments;
     use serde_json::json;
 
     use super::GeneratedToolCall;

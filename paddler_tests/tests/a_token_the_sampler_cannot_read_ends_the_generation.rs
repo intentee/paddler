@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::error::LogitsError;
+use llama_cpp_bindings::error::logits_error::LogitsError;
 
 use paddler_agent_text_generation::continuous_batch_terminal_outcome::ContinuousBatchTerminalOutcome;
 use paddler_agent_text_generation::text_generation_error::TextGenerationError;

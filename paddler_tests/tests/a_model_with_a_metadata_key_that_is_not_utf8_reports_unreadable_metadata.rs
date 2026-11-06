@@ -1,6 +1,6 @@
 #![cfg(feature = "tests_that_use_llms")]
 
-use llama_cpp_bindings::error::MetaValError;
+use llama_cpp_bindings::error::meta_val_error::MetaValError;
 use tempfile::TempDir;
 
 use paddler_agent_runtime::agent_runtime_error::AgentRuntimeError;

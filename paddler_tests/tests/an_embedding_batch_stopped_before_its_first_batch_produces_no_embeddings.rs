@@ -30,11 +30,8 @@ fn an_embedding_batch_stopped_before_its_first_batch_produces_no_embeddings() {
         .send(())
         .expect("the stop request must reach the embedding batch");
 
-    let continuing_requests = nomic_embedding_batch_processing.embed_next_batch(
-        nomic_embedding_batch_processing.batch_capacity(),
-        EmbeddingNormalization,
-        admitted_requests,
-    );
+    let continuing_requests = nomic_embedding_batch_processing
+        .embed_next_batch(EmbeddingNormalization, admitted_requests);
 
     assert_eq!(continuing_requests.len(), 0);
     assert_eq!(

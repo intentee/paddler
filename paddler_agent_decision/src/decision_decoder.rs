@@ -1,6 +1,6 @@
-use llama_cpp_bindings::SampledToken;
 use llama_cpp_bindings::context::LlamaContext;
 use llama_cpp_bindings::llama_batch::LlamaBatch;
+use llama_cpp_bindings::sampled_token::SampledToken;
 use llama_cpp_bindings::token::LlamaToken;
 
 use paddler_agent_runtime::sequence_id::SequenceId;
@@ -9,12 +9,15 @@ use crate::decision_error::DecisionError;
 use crate::decision_question_row::DecisionQuestionRow;
 
 pub struct DecisionDecoder<'scheduler, 'model> {
-    pub batch: &'scheduler mut LlamaBatch<'static>,
+    pub batch: &'scheduler mut LlamaBatch,
     pub llama_context: &'scheduler mut LlamaContext<'model>,
-    pub n_batch: usize,
 }
 
 impl DecisionDecoder<'_, '_> {
+    const fn tokens_per_decode(&self) -> usize {
+        self.batch.limits().n_batch as usize
+    }
+
     pub fn copy_sequence(
         &mut self,
         source_sequence_id: SequenceId,
@@ -22,7 +25,7 @@ impl DecisionDecoder<'_, '_> {
     ) -> Result<(), DecisionError> {
         self.remove_sequence(destination_sequence_id)?;
         self.llama_context
-            .copy_kv_cache_seq(
+            .memory_seq_cp(
                 source_sequence_id.llama_sequence_id(),
                 destination_sequence_id.llama_sequence_id(),
                 None,
@@ -39,7 +42,13 @@ impl DecisionDecoder<'_, '_> {
     ) -> Result<usize, DecisionError> {
         self.batch.clear();
 
-        for (position, token) in (0_i32..).zip(state).skip(next_offset).take(self.n_batch) {
+        let tokens_per_decode = self.tokens_per_decode();
+
+        for (position, token) in (0_i32..)
+            .zip(state)
+            .skip(next_offset)
+            .take(tokens_per_decode)
+        {
             self.batch
                 .add(
                     &SampledToken::Content(*token),
@@ -67,38 +76,28 @@ impl DecisionDecoder<'_, '_> {
     ) -> Result<usize, DecisionError> {
         self.batch.clear();
 
-        let mut output_batch_indices = Vec::new();
-
         let row_chunk = row
             .tokens
             .iter()
             .enumerate()
             .skip(next_offset)
-            .take(self.n_batch);
+            .take(self.tokens_per_decode());
         let row_chunk_positions = (0_i32..).skip(state_length + next_offset);
 
-        for ((batch_index, position), (row_offset, token)) in
-            (0_i32..).zip(row_chunk_positions).zip(row_chunk)
-        {
-            let is_output = row.is_output(row_offset);
-
+        for (position, (row_offset, token)) in row_chunk_positions.zip(row_chunk) {
             self.batch
                 .add(
                     &SampledToken::Content(*token),
                     position,
                     &[sequence_id.llama_sequence_id()],
-                    is_output,
+                    row.is_output(row_offset),
                 )
                 .map_err(DecisionError::BatchAssemblyFailed)?;
-
-            if is_output {
-                output_batch_indices.push(batch_index);
-            }
         }
 
         self.llama_context.set_embeddings(true);
 
-        let row_hidden_states = self.decode_row_hidden_states(&output_batch_indices);
+        let row_hidden_states = self.decode_row_hidden_states();
 
         self.llama_context.set_embeddings(false);
 
@@ -107,15 +106,13 @@ impl DecisionDecoder<'_, '_> {
         Ok(next_offset + self.batch.n_tokens() as usize)
     }
 
-    fn decode_row_hidden_states(
-        &mut self,
-        output_batch_indices: &[i32],
-    ) -> Result<Vec<Vec<f32>>, DecisionError> {
+    fn decode_row_hidden_states(&mut self) -> Result<Vec<Vec<f32>>, DecisionError> {
         self.llama_context
             .decode(self.batch)
             .map_err(DecisionError::DecodeFailed)?;
 
-        output_batch_indices
+        self.batch
+            .output_token_indices()
             .iter()
             .map(|batch_index| {
                 self.llama_context
