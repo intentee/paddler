@@ -150,6 +150,10 @@ target/vulkan/release/paddler: $(PADDLER_SOURCES) esbuild-meta.json
 .PHONY: build.client.js
 build.client.js: paddler_client_javascript/dist
 
+.PHONY: check.flake
+check.flake:
+	nix flake check --print-build-logs
+
 .PHONY: clean
 clean:
 	rm -rf esbuild-meta.json

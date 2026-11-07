@@ -79,7 +79,8 @@
             pname = "paddler-web-admin-panel";
             inherit version;
             src = self;
-            npmDepsHash = "sha256-QqCDIIulF4bZ4F+vP+Z2/Q2zHSjzGXXb6j+AcPjpvpQ=";
+            npmDeps = pkgs.importNpmLock { npmRoot = ./.; };
+            npmConfigHook = pkgs.importNpmLock.npmConfigHook;
             dontNpmBuild = true;
             nativeBuildInputs = [ pkgs.nodejs ];
             buildPhase = ''
